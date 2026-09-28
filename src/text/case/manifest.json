@@ -1,0 +1,9 @@
+{
+  "go": "go1.27.1",
+  "text": "v0.40.0",
+  "unicode": "17.0.0",
+  "cases": "17.0.0",
+  "rows": 3037,
+  "mapping_bytes": 9224,
+  "reference_sha256": "da406eb4c9e5fd708998c2b9e89caaa2babb54797ccae7c657a46e12e9227f80"
+}

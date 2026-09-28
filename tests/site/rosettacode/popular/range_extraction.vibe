@@ -1,0 +1,44 @@
+# title: Range extraction
+# source: https://rosettacode.org/wiki/Range_extraction
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Compress an ordered list of integers into Rosetta Code's comma-and-range string format.
+# tags: popular, strings, formatting, arrays
+# vibe: 0.4
+
+def range_extraction(values: array<int>) -> string
+  parts: array<string> = []
+  index = 0
+
+  while index < values.length
+    start_value = values.fetch(index)
+    finish_value = start_value
+
+    while index + 1 < values.length && values[index + 1] == values.fetch(index) + 1
+      index = index + 1
+      finish_value = values.fetch(index)
+    end
+
+    if finish_value - start_value >= 2
+      parts << "#{start_value}-#{finish_value}"
+    elsif finish_value - start_value == 1
+      parts << start_value.to_s
+      parts << finish_value.to_s
+    else
+      parts << start_value.to_s
+    end
+
+    index = index + 1
+  end
+
+  parts.join(",")
+end
+
+def run -> string
+  range_extraction([
+    0, 1, 2, 4, 6, 7, 8, 11, 12, 14,
+    15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+    25, 27, 28, 29, 30, 31, 32, 33, 35, 36,
+    37, 38, 39
+  ])
+end

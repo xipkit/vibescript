@@ -1,0 +1,3 @@
+def slug(label: string) -> string
+  label.strip.downcase.gsub(/[^a-z0-9]+/, "-").delete_prefix("-").delete_suffix("-")
+end

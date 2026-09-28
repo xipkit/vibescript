@@ -1,2 +1,0 @@
-go test fuzz v1
-string("class A000000 property 0000end")

@@ -1,0 +1,46 @@
+# title: On-call handoff
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Build an on-call handoff from the coverage level and shift length.
+# description: An enum names the coverage level. Durations set the shift and reminder times.
+# tags: operations, durations, enums, on-call
+# vibe: 0.2
+
+enum CoverageLevel
+  Primary
+  Secondary
+  Commander
+end
+
+def shift_length(level: CoverageLevel) -> duration
+  if level == CoverageLevel::Primary
+    8.hours
+  elsif level == CoverageLevel::Secondary
+    12.hours
+  else
+    24.hours
+  end
+end
+
+def handoff_packet(service: string, level: CoverageLevel, started_at: time) -> hash<string, string>
+  length = shift_length(level)
+  ends_at = length.after(started_at)
+
+  {
+    service: service,
+    level: level.name,
+    starts_at: started_at.format("2006-01-02T15:04:05Z"),
+    ends_at: ends_at.format("2006-01-02T15:04:05Z"),
+    reminder_at: 30.minutes.before(ends_at).format("2006-01-02T15:04:05Z"),
+    summary: "{{service}} {{level}} handoff".template({ service: service, level: level.name })
+  }
+end
+
+def run -> { commander: hash<string, string>, primary: hash<string, string> }
+  started_at = Time.at(1701100000)
+
+  {
+    primary: handoff_packet("payments-api", CoverageLevel::Primary, started_at),
+    commander: handoff_packet("payments-api", CoverageLevel::Commander, started_at)
+  }
+end

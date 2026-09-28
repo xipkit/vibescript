@@ -1,0 +1,6 @@
+# expect: rejected V0101
+# A destructuring target written through an index was not checked, so an
+# optional field of a record took nil.
+h: { a?: int, b?: int } = {}
+h["a"], h["b"] = [nil, 2]
+t: { a?: int, b?: int } = h

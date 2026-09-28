@@ -1,0 +1,5681 @@
+[
+  {
+    "method": "microseconds",
+    "factor_bits": 0,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 0,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 0,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 0,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 0,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 0,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 9223372036854775808,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 9223372036854775808,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 9223372036854775808,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 9223372036854775808,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 9223372036854775808,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 9223372036854775808,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4598895795485655695,
+    "expected": [
+      0,
+      289
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4598895795485655695,
+    "expected": [
+      0,
+      289999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4598895795485655695,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4598895795485655695,
+    "expected": [
+      1704067200,
+      289
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4598895795485655695,
+    "expected": [
+      0,
+      289999999
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4598895795485655695,
+    "expected": [
+      -1,
+      710000000
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13822267832340431503,
+    "expected": [
+      -1,
+      999999710
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13822267832340431503,
+    "expected": [
+      -1,
+      999710000
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13822267832340431503,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13822267832340431503,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13822267832340431503,
+    "expected": [
+      -1,
+      710000000
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13822267832340431503,
+    "expected": [
+      0,
+      289999999
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4593560419846153055,
+    "expected": [
+      0,
+      123
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4593560419846153055,
+    "expected": [
+      0,
+      123456
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4593560419846153055,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4593560419846153055,
+    "expected": [
+      1704067200,
+      123
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4593560419846153055,
+    "expected": [
+      0,
+      123456788
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4593560419846153055,
+    "expected": [
+      -1,
+      876543211
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13816932456700928863,
+    "expected": [
+      -1,
+      999999876
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13816932456700928863,
+    "expected": [
+      -1,
+      999876543
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13816932456700928863,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13816932456700928863,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13816932456700928863,
+    "expected": [
+      -1,
+      876543211
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13816932456700928863,
+    "expected": [
+      0,
+      123456788
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4696837146684686335,
+    "expected": [
+      0,
+      999999999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4696837146684686335,
+    "expected": [
+      999,
+      999999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4696837146684686335,
+    "expected": [
+      0,
+      999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4696837146684686335,
+    "expected": [
+      1704067200,
+      999999999
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4696837146684686335,
+    "expected": [
+      999999,
+      999999999
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4696837146684686335,
+    "expected": [
+      -1000000,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4696837146684686336,
+    "expected": [
+      1,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4696837146684686336,
+    "expected": [
+      1000,
+      0
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4696837146684686336,
+    "expected": [
+      0,
+      1000000
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4696837146684686336,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4696837146684686336,
+    "expected": [
+      1000000,
+      0
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4696837146684686336,
+    "expected": [
+      -1000000,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4756133310154331797,
+    "expected": [
+      9223,
+      372036854
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4756133310154331797,
+    "expected": [
+      9223372,
+      36854776
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4756133310154331797,
+    "expected": [
+      9,
+      223372036
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4756133310154331797,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4756133310154331797,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4756133310154331797,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13979505347009107605,
+    "expected": [
+      -9224,
+      627963145
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13979505347009107605,
+    "expected": [
+      -9223373,
+      963145223
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13979505347009107605,
+    "expected": [
+      -10,
+      776627963
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13979505347009107605,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13979505347009107605,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13979505347009107605,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 9218868437227405312,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 9218868437227405312,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 9218868437227405312,
+    "expected": null
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 9218868437227405312,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 9218868437227405312,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 9218868437227405312,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 18442240474082181120,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 18442240474082181120,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 18442240474082181120,
+    "expected": null
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 18442240474082181120,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 18442240474082181120,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 18442240474082181120,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 9221120237041090560,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 9221120237041090560,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 9221120237041090560,
+    "expected": null
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 9221120237041090560,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 9221120237041090560,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 9221120237041090560,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 9223372036854775810,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 9223372036854775810,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 9223372036854775810,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 9223372036854775810,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 9223372036854775810,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 9223372036854775810,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 2,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 2,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 2,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 2,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 2,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 2,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 9227875636482146305,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 9227875636482146305,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 9227875636482146305,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 9227875636482146305,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 9227875636482146305,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 9227875636482146305,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 9227875636482146303,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 9227875636482146303,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 9227875636482146303,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 9227875636482146303,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 9227875636482146303,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 9227875636482146303,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4503599627370495,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4503599627370495,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4503599627370495,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4503599627370495,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4503599627370495,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4503599627370495,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4503599627370497,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4503599627370497,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4503599627370497,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4503599627370497,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4503599627370497,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4503599627370497,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13591863675404156929,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13591863675404156929,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13591863675404156929,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13591863675404156929,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13591863675404156929,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13591863675404156929,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13591863675404156927,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13591863675404156927,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13591863675404156927,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13591863675404156927,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13591863675404156927,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13591863675404156927,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4368491638549381119,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4368491638549381119,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4368491638549381119,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4368491638549381119,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4368491638549381119,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4368491638549381119,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4368491638549381121,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4368491638549381121,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4368491638549381121,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4368491638549381121,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4368491638549381121,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4368491638549381121,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13695446466833678337,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13695446466833678337,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13695446466833678337,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13695446466833678337,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13695446466833678337,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13695446466833678337,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13695446466833678335,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13695446466833678335,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13695446466833678335,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13695446466833678335,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13695446466833678335,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13695446466833678335,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4472074429978902527,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4472074429978902527,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4472074429978902527,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4472074429978902527,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4472074429978902527,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4472074429978902527,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4472074429978902529,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4472074429978902529,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4472074429978902529,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4472074429978902529,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4472074429978902529,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4472074429978902529,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13785518459381088257,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13785518459381088257,
+    "expected": [
+      -1,
+      999999023
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13785518459381088257,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13785518459381088257,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13785518459381088257,
+    "expected": [
+      -1,
+      999023437
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13785518459381088257,
+    "expected": [
+      0,
+      976562
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13785518459381088255,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13785518459381088255,
+    "expected": [
+      -1,
+      999999023
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13785518459381088255,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13785518459381088255,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13785518459381088255,
+    "expected": [
+      -1,
+      999023437
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13785518459381088255,
+    "expected": [
+      0,
+      976562
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4562146422526312447,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4562146422526312447,
+    "expected": [
+      0,
+      976
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4562146422526312447,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4562146422526312447,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4562146422526312447,
+    "expected": [
+      0,
+      976562
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4562146422526312447,
+    "expected": [
+      -1,
+      999023437
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4562146422526312449,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4562146422526312449,
+    "expected": [
+      0,
+      976
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4562146422526312449,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4562146422526312449,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4562146422526312449,
+    "expected": [
+      0,
+      976562
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4562146422526312449,
+    "expected": [
+      -1,
+      999023437
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13830554455654793217,
+    "expected": [
+      -1,
+      999998999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13830554455654793217,
+    "expected": [
+      -1,
+      998999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13830554455654793217,
+    "expected": [
+      -1,
+      999999998
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13830554455654793217,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13830554455654793217,
+    "expected": [
+      -2,
+      999999999
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13830554455654793217,
+    "expected": [
+      1,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13830554455654793215,
+    "expected": [
+      -1,
+      999999000
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13830554455654793215,
+    "expected": [
+      -1,
+      999000000
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13830554455654793215,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13830554455654793215,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13830554455654793215,
+    "expected": [
+      -1,
+      0
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13830554455654793215,
+    "expected": [
+      0,
+      999999999
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4607182418800017407,
+    "expected": [
+      0,
+      999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4607182418800017407,
+    "expected": [
+      0,
+      999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4607182418800017407,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4607182418800017407,
+    "expected": [
+      1704067200,
+      999
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4607182418800017407,
+    "expected": [
+      0,
+      999999999
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4607182418800017407,
+    "expected": [
+      -1,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4607182418800017409,
+    "expected": [
+      0,
+      1000
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4607182418800017409,
+    "expected": [
+      0,
+      1000000
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4607182418800017409,
+    "expected": [
+      0,
+      1
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4607182418800017409,
+    "expected": [
+      1704067200,
+      1000
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4607182418800017409,
+    "expected": [
+      1,
+      0
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4607182418800017409,
+    "expected": [
+      -2,
+      999999999
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13920626448202203137,
+    "expected": [
+      -2,
+      951423999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13920626448202203137,
+    "expected": [
+      -1049,
+      423999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13920626448202203137,
+    "expected": [
+      -1,
+      998951423
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13920626448202203137,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13920626448202203137,
+    "expected": [
+      -1048577,
+      999999999
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13920626448202203137,
+    "expected": [
+      1048576,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13920626448202203135,
+    "expected": [
+      -2,
+      951424000
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13920626448202203135,
+    "expected": [
+      -1049,
+      424000000
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13920626448202203135,
+    "expected": [
+      -1,
+      998951424
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13920626448202203135,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13920626448202203135,
+    "expected": [
+      -1048576,
+      0
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13920626448202203135,
+    "expected": [
+      1048575,
+      999999999
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4697254411347427327,
+    "expected": [
+      1,
+      48575999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4697254411347427327,
+    "expected": [
+      1048,
+      575999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4697254411347427327,
+    "expected": [
+      0,
+      1048575
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4697254411347427327,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4697254411347427327,
+    "expected": [
+      1048575,
+      999999999
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4697254411347427327,
+    "expected": [
+      -1048576,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4697254411347427329,
+    "expected": [
+      1,
+      48576000
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4697254411347427329,
+    "expected": [
+      1048,
+      576000000
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4697254411347427329,
+    "expected": [
+      0,
+      1048576
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4697254411347427329,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4697254411347427329,
+    "expected": [
+      1048576,
+      0
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4697254411347427329,
+    "expected": [
+      -1048577,
+      999999999
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13965662444475908097,
+    "expected": [
+      -1074,
+      258175999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13965662444475908097,
+    "expected": [
+      -1073742,
+      175999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13965662444475908097,
+    "expected": [
+      -2,
+      926258175
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13965662444475908097,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13965662444475908097,
+    "expected": [
+      -1073741825,
+      999999761
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13965662444475908097,
+    "expected": [
+      1073741824,
+      238
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13965662444475908095,
+    "expected": [
+      -1074,
+      258176000
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13965662444475908095,
+    "expected": [
+      -1073742,
+      176000000
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13965662444475908095,
+    "expected": [
+      -2,
+      926258176
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13965662444475908095,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13965662444475908095,
+    "expected": [
+      -1073741824,
+      119
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13965662444475908095,
+    "expected": [
+      1073741823,
+      999999880
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4742290407621132287,
+    "expected": [
+      1073,
+      741823999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4742290407621132287,
+    "expected": [
+      1073741,
+      823999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4742290407621132287,
+    "expected": [
+      1,
+      73741823
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4742290407621132287,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4742290407621132287,
+    "expected": [
+      1073741823,
+      999999880
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4742290407621132287,
+    "expected": [
+      -1073741824,
+      119
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4742290407621132289,
+    "expected": [
+      1073,
+      741824000
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4742290407621132289,
+    "expected": [
+      1073741,
+      824000000
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4742290407621132289,
+    "expected": [
+      1,
+      73741824
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4742290407621132289,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4742290407621132289,
+    "expected": [
+      1073741824,
+      238
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4742290407621132289,
+    "expected": [
+      -1073741825,
+      999999761
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13979173243358019585,
+    "expected": [
+      -8590,
+      65407999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13979173243358019585,
+    "expected": [
+      -8589935,
+      407999998
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13979173243358019585,
+    "expected": [
+      -9,
+      410065407
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13979173243358019585,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13979173243358019585,
+    "expected": [
+      -8589934593,
+      999998092
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13979173243358019585,
+    "expected": [
+      8589934592,
+      1907
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13979173243358019583,
+    "expected": [
+      -8590,
+      65408000
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13979173243358019583,
+    "expected": [
+      -8589935,
+      408000000
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13979173243358019583,
+    "expected": [
+      -9,
+      410065408
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13979173243358019583,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13979173243358019583,
+    "expected": [
+      -8589934592,
+      953
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13979173243358019583,
+    "expected": [
+      8589934591,
+      999999046
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4755801206503243775,
+    "expected": [
+      8589,
+      934591999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4755801206503243775,
+    "expected": [
+      8589934,
+      591999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4755801206503243775,
+    "expected": [
+      8,
+      589934591
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4755801206503243775,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4755801206503243775,
+    "expected": [
+      8589934591,
+      999999046
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4755801206503243775,
+    "expected": [
+      -8589934592,
+      953
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4755801206503243777,
+    "expected": [
+      8589,
+      934592000
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4755801206503243777,
+    "expected": [
+      8589934,
+      592000001
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4755801206503243777,
+    "expected": [
+      8,
+      589934592
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4755801206503243777,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4755801206503243777,
+    "expected": [
+      8589934592,
+      1907
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4755801206503243777,
+    "expected": [
+      -8589934593,
+      999998092
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 14010698440749613057,
+    "expected": [
+      -1099512,
+      372223999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 14010698440749613057,
+    "expected": [
+      -1099511628,
+      223999755
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 14010698440749613057,
+    "expected": [
+      -1100,
+      488372223
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 14010698440749613057,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 14010698440749613057,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 14010698440749613057,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 14010698440749613055,
+    "expected": [
+      -1099512,
+      372224000
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 14010698440749613055,
+    "expected": [
+      -1099511628,
+      224000122
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 14010698440749613055,
+    "expected": [
+      -1100,
+      488372224
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 14010698440749613055,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 14010698440749613055,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 14010698440749613055,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4787326403894837247,
+    "expected": [
+      1099511,
+      627775999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4787326403894837247,
+    "expected": [
+      1099511627,
+      775999877
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4787326403894837247,
+    "expected": [
+      1099,
+      511627775
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4787326403894837247,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4787326403894837247,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4787326403894837247,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4787326403894837249,
+    "expected": [
+      1099511,
+      627776000
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4787326403894837249,
+    "expected": [
+      1099511627,
+      776000244
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4787326403894837249,
+    "expected": [
+      1099,
+      511627776
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4787326403894837249,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4787326403894837249,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4787326403894837249,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 14069245235905429505,
+    "expected": [
+      -9007199255,
+      259006000
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 14069245235905429505,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 14069245235905429505,
+    "expected": [
+      -9007200,
+      745259006
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 14069245235905429505,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 14069245235905429505,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 14069245235905429505,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 14069245235905429503,
+    "expected": [
+      -9007199255,
+      259009000
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 14069245235905429503,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 14069245235905429503,
+    "expected": [
+      -9007200,
+      745259009
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 14069245235905429503,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 14069245235905429503,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 14069245235905429503,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4845873199050653695,
+    "expected": [
+      9007199254,
+      740991000
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4845873199050653695,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4845873199050653695,
+    "expected": [
+      9007199,
+      254740991
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4845873199050653695,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4845873199050653695,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4845873199050653695,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4845873199050653697,
+    "expected": [
+      9007199254,
+      740994000
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4845873199050653697,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4845873199050653697,
+    "expected": [
+      9007199,
+      254740994
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4845873199050653697,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4845873199050653697,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4845873199050653697,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 14109777632551763969,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 14109777632551763969,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 14109777632551763969,
+    "expected": [
+      -4611686019,
+      572611072
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 14109777632551763969,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 14109777632551763969,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 14109777632551763969,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 14109777632551763967,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 14109777632551763967,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 14109777632551763967,
+    "expected": [
+      -4611686019,
+      572612608
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 14109777632551763967,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 14109777632551763967,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 14109777632551763967,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4886405595696988159,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4886405595696988159,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4886405595696988159,
+    "expected": [
+      4611686018,
+      427387392
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4886405595696988159,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4886405595696988159,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4886405595696988159,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4886405595696988161,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4886405595696988161,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4886405595696988161,
+    "expected": [
+      4611686018,
+      427388928
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4886405595696988161,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4886405595696988161,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4886405595696988161,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 14114281232179134465,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 14114281232179134465,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 14114281232179134465,
+    "expected": null
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 14114281232179134465,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 14114281232179134465,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 14114281232179134465,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 14114281232179134463,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 14114281232179134463,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 14114281232179134463,
+    "expected": [
+      -9223372037,
+      145225216
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 14114281232179134463,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 14114281232179134463,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 14114281232179134463,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4890909195324358655,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4890909195324358655,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4890909195324358655,
+    "expected": [
+      9223372036,
+      854774784
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4890909195324358655,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4890909195324358655,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4890909195324358655,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4890909195324358657,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4890909195324358657,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4890909195324358657,
+    "expected": null
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4890909195324358657,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4890909195324358657,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4890909195324358657,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 14280914418391842817,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 14280914418391842817,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 14280914418391842817,
+    "expected": null
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 14280914418391842817,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 14280914418391842817,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 14280914418391842817,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 14280914418391842815,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 14280914418391842815,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 14280914418391842815,
+    "expected": null
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 14280914418391842815,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 14280914418391842815,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 14280914418391842815,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 5057542381537067007,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 5057542381537067007,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 5057542381537067007,
+    "expected": null
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 5057542381537067007,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 5057542381537067007,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 5057542381537067007,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 5057542381537067009,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 5057542381537067009,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 5057542381537067009,
+    "expected": null
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 5057542381537067009,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 5057542381537067009,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 5057542381537067009,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 18437736874454810625,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 18437736874454810625,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 18437736874454810625,
+    "expected": null
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 18437736874454810625,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 18437736874454810625,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 18437736874454810625,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 18437736874454810623,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 18437736874454810623,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 18437736874454810623,
+    "expected": null
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 18437736874454810623,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 18437736874454810623,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 18437736874454810623,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 9214364837600034815,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 9214364837600034815,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 9214364837600034815,
+    "expected": null
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 9214364837600034815,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 9214364837600034815,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 9214364837600034815,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 9214364837600034817,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 9214364837600034817,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 9214364837600034817,
+    "expected": null
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 9214364837600034817,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 9214364837600034817,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 9214364837600034817,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4352205830710842278,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4352205830710842278,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4352205830710842278,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4352205830710842278,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4352205830710842278,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4352205830710842278,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4531796180084826908,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4531796180084826908,
+    "expected": [
+      0,
+      9
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4531796180084826908,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4531796180084826908,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4531796180084826908,
+    "expected": [
+      0,
+      9619
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4531796180084826908,
+    "expected": [
+      -1,
+      999990380
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13853520327037862102,
+    "expected": [
+      -1,
+      999964817
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13853520327037862102,
+    "expected": [
+      -1,
+      964817669
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13853520327037862102,
+    "expected": [
+      -1,
+      999999964
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13853520327037862102,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13853520327037862102,
+    "expected": [
+      -36,
+      817669183
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13853520327037862102,
+    "expected": [
+      35,
+      182330816
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4489135690256701960,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4489135690256701960,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4489135690256701960,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4489135690256701960,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4489135690256701960,
+    "expected": [
+      0,
+      13
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4489135690256701960,
+    "expected": [
+      -1,
+      999999986
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4423161687469202416,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4423161687469202416,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4423161687469202416,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4423161687469202416,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4423161687469202416,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4423161687469202416,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4569782442795607864,
+    "expected": [
+      0,
+      3
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4569782442795607864,
+    "expected": [
+      0,
+      3311
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4569782442795607864,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4569782442795607864,
+    "expected": [
+      1704067200,
+      3
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4569782442795607864,
+    "expected": [
+      0,
+      3311595
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4569782442795607864,
+    "expected": [
+      -1,
+      996688404
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4676962648264013288,
+    "expected": [
+      0,
+      48965991
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4676962648264013288,
+    "expected": [
+      48,
+      965991888
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4676962648264013288,
+    "expected": [
+      0,
+      48965
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4676962648264013288,
+    "expected": [
+      1704067200,
+      48965991
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4676962648264013288,
+    "expected": [
+      48965,
+      991888027
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4676962648264013288,
+    "expected": [
+      -48966,
+      8111972
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4485264942000224068,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4485264942000224068,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4485264942000224068,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4485264942000224068,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4485264942000224068,
+    "expected": [
+      0,
+      7
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4485264942000224068,
+    "expected": [
+      -1,
+      999999992
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4717355593243567298,
+    "expected": [
+      24,
+      551089905
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4717355593243567298,
+    "expected": [
+      24551,
+      89905308
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4717355593243567298,
+    "expected": [
+      0,
+      24551089
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4717355593243567298,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4717355593243567298,
+    "expected": [
+      24551089,
+      905308492
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4717355593243567298,
+    "expected": [
+      -24551090,
+      94691507
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4554551833467043302,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4554551833467043302,
+    "expected": [
+      0,
+      320
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4554551833467043302,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4554551833467043302,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4554551833467043302,
+    "expected": [
+      0,
+      320718
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4554551833467043302,
+    "expected": [
+      -1,
+      999679281
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4722612255964248086,
+    "expected": [
+      54,
+      712937081
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4722612255964248086,
+    "expected": [
+      54712,
+      937081894
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4722612255964248086,
+    "expected": [
+      0,
+      54712937
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4722612255964248086,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4722612255964248086,
+    "expected": [
+      54712937,
+      81894084
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4722612255964248086,
+    "expected": [
+      -54712938,
+      918105915
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4402227617361579624,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4402227617361579624,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4402227617361579624,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4402227617361579624,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4402227617361579624,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4402227617361579624,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 14057961394889208622,
+    "expected": [
+      -1682639374,
+      684724500
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 14057961394889208622,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 14057961394889208622,
+    "expected": [
+      -1682640,
+      626684724
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 14057961394889208622,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 14057961394889208622,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 14057961394889208622,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4739201512088671616,
+    "expected": [
+      705,
+      516782078
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4739201512088671616,
+    "expected": [
+      705516,
+      782078781
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4739201512088671616,
+    "expected": [
+      0,
+      705516782
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4739201512088671616,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4739201512088671616,
+    "expected": [
+      705516782,
+      78781127
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4739201512088671616,
+    "expected": [
+      -705516783,
+      921218872
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 14004111850315264946,
+    "expected": [
+      -422621,
+      855483192
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 14004111850315264946,
+    "expected": [
+      -422620145,
+      483192260
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 14004111850315264946,
+    "expected": [
+      -423,
+      379855483
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 14004111850315264946,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 14004111850315264946,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 14004111850315264946,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13627633116990574128,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13627633116990574128,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13627633116990574128,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13627633116990574128,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13627633116990574128,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13627633116990574128,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13999556245068468486,
+    "expected": [
+      -209723,
+      13295367
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13999556245068468486,
+    "expected": [
+      -209722987,
+      295367004
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13999556245068468486,
+    "expected": [
+      -210,
+      277013295
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13999556245068468486,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13999556245068468486,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13999556245068468486,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4865364914714220302,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4865364914714220302,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4865364914714220302,
+    "expected": [
+      191389337,
+      6563776
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4865364914714220302,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4865364914714220302,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4865364914714220302,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4608421041802431654,
+    "expected": [
+      0,
+      1275
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4608421041802431654,
+    "expected": [
+      0,
+      1275029
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4608421041802431654,
+    "expected": [
+      0,
+      1
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4608421041802431654,
+    "expected": [
+      1704067200,
+      1275
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4608421041802431654,
+    "expected": [
+      1,
+      275029555
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4608421041802431654,
+    "expected": [
+      -2,
+      724970444
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4703585580341871758,
+    "expected": [
+      2,
+      948180304
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4703585580341871758,
+    "expected": [
+      2948,
+      180304115
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4703585580341871758,
+    "expected": [
+      0,
+      2948180
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4703585580341871758,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4703585580341871758,
+    "expected": [
+      2948180,
+      304115838
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4703585580341871758,
+    "expected": [
+      -2948181,
+      695884161
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4788066604528212252,
+    "expected": [
+      1280224,
+      673033569
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4788066604528212252,
+    "expected": [
+      1280224673,
+      33569335
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4788066604528212252,
+    "expected": [
+      1280,
+      224673033
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4788066604528212252,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4788066604528212252,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4788066604528212252,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4500210520283616236,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4500210520283616236,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4500210520283616236,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4500210520283616236,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4500210520283616236,
+    "expected": [
+      0,
+      74
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4500210520283616236,
+    "expected": [
+      -1,
+      999999925
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4429730365666497836,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4429730365666497836,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4429730365666497836,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4429730365666497836,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4429730365666497836,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4429730365666497836,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13779912517355050554,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13779912517355050554,
+    "expected": [
+      -1,
+      999999571
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13779912517355050554,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13779912517355050554,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13779912517355050554,
+    "expected": [
+      -1,
+      999571476
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13779912517355050554,
+    "expected": [
+      0,
+      428523
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4638701510282761412,
+    "expected": [
+      0,
+      127913
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4638701510282761412,
+    "expected": [
+      0,
+      127913229
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4638701510282761412,
+    "expected": [
+      0,
+      127
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4638701510282761412,
+    "expected": [
+      1704067200,
+      127913
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4638701510282761412,
+    "expected": [
+      127,
+      913229816
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4638701510282761412,
+    "expected": [
+      -128,
+      86770183
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4820555218135706496,
+    "expected": [
+      193975514,
+      895196000
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4820555218135706496,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4820555218135706496,
+    "expected": [
+      193975,
+      514895196
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4820555218135706496,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4820555218135706496,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4820555218135706496,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13633061473471641178,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13633061473471641178,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13633061473471641178,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13633061473471641178,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13633061473471641178,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13633061473471641178,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13832842366522984708,
+    "expected": [
+      -1,
+      999998491
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13832842366522984708,
+    "expected": [
+      -1,
+      998491981
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13832842366522984708,
+    "expected": [
+      -1,
+      999999998
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13832842366522984708,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13832842366522984708,
+    "expected": [
+      -2,
+      491981735
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13832842366522984708,
+    "expected": [
+      1,
+      508018264
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13563428324017594846,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13563428324017594846,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13563428324017594846,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13563428324017594846,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13563428324017594846,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13563428324017594846,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13735522546857621246,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13735522546857621246,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13735522546857621246,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13735522546857621246,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13735522546857621246,
+    "expected": [
+      -1,
+      999999547
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13735522546857621246,
+    "expected": [
+      0,
+      452
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13628415195562313672,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13628415195562313672,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13628415195562313672,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13628415195562313672,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13628415195562313672,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13628415195562313672,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13832659018079144046,
+    "expected": [
+      -1,
+      999998532
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13832659018079144046,
+    "expected": [
+      -1,
+      998532693
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13832659018079144046,
+    "expected": [
+      -1,
+      999999998
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13832659018079144046,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13832659018079144046,
+    "expected": [
+      -2,
+      532693267
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13832659018079144046,
+    "expected": [
+      1,
+      467306732
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13789609757100841488,
+    "expected": [
+      -1,
+      999999998
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13789609757100841488,
+    "expected": [
+      -1,
+      999998136
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13789609757100841488,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13789609757100841488,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13789609757100841488,
+    "expected": [
+      -1,
+      998136278
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13789609757100841488,
+    "expected": [
+      0,
+      1863721
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4399534135671168668,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4399534135671168668,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4399534135671168668,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4399534135671168668,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4399534135671168668,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4399534135671168668,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4874510753415766880,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4874510753415766880,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4874510753415766880,
+    "expected": [
+      783303197,
+      217370112
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4874510753415766880,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4874510753415766880,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4874510753415766880,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 14017324069110167496,
+    "expected": [
+      -3235171,
+      902073027
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 14017324069110167496,
+    "expected": [
+      -3235170098,
+      73027343
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 14017324069110167496,
+    "expected": [
+      -3236,
+      829902073
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 14017324069110167496,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 14017324069110167496,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 14017324069110167496,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13936374099119664182,
+    "expected": [
+      -13,
+      444930406
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13936374099119664182,
+    "expected": [
+      -12556,
+      930406808
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13936374099119664182,
+    "expected": [
+      -1,
+      987444930
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13936374099119664182,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13936374099119664182,
+    "expected": [
+      -12555070,
+      406808752
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13936374099119664182,
+    "expected": [
+      12555069,
+      593191247
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13587184577212329412,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13587184577212329412,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13587184577212329412,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13587184577212329412,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13587184577212329412,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13587184577212329412,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13640631244559789484,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13640631244559789484,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13640631244559789484,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13640631244559789484,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13640631244559789484,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13640631244559789484,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4546626149780080630,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4546626149780080630,
+    "expected": [
+      0,
+      94
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4546626149780080630,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4546626149780080630,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4546626149780080630,
+    "expected": [
+      0,
+      94836
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4546626149780080630,
+    "expected": [
+      -1,
+      999905163
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4726124316081305920,
+    "expected": [
+      94,
+      650784090
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4726124316081305920,
+    "expected": [
+      94650,
+      784090550
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4726124316081305920,
+    "expected": [
+      0,
+      94650784
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4726124316081305920,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4726124316081305920,
+    "expected": [
+      94650784,
+      90550422
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4726124316081305920,
+    "expected": [
+      -94650785,
+      909449577
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 14094949905371412556,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 14094949905371412556,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 14094949905371412556,
+    "expected": [
+      -492177342,
+      783931648
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 14094949905371412556,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 14094949905371412556,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 14094949905371412556,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 14079137689272949016,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 14079137689272949016,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 14079137689272949016,
+    "expected": [
+      -43110830,
+      78807872
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 14079137689272949016,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 14079137689272949016,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 14079137689272949016,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 14063560962177771610,
+    "expected": [
+      -3913262578,
+      773203000
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 14063560962177771610,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 14063560962177771610,
+    "expected": [
+      -3913263,
+      422773203
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 14063560962177771610,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 14063560962177771610,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 14063560962177771610,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4874112513379972872,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4874112513379972872,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4874112513379972872,
+    "expected": [
+      732328472,
+      635737088
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4874112513379972872,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4874112513379972872,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4874112513379972872,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4528389596766511552,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4528389596766511552,
+    "expected": [
+      0,
+      5
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4528389596766511552,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4528389596766511552,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4528389596766511552,
+    "expected": [
+      0,
+      5739
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4528389596766511552,
+    "expected": [
+      -1,
+      999994260
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4702640515410164972,
+    "expected": [
+      2,
+      508100151
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4702640515410164972,
+    "expected": [
+      2508,
+      100151427
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4702640515410164972,
+    "expected": [
+      0,
+      2508100
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4702640515410164972,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4702640515410164972,
+    "expected": [
+      2508100,
+      151427855
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4702640515410164972,
+    "expected": [
+      -2508101,
+      848572144
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 14018766333485839956,
+    "expected": [
+      -3939401,
+      249889208
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 14018766333485839956,
+    "expected": [
+      -3939400751,
+      889208984
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 14018766333485839956,
+    "expected": [
+      -3940,
+      599249889
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 14018766333485839956,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 14018766333485839956,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 14018766333485839956,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13663899672730235408,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13663899672730235408,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13663899672730235408,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13663899672730235408,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13663899672730235408,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13663899672730235408,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4802117960815996380,
+    "expected": [
+      11297573,
+      567222929
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4802117960815996380,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4802117960815996380,
+    "expected": [
+      11297,
+      573567222
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4802117960815996380,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4802117960815996380,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4802117960815996380,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4719858616649460520,
+    "expected": [
+      34,
+      196725432
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4719858616649460520,
+    "expected": [
+      34196,
+      725432211
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4719858616649460520,
+    "expected": [
+      0,
+      34196725
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4719858616649460520,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4719858616649460520,
+    "expected": [
+      34196725,
+      432211220
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4719858616649460520,
+    "expected": [
+      -34196726,
+      567788779
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13872708739892782112,
+    "expected": [
+      -1,
+      999303612
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13872708739892782112,
+    "expected": [
+      -1,
+      303612728
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13872708739892782112,
+    "expected": [
+      -1,
+      999999303
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13872708739892782112,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13872708739892782112,
+    "expected": [
+      -697,
+      612728564
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13872708739892782112,
+    "expected": [
+      696,
+      387271435
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 14102879589949601324,
+    "expected": null
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 14102879589949601324,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 14102879589949601324,
+    "expected": [
+      -1692865608,
+      333095936
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 14102879589949601324,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 14102879589949601324,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 14102879589949601324,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13882521293905137280,
+    "expected": [
+      -1,
+      996848217
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13882521293905137280,
+    "expected": [
+      -4,
+      848217971
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13882521293905137280,
+    "expected": [
+      -1,
+      999996848
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13882521293905137280,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13882521293905137280,
+    "expected": [
+      -3152,
+      217971710
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13882521293905137280,
+    "expected": [
+      3151,
+      782028289
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13597111474074914412,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13597111474074914412,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13597111474074914412,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13597111474074914412,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13597111474074914412,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13597111474074914412,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13655414630606834152,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13655414630606834152,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13655414630606834152,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13655414630606834152,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13655414630606834152,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13655414630606834152,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4808645586951572480,
+    "expected": [
+      30501500,
+      682124000
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4808645586951572480,
+    "expected": null
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4808645586951572480,
+    "expected": [
+      30501,
+      500682124
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4808645586951572480,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4808645586951572480,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4808645586951572480,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13781086100196242546,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13781086100196242546,
+    "expected": [
+      -1,
+      999999503
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13781086100196242546,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13781086100196242546,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13781086100196242546,
+    "expected": [
+      -1,
+      999503994
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13781086100196242546,
+    "expected": [
+      0,
+      496005
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4407758576757493046,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4407758576757493046,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4407758576757493046,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4407758576757493046,
+    "expected": [
+      1704067200,
+      0
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4407758576757493046,
+    "expected": [
+      0,
+      0
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4407758576757493046,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4769461258269745886,
+    "expected": [
+      70996,
+      895015886
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4769461258269745886,
+    "expected": [
+      70996895,
+      15886199
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4769461258269745886,
+    "expected": [
+      70,
+      996895015
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4769461258269745886,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4769461258269745886,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4769461258269745886,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13768518049642470208,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13768518049642470208,
+    "expected": [
+      -1,
+      999999925
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13768518049642470208,
+    "expected": [
+      -1,
+      999999999
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13768518049642470208,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13768518049642470208,
+    "expected": [
+      -1,
+      999925222
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13768518049642470208,
+    "expected": [
+      0,
+      74777
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13861846727706168074,
+    "expected": [
+      -1,
+      999875310
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13861846727706168074,
+    "expected": [
+      -1,
+      875310068
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13861846727706168074,
+    "expected": [
+      -1,
+      999999875
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13861846727706168074,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13861846727706168074,
+    "expected": [
+      -125,
+      310068169
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13861846727706168074,
+    "expected": [
+      124,
+      689931830
+    ]
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 13990137260282024044,
+    "expected": [
+      -49290,
+      927607467
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 13990137260282024044,
+    "expected": [
+      -49289073,
+      607467926
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 13990137260282024044,
+    "expected": [
+      -50,
+      710927607
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 13990137260282024044,
+    "expected": null
+  },
+  {
+    "method": "addition",
+    "factor_bits": 13990137260282024044,
+    "expected": null
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 13990137260282024044,
+    "expected": null
+  },
+  {
+    "method": "microseconds",
+    "factor_bits": 4628213488387622778,
+    "expected": [
+      0,
+      26717
+    ]
+  },
+  {
+    "method": "milliseconds",
+    "factor_bits": 4628213488387622778,
+    "expected": [
+      0,
+      26717368
+    ]
+  },
+  {
+    "method": "nanoseconds",
+    "factor_bits": 4628213488387622778,
+    "expected": [
+      0,
+      26
+    ]
+  },
+  {
+    "method": "calendar",
+    "factor_bits": 4628213488387622778,
+    "expected": [
+      1704067200,
+      26717
+    ]
+  },
+  {
+    "method": "addition",
+    "factor_bits": 4628213488387622778,
+    "expected": [
+      26,
+      717368603
+    ]
+  },
+  {
+    "method": "subtraction",
+    "factor_bits": 4628213488387622778,
+    "expected": [
+      -27,
+      282631396
+    ]
+  }
+]

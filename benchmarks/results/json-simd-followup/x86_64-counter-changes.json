@@ -1,0 +1,354 @@
+{
+  "cases": 107418,
+  "step_changes": [],
+  "memory_changes": {
+    "json_depth/mixed/128/scalar": {
+      "tracked_peak_bytes": {
+        "before": 63134,
+        "after": 57023
+      }
+    },
+    "json_depth/mixed/129/scalar": {
+      "tracked_peak_bytes": {
+        "before": 77694,
+        "after": 71583
+      }
+    },
+    "json_depth/mixed/9999/scalar": {
+      "tracked_peak_bytes": {
+        "before": 5348757,
+        "after": 4863951
+      }
+    },
+    "json_depth/mixed/10000/scalar": {
+      "tracked_peak_bytes": {
+        "before": 5349222,
+        "after": 4864319
+      }
+    },
+    "json_depth/mixed/10000/instance": {
+      "tracked_peak_bytes": {
+        "before": 5350979,
+        "after": 4866076
+      }
+    },
+    "json_depth/mixed/10000/module": {
+      "tracked_peak_bytes": {
+        "before": 5351400,
+        "after": 4866497
+      }
+    },
+    "json_depth/mixed/10000/empty": {
+      "tracked_peak_bytes": {
+        "before": 5348853,
+        "after": 4864047
+      }
+    },
+    "json_depth/mixed/10001/scalar": {
+      "tracked_peak_bytes": {
+        "before": 3220254,
+        "after": 2823039
+      }
+    },
+    "json_transform/metered": {
+      "tracked_peak_bytes": {
+        "before": 68366,
+        "after": 43103
+      }
+    },
+    "json_transform/unlimited": {
+      "tracked_peak_bytes": {
+        "before": 68366,
+        "after": 43103
+      }
+    },
+    "json_api_parse_1k/metered": {
+      "tracked_peak_bytes": {
+        "before": 20372,
+        "after": 16357
+      },
+      "tracked_retained_bytes": {
+        "before": 14774,
+        "after": 10759
+      }
+    },
+    "json_api_parse_1k/unlimited": {
+      "tracked_peak_bytes": {
+        "before": 20372,
+        "after": 16357
+      },
+      "tracked_retained_bytes": {
+        "before": 14774,
+        "after": 10759
+      }
+    },
+    "json_api_shape_1k/metered": {
+      "tracked_peak_bytes": {
+        "before": 21984,
+        "after": 17969
+      },
+      "tracked_retained_bytes": {
+        "before": 14774,
+        "after": 10759
+      }
+    },
+    "json_api_shape_1k/unlimited": {
+      "tracked_peak_bytes": {
+        "before": 21984,
+        "after": 17969
+      },
+      "tracked_retained_bytes": {
+        "before": 14774,
+        "after": 10759
+      }
+    },
+    "json_api_array_1k/metered": {
+      "tracked_peak_bytes": {
+        "before": 20967,
+        "after": 16952
+      },
+      "tracked_retained_bytes": {
+        "before": 14096,
+        "after": 10081
+      }
+    },
+    "json_api_array_1k/unlimited": {
+      "tracked_peak_bytes": {
+        "before": 20967,
+        "after": 16952
+      },
+      "tracked_retained_bytes": {
+        "before": 14096,
+        "after": 10081
+      }
+    },
+    "json_api_project_1k/metered": {
+      "tracked_peak_bytes": {
+        "before": 29022,
+        "after": 25007
+      }
+    },
+    "json_api_project_1k/unlimited": {
+      "tracked_peak_bytes": {
+        "before": 29022,
+        "after": 25007
+      }
+    },
+    "json_api_parse_16k/metered": {
+      "tracked_peak_bytes": {
+        "before": 259604,
+        "after": 178501
+      },
+      "tracked_retained_bytes": {
+        "before": 238646,
+        "after": 157543
+      }
+    },
+    "json_api_parse_16k/unlimited": {
+      "tracked_peak_bytes": {
+        "before": 259604,
+        "after": 178501
+      },
+      "tracked_retained_bytes": {
+        "before": 238646,
+        "after": 157543
+      }
+    },
+    "json_api_shape_16k/metered": {
+      "tracked_peak_bytes": {
+        "before": 261216,
+        "after": 180113
+      },
+      "tracked_retained_bytes": {
+        "before": 238646,
+        "after": 157543
+      }
+    },
+    "json_api_shape_16k/unlimited": {
+      "tracked_peak_bytes": {
+        "before": 261216,
+        "after": 180113
+      },
+      "tracked_retained_bytes": {
+        "before": 238646,
+        "after": 157543
+      }
+    },
+    "json_api_array_16k/metered": {
+      "tracked_peak_bytes": {
+        "before": 260199,
+        "after": 179096
+      },
+      "tracked_retained_bytes": {
+        "before": 237968,
+        "after": 156865
+      }
+    },
+    "json_api_array_16k/unlimited": {
+      "tracked_peak_bytes": {
+        "before": 260199,
+        "after": 179096
+      },
+      "tracked_retained_bytes": {
+        "before": 237968,
+        "after": 156865
+      }
+    },
+    "json_api_project_16k/metered": {
+      "tracked_peak_bytes": {
+        "before": 309342,
+        "after": 228239
+      }
+    },
+    "json_api_project_16k/unlimited": {
+      "tracked_peak_bytes": {
+        "before": 309342,
+        "after": 228239
+      }
+    },
+    "json_api_parse_256k/metered": {
+      "tracked_peak_bytes": {
+        "before": 4027204,
+        "after": 2733571
+      },
+      "tracked_retained_bytes": {
+        "before": 3760486,
+        "after": 2466853
+      }
+    },
+    "json_api_parse_256k/unlimited": {
+      "tracked_peak_bytes": {
+        "before": 4027204,
+        "after": 2733571
+      },
+      "tracked_retained_bytes": {
+        "before": 3760486,
+        "after": 2466853
+      }
+    },
+    "json_api_shape_256k/metered": {
+      "tracked_peak_bytes": {
+        "before": 4028816,
+        "after": 2735183
+      },
+      "tracked_retained_bytes": {
+        "before": 3760486,
+        "after": 2466853
+      }
+    },
+    "json_api_shape_256k/unlimited": {
+      "tracked_peak_bytes": {
+        "before": 4028816,
+        "after": 2735183
+      },
+      "tracked_retained_bytes": {
+        "before": 3760486,
+        "after": 2466853
+      }
+    },
+    "json_api_array_256k/metered": {
+      "tracked_peak_bytes": {
+        "before": 4027799,
+        "after": 2734166
+      },
+      "tracked_retained_bytes": {
+        "before": 3759808,
+        "after": 2466175
+      }
+    },
+    "json_api_array_256k/unlimited": {
+      "tracked_peak_bytes": {
+        "before": 4027799,
+        "after": 2734166
+      },
+      "tracked_retained_bytes": {
+        "before": 3759808,
+        "after": 2466175
+      }
+    },
+    "json_api_project_256k/metered": {
+      "tracked_peak_bytes": {
+        "before": 4741590,
+        "after": 3447957
+      }
+    },
+    "json_api_project_256k/unlimited": {
+      "tracked_peak_bytes": {
+        "before": 4741590,
+        "after": 3447957
+      }
+    },
+    "json_api_parse_1m/metered": {
+      "tracked_peak_bytes": {
+        "before": 16009540,
+        "after": 10861507
+      },
+      "tracked_retained_bytes": {
+        "before": 14956390,
+        "after": 9808357
+      }
+    },
+    "json_api_parse_1m/unlimited": {
+      "tracked_peak_bytes": {
+        "before": 16009540,
+        "after": 10861507
+      },
+      "tracked_retained_bytes": {
+        "before": 14956390,
+        "after": 9808357
+      }
+    },
+    "json_api_shape_1m/metered": {
+      "tracked_peak_bytes": {
+        "before": 16011152,
+        "after": 10863119
+      },
+      "tracked_retained_bytes": {
+        "before": 14956390,
+        "after": 9808357
+      }
+    },
+    "json_api_shape_1m/unlimited": {
+      "tracked_peak_bytes": {
+        "before": 16011152,
+        "after": 10863119
+      },
+      "tracked_retained_bytes": {
+        "before": 14956390,
+        "after": 9808357
+      }
+    },
+    "json_api_array_1m/metered": {
+      "tracked_peak_bytes": {
+        "before": 16010135,
+        "after": 10862102
+      },
+      "tracked_retained_bytes": {
+        "before": 14955712,
+        "after": 9807679
+      }
+    },
+    "json_api_array_1m/unlimited": {
+      "tracked_peak_bytes": {
+        "before": 16010135,
+        "after": 10862102
+      },
+      "tracked_retained_bytes": {
+        "before": 14955712,
+        "after": 9807679
+      }
+    },
+    "json_api_project_1m/metered": {
+      "tracked_peak_bytes": {
+        "before": 18841046,
+        "after": 13693013
+      }
+    },
+    "json_api_project_1m/unlimited": {
+      "tracked_peak_bytes": {
+        "before": 18841046,
+        "after": 13693013
+      }
+    }
+  }
+}

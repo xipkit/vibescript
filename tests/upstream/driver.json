@@ -1,0 +1,401 @@
+{
+  "purpose": "Checklist of every invocation the Go v0.70.0 integration driver makes against a tests/ program, consumed by tests/upstream_driver.rs. Each identifier maps to the driver lines that make the assertion; the native harness must assert every identifier exactly once.",
+  "reference": {
+    "repository": "https://github.com/xipkit/vibescript",
+    "tag": "v0.70.0",
+    "commit": "5cba216c33bea8890787d64efb2ab926a761fb1b",
+    "driver": "internal/runtime/integration_test.go"
+  },
+  "identifier_classes": {
+    "compile": "TestComplexExamplesCompile: compile only, default engine",
+    "run": "TestComplexExamplesRun: run() at default limits, exact value or predicate",
+    "fixture": "TestProgramFixtures: run() at default limits, exact value",
+    "enum": "TestEnumFixtureTypedCalls: typed calls on one compiled script",
+    "reject": "requireCallErrorContains: compile succeeds, call fails at default limits",
+    "success": "a successful call asserted inside an error-focused Go test",
+    "stress": "TestComplexExamplesStress: StepQuota 5_000_000",
+    "all": "TestAllVibeFilesCompileAndRun: compile at StepQuota 5_000_000, then run() when defined"
+  },
+  "program_total": 39,
+  "invocation_total": 105,
+  "programs": [
+    {
+      "path": "tests/complex/analytics.vibe",
+      "stem": "complex/analytics",
+      "defines_run": true,
+      "invocations": {
+        "compile/complex/analytics": "integration_test.go:29-49",
+        "run/complex/analytics": "integration_test.go:62-77",
+        "all/complex/analytics": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/complex/durations.vibe",
+      "stem": "complex/durations",
+      "defines_run": true,
+      "invocations": {
+        "compile/complex/durations": "integration_test.go:29-49",
+        "run/complex/durations": "integration_test.go:78-103",
+        "all/complex/durations": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/complex/finance.vibe",
+      "stem": "complex/finance",
+      "defines_run": true,
+      "invocations": {
+        "compile/complex/finance": "integration_test.go:29-49",
+        "run/complex/finance": "integration_test.go:104-119",
+        "all/complex/finance": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/complex/strings.vibe",
+      "stem": "complex/strings",
+      "defines_run": true,
+      "invocations": {
+        "compile/complex/strings": "integration_test.go:29-49",
+        "run/complex/strings": "integration_test.go:120-130",
+        "all/complex/strings": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/complex/loops.vibe",
+      "stem": "complex/loops",
+      "defines_run": true,
+      "invocations": {
+        "compile/complex/loops": "integration_test.go:29-49",
+        "run/complex/loops": "integration_test.go:131-140",
+        "all/complex/loops": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/complex/typed.vibe",
+      "stem": "complex/typed",
+      "defines_run": true,
+      "invocations": {
+        "compile/complex/typed": "integration_test.go:29-49",
+        "run/complex/typed": "integration_test.go:141-160",
+        "all/complex/typed": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/complex/pipeline.vibe",
+      "stem": "complex/pipeline",
+      "defines_run": true,
+      "invocations": {
+        "compile/complex/pipeline": "integration_test.go:29-49",
+        "run/complex/pipeline": "integration_test.go:161-180",
+        "all/complex/pipeline": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/complex/massive.vibe",
+      "stem": "complex/massive",
+      "defines_run": true,
+      "invocations": {
+        "compile/complex/massive": "integration_test.go:29-49",
+        "run/complex/massive": "integration_test.go:203-208",
+        "stress/complex/massive": "integration_test.go:505-513",
+        "all/complex/massive": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/complex/chudnovsky.vibe",
+      "stem": "complex/chudnovsky",
+      "defines_run": true,
+      "invocations": {
+        "compile/complex/chudnovsky": "integration_test.go:29-49",
+        "run/complex/chudnovsky": "integration_test.go:181-202",
+        "stress/complex/chudnovsky": "integration_test.go:515-527",
+        "all/complex/chudnovsky": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/complex/yield_basics.vibe",
+      "stem": "complex/yield_basics",
+      "defines_run": true,
+      "invocations": {
+        "run/complex/yield_basics": "integration_test.go:209-218",
+        "all/complex/yield_basics": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/complex/with_blocks.vibe",
+      "stem": "complex/with_blocks",
+      "defines_run": true,
+      "invocations": {
+        "run/complex/with_blocks": "integration_test.go:219-228",
+        "all/complex/with_blocks": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/complex/advanced_blocks.vibe",
+      "stem": "complex/advanced_blocks",
+      "defines_run": true,
+      "invocations": {
+        "run/complex/advanced_blocks": "integration_test.go:229-238",
+        "all/complex/advanced_blocks": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/complex/hash_edges.vibe",
+      "stem": "complex/hash_edges",
+      "defines_run": true,
+      "invocations": {
+        "all/complex/hash_edges": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/complex/string_edges.vibe",
+      "stem": "complex/string_edges",
+      "defines_run": true,
+      "invocations": {
+        "all/complex/string_edges": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/complex/array_edges.vibe",
+      "stem": "complex/array_edges",
+      "defines_run": true,
+      "invocations": {
+        "all/complex/array_edges": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/complex/operators.vibe",
+      "stem": "complex/operators",
+      "defines_run": true,
+      "invocations": {
+        "all/complex/operators": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/runtime_stress.vibe",
+      "stem": "runtime_stress",
+      "defines_run": true,
+      "invocations": {
+        "fixture/runtime_stress/run": "integration_test.go:269-281",
+        "all/runtime_stress": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/typing_fixture.vibe",
+      "stem": "typing_fixture",
+      "defines_run": true,
+      "invocations": {
+        "fixture/typing_fixture/run": "integration_test.go:282-291",
+        "all/typing_fixture": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/enums_fixture.vibe",
+      "stem": "enums_fixture",
+      "defines_run": true,
+      "invocations": {
+        "fixture/enums_fixture/run": "integration_test.go:292-310",
+        "enum/enums_fixture/member": "integration_test.go:445,448-450",
+        "enum/enums_fixture/publish": "integration_test.go:446,452-454",
+        "enum/enums_fixture/block_names": "integration_test.go:456-459",
+        "enum/enums_fixture/facts": "integration_test.go:461-470",
+        "all/enums_fixture": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/collections_fixture.vibe",
+      "stem": "collections_fixture",
+      "defines_run": true,
+      "invocations": {
+        "fixture/collections_fixture/run": "integration_test.go:311-322",
+        "all/collections_fixture": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/blocks/block_arity.vibe",
+      "stem": "blocks/block_arity",
+      "defines_run": true,
+      "invocations": {
+        "fixture/blocks/block_arity/run": "integration_test.go:323-331",
+        "all/blocks/block_arity": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/blocks/block_closure.vibe",
+      "stem": "blocks/block_closure",
+      "defines_run": true,
+      "invocations": {
+        "fixture/blocks/block_closure/run": "integration_test.go:332-341",
+        "all/blocks/block_closure": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/blocks/reduce_single.vibe",
+      "stem": "blocks/reduce_single",
+      "defines_run": true,
+      "invocations": {
+        "fixture/blocks/reduce_single/run": "integration_test.go:342-353",
+        "all/blocks/reduce_single": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/blocks/instance_block_context.vibe",
+      "stem": "blocks/instance_block_context",
+      "defines_run": true,
+      "invocations": {
+        "fixture/blocks/instance_block_context/run": "integration_test.go:354-362",
+        "all/blocks/instance_block_context": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/blocks/error_cases.vibe",
+      "stem": "blocks/error_cases",
+      "defines_run": false,
+      "invocations": {
+        "reject/blocks/error_cases/each_without_block": "integration_test.go:477",
+        "reject/blocks/error_cases/map_without_block": "integration_test.go:478",
+        "success/blocks/error_cases/reduce_empty_without_init": "integration_test.go:480-488",
+        "success/blocks/error_cases/reduce_empty_with_init": "integration_test.go:490-494",
+        "all/blocks/error_cases": "integration_test.go:559-565 (compile only: no run function)"
+      }
+    },
+    {
+      "path": "tests/blocks/block_error_propagation.vibe",
+      "stem": "blocks/block_error_propagation",
+      "defines_run": true,
+      "invocations": {
+        "reject/blocks/block_error_propagation/explode": "integration_test.go:497-501",
+        "all/blocks/block_error_propagation": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/classes/people.vibe",
+      "stem": "classes/people",
+      "defines_run": true,
+      "invocations": {
+        "fixture/classes/people/run": "integration_test.go:363-372",
+        "all/classes/people": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/classes/counter.vibe",
+      "stem": "classes/counter",
+      "defines_run": true,
+      "invocations": {
+        "fixture/classes/counter/run": "integration_test.go:373-381 (asserted on two calls of one script)",
+        "all/classes/counter": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/classes/point.vibe",
+      "stem": "classes/point",
+      "defines_run": true,
+      "invocations": {
+        "fixture/classes/point/run": "integration_test.go:382-390",
+        "all/classes/point": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/classes/privacy.vibe",
+      "stem": "classes/privacy",
+      "defines_run": true,
+      "invocations": {
+        "fixture/classes/privacy/run": "integration_test.go:391-398",
+        "all/classes/privacy": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/classes/self_calls.vibe",
+      "stem": "classes/self_calls",
+      "defines_run": true,
+      "invocations": {
+        "fixture/classes/self_calls/run": "integration_test.go:399-407",
+        "all/classes/self_calls": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/classes/setter.vibe",
+      "stem": "classes/setter",
+      "defines_run": true,
+      "invocations": {
+        "fixture/classes/setter/run": "integration_test.go:408-416",
+        "all/classes/setter": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/classes/typed_property.vibe",
+      "stem": "classes/typed_property",
+      "defines_run": true,
+      "invocations": {
+        "fixture/classes/typed_property/run": "integration_test.go:417-426",
+        "all/classes/typed_property": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/errors/runtime.vibe",
+      "stem": "errors/runtime",
+      "defines_run": false,
+      "invocations": {
+        "reject/errors/runtime/div_by_zero": "integration_test.go:574",
+        "reject/errors/runtime/mod_by_zero": "integration_test.go:575",
+        "reject/errors/runtime/array_non_integer_index": "integration_test.go:576",
+        "reject/errors/runtime/string_non_integer_index": "integration_test.go:577",
+        "reject/errors/runtime/index_unsupported_type": "integration_test.go:578",
+        "reject/errors/runtime/method_missing": "integration_test.go:579",
+        "reject/errors/runtime/nil_method": "integration_test.go:580",
+        "all/errors/runtime": "integration_test.go:559-565 (compile only: no run function)"
+      }
+    },
+    {
+      "path": "tests/errors/types.vibe",
+      "stem": "errors/types",
+      "defines_run": false,
+      "invocations": {
+        "reject/errors/types/sub_mismatch": "integration_test.go:587",
+        "reject/errors/types/mul_mismatch": "integration_test.go:588",
+        "reject/errors/types/div_mismatch": "integration_test.go:589",
+        "reject/errors/types/unary_mismatch": "integration_test.go:590",
+        "reject/errors/types/arg_type_mismatch": "integration_test.go:591 (host string argument \"wrong\")",
+        "reject/errors/types/return_type_mismatch": "integration_test.go:592",
+        "all/errors/types": "integration_test.go:559-565 (compile only: no run function)"
+      }
+    },
+    {
+      "path": "tests/errors/attributes.vibe",
+      "stem": "errors/attributes",
+      "defines_run": false,
+      "invocations": {
+        "reject/errors/attributes/set_readonly": "integration_test.go:599",
+        "all/errors/attributes": "integration_test.go:559-565 (compile only: no run function)"
+      }
+    },
+    {
+      "path": "tests/errors/yield.vibe",
+      "stem": "errors/yield",
+      "defines_run": true,
+      "invocations": {
+        "reject/errors/yield/yield_without_block": "integration_test.go:606",
+        "success/errors/yield/run": "integration_test.go:609-612",
+        "all/errors/yield": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/errors/arguments.vibe",
+      "stem": "errors/arguments",
+      "defines_run": true,
+      "invocations": {
+        "reject/errors/arguments/too_few_args": "integration_test.go:619",
+        "reject/errors/arguments/too_many_args": "integration_test.go:620",
+        "success/errors/arguments/run": "integration_test.go:623-633 (only a and b are asserted)",
+        "all/errors/arguments": "integration_test.go:532-568"
+      }
+    },
+    {
+      "path": "tests/errors/classes.vibe",
+      "stem": "errors/classes",
+      "defines_run": true,
+      "invocations": {
+        "all/errors/classes": "integration_test.go:532-568"
+      }
+    }
+  ]
+}

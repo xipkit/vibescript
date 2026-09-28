@@ -1,0 +1,96 @@
+# title: Abbreviations, automatic
+# source: https://rosettacode.org/wiki/Abbreviations,_automatic
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Compute the shortest unique command prefixes for a fixed command set and resolve sample abbreviations.
+# tags: popular, strings, search, prefixes
+# vibe: 0.2
+
+def commands -> array<string>
+  [
+    "add",
+    "append",
+    "commit",
+    "copy",
+    "delete",
+    "insert",
+    "move",
+    "print",
+    "quit"
+  ]
+end
+
+def unique_prefix?(prefix: string, commands: array<string>) -> bool
+  matches = 0
+  index = 0
+
+  while index < commands.length
+    if commands.fetch(index).index(prefix) == 0
+      matches = matches + 1
+    end
+    index = index + 1
+  end
+
+  matches == 1
+end
+
+def shortest_abbreviation(command: string, commands: array<string>) -> string
+  length = 1
+
+  while length <= command.length
+    prefix = command.slice(0, length)
+    if unique_prefix?(prefix.as(string), commands)
+      return prefix.as(string)
+    end
+    length = length + 1
+  end
+
+  command
+end
+
+def automatic_abbreviations(commands: array<string>) -> array<{ abbreviation: string, command: string }>
+  rows: array<{ abbreviation: string, command: string }> = []
+  index = 0
+
+  while index < commands.length
+    command = commands.fetch(index)
+    rows = rows.push({
+      command: command,
+      abbreviation: shortest_abbreviation(command, commands)
+    })
+    index = index + 1
+  end
+
+  rows
+end
+
+def resolve(token: string, commands: array<string>) -> string
+  matches: array<string> = []
+  index = 0
+
+  while index < commands.length
+    command = commands.fetch(index)
+    if command.index(token.downcase) == 0
+      matches = matches.push(command)
+    end
+    index = index + 1
+  end
+
+  if matches.empty?
+    "unknown"
+  elsif matches.length == 1
+    matches.fetch(0)
+  else
+    "ambiguous"
+  end
+end
+
+def run -> { abbreviations: array<{ abbreviation: string, command: string }>, resolve_app: string, resolve_c: string, resolve_pr: string }
+  available = commands
+  {
+    abbreviations: automatic_abbreviations(available),
+    resolve_app: resolve("app", available),
+    resolve_pr: resolve("pr", available),
+    resolve_c: resolve("c", available)
+  }
+end

@@ -1,0 +1,12 @@
+# expect: rejected V0101
+# The rule holds for a loop that ends a branch of the body.
+def pick(flag: bool) -> string?
+  if flag
+    for x in [1, 2]
+      x * 2
+    end
+  else
+    "none"
+  end
+end
+p(pick(true))

@@ -1,0 +1,68 @@
+# title: Ternary logic
+# source: https://rosettacode.org/wiki/Ternary_logic
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Build a small truth table for three-valued logic with true, maybe, and false states.
+# tags: popular, logic, booleans, truth-tables
+# vibe: 0.2
+
+def logic_not(value: string) -> string
+  if value == "T"
+    "F"
+  elsif value == "F"
+    "T"
+  else
+    "M"
+  end
+end
+
+def logic_and(left: string, right: string) -> string
+  if left == "F" || right == "F"
+    "F"
+  elsif left == "T" && right == "T"
+    "T"
+  else
+    "M"
+  end
+end
+
+def logic_or(left: string, right: string) -> string
+  if left == "T" || right == "T"
+    "T"
+  elsif left == "F" && right == "F"
+    "F"
+  else
+    "M"
+  end
+end
+
+def truth_rows -> array<array<string>>
+  values = ["T", "M", "F"]
+  rows: array<array<string>> = []
+  left_index = 0
+
+  while left_index < values.length
+    right_index = 0
+    while right_index < values.length
+      left = values.fetch(left_index)
+      right = values.fetch(right_index)
+      rows = rows.push([
+        left,
+        right,
+        logic_and(left, right),
+        logic_or(left, right),
+        logic_not(left)
+      ])
+      right_index = right_index + 1
+    end
+    left_index = left_index + 1
+  end
+
+  rows
+end
+
+def run -> array<array<string>>
+  rows: array<array<string>> = []
+  rows = rows.push(["left", "right", "and", "or", "not_left"])
+  rows + truth_rows
+end

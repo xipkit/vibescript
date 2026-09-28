@@ -1,0 +1,11 @@
+# expect: rejected V0202
+# A required file called its function before assigning the top-level local
+# the function reads, which then read nil.
+#@ file m.vibe
+def f -> int
+  late
+end
+late = f
+#@ main
+m = require("m")
+p(m.f)

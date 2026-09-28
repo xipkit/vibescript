@@ -1,0 +1,58 @@
+# title: Brazilian numbers
+# source: https://rosettacode.org/wiki/Brazilian_numbers
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Find the first Brazilian numbers by searching for bases whose representation uses one repeated digit.
+# tags: popular, numbers, base-conversion, search
+# vibe: 0.4
+
+def base_digits(number: int, base: int) -> string
+  if number == 0
+    return "0"
+  end
+
+  digits = ""
+  current = number
+
+  while current > 0
+    digits = "#{current % base}#{digits}"
+    current = current // base
+  end
+
+  digits
+end
+
+def same_digits?(text: string) -> bool
+  digits = text.chars
+  digits.all? { |digit| digit == digits.first }
+end
+
+def brazilian?(number: int) -> bool
+  base = 2
+  while base <= number - 2
+    digits = base_digits(number, base)
+    if digits.length > 1 && same_digits?(digits)
+      return true
+    end
+    base = base + 1
+  end
+  false
+end
+
+def first_brazilian_numbers(count: int) -> array<int>
+  values: array<int> = []
+  candidate = 7
+
+  while values.length < count
+    if brazilian?(candidate)
+      values << candidate
+    end
+    candidate = candidate + 1
+  end
+
+  values
+end
+
+def run -> array<int>
+  first_brazilian_numbers(10)
+end

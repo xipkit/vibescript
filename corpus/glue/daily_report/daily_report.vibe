@@ -1,0 +1,4 @@
+def report(statuses: array<string>) -> string
+  counts = statuses.tally
+  counts.keys.sort.map { |status| "#{status}: #{counts.fetch(status)}" }.join("\n")
+end

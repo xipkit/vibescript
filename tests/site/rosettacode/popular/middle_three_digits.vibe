@@ -1,0 +1,47 @@
+# title: Middle three digits
+# source: https://rosettacode.org/wiki/Middle_three_digits
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Return the middle three digits of integers that have an odd number of digits.
+# tags: popular, numbers, strings, validation
+# vibe: 0.2
+
+def substring(text: string, start_index: int, count: int) -> string
+  output = ""
+  offset = 0
+
+  while offset < count && start_index + offset < text.length
+    output = output + text.slice(start_index + offset).as(string)
+    offset = offset + 1
+  end
+
+  output
+end
+
+def middle_three_digits(value: int) -> string
+  digits = "" + value.abs.to_s
+
+  if digits.length < 3
+    return "too short"
+  end
+
+  if digits.length.even?
+    return "even digit count"
+  end
+
+  middle = (digits.length - 3) // 2
+  substring(digits, middle, 3)
+end
+
+def run -> array<array<int | string>>
+  rows: array<array<int | string>> = []
+  rows = rows.push(["input", "middle_three"])
+  rows = rows.push([123, middle_three_digits(123)])
+  rows = rows.push([12345, middle_three_digits(12345)])
+  rows = rows.push([1234567, middle_three_digits(1234567)])
+  rows = rows.push([10001, middle_three_digits(10001)])
+  rows = rows.push([-10001, middle_three_digits(-10001)])
+  rows = rows.push([1, middle_three_digits(1)])
+  rows = rows.push([2002, middle_three_digits(2002)])
+  rows
+end

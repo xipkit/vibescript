@@ -1,0 +1,37 @@
+# title: Big integers
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Calculate factorials, Fibonacci numbers, and powers larger than 64 bits.
+# description: Integers grow as needed without losing precision. The sandbox charges memory based on size, and JSON keeps the full value.
+# tags: numbers, bignum, math
+# vibe: 0.4
+
+def factorial(n: int) -> int
+  (1..n).to_a.reduce(1) { |product, x| product * x }
+end
+
+def fibonacci(count: int) -> int
+  previous = 0
+  current = 1
+  count.times {
+    previous, current = current, previous + current
+  }
+  previous
+end
+
+def exact_json_round_trip?(value: int) -> bool
+  JSON.parse(JSON.stringify(value)) == value
+end
+
+def run -> { factorial_50: int, factorial_50_digits: int, fibonacci_300: int, json_stays_exact: bool, still_an_int: bool, two_to_the_256: int }
+  huge = factorial(50)
+
+  {
+    factorial_50: huge,
+    factorial_50_digits: huge.to_s.length,
+    two_to_the_256: 2 ** 256,
+    fibonacci_300: fibonacci(300),
+    json_stays_exact: exact_json_round_trip?(huge),
+    still_an_int: huge.even?
+  }
+end

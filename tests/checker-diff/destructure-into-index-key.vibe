@@ -1,0 +1,6 @@
+# expect: rejected V0107
+# Destructuring into an index checks its key as an assignment through the
+# index does.
+x: hash<string, any> = {}
+x[nil&.missing], other = 1, 2
+p(x, other)

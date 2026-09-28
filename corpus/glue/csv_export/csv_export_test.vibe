@@ -1,0 +1,6 @@
+def test_csv_export
+  subject = require("csv_export")
+  expected = ['"name","note"', '"Ada","a,b"'].join("\n")
+  assert subject.csv([["name", "note"], ["Ada", "a,b"]]) == expected
+  assert subject.quote_cell('say "hi"') == '"say ""hi"""'
+end

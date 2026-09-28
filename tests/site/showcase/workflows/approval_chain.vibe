@@ -1,0 +1,68 @@
+# title: Approval chain
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Build a release approval process with states and deadlines.
+# description: Enums name each state, durations set deadlines, and the result lists each review step.
+# tags: workflows, durations, enums, approvals
+# vibe: 0.2
+
+enum ApprovalState
+  Draft
+  Review
+  Approved
+  Blocked
+end
+
+type ApprovalStep = { due_at: string, due_in: string, label: string }
+type Approval = { change_id: string, checks_passed: bool, next_state: string, state: string, steps: array<ApprovalStep> }
+
+def next_state(state: ApprovalState, checks_passed: bool) -> ApprovalState
+  if state == ApprovalState::Draft
+    ApprovalState::Review
+  elsif state == ApprovalState::Review && checks_passed
+    ApprovalState::Approved
+  elsif state == ApprovalState::Review
+    ApprovalState::Blocked
+  else
+    state
+  end
+end
+
+def approval_step(label: string, due_in: duration, opened_at: time) -> ApprovalStep
+  {
+    label: label,
+    due_in: due_in.iso8601,
+    due_at: due_in.after(opened_at).format("2006-01-02T15:04:05Z")
+  }
+end
+
+def approval_chain(change_id: string, state: ApprovalState, checks_passed: bool, opened_at: time) -> Approval
+  target_state = next_state(state, checks_passed)
+  steps: array<ApprovalStep> = []
+
+  if state == ApprovalState::Draft
+    steps = steps.push(approval_step("peer review", 2.hours, opened_at))
+  elsif state == ApprovalState::Review
+    steps = steps.push(approval_step("security review", 4.hours, opened_at))
+    steps = steps.push(approval_step("ops signoff", 8.hours, opened_at))
+  else
+    steps = steps.push(approval_step("release", 30.minutes, opened_at))
+  end
+
+  {
+    change_id: change_id,
+    state: state.name,
+    next_state: target_state.name,
+    checks_passed: checks_passed,
+    steps: steps
+  }
+end
+
+def run -> { pending: Approval, ready: Approval }
+  opened_at = Time.at(1701000000)
+
+  {
+    pending: approval_chain("change_88", ApprovalState::Review, false, opened_at),
+    ready: approval_chain("change_89", ApprovalState::Review, true, opened_at)
+  }
+end

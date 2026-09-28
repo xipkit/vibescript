@@ -1,0 +1,10 @@
+# expect: rejected V0101
+# A loop that ends a body gives the value its body had last, not the nil
+# the checker gave a `while` loop, so `run` returned a float as `int?`.
+def run -> int?
+  i = 0.0
+  while i < 3
+    i += 1
+  end
+end
+p(run)

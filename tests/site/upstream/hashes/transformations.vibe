@@ -1,0 +1,86 @@
+# vibe: 1.0
+
+def rename_keys(record: hash<string, int | string>, mapping: hash<string, string>) -> hash<string, int | string>
+  record.transform_keys { |key|
+    mapping.fetch(key) {
+      key
+    }
+  }
+end
+
+def compact_hash(record: hash<string, int?>) -> hash<string, int>
+  record.compact
+end
+
+def select_keys(record: hash<string, int | string>, keys: array<string>) -> hash<string, int | string>
+  result: hash<string, int | string> = {}
+  keys.each { |key|
+    value = record[key]
+    if value != nil
+      result[key] = value
+    end
+  }
+  result
+end
+
+def public_fields(record: hash<string, int | string>) -> hash<string, int | string>
+  record.slice("name", "raised", "goal")
+end
+
+def without_private(record: hash<string, int | string>) -> hash<string, int | string>
+  record.except("internal", "token")
+end
+
+def normalize_values(record: hash<string, int?>) -> hash<string, int>
+  record.transform_values { |value|
+    if value == nil
+      0
+    else
+      value
+    end
+  }
+end
+
+def active_only(record: hash<string, string>) -> hash<string, string>
+  record.select { |key, value|
+    value == "active"
+  }
+end
+
+def non_zero(record: hash<string, int>) -> hash<string, int>
+  record.reject { |key, value|
+    value == 0
+  }
+end
+
+def remap_profile(record: hash<string, int | string>) -> hash<string, int | string>
+  record.remap_keys({ "first_name": :name, "total_raised": :raised })
+end
+
+def deep_transform_profile(record: hash<string, int | hash<string, int>>) -> hash<string, int | hash<string, int>>
+  record.deep_transform_keys { |key|
+    if key == "player_id"
+      :playerId
+    elsif key == "total_raised"
+      :totalRaised
+    elsif key == "amount_cents"
+      :amountCents
+    else
+      key
+    end
+  }
+end
+
+def run -> { active_only: hash<string, string>, compact: hash<string, int>, deep_transform: hash<string, int | hash<string, int>>, non_zero: hash<string, int>, normalize: hash<string, int>, public: hash<string, int | string>, select_keys: hash<string, int | string>, without_private: hash<string, int | string> }
+  record = { name: "Alice", internal: "secret", token: "abc", status: "active", score: 0, goal: 100 }
+  {
+    compact: compact_hash({ a: 1, b: nil, c: 3 }),
+    select_keys: select_keys(record, ["name", "goal"]),
+    public: public_fields({ name: "Alice", raised: 500, goal: 1000, token: "x" }),
+    without_private: without_private(record),
+    normalize: normalize_values({ a: 1, b: nil, c: 3 }),
+    active_only: active_only({ a: "active", b: "inactive", c: "active" }),
+    non_zero: non_zero({ x: 0, y: 5, z: 0, w: 3 }),
+    deep_transform: deep_transform_profile({ player_id: 1, total_raised: 500, meta: { amount_cents: 100 } })
+  }
+end

@@ -1,0 +1,6 @@
+def test_enum_events
+  subject = require("enum_events")
+  assert subject.action('{"event":"created","id":"1"}') == "insert:1"
+  assert subject.action('{"event":"updated","id":"2"}') == "upsert:2"
+  assert subject.action('{"event":"deleted","id":"3"}') == "remove:3"
+end

@@ -1,0 +1,11 @@
+# expect: rejected V0203
+# A compound assignment through a member was not checked for a setter, so
+# a module constant, an int, became a float through `self.C += 1.5`.
+module M
+  C = 1
+  def self.f -> int
+    self.C += 1.5
+    self.C
+  end
+end
+p(M.f)

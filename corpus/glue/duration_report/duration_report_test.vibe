@@ -1,0 +1,7 @@
+def test_duration_report
+  subject = require("duration_report")
+  result = subject.delay_report(["1m", "30s"])
+  assert result["seconds"] == 90
+  assert result["iso"] == "PT1M30S"
+  assert subject.delay_report([])["seconds"] == 0
+end

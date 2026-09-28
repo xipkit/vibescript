@@ -1,0 +1,50 @@
+# title: Harshad or Niven series
+# source: https://rosettacode.org/wiki/Harshad_or_Niven_series
+# category: Rosetta Code
+# difficulty: Easy
+# summary: Find Harshad (Niven) numbers, which are divisible by the sum of their digits.
+# tags: popular, math, sequences
+# vibe: 0.2
+
+def digit_sum(n: int) -> int
+  total = 0
+  remaining = n
+  while remaining > 0
+    total = total + (remaining % 10)
+    remaining = remaining // 10
+  end
+  total
+end
+
+def harshad?(n: int) -> bool
+  n > 0 && n % digit_sum(n) == 0
+end
+
+def first_harshad(count: int) -> array<int>
+  results: array<int> = []
+  n = 1
+  while results.length < count
+    if harshad?(n)
+      results = results.push(n)
+    end
+    n = n + 1
+  end
+  results
+end
+
+def first_harshad_above(threshold: int) -> int
+  n = threshold + 1
+  while true
+    if harshad?(n)
+      return n
+    end
+    n = n + 1
+  end
+end
+
+def run -> { first_20: array<int>, first_above_1000: int }
+  {
+    first_20: first_harshad(20),
+    first_above_1000: first_harshad_above(1000)
+  }
+end

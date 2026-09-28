@@ -1,0 +1,5 @@
+def summarize(input: string) -> string
+  rows = JSON.parse_as(input, array<{ amount: int, ... }>)
+  total = rows.sum { |row| row["amount"] }
+  JSON.stringify({ count: rows.length, total: total })
+end

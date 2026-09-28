@@ -1,0 +1,5 @@
+def test_request_batches
+  subject = require("request_batches")
+  assert subject.batches(["a", "b", "c"], 2) == ['{"ids":["a","b"]}', '{"ids":["c"]}']
+  assert subject.batches([], 2) == []
+end

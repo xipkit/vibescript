@@ -1,0 +1,50 @@
+# vibe: 1.0
+
+def sum_of_products(x_limit: int, y_limit: int) -> int
+  total = 0
+  for x in 1..x_limit
+    for y in 1..y_limit
+      total = total + (x * y)
+    end
+  end
+  total
+end
+
+def accumulate_until(limit: int, threshold: int) -> int
+  total = 0
+  for value in 1..limit
+    if total >= threshold
+      return total
+    end
+    total = total + value
+  end
+  total
+end
+
+def find_first_divisible(limit: int, divisor: int) -> int?
+  for value in 1..limit
+    if value % divisor == 0
+      return value
+    end
+  end
+  nil
+end
+
+def sum_matrix(matrix: array<array<int>>) -> int
+  total = 0
+  matrix.each { |row|
+    row.each { |value|
+      total = total + value
+    }
+  }
+  total
+end
+
+def run -> { accumulate: int, first_div_by_7: int, matrix_sum: int, sum_of_products: int }
+  {
+    sum_of_products: sum_of_products(4, 3),
+    accumulate: accumulate_until(20, 15),
+    first_div_by_7: find_first_divisible(50, 7).as(int),
+    matrix_sum: sum_matrix([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+  }
+end

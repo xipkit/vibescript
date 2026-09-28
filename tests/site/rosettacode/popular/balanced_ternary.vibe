@@ -1,0 +1,68 @@
+# title: Balanced ternary
+# source: https://rosettacode.org/wiki/Balanced_ternary
+# category: Rosetta Code
+# difficulty: Intermediate
+# summary: Convert small signed integers into balanced ternary using 1, 0, and T digits.
+# tags: popular, math, numerals, conversion
+# vibe: 0.2
+
+def flip_digits(text: string) -> string
+  output = ""
+  index = 0
+
+  while index < text.length
+    char = text.slice(index)
+    if char == "1"
+      output = output + "T"
+    elsif char == "T"
+      output = output + "1"
+    else
+      output = output + "0"
+    end
+    index = index + 1
+  end
+
+  output
+end
+
+def positive_balanced_ternary(value: int) -> string
+  if value == 0
+    return "0"
+  end
+
+  digits = ""
+  current = value
+
+  while current > 0
+    remainder = current % 3
+    current = current // 3
+
+    if remainder == 0
+      digits = "0" + digits
+    elsif remainder == 1
+      digits = "1" + digits
+    else
+      digits = "T" + digits
+      current = current + 1
+    end
+  end
+
+  digits
+end
+
+def balanced_ternary(value: int) -> string
+  if value < 0
+    return flip_digits(positive_balanced_ternary(-value))
+  end
+
+  positive_balanced_ternary(value)
+end
+
+def run -> { negative_ten: string, positive_forty_two: string, positive_ten: string, zero: string }
+  {
+    zero: balanced_ternary(0),
+    positive_ten: balanced_ternary(10),
+    positive_forty_two: balanced_ternary(42),
+    negative_ten: balanced_ternary(-10)
+  }
+end

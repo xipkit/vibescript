@@ -1,0 +1,17 @@
+# vibe: 1.0
+
+def factorial(n: int) -> int
+  if n <= 1
+    1
+  else
+    n * factorial(n - 1)
+  end
+end
+
+def fibonacci(n: int) -> int
+  if n <= 1
+    n
+  else
+    fibonacci(n - 1) + fibonacci(n - 2)
+  end
+end

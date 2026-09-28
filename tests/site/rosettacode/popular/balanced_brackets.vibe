@@ -1,0 +1,62 @@
+# title: Balanced Brackets
+# source: https://rosettacode.org/wiki/Balanced_brackets
+# category: Rosetta Code Popular
+# difficulty: Easy
+# summary: Check whether bracket pairs are properly nested and closed by scanning the text with a stack.
+# tags: popular, parsing, stack, strings
+# vibe: 0.4
+
+def opener_for(char: string) -> string?
+  if char == ")"
+    "("
+  elsif char == "]"
+    "["
+  elsif char == "}"
+    "{"
+  else
+    nil
+  end
+end
+
+def closer?(char: string) -> bool
+  char == ")" || char == "]" || char == "}"
+end
+
+def balanced_brackets?(text: string) -> bool
+  stack: array<string> = []
+  depth = 0
+  index = 0
+
+  while index < text.length
+    char = text.slice(index).as(string)
+
+    if char == "(" || char == "[" || char == "{"
+      stack.push(char)
+      depth = depth + 1
+    elsif closer?(char)
+      if depth == 0
+        return false
+      end
+
+      top = stack.pop
+      depth = depth - 1
+
+      if top != opener_for(char)
+        return false
+      end
+    end
+
+    index = index + 1
+  end
+
+  depth == 0
+end
+
+def run -> { crossed_false: bool, incomplete_false: bool, mixed_true: bool, nested_true: bool }
+  {
+    nested_true: balanced_brackets?("{[()()]}"),
+    mixed_true: balanced_brackets?("function(x) { return [x, x + 1] }"),
+    crossed_false: balanced_brackets?("([)]"),
+    incomplete_false: balanced_brackets?("{[()}")
+  }
+end

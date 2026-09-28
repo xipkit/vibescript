@@ -1,0 +1,1054 @@
+def f001 -> int
+  1
+end
+
+def f002 -> int
+  2
+end
+
+def f003 -> int
+  3
+end
+
+def f004 -> int
+  4
+end
+
+def f005 -> int
+  5
+end
+
+def f006 -> int
+  6
+end
+
+def f007 -> int
+  7
+end
+
+def f008 -> int
+  8
+end
+
+def f009 -> int
+  9
+end
+
+def f010 -> int
+  10
+end
+
+def f011 -> int
+  11
+end
+
+def f012 -> int
+  12
+end
+
+def f013 -> int
+  13
+end
+
+def f014 -> int
+  14
+end
+
+def f015 -> int
+  15
+end
+
+def f016 -> int
+  16
+end
+
+def f017 -> int
+  17
+end
+
+def f018 -> int
+  18
+end
+
+def f019 -> int
+  19
+end
+
+def f020 -> int
+  20
+end
+
+def f021 -> int
+  21
+end
+
+def f022 -> int
+  22
+end
+
+def f023 -> int
+  23
+end
+
+def f024 -> int
+  24
+end
+
+def f025 -> int
+  25
+end
+
+def f026 -> int
+  26
+end
+
+def f027 -> int
+  27
+end
+
+def f028 -> int
+  28
+end
+
+def f029 -> int
+  29
+end
+
+def f030 -> int
+  30
+end
+
+def f031 -> int
+  31
+end
+
+def f032 -> int
+  32
+end
+
+def f033 -> int
+  33
+end
+
+def f034 -> int
+  34
+end
+
+def f035 -> int
+  35
+end
+
+def f036 -> int
+  36
+end
+
+def f037 -> int
+  37
+end
+
+def f038 -> int
+  38
+end
+
+def f039 -> int
+  39
+end
+
+def f040 -> int
+  40
+end
+
+def f041 -> int
+  41
+end
+
+def f042 -> int
+  42
+end
+
+def f043 -> int
+  43
+end
+
+def f044 -> int
+  44
+end
+
+def f045 -> int
+  45
+end
+
+def f046 -> int
+  46
+end
+
+def f047 -> int
+  47
+end
+
+def f048 -> int
+  48
+end
+
+def f049 -> int
+  49
+end
+
+def f050 -> int
+  50
+end
+
+def f051 -> int
+  51
+end
+
+def f052 -> int
+  52
+end
+
+def f053 -> int
+  53
+end
+
+def f054 -> int
+  54
+end
+
+def f055 -> int
+  55
+end
+
+def f056 -> int
+  56
+end
+
+def f057 -> int
+  57
+end
+
+def f058 -> int
+  58
+end
+
+def f059 -> int
+  59
+end
+
+def f060 -> int
+  60
+end
+
+def f061 -> int
+  61
+end
+
+def f062 -> int
+  62
+end
+
+def f063 -> int
+  63
+end
+
+def f064 -> int
+  64
+end
+
+def f065 -> int
+  65
+end
+
+def f066 -> int
+  66
+end
+
+def f067 -> int
+  67
+end
+
+def f068 -> int
+  68
+end
+
+def f069 -> int
+  69
+end
+
+def f070 -> int
+  70
+end
+
+def f071 -> int
+  71
+end
+
+def f072 -> int
+  72
+end
+
+def f073 -> int
+  73
+end
+
+def f074 -> int
+  74
+end
+
+def f075 -> int
+  75
+end
+
+def f076 -> int
+  76
+end
+
+def f077 -> int
+  77
+end
+
+def f078 -> int
+  78
+end
+
+def f079 -> int
+  79
+end
+
+def f080 -> int
+  80
+end
+
+def f081 -> int
+  81
+end
+
+def f082 -> int
+  82
+end
+
+def f083 -> int
+  83
+end
+
+def f084 -> int
+  84
+end
+
+def f085 -> int
+  85
+end
+
+def f086 -> int
+  86
+end
+
+def f087 -> int
+  87
+end
+
+def f088 -> int
+  88
+end
+
+def f089 -> int
+  89
+end
+
+def f090 -> int
+  90
+end
+
+def f091 -> int
+  91
+end
+
+def f092 -> int
+  92
+end
+
+def f093 -> int
+  93
+end
+
+def f094 -> int
+  94
+end
+
+def f095 -> int
+  95
+end
+
+def f096 -> int
+  96
+end
+
+def f097 -> int
+  97
+end
+
+def f098 -> int
+  98
+end
+
+def f099 -> int
+  99
+end
+
+def f100 -> int
+  100
+end
+
+def f101 -> int
+  101
+end
+
+def f102 -> int
+  102
+end
+
+def f103 -> int
+  103
+end
+
+def f104 -> int
+  104
+end
+
+def f105 -> int
+  105
+end
+
+def f106 -> int
+  106
+end
+
+def f107 -> int
+  107
+end
+
+def f108 -> int
+  108
+end
+
+def f109 -> int
+  109
+end
+
+def f110 -> int
+  110
+end
+
+def f111 -> int
+  111
+end
+
+def f112 -> int
+  112
+end
+
+def f113 -> int
+  113
+end
+
+def f114 -> int
+  114
+end
+
+def f115 -> int
+  115
+end
+
+def f116 -> int
+  116
+end
+
+def f117 -> int
+  117
+end
+
+def f118 -> int
+  118
+end
+
+def f119 -> int
+  119
+end
+
+def f120 -> int
+  120
+end
+
+def f121 -> int
+  121
+end
+
+def f122 -> int
+  122
+end
+
+def f123 -> int
+  123
+end
+
+def f124 -> int
+  124
+end
+
+def f125 -> int
+  125
+end
+
+def f126 -> int
+  126
+end
+
+def f127 -> int
+  127
+end
+
+def f128 -> int
+  128
+end
+
+def f129 -> int
+  129
+end
+
+def f130 -> int
+  130
+end
+
+def f131 -> int
+  131
+end
+
+def f132 -> int
+  132
+end
+
+def f133 -> int
+  133
+end
+
+def f134 -> int
+  134
+end
+
+def f135 -> int
+  135
+end
+
+def f136 -> int
+  136
+end
+
+def f137 -> int
+  137
+end
+
+def f138 -> int
+  138
+end
+
+def f139 -> int
+  139
+end
+
+def f140 -> int
+  140
+end
+
+def f141 -> int
+  141
+end
+
+def f142 -> int
+  142
+end
+
+def f143 -> int
+  143
+end
+
+def f144 -> int
+  144
+end
+
+def f145 -> int
+  145
+end
+
+def f146 -> int
+  146
+end
+
+def f147 -> int
+  147
+end
+
+def f148 -> int
+  148
+end
+
+def f149 -> int
+  149
+end
+
+def f150 -> int
+  150
+end
+
+def f151 -> int
+  151
+end
+
+def f152 -> int
+  152
+end
+
+def f153 -> int
+  153
+end
+
+def f154 -> int
+  154
+end
+
+def f155 -> int
+  155
+end
+
+def f156 -> int
+  156
+end
+
+def f157 -> int
+  157
+end
+
+def f158 -> int
+  158
+end
+
+def f159 -> int
+  159
+end
+
+def f160 -> int
+  160
+end
+
+def f161 -> int
+  161
+end
+
+def f162 -> int
+  162
+end
+
+def f163 -> int
+  163
+end
+
+def f164 -> int
+  164
+end
+
+def f165 -> int
+  165
+end
+
+def f166 -> int
+  166
+end
+
+def f167 -> int
+  167
+end
+
+def f168 -> int
+  168
+end
+
+def f169 -> int
+  169
+end
+
+def f170 -> int
+  170
+end
+
+def f171 -> int
+  171
+end
+
+def f172 -> int
+  172
+end
+
+def f173 -> int
+  173
+end
+
+def f174 -> int
+  174
+end
+
+def f175 -> int
+  175
+end
+
+def f176 -> int
+  176
+end
+
+def f177 -> int
+  177
+end
+
+def f178 -> int
+  178
+end
+
+def f179 -> int
+  179
+end
+
+def f180 -> int
+  180
+end
+
+def f181 -> int
+  181
+end
+
+def f182 -> int
+  182
+end
+
+def f183 -> int
+  183
+end
+
+def f184 -> int
+  184
+end
+
+def f185 -> int
+  185
+end
+
+def f186 -> int
+  186
+end
+
+def f187 -> int
+  187
+end
+
+def f188 -> int
+  188
+end
+
+def f189 -> int
+  189
+end
+
+def f190 -> int
+  190
+end
+
+def f191 -> int
+  191
+end
+
+def f192 -> int
+  192
+end
+
+def f193 -> int
+  193
+end
+
+def f194 -> int
+  194
+end
+
+def f195 -> int
+  195
+end
+
+def f196 -> int
+  196
+end
+
+def f197 -> int
+  197
+end
+
+def f198 -> int
+  198
+end
+
+def f199 -> int
+  199
+end
+
+def f200 -> int
+  200
+end
+
+def f201 -> int
+  201
+end
+
+def f202 -> int
+  202
+end
+
+def f203 -> int
+  203
+end
+
+def f204 -> int
+  204
+end
+
+def f205 -> int
+  205
+end
+
+def f206 -> int
+  206
+end
+
+def f207 -> int
+  207
+end
+
+def f208 -> int
+  208
+end
+
+def f209 -> int
+  209
+end
+
+def f210 -> int
+  210
+end
+
+def f211 -> int
+  211
+end
+
+def f212 -> int
+  212
+end
+
+def f213 -> int
+  213
+end
+
+def f214 -> int
+  214
+end
+
+def f215 -> int
+  215
+end
+
+def f216 -> int
+  216
+end
+
+def f217 -> int
+  217
+end
+
+def f218 -> int
+  218
+end
+
+def f219 -> int
+  219
+end
+
+def f220 -> int
+  220
+end
+
+def f221 -> int
+  221
+end
+
+def f222 -> int
+  222
+end
+
+def f223 -> int
+  223
+end
+
+def f224 -> int
+  224
+end
+
+def f225 -> int
+  225
+end
+
+def f226 -> int
+  226
+end
+
+def f227 -> int
+  227
+end
+
+def f228 -> int
+  228
+end
+
+def f229 -> int
+  229
+end
+
+def f230 -> int
+  230
+end
+
+def f231 -> int
+  231
+end
+
+def f232 -> int
+  232
+end
+
+def f233 -> int
+  233
+end
+
+def f234 -> int
+  234
+end
+
+def f235 -> int
+  235
+end
+
+def f236 -> int
+  236
+end
+
+def f237 -> int
+  237
+end
+
+def f238 -> int
+  238
+end
+
+def f239 -> int
+  239
+end
+
+def f240 -> int
+  240
+end
+
+def f241 -> int
+  241
+end
+
+def f242 -> int
+  242
+end
+
+def f243 -> int
+  243
+end
+
+def f244 -> int
+  244
+end
+
+def f245 -> int
+  245
+end
+
+def f246 -> int
+  246
+end
+
+def f247 -> int
+  247
+end
+
+def f248 -> int
+  248
+end
+
+def f249 -> int
+  249
+end
+
+def f250 -> int
+  250
+end
+
+def run -> int
+  total = 0
+  total = total + f001 + f002 + f003 + f004 + f005
+  total = total + f006 + f007 + f008 + f009 + f010
+  total = total + f011 + f012 + f013 + f014 + f015
+  total = total + f016 + f017 + f018 + f019 + f020
+  total = total + f021 + f022 + f023 + f024 + f025
+  total = total + f026 + f027 + f028 + f029 + f030
+  total = total + f031 + f032 + f033 + f034 + f035
+  total = total + f036 + f037 + f038 + f039 + f040
+  total = total + f041 + f042 + f043 + f044 + f045
+  total = total + f046 + f047 + f048 + f049 + f050
+  total = total + f051 + f052 + f053 + f054 + f055
+  total = total + f056 + f057 + f058 + f059 + f060
+  total = total + f061 + f062 + f063 + f064 + f065
+  total = total + f066 + f067 + f068 + f069 + f070
+  total = total + f071 + f072 + f073 + f074 + f075
+  total = total + f076 + f077 + f078 + f079 + f080
+  total = total + f081 + f082 + f083 + f084 + f085
+  total = total + f086 + f087 + f088 + f089 + f090
+  total = total + f091 + f092 + f093 + f094 + f095
+  total = total + f096 + f097 + f098 + f099 + f100
+  total = total + f101 + f102 + f103 + f104 + f105
+  total = total + f106 + f107 + f108 + f109 + f110
+  total = total + f111 + f112 + f113 + f114 + f115
+  total = total + f116 + f117 + f118 + f119 + f120
+  total = total + f121 + f122 + f123 + f124 + f125
+  total = total + f126 + f127 + f128 + f129 + f130
+  total = total + f131 + f132 + f133 + f134 + f135
+  total = total + f136 + f137 + f138 + f139 + f140
+  total = total + f141 + f142 + f143 + f144 + f145
+  total = total + f146 + f147 + f148 + f149 + f150
+  total = total + f151 + f152 + f153 + f154 + f155
+  total = total + f156 + f157 + f158 + f159 + f160
+  total = total + f161 + f162 + f163 + f164 + f165
+  total = total + f166 + f167 + f168 + f169 + f170
+  total = total + f171 + f172 + f173 + f174 + f175
+  total = total + f176 + f177 + f178 + f179 + f180
+  total = total + f181 + f182 + f183 + f184 + f185
+  total = total + f186 + f187 + f188 + f189 + f190
+  total = total + f191 + f192 + f193 + f194 + f195
+  total = total + f196 + f197 + f198 + f199 + f200
+  total = total + f201 + f202 + f203 + f204 + f205
+  total = total + f206 + f207 + f208 + f209 + f210
+  total = total + f211 + f212 + f213 + f214 + f215
+  total = total + f216 + f217 + f218 + f219 + f220
+  total = total + f221 + f222 + f223 + f224 + f225
+  total = total + f226 + f227 + f228 + f229 + f230
+  total = total + f231 + f232 + f233 + f234 + f235
+  total = total + f236 + f237 + f238 + f239 + f240
+  total = total + f241 + f242 + f243 + f244 + f245
+  total = total + f246 + f247 + f248 + f249 + f250
+  total
+end

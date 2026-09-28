@@ -1,0 +1,6 @@
+String case mappings derive from the Go 1.27.1 unicode package and
+golang.org/x/text v0.40.0, both using Unicode 17.0.0. The source packages
+are distributed under the BSD 3-Clause license in Go-BSD-3-Clause.txt.
+
+scripts/generate-string-casing.py generates the tables and records their
+versions and reference hash in src/text/case/manifest.json.

@@ -1,0 +1,91 @@
+[
+  {
+    "name": "global_field",
+    "status": "intentional",
+    "source": "def good(x: int = 42) -> int\nx\nend\ndef bad(x: int = 0) -> int\nraise \"callee\"\nend\ndef argument -> int\nraise \"argument\"\nend\ndef run(input: any) -> any\nbegin\n(JSON.nope rescue good)(8)\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend",
+    "go_result": [
+      "escaped",
+      "RuntimeError",
+      "unknown hash method nope"
+    ],
+    "rust_result": 8,
+    "reason": "Selected policy: namespace lookup errors are catchable at the expression where lookup fails.",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        12,
+        7
+      ]
+    }
+  },
+  {
+    "name": "selection_before_arguments",
+    "status": "intentional",
+    "reason": "Selected policy: parentheses after a begin expression call the selected value.",
+    "source": "\ndef run(input: any) -> any\nbegin\nevents: array<int> = [];x=(begin\nevents.push(1);JSON::parse\nend)(begin\nevents.push(2);\"[8]\"\nend);[x,events]\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend",
+    "go_result": [
+      "escaped",
+      "RuntimeError",
+      "x is a method and cannot be used as a value; call it with x(...)"
+    ],
+    "rust_result": [
+      [
+        8
+      ],
+      [
+        1,
+        2
+      ]
+    ],
+    "static_error": {
+      "code": "V0106",
+      "at": [
+        4,
+        28
+      ]
+    }
+  },
+  {
+    "name": "retry_target",
+    "status": "intentional",
+    "reason": "Selected policy: parentheses after a begin expression call the selected value.",
+    "source": "\ndef run(input: any) -> any\nbegin\nn=0;(begin\nn+=1;raise \"again\" if n<3;JSON::parse\nrescue\nretry\nend)(\"[8]\")\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend",
+    "go_result": "[8]",
+    "rust_result": [
+      8
+    ],
+    "static_error": {
+      "code": "V0106",
+      "at": [
+        4,
+        6
+      ]
+    }
+  },
+  {
+    "name": "begin_ensure_target",
+    "status": "intentional",
+    "reason": "Selected policy: parentheses after a begin expression call the selected value.",
+    "source": "\ndef run(input: any) -> any\nbegin\nevents: array<int> = [];x=(begin\nJSON::parse\nensure\nevents.push(1)\nend)(\"[8]\");[x,events]\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend",
+    "go_result": [
+      "escaped",
+      "RuntimeError",
+      "x is a method and cannot be used as a value; call it with x(...)"
+    ],
+    "rust_result": [
+      [
+        8
+      ],
+      [
+        1
+      ]
+    ],
+    "static_error": {
+      "code": "V0106",
+      "at": [
+        4,
+        28
+      ]
+    }
+  }
+]

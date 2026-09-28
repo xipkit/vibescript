@@ -1,4 +1,0 @@
-go test fuzz v1
-string("0\xe40")
-string("")
-float64(-38)

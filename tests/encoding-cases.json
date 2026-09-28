@@ -1,0 +1,225 @@
+[
+  {
+    "name": "scalars",
+    "source": "def run(input: any) -> array<any>\n[nil,true,false,0,-7,2**100,1.5,-0.0,\"abc\",:abc,[],{}]\nend",
+    "expected": [
+      "typed-v1",
+      [
+        "array",
+        [
+          [
+            "nil"
+          ],
+          [
+            "bool",
+            true
+          ],
+          [
+            "bool",
+            false
+          ],
+          [
+            "int",
+            "0"
+          ],
+          [
+            "int",
+            "-7"
+          ],
+          [
+            "int",
+            "1267650600228229401496703205376"
+          ],
+          [
+            "float",
+            "3ff8000000000000"
+          ],
+          [
+            "float",
+            "8000000000000000"
+          ],
+          [
+            "string",
+            "616263"
+          ],
+          [
+            "symbol",
+            "616263"
+          ],
+          [
+            "array",
+            []
+          ],
+          [
+            "hash",
+            []
+          ]
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "raw_bytes",
+    "source": "def run(input: any) -> [string, symbol]\n[\"é\\x00\\xff\", :café]\nend",
+    "expected": [
+      "typed-v1",
+      [
+        "array",
+        [
+          [
+            "string",
+            "c3a900ff"
+          ],
+          [
+            "symbol",
+            "636166c3a9"
+          ]
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "money_bounds",
+    "source": "def run(input: any) -> array<money>\n[money(\"92233720368547758.07 USD\"),money(\"-92233720368547758.08 EUR\")]\nend",
+    "expected": [
+      "typed-v1",
+      [
+        "array",
+        [
+          [
+            "money",
+            "USD",
+            "9223372036854775807"
+          ],
+          [
+            "money",
+            "EUR",
+            "-9223372036854775808"
+          ]
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "duration_bounds",
+    "source": "def run(input: any) -> array<duration>\n[(-9223372036854775808).seconds,(9223372036854775807).seconds]\nend",
+    "expected": [
+      "typed-v1",
+      [
+        "array",
+        [
+          [
+            "duration",
+            "-9223372036854775808"
+          ],
+          [
+            "duration",
+            "9223372036854775807"
+          ]
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "nested_order",
+    "source": "def run(input: any) -> { z: money, a: array<duration?> }\n{z: money(\"1.25 USD\"), a: [(-2).minutes, nil]}\nend",
+    "expected": [
+      "typed-v1",
+      [
+        "hash",
+        [
+          [
+            "7a",
+            [
+              "money",
+              "USD",
+              "125"
+            ]
+          ],
+          [
+            "61",
+            [
+              "array",
+              [
+                [
+                  "duration",
+                  "-120"
+                ],
+                [
+                  "nil"
+                ]
+              ]
+            ]
+          ]
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "distinct_tags",
+    "source": "def run(input: any) -> [array<string>, money]\n[[\"money\",\"USD\",\"125\"],money(\"1.25 USD\")]\nend",
+    "expected": [
+      "typed-v1",
+      [
+        "array",
+        [
+          [
+            "array",
+            [
+              [
+                "string",
+                "6d6f6e6579"
+              ],
+              [
+                "string",
+                "555344"
+              ],
+              [
+                "string",
+                "313235"
+              ]
+            ]
+          ],
+          [
+            "money",
+            "USD",
+            "125"
+          ]
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "normalized_keys",
+    "source": "def run(input: any) -> hash<string, int>\nh: hash<string, int> = {z: 1};h[\"a\"]=2;h[:z]=3;h\nend",
+    "static_error": {
+      "code": "V0409",
+      "at": [
+        2,
+        42
+      ]
+    },
+    "expected": [
+      "typed-v1",
+      [
+        "hash",
+        [
+          [
+            "7a",
+            [
+              "int",
+              "3"
+            ]
+          ],
+          [
+            "61",
+            [
+              "int",
+              "2"
+            ]
+          ]
+        ]
+      ]
+    ]
+  }
+]

@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
+export CARGO_HOME="$repo/.cache/cargo"
+export CARGO_TARGET_DIR="$repo/target"
+export TMPDIR="$repo/.cache/tmp"
+mkdir -p "$TMPDIR"
+exec cargo "$@"

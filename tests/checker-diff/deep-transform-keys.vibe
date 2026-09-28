@@ -1,0 +1,5 @@
+# expect: rejected V0101
+# `deep_transform_keys` renames the keys of nested records too, but kept
+# their shapes in its result's type.
+r = { b: { a: 1 } }.deep_transform_keys { |k| "x" }
+t: { x: { a: int } } = r

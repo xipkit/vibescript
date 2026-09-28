@@ -1,0 +1,38 @@
+# title: Temperature conversion
+# source: https://rosettacode.org/wiki/Temperature_conversion
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Convert values between Celsius and Fahrenheit.
+# tags: popular, math, conversion, basics
+# vibe: 0.2
+
+def celsius_to_fahrenheit(value: int) -> int
+  (value * 9 // 5) + 32
+end
+
+def fahrenheit_to_celsius(value: int) -> int
+  (value - 32) * 5 // 9
+end
+
+def celsius_to_kelvin(value: int) -> float
+  value + 273.15
+end
+
+def run -> { boiling_point: { celsius: int, fahrenheit: int, kelvin: float }, freezing_point: { celsius: int, fahrenheit: int, kelvin: float }, room_temperature_fahrenheit: { celsius: int, fahrenheit: int } }
+  {
+    freezing_point: {
+      celsius: 0,
+      fahrenheit: celsius_to_fahrenheit(0),
+      kelvin: celsius_to_kelvin(0)
+    },
+    boiling_point: {
+      celsius: 100,
+      fahrenheit: celsius_to_fahrenheit(100),
+      kelvin: celsius_to_kelvin(100)
+    },
+    room_temperature_fahrenheit: {
+      fahrenheit: 68,
+      celsius: fahrenheit_to_celsius(68)
+    }
+  }
+end

@@ -1,0 +1,44 @@
+# title: Gray code
+# source: https://rosettacode.org/wiki/Gray_code
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Generate the 4-bit Gray code sequence with the standard reflective construction.
+# tags: popular, arrays, combinatorics, iteration
+# vibe: 0.2
+
+def reverse_values(values: array<string>) -> array<string>
+  reversed: array<string> = []
+  index = values.length - 1
+
+  while index >= 0
+    reversed = reversed.push(values.fetch(index))
+    index = index - 1
+  end
+
+  reversed
+end
+
+def prefix_all(values: array<string>, prefix: string) -> array<string>
+  output: array<string> = []
+  index = 0
+
+  while index < values.length
+    output = output.push(prefix + values.fetch(index))
+    index = index + 1
+  end
+
+  output
+end
+
+def gray_code(bits: int) -> array<string>
+  if bits == 0
+    [""]
+  else
+    previous = gray_code(bits - 1)
+    prefix_all(previous, "0") + prefix_all(reverse_values(previous), "1")
+  end
+end
+
+def run -> array<string>
+  gray_code(4)
+end

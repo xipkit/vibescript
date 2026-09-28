@@ -1,0 +1,5 @@
+def batches(ids: array<string>, size: int) -> array<string>
+  payloads: array<string> = []
+  ids.each_slice(size) { |batch| payloads << JSON.stringify({ ids: batch }) }
+  payloads
+end

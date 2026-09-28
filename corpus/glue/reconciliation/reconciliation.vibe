@@ -1,0 +1,13 @@
+type Difference = { service: string, expected: int, observed: int }
+def differences(expected: hash<string, int>, observed: hash<string, int>) -> array<Difference>
+  keys = expected.keys.union(observed.keys).sort
+  keys.filter_map { |key|
+    want = expected.fetch(key, 0)
+    got = observed.fetch(key, 0)
+    if want == got
+      nil
+    else
+      { service: key, expected: want, observed: got }
+    end
+  }
+end

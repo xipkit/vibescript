@@ -1,0 +1,34 @@
+def run -> { deep: int, empty_keys: array<string>, empty_vals: array<int>, keys_count: int, merged_x: int, merged_y: int, missing: int?, nil_val: nil, present_val: int, vals_count: int }
+  h: hash<string, int> = { a: 1, b: 2, c: 3 }
+
+  missing = h["nonexistent"]
+
+  nested = { outer: { inner: { deep: 42 } } }
+  deep_val = nested["outer"]["inner"]["deep"]
+
+  empty: hash<string, int> = {}
+  empty_keys = empty.keys
+  empty_vals = empty.values
+
+  merged = { x: 1 }.merge({ y: 2, x: 10 })
+
+  with_nil = { present: 1, missing: nil }
+  nil_val = with_nil["missing"]
+  present_val = with_nil["present"]
+
+  keys_count = h.keys.length
+  vals_count = h.values.length
+
+  {
+    missing: missing,
+    deep: deep_val,
+    empty_keys: empty_keys,
+    empty_vals: empty_vals,
+    merged_x: merged.fetch("x"),
+    merged_y: merged.fetch("y"),
+    nil_val: nil_val,
+    present_val: present_val,
+    keys_count: keys_count,
+    vals_count: vals_count
+  }
+end

@@ -1,0 +1,75 @@
+# title: Priority queue
+# source: https://rosettacode.org/wiki/Priority_queue
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Model a simple highest-priority-first queue with sorted insertion over an array-backed store.
+# tags: popular, data-structures, sorting, queues
+# vibe: 0.4
+
+def new_priority_queue -> { items: array<{ priority: int, value: string }> }
+  {
+    items: []
+  }
+end
+
+def compare_entries(left: { priority: int, value: string }, right: { priority: int, value: string }) -> int
+  priority_gap = left["priority"] - right["priority"]
+  if priority_gap != 0
+    priority_gap
+  elsif left["value"] < right["value"]
+    -1
+  elsif left["value"] > right["value"]
+    1
+  else
+    0
+  end
+end
+
+def enqueue(queue: { items: array<{ priority: int, value: string }> }, priority: int, value: string) -> { items: array<{ priority: int, value: string }> }
+  entry = { priority: priority, value: value }
+  items = queue["items"]
+  index = items.index { |item| compare_entries(entry, item) < 0 }
+  if index == nil
+    queue["items"] = items + [entry]
+  else
+    queue["items"] = items.first(index) + [entry] + items.drop(index)
+  end
+  queue
+end
+
+def dequeue(queue: { items: array<{ priority: int, value: string }> }) -> { item: { priority: int, value: string }, queue: { items: array<{ priority: int, value: string }> } }
+  value = queue["items"].pop
+  {
+    queue: queue,
+    item: value.as({ priority: int, value: string })
+  }
+end
+
+def peek(queue: { items: array<{ priority: int, value: string }> }) -> { priority: int, value: string }?
+  items = queue["items"]
+  if items.empty?
+    nil
+  else
+    items.fetch(items.length - 1)
+  end
+end
+
+def run -> { first_out: { priority: int, value: string }, peek_before_dequeue: { priority: int, value: string }, remaining: array<{ priority: int, value: string }>, second_out: { priority: int, value: string } }
+  queue: { items: array<{ priority: int, value: string }> } = new_priority_queue
+  queue = enqueue(queue, 2, "write tests")
+  queue = enqueue(queue, 5, "ship feature")
+  queue = enqueue(queue, 3, "review docs")
+  queue = enqueue(queue, 5, "answer support")
+
+  top_before = peek(queue)
+  first = dequeue(queue)
+  queue = first["queue"]
+  second = dequeue(queue)
+
+  {
+    peek_before_dequeue: top_before.as({ priority: int, value: string }),
+    first_out: first["item"],
+    second_out: second["item"],
+    remaining: second["queue"]["items"]
+  }
+end

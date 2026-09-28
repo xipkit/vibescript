@@ -1,0 +1,60 @@
+# title: Shipping quote
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Calculate delivery dates and prices for each shipping speed.
+# description: Enums name the shipping speeds, money tracks the price, and durations set the delivery window.
+# tags: commerce, money, durations, enums
+# featured: true
+# feature_rank: 3
+# vibe: 0.2
+
+enum ShippingSpeed
+  Economy
+  Priority
+  SameDay
+end
+
+def transit_time(speed: ShippingSpeed) -> duration
+  if speed == ShippingSpeed::Economy
+    5.days
+  elsif speed == ShippingSpeed::Priority
+    2.days
+  else
+    6.hours
+  end
+end
+
+def shipping_fee(speed: ShippingSpeed, subtotal: money) -> money
+  if speed == ShippingSpeed::Economy && subtotal >= money("100.00 USD")
+    money("0.00 USD")
+  elsif speed == ShippingSpeed::Economy
+    money("6.00 USD")
+  elsif speed == ShippingSpeed::Priority
+    money("18.00 USD")
+  else
+    money("35.00 USD")
+  end
+end
+
+def shipping_quote(speed: ShippingSpeed, subtotal: money, purchased_at: time) -> hash<string, money | string>
+  fee = shipping_fee(speed, subtotal)
+  transit = transit_time(speed)
+  eta = transit.after(purchased_at)
+
+  {
+    speed: speed.name,
+    subtotal: subtotal,
+    fee: fee,
+    total: subtotal + fee,
+    transit: transit.iso8601,
+    eta: eta.format("2006-01-02T15:04:05Z")
+  }
+end
+
+def run -> { economy: hash<string, money | string>, same_day: hash<string, money | string> }
+  purchased_at = Time.at(1700000000)
+  {
+    economy: shipping_quote(ShippingSpeed::Economy, money("125.00 USD"), purchased_at),
+    same_day: shipping_quote(ShippingSpeed::SameDay, money("48.00 USD"), purchased_at)
+  }
+end

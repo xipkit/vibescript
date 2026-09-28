@@ -1,0 +1,56 @@
+# title: Refund decision
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Use enums, money, and durations to decide whether to refund an order.
+# description: Enums name the reason and result. Money and durations set the policy limits.
+# tags: policies, money, durations, enums
+# featured: true
+# feature_rank: 4
+# vibe: 0.4
+
+enum RefundDecision
+  Full
+  Partial
+  Denied
+end
+
+def refund_decision(age: duration, used: bool) -> RefundDecision
+  if age <= 7.days && !used
+    RefundDecision::Full
+  elsif age <= 30.days
+    RefundDecision::Partial
+  else
+    RefundDecision::Denied
+  end
+end
+
+def refund_amount(total: money, decision: RefundDecision) -> money
+  if decision == RefundDecision::Full
+    total
+  elsif decision == RefundDecision::Partial
+    total - money("15.00 USD")
+  else
+    money("0.00 USD")
+  end
+end
+
+def refund_quote(total: money, purchased_at: time, requested_at: time, used: bool) -> hash<string, bool | money | string>
+  age = Duration.build(seconds: (requested_at - purchased_at).to_i)
+  decision = refund_decision(age, used)
+
+  {
+    decision: decision.name,
+    age: age.iso8601,
+    used: used,
+    refund: refund_amount(total, decision)
+  }
+end
+
+def run -> { denied: hash<string, bool | money | string>, full: hash<string, bool | money | string>, partial: hash<string, bool | money | string> }
+  purchased_at = Time.at(1700000000)
+  {
+    full: refund_quote(money("89.00 USD"), purchased_at, 3.days.after(purchased_at), false),
+    partial: refund_quote(money("89.00 USD"), purchased_at, 14.days.after(purchased_at), true),
+    denied: refund_quote(money("89.00 USD"), purchased_at, 45.days.after(purchased_at), true)
+  }
+end

@@ -1,0 +1,65 @@
+# title: Aliquot sequence classifications
+# source: https://rosettacode.org/wiki/Aliquot_sequence_classifications
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Build short aliquot sequences and classify whether they terminate, loop, or are perfect.
+# tags: popular, math, sequences, divisors
+# vibe: 0.4
+
+def proper_divisor_sum(number: int) -> int
+  if number == 1
+    return 0
+  end
+
+  total = 1
+  factor = 2
+
+  while factor * factor <= number
+    if number % factor == 0
+      total = total + factor
+      other = number // factor
+      if other != factor
+        total = total + other
+      end
+    end
+    factor = factor + 1
+  end
+
+  total
+end
+
+def aliquot_sequence(start_value: int, limit: int) -> array<int>
+  values: array<int> = []
+  seen: hash<string, bool> = {}
+  current = start_value
+
+  while values.length < limit && !seen.fetch(current.to_s, false)
+    values << current
+    seen[current.to_s] = true
+    current = proper_divisor_sum(current)
+  end
+
+  values << current
+  values
+end
+
+def classification(sequence: array<int>) -> string
+  if sequence.last == 0
+    "terminating"
+  elsif sequence.last == sequence.first
+    "perfect"
+  else
+    "looping"
+  end
+end
+
+def run -> array<{ classification: string, sequence: array<int>, start: int }>
+  [6, 10, 12].map { |start|
+    sequence = aliquot_sequence(start, 8)
+    {
+      start:,
+      classification: classification(sequence),
+      sequence:
+    }
+  }
+end

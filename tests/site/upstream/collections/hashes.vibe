@@ -1,0 +1,34 @@
+# vibe: 1.0
+
+def make_player(name: string, goal: int) -> { goal: int, name: string, raised: int, status: string }
+  {
+    name: name,
+    goal: goal,
+    raised: 0,
+    status: "active"
+  }
+end
+
+def mark_complete(player: { goal: int, name: string, raised: int, status: string }) -> { goal: int, name: string, raised: int, status: string }
+  player["status"] = "complete"
+  player
+end
+
+def total_with_bonus(row: { raised: int }, bonus: int) -> int
+  row["raised"] + bonus
+end
+
+def nested_lookup(record: { meta: { tag: string } }) -> string
+  record["meta"]["tag"]
+end
+
+def run -> { completed: { goal: int, name: string, raised: int, status: string }, nested: string, player: { goal: int, name: string, raised: int, status: string }, with_bonus: int }
+  player = make_player("Alice", 1000)
+  completed = mark_complete(make_player("Bob", 500))
+  {
+    player: player,
+    completed: completed,
+    with_bonus: total_with_bonus({ raised: 250 }, 50),
+    nested: nested_lookup({ meta: { tag: "vip" } })
+  }
+end

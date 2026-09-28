@@ -1,0 +1,56 @@
+# vibe: 1.0
+
+def count_active(players: array<{ active: bool }>) -> int
+  players.reduce(0) { |count, player|
+    if player["active"]
+      count + 1
+    else
+      count
+    end
+  }
+end
+
+def normalize_donations(donations: array<{ amount: money, id: string }>) -> array<{ cents: int, formatted: string, id: string }>
+  donations.map { |donation|
+    {
+      id: donation["id"],
+      cents: donation["amount"].cents,
+      formatted: donation["amount"].to_s
+    }
+  }
+end
+
+def max_score(scores: array<int>) -> int
+  scores.reduce(0) { |highest, score|
+    if score > highest
+      score
+    else
+      highest
+    end
+  }
+end
+
+def any_large?(values: array<int>, threshold: int) -> bool
+  found = false
+  values.each { |value|
+    if value > threshold
+      found = true
+    end
+  }
+  found
+end
+
+def run -> { active_count: int, any_large: bool, max_score: int }
+  players = [
+    { active: true },
+    { active: false },
+    { active: true },
+    { active: true }
+  ]
+
+  {
+    active_count: count_active(players),
+    max_score: max_score([10, 45, 23, 67, 12]),
+    any_large: any_large?([1, 2, 3, 100], 50)
+  }
+end

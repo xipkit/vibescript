@@ -1,0 +1,16 @@
+# expect: agreed
+class C
+  @value: array<int>
+  def initialize
+    @value = [1]
+  end
+  def [](index: int) -> array<int>
+    @value
+  end
+  def []=(index: int, value: array<int>)
+    @value = value
+  end
+end
+c = C.new
+c[0] += [2]
+p(c[0])

@@ -1,7 +1,0 @@
-def bump(value)
-  value + 1
-end
-
-def _private_bump(value)
-  value + 100
-end

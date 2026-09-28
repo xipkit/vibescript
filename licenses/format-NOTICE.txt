@@ -1,0 +1,4 @@
+src/format adapts formatting behavior and algorithms from the Go fmt,
+strconv and math/big packages. The Go Authors' BSD license is in
+Go-BSD-3-Clause.txt. Format preparation and size projections also follow
+the MIT-licensed Vibescript v0.70.0 runtime.

@@ -1,3 +1,0 @@
-def invoke_host_relative
-  host_relative
-end

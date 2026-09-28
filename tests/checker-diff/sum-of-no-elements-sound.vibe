@@ -1,0 +1,4 @@
+# expect: agreed
+x: int = [nil].compact.sum
+y: int = [1, 2].sum
+p(x, y)

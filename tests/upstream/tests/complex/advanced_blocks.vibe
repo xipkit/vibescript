@@ -1,0 +1,35 @@
+def call_with_three(&block: (int, int, int) -> int) -> int
+  yield(1, 2, 3)
+end
+
+def nested_sum(arr: array<int>, &block: (int, int) -> int) -> int
+  total = 0
+  arr.each { |x|
+    arr.each { |y|
+      total = total + yield(x, y)
+    }
+  }
+  total
+end
+
+def yield_one(&block: int -> int) -> int
+  yield(7)
+end
+
+def run -> { captured: array<int>, defaulted: int, nested: int }
+  captured: array<int> = []
+  call_with_three { |a, b|
+    captured = [a, b]
+    a + b
+  }
+
+  nested = nested_sum([1, 2, 3]) { |x, y|
+    x * y
+  }
+
+  defaulted = yield_one { |a|
+    a
+  }
+
+  { captured: captured, nested: nested, defaulted: defaulted }
+end

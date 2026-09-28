@@ -1,0 +1,7 @@
+type Repository = { name: string, issues: array<{ number: int, title: string }> }
+def titles(raw: string) -> array<string>
+  repositories = JSON.parse_as(raw, array<Repository>)
+  repositories.flat_map { |repository|
+    repository["issues"].map { |issue| "#{repository["name"]}##{issue["number"]}: #{issue["title"]}" }
+  }
+end

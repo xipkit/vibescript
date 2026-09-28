@@ -1,0 +1,15 @@
+class Budget
+  getter remaining: int
+  def initialize(@remaining: int)
+  end
+  def take(amount: int) -> bool
+    return false if amount > @remaining
+    @remaining -= amount
+    true
+  end
+end
+def allowance(initial: int, requests: array<int>) -> [array<bool>, int]
+  budget = Budget.new(initial)
+  outcomes = requests.map { |amount| budget.take(amount) }
+  [outcomes, budget.remaining]
+end

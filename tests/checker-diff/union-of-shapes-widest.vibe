@@ -1,0 +1,8 @@
+# expect: agreed
+# A record literal whose keys fit several shapes of a union was checked
+# against the first, although a later one declares exactly its keys, or
+# accepts its values where the first does not.
+n: int? = nil
+x: { id?: int, name: float, tags: int } | { name: float, tags: int? } = { name: 3.0, tags: n }
+y: { tags: int } | { tags: int? } = { tags: n }
+p(x, y)

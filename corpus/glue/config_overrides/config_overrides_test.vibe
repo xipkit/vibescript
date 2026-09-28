@@ -1,0 +1,9 @@
+def test_config_overrides
+  subject = require("config_overrides")
+  defaults: hash<string, string> = { region: "us", tier: "free" }
+  overrides: hash<string, string?> = { region: nil, tier: "pro" }
+  result = subject.settings(defaults, overrides)
+  assert result.fetch("region") == "us"
+  assert result.fetch("tier") == "pro"
+  assert defaults.fetch("tier") == "free"
+end

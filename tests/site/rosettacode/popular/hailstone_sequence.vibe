@@ -1,0 +1,31 @@
+# title: Hailstone sequence
+# source: https://rosettacode.org/wiki/Hailstone_sequence
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Build a hailstone sequence and report its length.
+# tags: popular, math, loops, sequences
+
+def hailstone(value: int) -> array<int>
+  sequence: array<int> = []
+  current = value
+
+  while true
+    sequence = sequence.push(current)
+    if current == 1
+      return sequence
+    elsif current.even?
+      current = current // 2
+    else
+      current = (current * 3) + 1
+    end
+  end
+end
+
+def run -> { first_ten: array<int>, last_ten: array<int>, length: int }
+  sequence = hailstone(27)
+  {
+    length: sequence.length,
+    first_ten: sequence.first(10),
+    last_ten: sequence.last(10)
+  }
+end

@@ -1,0 +1,40 @@
+# title: Prime decomposition
+# source: https://rosettacode.org/wiki/Prime_decomposition
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Find the prime factors of composite integers with trial division.
+# tags: popular, math, primes, factors
+# vibe: 0.2
+
+def prime_decomposition(number: int) -> array<int>
+  factors: array<int> = []
+  remaining = number
+
+  while remaining % 2 == 0
+    factors = factors.push(2)
+    remaining = remaining // 2
+  end
+
+  candidate = 3
+  while candidate * candidate <= remaining
+    while remaining % candidate == 0
+      factors = factors.push(candidate)
+      remaining = remaining // candidate
+    end
+    candidate = candidate + 2
+  end
+
+  if remaining > 1
+    factors = factors.push(remaining)
+  end
+
+  factors
+end
+
+def run -> { sample_composite: array<int>, thousand_twenty_three_times_thousand_twenty_four: array<int>, twelve: array<int> }
+  {
+    twelve: prime_decomposition(12),
+    thousand_twenty_three_times_thousand_twenty_four: prime_decomposition(1023 * 1024),
+    sample_composite: prime_decomposition(2 * 3 * 5 * 7 * 11 * 11 * 13 * 17)
+  }
+end

@@ -1,0 +1,43 @@
+# title: Angle difference between two bearings
+# source: https://rosettacode.org/wiki/Angle_difference_between_two_bearings
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Compute the smallest signed turn needed to move from one bearing to another.
+# tags: popular, math, geometry, normalization
+# vibe: 0.2
+
+def normalize(angle: float) -> float
+  while angle < 0.0
+    angle = angle + 360.0
+  end
+
+  while angle >= 360.0
+    angle = angle - 360.0
+  end
+
+  angle
+end
+
+def angle_difference(from_bearing: float, to_bearing: float) -> float
+  difference = normalize(to_bearing) - normalize(from_bearing)
+
+  while difference <= -180.0
+    difference = difference + 360.0
+  end
+
+  while difference > 180.0
+    difference = difference - 360.0
+  end
+
+  difference
+end
+
+def run -> { east_to_north: float, north_to_east: float, same_heading: float, wrap_clockwise: float, wrap_counterclockwise: float }
+  {
+    north_to_east: angle_difference(0.0, 90.0),
+    east_to_north: angle_difference(90.0, 0.0),
+    wrap_clockwise: angle_difference(350.0, 10.0),
+    wrap_counterclockwise: angle_difference(10.0, 350.0),
+    same_heading: angle_difference(720.0, 0.0)
+  }
+end

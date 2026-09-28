@@ -1,0 +1,40 @@
+# title: Log digest
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Parse log lines, group them by level, and count each group.
+# description: each_line splits the log. partition, group_by, and select turn the lines into a short report.
+# tags: operations, strings, collections, logs
+# vibe: 0.4
+
+def digest(text: string) -> array<{ level: string, message: string }>
+  entries: array<{ level: string, message: string }> = []
+  text.each_line { |line|
+    trimmed = line.strip
+    if !trimmed.empty?
+      parts = trimmed.partition(" ")
+      entries.push({ level: parts[0], message: parts[2] })
+    end
+  }
+  entries
+end
+
+def counts_by_level(entries: array<{ level: string, message: string }>) -> hash<string, int>
+  counts: hash<string, int> = {}
+  grouped = entries.group_by { |entry| entry.as({ level: string, message: string })["level"] }
+  grouped.each { |level, items|
+    counts[level] = items.length
+  }
+  counts
+end
+
+def run -> { counts_by_level: hash<string, int>, entry_count: int, first_message: string, warnings: array<string> }
+  log = "INFO service started\nWARN disk at 82%\nERROR upstream timeout\nINFO healthy\nWARN memory high"
+  entries = digest(log)
+
+  {
+    entry_count: entries.length,
+    first_message: entries[0].as({ level: string, message: string })["message"],
+    counts_by_level: counts_by_level(entries),
+    warnings: entries.select { |entry| entry.as({ level: string, message: string })["level"] == "WARN" }.map { |entry| entry.as({ level: string, message: string })["message"] }
+  }
+end

@@ -1,0 +1,10 @@
+def test_log_parser
+  subject = require("log_parser")
+  entry = subject.parse_line("INFO service=api ms=42")
+  assert entry != nil
+  if entry != nil
+    assert entry["service"] == "api"
+    assert entry["ms"] == 42
+  end
+  assert subject.parse_line("garbage") == nil
+end

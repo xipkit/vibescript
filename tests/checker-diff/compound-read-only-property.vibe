@@ -1,0 +1,9 @@
+# expect: rejected V0203
+class K
+  getter v: int
+  def initialize
+    @v = 1
+  end
+end
+k = K.new
+k.v += 1

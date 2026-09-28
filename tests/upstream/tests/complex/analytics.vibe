@@ -1,0 +1,59 @@
+# Aggregations over player hashes
+
+def total_scores(players: array<{ last_seen: int, name: string, score: int }>) -> int
+  players.reduce(0) { |acc, player|
+    acc + player["score"]
+  }
+end
+
+def top_score(players: array<{ last_seen: int, name: string, score: int }>) -> int
+  max = 0
+  players.each { |p|
+    if p["score"] > max
+      max = p["score"]
+    end
+  }
+  max
+end
+
+def names(players: array<{ last_seen: int, name: string, score: int }>) -> array<string>
+  players.map { |p|
+    p["name"]
+  }
+end
+
+def average_score(players: array<{ last_seen: int, name: string, score: int }>) -> int
+  if players.length == 0
+    0
+  else
+    total_scores(players) // players.length
+  end
+end
+
+def active_since(players: array<{ last_seen: int, name: string, score: int }>, cutoff: time) -> array<{ last_seen: int, name: string, score: int }>
+  players.select { |p|
+    Time.at(p["last_seen"]) >= cutoff
+  }
+end
+
+def leaderboard(players: array<{ last_seen: int, name: string, score: int }>, limit: int) -> array<{ last_seen: int, name: string, score: int }>
+  list = active_since(players, 30.days.before(Time.now))
+  list.first(limit)
+end
+
+def run -> { active: array<{ last_seen: int, name: string, score: int }>, average: int, leaders: array<{ last_seen: int, name: string, score: int }>, names: array<string>, top: int, total: int }
+  players = [
+    { name: "alex", score: 5, last_seen: 100 },
+    { name: "bea", score: 9, last_seen: 50 },
+    { name: "cam", score: 7, last_seen: 120 }
+  ]
+  cutoff = Time.at(90)
+  {
+    total: total_scores(players),
+    top: top_score(players),
+    names: names(players),
+    average: average_score(players),
+    active: active_since(players, cutoff),
+    leaders: leaderboard(players, 2)
+  }
+end

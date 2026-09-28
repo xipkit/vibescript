@@ -1,0 +1,775 @@
+{
+  "reference": "Go v0.70.0",
+  "classification": {
+    "selected_match_protection": "The user selected consistent protection through nested writes and duplicates.",
+    "existing_typed_mutation_guard": "Selected policy: enforce property types on nested backing-field writes, including forwarded mutations. Rejected mutations preserve the previous field. Go permits these writes.",
+    "selected_collection_snapshots": "The user selected documented collection value semantics. Forwarded reads and callable hash lookups use the evaluated receiver snapshot when later arguments mutate it."
+  },
+  "counts": {
+    "selected_match_protection": 6,
+    "existing_typed_mutation_guard": 2,
+    "selected_collection_snapshots": 12
+  },
+  "cases": [
+    {
+      "name": "forwarding_probe_path_send_write_protected",
+      "status": "selected_match_protection",
+      "source": "enum E\nA\nend\nclass C\nproperty p: int\ndef initialize(x: int = 1)\n@p=x\nend\ndef take(options: any) -> any\noptions\nend\ndef keywords(*, x: any, **rest: hash<string, any>) -> array<any>\n[x,rest]\nend\ndef typed(x: int) -> int\nx\nend\ndef add(x: int) -> int\n@p+=x;@p\nend\nprivate def hidden(x: int = 3) -> array<int>\n[@p,x]\nend\nprotected def guarded(x: int = 4) -> array<int>\n[@p,x]\nend\nprivate def self.hidden(x: int = 3) -> int\nx\nend\nprotected def self.guarded(x: int = 4) -> int\nx\nend\ndef self.take(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\nend\n\ndef run(input: any) -> any\nbegin\nm=\"ab\".match(/(a)(b)/);m&.captures&.send(:push,\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
+      "function": "run",
+      "args": [
+        null
+      ],
+      "go": [
+        "a",
+        "b",
+        "bad"
+      ],
+      "rust": [
+        "RuntimeError",
+        "cannot modify match data"
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          45,
+          37
+        ]
+      }
+    },
+    {
+      "name": "forwarding_probe_path_send_dup_protected",
+      "status": "selected_match_protection",
+      "source": "enum E\nA\nend\nclass C\nproperty p: int\ndef initialize(x: int = 1)\n@p=x\nend\ndef take(options: any) -> any\noptions\nend\ndef keywords(*, x: any, **rest: hash<string, any>) -> array<any>\n[x,rest]\nend\ndef typed(x: int) -> int\nx\nend\ndef add(x: int) -> int\n@p+=x;@p\nend\nprivate def hidden(x: int = 3) -> array<int>\n[@p,x]\nend\nprotected def guarded(x: int = 4) -> array<int>\n[@p,x]\nend\nprivate def self.hidden(x: int = 3) -> int\nx\nend\nprotected def self.guarded(x: int = 4) -> int\nx\nend\ndef self.take(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\nend\n\ndef run(input: any) -> any\nbegin\nm=\"ab\".match(/(a)(b)/).dup;m.send(:clear)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
+      "function": "run",
+      "args": [
+        null
+      ],
+      "go": {},
+      "rust": [
+        "RuntimeError",
+        "cannot modify match data"
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          45,
+          30
+        ]
+      }
+    },
+    {
+      "name": "forwarding_probe_path_public_send_write_protected",
+      "status": "selected_match_protection",
+      "source": "enum E\nA\nend\nclass C\nproperty p: int\ndef initialize(x: int = 1)\n@p=x\nend\ndef take(options: any) -> any\noptions\nend\ndef keywords(*, x: any, **rest: hash<string, any>) -> array<any>\n[x,rest]\nend\ndef typed(x: int) -> int\nx\nend\ndef add(x: int) -> int\n@p+=x;@p\nend\nprivate def hidden(x: int = 3) -> array<int>\n[@p,x]\nend\nprotected def guarded(x: int = 4) -> array<int>\n[@p,x]\nend\nprivate def self.hidden(x: int = 3) -> int\nx\nend\nprotected def self.guarded(x: int = 4) -> int\nx\nend\ndef self.take(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\nend\n\ndef run(input: any) -> any\nbegin\nm=\"ab\".match(/(a)(b)/);m&.captures&.public_send(:push,\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
+      "function": "run",
+      "args": [
+        null
+      ],
+      "go": [
+        "a",
+        "b",
+        "bad"
+      ],
+      "rust": [
+        "RuntimeError",
+        "cannot modify match data"
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          45,
+          37
+        ]
+      }
+    },
+    {
+      "name": "forwarding_probe_path_public_send_dup_protected",
+      "status": "selected_match_protection",
+      "source": "enum E\nA\nend\nclass C\nproperty p: int\ndef initialize(x: int = 1)\n@p=x\nend\ndef take(options: any) -> any\noptions\nend\ndef keywords(*, x: any, **rest: hash<string, any>) -> array<any>\n[x,rest]\nend\ndef typed(x: int) -> int\nx\nend\ndef add(x: int) -> int\n@p+=x;@p\nend\nprivate def hidden(x: int = 3) -> array<int>\n[@p,x]\nend\nprotected def guarded(x: int = 4) -> array<int>\n[@p,x]\nend\nprivate def self.hidden(x: int = 3) -> int\nx\nend\nprotected def self.guarded(x: int = 4) -> int\nx\nend\ndef self.take(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\nend\n\ndef run(input: any) -> any\nbegin\nm=\"ab\".match(/(a)(b)/).dup;m.public_send(:clear)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
+      "function": "run",
+      "args": [
+        null
+      ],
+      "go": {},
+      "rust": [
+        "RuntimeError",
+        "cannot modify match data"
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          45,
+          30
+        ]
+      }
+    },
+    {
+      "name": "forwarding_edge_address_send_typed_ivar_path",
+      "status": "existing_typed_mutation_guard",
+      "source": "enum E\nA\nend\nclass C\nproperty p: int\ndef initialize(x: int = 1)\n@p=x\nend\ndef take(options: any) -> any\noptions\nend\ndef keywords(*, x: any, **rest: hash<string, any>) -> array<any>\n[x,rest]\nend\ndef typed(x: int) -> int\nx\nend\ndef add(x: int) -> int\n@p+=x;@p\nend\nprivate def hidden(x: int = 3) -> array<int>\n[@p,x]\nend\nprotected def guarded(x: int = 4) -> array<int>\n[@p,x]\nend\nprivate def self.hidden(x: int = 3) -> int\nx\nend\nprotected def self.guarded(x: int = 4) -> int\nx\nend\ndef self.take(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\nend\n\ndef receiver(c: C) -> array<int>\nc.add(1);[1]\nend\nclass D\n@@items: array<int> = [1]\n@items: array<int> = [1]\ndef initialize\n@items=[1]\nend\ndef check -> array<array<int>>\nbefore=@items;@items.push(2);[@items,before]\nend\ndef self.check -> array<array<int>>\nbefore=@@items;@@items.push(2);[@@items,before]\nend\nend\nmodule N\n@@items: array<int> = [1]\ndef self.check -> array<array<int>>\nbefore=@@items;@@items.push(2);[@@items,before]\nend\nend\nclass T\nproperty items: array<int>\ndef initialize\n@items=[1]\nend\ndef check -> array<array<int>>\nbefore=@items\nbegin\n@items.send(:push,\"bad\")\nrescue RuntimeError\nnil\nend\n[@items,before]\nend\nend\nclass I\ndef [](index: int) -> int\nindex+3\nend\ndef []=(index: int,value: any) -> array<any>\n[index,value]\nend\nend\nclass U\ndef push(value: int) -> int\nvalue+1\nend\nend\nclass V\ndef send(value: int) -> array<int>\n[value,8]\nend\nend\nclass W\ndef send(*, x: any) -> any\nx\nend\nend\n\ndef run(input: any) -> any\nbegin\nT.new.check\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
+      "function": "run",
+      "args": [
+        null
+      ],
+      "go": [
+        [
+          1,
+          "bad"
+        ],
+        [
+          1
+        ]
+      ],
+      "rust": [
+        [
+          1
+        ],
+        [
+          1
+        ]
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          73,
+          8
+        ]
+      }
+    },
+    {
+      "name": "forwarding_edge_address_send_protected_write_after_dup",
+      "status": "selected_match_protection",
+      "source": "enum E\nA\nend\nclass C\nproperty p: int\ndef initialize(x: int = 1)\n@p=x\nend\ndef take(options: any) -> any\noptions\nend\ndef keywords(*, x: any, **rest: hash<string, any>) -> array<any>\n[x,rest]\nend\ndef typed(x: int) -> int\nx\nend\ndef add(x: int) -> int\n@p+=x;@p\nend\nprivate def hidden(x: int = 3) -> array<int>\n[@p,x]\nend\nprotected def guarded(x: int = 4) -> array<int>\n[@p,x]\nend\nprivate def self.hidden(x: int = 3) -> int\nx\nend\nprotected def self.guarded(x: int = 4) -> int\nx\nend\ndef self.take(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\nend\n\ndef receiver(c: C) -> array<int>\nc.add(1);[1]\nend\nclass D\n@@items: array<int> = [1]\n@items: array<int> = [1]\ndef initialize\n@items=[1]\nend\ndef check -> array<array<int>>\nbefore=@items;@items.push(2);[@items,before]\nend\ndef self.check -> array<array<int>>\nbefore=@@items;@@items.push(2);[@@items,before]\nend\nend\nmodule N\n@@items: array<int> = [1]\ndef self.check -> array<array<int>>\nbefore=@@items;@@items.push(2);[@@items,before]\nend\nend\nclass I\ndef [](index: int) -> int\nindex+3\nend\ndef []=(index: int,value: any) -> array<any>\n[index,value]\nend\nend\nclass U\ndef push(value: int) -> int\nvalue+1\nend\nend\nclass V\ndef send(value: int) -> array<int>\n[value,8]\nend\nend\nclass W\ndef send(*, x: any) -> any\nx\nend\nend\n\ndef run(input: any) -> any\nbegin\nm=\"ab\".match(/(a)(b)/);m.send(:dup).captures.send(:push,\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
+      "function": "run",
+      "args": [
+        null
+      ],
+      "go": [
+        "a",
+        "b",
+        "bad"
+      ],
+      "rust": [
+        "RuntimeError",
+        "cannot modify match data"
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          91,
+          26
+        ]
+      }
+    },
+    {
+      "name": "forwarding_edge_address_public_send_typed_ivar_path",
+      "status": "existing_typed_mutation_guard",
+      "source": "enum E\nA\nend\nclass C\nproperty p: int\ndef initialize(x: int = 1)\n@p=x\nend\ndef take(options: any) -> any\noptions\nend\ndef keywords(*, x: any, **rest: hash<string, any>) -> array<any>\n[x,rest]\nend\ndef typed(x: int) -> int\nx\nend\ndef add(x: int) -> int\n@p+=x;@p\nend\nprivate def hidden(x: int = 3) -> array<int>\n[@p,x]\nend\nprotected def guarded(x: int = 4) -> array<int>\n[@p,x]\nend\nprivate def self.hidden(x: int = 3) -> int\nx\nend\nprotected def self.guarded(x: int = 4) -> int\nx\nend\ndef self.take(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\nend\n\ndef receiver(c: C) -> array<int>\nc.add(1);[1]\nend\nclass D\n@@items: array<int> = [1]\n@items: array<int> = [1]\ndef initialize\n@items=[1]\nend\ndef check -> array<array<int>>\nbefore=@items;@items.push(2);[@items,before]\nend\ndef self.check -> array<array<int>>\nbefore=@@items;@@items.push(2);[@@items,before]\nend\nend\nmodule N\n@@items: array<int> = [1]\ndef self.check -> array<array<int>>\nbefore=@@items;@@items.push(2);[@@items,before]\nend\nend\nclass T\nproperty items: array<int>\ndef initialize\n@items=[1]\nend\ndef check -> array<array<int>>\nbefore=@items\nbegin\n@items.public_send(:push,\"bad\")\nrescue RuntimeError\nnil\nend\n[@items,before]\nend\nend\nclass I\ndef [](index: int) -> int\nindex+3\nend\ndef []=(index: int,value: any) -> array<any>\n[index,value]\nend\nend\nclass U\ndef push(value: int) -> int\nvalue+1\nend\nend\nclass V\ndef send(value: int) -> array<int>\n[value,8]\nend\nend\nclass W\ndef send(*, x: any) -> any\nx\nend\nend\n\ndef run(input: any) -> any\nbegin\nT.new.check\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
+      "function": "run",
+      "args": [
+        null
+      ],
+      "go": [
+        [
+          1,
+          "bad"
+        ],
+        [
+          1
+        ]
+      ],
+      "rust": [
+        [
+          1
+        ],
+        [
+          1
+        ]
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          73,
+          8
+        ]
+      }
+    },
+    {
+      "name": "forwarding_edge_address_public_send_protected_write_after_dup",
+      "status": "selected_match_protection",
+      "source": "enum E\nA\nend\nclass C\nproperty p: int\ndef initialize(x: int = 1)\n@p=x\nend\ndef take(options: any) -> any\noptions\nend\ndef keywords(*, x: any, **rest: hash<string, any>) -> array<any>\n[x,rest]\nend\ndef typed(x: int) -> int\nx\nend\ndef add(x: int) -> int\n@p+=x;@p\nend\nprivate def hidden(x: int = 3) -> array<int>\n[@p,x]\nend\nprotected def guarded(x: int = 4) -> array<int>\n[@p,x]\nend\nprivate def self.hidden(x: int = 3) -> int\nx\nend\nprotected def self.guarded(x: int = 4) -> int\nx\nend\ndef self.take(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\nend\n\ndef receiver(c: C) -> array<int>\nc.add(1);[1]\nend\nclass D\n@@items: array<int> = [1]\n@items: array<int> = [1]\ndef initialize\n@items=[1]\nend\ndef check -> array<array<int>>\nbefore=@items;@items.push(2);[@items,before]\nend\ndef self.check -> array<array<int>>\nbefore=@@items;@@items.push(2);[@@items,before]\nend\nend\nmodule N\n@@items: array<int> = [1]\ndef self.check -> array<array<int>>\nbefore=@@items;@@items.push(2);[@@items,before]\nend\nend\nclass I\ndef [](index: int) -> int\nindex+3\nend\ndef []=(index: int,value: any) -> array<any>\n[index,value]\nend\nend\nclass U\ndef push(value: int) -> int\nvalue+1\nend\nend\nclass V\ndef send(value: int) -> array<int>\n[value,8]\nend\nend\nclass W\ndef send(*, x: any) -> any\nx\nend\nend\n\ndef run(input: any) -> any\nbegin\nm=\"ab\".match(/(a)(b)/);m.public_send(:dup).captures.public_send(:push,\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
+      "function": "run",
+      "args": [
+        null
+      ],
+      "go": [
+        "a",
+        "b",
+        "bad"
+      ],
+      "rust": [
+        "RuntimeError",
+        "cannot modify match data"
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          91,
+          26
+        ]
+      }
+    },
+    {
+      "name": "forwarding_snapshot_send_export",
+      "status": "selected_collection_snapshots",
+      "source": "def run(input: any) -> any\nbegin\nh={go:JSON::parse};out=h.send(:go,h.clear.empty? ? \"[3]\" : \"[4]\");[h,out]\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
+      "function": "run",
+      "args": [
+        null
+      ],
+      "go": [
+        "RuntimeError",
+        "unknown hash method go"
+      ],
+      "rust": [
+        {},
+        [
+          3
+        ]
+      ],
+      "static_error": {
+        "code": "V0416",
+        "at": [
+          3,
+          11
+        ]
+      }
+    },
+    {
+      "name": "forwarding_snapshot_public_send_export",
+      "status": "selected_collection_snapshots",
+      "source": "def run(input: any) -> any\nbegin\nh={go:JSON::parse};out=h.public_send(:go,h.clear.empty? ? \"[3]\" : \"[4]\");[h,out]\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
+      "function": "run",
+      "args": [
+        null
+      ],
+      "go": [
+        "RuntimeError",
+        "unknown hash method go"
+      ],
+      "rust": [
+        {},
+        [
+          3
+        ]
+      ],
+      "static_error": {
+        "code": "V0416",
+        "at": [
+          3,
+          11
+        ]
+      }
+    },
+    {
+      "name": "forwarding_snapshot_send_iterator",
+      "status": "selected_collection_snapshots",
+      "source": "def run(input: any) -> any\nbegin\na=[1,2];out=a.send(a.clear.empty? ? :map : :map) {|n| n+3};[a,out]\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
+      "function": "run",
+      "args": [
+        null
+      ],
+      "go": [
+        [],
+        []
+      ],
+      "rust": [
+        [],
+        [
+          4,
+          5
+        ]
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          3,
+          15
+        ]
+      }
+    },
+    {
+      "name": "forwarding_snapshot_send_tap",
+      "status": "selected_collection_snapshots",
+      "source": "def run(input: any) -> any\nbegin\na=[1,2];out=a.send(a.clear.empty? ? :tap : :tap) {|n| n.push(3)};[a,out]\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
+      "function": "run",
+      "args": [
+        null
+      ],
+      "go": [
+        [],
+        []
+      ],
+      "rust": [
+        [],
+        [
+          1,
+          2
+        ]
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          3,
+          15
+        ]
+      }
+    },
+    {
+      "name": "forwarding_snapshot_send_nested_name",
+      "status": "selected_collection_snapshots",
+      "source": "def run(input: any) -> any\nbegin\na=[1,2];out=a.send(:send,a.clear.empty? ? :size : :size);[a,out]\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
+      "function": "run",
+      "args": [
+        null
+      ],
+      "go": [
+        [],
+        0
+      ],
+      "rust": [
+        [],
+        2
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          3,
+          15
+        ]
+      }
+    },
+    {
+      "name": "forwarding_snapshot_send_replace_export",
+      "status": "selected_collection_snapshots",
+      "source": "def run(input: any) -> any\nbegin\nh={go:JSON::parse};h.send(:go,h.replace({go:JSON::stringify}).length==1 ? \"[3]\" : \"[]\")\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
+      "function": "run",
+      "args": [
+        null
+      ],
+      "go": "\"[3]\"",
+      "rust": [
+        3
+      ],
+      "static_error": {
+        "code": "V0416",
+        "at": [
+          3,
+          11
+        ]
+      }
+    },
+    {
+      "name": "forwarding_snapshot_send_namespace_export",
+      "status": "selected_collection_snapshots",
+      "source": "def run(input: any) -> any\nbegin\nJSON[:work]=JSON::parse;JSON.send(:work,JSON.delete(:work)==nil ? \"[]\" : \"[3]\")\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
+      "function": "run",
+      "args": [
+        null
+      ],
+      "go": [
+        "RuntimeError",
+        "unknown hash method work"
+      ],
+      "rust": [
+        3
+      ],
+      "static_error": {
+        "code": "V0112",
+        "at": [
+          3,
+          1
+        ]
+      }
+    },
+    {
+      "name": "forwarding_snapshot_public_send_iterator",
+      "status": "selected_collection_snapshots",
+      "source": "def run(input: any) -> any\nbegin\na=[1,2];out=a.public_send(a.clear.empty? ? :map : :map) {|n| n+3};[a,out]\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
+      "function": "run",
+      "args": [
+        null
+      ],
+      "go": [
+        [],
+        []
+      ],
+      "rust": [
+        [],
+        [
+          4,
+          5
+        ]
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          3,
+          15
+        ]
+      }
+    },
+    {
+      "name": "forwarding_snapshot_public_send_tap",
+      "status": "selected_collection_snapshots",
+      "source": "def run(input: any) -> any\nbegin\na=[1,2];out=a.public_send(a.clear.empty? ? :tap : :tap) {|n| n.push(3)};[a,out]\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
+      "function": "run",
+      "args": [
+        null
+      ],
+      "go": [
+        [],
+        []
+      ],
+      "rust": [
+        [],
+        [
+          1,
+          2
+        ]
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          3,
+          15
+        ]
+      }
+    },
+    {
+      "name": "forwarding_snapshot_public_send_nested_name",
+      "status": "selected_collection_snapshots",
+      "source": "def run(input: any) -> any\nbegin\na=[1,2];out=a.public_send(:send,a.clear.empty? ? :size : :size);[a,out]\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
+      "function": "run",
+      "args": [
+        null
+      ],
+      "go": [
+        [],
+        0
+      ],
+      "rust": [
+        [],
+        2
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          3,
+          15
+        ]
+      }
+    },
+    {
+      "name": "forwarding_snapshot_public_send_replace_export",
+      "status": "selected_collection_snapshots",
+      "source": "def run(input: any) -> any\nbegin\nh={go:JSON::parse};h.public_send(:go,h.replace({go:JSON::stringify}).length==1 ? \"[3]\" : \"[]\")\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
+      "function": "run",
+      "args": [
+        null
+      ],
+      "go": "\"[3]\"",
+      "rust": [
+        3
+      ],
+      "static_error": {
+        "code": "V0416",
+        "at": [
+          3,
+          11
+        ]
+      }
+    },
+    {
+      "name": "forwarding_snapshot_public_send_namespace_export",
+      "status": "selected_collection_snapshots",
+      "source": "def run(input: any) -> any\nbegin\nJSON[:work]=JSON::parse;JSON.public_send(:work,JSON.delete(:work)==nil ? \"[]\" : \"[3]\")\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
+      "function": "run",
+      "args": [
+        null
+      ],
+      "go": [
+        "RuntimeError",
+        "unknown hash method work"
+      ],
+      "rust": [
+        3
+      ],
+      "static_error": {
+        "code": "V0112",
+        "at": [
+          3,
+          1
+        ]
+      }
+    }
+  ],
+  "diagnostic_wording": [
+    {
+      "name": "forwarding_probe_visibility_public_send_C.new_hidden",
+      "error_class": "RuntimeError",
+      "go": "private method hidden",
+      "rust": "method is not accessible with this receiver"
+    },
+    {
+      "name": "forwarding_probe_visibility_inside_public_send_C.new_hidden",
+      "error_class": "RuntimeError",
+      "go": "private method hidden",
+      "rust": "method is not accessible with this receiver"
+    },
+    {
+      "name": "forwarding_probe_visibility_public_send_C.new_guarded",
+      "error_class": "RuntimeError",
+      "go": "protected method guarded",
+      "rust": "method is not accessible with this receiver"
+    },
+    {
+      "name": "forwarding_probe_visibility_public_send_C_hidden",
+      "error_class": "RuntimeError",
+      "go": "private method hidden",
+      "rust": "method is not accessible with this receiver"
+    },
+    {
+      "name": "forwarding_probe_visibility_inside_public_send_C_hidden",
+      "error_class": "RuntimeError",
+      "go": "private method hidden",
+      "rust": "method is not accessible with this receiver"
+    },
+    {
+      "name": "forwarding_probe_visibility_public_send_C_guarded",
+      "error_class": "RuntimeError",
+      "go": "protected method guarded",
+      "rust": "method is not accessible with this receiver"
+    },
+    {
+      "name": "forwarding_probe_override_send_private _D.new",
+      "error_class": "RuntimeError",
+      "go": "private method send",
+      "rust": "method is not accessible with this receiver"
+    },
+    {
+      "name": "forwarding_probe_override_send_private _D",
+      "error_class": "RuntimeError",
+      "go": "private method send",
+      "rust": "method is not accessible with this receiver"
+    },
+    {
+      "name": "forwarding_probe_override_send_protected _D.new",
+      "error_class": "RuntimeError",
+      "go": "protected method send",
+      "rust": "method is not accessible with this receiver"
+    },
+    {
+      "name": "forwarding_probe_override_send_protected _D",
+      "error_class": "RuntimeError",
+      "go": "protected method send",
+      "rust": "method is not accessible with this receiver"
+    },
+    {
+      "name": "forwarding_probe_override_public_send_private _D.new",
+      "error_class": "RuntimeError",
+      "go": "private method public_send",
+      "rust": "method is not accessible with this receiver"
+    },
+    {
+      "name": "forwarding_probe_override_public_send_private _D",
+      "error_class": "RuntimeError",
+      "go": "private method public_send",
+      "rust": "method is not accessible with this receiver"
+    },
+    {
+      "name": "forwarding_probe_override_public_send_protected _D.new",
+      "error_class": "RuntimeError",
+      "go": "protected method public_send",
+      "rust": "method is not accessible with this receiver"
+    },
+    {
+      "name": "forwarding_probe_override_public_send_protected _D",
+      "error_class": "RuntimeError",
+      "go": "protected method public_send",
+      "rust": "method is not accessible with this receiver"
+    },
+    {
+      "name": "forwarding_edge_callable_receiver_send_1",
+      "error_class": "RuntimeError",
+      "go": "go is a method and cannot be used as a value; call it with go(...)",
+      "rust": "JSON.parse is a method and cannot be used as a value; call it directly"
+    },
+    {
+      "name": "forwarding_edge_callable_receiver_send_2",
+      "error_class": "RuntimeError",
+      "go": "begin is a method and cannot be used as a value; call it with begin(...)",
+      "rust": "match_data.begin is a method and must be called"
+    },
+    {
+      "name": "forwarding_edge_callable_path_send_bound_class",
+      "error_class": "RuntimeError",
+      "go": "data is a method and cannot be used as a value; call it with data(...)",
+      "rust": "JSON.parse is a method and cannot be used as a value; call it directly"
+    },
+    {
+      "name": "forwarding_edge_callable_path_send_bound_instance",
+      "error_class": "RuntimeError",
+      "go": "data is a method and cannot be used as a value; call it with data(...)",
+      "rust": "JSON.parse is a method and cannot be used as a value; call it directly"
+    },
+    {
+      "name": "forwarding_edge_callable_path_send_temporary_index",
+      "error_class": "RuntimeError",
+      "go": "go is a method and cannot be used as a value; call it with go(...)",
+      "rust": "JSON.parse is a method and cannot be used as a value; call it directly"
+    },
+    {
+      "name": "forwarding_edge_callable_path_send_nested_copied",
+      "error_class": "RuntimeError",
+      "go": "go is a method and cannot be used as a value; call it with go(...)",
+      "rust": "JSON.parse is a method and cannot be used as a value; call it directly"
+    },
+    {
+      "name": "forwarding_edge_control_helper_send_JSON.parse_nil?",
+      "error_class": "RuntimeError",
+      "go": "parse is a method and cannot be used as a value; call it with parse(...)",
+      "rust": "JSON.parse is a method and cannot be used as a value; call it directly"
+    },
+    {
+      "name": "forwarding_edge_control_helper_send_JSON.parse_itself",
+      "error_class": "RuntimeError",
+      "go": "parse is a method and cannot be used as a value; call it with parse(...)",
+      "rust": "JSON.parse is a method and cannot be used as a value; call it directly"
+    },
+    {
+      "name": "forwarding_edge_control_helper_send_JSON.parse_dup",
+      "error_class": "RuntimeError",
+      "go": "parse is a method and cannot be used as a value; call it with parse(...)",
+      "rust": "JSON.parse is a method and cannot be used as a value; call it directly"
+    },
+    {
+      "name": "forwarding_edge_address_send_public_via_send",
+      "error_class": "RuntimeError",
+      "go": "private method hidden",
+      "rust": "method is not accessible with this receiver"
+    },
+    {
+      "name": "forwarding_edge_address_send_rescued_error_write",
+      "error_class": "RuntimeError",
+      "go": "clear cannot modify a rescued error",
+      "rust": "cannot modify rescued error"
+    },
+    {
+      "name": "forwarding_edge_address_send_helper_override_nested",
+      "error_class": "ArgumentError",
+      "go": "unexpected positional arguments",
+      "rust": "V#send expects 1 arguments, got 2"
+    },
+    {
+      "name": "forwarding_edge_callable_receiver_public_send_1",
+      "error_class": "RuntimeError",
+      "go": "go is a method and cannot be used as a value; call it with go(...)",
+      "rust": "JSON.parse is a method and cannot be used as a value; call it directly"
+    },
+    {
+      "name": "forwarding_edge_callable_receiver_public_send_2",
+      "error_class": "RuntimeError",
+      "go": "begin is a method and cannot be used as a value; call it with begin(...)",
+      "rust": "match_data.begin is a method and must be called"
+    },
+    {
+      "name": "forwarding_edge_callable_path_public_send_bound_class",
+      "error_class": "RuntimeError",
+      "go": "data is a method and cannot be used as a value; call it with data(...)",
+      "rust": "JSON.parse is a method and cannot be used as a value; call it directly"
+    },
+    {
+      "name": "forwarding_edge_callable_path_public_send_bound_instance",
+      "error_class": "RuntimeError",
+      "go": "data is a method and cannot be used as a value; call it with data(...)",
+      "rust": "JSON.parse is a method and cannot be used as a value; call it directly"
+    },
+    {
+      "name": "forwarding_edge_callable_path_public_send_temporary_index",
+      "error_class": "RuntimeError",
+      "go": "go is a method and cannot be used as a value; call it with go(...)",
+      "rust": "JSON.parse is a method and cannot be used as a value; call it directly"
+    },
+    {
+      "name": "forwarding_edge_callable_path_public_send_nested_copied",
+      "error_class": "RuntimeError",
+      "go": "go is a method and cannot be used as a value; call it with go(...)",
+      "rust": "JSON.parse is a method and cannot be used as a value; call it directly"
+    },
+    {
+      "name": "forwarding_edge_control_helper_public_send_JSON.parse_nil?",
+      "error_class": "RuntimeError",
+      "go": "parse is a method and cannot be used as a value; call it with parse(...)",
+      "rust": "JSON.parse is a method and cannot be used as a value; call it directly"
+    },
+    {
+      "name": "forwarding_edge_control_helper_public_send_JSON.parse_itself",
+      "error_class": "RuntimeError",
+      "go": "parse is a method and cannot be used as a value; call it with parse(...)",
+      "rust": "JSON.parse is a method and cannot be used as a value; call it directly"
+    },
+    {
+      "name": "forwarding_edge_control_helper_public_send_JSON.parse_dup",
+      "error_class": "RuntimeError",
+      "go": "parse is a method and cannot be used as a value; call it with parse(...)",
+      "rust": "JSON.parse is a method and cannot be used as a value; call it directly"
+    },
+    {
+      "name": "forwarding_edge_address_public_send_public_via_send",
+      "error_class": "RuntimeError",
+      "go": "private method hidden",
+      "rust": "method is not accessible with this receiver"
+    },
+    {
+      "name": "forwarding_edge_address_public_send_rescued_error_write",
+      "error_class": "RuntimeError",
+      "go": "clear cannot modify a rescued error",
+      "rust": "cannot modify rescued error"
+    }
+  ],
+  "resolved_type_diagnostics": [
+    {
+      "name": "forwarding_probe_typed_reject_send",
+      "error_class": "RuntimeError",
+      "go": "argument x expected int, got string",
+      "rust": "argument x expected int, got string",
+      "previous_rust": "value does not match its type annotation",
+      "shared_fixture": "type_diagnostics_resolved_forwarding_probe_typed_reject_send"
+    },
+    {
+      "name": "forwarding_probe_typed_reject_public_send",
+      "error_class": "RuntimeError",
+      "go": "argument x expected int, got string",
+      "rust": "argument x expected int, got string",
+      "previous_rust": "value does not match its type annotation",
+      "shared_fixture": "type_diagnostics_resolved_forwarding_probe_typed_reject_public_send"
+    },
+    {
+      "name": "forwarding_edge_address_send_typed_setter",
+      "error_class": "RuntimeError",
+      "go": "argument value expected array<int>, got array<string>",
+      "rust": "argument value expected array<int>, got array<string>",
+      "previous_rust": "value does not match its type annotation",
+      "shared_fixture": "type_diagnostics_resolved_forwarding_edge_address_send_typed_setter"
+    },
+    {
+      "name": "forwarding_edge_address_public_send_typed_setter",
+      "error_class": "RuntimeError",
+      "go": "argument value expected array<int>, got array<string>",
+      "rust": "argument value expected array<int>, got array<string>",
+      "previous_rust": "value does not match its type annotation",
+      "shared_fixture": "type_diagnostics_resolved_forwarding_edge_address_public_send_typed_setter"
+    }
+  ]
+}

@@ -1,0 +1,199 @@
+{
+  "repository": "https://github.com/xipkit/vibescript",
+  "tag": "v0.70.0",
+  "commit": "5cba216c33bea8890787d64efb2ab926a761fb1b",
+  "files": [
+    {
+      "path": "examples/basics/functions_and_calls.vibe",
+      "sha256": "82ac4e0e753c7dcd9e9d3a47174b6792243654c3f4e47445219beea38680968a"
+    },
+    {
+      "path": "examples/basics/literals_and_operators.vibe",
+      "sha256": "1d40dba2ca2d2a3ada75c9031bdf67c369688293f43cdc1e1a4f7efc93b573d3"
+    },
+    {
+      "path": "examples/control_flow/conditionals.vibe",
+      "sha256": "a371492335a7f50c7a2347a77bb84b92a4b72b5a40ade44fdd36701d267526a3"
+    },
+    {
+      "path": "examples/control_flow/loop_control.vibe",
+      "sha256": "60d1f46c9699c2f0c50261f6011ac98e0fcde43fe2ca7045312ee87894700ba9"
+    },
+    {
+      "path": "examples/control_flow/recursion.vibe",
+      "sha256": "092b0f76840e05c4c47948c8a1684bbbad41a47288d3f108327330e4296584ae"
+    },
+    {
+      "path": "examples/control_flow/while_loop.vibe",
+      "sha256": "7a9edccc1da4a06f9e47a694bb5d10322bb52e7095fddcae0b78e99bb1aa3d6b"
+    },
+    {
+      "path": "examples/control_flow/until_loop.vibe",
+      "sha256": "f7c72119163b7d21ffde176af96434104cde2c897c56a2c33d69a40765922be0"
+    },
+    {
+      "path": "examples/collections/arrays.vibe",
+      "sha256": "9e32e0fdb2129baec4f0ae0b77e2800ca947b2a53331772eee8c8fe62cf0fece"
+    },
+    {
+      "path": "examples/collections/hashes.vibe",
+      "sha256": "b3ab217cc61dde1db416bfbc22420c58a50e9100880ffb8eb286430a7f2bdf54"
+    },
+    {
+      "path": "tests/complex/operators.vibe",
+      "sha256": "f66fee804eac4930a1f895ac64af76d1593519e401bb93433b353e827f37795c"
+    },
+    {
+      "path": "tests/blocks/block_arity.vibe",
+      "sha256": "ddda5174c45867fff206c35012cba526151b281508768afb856791e09cdf95ac"
+    },
+    {
+      "path": "tests/blocks/block_closure.vibe",
+      "sha256": "bf285aa08e5f8643bcdcbd9526c05c6d8b22b4ff04d33d52638494d91533bb49"
+    },
+    {
+      "path": "tests/blocks/block_error_propagation.vibe",
+      "sha256": "95d8d83ba8bd772d3742789c6e097b8e88c20a26c16b866f821f420bc941b5af"
+    },
+    {
+      "path": "tests/blocks/error_cases.vibe",
+      "sha256": "aa7214f28478808d2e63e6dd6bf0e61b1bc05374470d76e4882d8e11cd038cbc"
+    },
+    {
+      "path": "tests/blocks/instance_block_context.vibe",
+      "sha256": "42d068bebfb1a524be19d496e0436157b71ba55887ae33da0f2d4ec355502ce5"
+    },
+    {
+      "path": "tests/blocks/reduce_single.vibe",
+      "sha256": "12482e4002052d8aafedb175c416d0f4ba96dab2fd6bb97429452b4ee395024b"
+    },
+    {
+      "path": "tests/classes/counter.vibe",
+      "sha256": "3f224a074db855873f98f76154ef8e3722206af2ba2f84db800ea9c2ce64ac5c"
+    },
+    {
+      "path": "tests/classes/people.vibe",
+      "sha256": "c1e167ed5281d2c480d9d8bf2ea19642877bb2c5839d9d79de0d02d63aa08f56"
+    },
+    {
+      "path": "tests/classes/point.vibe",
+      "sha256": "ed672de5bea038080eb34803da6a8436a7c3a7eaa597b8f1f60cb7f1ca21aa8a"
+    },
+    {
+      "path": "tests/classes/privacy.vibe",
+      "sha256": "f78f925e7574237b3b0eb5c138768afd52c4e910e85a08d42353b0cb2e56915b"
+    },
+    {
+      "path": "tests/classes/self_calls.vibe",
+      "sha256": "5763bf6e56ebfe80c9a5af2d3d0d755b875033c6635c53fd18d858969143c3b2"
+    },
+    {
+      "path": "tests/classes/setter.vibe",
+      "sha256": "9daf1305670acd4336d8948dfa3174ba46b3fbefe64d97032d4b7746611e03ee"
+    },
+    {
+      "path": "tests/classes/typed_property.vibe",
+      "sha256": "0d4c32ec54b5ee360f372e0bd6e38ea5280e68bb003c2e09dc22af22f57ceb7e"
+    },
+    {
+      "path": "tests/collections_fixture.vibe",
+      "sha256": "555d323e31cbecfbd1adcf0f1c76a8c333000c98df6b50d05890175ca71cc131"
+    },
+    {
+      "path": "tests/complex/advanced_blocks.vibe",
+      "sha256": "a0feb6daf895e0898b572db5a672afc79d3fd3fcfaacf279edfbe37d0006c7eb"
+    },
+    {
+      "path": "tests/complex/analytics.vibe",
+      "sha256": "54628ff1dafd678e64083ae152041fe6ea97292c42c7e3e1face74fd586f7873"
+    },
+    {
+      "path": "tests/complex/array_edges.vibe",
+      "sha256": "94a93edb826ac9ae31522c37d36901d996eed6257d2804c3462cc053a354286f"
+    },
+    {
+      "path": "tests/complex/chudnovsky.vibe",
+      "sha256": "0ddf2d38c0195211b7f2166379da3eb3bf4c397fbcac861f20bca484f2b65016"
+    },
+    {
+      "path": "tests/complex/durations.vibe",
+      "sha256": "85a259d6c46a477d4e05d70ea178d1749bceaebf45c12ce5ab136037b63268b9"
+    },
+    {
+      "path": "tests/complex/finance.vibe",
+      "sha256": "756be96532b286366b1aef3cbd45bfbb882dcd35ce05a6a3088ce8a0a0777489"
+    },
+    {
+      "path": "tests/complex/hash_edges.vibe",
+      "sha256": "5267cdec9b3a39c5d918b92bd36d92f15aa30663acd4dd299437307133a37e42"
+    },
+    {
+      "path": "tests/complex/loops.vibe",
+      "sha256": "0fc623cfb8bd05c5366073f1a4e6db7eb61388097460192aaf7fecaa5fe705ce"
+    },
+    {
+      "path": "tests/complex/massive.vibe",
+      "sha256": "9e62a524deaa34c980dec21ac4096d3c7fa270cacd886f97f7f50753859b8a25"
+    },
+    {
+      "path": "tests/complex/pipeline.vibe",
+      "sha256": "60ffd9b15579b8de65c6c66847b1f258d9a758659b0d93737822bf1a80e34811"
+    },
+    {
+      "path": "tests/complex/string_edges.vibe",
+      "sha256": "0d874b12934ace68bfdf7121e72f03d447d88f4e5f3c4107164c440120a09242"
+    },
+    {
+      "path": "tests/complex/strings.vibe",
+      "sha256": "c8064b121cbf4685b758c686e0329c3e17d8ee3aaec7dd9b8275db95aa497d96"
+    },
+    {
+      "path": "tests/complex/typed.vibe",
+      "sha256": "2116ed76e3ef57e6f5f4e4d80900f97e0e1e09296e34c28e813724016d43fb09"
+    },
+    {
+      "path": "tests/complex/with_blocks.vibe",
+      "sha256": "96fad71d17d4fd7b058899a5082ce22cc05d84a5c059cc45c06d6c1c5cbade7f"
+    },
+    {
+      "path": "tests/complex/yield_basics.vibe",
+      "sha256": "2f34ca10f0a141c84c5c7487d06e21950605d220a06915b258ed06afbe58d8b9"
+    },
+    {
+      "path": "tests/enums_fixture.vibe",
+      "sha256": "9207c7c76212c22327510839c062852fcc7670f44bc5d6b960f2a86b40c1e048"
+    },
+    {
+      "path": "tests/errors/arguments.vibe",
+      "sha256": "18c87b6faf1ced23a889b8389373ffb6ca4d158522ca9ca8e70cd12ecf478322"
+    },
+    {
+      "path": "tests/errors/attributes.vibe",
+      "sha256": "3ed4c274cdc3e352fdb3e179e944e9dba03d75096ca4562aa8869f7f8a9c402b"
+    },
+    {
+      "path": "tests/errors/classes.vibe",
+      "sha256": "48ea6294642b0082d61f16797793114e7c39c835f8fdd7a71de641f0b8158c6f"
+    },
+    {
+      "path": "tests/errors/runtime.vibe",
+      "sha256": "37cc59593651c9ae905aa91350ee297f743b1973b9152da3fd5c3458f2927f0d"
+    },
+    {
+      "path": "tests/errors/types.vibe",
+      "sha256": "83ab69272104319a00d0b38479b8c6a756083126d13d8114af697b7cf7f51733"
+    },
+    {
+      "path": "tests/errors/yield.vibe",
+      "sha256": "b99c020be54f50d3df8929feda1a5c08430064d8a157b59c47b9842151684d06"
+    },
+    {
+      "path": "tests/runtime_stress.vibe",
+      "sha256": "aa07e0b364387758e47e2523b8158d51887f3484edc973a82ac54f922815e4c6"
+    },
+    {
+      "path": "tests/typing_fixture.vibe",
+      "sha256": "5921f33593f9cbe8541e8676cef0242d4f5a2cc3066f72a769be06971de57069"
+    }
+  ]
+}

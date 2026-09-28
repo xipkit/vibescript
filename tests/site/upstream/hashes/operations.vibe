@@ -1,0 +1,92 @@
+# vibe: 1.0
+
+def merge_defaults(player: { name: string, raised: money }, defaults: { goal: money, raised: money, status: string }) -> hash<string, money | string>
+  defaults.merge(player)
+end
+
+def merge_with_override(base: { a: int }, override: { a: int, b: int }) -> hash<string, int>
+  base.merge(override)
+end
+
+def layer_settings(base: hash<string, string>, environment: hash<string, string>, request: hash<string, string>) -> hash<string, string>
+  base.merge(environment, request)
+end
+
+def apply_patch(record: hash<string, money | string>, patch: hash<string, money | string>) -> hash<string, money | string>
+  record.merge(patch)
+end
+
+def reset_record(record: hash<string, money | string>, replacement: hash<string, money | string>) -> hash<string, money | string>
+  record.replace(replacement)
+end
+
+def to_pairs(record: hash<string, money | string>) -> array<any>
+  record.flatten
+end
+
+def index_report_by_id(records: array<{ id: string, name: string, raised: money }>) -> hash<string, { name: string, raised: money }>
+  report: hash<string, { name: string, raised: money }> = {}
+  records.each { |record|
+    report[record["id"]] = {
+      name: record["name"],
+      raised: record["raised"]
+    }
+  }
+  report
+end
+
+def deep_fetch_or(records: hash<string, { meta: hash<string, string>, name: string, raised: money }>, player_id: string) -> { name: string, raised: money }
+  record = records[player_id]
+  if record == nil
+    return {
+      name: "unknown",
+      raised: money("0.00 USD")
+    }
+  end
+  display_name = records.dig(player_id, "meta", "display_name")
+  if display_name == nil
+    display_name = record["name"]
+  end
+  {
+    name: display_name.as(string),
+    raised: record["raised"]
+  }
+end
+
+def tally_statuses(players: array<{ status: string }>) -> hash<string, int>
+  counts: hash<string, int> = {}
+  players.each { |player|
+    status = player["status"]
+    counts[status] = counts.fetch(status, 0) + 1
+  }
+  counts
+end
+
+def hash_flags(record: { goal: int, name: string }) -> { empty: bool, has_goal: bool, has_name: bool, includes_raised: bool, length: int, size: int }
+  {
+    size: record.length,
+    length: record.length,
+    empty: record.empty?,
+    has_name: record.key?("name"),
+    has_goal: record.key?("goal"),
+    includes_raised: record.key?("raised")
+  }
+end
+
+def run -> { flags: { empty: bool, has_goal: bool, has_name: bool, includes_raised: bool, length: int, size: int }, merged: hash<string, money | string>, overridden: hash<string, int>, tally: hash<string, int> }
+  defaults = { status: "active", raised: money("0.00 USD"), goal: money("100.00 USD") }
+  player = { name: "Alice", raised: money("75.00 USD") }
+  players = [
+    { id: 1, name: "Alice", raised: money("50.00 USD"), status: "active" },
+    { id: 2, name: "Bob", raised: money("30.00 USD"), status: "complete" }
+  ]
+
+  {
+    merged: merge_defaults(player, defaults),
+    overridden: merge_with_override({ a: 1 }, { a: 2, b: 3 }),
+    tally: tally_statuses([
+      { status: "active" }, { status: "active" }, { status: "complete" }
+    ]),
+    flags: hash_flags({ name: "test", goal: 100 })
+  }
+end

@@ -1,7 +1,0 @@
-def double(value)
-  value * 2
-end
-
-def triple(value)
-  value * 3
-end

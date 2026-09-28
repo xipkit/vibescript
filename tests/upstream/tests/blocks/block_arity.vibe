@@ -1,0 +1,19 @@
+def yield_one(&block: int -> array<int?>) -> array<int?>
+  yield(9)
+end
+
+def yield_many(&block: (int, int, int) -> array<int>) -> array<int>
+  yield(1, 2, 3)
+end
+
+def run -> { extra: array<int>, missing: array<int?> }
+  extra = yield_many { |a|
+    [a]
+  }
+
+  missing = yield_one { |a, b, c|
+    [a, b, c]
+  }
+
+  { extra: extra, missing: missing }
+end

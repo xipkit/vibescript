@@ -1,0 +1,9 @@
+# expect: rejected V0101
+# A `for` loop that ends a body gives its body's last value, `puts`'s nil
+# here, not the iterable.
+def total(xs: array<int>) -> array<int>
+  for x in xs
+    puts x
+  end
+end
+p(total([1, 2]))

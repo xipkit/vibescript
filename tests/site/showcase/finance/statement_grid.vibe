@@ -1,0 +1,28 @@
+# title: Statement grid
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Turn rows of money values into totals for each category.
+# description: transpose groups each category into a column. Money keeps the currency and total exact.
+# tags: finance, money, collections
+# vibe: 0.4
+
+def column_totals(rows: array<array<money>>) -> array<money>
+  rows.transpose.map { |column| column.sum(money("0.00 USD")) }
+end
+
+def run -> { by_category: array<array<money | string | nil>>, grand_total: money, weekly_totals: array<money> }
+  categories = ["subscriptions", "usage", "support"]
+  weeks = [
+    [money("1200.00 USD"), money("340.00 USD"), money("90.00 USD")],
+    [money("1250.00 USD"), money("410.00 USD"), money("75.00 USD")],
+    [money("1180.00 USD"), money("505.00 USD"), money("120.00 USD")]
+  ]
+
+  totals = column_totals(weeks)
+
+  {
+    by_category: categories.zip(totals),
+    weekly_totals: weeks.map { |week| week.sum(money("0.00 USD")) },
+    grand_total: totals.sum(money("0.00 USD"))
+  }
+end

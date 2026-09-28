@@ -1,0 +1,482 @@
+[
+  {
+    "args": [
+      "Ada"
+    ],
+    "expected": "hello Ada",
+    "function": "greet",
+    "path": "examples/basics/functions_and_calls.vibe"
+  },
+  {
+    "args": [
+      "Ada"
+    ],
+    "expected": "[hello Ada]",
+    "function": "decorated_greeting",
+    "path": "examples/basics/functions_and_calls.vibe"
+  },
+  {
+    "args": [
+      1,
+      2,
+      3
+    ],
+    "expected": 6,
+    "function": "sum_three",
+    "path": "examples/basics/functions_and_calls.vibe"
+  },
+  {
+    "args": [
+      3,
+      7
+    ],
+    "expected": 7,
+    "function": "max_value",
+    "path": "examples/basics/functions_and_calls.vibe"
+  },
+  {
+    "args": [
+      7,
+      3
+    ],
+    "expected": 7,
+    "function": "max_value",
+    "path": "examples/basics/functions_and_calls.vibe"
+  },
+  {
+    "args": [
+      5,
+      5
+    ],
+    "expected": 5,
+    "function": "max_value",
+    "path": "examples/basics/functions_and_calls.vibe"
+  },
+  {
+    "args": [
+      20,
+      22
+    ],
+    "expected": 42,
+    "function": "add_numbers",
+    "path": "examples/basics/literals_and_operators.vibe"
+  },
+  {
+    "args": [
+      "hello",
+      "world"
+    ],
+    "expected": "hello world",
+    "function": "combine_strings",
+    "path": "examples/basics/literals_and_operators.vibe"
+  },
+  {
+    "args": [
+      42
+    ],
+    "expected": -42,
+    "function": "negate",
+    "path": "examples/basics/literals_and_operators.vibe"
+  },
+  {
+    "args": [
+      false
+    ],
+    "expected": false,
+    "function": "truth_table",
+    "path": "examples/basics/literals_and_operators.vibe"
+  },
+  {
+    "args": [
+      true
+    ],
+    "expected": true,
+    "function": "truth_table",
+    "path": "examples/basics/literals_and_operators.vibe"
+  },
+  {
+    "args": [
+      null
+    ],
+    "expected": false,
+    "function": "truth_table",
+    "path": "examples/basics/literals_and_operators.vibe"
+  },
+  {
+    "args": [
+      0
+    ],
+    "expected": true,
+    "function": "truth_table",
+    "path": "examples/basics/literals_and_operators.vibe"
+  },
+  {
+    "args": [
+      ""
+    ],
+    "expected": true,
+    "function": "truth_table",
+    "path": "examples/basics/literals_and_operators.vibe"
+  },
+  {
+    "args": [],
+    "expected": {
+      "answer": 42,
+      "flags": [
+        true,
+        false,
+        null
+      ],
+      "quote": "keep going",
+      "ratio": 3.75
+    },
+    "function": "mix_literals",
+    "path": "examples/basics/literals_and_operators.vibe"
+  },
+  {
+    "args": [
+      100000
+    ],
+    "expected": "legend",
+    "function": "fundraising_badge",
+    "path": "examples/control_flow/conditionals.vibe"
+  },
+  {
+    "args": [
+      10000
+    ],
+    "expected": "elite",
+    "function": "fundraising_badge",
+    "path": "examples/control_flow/conditionals.vibe"
+  },
+  {
+    "args": [
+      1000
+    ],
+    "expected": "gold",
+    "function": "fundraising_badge",
+    "path": "examples/control_flow/conditionals.vibe"
+  },
+  {
+    "args": [
+      500
+    ],
+    "expected": "silver",
+    "function": "fundraising_badge",
+    "path": "examples/control_flow/conditionals.vibe"
+  },
+  {
+    "args": [
+      499
+    ],
+    "expected": "bronze",
+    "function": "fundraising_badge",
+    "path": "examples/control_flow/conditionals.vibe"
+  },
+  {
+    "args": [
+      0
+    ],
+    "expected": "bronze",
+    "function": "fundraising_badge",
+    "path": "examples/control_flow/conditionals.vibe"
+  },
+  {
+    "args": [
+      "active"
+    ],
+    "expected": "needs attention",
+    "function": "choose_label",
+    "path": "examples/control_flow/conditionals.vibe"
+  },
+  {
+    "args": [
+      "complete"
+    ],
+    "expected": "done",
+    "function": "choose_label",
+    "path": "examples/control_flow/conditionals.vibe"
+  },
+  {
+    "args": [
+      "other"
+    ],
+    "expected": "unknown",
+    "function": "choose_label",
+    "path": "examples/control_flow/conditionals.vibe"
+  },
+  {
+    "args": [
+      0
+    ],
+    "expected": 1,
+    "function": "factorial",
+    "path": "examples/control_flow/recursion.vibe"
+  },
+  {
+    "args": [
+      1
+    ],
+    "expected": 1,
+    "function": "factorial",
+    "path": "examples/control_flow/recursion.vibe"
+  },
+  {
+    "args": [
+      5
+    ],
+    "expected": 120,
+    "function": "factorial",
+    "path": "examples/control_flow/recursion.vibe"
+  },
+  {
+    "args": [
+      10
+    ],
+    "expected": 3628800,
+    "function": "factorial",
+    "path": "examples/control_flow/recursion.vibe"
+  },
+  {
+    "args": [
+      0
+    ],
+    "expected": 0,
+    "function": "fibonacci",
+    "path": "examples/control_flow/recursion.vibe"
+  },
+  {
+    "args": [
+      1
+    ],
+    "expected": 1,
+    "function": "fibonacci",
+    "path": "examples/control_flow/recursion.vibe"
+  },
+  {
+    "args": [
+      10
+    ],
+    "expected": 55,
+    "function": "fibonacci",
+    "path": "examples/control_flow/recursion.vibe"
+  },
+  {
+    "args": [
+      12
+    ],
+    "expected": 144,
+    "function": "fibonacci",
+    "path": "examples/control_flow/recursion.vibe"
+  },
+  {
+    "args": [],
+    "expected": [
+      1,
+      3,
+      5,
+      7,
+      9
+    ],
+    "function": "run",
+    "path": "examples/control_flow/loop_control.vibe"
+  },
+  {
+    "args": [],
+    "expected": [
+      5,
+      4,
+      3,
+      2,
+      1
+    ],
+    "function": "run",
+    "path": "examples/control_flow/while_loop.vibe"
+  },
+  {
+    "args": [],
+    "expected": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "function": "run",
+    "path": "examples/control_flow/until_loop.vibe"
+  },
+  {
+    "args": [
+      [
+        1,
+        2
+      ]
+    ],
+    "expected": 1,
+    "function": "head",
+    "path": "examples/collections/arrays.vibe"
+  },
+  {
+    "args": [
+      [
+        1,
+        2
+      ]
+    ],
+    "expected": 2,
+    "function": "tail",
+    "path": "examples/collections/arrays.vibe"
+  },
+  {
+    "args": [
+      []
+    ],
+    "expected": null,
+    "function": "head",
+    "path": "examples/collections/arrays.vibe"
+  },
+  {
+    "args": [
+      1,
+      2
+    ],
+    "expected": [
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        1
+      ]
+    ],
+    "function": "build_matrix",
+    "path": "examples/collections/arrays.vibe"
+  },
+  {
+    "args": [
+      [
+        1,
+        2
+      ],
+      9
+    ],
+    "expected": [
+      9,
+      2
+    ],
+    "function": "replace_first",
+    "path": "examples/collections/arrays.vibe"
+  },
+  {
+    "args": [
+      [
+        1,
+        2
+      ],
+      9
+    ],
+    "expected": {
+      "original": [
+        1,
+        2
+      ],
+      "updated": [
+        9,
+        2
+      ]
+    },
+    "function": "update_without_aliasing",
+    "path": "examples/collections/arrays.vibe"
+  },
+  {
+    "args": [
+      "Ada",
+      100
+    ],
+    "expected": {
+      "goal": 100,
+      "name": "Ada",
+      "raised": 0,
+      "status": "active"
+    },
+    "function": "make_player",
+    "path": "examples/collections/hashes.vibe"
+  },
+  {
+    "args": [
+      {
+        "name": "Ada",
+        "status": "active"
+      }
+    ],
+    "expected": {
+      "name": "Ada",
+      "status": "complete"
+    },
+    "function": "mark_complete",
+    "path": "examples/collections/hashes.vibe"
+  },
+  {
+    "args": [
+      {
+        "raised": 42
+      },
+      8
+    ],
+    "expected": 50,
+    "function": "total_with_bonus",
+    "path": "examples/collections/hashes.vibe"
+  },
+  {
+    "args": [
+      {
+        "meta": {
+          "tag": "core"
+        }
+      }
+    ],
+    "expected": "core",
+    "function": "nested_lookup",
+    "path": "examples/collections/hashes.vibe"
+  },
+  {
+    "args": [],
+    "expected": {
+      "bool_ops": {
+        "and_ff": false,
+        "and_tf": false,
+        "and_tt": true,
+        "not_f": true,
+        "not_t": false,
+        "or_ff": false,
+        "or_tf": true,
+        "or_tt": true
+      },
+      "comparisons": {
+        "eq_bool": true,
+        "eq_int": true,
+        "eq_nil": true,
+        "eq_str": true,
+        "ge": true,
+        "gt": true,
+        "le": true,
+        "lt": true,
+        "neq_int": true,
+        "neq_str": true
+      },
+      "float_arith": 12,
+      "int_arith": 12,
+      "mixed": 12.5,
+      "modulo": {
+        "neg_dividend": 2,
+        "pos": 1
+      },
+      "neg_float": -3.14,
+      "neg_int": -42,
+      "string_concat": "hello world"
+    },
+    "function": "run",
+    "path": "tests/complex/operators.vibe"
+  }
+]

@@ -1,0 +1,6 @@
+def close_ticket -> string
+  tickets = require("tickets")
+  ticket = tickets.opened
+  ticket.close
+  ticket.state.name
+end

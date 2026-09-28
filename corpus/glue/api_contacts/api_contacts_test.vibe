@@ -1,0 +1,5 @@
+def test_api_contacts
+  subject = require("api_contacts")
+  assert subject.recipients('[{"id":7,"email":" ADA@EXAMPLE.COM ","active":true,"extra":0},{"id":8,"email":"x","active":false}]') == '[{"id":"7","email":"ada@example.com"}]'
+  assert subject.recipients('[]') == '[]'
+end

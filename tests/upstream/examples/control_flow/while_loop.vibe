@@ -1,0 +1,15 @@
+# vibe: 1.0
+
+def countdown(start: int) -> array<int>
+  out: array<int> = []
+  n = start
+  while n > 0
+    out = out + [n]
+    n = n - 1
+  end
+  out
+end
+
+def run -> array<int>
+  countdown(5)
+end

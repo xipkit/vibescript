@@ -1,0 +1,12 @@
+enum Priority
+  Low
+  Normal
+  Urgent
+end
+def queue(priority: Priority) -> string
+  case priority
+  when Priority::Low then "batch"
+  when Priority::Normal then "default"
+  when Priority::Urgent then "alerts"
+  end
+end

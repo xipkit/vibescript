@@ -1,0 +1,6 @@
+def test_reconciliation
+  subject = require("reconciliation")
+  result = subject.differences({ api: 3, db: 2 }, { api: 1, db: 2, cache: 1 })
+  assert result == [{ service: "api", expected: 3, observed: 1 }, { service: "cache", expected: 0, observed: 1 }]
+  assert subject.differences({}, {}).empty?
+end

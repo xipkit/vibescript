@@ -1,0 +1,5 @@
+def test_page_numbers
+  subject = require("page_numbers")
+  assert subject.collect_pages(['{"items":[{"id":1}],"has_more":true}', '{"items":[{"id":2}],"has_more":false}']) == [1, 2]
+  assert subject.collect_pages(['{"items":[],"has_more":false}']) == []
+end

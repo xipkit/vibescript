@@ -1,0 +1,16 @@
+{
+  "baseline_revision": "3161370a4e20c0f08d286dccd95ce8f5d0bbd10a",
+  "delivered_runtime_tree": "c42b0eeaa361346394af340f8b5554b51b01b7f1",
+  "runtime_change_shipped": false,
+  "candidate_status": "rejected",
+  "candidate_base_revision": "3161370a4e20c0f08d286dccd95ce8f5d0bbd10a",
+  "candidate_patch": "rejected-runtime.patch",
+  "candidate_patch_sha256": "52e245e9325bd720611234506f1598bffa8131d4f4330403f5bc07af8f0091ab",
+  "artifact_root": "/Volumes/AI/Work/xipkit/vibescript.rs/.cache/mgomes/text-regex",
+  "matrix_comparisons": 752,
+  "x86_comparisons_passing": 376,
+  "arm_raw_metric_failures": 13,
+  "final_gate_artifact": "gate.log",
+  "local_verification_artifact": "final/local-verification.json",
+  "delivery_parent_revision": "a23d4ece7968c6cbdaa572b2e898929ec0c4193d"
+}

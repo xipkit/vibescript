@@ -1,0 +1,1988 @@
+[
+  {
+    "name": "format_boundary_0",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int>>>\nbegin\nvalue=(format(\"%s\",\"x\"*1048576));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes.as(array<int>)]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        1048576,
+        [
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120
+        ],
+        [
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120
+        ]
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        1048576,
+        [
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120
+        ],
+        [
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120
+        ]
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_1",
+    "source": "\ndef run(input: any) -> array<array<array<int> | int | nil> | string>\nbegin\nvalue=(format(\"%s\",\"x\"*1048577));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "go": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_2",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int>>>\nbegin\nvalue=(format(\"%.1048576s\",\"x\"*1048577));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes.as(array<int>)]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        1048576,
+        [
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120
+        ],
+        [
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120
+        ]
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        1048576,
+        [
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120
+        ],
+        [
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120
+        ]
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_3",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int>>>\nbegin\nvalue=(format(\"%.262144s\",\"🙂\"*262145));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes.as(array<int>)]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        1048576,
+        [
+          240,
+          159,
+          153,
+          130,
+          240,
+          159,
+          153,
+          130,
+          240,
+          159
+        ],
+        [
+          153,
+          130,
+          240,
+          159,
+          153,
+          130,
+          240,
+          159,
+          153,
+          130
+        ]
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        1048576,
+        [
+          240,
+          159,
+          153,
+          130,
+          240,
+          159,
+          153,
+          130,
+          240,
+          159
+        ],
+        [
+          153,
+          130,
+          240,
+          159,
+          153,
+          130,
+          240,
+          159,
+          153,
+          130
+        ]
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_4",
+    "source": "\ndef run(input: any) -> array<array<array<int> | int | nil> | string>\nbegin\nvalue=(format(\"%.262145s\",\"🙂\"*262145));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "go": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_5",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int>>>\nbegin\nvalue=(format(\"%q\",\"x\"*262143));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes.as(array<int>)]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        262145,
+        [
+          34,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120
+        ],
+        [
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          34
+        ]
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        262145,
+        [
+          34,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120
+        ],
+        [
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          34
+        ]
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_6",
+    "source": "\ndef run(input: any) -> array<array<array<int> | int | nil> | string>\nbegin\nvalue=(format(\"%q\",\"x\"*262144));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "go": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_7",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int>>>\nbegin\nvalue=(format(\"%q\",\"\\xff\"*262143));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes.as(array<int>)]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        1048574,
+        [
+          34,
+          92,
+          120,
+          102,
+          102,
+          92,
+          120,
+          102,
+          102,
+          92
+        ],
+        [
+          102,
+          92,
+          120,
+          102,
+          102,
+          92,
+          120,
+          102,
+          102,
+          34
+        ]
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        1048574,
+        [
+          34,
+          92,
+          120,
+          102,
+          102,
+          92,
+          120,
+          102,
+          102,
+          92
+        ],
+        [
+          102,
+          92,
+          120,
+          102,
+          102,
+          92,
+          120,
+          102,
+          102,
+          34
+        ]
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_8",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int>>>\nbegin\nvalue=(format(\"%x\",\"x\"*524288));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes.as(array<int>)]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        1048576,
+        [
+          55,
+          56,
+          55,
+          56,
+          55,
+          56,
+          55,
+          56,
+          55,
+          56
+        ],
+        [
+          55,
+          56,
+          55,
+          56,
+          55,
+          56,
+          55,
+          56,
+          55,
+          56
+        ]
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        1048576,
+        [
+          55,
+          56,
+          55,
+          56,
+          55,
+          56,
+          55,
+          56,
+          55,
+          56
+        ],
+        [
+          55,
+          56,
+          55,
+          56,
+          55,
+          56,
+          55,
+          56,
+          55,
+          56
+        ]
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_9",
+    "source": "\ndef run(input: any) -> array<array<array<int> | int | nil> | string>\nbegin\nvalue=(format(\"%x\",\"x\"*524289));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "go": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_10",
+    "source": "\ndef run(input: any) -> array<array<array<int> | int | nil> | string>\nbegin\nvalue=(format(\"%.1x\",\"x\"*524289));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "go": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_11",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int>>>\nbegin\nvalue=(format(\"%#x\",\"x\"*524287));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes.as(array<int>)]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        1048576,
+        [
+          48,
+          120,
+          55,
+          56,
+          55,
+          56,
+          55,
+          56,
+          55,
+          56
+        ],
+        [
+          55,
+          56,
+          55,
+          56,
+          55,
+          56,
+          55,
+          56,
+          55,
+          56
+        ]
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        1048576,
+        [
+          48,
+          120,
+          55,
+          56,
+          55,
+          56,
+          55,
+          56,
+          55,
+          56
+        ],
+        [
+          55,
+          56,
+          55,
+          56,
+          55,
+          56,
+          55,
+          56,
+          55,
+          56
+        ]
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_12",
+    "source": "\ndef run(input: any) -> array<array<array<int> | int | nil> | string>\nbegin\nvalue=(format(\"%#x\",\"x\"*524288));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "go": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_13",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int>>>\nbegin\nvalue=(format(\"% x\",\"x\"*349525));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes.as(array<int>)]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        1048574,
+        [
+          55,
+          56,
+          32,
+          55,
+          56,
+          32,
+          55,
+          56,
+          32,
+          55
+        ],
+        [
+          56,
+          32,
+          55,
+          56,
+          32,
+          55,
+          56,
+          32,
+          55,
+          56
+        ]
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        1048574,
+        [
+          55,
+          56,
+          32,
+          55,
+          56,
+          32,
+          55,
+          56,
+          32,
+          55
+        ],
+        [
+          56,
+          32,
+          55,
+          56,
+          32,
+          55,
+          56,
+          32,
+          55,
+          56
+        ]
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_14",
+    "source": "\ndef run(input: any) -> array<array<array<int> | int | nil> | string>\nbegin\nvalue=(format(\"% x\",\"x\"*349526));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "go": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_15",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int>>>\nbegin\nvalue=(format(\"%# x\",\"x\"*209714));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes.as(array<int>)]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        1048569,
+        [
+          48,
+          120,
+          55,
+          56,
+          32,
+          48,
+          120,
+          55,
+          56,
+          32
+        ],
+        [
+          32,
+          48,
+          120,
+          55,
+          56,
+          32,
+          48,
+          120,
+          55,
+          56
+        ]
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        1048569,
+        [
+          48,
+          120,
+          55,
+          56,
+          32,
+          48,
+          120,
+          55,
+          56,
+          32
+        ],
+        [
+          32,
+          48,
+          120,
+          55,
+          56,
+          32,
+          48,
+          120,
+          55,
+          56
+        ]
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_16",
+    "source": "\ndef run(input: any) -> array<array<array<int> | int | nil> | string>\nbegin\nvalue=(format(\"%# x\",\"x\"*209715));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "go": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_17",
+    "source": "\ndef run(input: any) -> array<array<array<int> | int | nil> | string>\nbegin\nvalue=(format(\"%629145s\",\"🙂\"*209715));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "go": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_18",
+    "source": "\ndef run(input: any) -> array<array<array<int> | int | nil> | string>\nbegin\nvalue=(format(\"%629145v\",[\"🙂\"*209715]));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "go": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_19",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int>>>\nbegin\nvalue=(format(\"%1048576s\",\"\"));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes.as(array<int>)]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        1048576,
+        [
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32
+        ],
+        [
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32
+        ]
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        1048576,
+        [
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32
+        ],
+        [
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32
+        ]
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_20",
+    "source": "\ndef run(input: any) -> array<array<array<int> | int | nil> | string>\nbegin\nvalue=(format(\"%1048577s\",\"\"));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "LimitError",
+      "format width exceeds limit 1048576 bytes"
+    ],
+    "go": [
+      "LimitError",
+      "format width exceeds limit 1048576 bytes"
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_21",
+    "source": "\ndef run(input: any) -> array<array<array<int> | int | nil> | string>\nbegin\nvalue=(format(\"%.1048577s\",\"\"));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "LimitError",
+      "format precision exceeds limit 1048576 bytes"
+    ],
+    "go": [
+      "LimitError",
+      "format precision exceeds limit 1048576 bytes"
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_22",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int>>>\nbegin\nvalue=(format(\"%.1048576d\",1));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes.as(array<int>)]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        1048576,
+        [
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48
+        ],
+        [
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          49
+        ]
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        1048576,
+        [
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48
+        ],
+        [
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          49
+        ]
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_23",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int>>>\nbegin\nvalue=(format(\"%.1048575d\",-1));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes.as(array<int>)]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        1048576,
+        [
+          45,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48
+        ],
+        [
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          49
+        ]
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        1048576,
+        [
+          45,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48
+        ],
+        [
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          49
+        ]
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_24",
+    "source": "\ndef run(input: any) -> array<array<array<int> | int | nil> | string>\nbegin\nvalue=(format(\"%.1048576d\",-1));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "go": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_25",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int>>>\nbegin\nvalue=(format(\"%.1048574x\",1));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes.as(array<int>)]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        1048574,
+        [
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48
+        ],
+        [
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          49
+        ]
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        1048574,
+        [
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48
+        ],
+        [
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          49
+        ]
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_26",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int>>>\nbegin\nvalue=(format(\"%#.1048574x\",1));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes.as(array<int>)]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        1048576,
+        [
+          48,
+          120,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48
+        ],
+        [
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          49
+        ]
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        1048576,
+        [
+          48,
+          120,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48
+        ],
+        [
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          49
+        ]
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_27",
+    "source": "\ndef run(input: any) -> array<array<array<int> | int | nil> | string>\nbegin\nvalue=(format(\"%#.1048575x\",1));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "go": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_28",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int>>>\nbegin\nvalue=(format(\"%.1048560f\",1.5));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes.as(array<int>)]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        1048562,
+        [
+          49,
+          46,
+          53,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48
+        ],
+        [
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48
+        ]
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        1048562,
+        [
+          49,
+          46,
+          53,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48
+        ],
+        [
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          48
+        ]
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_29",
+    "source": "\ndef run(input: any) -> array<array<array<int> | int | nil> | string>\nbegin\nvalue=(format(\"%.1048561f\",1.5));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "go": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_30",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int> | nil>>\nbegin\nvalue=(format(\"%.1048560g\",1.5));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        3,
+        [
+          49,
+          46,
+          53
+        ],
+        null
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        3,
+        [
+          49,
+          46,
+          53
+        ],
+        null
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_31",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int>>>\nbegin\nvalue=(format(\"%.1048544x\",1.5));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes.as(array<int>)]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        1048552,
+        [
+          48,
+          120,
+          49,
+          46,
+          56,
+          48,
+          48,
+          48,
+          48,
+          48
+        ],
+        [
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          112,
+          43,
+          48,
+          48
+        ]
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        1048552,
+        [
+          48,
+          120,
+          49,
+          46,
+          56,
+          48,
+          48,
+          48,
+          48,
+          48
+        ],
+        [
+          48,
+          48,
+          48,
+          48,
+          48,
+          48,
+          112,
+          43,
+          48,
+          48
+        ]
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_32",
+    "source": "\ndef run(input: any) -> array<array<array<int> | int | nil> | string>\nbegin\nvalue=(format(\"%.1048545x\",1.5));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "go": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_33",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int> | nil>>\nbegin\nvalue=(format(\"%.1s\",[\"x\"*1049000]));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        1,
+        [
+          91
+        ],
+        null
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        1,
+        [
+          91
+        ],
+        null
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_34",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int> | nil>>\nbegin\nvalue=(format(\"%.1v\",[\"x\"*1049000]));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        1,
+        [
+          91
+        ],
+        null
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        1,
+        [
+          91
+        ],
+        null
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_35",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int> | nil>>\nbegin\nvalue=(format(\"%.1q\",[\"x\"*1049000]));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        3,
+        [
+          34,
+          91,
+          34
+        ],
+        null
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        3,
+        [
+          34,
+          91,
+          34
+        ],
+        null
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_36",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int> | nil>>\nbegin\nvalue=(format(\"%.1s\",[10**30]));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        1,
+        [
+          91
+        ],
+        null
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        1,
+        [
+          91
+        ],
+        null
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_37",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int> | nil>>\nbegin\nvalue=(format(\"%.1q\",[10**30]));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        3,
+        [
+          34,
+          91,
+          34
+        ],
+        null
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        3,
+        [
+          34,
+          91,
+          34
+        ],
+        null
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_38",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int> | nil>>\nbegin\nvalue=(format(\"%.1v\",[10**30]));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        1,
+        [
+          91
+        ],
+        null
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        1,
+        [
+          91
+        ],
+        null
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_literal_0",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int>>>\nbegin\nvalue=(format(\"x\"*1048576));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes.as(array<int>)]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        1048576,
+        [
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120
+        ],
+        [
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120
+        ]
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        1048576,
+        [
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120
+        ],
+        [
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120,
+          120
+        ]
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_literal_1",
+    "source": "\ndef run(input: any) -> array<array<array<int> | int | nil> | string>\nbegin\nvalue=(format(\"x\"*1048577));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "go": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_literal_2",
+    "source": "\ndef run(input: any) -> array<array<array<int> | int | nil> | string>\nbegin\nvalue=(format(\"x\"*4194304));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "go": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_literal_3",
+    "source": "\ndef run(input: any) -> array<array<array<int> | int | nil> | string>\nbegin\nvalue=(format(\"%\"*2097152));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        1048576,
+        [
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37
+        ],
+        [
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37
+        ]
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        1048576,
+        [
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37
+        ],
+        [
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37
+        ]
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_literal_4",
+    "source": "\ndef run(input: any) -> array<array<array<int> | int | nil> | string>\nbegin\nvalue=(format(\"%\"*2097153));[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "go": [
+      "LimitError",
+      "format output exceeds limit 1048576 bytes"
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_dag_0",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int> | nil>>\nbegin\nvalue=(begin;a: array<string | array<string | array<string | array<string | array<string | array<string | array<any>>>>>>> =[\"x\"*1049000];24.times{a=[a,a]};format(\"%.1s\",a);end);[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        1,
+        [
+          91
+        ],
+        null
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        1,
+        [
+          91
+        ],
+        null
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_dag_1",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int> | nil>>\nbegin\nvalue=(begin;a: array<string | array<string | array<string | array<string | array<string | array<string | array<any>>>>>>> =[\"x\"*1049000];24.times{a=[a,a]};format(\"%.1v\",a);end);[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        1,
+        [
+          91
+        ],
+        null
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        1,
+        [
+          91
+        ],
+        null
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_dag_2",
+    "source": "\ndef run(input: any) -> array<string | array<int | array<int> | nil>>\nbegin\nvalue=(begin;a: array<string | array<string | array<string | array<string | array<string | array<string | array<any>>>>>>> =[\"x\"*1049000];24.times{a=[a,a]};format(\"%.1q\",a);end);[\"ok\",[value.bytesize,value.byteslice(0,10).as(string).bytes,value.byteslice(-10,10)&.bytes]]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      [
+        3,
+        [
+          34,
+          91,
+          34
+        ],
+        null
+      ]
+    ],
+    "go": [
+      "ok",
+      [
+        3,
+        [
+          34,
+          91,
+          34
+        ],
+        null
+      ]
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_pointer_0",
+    "source": "\ndef run(input: any) -> array<bool | string>\nbegin\nvalue=(format(\"%p\",10**30).strip.match?(\"^[+ ]?(0x)?[0-9a-f]+$\"));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      true
+    ],
+    "go": [
+      "ok",
+      true
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_pointer_1",
+    "source": "\ndef run(input: any) -> array<bool | string>\nbegin\nvalue=(format(\"%#p\",10**30).strip.match?(\"^[+ ]?(0x)?[0-9a-f]+$\"));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      true
+    ],
+    "go": [
+      "ok",
+      true
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_pointer_2",
+    "source": "\ndef run(input: any) -> array<bool | string>\nbegin\nvalue=(format(\"%+p\",10**30).strip.match?(\"^[+ ]?(0x)?[0-9a-f]+$\"));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      true
+    ],
+    "go": [
+      "ok",
+      true
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_pointer_3",
+    "source": "\ndef run(input: any) -> array<bool | string>\nbegin\nvalue=(format(\"% p\",10**30).strip.match?(\"^[+ ]?(0x)?[0-9a-f]+$\"));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      true
+    ],
+    "go": [
+      "ok",
+      true
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_pointer_4",
+    "source": "\ndef run(input: any) -> array<bool | string>\nbegin\nvalue=(format(\"%040p\",10**30).strip.match?(\"^[+ ]?(0x)?[0-9a-f]+$\"));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      true
+    ],
+    "go": [
+      "ok",
+      true
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_pointer_5",
+    "source": "\ndef run(input: any) -> array<bool | string>\nbegin\nvalue=(format(\"%#040p\",10**30).strip.match?(\"^[+ ]?(0x)?[0-9a-f]+$\"));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      true
+    ],
+    "go": [
+      "ok",
+      true
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_pointer_6",
+    "source": "\ndef run(input: any) -> array<bool | string>\nbegin\nvalue=(format(\"%-40p\",10**30).strip.match?(\"^[+ ]?(0x)?[0-9a-f]+$\"));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      true
+    ],
+    "go": [
+      "ok",
+      true
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_pointer_7",
+    "source": "\ndef run(input: any) -> array<bool | string>\nbegin\nvalue=(format(\"%.40p\",10**30).strip.match?(\"^[+ ]?(0x)?[0-9a-f]+$\"));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      true
+    ],
+    "go": [
+      "ok",
+      true
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_pointer_8",
+    "source": "\ndef run(input: any) -> array<bool | string>\nbegin\nvalue=(format(\"%48.40p\",10**30).strip.match?(\"^[+ ]?(0x)?[0-9a-f]+$\"));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      true
+    ],
+    "go": [
+      "ok",
+      true
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_pointer_9",
+    "source": "\ndef run(input: any) -> array<bool | string>\nbegin\nvalue=(format(\"%#48.40p\",10**30).strip.match?(\"^[+ ]?(0x)?[0-9a-f]+$\"));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      true
+    ],
+    "go": [
+      "ok",
+      true
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_special_0",
+    "source": "class C\ndef to_s -> string\nprint(\"convert\");\"text\"\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nvalue=(begin;format=JSON.stringify([1]);format;end);[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      "[1]"
+    ],
+    "go": [
+      "ok",
+      "[1]"
+    ],
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_special_1",
+    "source": "class C\ndef to_s -> string\nprint(\"convert\");\"text\"\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nvalue=(begin;m=\"b\".match(/(a)?(b)/);format(\"%s|%s|%s\",m,[m],m.dup);end);[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      "b|[b]|b"
+    ],
+    "go": [
+      "ok",
+      "b|[<object>]|<object>"
+    ],
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "policy": "protected_value_rendering",
+    "reason": "Preserve the selected special rendering through nested values and duplicates."
+  },
+  {
+    "name": "format_boundary_special_2",
+    "source": "class C\ndef to_s -> string\nprint(\"convert\");\"text\"\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nvalue=(begin;raise \"message\";rescue RuntimeError=>e;format(\"%s|%s\",e,[e]);end);[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      "message|[message]"
+    ],
+    "go": [
+      "ok",
+      "message|[<object>]"
+    ],
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "policy": "protected_value_rendering",
+    "reason": "Preserve the selected special rendering through nested values and duplicates."
+  },
+  {
+    "name": "format_boundary_special_3",
+    "source": "class C\ndef to_s -> string\nprint(\"convert\");\"text\"\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nvalue=(format(\"%s\",C.new));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      "text"
+    ],
+    "go": [
+      "ok",
+      "text"
+    ],
+    "stdout_hex": "636f6e76657274",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_special_4",
+    "source": "class C\ndef to_s -> string\nprint(\"convert\");\"text\"\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nvalue=(format(\"%.1s\",C.new));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      "t"
+    ],
+    "go": [
+      "ok",
+      "t"
+    ],
+    "stdout_hex": "636f6e76657274",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_special_5",
+    "source": "class C\ndef to_s -> string\nprint(\"convert\");\"text\"\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nvalue=(format(\"%d\",C.new));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "RuntimeError",
+      "format %d expects integer operand"
+    ],
+    "go": [
+      "RuntimeError",
+      "format %d expects integer operand"
+    ],
+    "stdout_hex": "636f6e76657274",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_special_6",
+    "source": "class C\ndef to_s -> string\nprint(\"convert\");\"text\"\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nvalue=(format(\"%s\", C.new));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "ok",
+      "text"
+    ],
+    "go": [
+      "ok",
+      "text"
+    ],
+    "stdout_hex": "636f6e76657274",
+    "stderr_hex": ""
+  },
+  {
+    "name": "format_boundary_special_7",
+    "source": "class C\ndef to_s -> string\nprint(\"convert\");\"text\"\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nvalue=(format(\"%s\",C.new,C.new));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "expected": [
+      "RuntimeError",
+      "format has 1 unused operand(s)"
+    ],
+    "go": [
+      "RuntimeError",
+      "format has 1 unused operand(s)"
+    ],
+    "stdout_hex": "636f6e76657274636f6e76657274",
+    "stderr_hex": ""
+  }
+]

@@ -1,0 +1,41 @@
+# Runtime stress fixture with a single entry point
+
+def sum_range(n: int) -> int
+  total = 0
+  for i in 1..n
+    total = total + i
+  end
+  total
+end
+
+def sum_squares(nums: array<int>) -> int
+  total = 0
+  nums.each { |n|
+    total = total + (n * n)
+  }
+  total
+end
+
+def delta_info -> { iso: string, minutes: int, seconds: int, shifted: string }
+  delta = 90.seconds + 2.minutes
+  parts = delta.parts
+  {
+    iso: delta.iso8601,
+    shifted: delta.after(Time.at(0)).format("2006-01-02T15:04:05Z"),
+    minutes: parts["minutes"],
+    seconds: parts["seconds"]
+  }
+end
+
+def run -> { iso: string, minutes: int, seconds: int, shifted: string, square_sum: int, total: int }
+  nums = [1, 2, 3, 4, 5]
+  delta = delta_info
+  {
+    total: sum_range(1_000),
+    square_sum: sum_squares(nums),
+    iso: delta["iso"],
+    shifted: delta["shifted"],
+    minutes: delta["minutes"],
+    seconds: delta["seconds"]
+  }
+end

@@ -1,0 +1,15 @@
+# expect: agreed
+# A property's value is a copy, so updating it leaves the record whole.
+class Box
+  property rec: { a: int, b: int }
+  def initialize(@rec: { a: int, b: int })
+  end
+end
+b = Box.new({ a: 1, b: 2 })
+b.rec.delete("a")
+x: int = b.rec["a"]
+def make -> { a: int }
+  { a: 1 }
+end
+make.delete("a")
+p(x, make)

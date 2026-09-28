@@ -1,0 +1,3 @@
+def settings(defaults: hash<string, string>, overrides: hash<string, string?>) -> hash<string, string>
+  defaults.merge(overrides.compact)
+end

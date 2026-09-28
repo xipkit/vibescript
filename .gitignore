@@ -1,43 +1,4 @@
-# Build artifacts
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.test
-*.out
-
-# Go tooling
-bin/
-vendor/
-coverage.out
-.gocache/
-.cache/
-.cache/go-build/
-
-# Editors and OS
-.DS_Store
-.idea/
-.vscode/
-.zed/
-*.swp
-*.swo
-
-# Local tool state (Claude Code)
-.claude/settings.local.json
-.claude/*.lock
-
-# Local binaries
-/vibes-cli
-
-# Local worktrees
-/wt-*
-
-# Local A/B benchmark binaries and differential-testing scratch
-/vibes-base
-/vibes-branch
-/vibes-cli
-/wt-*/
-/probes/
-/snip/
-/fz/
+/target/
+/.cache/
+/benchmarks/bin/
+__pycache__/

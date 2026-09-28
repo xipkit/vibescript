@@ -1,0 +1,41 @@
+# expect: agreed
+# Every typed boundary the runtime checks makes a symbol literal the member.
+enum E
+  Red
+  Blue
+end
+def take(e: E) -> E
+  e
+end
+def wrap(&block: int -> E) -> E
+  yield(1)
+end
+class Box
+  property e: E
+  @f: E = :blue
+  def initialize(e: E)
+    @e = e
+  end
+  def f -> E
+    @f
+  end
+end
+def pick(flag: bool) -> E
+  return :red if flag
+  :blue
+end
+def arm(e: E) -> int
+  case e
+  when E::Red then 1
+  when E::Blue then 2
+  end
+end
+es: array<E> = [E::Red, :blue]
+x: E = :red
+r: E = E::Red
+r = :blue
+box = Box.new(:red)
+box.e = :blue
+t: { e: E } = { e: :red }
+values = [x, r, take(:blue), wrap { |i| :red }, box.e, box.f, pick(true), pick(false), t["e"]] + es
+p(values.map { |e| arm(e) })

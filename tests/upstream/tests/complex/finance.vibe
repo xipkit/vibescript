@@ -1,0 +1,28 @@
+# Money and typed helpers
+
+def add_fee(amount: money, fee: money) -> money
+  amount + fee
+end
+
+def apply_fees(amounts: array<money>) -> array<money>
+  amounts.map { |amt|
+    add_fee(amt, money("1.00 USD"))
+  }
+end
+
+def average_amount(amounts: array<money>) -> { count: int, total: money }
+  total = money("0.00 USD")
+  amounts.each { |amt|
+    total = total + amt
+  }
+  { total: total, count: amounts.length }
+end
+
+def run -> { applied: array<money>, average: { count: int, total: money }, fee: money }
+  amounts = [money("2.00 USD"), money("3.50 USD")]
+  {
+    fee: add_fee(money("10.00 USD"), money("1.00 USD")),
+    applied: apply_fees(amounts),
+    average: average_amount(amounts)
+  }
+end

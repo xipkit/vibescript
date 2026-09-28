@@ -1,0 +1,40 @@
+# title: Pascal's triangle
+# source: https://rosettacode.org/wiki/Pascal%27s_triangle
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Generate the opening rows of Pascal's triangle iteratively.
+# tags: popular, math, arrays, iteration
+# vibe: 0.2
+
+def next_row(previous: array<int>) -> array<int>
+  if previous.empty?
+    return [1]
+  end
+
+  row = [1]
+  index = 1
+  while index < previous.length
+    row = row.push(previous.fetch(index - 1) + previous.fetch(index))
+    index = index + 1
+  end
+  row = row.push(1)
+  row
+end
+
+def build_triangle(rows_count: int) -> array<array<int>>
+  rows: array<array<int>> = []
+  current: array<int> = []
+  produced = 0
+
+  while produced < rows_count
+    current = next_row(current)
+    rows = rows.push(current)
+    produced = produced + 1
+  end
+
+  rows
+end
+
+def run -> array<array<int>>
+  build_triangle(7)
+end

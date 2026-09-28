@@ -1,0 +1,23 @@
+# title: Late fee
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Calculate a late fee from an overdue duration.
+# tags: money, durations
+
+def late_fee(overdue: duration) -> money
+  if overdue <= 3.days
+    money("0.00 USD")
+  elsif overdue <= 14.days
+    money("5.00 USD")
+  else
+    money("15.00 USD")
+  end
+end
+
+def run -> { grace: money, on_time: money, overdue: money }
+  {
+    on_time: late_fee(2.days),
+    grace: late_fee(10.days),
+    overdue: late_fee(3.weeks)
+  }
+end

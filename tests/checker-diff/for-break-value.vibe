@@ -1,0 +1,8 @@
+# expect: rejected V0101
+# A `for` loop was typed as its iterable even when a `break` gave it
+# another value.
+c: array<int> = for n in [2, 4]
+  break 7 if n == 4
+  n
+end
+p(c)

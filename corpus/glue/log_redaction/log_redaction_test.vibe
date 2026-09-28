@@ -1,0 +1,5 @@
+def test_log_redaction
+  subject = require("log_redaction")
+  assert subject.redact("GET /?token=abc&user=7") == "GET /?token=[REDACTED]&user=7"
+  assert subject.redact("GET /health") == "GET /health"
+end

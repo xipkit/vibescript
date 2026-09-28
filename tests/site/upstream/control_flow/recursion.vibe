@@ -1,0 +1,26 @@
+# vibe: 1.0
+
+def factorial(n: int) -> int
+  if n <= 1
+    1
+  else
+    n * factorial(n - 1)
+  end
+end
+
+def fibonacci(n: int) -> int
+  if n <= 1
+    n
+  else
+    fibonacci(n - 1) + fibonacci(n - 2)
+  end
+end
+
+def run -> { factorial_10: int, factorial_5: int, fibonacci_5: int, fibonacci_7: int }
+  {
+    factorial_5: factorial(5),
+    factorial_10: factorial(10),
+    fibonacci_5: fibonacci(5),
+    fibonacci_7: fibonacci(7)
+  }
+end

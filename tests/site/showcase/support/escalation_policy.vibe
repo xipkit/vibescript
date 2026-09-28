@@ -1,0 +1,56 @@
+# title: Escalation policy
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Route support tickets from their severity and response deadline.
+# description: An enum names each severity. Durations set response times, and the function returns the next support team.
+# tags: support, durations, enums, sla
+# vibe: 0.2
+
+enum TicketSeverity
+  Low
+  High
+  Critical
+end
+
+def response_window(severity: TicketSeverity) -> duration
+  if severity == TicketSeverity::Low
+    8.hours
+  elsif severity == TicketSeverity::High
+    2.hours
+  else
+    15.minutes
+  end
+end
+
+def escalation_target(severity: TicketSeverity) -> string
+  if severity == TicketSeverity::Low
+    "support-queue"
+  elsif severity == TicketSeverity::High
+    "incident-manager"
+  else
+    "exec-bridge"
+  end
+end
+
+def ticket_sla(ticket_id: string, severity: TicketSeverity, opened_at: time) -> hash<string, string>
+  window = response_window(severity)
+  target = escalation_target(severity)
+
+  {
+    ticket_id: ticket_id,
+    severity: severity.name,
+    response_window: window.iso8601,
+    deadline: window.after(opened_at).format("2006-01-02T15:04:05Z"),
+    route_to: target,
+    summary: "{{ticket}} routes to {{target}}".template({ ticket: ticket_id, target: target })
+  }
+end
+
+def run -> { critical: hash<string, string>, high: hash<string, string> }
+  opened_at = Time.at(1700200000)
+
+  {
+    high: ticket_sla("inc_204", TicketSeverity::High, opened_at),
+    critical: ticket_sla("inc_205", TicketSeverity::Critical, opened_at)
+  }
+end

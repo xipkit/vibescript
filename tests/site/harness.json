@@ -1,0 +1,96 @@
+{
+  "showcase/commerce/quote_approval.vibe": {
+    "result_encoding": "typed"
+  },
+  "showcase/commerce/shipping_quote.vibe": {
+    "result_encoding": "typed"
+  },
+  "showcase/finance/late_fee.vibe": {
+    "result_encoding": "typed"
+  },
+  "showcase/finance/late_fee_policy.vibe": {
+    "result_encoding": "typed"
+  },
+  "showcase/finance/payout_schedule.vibe": {
+    "result_encoding": "typed"
+  },
+  "showcase/finance/statement_grid.vibe": {
+    "result_encoding": "typed"
+  },
+  "showcase/finance/subscription_billing.vibe": {
+    "result_encoding": "typed"
+  },
+  "showcase/notifications/email.vibe": {
+    "notifications": [
+      "email"
+    ]
+  },
+  "showcase/notifications/sms.vibe": {
+    "notifications": [
+      "sms"
+    ]
+  },
+  "showcase/policies/refund_decision.vibe": {
+    "result_encoding": "typed"
+  },
+  "upstream/blocks/enumerable_reports.vibe": {
+    "result_encoding": "typed"
+  },
+  "upstream/durations/durations.vibe": {
+    "result_encoding": "typed"
+  },
+  "upstream/errors/assertions.vibe": {
+    "result_encoding": "typed"
+  },
+  "upstream/hashes/operations.vibe": {
+    "result_encoding": "typed"
+  },
+  "upstream/money/operations.vibe": {
+    "result_encoding": "typed"
+  },
+  "upstream/background/jobs_and_events.vibe": {
+    "static_error": {
+      "code": "V0201",
+      "at": [
+        6,
+        3
+      ]
+    }
+  },
+  "upstream/capabilities/context_access.vibe": {
+    "static_error": {
+      "code": "V0201",
+      "at": [
+        5,
+        3
+      ]
+    }
+  },
+  "upstream/capabilities/database_queries.vibe": {
+    "static_error": {
+      "code": "V0201",
+      "at": [
+        5,
+        3
+      ]
+    }
+  },
+  "upstream/capabilities/iteration.vibe": {
+    "static_error": {
+      "code": "V0201",
+      "at": [
+        6,
+        3
+      ]
+    }
+  },
+  "upstream/policies/access_control.vibe": {
+    "static_error": {
+      "code": "V0201",
+      "at": [
+        5,
+        3
+      ]
+    }
+  }
+}

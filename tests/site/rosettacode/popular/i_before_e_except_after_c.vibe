@@ -1,0 +1,36 @@
+# title: I before E except after C
+# source: https://rosettacode.org/wiki/I_before_E_except_after_C
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Check sample words against the classic “i before e except after c” spelling rule.
+# tags: popular, strings, rules, basics
+# vibe: 0.2
+
+def obeys_rule?(word: string) -> bool
+  lower = word.downcase
+
+  if lower.index("cie") != nil
+    return false
+  end
+
+  ei_index = lower.index("ei")
+  if ei_index == nil
+    return true
+  end
+
+  if ei_index > 0 && lower.slice(ei_index - 1) == "c"
+    return true
+  end
+
+  false
+end
+
+def run -> { ancient: bool, believe: bool, ceiling: bool, science: bool, weird: bool }
+  {
+    believe: obeys_rule?("believe"),
+    ceiling: obeys_rule?("ceiling"),
+    science: obeys_rule?("science"),
+    weird: obeys_rule?("weird"),
+    ancient: obeys_rule?("ancient")
+  }
+end

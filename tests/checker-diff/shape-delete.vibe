@@ -1,0 +1,6 @@
+# expect: rejected V0123
+# Hash members that remove keys were allowed on records, whose declared
+# fields then read as nil.
+s: { a: int, b: int } = { a: 1, b: 2 }
+s.delete("a")
+t: int = s["a"]

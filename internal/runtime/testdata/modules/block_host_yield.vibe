@@ -1,6 +1,0 @@
-def run
-  host_each do
-    helper = require("./block_helper")
-    helper.value
-  end
-end

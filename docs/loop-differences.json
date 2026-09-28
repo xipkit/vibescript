@@ -1,0 +1,15 @@
+{
+  "reference": "Go v0.70.0",
+  "note": "Shared runtime probes agree on values, diagnostics and captured output. This parser difference remains separate from the shared conformance count.",
+  "intentional": [
+    {
+      "name": "loop_break_4",
+      "source": "\ndef run(input: any) -> any\nbegin\nloop { break :done }\nrescue RuntimeError => e\n[e.class,e.message]\nend\nend",
+      "go_phase": "syntax",
+      "go_error": "loop_break_4: compile error: parse error at 4:14: unexpected token \":\"\n  --> line 4, column 14\n 4 | loop { break :done }\n   |              ^\n",
+      "expected": "done",
+      "policy": "documented_break_payload",
+      "reason": "The documented break value rule includes symbol values. Rust accepts the compact brace-block spelling as well as the multiline form exercised by the reference kernel-loop tests."
+    }
+  ]
+}

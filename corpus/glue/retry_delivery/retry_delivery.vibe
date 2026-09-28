@@ -1,0 +1,10 @@
+def deliver(max_attempts: int, &operation: int -> string) -> string
+  attempts = 0
+  begin
+    attempts += 1
+    yield attempts
+  rescue RuntimeError
+    raise if attempts >= max_attempts
+    retry
+  end
+end

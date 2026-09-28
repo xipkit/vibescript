@@ -1,0 +1,8 @@
+type Metric = { service: string, ms: int }
+def slowest(metrics: array<Metric>, count: int) -> array<string>
+  metrics.sort_by { |metric| -metric["ms"] }.first(count).map { |metric| metric["service"] }
+end
+def average(metrics: array<Metric>) -> float
+  return 0.0 if metrics.empty?
+  metrics.sum { |metric| metric["ms"] } / metrics.length
+end

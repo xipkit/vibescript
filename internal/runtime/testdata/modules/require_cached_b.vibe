@@ -1,4 +1,0 @@
-def use_a_helper
-  root = require("require_cached_a")
-  root.helper
-end

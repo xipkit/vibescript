@@ -1,0 +1,4 @@
+def invoice_label(cents: int) -> string
+  pricing = require("pricing")
+  "USD #{pricing.with_tax(cents, rate: 8)}"
+end

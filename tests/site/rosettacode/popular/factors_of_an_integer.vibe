@@ -1,0 +1,34 @@
+# title: Factors of an integer
+# source: https://rosettacode.org/wiki/Factors_of_an_integer
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Compute all positive factors of a small positive integer with trial division up to its square root.
+# tags: popular, math, factors, loops
+# vibe: 0.2
+
+def factors_of(number: int) -> array<int>
+  lower: array<int> = []
+  upper: array<int> = []
+  candidate = 1
+
+  while candidate * candidate <= number
+    if number % candidate == 0
+      lower = lower.push(candidate)
+      other = number // candidate
+      if other != candidate
+        upper = [other] + upper
+      end
+    end
+    candidate = candidate + 1
+  end
+
+  lower + upper
+end
+
+def run -> { fifty_three: array<int>, forty_five: array<int>, sixty_four: array<int> }
+  {
+    forty_five: factors_of(45),
+    fifty_three: factors_of(53),
+    sixty_four: factors_of(64)
+  }
+end

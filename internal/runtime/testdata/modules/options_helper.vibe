@@ -1,7 +1,0 @@
-def configure(opts)
-  opts[:retries]
-end
-
-def typed_configure(opts: { retries: int })
-  opts[:retries]
-end

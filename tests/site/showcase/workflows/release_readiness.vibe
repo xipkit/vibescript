@@ -1,0 +1,59 @@
+# title: Release readiness
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Report whether a release is ready from its state, approvals, and schedule.
+# description: Enums name release states. Typed functions check inputs, templates build messages, and time helpers format the schedule.
+# tags: workflows, enums, types, templates
+# featured: true
+# feature_rank: 0
+# vibe: 0.2
+
+enum ReleaseStatus
+  Draft
+  Approved
+  Scheduled
+  Live
+end
+
+def next_status(status: ReleaseStatus) -> ReleaseStatus
+  if status == ReleaseStatus::Draft
+    ReleaseStatus::Approved
+  elsif status == ReleaseStatus::Approved
+    ReleaseStatus::Scheduled
+  elsif status == ReleaseStatus::Scheduled
+    ReleaseStatus::Live
+  else
+    ReleaseStatus::Live
+  end
+end
+
+def launch_label(launch_at: time?) -> string
+  if launch_at == nil
+    "unscheduled"
+  else
+    launch_at.format("2006-01-02T15:04:05Z")
+  end
+end
+
+def publishable?(status: ReleaseStatus, launch_at: time?) -> bool
+  status == ReleaseStatus::Scheduled && launch_at != nil
+end
+
+def release_report(name: string, status: ReleaseStatus, launch_at: time? = nil) -> hash<string, bool | string>
+  {
+    name: name,
+    status: status.name,
+    next_status: next_status(status).name,
+    publishable: publishable?(status, launch_at),
+    launch_at: launch_label(launch_at),
+    banner: "{{name}} is {{status}}".template({ name: name, status: status.name })
+  }
+end
+
+def run -> { draft: hash<string, bool | string>, scheduled: hash<string, bool | string> }
+  launch_at = 2.hours.after(Time.at(1700000000))
+  {
+    draft: release_report("billing-v2", ReleaseStatus::Draft),
+    scheduled: release_report("billing-v2", ReleaseStatus::Scheduled, launch_at)
+  }
+end

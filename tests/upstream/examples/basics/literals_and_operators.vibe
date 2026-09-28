@@ -1,0 +1,30 @@
+# vibe: 1.0
+
+def add_numbers(a: int, b: int) -> int
+  a + b
+end
+
+def combine_strings(first: string, second: string) -> string
+  first + " " + second
+end
+
+def negate(value: int) -> int
+  -value
+end
+
+def truth_table(flag: bool | int | string | nil) -> bool
+  if flag != nil && flag != false
+    true
+  else
+    false
+  end
+end
+
+def mix_literals -> { answer: int, flags: array<bool?>, quote: string, ratio: float }
+  {
+    answer: 42,
+    ratio: 3.75,
+    quote: "keep going",
+    flags: [true, false, nil]
+  }
+end

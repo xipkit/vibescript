@@ -1,144 +1,67 @@
-# Errors and Debugging
+# Error handling
 
-Vibescript surfaces both parse-time and runtime failures with line and column information.
+`begin` expressions and function bodies support ordered `rescue` clauses, `else`, `ensure`, and `retry`. A successful body returns its last value; a handled failure returns the selected rescue body's value. `else` runs only after normal completion of the body. `ensure` runs before an ordinary error or return, break, or next leaves the protected region. Its value is ignored, but an error or control transfer from ensure replaces the pending outcome.
 
-Message phrasing follows fixed conventions; contributors changing or
-adding diagnostics and hosts matching errors programmatically should
-read [`error_conventions.md`](error_conventions.md).
-
-## Parse Errors
-
-Compilation failures include a parser message and a source code frame:
-
-```text
-parse error at 2:9: missing value for hash key foo
-  --> line 2, column 9
- 2 |   {foo: }
-   |         ^
-```
-
-Common parser diagnostics:
-
-- `invalid hash pair: expected key like name: or "name":`
-- `missing value for hash key ...`
-- `parallel assignment targets require '='`
-- `duplicate rest assignment target`
-- `invalid destructuring assignment target`
-- `trailing comma in block parameter list`
-
-Hosts that need positions programmatically (editors, linters, CI
-annotators) should not scrape the error text: `vibes.ParseIssues(err)`
-returns the structured failures behind a `Compile` error — start
-position, optional offending-token end position, and the bare message —
-in source order. It returns nil for errors that carry no positions, such
-as duplicate top-level name failures.
-
-## Runtime Errors
-
-Runtime failures include:
-
-- the runtime message (`division by zero`, `undefined variable ...`, etc.)
-- a code frame for the failure location
-- a stack trace (`at function (line:column)`)
-
-```text
-division by zero
-  --> line 3, column 9
- 3 |   a / b
-   |         ^
-  at divide (3:9)
-  at calculate (7:7)
-```
-
-## Type Errors
-
-Typed argument and return checks include:
-
-- parameter or function context
-- expected type
-- actual runtime type
-
-```text
-argument payload expected { id: string, score: int }, got { id: string, score: string }
-```
-
-For composite values, actual types include shape/element detail (`array<int | string>`, `{ id: string, ... }`) to make fixes local and explicit.
-
-## Loop Control Errors
-
-Loop control diagnostics are explicit:
-
-- `break used outside of loop`
-- `next used outside of loop`
-- `break cannot cross call boundary`
-- `next cannot cross call boundary`
-
-These boundary errors happen when `break`/`next` are raised inside called blocks/functions and attempt to escape into an outer loop.
-
-## Structured Error Handling
-
-Use `begin` with `rescue` and/or `ensure` for script-level recovery:
+Rejected native mutations preserve their receiver bindings for rescue and ensure. Previously completed statements and explicit block writes remain visible. See [numeric guards](numeric-guards.md) for recoverable bounds, mutation publication and the accounting implications.
 
 ```vibe
-def safe_div(a, b)
+def run -> array<string>
   begin
-    a / b
-  rescue RuntimeError => err
-    audit(err.message)
-    "fallback"
+    raise TypeError, "wrong value"
+  rescue TypeError => error
+    [error.class, error.message, "#{error}"]
+  end
+end
+```
+
+This returns `["TypeError", "wrong value", "wrong value"]`. The rescued value has type `error`.
+
+Clauses match in source order. Filters accept canonical exception names, the `Error` alias, unions such as `TypeError | ArgumentError`, and parenthesized or nullable forms. An omitted filter uses `StandardError`, which excludes `LimitError`. `RuntimeError` matches every script exception class. An empty matching clause consumes selection and propagates the original error after ensure.
+
+`JSON.parse_as` raises `TypeError` when valid JSON does not fit the requested type, just as `.as(T)` does for a failed cast. Malformed JSON raises `RuntimeError`. A Rust `ErrorKind::Type` alone does not tell you which script class to rescue. A capability adapter can publish its failure class with `Error::with_class`; consult the host's contract. See [typed input validation](types.md#type-mismatch-diagnostics).
+
+The binding after `=>` shadows an outer local only inside that clause. Other assignments in the body belong to the surrounding scope, but a local the protected body assigns is read after the `begin` only when every rescue clause assigns it too (V0202); otherwise assign it before, or use the `begin` expression's value.
+
+A same-line rescue modifier supplies a fallback for an expression or a call without parentheses:
+
+```vibe
+def run -> any
+  JSON.parse("{") rescue { ok: false }
+end
+```
+
+`raise "message"` creates a RuntimeError. Two operands specify a class and a string message. Bare `raise` rethrows the current rescued error, including when called by a helper. Outside rescue it raises an empty RuntimeError. `raise error` does not accept a rescued object. `assert(condition, message)` takes a `bool` condition, returns nil when it is true and raises AssertionError otherwise; the default message is `assertion failed`.
+
+`retry` restarts the protected body without running that handler's ensure between attempts. Each attempt consumes work. Nested ensures run when retry exits their regions. Retry cannot cross a function or block call boundary; a rescue inside a block can retry its own body. Invalid return, break, and next transfers become LocalJumpError only after the callee's cleanup has run. Break and next outside any loop or block reject before evaluating a value operand.
+
+The `begin` expression's type includes every branch that produces a value.
+A rescue ending in `retry` contributes no value or `nil`: this expression is
+an `int`, the type of its successful body.
+
+```vibe run
+def run -> [int, int, int]
+  attempts = 0
+  cleanups = 0
+  value: int = begin
+    attempts += 1
+    raise "again" if attempts < 3
+    42
+  rescue
+    retry
   ensure
-    audit("safe_div attempted")
+    cleanups += 1
   end
+  [value, attempts, cleanups]
 end
+assert run == [42, 3, 1]
 ```
 
-Order multiple `rescue` clauses from specific to general; the first clause
-whose type matches the raised error handles it, as in Ruby:
+This returns `[42, 3, 1]`.
 
-```vibe
-def parse_config(raw)
-  begin
-    decode(raw)
-  rescue TypeError => err
-    audit("bad shape: " + err.message)
-    default_config
-  rescue RuntimeError => err
-    audit("unexpected: " + err.message)
-    raise
-  end
-end
-```
+Rescued errors expose `backtrace`, `class`, `code_frame` and `message`, and interpolation renders the message. The removed spellings `type` and `to_s` are rewritten to `class` and `message`. Nested writes and duplicates preserve protection and special rendering, including after host transfer. Message strings preserve arbitrary bytes; the Rust host API provides `Error::message_bytes()` for those bytes, while `message` and Display replace invalid UTF-8 for display.
 
-Re-raise the current rescued error with `raise`:
+Saved errors, bound objects, handler storage, pending return values and diagnostic capacities remain accounted while execution continues. Resuming after failure releases discarded call frames, temporary arguments, addresses and interpolation buffers. Error diagnostics retain no script or host callback. See [source diagnostics](diagnostics.md) for position and trace conventions.
 
-```vibe
-begin
-  risky_call
-rescue(AssertionError)
-  audit("recovering assertion")
-  raise
-end
-```
+Actual invocation exhaustion, cancellation and deadlines cannot be rescued. A previously exhausted invocation cannot execute ensure statements. An ordinary failure first followed by exhaustion inside ensure reports that exhaustion at the ensure operation. Fixed operation guards and explicitly raised LimitError values remain recoverable when the invocation still has budget. A foreign error's category does not establish that the current invocation has exhausted its resources.
 
-Semantics:
-
-- `rescue` runs only when the `begin` body raises an error.
-- A `begin` block may carry multiple ordered `rescue` clauses; the first clause whose type matches handles the error, so order handlers from specific to general.
-- `rescue` supports optional typed matching via `rescue <Type>` and the older `rescue(<Type>)` form.
-- `rescue` supports `AssertionError`, `LimitError`, `RuntimeError`, and unions such as `rescue AssertionError | RuntimeError`.
-- Genuine sandbox exhaustion — a tripped step quota, a tripped memory quota, or `string.scan`'s output cap — is never rescuable, by any clause type. The exhaustion latches the execution, so `ensure` bodies and `retry` cannot run work past it either. `rescue LimitError` still matches recursion-limit terminations, stdlib per-operation guards (an oversized `random_id` length or a `format` rendering past its fixed output cap, for example), and script-raised `raise LimitError` errors: those describe one rejected operation, not a spent budget.
-- `rescue => err` and `rescue RuntimeError => err` bind an object for the handler body with `type`, `message`, and `code_frame` fields.
-- `else` runs only when the `begin` body finishes without a rescued error.
-- `ensure` runs on success, on the rescue path, and on ordinary failure paths. After latched exhaustion the runtime still attempts the `ensure`, but the statement-level charge re-raises the quota error before the first statement executes, so the body's cleanup work is skipped entirely past a genuine budget kill.
-- Without `rescue`, original runtime errors still propagate after `ensure` executes.
-- Unmatched typed rescues do not swallow the original error.
-- `raise` inside `rescue` re-raises the original error and preserves its stack frames.
-- `raise "message"` raises a new runtime error. Bare `raise` outside `rescue` is a runtime error.
-
-## REPL Debugging
-
-The REPL stores the previous failure. Use:
-
-- `:last_error` to print the latest compile/runtime error.
-
-This is useful after long output or when a failure scrolls out of view.
+A rescue modifier cannot select a call target in the static language; see [computed calls](computed-calls.md). [Required files](require.md) include filenames in source diagnostics.

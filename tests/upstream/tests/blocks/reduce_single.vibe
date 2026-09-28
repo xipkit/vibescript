@@ -1,0 +1,17 @@
+def run -> { hash: hash<string, int>, single: int }
+  single = [7].reduce { |acc, x|
+    acc + x
+  }
+
+  items = [
+    { key: "one", val: 1 },
+    { key: "two", val: 2 }
+  ]
+  doubled: hash<string, int> = {}
+  hash = items.reduce(doubled) { |acc, h|
+    acc[h["key"]] = h["val"] * 2
+    acc
+  }
+
+  { single: single.as(int), hash: hash }
+end

@@ -1,0 +1,4 @@
+export def with_tax(cents: int, *, rate: int) -> string
+  total = cents + cents * rate // 100
+  format("%d.%02d", total // 100, total % 100)
+end

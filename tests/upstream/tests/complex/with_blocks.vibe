@@ -1,0 +1,53 @@
+class Collection
+  @items: array<int>
+  def initialize(items: array<int>)
+    @items = items
+  end
+
+  def each(&block: int -> int) -> array<int>
+    @items.each { |item|
+      yield(item)
+    }
+  end
+
+  def map_items(&block: int -> int) -> array<int>
+    result: array<int> = []
+    @items.each { |item|
+      result = result.push(yield(item))
+    }
+    result
+  end
+
+  def find(&block: int -> bool) -> int
+    result: int? = nil
+    done = false
+    @items.each { |item|
+      if done == false
+        if yield(item)
+          result = item
+          done = true
+        end
+      end
+    }
+    result.as(int)
+  end
+end
+
+def run -> { doubled: array<int>, first_even: int, sum: int }
+  coll = Collection.new([1, 2, 3, 4, 5])
+
+  sum = 0
+  coll.each { |x|
+    sum = sum + x
+  }
+
+  doubled = coll.map_items { |x|
+    x * 2
+  }
+
+  first_even = coll.find { |x|
+    x % 2 == 0
+  }
+
+  { sum: sum, doubled: doubled, first_even: first_even }
+end

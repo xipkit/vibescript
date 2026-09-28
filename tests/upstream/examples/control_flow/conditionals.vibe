@@ -1,0 +1,25 @@
+# vibe: 1.0
+
+def fundraising_badge(amount: int) -> string
+  if amount >= 100000
+    "legend"
+  elsif amount >= 10000
+    "elite"
+  elsif amount >= 1000
+    "gold"
+  elsif amount >= 500
+    "silver"
+  else
+    "bronze"
+  end
+end
+
+def choose_label(status: string) -> string
+  if status == "active"
+    "needs attention"
+  elsif status == "complete"
+    "done"
+  else
+    "unknown"
+  end
+end

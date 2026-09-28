@@ -1,0 +1,54 @@
+# title: Stack
+# source: https://rosettacode.org/wiki/Stack
+# category: Rosetta Code
+# difficulty: Easy
+# summary: Model a small LIFO stack with push, pop, and peek over an array-backed store.
+# tags: popular, stack, arrays, data-structures
+# vibe: 0.4
+
+def new_stack -> { items: array<string> }
+  {
+    items: []
+  }
+end
+
+def push(stack: { items: array<string> }, value: string) -> { items: array<string> }
+  stack["items"].push(value)
+  stack
+end
+
+def peek(stack: { items: array<string> }) -> string?
+  items = stack["items"]
+
+  if items.empty?
+    nil
+  else
+    items.fetch(items.length - 1)
+  end
+end
+
+def pop(stack: { items: array<string> }) -> { stack: { items: array<string> }, value: string }
+  value = stack["items"].pop
+  {
+    stack: stack,
+    value: value.as(string)
+  }
+end
+
+def run -> { contents: array<string>, peek_after_pop: string, peek_before_pop: string, popped: string, size_after_pop: int }
+  stack: { items: array<string> } = new_stack
+  stack = push(stack, "red")
+  stack = push(stack, "green")
+  stack = push(stack, "blue")
+  top_before_pop = peek(stack)
+  popped = pop(stack)
+  stack = popped["stack"]
+
+  {
+    peek_before_pop: top_before_pop.as(string),
+    popped: popped["value"],
+    peek_after_pop: peek(stack).as(string),
+    size_after_pop: stack["items"].length,
+    contents: stack["items"]
+  }
+end

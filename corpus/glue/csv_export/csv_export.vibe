@@ -1,0 +1,7 @@
+def quote_cell(text: string) -> string
+  '"' + text.gsub('"', '""') + '"'
+end
+
+def csv(rows: array<array<string>>) -> string
+  rows.map { |row| row.map { |cell| quote_cell(cell) }.join(",") }.join("\n")
+end

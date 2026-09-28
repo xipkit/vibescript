@@ -1,0 +1,38 @@
+# Lightweight pi approximation (Nilakantha-like) to keep runtime stable without big integers.
+
+def chudnovsky_term(k: int) -> float
+  if k == 0
+    return 3.0
+  end
+
+  a = 2 * k
+  term = 4.0 / (a * (a + 1) * (a + 2))
+  if k % 2 == 1
+    term
+  else
+    -term
+  end
+end
+
+def chudnovsky_pi(iterations: int) -> float
+  pi = 0.0
+  for k in 0..iterations
+    pi = pi + chudnovsky_term(k)
+  end
+  pi
+end
+
+def pi_approx -> float
+  chudnovsky_pi(200)
+end
+
+def pi_approx_precise(iterations: int) -> float
+  chudnovsky_pi(iterations)
+end
+
+def run -> { coarse: float, precise: float }
+  {
+    coarse: pi_approx,
+    precise: pi_approx_precise(1000)
+  }
+end

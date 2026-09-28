@@ -1,2 +1,0 @@
-go test fuzz v1
-[]byte("be(in (000000000")

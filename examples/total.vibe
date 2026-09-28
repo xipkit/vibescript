@@ -1,0 +1,3 @@
+def total(items: array<int>) -> { total: int, count: int }
+  { total: items.sum, count: items.length }
+end

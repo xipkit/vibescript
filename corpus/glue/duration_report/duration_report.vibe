@@ -1,0 +1,4 @@
+def delay_report(delays: array<string>) -> { seconds: int, iso: string }
+  total = delays.map { |delay| Duration.parse(delay) }.sum(0.seconds)
+  { seconds: total.to_i, iso: total.iso8601 }
+end

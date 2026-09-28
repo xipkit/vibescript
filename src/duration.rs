@@ -1,0 +1,418 @@
+use crate::{
+    CallContext, Error, ErrorKind, Result, Value, bytecode::CallSite, hash::Hash, json, ops,
+    value::Kind,
+};
+use std::{cmp::Ordering, fmt::Write};
+
+mod parse;
+
+/// Reports a result outside the 64-bit seconds domain, naming the operation as Go does.
+fn range_error(method: &str) -> Error {
+    Error::new(
+        ErrorKind::Arithmetic,
+        format!("{method} result out of int64 range"),
+    )
+}
+
+/// Reads an arithmetic operand; a big integer is outside the domain of `method`.
+fn operand(value: &Value, method: &str) -> Result<i64> {
+    if matches!(value.0, Kind::Big(_)) {
+        return Err(range_error(method));
+    }
+    crate::conversion::int64(value)
+}
+
+/// Converts whole seconds as Go's `NumericToSeconds` does.
+fn numeric(value: &Value) -> Result<i64> {
+    if !matches!(value.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_)) {
+        return Err(Error::new(
+            ErrorKind::Type,
+            "duration expects numeric seconds",
+        ));
+    }
+    crate::conversion::int64(value)
+}
+
+const PARTS: [&str; 5] = ["weeks", "days", "hours", "minutes", "seconds"];
+
+pub(crate) fn build(
+    ctx: &mut CallContext,
+    args: &[Value],
+    keywords: &[(Value, Value)],
+) -> Result<Value> {
+    if !args.is_empty() || keywords.is_empty() {
+        return Err(Error::new(
+            ErrorKind::Argument,
+            "Duration.build expects seconds or named parts",
+        ));
+    }
+    let mut values = [None; 5];
+    for (index, (key, _)) in keywords.iter().enumerate() {
+        ctx.charge(1)?;
+        let bytes = key.as_bytes().unwrap_or_default();
+        let Some(part) = PARTS.iter().position(|part| part.as_bytes() == bytes) else {
+            let mut message = b"Duration.build unknown part ".to_vec();
+            crate::shapes::quote(bytes, &mut message);
+            return Err(Error::new(
+                ErrorKind::Argument,
+                String::from_utf8_lossy(&message).into_owned(),
+            ));
+        };
+        values[part] = Some(index);
+    }
+    let mut parts = [0; 5];
+    for (part, index) in values.into_iter().enumerate() {
+        if let Some(index) = index {
+            parts[part] = numeric(&keywords[index].1).map_err(|error| {
+                Error::new(
+                    error.kind,
+                    format!("Duration.build {}: {}", PARTS[part], error.message),
+                )
+            })?;
+        }
+    }
+    let total = parts
+        .into_iter()
+        .zip([604800i64, 86400, 3600, 60, 1])
+        .fold(0i64, |total, (part, factor)| {
+            total.wrapping_add(part.wrapping_mul(factor))
+        });
+    Ok(Value::duration(total))
+}
+
+pub(crate) fn parse(ctx: &mut CallContext, args: &[Value]) -> Result<Value> {
+    let [Value(Kind::Bytes(bytes))] = args else {
+        return Err(Error::new(
+            if args.len() == 1 {
+                ErrorKind::Type
+            } else {
+                ErrorKind::Argument
+            },
+            "Duration.parse expects a duration string",
+        ));
+    };
+    parse::parse(ctx, &bytes.data).map(Value::duration)
+}
+
+pub(crate) fn text(ctx: &mut CallContext, seconds: i64) -> Result<Value> {
+    let mut out = json::Number::new();
+    write!(out, "{seconds}s").unwrap();
+    ctx.bytes(out.bytes())
+}
+
+fn components(seconds: i64) -> [i64; 4] {
+    let magnitude = if seconds < 0 {
+        seconds.wrapping_neg()
+    } else {
+        seconds
+    };
+    [
+        magnitude / 86400,
+        magnitude % 86400 / 3600,
+        magnitude % 3600 / 60,
+        magnitude % 60,
+    ]
+}
+
+fn iso8601(ctx: &mut CallContext, seconds: i64) -> Result<Value> {
+    if seconds == 0 {
+        return ctx.bytes(b"PT0S");
+    }
+    let mut out = json::Number::new();
+    if seconds < 0 {
+        out.write_char('-').unwrap();
+    }
+    out.write_char('P').unwrap();
+    let [days, hours, minutes, seconds] = components(seconds);
+    if days > 0 {
+        write!(out, "{days}D").unwrap();
+    }
+    if hours > 0 || minutes > 0 || seconds > 0 {
+        out.write_char('T').unwrap();
+        for (part, suffix) in [(hours, 'H'), (minutes, 'M'), (seconds, 'S')] {
+            if part > 0 {
+                write!(out, "{part}{suffix}").unwrap();
+            }
+        }
+    }
+    ctx.bytes(out.bytes())
+}
+
+fn parts(ctx: &mut CallContext, seconds: i64) -> Result<Value> {
+    let sign = if seconds < 0 { -1 } else { 1 };
+    let mut hash = Hash::empty();
+    for (name, part) in ["days", "hours", "minutes", "seconds"]
+        .into_iter()
+        .zip(components(seconds))
+    {
+        let key = ctx.bytes(name.as_bytes())?;
+        hash.insert(ctx, key, Value::int(part * sign))?;
+    }
+    Ok(Value(Kind::Hash(hash.into_arc(ctx)?)))
+}
+
+pub(crate) fn order(left: i64, right: i64) -> Ordering {
+    // Preserve the reference's signed subtraction at the duration boundary.
+    left.wrapping_sub(right).cmp(&0)
+}
+
+fn shifted(value: u128, bits: u32) -> Option<u128> {
+    if value == 0 {
+        Some(0)
+    } else if bits >= 128 || bits > value.leading_zeros() {
+        None
+    } else {
+        Some(value << bits)
+    }
+}
+
+fn rounded_ratio(numerator: u128, denominator: u128) -> u128 {
+    let quotient = numerator / denominator;
+    let remainder = numerator % denominator;
+    quotient + u128::from(remainder >= denominator - remainder)
+}
+
+fn scale(seconds: i64, factor: f64, divide: bool) -> Result<i64> {
+    if !factor.is_finite() {
+        return crate::conversion::int64(&Value::float(factor));
+    }
+    if divide && factor == 0.0 {
+        return Err(Error::new(ErrorKind::Arithmetic, "division by zero")
+            .with_class(crate::ErrorClass::ZeroDivision));
+    }
+    let overflow = || {
+        range_error(if divide {
+            "duration division"
+        } else {
+            "duration multiplication"
+        })
+    };
+    if seconds == 0 || factor == 0.0 {
+        return Ok(0);
+    }
+    let negative = (seconds < 0) != factor.is_sign_negative();
+    let bits = factor.to_bits();
+    let encoded_exponent = ((bits >> 52) & 0x7ff) as i32;
+    let mantissa =
+        u128::from(bits & ((1u64 << 52) - 1)) | if encoded_exponent == 0 { 0 } else { 1 << 52 };
+    let exponent = encoded_exponent.max(1) - 1023 - 52;
+    let magnitude = u128::from(seconds.unsigned_abs());
+    // An i64 and a binary64 mantissa need at most 117 bits. Work with that
+    // exact ratio so float scaling never first rounds large seconds to f64.
+    let rounded = if divide {
+        if exponent >= 0 {
+            let Some(denominator) = shifted(mantissa, exponent as u32) else {
+                return Ok(0);
+            };
+            rounded_ratio(magnitude, denominator)
+        } else {
+            let numerator = shifted(magnitude, (-exponent) as u32).ok_or_else(overflow)?;
+            rounded_ratio(numerator, mantissa)
+        }
+    } else {
+        let product = magnitude * mantissa;
+        if exponent >= 0 {
+            shifted(product, exponent as u32).ok_or_else(overflow)?
+        } else if exponent <= -128 {
+            0
+        } else {
+            rounded_ratio(product, 1u128 << -exponent)
+        }
+    };
+    if rounded > i64::MAX as u128 + u128::from(negative) {
+        return Err(overflow());
+    }
+    Ok(if negative {
+        -(rounded as i128)
+    } else {
+        rounded as i128
+    } as i64)
+}
+
+pub(crate) fn binary(op: &str, left: &Value, right: &Value) -> Result<Value> {
+    let method = match op {
+        "+" => "duration addition",
+        "-" => "duration subtraction",
+        "*" => "duration multiplication",
+        _ => "duration division",
+    };
+    let overflow = || range_error(method);
+    let seconds = match (&left.0, &right.0, op) {
+        (Kind::Duration(a), Kind::Duration(b), "+") => a.checked_add(*b).ok_or_else(overflow)?,
+        (Kind::Duration(a), Kind::Duration(b), "-") => a.checked_sub(*b).ok_or_else(overflow)?,
+        (Kind::Duration(a), Kind::Duration(b), "/" | "%") => {
+            if *b == 0 {
+                return Err(ops::zero_division(op));
+            }
+            if op == "/" {
+                return Ok(Value::float(*a as f64 / *b as f64));
+            }
+            a.checked_rem(*b).unwrap_or(0)
+        }
+        (Kind::Duration(seconds), Kind::Int(_) | Kind::Big(_) | Kind::Float(_), "+") => seconds
+            .checked_add(operand(right, method)?)
+            .ok_or_else(overflow)?,
+        (Kind::Int(_) | Kind::Big(_) | Kind::Float(_), Kind::Duration(seconds), "+") => seconds
+            .checked_add(operand(left, method)?)
+            .ok_or_else(overflow)?,
+        (Kind::Duration(seconds), Kind::Int(_) | Kind::Big(_) | Kind::Float(_), "-") => seconds
+            .checked_sub(operand(right, method)?)
+            .ok_or_else(overflow)?,
+        (Kind::Duration(seconds), Kind::Float(factor), "*" | "/") => {
+            scale(*seconds, *factor, op == "/")?
+        }
+        (Kind::Float(factor), Kind::Duration(seconds), "*") => scale(*seconds, *factor, false)?,
+        (Kind::Duration(seconds), Kind::Int(_) | Kind::Big(_), "*") => seconds
+            .checked_mul(operand(right, method)?)
+            .ok_or_else(overflow)?,
+        (Kind::Int(_) | Kind::Big(_), Kind::Duration(seconds), "*") => seconds
+            .checked_mul(operand(left, method)?)
+            .ok_or_else(overflow)?,
+        (Kind::Duration(seconds), Kind::Int(_) | Kind::Big(_), "/") => {
+            let divisor = operand(right, method)?;
+            if divisor == 0 {
+                return Err(Error::new(ErrorKind::Arithmetic, "division by zero")
+                    .with_class(crate::ErrorClass::ZeroDivision));
+            }
+            seconds.checked_div(divisor).ok_or_else(overflow)?
+        }
+        _ => return Err(ops::unsupported(op)),
+    };
+    Ok(Value::duration(seconds))
+}
+
+/// The seconds in the unit an int converts to a duration with, such as
+/// `minutes`.
+fn unit(name: &str) -> Option<i64> {
+    match name {
+        "seconds" => Some(1),
+        "minutes" => Some(60),
+        "hours" => Some(3600),
+        "days" => Some(86400),
+        "weeks" => Some(604800),
+        _ => None,
+    }
+}
+
+fn property(site: CallSite, keywords: bool, block: bool) -> Result<()> {
+    if site.auto && !keywords && !block {
+        Ok(())
+    } else {
+        Err(Error::new(
+            ErrorKind::Type,
+            "attempted to call non-callable value",
+        ))
+    }
+}
+
+pub(crate) fn member(
+    ctx: &mut CallContext,
+    site: CallSite,
+    name: &str,
+    receiver: &Value,
+    args: &[Value],
+    keywords: bool,
+    block: bool,
+) -> Result<Option<Value>> {
+    if site.scope {
+        return Ok(None);
+    }
+    if matches!(receiver.0, Kind::Int(_) | Kind::Big(_)) {
+        if let Some(factor) = unit(name) {
+            property(site, keywords, block)?;
+            if matches!(receiver.0, Kind::Big(_)) {
+                return Err(range_error(&format!("int.{name}")));
+            }
+            return Ok(Some(Value::duration(
+                numeric(receiver)?.wrapping_mul(factor),
+            )));
+        }
+    }
+    let Kind::Duration(seconds) = receiver.0 else {
+        return Ok(None);
+    };
+    let value = match name {
+        "after" | "from_now" | "ago" | "before" => {
+            // `ago` and `from_now` count from now, so they take no arguments;
+            // `after` and `before` count from the time they are given.
+            let from_now = matches!(name, "ago" | "from_now");
+            if site.auto && !block && !from_now {
+                return Err(Error::new(
+                    ErrorKind::Type,
+                    format!(
+                        "{name} is a method and cannot be used as a value; call it with {name}(...)"
+                    ),
+                ));
+            }
+            if keywords {
+                return Err(Error::new(
+                    ErrorKind::Argument,
+                    if matches!(name, "ago" | "before") {
+                        "duration.before does not accept keyword arguments"
+                    } else {
+                        "duration.after does not accept keyword arguments"
+                    },
+                ));
+            }
+            let start = match (from_now, args) {
+                (true, []) => None,
+                (false, [start]) => Some(start),
+                (true, _) => {
+                    return Err(Error::new(
+                        ErrorKind::Argument,
+                        format!("duration.{name} does not take arguments"),
+                    ));
+                }
+                (false, _) => {
+                    return Err(Error::new(
+                        ErrorKind::Argument,
+                        format!("duration.{name} expects a time"),
+                    ));
+                }
+            };
+            crate::time::anchor(ctx, seconds, start, matches!(name, "ago" | "before"))?
+        }
+        "dup" => {
+            crate::members::dup_shape(args.len(), keywords, block)?;
+            return Ok(Some(receiver.clone()));
+        }
+        "to_s" | "inspect" => {
+            crate::arguments::nullary(&format!("duration.{name}"), args, keywords, block)?;
+            text(ctx, seconds)?
+        }
+        "between?" => {
+            crate::arguments::between("duration.between?", args, keywords, block)?;
+            let lower = ops::compare(ctx, receiver, &args[0])?;
+            Value::boolean(
+                matches!(lower, Some(Ordering::Equal | Ordering::Greater))
+                    && matches!(
+                        ops::compare(ctx, receiver, &args[1])?,
+                        Some(Ordering::Equal | Ordering::Less)
+                    ),
+            )
+        }
+        _ => {
+            property(site, keywords, block)?;
+            // A duration's parts are whole minutes and longer; `to_i` gives
+            // its seconds.
+            if let Some(factor) = unit(name).filter(|&factor| factor > 1) {
+                Value::int(seconds / factor)
+            } else {
+                match name {
+                    "in_seconds" => Value::float(seconds as f64),
+                    "in_minutes" => Value::float(seconds as f64 / 60.0),
+                    "in_hours" => Value::float(seconds as f64 / 3600.0),
+                    "in_days" => Value::float(seconds as f64 / 86400.0),
+                    "in_weeks" => Value::float(seconds as f64 / 604800.0),
+                    "in_months" => Value::float(seconds as f64 / 2592000.0),
+                    "in_years" => Value::float(seconds as f64 / 31536000.0),
+                    "to_i" => Value::int(seconds),
+                    "iso8601" => iso8601(ctx, seconds)?,
+                    "parts" => parts(ctx, seconds)?,
+                    _ => return Ok(None),
+                }
+            }
+        }
+    };
+    Ok(Some(value))
+}

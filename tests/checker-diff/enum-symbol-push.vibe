@@ -1,0 +1,16 @@
+# expect: rejected V0101
+# A symbol literal passed to a builtin where an enum is expected stayed a
+# symbol at runtime, so an exhaustive `case` over the element gave nil.
+enum E0
+  Red
+  Green
+  Blue
+end
+es: array<E0> = [E0::Red]
+es << :red
+ev = es.fetch(1)
+n: int = case ev
+  when E0::Red then 0
+  when E0::Green then 1
+  when E0::Blue then 2
+end

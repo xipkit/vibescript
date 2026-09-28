@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted - 2026-07-09
+Superseded by [ADR-007](007-static-types.md) - 2026-09-24. Accepted - 2026-07-09
 
 ## Decision
 

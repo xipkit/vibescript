@@ -1,0 +1,10 @@
+type Delivery = { recipient: string, ok: bool, detail: string }
+def deliver_all(recipients: array<string>, &send: string -> string) -> array<Delivery>
+  recipients.map { |recipient|
+    begin
+      { recipient: recipient, ok: true, detail: yield(recipient) }
+    rescue RuntimeError => error
+      { recipient: recipient, ok: false, detail: error.message }
+    end
+  }
+end

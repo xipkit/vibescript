@@ -1,0 +1,43 @@
+# title: Hash projection
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Remove, select, merge, and fetch fields from a hash.
+# description: except removes private fields, slice selects public fields, and fetch_values fails when a required field is missing.
+# tags: collections, hashes, projection
+# vibe: 0.4
+
+def public_view(record: hash<string, int | string>) -> hash<string, int | string>
+  record.except("password_hash", "ssn")
+end
+
+def summary(record: hash<string, int | string>) -> hash<string, int | string>
+  record.slice("id", "name", "plan")
+end
+
+def with_defaults(record: hash<string, int | string>) -> hash<string, int | string>
+  defaults: hash<string, int | string> = { plan: "free", region: "us" }
+  defaults.merge(record)
+end
+
+def required_fields(record: hash<string, int | string>) -> array<int | string>
+  record.fetch_values("id", "email")
+end
+
+def run -> { contacts: array<int | string | nil>, public_view: hash<string, int | string>, required_fields: array<int | string>, summary: hash<string, int | string>, with_defaults: hash<string, int | string> }
+  record = {
+    id: 42,
+    name: "Ada",
+    email: "ada@vibe.dev",
+    plan: "pro",
+    password_hash: "x1y2z3",
+    ssn: "000-00-0000"
+  }
+
+  {
+    public_view: public_view(record),
+    summary: summary(record),
+    with_defaults: with_defaults({ id: 7, name: "Lin" }),
+    required_fields: required_fields(record),
+    contacts: record.values_at("name", "email")
+  }
+end

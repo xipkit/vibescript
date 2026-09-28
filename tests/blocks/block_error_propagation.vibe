@@ -1,9 +1,0 @@
-def explode
-  [1].map do |x|
-    x.unknown_method
-  end
-end
-
-def run
-  "ok"
-end

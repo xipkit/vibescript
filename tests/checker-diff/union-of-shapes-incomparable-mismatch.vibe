@@ -1,0 +1,4 @@
+# expect: rejected V0101
+n: int? = nil
+x: { id: int, tags: int? } | { id: int?, tags: int } = { id: n, tags: n }
+p(x)

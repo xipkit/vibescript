@@ -1,0 +1,21 @@
+# vibe: 1.0
+
+def odds_below(limit: int) -> array<int>
+  out: array<int> = []
+  n = 0
+  while n < limit
+    n = n + 1
+    if n == limit
+      break
+    end
+    if n % 2 == 0
+      next
+    end
+    out = out + [n]
+  end
+  out
+end
+
+def run -> array<int>
+  odds_below(10)
+end

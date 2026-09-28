@@ -1,0 +1,5 @@
+def test_dedup_events
+  subject = require("dedup_events")
+  assert subject.unique_bodies([{ id: "1", body: "a" }, { id: "1", body: "retry" }, { id: "2", body: "b" }]) == ["a", "b"]
+  assert subject.unique_bodies([]) == []
+end

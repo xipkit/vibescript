@@ -1,0 +1,33 @@
+# title: Greatest common divisor
+# source: https://rosettacode.org/wiki/Greatest_common_divisor
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Compute greatest common divisors with the iterative Euclidean algorithm on a fixed sample set.
+# tags: popular, math, euclid, loops
+# vibe: 0.2
+
+def gcd(a: int, b: int) -> int
+  left = a.abs
+  right = b.abs
+
+  while right != 0
+    remainder = left % right
+    left = right
+    right = remainder
+  end
+
+  left
+end
+
+def run -> { eight_forty_five: int, large_pair: int, negative_six_nine: int, nine_six: int, six_nine: int, zero_negative_ten: int, zero_ten: int, zero_zero: int }
+  {
+    zero_zero: gcd(0, 0),
+    zero_ten: gcd(0, 10),
+    zero_negative_ten: gcd(0, -10),
+    nine_six: gcd(9, 6),
+    six_nine: gcd(6, 9),
+    negative_six_nine: gcd(-6, 9),
+    eight_forty_five: gcd(8, 45),
+    large_pair: gcd(84, 30)
+  }
+end

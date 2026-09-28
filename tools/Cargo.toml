@@ -1,0 +1,19 @@
+[package]
+name = "vibescript-tools"
+version = "0.80.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Formatter, analyzer, fixer, test runner, REPL session and language server for Vibescript"
+license = "MIT AND BSD-3-Clause"
+publish = false
+
+[features]
+default = ["lsp"]
+lsp = ["dep:serde_json"]
+
+[dependencies]
+serde_json = { version = "1", features = ["raw_value"], optional = true }
+vibescript = { path = "..", default-features = false }
+
+[lints]
+workspace = true

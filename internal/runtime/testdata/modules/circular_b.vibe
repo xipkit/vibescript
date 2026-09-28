@@ -1,4 +1,0 @@
-def func_b
-  require("circular_a")
-  func_a
-end

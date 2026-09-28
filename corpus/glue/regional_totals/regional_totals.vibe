@@ -1,0 +1,6 @@
+type Order = { region: string, cents: int }
+def totals(orders: array<Order>) -> hash<string, int>
+  orders.group_by { |order| order["region"] }.transform_values { |group|
+    group.sum { |order| order["cents"] }
+  }
+end

@@ -1,0 +1,10 @@
+def scalar_label(raw: string) -> string
+  value = JSON.parse(raw)
+  if value.is_type?(:int)
+    format("integer:%d", value + 1)
+  elsif value.is_type?(:string)
+    "text:#{value.strip}"
+  else
+    "unsupported"
+  end
+end

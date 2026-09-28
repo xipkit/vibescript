@@ -1,0 +1,12 @@
+def test_money_discount
+  subject = require("money_discount")
+  assert subject.discounted(money("19.99 USD"), 10).to_s == "17.99 USD"
+  assert subject.discounted(money("19.99 USD"), 100).cents == 0
+  rejected = false
+  begin
+    subject.discounted(money("1.00 USD"), 101)
+  rescue ArgumentError
+    rejected = true
+  end
+  assert rejected
+end

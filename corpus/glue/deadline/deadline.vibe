@@ -1,0 +1,3 @@
+def deadline(start: string, timeout: string) -> string
+  (Time.parse(start) + Duration.parse(timeout)).utc.iso8601
+end

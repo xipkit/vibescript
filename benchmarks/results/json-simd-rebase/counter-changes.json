@@ -1,0 +1,205 @@
+{
+  "cases": 233803,
+  "counts": {
+    "peak": 10
+  },
+  "changes": {
+    "conformance": {
+      "json_depth/mixed/128/scalar": {
+        "before": [
+          635,
+          61646,
+          0
+        ],
+        "after": [
+          635,
+          55535,
+          0
+        ],
+        "upstream_recorded": [
+          635,
+          61646,
+          0
+        ]
+      },
+      "json_depth/mixed/129/scalar": {
+        "before": [
+          638,
+          76206,
+          0
+        ],
+        "after": [
+          638,
+          70095,
+          0
+        ],
+        "upstream_recorded": [
+          638,
+          76206,
+          0
+        ]
+      },
+      "json_depth/mixed/9999/scalar": {
+        "before": [
+          45669,
+          5347269,
+          0
+        ],
+        "after": [
+          45669,
+          4862463,
+          0
+        ],
+        "upstream_recorded": [
+          45669,
+          5347269,
+          0
+        ]
+      },
+      "json_depth/mixed/10000/scalar": {
+        "before": [
+          45676,
+          5347734,
+          0
+        ],
+        "after": [
+          45676,
+          4862831,
+          0
+        ],
+        "upstream_recorded": [
+          45676,
+          5347734,
+          0
+        ]
+      },
+      "json_depth/mixed/10000/instance": {
+        "before": [
+          95853,
+          5349491,
+          0
+        ],
+        "after": [
+          95853,
+          4864588,
+          0
+        ],
+        "upstream_recorded": [
+          95853,
+          5349491,
+          0
+        ]
+      },
+      "json_depth/mixed/10000/module": {
+        "before": [
+          45739,
+          5349912,
+          0
+        ],
+        "after": [
+          45739,
+          4865009,
+          0
+        ],
+        "upstream_recorded": [
+          45739,
+          5349912,
+          0
+        ]
+      },
+      "json_depth/mixed/10000/empty": {
+        "before": [
+          45667,
+          5347365,
+          0
+        ],
+        "after": [
+          45667,
+          4862559,
+          0
+        ],
+        "upstream_recorded": [
+          45667,
+          5347365,
+          0
+        ]
+      },
+      "json_depth/mixed/10001/scalar": {
+        "before": [
+          20076,
+          3218158,
+          0
+        ],
+        "after": [
+          20076,
+          2820943,
+          0
+        ],
+        "upstream_recorded": [
+          20076,
+          3218158,
+          0
+        ]
+      },
+      "json_transform/metered": {
+        "before": [
+          6241,
+          64994,
+          128
+        ],
+        "after": [
+          6241,
+          39731,
+          128
+        ],
+        "upstream_recorded": [
+          6241,
+          64994,
+          128
+        ]
+      },
+      "json_transform/unlimited": {
+        "before": [
+          6241,
+          64994,
+          128
+        ],
+        "after": [
+          6241,
+          39731,
+          128
+        ],
+        "upstream_recorded": [
+          6241,
+          64994,
+          128
+        ]
+      }
+    }
+  },
+  "expected_variable_observations": [
+    {
+      "corpus": "replay",
+      "id": "call10334",
+      "recorded": "varies: ok"
+    },
+    {
+      "corpus": "replay",
+      "id": "call33640",
+      "recorded": "varies: ok"
+    },
+    {
+      "corpus": "replay",
+      "id": "call41755",
+      "recorded": "varies: ok"
+    },
+    {
+      "corpus": "replay",
+      "id": "call41802",
+      "recorded": "varies: ok"
+    }
+  ],
+  "unexpected_observation_differences": [],
+  "baseline_revision": "6bad12f847f2e049c1774754b140223f15f7c5a8",
+  "json_revision": "e83d53f66eabffee19d22503bd8b39a0922300ee"
+}

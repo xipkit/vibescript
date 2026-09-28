@@ -1,3 +1,0 @@
-def init
-  require("self_require")
-end

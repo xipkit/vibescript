@@ -1,0 +1,7 @@
+# expect: rejected V0203
+# The checker offered every type's `inspect` on instances, which the
+# runtime does not answer.
+class C0
+  @v0: int = 1
+end
+x: string = C0.new.inspect

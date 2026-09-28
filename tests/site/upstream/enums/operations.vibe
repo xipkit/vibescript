@@ -1,0 +1,50 @@
+# vibe: 1.0
+# Enum basics
+
+enum Status
+  Draft
+  Published
+  Archived
+end
+
+enum ReviewState
+  Draft
+  Approved
+end
+
+def member_name -> string
+  Status::Draft.name
+end
+
+def publish_name(status: Status) -> string
+  status.name
+end
+
+def block_names(values: array<Status>) -> array<string>
+  values.map { |status: Status|
+    status.name
+  }
+end
+
+def facts -> hash<string, bool | string | symbol>
+  draft = Status::Draft
+
+  {
+    same: draft == Status::Draft,
+    symbol_same: draft == draft.symbol,
+    cross_enum_same: draft == ReviewState::Draft,
+    name: draft.name,
+    symbol: draft.symbol,
+    render: "status={{value}}".template({ value: draft }),
+    payload: JSON.stringify({ status: draft })
+  }
+end
+
+def run -> { facts: hash<string, bool | string | symbol>, member_name: string, names: array<string>, published_name: string }
+  {
+    member_name: member_name,
+    published_name: publish_name(:published),
+    names: block_names([:draft, Status::Published]),
+    facts: facts
+  }
+end

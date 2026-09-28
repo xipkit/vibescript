@@ -1,0 +1,56 @@
+# title: Abbreviations, simple
+# source: https://rosettacode.org/wiki/Abbreviations,_simple
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Resolve simple command abbreviations by matching unique prefixes from a fixed command list.
+# tags: popular, strings, search, basics
+# vibe: 0.2
+
+def commands -> array<string>
+  [
+    "add",
+    "append",
+    "commit",
+    "copy",
+    "delete",
+    "insert",
+    "move",
+    "print",
+    "quit"
+  ]
+end
+
+def matches_for(token: string) -> array<string>
+  results: array<string> = []
+  available = commands
+  index = 0
+  while index < available.length
+    command = available.fetch(index)
+    if command.index(token.downcase) == 0
+      results = results + [command]
+    end
+    index = index + 1
+  end
+  results
+end
+
+def resolve(token: string) -> string
+  matches = matches_for(token)
+  if matches.empty?
+    "unknown"
+  elsif matches.length == 1
+    matches.fetch(0)
+  else
+    "ambiguous"
+  end
+end
+
+def run -> { add: string, ambiguous: string, append: string, delete: string, unknown: string }
+  {
+    add: resolve("ad"),
+    append: resolve("app"),
+    ambiguous: resolve("c"),
+    delete: resolve("del"),
+    unknown: resolve("zoom")
+  }
+end

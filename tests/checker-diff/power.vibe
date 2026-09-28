@@ -1,0 +1,9 @@
+# expect: agreed
+i = 7
+n = 2
+a: int = i ** 2
+b: int = i ** n
+c: number = i ** -1
+d = 2
+d **= 3
+p(a, b, c, d)

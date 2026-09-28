@@ -1,0 +1,44 @@
+# title: Digest schedule
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Schedule digest jobs from a cadence and a time window.
+# description: An enum names the cadence. Durations set the window, and timestamps set each run time.
+# tags: notifications, durations, enums, templates
+# vibe: 0.2
+
+enum DigestCadence
+  Hourly
+  Daily
+  Weekly
+end
+
+def cadence_window(cadence: DigestCadence) -> duration
+  if cadence == DigestCadence::Hourly
+    1.hours
+  elsif cadence == DigestCadence::Daily
+    24.hours
+  else
+    7.days
+  end
+end
+
+def digest_job(channel_id: string, cadence: DigestCadence, anchor: time) -> hash<string, string>
+  window = cadence_window(cadence)
+
+  {
+    channel_id: channel_id,
+    cadence: cadence.name,
+    window: window.iso8601,
+    next_run: window.after(anchor).format("2006-01-02T15:04:05Z"),
+    subject: "{{cadence}} digest for {{channel}}".template({ cadence: cadence.name, channel: channel_id })
+  }
+end
+
+def run -> { hourly: hash<string, string>, weekly: hash<string, string> }
+  anchor = Time.at(1700900000)
+
+  {
+    hourly: digest_job("ops-alerts", DigestCadence::Hourly, anchor),
+    weekly: digest_job("revenue-updates", DigestCadence::Weekly, anchor)
+  }
+end

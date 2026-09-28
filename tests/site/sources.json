@@ -1,0 +1,819 @@
+{
+  "repository": "vibescript.mauriciogomes.com",
+  "revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
+  "source_directory": "internal/catalog/content",
+  "files": [
+    {
+      "path": "rosettacode/popular/100_doors.vibe",
+      "sha256": "c5957c6c88971fbc0ec4a9e778cbf8fa08c9dd3450f9d6922db5b27de95f8c29"
+    },
+    {
+      "path": "rosettacode/popular/99_bottles_of_beer.vibe",
+      "sha256": "bf51f42bbef24e44c911fc4876f747105c9a0fa15c48390028f123b90e0688c1"
+    },
+    {
+      "path": "rosettacode/popular/a_b.vibe",
+      "sha256": "d286671b90ef76721cd2144f02192db9e5f464eedb0a31da062b3e198658ca1a"
+    },
+    {
+      "path": "rosettacode/popular/a_plus_b.vibe",
+      "sha256": "16c08ab8f36baf848315af13ee6a26975c858a7216a0f338eb4b249c444ee257"
+    },
+    {
+      "path": "rosettacode/popular/abbreviations_automatic.vibe",
+      "sha256": "745d4c8b3c3a0a76a8bf90102240195a91a4ac8ff3a58bd3bcb1a3679e01ba69"
+    },
+    {
+      "path": "rosettacode/popular/abbreviations_simple.vibe",
+      "sha256": "502c2950655119450175d3ad1364697dd75749a42006c07a3eb096acc6a8c99d"
+    },
+    {
+      "path": "rosettacode/popular/abc_problem.vibe",
+      "sha256": "88c0c3565f5654097a9c6757a84efa685457819dd22626b19330fb441954128e"
+    },
+    {
+      "path": "rosettacode/popular/abundant_deficient_and_perfect_number_classifications.vibe",
+      "sha256": "5f2cc7b5b8b66f354ce7c33866b80578d7cb6aaefd9ac1321b48a6785943e315"
+    },
+    {
+      "path": "rosettacode/popular/abundant_odd_numbers.vibe",
+      "sha256": "8e73f33a166accb852026f7f3bf2b45d38a4efa72aeeb8f3c1bc7612a48f9ef9"
+    },
+    {
+      "path": "rosettacode/popular/ackermann_function.vibe",
+      "sha256": "6d84d51ae0f82c6a637d888cf5da05fe78a9e074f102f895035fc91a77b4f232"
+    },
+    {
+      "path": "rosettacode/popular/align_columns.vibe",
+      "sha256": "cff57c671f2bf2575b813e995eb7082c9457bd077db45d3355ecb192c2ff1580"
+    },
+    {
+      "path": "rosettacode/popular/aliquot_sequence_classifications.vibe",
+      "sha256": "1ae3a0ee1a4d38cdf025594bcfedcecb9860418933ad8f8a8ca38564c9d769f2"
+    },
+    {
+      "path": "rosettacode/popular/anagrams.vibe",
+      "sha256": "8533cfdc17d30dca093baa7587167825c0830ef72326d503a3fa5897deb81e2c"
+    },
+    {
+      "path": "rosettacode/popular/angle_difference_between_two_bearings.vibe",
+      "sha256": "e96ba00f3d72cfb1ae2c208b0bae105d0c677cc79f006a66b07bec1ab5ad94ba"
+    },
+    {
+      "path": "rosettacode/popular/angles_geometric_normalization_and_conversion.vibe",
+      "sha256": "2e283b12353574cfd34b0c5213085d78596b3fbb1f58773fcdbac246fc27293d"
+    },
+    {
+      "path": "rosettacode/popular/arrays.vibe",
+      "sha256": "4c27930b25820fe9642f6a2990e94a9dceb3a25a984818d1af68c71d792351fa"
+    },
+    {
+      "path": "rosettacode/popular/bacon_cipher.vibe",
+      "sha256": "77ab6b1417104f2ea7bb8a167bfe798cbadd1e25cdcd629e7a402f6c14d7f151"
+    },
+    {
+      "path": "rosettacode/popular/balanced_brackets.vibe",
+      "sha256": "59f08a23de8ff288a2bbe3a80bd9ec30db2b14d57246be054c626d2d89e795f0"
+    },
+    {
+      "path": "rosettacode/popular/balanced_ternary.vibe",
+      "sha256": "cad790ea71646e08e2773e156eb185eb0535edfc38e23d6ab33d5f7f41656913"
+    },
+    {
+      "path": "rosettacode/popular/best_shuffle.vibe",
+      "sha256": "c4f5474f039d8b931a437c1172871c185b878a424d78d66313adc9e27ed5171d"
+    },
+    {
+      "path": "rosettacode/popular/binary_digits.vibe",
+      "sha256": "eeda0fb068947e9305be2ebcf0b261e545eecccafd53bf755bd845c94a751c35"
+    },
+    {
+      "path": "rosettacode/popular/binary_search.vibe",
+      "sha256": "18bdb128a2d290c2a7f09ac7e87db986743d4121c878614e84bf8f3a8f92dc77"
+    },
+    {
+      "path": "rosettacode/popular/binary_strings.vibe",
+      "sha256": "2d64cccd206f9bd54bfc46ef2832a10ea3f4ed26941332d85a60d7229e5d8b3d"
+    },
+    {
+      "path": "rosettacode/popular/bitwise_operations.vibe",
+      "sha256": "9d783044bf519702f8a15d01bfcf408881309d74204a3e7be2fe6f0cfbf271d0"
+    },
+    {
+      "path": "rosettacode/popular/box_the_compass.vibe",
+      "sha256": "318173ecb5cd150ae061c6de4d791216c13dfab1b7b486efb50948055b11f4e3"
+    },
+    {
+      "path": "rosettacode/popular/brazilian_numbers.vibe",
+      "sha256": "061b31389c9975eaf402f9ac40b20d69a790ebfc765a12e81e2f019e1736141b"
+    },
+    {
+      "path": "rosettacode/popular/bubble_sort.vibe",
+      "sha256": "9204875fc875cda2625b9a155e830c9cb67e128085a850f5068b8a6c8deac896"
+    },
+    {
+      "path": "rosettacode/popular/caesar_cipher.vibe",
+      "sha256": "c6e5d8a854bebd06f305d51a9c7f52fc2e67ca96289cd2407a2014a6bda3f540"
+    },
+    {
+      "path": "rosettacode/popular/call_a_function.vibe",
+      "sha256": "96379ea0459ef894a165eb582f3f3e20234acc57f18c49c7e30ab6c9a86ff145"
+    },
+    {
+      "path": "rosettacode/popular/cartesian_product_of_two_or_more_lists.vibe",
+      "sha256": "4be0395ac674a55cf57edaaa56b9a2d7f19500cea31a87caa0b6b93a169cfd5e"
+    },
+    {
+      "path": "rosettacode/popular/catalan_numbers.vibe",
+      "sha256": "b490cb2dcabcb69e565bcc08727d8326f520ba88f3f7b24156d88608cb079449"
+    },
+    {
+      "path": "rosettacode/popular/chinese_zodiac.vibe",
+      "sha256": "eef33a8695be54e68d07ef4f9cae1a1835a2388cb4c9a9ac1863345cd62104f9"
+    },
+    {
+      "path": "rosettacode/popular/conditional_structures.vibe",
+      "sha256": "52d5bcebe05eef1126650de09c463f1e2bb05b28b17b20c5fb7028d57595aa77"
+    },
+    {
+      "path": "rosettacode/popular/day_of_the_week.vibe",
+      "sha256": "a3cfb742eae6fde0122c7c270caa0380a776d27020e22aa6af065f78a9be7189"
+    },
+    {
+      "path": "rosettacode/popular/determine_if_a_string_is_numeric.vibe",
+      "sha256": "3c0470434bc9da81b101f3016e9d89328b59e926c2621cd715a4fcecc00541f0"
+    },
+    {
+      "path": "rosettacode/popular/determine_if_a_string_is_squeezable.vibe",
+      "sha256": "0d0e6c4c2e188a43b2a9616c1ef0dd006495fab0752481d2876cb0b455641721"
+    },
+    {
+      "path": "rosettacode/popular/digital_root.vibe",
+      "sha256": "1d03a4d61a21d369410a274b82b12255c4652acb67281bdae93bfe5c42492b50"
+    },
+    {
+      "path": "rosettacode/popular/discordian_date.vibe",
+      "sha256": "96d3dd81e11f6fb9f6ae96662f44cab33d42529967ec920aacddeb133533365a"
+    },
+    {
+      "path": "rosettacode/popular/dot_product.vibe",
+      "sha256": "bece208d77b461b3d6627bc97034002fc424e213b78379bb6043ad8173580849"
+    },
+    {
+      "path": "rosettacode/popular/ethiopian_multiplication.vibe",
+      "sha256": "2ad294f3a9285c1fc15d8fdc646ecba10c7685852fce22be418b7c96cd277b9a"
+    },
+    {
+      "path": "rosettacode/popular/factorial.vibe",
+      "sha256": "b46ebf26f00b5f5f9d7ff2f7a2127ef0cda95349dc6a94898be9d83598df307f"
+    },
+    {
+      "path": "rosettacode/popular/factors_of_an_integer.vibe",
+      "sha256": "d765108727c9f37a6691a0ad1346cfd6dce71415728f890fe570b9d6cacbaa8e"
+    },
+    {
+      "path": "rosettacode/popular/farey_sequence.vibe",
+      "sha256": "2c5c30406ea6449a0daf8a1369e50bb3d62dbba6d53120e324b3b1b4876c507d"
+    },
+    {
+      "path": "rosettacode/popular/fibonacci_n_step_number_sequences.vibe",
+      "sha256": "8fca22a2552535aacc8e686db9320a8fe9036e3d1a6feeac49687f74347b47a1"
+    },
+    {
+      "path": "rosettacode/popular/fibonacci_sequence.vibe",
+      "sha256": "2e8c31ce69ec440a9e934c09af4215e880decfda71581bb32d16307e44795ea1"
+    },
+    {
+      "path": "rosettacode/popular/fibonacci_word.vibe",
+      "sha256": "4b5732a23fcaa695f2d98642353917756cfb5bd824181027f5ed9d037589268f"
+    },
+    {
+      "path": "rosettacode/popular/find_palindromic_numbers_in_both_binary_and_ternary_bases.vibe",
+      "sha256": "8348a8235257bb224ee5a5c7dd739cd702981dc721451054f4e21041457ddb81"
+    },
+    {
+      "path": "rosettacode/popular/find_words_which_contain_the_most_consonants.vibe",
+      "sha256": "5d406553dd92e3c1626a2e538b5b644153890bda9ac388f51d8e4e54318c60a7"
+    },
+    {
+      "path": "rosettacode/popular/fizzbuzz.vibe",
+      "sha256": "1c7bbcc1f1dfbb841d5eecd2d7f89e5d47cda54363518889c8e4084c4c4aae2b"
+    },
+    {
+      "path": "rosettacode/popular/floyd_s_triangle.vibe",
+      "sha256": "7d2c57f7f166fd2a6c06b5d2a2db8544f0e47da90c15de97261ba162b733e07a"
+    },
+    {
+      "path": "rosettacode/popular/four_bit_adder.vibe",
+      "sha256": "4f1c585cc4ac5524b7116d168cc19750ca93cc61e087150c48954a6a819444d8"
+    },
+    {
+      "path": "rosettacode/popular/fraction_reduction.vibe",
+      "sha256": "1b4659965eebaa27024981167f8d4271c86962161f7cb16e2b8514b411432a7f"
+    },
+    {
+      "path": "rosettacode/popular/gray_code.vibe",
+      "sha256": "54c38d11b8536d1fee92953f1c2d4f559b1e31d9bcdf24bb12c919c3f020ac3c"
+    },
+    {
+      "path": "rosettacode/popular/greatest_common_divisor.vibe",
+      "sha256": "7bfce02156e4f1400be1377b7b6aa118284557d220ac7a4c2fd2f7cfcc4933de"
+    },
+    {
+      "path": "rosettacode/popular/greedy_algorithm_for_egyptian_fractions.vibe",
+      "sha256": "045ca4d46a7593f3be33c624a13342cacc4509e852603b3f3654b1a722cf2a9b"
+    },
+    {
+      "path": "rosettacode/popular/hailstone_sequence.vibe",
+      "sha256": "e7dc3d527851f6a380ae356d0e35dfda7df3caec80e17c4392f0f9cc7be54e3a"
+    },
+    {
+      "path": "rosettacode/popular/hamming_numbers.vibe",
+      "sha256": "90074fd6f97eb373f504f823c8c54a2b8eabbd066f2e11ebb8e8fc52287c27b9"
+    },
+    {
+      "path": "rosettacode/popular/happy_numbers.vibe",
+      "sha256": "5632ab0ada0e7b8fb53d7b7ef8e82e6a8e6ce4f88e8fb46403513e19a62ecbd2"
+    },
+    {
+      "path": "rosettacode/popular/harshad_numbers.vibe",
+      "sha256": "e3033461f729218bf2802e13c20ac825578c682a3fafa07ecddb512da796e603"
+    },
+    {
+      "path": "rosettacode/popular/heronian_triangles.vibe",
+      "sha256": "4da76ba6a1c2a2b11d0eaf59a44025fb9d4dd3cebac14f1a4ce69258c517d457"
+    },
+    {
+      "path": "rosettacode/popular/humble_numbers.vibe",
+      "sha256": "19834c62740865f621f2319f86eb171bad276f6d9efdca965dba395d17acd18a"
+    },
+    {
+      "path": "rosettacode/popular/i_before_e_except_after_c.vibe",
+      "sha256": "53cb84cb7895821bf482e1e604d8a4e0f63f264db10867f3c4c1ecb2f6e51926"
+    },
+    {
+      "path": "rosettacode/popular/insertion_sort.vibe",
+      "sha256": "770d42f01facf9443f4f620d68c6ad716d190970c3735c16cf364784e42d67e8"
+    },
+    {
+      "path": "rosettacode/popular/isqrt_integer_square_root_of_x.vibe",
+      "sha256": "123bad7a70afb7239d0bb50d316a3d06e195aa098414fd0bc8fc501974df0e3a"
+    },
+    {
+      "path": "rosettacode/popular/josephus_problem.vibe",
+      "sha256": "39f5f65911e7a1ac6756039198e2a50065f563d44312c3ce6bd8b48a1e010758"
+    },
+    {
+      "path": "rosettacode/popular/kaprekar_numbers.vibe",
+      "sha256": "47f42c813b42d03d31734c73d26fe9b04048c209e5a0ebb7c7f17e9f2122a3d4"
+    },
+    {
+      "path": "rosettacode/popular/kaprekar_routine.vibe",
+      "sha256": "582eab8ae52f46b6728b2a7612d1ecbf2ea2524e3b67797b5105491e774a0b32"
+    },
+    {
+      "path": "rosettacode/popular/last_letter_first_letter.vibe",
+      "sha256": "ef980d33ee16012a5074507895c2bab252aa4e5f88c89e7d767fe105bee762ac"
+    },
+    {
+      "path": "rosettacode/popular/leap_year.vibe",
+      "sha256": "b39bf48574d6e5f9df336c13f09b3b8fdc034b5795d429efd84cfac981179ef3"
+    },
+    {
+      "path": "rosettacode/popular/letter_frequency.vibe",
+      "sha256": "bbfef6405e968cc5d9ac79db7cfe20d1efdab80651314978a564d353659d739d"
+    },
+    {
+      "path": "rosettacode/popular/levenshtein_distance.vibe",
+      "sha256": "4c7ccb0960d93122bc85580569066440883836edfdeb1b17e0422ea094ae8667"
+    },
+    {
+      "path": "rosettacode/popular/long_multiplication.vibe",
+      "sha256": "37e6503e6cfa7d528c1e6e72e9b1b0a88dff58ff32c07ef653d5c6c387ed833d"
+    },
+    {
+      "path": "rosettacode/popular/look_and_say_sequence.vibe",
+      "sha256": "22f05b61737bac3a7382326259539e04bef1470ee8d7cf4724064d83715f2729"
+    },
+    {
+      "path": "rosettacode/popular/luhn_test_of_credit_card_numbers.vibe",
+      "sha256": "367bfac82552e48488494be8971e1b1396d31105344394f13f155b070a2aabea"
+    },
+    {
+      "path": "rosettacode/popular/lychrel_numbers.vibe",
+      "sha256": "48a31e4b3707fd013503a272fcdc0569a45739a00bf8c6c5e1bec0334f39973d"
+    },
+    {
+      "path": "rosettacode/popular/magic_squares_of_odd_order.vibe",
+      "sha256": "c90f3382b4b093a205e41166bf0de67dc3c5f46d43ecd7cd815578157ce37fbb"
+    },
+    {
+      "path": "rosettacode/popular/matrix_multiplication.vibe",
+      "sha256": "e730938d621b048df6a0f5ef13d44405731f17ddeb6bb23d7b6ad75eeb8a7995"
+    },
+    {
+      "path": "rosettacode/popular/matrix_transposition.vibe",
+      "sha256": "6337d06f6a57c3292b9cc2287151942d64767a03259fdcfc3e83b5daa295f824"
+    },
+    {
+      "path": "rosettacode/popular/middle_three_digits.vibe",
+      "sha256": "7149d62074af5782ef36671e8606a4a4d413f3b08e090f92a7a852eb93c943ce"
+    },
+    {
+      "path": "rosettacode/popular/minimum_multiple_of_m_where_digital_sum_equals_m.vibe",
+      "sha256": "5627551b84500e444f9e35c648b95c538923de6fbe1f8ad01c469a726e052b7f"
+    },
+    {
+      "path": "rosettacode/popular/morse_code.vibe",
+      "sha256": "ed2350c85ea24c7d7dd57e77500132f6d4202caebe47daa2bdfeed4b04f13537"
+    },
+    {
+      "path": "rosettacode/popular/multiplication_tables.vibe",
+      "sha256": "908f89625a72c34413141661b2db12f471731cb0904294d4c646114bff0939a4"
+    },
+    {
+      "path": "rosettacode/popular/n_smooth_numbers.vibe",
+      "sha256": "31187c1735d13cdf8105b0275a71dcb50fe0f8a1d47cced79b94b7bbe5a22c07"
+    },
+    {
+      "path": "rosettacode/popular/narcissistic_decimal_number.vibe",
+      "sha256": "012b7b082dbd50b12b6136cf7425a7572d4b185882044b88fe322e4d268b89c1"
+    },
+    {
+      "path": "rosettacode/popular/natural_sorting.vibe",
+      "sha256": "ad6454b07de5204925e55f4c320a88b1257345b45bf0d940612fff97566843ad"
+    },
+    {
+      "path": "rosettacode/popular/number_names.vibe",
+      "sha256": "493cdb6541b84aedb62ea9c3af468b9c19a3f3aa5cb498ba4a6ddad4db5266a1"
+    },
+    {
+      "path": "rosettacode/popular/numerical_integration.vibe",
+      "sha256": "79628348f33c010a5865f1bf93086250f4cfcff9f659b4261d6e7809da251b68"
+    },
+    {
+      "path": "rosettacode/popular/palindrome_detection.vibe",
+      "sha256": "5b49a6e3834095b2e18356fef24fccca0c3b770deaa6d56665094014e7f7ec2d"
+    },
+    {
+      "path": "rosettacode/popular/palindromic_gapful_numbers.vibe",
+      "sha256": "4847b1aa824820ceffa32df5b12e832326262eab5bff510516467788b4b08701"
+    },
+    {
+      "path": "rosettacode/popular/pangram_checker.vibe",
+      "sha256": "e549411aecf6d35e7a751905dd186d1cf70bf7a06f1e04a046678df173f81ca1"
+    },
+    {
+      "path": "rosettacode/popular/parse_an_ip_address.vibe",
+      "sha256": "cc16f42a41a8cc1934fe75bedcf12d0d78ca80e56e5de6ae911be10fc0b317c8"
+    },
+    {
+      "path": "rosettacode/popular/pascals_triangle.vibe",
+      "sha256": "935bc308a0fe35b95f7a3fe687998edd39c3f11cb4afb14d25833059f59238f2"
+    },
+    {
+      "path": "rosettacode/popular/permutations.vibe",
+      "sha256": "2c9f3df48e64c691ebbda7d18abf01a855428de08a5bc8fb2ce2b5f797898ea4"
+    },
+    {
+      "path": "rosettacode/popular/pig_latin.vibe",
+      "sha256": "4d34be4e9e1ff32256c1d16b50f46b12d8a5d4a8d6be21519182a2d3d008343d"
+    },
+    {
+      "path": "rosettacode/popular/playing_cards.vibe",
+      "sha256": "d40a3ec0831fe142349dbe49f47a60a7ed00ffb11ec4126eafcc062897008d5a"
+    },
+    {
+      "path": "rosettacode/popular/prime_decomposition.vibe",
+      "sha256": "4e2f879ef31bad85c1e6a7d4cde468735ae8a341f8a4754fa24523aac5ebdb14"
+    },
+    {
+      "path": "rosettacode/popular/priority_queue.vibe",
+      "sha256": "a8c584a036035d837bc9bd652eff35906429eb942b5e566ce3a4a80273417670"
+    },
+    {
+      "path": "rosettacode/popular/pythagorean_triples.vibe",
+      "sha256": "9f76d868def16f8b9cffe5baa7a054b3946dddf4cf52a36164d108abc6230813"
+    },
+    {
+      "path": "rosettacode/popular/range_extraction.vibe",
+      "sha256": "25d5f170fccd8b25ae4d4b2400176d10ef060af30da49f6e819589fbf4b9fbc0"
+    },
+    {
+      "path": "rosettacode/popular/roman_numerals_decode.vibe",
+      "sha256": "49159ba9d707bfe50e09a6f36690ab5218b012153b6fdc10d68d5bec4208954b"
+    },
+    {
+      "path": "rosettacode/popular/roman_numerals_encode.vibe",
+      "sha256": "413903b65557e864f8ae6e6fb6290c6ab70120c838c9f2355174d4275ecfba3c"
+    },
+    {
+      "path": "rosettacode/popular/rot_13.vibe",
+      "sha256": "b61573cbd819fc207d4dc864324c52089e272b5cde4fa4dce532779216aeedf8"
+    },
+    {
+      "path": "rosettacode/popular/run_length_encoding.vibe",
+      "sha256": "6c6240108e8adfcace280c02ad0b154e9c58434f8fa18de75313807da5dbd5ed"
+    },
+    {
+      "path": "rosettacode/popular/selection_sort.vibe",
+      "sha256": "e7a9dcae0d0b723937b784919d7d3e962326db03997daa419f9741fc12f2e8f5"
+    },
+    {
+      "path": "rosettacode/popular/sequence_of_primorial_primes.vibe",
+      "sha256": "9d14b3c5f3ca26388d6b4524eaf4772e87f7201b4bec7c57a3f0eafac7685755"
+    },
+    {
+      "path": "rosettacode/popular/set.vibe",
+      "sha256": "fa35264d181573d436997322bacbae7619350858a00ec1c6be05bb37df9f326a"
+    },
+    {
+      "path": "rosettacode/popular/show_ascii_table.vibe",
+      "sha256": "4f461b09976158e5af977d713cd6b84b591301d19fa4702bba536aff52bb0629"
+    },
+    {
+      "path": "rosettacode/popular/sieve_of_eratosthenes.vibe",
+      "sha256": "4d3989c3dcd5b03e177540a8f6ca07523bf19389d7d3c7a81cfea76c6761b0e1"
+    },
+    {
+      "path": "rosettacode/popular/smith_numbers.vibe",
+      "sha256": "625844496273256b6b80eb7e69e67c3e97e209283ed76d46b05a95cd30692c93"
+    },
+    {
+      "path": "rosettacode/popular/spiral_matrix.vibe",
+      "sha256": "02bec1813b5c8691538ab805fb746dc1780a39fba682d9a9abe7edd6a394121d"
+    },
+    {
+      "path": "rosettacode/popular/square_free_integers.vibe",
+      "sha256": "735aa942c9ada179326e6dc748aec91505a6c7a9d78089131fbd0cb739b83432"
+    },
+    {
+      "path": "rosettacode/popular/stack.vibe",
+      "sha256": "ceca1a3975c041fc6ce2b982a9d291b324b13afb470f060baa137c13bad1a801"
+    },
+    {
+      "path": "rosettacode/popular/string_comparison.vibe",
+      "sha256": "ef00736983d50dd9b2f9cd4cbf1c78f9510710bb37021e5e9a523a54e87cdee3"
+    },
+    {
+      "path": "rosettacode/popular/string_matching.vibe",
+      "sha256": "41bf18c736b7103a2e0399e634606de446f5e9ef6b76bcfa2ade287308230f9e"
+    },
+    {
+      "path": "rosettacode/popular/substring.vibe",
+      "sha256": "d999eb23095e5a36d076c77135d82ef2dfc2046e558400ecdd0846502889b7d4"
+    },
+    {
+      "path": "rosettacode/popular/sum_multiples_of_3_and_5.vibe",
+      "sha256": "73cc02e1deda2bb1d9e1f459089242838e446146bfe003c54dee285284cfe149"
+    },
+    {
+      "path": "rosettacode/popular/taxicab_numbers.vibe",
+      "sha256": "b2a8f7a28abd97653643dbd0d85bbabaf9c2955257265af7390bcd8f18aca0a1"
+    },
+    {
+      "path": "rosettacode/popular/temperature_conversion.vibe",
+      "sha256": "2835fdffef37a6362c8cb3755a5d240da52bb6e8b8901c875ee9164accd61ea7"
+    },
+    {
+      "path": "rosettacode/popular/ternary_logic.vibe",
+      "sha256": "1d4e1a58c79b913fbc0e13eaf18a7613a415bfa306e9f40d2b7b1607abc1af92"
+    },
+    {
+      "path": "rosettacode/popular/top_rank_per_group.vibe",
+      "sha256": "164f461155e8df09641998756ef67de82456cda6bfd58004637aa933c353dcc1"
+    },
+    {
+      "path": "rosettacode/popular/topological_sort.vibe",
+      "sha256": "b792450e70d82d2e424f91a5ec4f12f08c8d98524bb74fa5b35f391aaa569c59"
+    },
+    {
+      "path": "rosettacode/popular/total_circles_area.vibe",
+      "sha256": "d2ab5b9c961fc5ed37244ced88f6eabcc57029d401c01a366547a53e63a75a48"
+    },
+    {
+      "path": "rosettacode/popular/towers_of_hanoi.vibe",
+      "sha256": "2991e3d5f782804747a6fe10ac66aa39b8c33993db9b849cb0a12750a7686eed"
+    },
+    {
+      "path": "rosettacode/popular/tree_traversal.vibe",
+      "sha256": "49435657cb5a14661492eac55126c05a338ec3cf87042ad404c6974732d19fe6"
+    },
+    {
+      "path": "rosettacode/popular/truth_table.vibe",
+      "sha256": "1a1d0f5fe3157233621339b03e8273ac87f9d75bea9ec8a1bddb125ab32bc03e"
+    },
+    {
+      "path": "rosettacode/popular/upc.vibe",
+      "sha256": "10209556d47cb81202f996caad8f59e294362c764aac30cf12e7980ed488cdf3"
+    },
+    {
+      "path": "rosettacode/popular/url_parser.vibe",
+      "sha256": "63267cfc85bd0e9c59c0f0ad2aec39763f285627aa26efa90c738545b8db794c"
+    },
+    {
+      "path": "rosettacode/popular/utf_8_encode_and_decode.vibe",
+      "sha256": "4955fb7a2bf60da36b81a1ae9333617f25a9156d8fdd767518d186d8f921fa4f"
+    },
+    {
+      "path": "rosettacode/popular/variables.vibe",
+      "sha256": "436472f5d97acd13dd5210795b5344f6fc1c8da1de50981c501b327125ee4454"
+    },
+    {
+      "path": "rosettacode/popular/vector_products.vibe",
+      "sha256": "4f7f03e4046c18aa3188c27e265effce516f1f75ca05b551e4e59d44e8e17874"
+    },
+    {
+      "path": "rosettacode/popular/vigen_re_cipher.vibe",
+      "sha256": "4dff28c85de2edb58335fb28675fec520143d6cbcc4a1f505b5812475c5920f5"
+    },
+    {
+      "path": "rosettacode/popular/word_frequency.vibe",
+      "sha256": "65fe5e96f1cc912ecc6a12079b4457de9691763ebb9c5b1166bc0028aa26c273"
+    },
+    {
+      "path": "rosettacode/popular/word_wrap.vibe",
+      "sha256": "ab2e0694f70435ea8741877c2cedb9eceba3ce854a9a0d4219a7c64a2ed6576e"
+    },
+    {
+      "path": "rosettacode/popular/zeckendorf_number_representation.vibe",
+      "sha256": "8cba38ba2900ea435cf02d554613022aa882997c4ea4585d9c0956d52a8fee9c"
+    },
+    {
+      "path": "rosettacode/popular/zig_zag_matrix.vibe",
+      "sha256": "95c6d1f99a5cb82d1e83c7e8aab943f6f52242b450a51cf14cb18f8905af6e3b"
+    },
+    {
+      "path": "showcase/automation/maintenance_window.vibe",
+      "sha256": "8a38e3a8704c418c5effe32f442f91214be326e1c58213a198646cdd28e51863"
+    },
+    {
+      "path": "showcase/automation/retry_backoff.vibe",
+      "sha256": "94302553be6b7529fec79e1e006e463df958ebde97c0f70b431593f0d873d98d"
+    },
+    {
+      "path": "showcase/collections/hash_projection.vibe",
+      "sha256": "f76f5baa88b8228fc7cb8414cbb4fbaebb434a50e44684cfe40794dd041515b1"
+    },
+    {
+      "path": "showcase/collections/matrix_report.vibe",
+      "sha256": "b09c19f41e4b48ec77ce5d39b2205c6d8d954cf5ba00cfaeed356ce4b34dc5b1"
+    },
+    {
+      "path": "showcase/collections/reshape.vibe",
+      "sha256": "ee6c9aafd14224e1056b894d14f56833ff1c2baff6a14c9c06a754952a42448b"
+    },
+    {
+      "path": "showcase/commerce/quote_approval.vibe",
+      "sha256": "e7bd173adb177ff88b3cb59385e908581de162950e8a61c9a5c0070a7ad86861"
+    },
+    {
+      "path": "showcase/commerce/shipping_quote.vibe",
+      "sha256": "f103a1aaf6124fdfb2d7d8c5c41592b91c107219785508e9f19f1aca23738f93"
+    },
+    {
+      "path": "showcase/finance/late_fee.vibe",
+      "sha256": "751c785f2979176573f56a51773e30ab12ca08e9fd6c9f69d6ef5bf54fb66553"
+    },
+    {
+      "path": "showcase/finance/late_fee_policy.vibe",
+      "sha256": "e606bc0b5f8321bcc826c5b169acb46b1b82ce733b1fe821779b51331e951321"
+    },
+    {
+      "path": "showcase/finance/payout_schedule.vibe",
+      "sha256": "27cee216c7c3d2eb2de5518f368f36073af0946d94a6277f6b6ff2e4f298c385"
+    },
+    {
+      "path": "showcase/finance/statement_grid.vibe",
+      "sha256": "a6a80f9875e1320a14ab0b3734f5a7525b6ddef6caa3898a1450c9e7736693a2"
+    },
+    {
+      "path": "showcase/finance/subscription_billing.vibe",
+      "sha256": "f7a79134aae6d0f13a90c61e0153d6ef8c33faca235cabfed14c2aaac60bc749"
+    },
+    {
+      "path": "showcase/language/synchronous_blocks.vibe",
+      "sha256": "bcd4a56fba2c1055ca555d5ccd39c2e9e9c7ed30fdb18892a3130c34880051d9"
+    },
+    {
+      "path": "showcase/language/value_boundaries.vibe",
+      "sha256": "35225c06a631aae6373e518e76f3ba0b12e3a046bb3450c8327b4f3b06fd8739"
+    },
+    {
+      "path": "showcase/math/chudnovsky_pi.vibe",
+      "sha256": "c3de5a7fe6fd689af9226686a00b75c049ad53d4e29c4f14f10ee6ceeef60169"
+    },
+    {
+      "path": "showcase/notifications/digest_schedule.vibe",
+      "sha256": "af37c759a1ba7f7bed891b4a7edd8b40c337337c99158485bf6bdbd4645b549f"
+    },
+    {
+      "path": "showcase/notifications/email.vibe",
+      "sha256": "575f155c157c44e8a2148b19381e7911d665bdb08cd1b8aa75857bbfde88993f"
+    },
+    {
+      "path": "showcase/notifications/reminder_schedule.vibe",
+      "sha256": "424d622a1ff57afc408e98d72fdc192421c96fd42197039561ab7feb8065f41d"
+    },
+    {
+      "path": "showcase/notifications/sms.vibe",
+      "sha256": "0b04fbbea613e01388c65ed5226331c3ac89e34b8810ceec93ceca5b7afec4f8"
+    },
+    {
+      "path": "showcase/numbers/big_integers.vibe",
+      "sha256": "bd6755b3247fbf4b97ff2c8b500146133128747ec224cc5bb698040d70344c6f"
+    },
+    {
+      "path": "showcase/numbers/literals_and_rounding.vibe",
+      "sha256": "6f3f8357a0ad2660fe333ef9a41006201a168b537c20b8cc3f26fb522b5867fc"
+    },
+    {
+      "path": "showcase/operations/log_digest.vibe",
+      "sha256": "a370d0dfd07cd3b42d69df5a71146b1ed7dec1590d21916a63452543a9b6727e"
+    },
+    {
+      "path": "showcase/operations/on_call_handoff.vibe",
+      "sha256": "15523b7048ea75097ee6d9f90341150c6976daf0410a7560b92196a55b55ea34"
+    },
+    {
+      "path": "showcase/policies/refund_decision.vibe",
+      "sha256": "f649d7733cc02263cabc3ac45d19db6e56c9ceb369d6e6fdebd90dfd1026acf4"
+    },
+    {
+      "path": "showcase/policies/trial_offer.vibe",
+      "sha256": "5bbdb8f53426cf84b468a6de8016d7212491ef0f551cc263dcce55b42afc534f"
+    },
+    {
+      "path": "showcase/reliability/resilient_parse.vibe",
+      "sha256": "e0f7635f5f63418382fc7d64fbf003b4248d1dc32bc6c1360fdcab07fed7b87a"
+    },
+    {
+      "path": "showcase/security/session_expiry.vibe",
+      "sha256": "9eb0b10114b2d74a699a12ac54c10dc922d26acd04addfc1af0034a27e58e786"
+    },
+    {
+      "path": "showcase/strings/text_toolkit.vibe",
+      "sha256": "d6deddafda35d49ebd06568a0cf1dfabb147038069eb174559309449f78ffe48"
+    },
+    {
+      "path": "showcase/strings/word_arrays.vibe",
+      "sha256": "67fa5167359f0aba87c2b00eb1287f56e00d4d279bb88b40e9da727dbcf2881c"
+    },
+    {
+      "path": "showcase/support/escalation_policy.vibe",
+      "sha256": "de9c7e192c525ccc3f9644120debda7d3447817c60f60f442d43c078b4a8c8ac"
+    },
+    {
+      "path": "showcase/time/timestamps.vibe",
+      "sha256": "e72629a3a0624d246079d287a7cb4e86224b6ed62aadee7f4e0ade79b1c8da8e"
+    },
+    {
+      "path": "showcase/workflows/approval_chain.vibe",
+      "sha256": "b87b01f3ab7d2a3d026412b6362c8b4ce7730bd9ce21a690f3c96cc5716e334f"
+    },
+    {
+      "path": "showcase/workflows/release_readiness.vibe",
+      "sha256": "412a7828fca9f61fe37f9253c33b0399a314113bd26042a08c3c07392e6d77be"
+    },
+    {
+      "path": "upstream/arrays/extras.vibe",
+      "sha256": "41c74ba15aa97639ec14a61811c75b9195cce86ff41b0c9076aff68a43bc4039"
+    },
+    {
+      "path": "upstream/background/jobs_and_events.vibe",
+      "sha256": "09ce6837c3b4ff6f389429035e7485e1306c700ec3e1f89f8c1a11d4568632b9"
+    },
+    {
+      "path": "upstream/basics/functions_and_calls.vibe",
+      "sha256": "3713d476599511f8fb20be94ddbe48a89e0bd047daa2f32913c9ebf9a1fb334f"
+    },
+    {
+      "path": "upstream/basics/literals_and_operators.vibe",
+      "sha256": "56cb3d3c5584aa5b66ab368c2c27ad3cdc606a90d5f3f47bb8320289d993c500"
+    },
+    {
+      "path": "upstream/basics/namespaces.vibe",
+      "sha256": "a09eaf8683b92bb0319de2495fbf7577a01ba61f9f436ee4fec044133b0d0581"
+    },
+    {
+      "path": "upstream/blocks/advanced.vibe",
+      "sha256": "bfcf0d29294ddcefbcb8e38ddd9e48b42630bd84bac2dcc408b6d9c97d7811bd"
+    },
+    {
+      "path": "upstream/blocks/enumerable_reports.vibe",
+      "sha256": "b58fcc6849b395dc61fd446fcaa48c59db33921e05a9125ba4e560594bb07736"
+    },
+    {
+      "path": "upstream/blocks/transformations.vibe",
+      "sha256": "41288791ef9af3ead7155d7b83e34a08f041558efb7613e5a99e065c11ef2ed3"
+    },
+    {
+      "path": "upstream/blocks/yield_patterns.vibe",
+      "sha256": "a6b5df63edd245c0f12bdfddee1ef6557e46d8c61337883f204256b37fc999c6"
+    },
+    {
+      "path": "upstream/capabilities/context_access.vibe",
+      "sha256": "52c6122293b0018d8d6119fa0e9f880d60758609ae451949677a53ace9312d62"
+    },
+    {
+      "path": "upstream/capabilities/database_queries.vibe",
+      "sha256": "8bc8446e6dd8d0b4aeca77c0222c89176f9f011eb4017dce339a26402686f901"
+    },
+    {
+      "path": "upstream/capabilities/iteration.vibe",
+      "sha256": "f21f6d8e87580c24b157b77c4b8029933c36573ff3c57ea037de14bc88521d1c"
+    },
+    {
+      "path": "upstream/collections/arrays.vibe",
+      "sha256": "09610dee0aef63acbc1cf4dabddd2bcdb5893470855ca4a66046e5a0eaff7584"
+    },
+    {
+      "path": "upstream/collections/hashes.vibe",
+      "sha256": "fca154bb47bcb1f9f1bc6f187026e6ed0f1c12867ebeea449ccaf1618a9a758a"
+    },
+    {
+      "path": "upstream/collections/symbols.vibe",
+      "sha256": "e674d12b599034076602bbc9cfa9c9293a483e7fa4e501f7a29a703153ebafed"
+    },
+    {
+      "path": "upstream/control_flow/case_when.vibe",
+      "sha256": "5a8e2d4db5162a5577294cef4851f14a927c145a4c0fb034b0fa43161eaea3bf"
+    },
+    {
+      "path": "upstream/control_flow/conditionals.vibe",
+      "sha256": "2ca80f36a78823dc9281f827b80d359c8fb98378dcb845943c8fee6ca6d7b343"
+    },
+    {
+      "path": "upstream/control_flow/loop_control.vibe",
+      "sha256": "60d1f46c9699c2f0c50261f6011ac98e0fcde43fe2ca7045312ee87894700ba9"
+    },
+    {
+      "path": "upstream/control_flow/recursion.vibe",
+      "sha256": "9525ac38912573b95ca8a7bdf2d9c1f279594cc0e1691673df5d77ca311addb7"
+    },
+    {
+      "path": "upstream/control_flow/until_loop.vibe",
+      "sha256": "f7c72119163b7d21ffde176af96434104cde2c897c56a2c33d69a40765922be0"
+    },
+    {
+      "path": "upstream/control_flow/while_loop.vibe",
+      "sha256": "7a9edccc1da4a06f9e47a694bb5d10322bb52e7095fddcae0b78e99bb1aa3d6b"
+    },
+    {
+      "path": "upstream/durations/durations.vibe",
+      "sha256": "e46033325ff88aa280a3aa5c6ca88f087fed8e6307c52d36b41cfbc5adbce4e3"
+    },
+    {
+      "path": "upstream/enums/operations.vibe",
+      "sha256": "92f931489d448a85c9a88855277b386f6917561651919618fc1fba440dfbaa70"
+    },
+    {
+      "path": "upstream/errors/assertions.vibe",
+      "sha256": "45f604a8cc82a578c2f9f3d4fb1cfcbdcccf0a42ac710179dd83b9e0bae6fb05"
+    },
+    {
+      "path": "upstream/hashes/operations.vibe",
+      "sha256": "e38e488dc1fdc035bb444563787119b6bd9907849230875f38eb8b6849446e62"
+    },
+    {
+      "path": "upstream/hashes/transformations.vibe",
+      "sha256": "84cf00335d065c89fb0b2381dba69628ba772d87f0f4ebffbf01d9147dc87607"
+    },
+    {
+      "path": "upstream/loops/advanced.vibe",
+      "sha256": "203ca3bab55cddd6c7d14c5a341d65a51171b12792f4d6f0f6834a012524571b"
+    },
+    {
+      "path": "upstream/loops/fizzbuzz.vibe",
+      "sha256": "4057326e72409cd4363ef14177f17e1b58a4e9b3ac56332d22e270f82db17717"
+    },
+    {
+      "path": "upstream/loops/iteration.vibe",
+      "sha256": "6b86708051fac2eb05127c79268fc713ecc3096fae20a91f9c6f810c39cbdb84"
+    },
+    {
+      "path": "upstream/money/operations.vibe",
+      "sha256": "c667da54b04046e0334997cbf64fb48ccec7c263d2523e8f526b3d74830387d7"
+    },
+    {
+      "path": "upstream/policies/access_control.vibe",
+      "sha256": "dd1ed6b34768d1caaa9d149f926e8c8b0fea424741c2ebf4306279fad363bcd0"
+    },
+    {
+      "path": "upstream/ranges/usage.vibe",
+      "sha256": "a7282fa8d51ca55f2536b092f288a2ff47f69387276ddbdd2d018e7aa84784c5"
+    },
+    {
+      "path": "upstream/stdlib/core_utilities.vibe",
+      "sha256": "e8955a1a0968fa2f8e2e3d9efcc330d2a4e319773c208b481c58b60a462df1ee"
+    },
+    {
+      "path": "upstream/strings/operations.vibe",
+      "sha256": "efccbcce26cbf3193d759e5000606ca1209ac9903a136f10f88d5e7dea73efc9"
+    },
+    {
+      "path": "upstream/time/duration.vibe",
+      "sha256": "cb72de2e649f1692993f26e6a4ab251a92220b1b286d140de88a7aae22042d15"
+    }
+  ]
+}

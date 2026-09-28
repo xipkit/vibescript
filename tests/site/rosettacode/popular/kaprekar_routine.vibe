@@ -1,0 +1,90 @@
+# title: Kaprekar routine
+# source: https://rosettacode.org/wiki/Kaprekar_numbers
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Apply the Kaprekar routine to a 4-digit number and watch it converge to 6174.
+# tags: popular, math, sequences, sorting
+# vibe: 0.2
+
+def digits_of(n: int, pad: int) -> array<int>
+  d: array<int> = []
+  remaining = n
+  while remaining > 0
+    d = d.push(remaining % 10)
+    remaining = remaining // 10
+  end
+  while d.length < pad
+    d = d.push(0)
+  end
+  d
+end
+
+def sort_digits(digits: array<int>) -> array<int>
+  arr: array<int> = []
+  i = 0
+  while i < digits.length
+    arr = arr.push(digits.fetch(i))
+    i = i + 1
+  end
+
+  i = 0
+  while i < arr.length - 1
+    j = i + 1
+    while j < arr.length
+      if arr.fetch(j) < arr.fetch(i)
+        temp = arr.fetch(i)
+        arr[i] = arr.fetch(j)
+        arr[j] = temp
+      end
+      j = j + 1
+    end
+    i = i + 1
+  end
+  arr
+end
+
+def from_digits(digits: array<int>) -> int
+  result = 0
+  i = 0
+  while i < digits.length
+    result = result * 10 + digits.fetch(i)
+    i = i + 1
+  end
+  result
+end
+
+def reverse_array(arr: array<int>) -> array<int>
+  result: array<int> = []
+  i = arr.length - 1
+  while i >= 0
+    result = result.push(arr.fetch(i))
+    i = i - 1
+  end
+  result
+end
+
+def kaprekar_step(n: int) -> int
+  d = digits_of(n, 4)
+  ascending = sort_digits(d)
+  descending = reverse_array(ascending)
+  from_digits(descending) - from_digits(ascending)
+end
+
+def kaprekar_sequence(start: int) -> array<int>
+  steps = [start]
+  current = start
+  while current != 6174 && steps.length < 10
+    current = kaprekar_step(current)
+    steps = steps.push(current)
+  end
+  steps
+end
+
+def run -> { from_1000: array<int>, from_1234: array<int>, from_3524: array<int>, from_9998: array<int> }
+  {
+    from_3524: kaprekar_sequence(3524),
+    from_1234: kaprekar_sequence(1234),
+    from_9998: kaprekar_sequence(9998),
+    from_1000: kaprekar_sequence(1000)
+  }
+end

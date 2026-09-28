@@ -1,0 +1,3 @@
+def hourly_counts(timestamps: array<string>) -> hash<string, int>
+  timestamps.map { |stamp| Time.parse(stamp).utc.strftime("%Y-%m-%dT%H:00Z") }.tally
+end

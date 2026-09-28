@@ -1,0 +1,34 @@
+{
+  "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "machine": "arm64",
+  "cpu": "Apple M4",
+  "rustc": "rustc 1.98.1 (48a229cea 2026-09-01) (Homebrew)\nbinary: rustc\ncommit-hash: 48a229ceaefd4985c50990b14116b6d856af0985\ncommit-date: 2026-09-01\nhost: aarch64-apple-darwin\nrelease: 1.98.1\nLLVM version: 22.1.8\n",
+  "source_revision": "e83d53f66eabffee19d22503bd8b39a0922300ee",
+  "dirty": "?? .cache\n?? target\n",
+  "binary_sha256": {
+    "rust-portable": "14492112e54fcd75288a3d1ee0db1846b57496d5a93134e29e1066748146fffe",
+    "rust-simd": "242a651f4feb1545676703d61907e6f5a65af2817883a9867b877295cbdf85aa",
+    "rust-before-portable": "1983ee4817cbb3829082bdb7130f50a86608d08f7e34bb0dd696692273f3b93d",
+    "rust-before-simd": "47fec8eccc32e4f93bc45978da9b6b6ec94d5eb9111316c42bbd693474c2c374"
+  },
+  "RUSTFLAGS": "",
+  "target_ms": 75,
+  "command": [
+    "scripts/compare.py",
+    "--rounds",
+    "4",
+    "--suite",
+    "json",
+    "--baseline",
+    "/tmp/json-rebase-baseline-bins",
+    "--out",
+    "/tmp/json-rebase-arm64"
+  ],
+  "baseline_source_revision": "6bad12f847f2e049c1774754b140223f15f7c5a8",
+  "allocation_binary_sha256": {
+    "rust-portable-alloc": "55b493c0d21c0f0ac21926217a5503d86cbee0bb206a696fce97781bf7696918",
+    "rust-simd-alloc": "1354a004902588f7155c30cae4d253b69acee2de4d57834fc1071d57cbd1c14e",
+    "rust-before-portable-alloc": "ccfda1364cfa2992b8b8fb39d7397093ea500680c72547b7cfeeea3b38e847ad",
+    "rust-before-simd-alloc": "72543e518064817d9dc045c0b6d145031633f92563cc8415350fced690485d4a"
+  }
+}

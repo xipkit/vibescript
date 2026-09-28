@@ -1,0 +1,50 @@
+# title: Maintenance window
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Plan a maintenance window with environment rules, freeze notices, and durations.
+# description: Start times, freeze periods, and rules for each environment are kept in one place.
+# tags: automation, durations, enums, operations
+# vibe: 0.2
+
+enum Environment
+  Sandbox
+  Production
+end
+
+def window_length(environment: Environment) -> duration
+  if environment == Environment::Sandbox
+    20.minutes
+  else
+    2.hours
+  end
+end
+
+def freeze_notice(environment: Environment) -> duration
+  if environment == Environment::Sandbox
+    30.minutes
+  else
+    24.hours
+  end
+end
+
+def maintenance_plan(environment: Environment, starts_at: time) -> hash<string, string>
+  length = window_length(environment)
+  notice = freeze_notice(environment)
+
+  {
+    environment: environment.name,
+    starts_at: starts_at.format("2006-01-02T15:04:05Z"),
+    ends_at: length.after(starts_at).format("2006-01-02T15:04:05Z"),
+    freeze_at: notice.before(starts_at).format("2006-01-02T15:04:05Z"),
+    duration: length.iso8601
+  }
+end
+
+def run -> { production: hash<string, string>, sandbox: hash<string, string> }
+  starts_at = Time.at(1700600000)
+
+  {
+    sandbox: maintenance_plan(Environment::Sandbox, starts_at),
+    production: maintenance_plan(Environment::Production, starts_at)
+  }
+end

@@ -1,0 +1,1330 @@
+[
+  {
+    "name": "negative_receiver_growth",
+    "source": "def run(input: any) -> [array<int>?, array<array<int>>]\na=[[1]]\nx=a[-1]&.push((while true\na.push([9])\nbreak 2\nend))\n[x,a]\nend",
+    "go": [
+      [
+        1,
+        2
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          9
+        ]
+      ]
+    ],
+    "rust": [
+      [
+        1,
+        2
+      ],
+      [
+        [
+          1
+        ],
+        [
+          9
+        ]
+      ]
+    ],
+    "policy": "documented_value_semantics",
+    "reason": "The selected array element keeps its original position when arguments or blocks grow its parent.",
+    "expected": [
+      [
+        1,
+        2
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          9
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "compound_collection_side_effect",
+    "source": "def run(input: any) -> [array<int>]\na: [array<int>] = [[1]]\na[0]+=a[0].push(2)\na\nend",
+    "go": [
+      [
+        1,
+        2,
+        1,
+        2
+      ]
+    ],
+    "rust": [
+      [
+        1,
+        1,
+        2
+      ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1,
+        1,
+        2
+      ]
+    ],
+    "reason": "The left operand is an evaluated logical value; later writes do not change it."
+  },
+  {
+    "name": "binary_collection_side_effect",
+    "source": "def run(input: any) -> array<array<int>>\na=[1]\nx=a+a.push(2)\n[x,a]\nend",
+    "go": [
+      [
+        1,
+        2,
+        1,
+        2
+      ],
+      [
+        1,
+        2
+      ]
+    ],
+    "rust": [
+      [
+        1,
+        1,
+        2
+      ],
+      [
+        1,
+        2
+      ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1,
+        1,
+        2
+      ],
+      [
+        1,
+        2
+      ]
+    ],
+    "reason": "The left operand is an evaluated logical value; later writes do not change it."
+  },
+  {
+    "name": "inclusive_integer_endpoint",
+    "source": "def run(input: any) -> array<int>\nmax=9223372036854775807\na: array<int> = []\nfor n in max..max\na.push(n)\nbreak if n<0\nend\na\nend",
+    "go": [
+      9223372036854775807,
+      -9223372036854775808
+    ],
+    "rust": [
+      9223372036854775807
+    ],
+    "policy": "stop_at_inclusive_endpoint",
+    "reason": "The selected contract stops at the inclusive endpoint without wrapping the integer counter.",
+    "expected": [
+      9223372036854775807
+    ]
+  },
+  {
+    "name": "hash_break_value",
+    "source": "def run(input: any) -> int | { a: int }\nx=for k,v in {a:1}\nbreak 7\nend\nx\nend",
+    "go": {
+      "a": 1
+    },
+    "rust": 7,
+    "policy": "return_break_value",
+    "reason": "The selected contract returns the break value from a hash-loop expression, including nil for a bare break.",
+    "expected": 7
+  },
+  {
+    "name": "hash_break_nil",
+    "source": "def run(input: any) -> { a: int }?\nx=for k,v in {a:1}\nbreak\nend\nx\nend",
+    "go": {
+      "a": 1
+    },
+    "rust": null,
+    "policy": "return_break_value",
+    "reason": "The selected contract returns the break value from a hash-loop expression, including nil for a bare break.",
+    "expected": null
+  },
+  {
+    "name": "for_expression_mutation",
+    "source": "def run(input: any) -> array<array<int>>\na=[1,2]\nx=for n in a\na.push(3)\nend\n[x,a]\nend",
+    "go": [
+      [
+        1,
+        2,
+        3,
+        3
+      ],
+      [
+        1,
+        2,
+        3,
+        3
+      ]
+    ],
+    "rust": [
+      [
+        1,
+        2
+      ],
+      [
+        1,
+        2,
+        3,
+        3
+      ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1,
+        2
+      ],
+      [
+        1,
+        2,
+        3,
+        3
+      ]
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
+  },
+  {
+    "name": "iteration_array_mutation_each",
+    "source": "def run(input: any) -> array<array<int>>\na=[1,2,3];seen: array<int> = [];r=a.each {|v|seen.push(v);a[1]=9;v};[seen,a,r]\nend",
+    "go": [
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ]
+    ],
+    "rust": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
+  },
+  {
+    "name": "iteration_array_mutation_map",
+    "source": "def run(input: any) -> array<array<int>>\na=[1,2,3];seen: array<int> = [];r=a.map {|v|seen.push(v);a[1]=9;v};[seen,a,r]\nend",
+    "go": [
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ]
+    ],
+    "rust": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
+  },
+  {
+    "name": "iteration_array_mutation_select",
+    "source": "def run(input: any) -> array<array<int>>\na=[1,2,3];seen: array<int> = [];r=a.select {|v|seen.push(v);a[1]=9;true};[seen,a,r]\nend",
+    "go": [
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ]
+    ],
+    "rust": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
+  },
+  {
+    "name": "iteration_array_mutation_each_with_index",
+    "source": "def run(input: any) -> array<array<int>>\na=[1,2,3];seen: array<int> = [];r=a.each_with_index {|v|seen.push(v);a[1]=9;v};[seen,a,r]\nend",
+    "go": [
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ]
+    ],
+    "rust": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
+  },
+  {
+    "name": "iteration_hash_mutation_each",
+    "source": "def run(input: any) -> [array<[string, int]>, { a: int, b: int }, { a: int, b: int }]\nh={a:1,b:2};seen: array<[string, int]> = [];r=h.each {|k,v|seen.push([k,v]);h[\"b\"]=9;v};[seen,h,r]\nend",
+    "go": [
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ],
+      {
+        "a": 1,
+        "b": 9
+      },
+      {
+        "a": 1,
+        "b": 9
+      }
+    ],
+    "rust": [
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ],
+      {
+        "a": 1,
+        "b": 9
+      },
+      {
+        "a": 1,
+        "b": 2
+      }
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ],
+      {
+        "a": 1,
+        "b": 9
+      },
+      {
+        "a": 1,
+        "b": 2
+      }
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
+  },
+  {
+    "name": "mutable_block_fill_changes_tail",
+    "source": "def run(input: any) -> array<array<int>>\na=[1,2,3];r=a.fill(0,1){a[2]=9;7};[a,r]\nend",
+    "go": [
+      [
+        7,
+        2,
+        9
+      ],
+      [
+        7,
+        2,
+        9
+      ]
+    ],
+    "rust": [
+      [
+        7,
+        2,
+        3
+      ],
+      [
+        7,
+        2,
+        3
+      ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        7,
+        2,
+        3
+      ],
+      [
+        7,
+        2,
+        3
+      ]
+    ],
+    "reason": "The mutator processes its captured logical receiver; backing-store sharing cannot change its result.",
+    "static_error": {
+      "code": "V0305",
+      "at": [
+        2,
+        24
+      ]
+    }
+  },
+  {
+    "name": "mutable_block_filter_changes_tail",
+    "source": "def run(input: any) -> array<array<int>>\na=[1,2,3];r=a.keep_if {|v|a[2]=9;true};[a,r]\nend",
+    "go": [
+      [
+        1,
+        2,
+        9
+      ],
+      [
+        1,
+        2,
+        9
+      ]
+    ],
+    "rust": [
+      [
+        1,
+        2,
+        9
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1,
+        2,
+        9
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ],
+    "reason": "The mutator processes its captured logical receiver; backing-store sharing cannot change its result."
+  },
+  {
+    "name": "mutable_block_filter_changes_tail_removes",
+    "source": "def run(input: any) -> array<array<int>>\na=[1,2,3];r=a.delete_if {|v|a[2]=9;v==2};[a,r]\nend",
+    "go": [
+      [
+        1,
+        9
+      ],
+      [
+        1,
+        9
+      ]
+    ],
+    "rust": [
+      [
+        1,
+        3
+      ],
+      [
+        1,
+        3
+      ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1,
+        3
+      ],
+      [
+        1,
+        3
+      ]
+    ],
+    "reason": "The mutator processes its captured logical receiver; backing-store sharing cannot change its result."
+  },
+  {
+    "name": "mutable_block_hash_filter_changes_noop",
+    "source": "def run(input: any) -> [hash<string, int>, hash<string, int>]\na: hash<string, int> ={a:1,b:2};r=a.keep_if {|k,v|a[\"b\"]=9;true};[a,r]\nend",
+    "go": [
+      {
+        "a": 1,
+        "b": 9
+      },
+      {
+        "a": 1,
+        "b": 9
+      }
+    ],
+    "rust": [
+      {
+        "a": 1,
+        "b": 9
+      },
+      {
+        "a": 1,
+        "b": 2
+      }
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      {
+        "a": 1,
+        "b": 9
+      },
+      {
+        "a": 1,
+        "b": 2
+      }
+    ],
+    "reason": "The mutator processes its captured logical receiver; backing-store sharing cannot change its result."
+  },
+  {
+    "name": "mutable_block_fill_negative_parent_growth",
+    "source": "def run(input: any) -> [array<array<int>>, array<int>?]\na=[[1,2]];r=a[-1]&.fill {a.push([9]);7};[a,r]\nend",
+    "go": [
+      [
+        [
+          7,
+          7
+        ],
+        [
+          9
+        ],
+        [
+          9
+        ]
+      ],
+      [
+        7,
+        7
+      ]
+    ],
+    "rust": [
+      [
+        [
+          1,
+          2
+        ],
+        [
+          9
+        ],
+        [
+          9
+        ]
+      ],
+      [
+        7,
+        7
+      ]
+    ],
+    "policy": "documented_value_semantics",
+    "reason": "The selected array element keeps its original position when arguments or blocks grow its parent.",
+    "expected": [
+      [
+        [
+          7,
+          7
+        ],
+        [
+          9
+        ],
+        [
+          9
+        ]
+      ],
+      [
+        7,
+        7
+      ]
+    ],
+    "static_error": {
+      "code": "V0301",
+      "at": [
+        2,
+        20
+      ]
+    }
+  },
+  {
+    "name": "ordering_sort_by_callback_mutation",
+    "source": "def run(input: any) -> array<array<int>>\na=[3,1,2];r=a.sort_by {|v|a[2]=9;v};[a,r]\nend",
+    "go": [
+      [
+        3,
+        1,
+        9
+      ],
+      [
+        1,
+        3,
+        9
+      ]
+    ],
+    "rust": [
+      [
+        3,
+        1,
+        9
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        3,
+        1,
+        9
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
+  },
+  {
+    "name": "ordering_max_by_callback_mutation",
+    "source": "def run(input: any) -> [array<int>, int?]\na=[3,1,2];r=a.max_by {|v|a[2]=9;v};[a,r]\nend",
+    "go": [
+      [
+        3,
+        1,
+        9
+      ],
+      9
+    ],
+    "rust": [
+      [
+        3,
+        1,
+        9
+      ],
+      3
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        3,
+        1,
+        9
+      ],
+      3
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
+  },
+  {
+    "name": "collection_blocks_slice_when_mutation_0_False",
+    "source": "def run(input: any) -> [array<int>, array<array<int>>, array<array<int>>]\na=[1,2,3];seen: array<array<int>> = [];r=a.slice_when {|x,y|seen.push([x,y]);a[1]=9;x+1!=y};[a,r,seen]\nend",
+    "go": [
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        [
+          1,
+          9
+        ],
+        [
+          3
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          9,
+          3
+        ]
+      ]
+    ],
+    "rust": [
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          3
+        ]
+      ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          3
+        ]
+      ]
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
+  },
+  {
+    "name": "collection_blocks_chunk_while_mutation_0_False",
+    "source": "def run(input: any) -> [array<int>, array<array<int>>, array<array<int>>]\na=[1,2,3];seen: array<array<int>> = [];r=a.chunk_while {|x,y|seen.push([x,y]);a[1]=9;x+1!=y};[a,r,seen]\nend",
+    "go": [
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        [
+          1
+        ],
+        [
+          9,
+          3
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          9,
+          3
+        ]
+      ]
+    ],
+    "rust": [
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          3
+        ]
+      ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          3
+        ]
+      ]
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
+  },
+  {
+    "name": "collection_blocks_merge_mutates_later_argument",
+    "source": "def run(input: any) -> array<hash<string, int>>\nh: hash<string, int> = {a:1};later: hash<string, int> = {a:3,b:4};r=h.merge({a:2},later){|k,o,n|later[\"a\"]=9;o+n};[later,r]\nend",
+    "go": [
+      {
+        "a": 9,
+        "b": 4
+      },
+      {
+        "a": 12,
+        "b": 4
+      }
+    ],
+    "rust": [
+      {
+        "a": 9,
+        "b": 4
+      },
+      {
+        "a": 6,
+        "b": 4
+      }
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      {
+        "a": 9,
+        "b": 4
+      },
+      {
+        "a": 6,
+        "b": 4
+      }
+    ],
+    "reason": "Evaluated arguments remain logical values when a callback changes another binding."
+  },
+  {
+    "name": "collection_blocks_deep_mutation_1_False",
+    "source": "def run(input: any) -> [{ a: array<int>, b: int }, hash<string, array<int> | int>]\nh={a:[1,2],b:2};r=h.deep_transform_keys {|k|h[\"a\"][0]=9;k};[h,r]\nend",
+    "go": [
+      {
+        "a": [
+          9,
+          2
+        ],
+        "b": 2
+      },
+      {
+        "a": [
+          9,
+          2
+        ],
+        "b": 2
+      }
+    ],
+    "rust": [
+      {
+        "a": [
+          9,
+          2
+        ],
+        "b": 2
+      },
+      {
+        "a": [
+          1,
+          2
+        ],
+        "b": 2
+      }
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      {
+        "a": [
+          9,
+          2
+        ],
+        "b": 2
+      },
+      {
+        "a": [
+          1,
+          2
+        ],
+        "b": 2
+      }
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
+  },
+  {
+    "name": "collection_blocks_deep_mutation_3_False",
+    "source": "def run(input: any) -> [{ a: hash<string, int>, b: int }, hash<string, int | hash<string, int>>]\nh={a:{b:1},b:2};r=h.deep_transform_keys {|k|h[\"a\"][\"b\"]=9;k};[h,r]\nend",
+    "go": [
+      {
+        "a": {
+          "b": 9
+        },
+        "b": 2
+      },
+      {
+        "a": {
+          "b": 9
+        },
+        "b": 2
+      }
+    ],
+    "rust": [
+      {
+        "a": {
+          "b": 9
+        },
+        "b": 2
+      },
+      {
+        "a": {
+          "b": 1
+        },
+        "b": 2
+      }
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      {
+        "a": {
+          "b": 9
+        },
+        "b": 2
+      },
+      {
+        "a": {
+          "b": 1
+        },
+        "b": 2
+      }
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
+  },
+  {
+    "name": "regex_namespace_anchors",
+    "source": "def run(input: any) -> [string?, string, string, bool]\npattern=\"(?:^a$)\";[Regex.match(pattern,\"ab\"),Regex.replace(\"ab\",pattern,\"X\"),Regex.replace_all(\"aba\",pattern,\"X\"),\"ab\".match?(pattern)]\nend",
+    "go": [
+      "a",
+      "Xb",
+      "XbX",
+      false
+    ],
+    "rust": [
+      null,
+      "ab",
+      "aba",
+      false
+    ],
+    "policy": "honor_regex_anchors",
+    "reason": "The selected regex policy honors all anchors. Go helpers bypass assertions when using a completed literal prefix; Rust applies the complete expression, matching the predicate.",
+    "expected": [
+      null,
+      "ab",
+      "aba",
+      false
+    ]
+  },
+  {
+    "name": "match_data_nested_mutation",
+    "source": "def run(input: any) -> array<string?>?\nm=\"a\".match(/(a)/);m&.captures&.push(\"x\");m&.captures\nend",
+    "go": [
+      "a",
+      "x"
+    ],
+    "rust_error": "Argument",
+    "expected_error": "Argument",
+    "policy": "protected_match_data",
+    "reason": "Match-data protection applies through nested write paths. A copied capture array may be modified independently; a write through the protected result is rejected."
+  },
+  {
+    "name": "match_data_duplicate_mutation",
+    "source": "def run(input: any) -> match_data?\nm=\"a\".match(/a/);m&.dup&.clear\nend",
+    "go": {},
+    "rust_error": "Argument",
+    "expected_error": "Argument",
+    "policy": "protected_match_data",
+    "reason": "Duplicating match data preserves its protection. Go deep cloning drops the tag and permits the resulting object to be cleared.",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        2,
+        26
+      ]
+    }
+  },
+  {
+    "name": "match_data_duplicate_rendering",
+    "source": "def run(input: any) -> string\nm=\"a\".match(/a/);\"#{m.dup}\"\nend",
+    "go": "<object>",
+    "rust": "a",
+    "expected": "a",
+    "policy": "protected_match_data",
+    "reason": "Duplicating match data preserves its published string rendering. Go deep cloning drops that rendering together with the protected tag."
+  },
+  {
+    "name": "substitution_word_boundaries",
+    "source": "def run(input: any) -> array<string>\n[\"a b aa\".gsub(/\\b/,\"X\"),\"ababa\".gsub(/\\B/,\"X\"),\"a b aa\".gsub(/\\b/) {\"X\"}]\nend",
+    "go": [
+      "Xa Xb XaaX",
+      "aXbaXba",
+      "Xa Xb XaaX"
+    ],
+    "rust": [
+      "XaX XbX XaaX",
+      "aXbXaXbXa",
+      "XaX XbX XaaX"
+    ],
+    "expected": [
+      "XaX XbX XaaX",
+      "aXbXaXbXa",
+      "XaX XbX XaaX"
+    ],
+    "policy": "honor_regex_anchors",
+    "reason": "Global substitution retains the original assertion context. Go's suffix-window repair can skip valid word-boundary and non-boundary matches; Rust evaluates every eligible character boundary."
+  },
+  {
+    "name": "substitution_match_data_rendering",
+    "source": "def run(input: any) -> array<string>\nm=\"a\".match(/a/);[\"aa\".sub(/a/) {\"#{m}\"},\"aa\".gsub(/a/) {\"#{m}\"}]\nend",
+    "go": [
+      "<object>a",
+      "<object><object>"
+    ],
+    "rust": [
+      "aa",
+      "aa"
+    ],
+    "expected": [
+      "aa",
+      "aa"
+    ],
+    "policy": "protected_match_data",
+    "reason": "Match data retains its published whole-match rendering when a replacement block returns it. Go's bounded conversion loses the specialized rendering and emits an object placeholder."
+  },
+  {
+    "name": "module_returned_array_snapshot",
+    "source": "module M\n @@a: array<int> = []\n def self.f -> array<int>;@@a.push(1);@@a;end\nend\ndef run(input: any) -> array<array<int>>\n[M.f,M.f]\nend",
+    "source_with_alias": "module M\n @@a: array<int> = []\n def self.f -> array<int>;@@a.push(1);@@a;end\nend\ndef run(input: any) -> array<array<int>>\nx=M.f;unused_snapshot=x;[x,M.f]\nend",
+    "go": [
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ]
+    ],
+    "rust": [
+      [
+        1
+      ],
+      [
+        1,
+        1
+      ]
+    ],
+    "expected": [
+      [
+        1
+      ],
+      [
+        1,
+        1
+      ]
+    ],
+    "policy": "documented_value_semantics",
+    "reason": "An array returned by an earlier method call keeps its evaluated value when the module variable is subsequently mutated."
+  },
+  {
+    "name": "module_array_assignment_snapshot",
+    "source": "module M\n A=[]\nend\ndef run(input: any) -> array<array<int>>\n x=[1]\n M.A=x;M::A[0]=3;[x,M.A]\nend",
+    "source_with_alias": "module M\n A=[]\nend\ndef run(input: any) -> array<array<int>>\n x=[1];unused_snapshot=x\n M.A=x;M::A[0]=3;[x,M.A]\nend",
+    "go": [
+      [
+        3
+      ],
+      [
+        3
+      ]
+    ],
+    "rust": [
+      [
+        1
+      ],
+      [
+        3
+      ]
+    ],
+    "expected": [
+      [
+        1
+      ],
+      [
+        3
+      ]
+    ],
+    "policy": "documented_value_semantics",
+    "reason": "Assigning an array to a module field preserves the original local value; writes update only the selected module path.",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        6,
+        4
+      ]
+    }
+  },
+  {
+    "name": "match_data_duplicate_nested_write",
+    "source": "def run(input: any) -> array<string?>?\nm=\"a\".match(/(a)/);m&.dup&.captures&.push(\"x\")\nend",
+    "go": [
+      "a",
+      "x"
+    ],
+    "expected_error": "Argument",
+    "policy": "protected_match_data",
+    "reason": "Duplicating match data preserves protection when addressing its nested captures."
+  },
+  {
+    "name": "match_data_temporary_nested_write",
+    "source": "def run(input: any) -> array<string?>?\n\"a\".match(/(a)/)&.captures&.push(\"x\")\nend",
+    "go": [
+      "a",
+      "x"
+    ],
+    "expected_error": "Argument",
+    "policy": "protected_match_data",
+    "reason": "A temporary match-data result retains protection when addressing its nested captures."
+  },
+  {
+    "name": "class_index_getter_snapshot",
+    "source": "class Grid\n@slots: hash<string, array<int>> = {}\ndef initialize;@slots={};end\ndef [](row: int,col: int) -> array<int>;@slots.fetch(\"#{row}:#{col}\");end\ndef []=(row: int,col: int,value: array<int>) -> string;@slots[\"#{row}:#{col}\"]=value;\"ignored\";end\nend\ndef run(input: any) -> array<array<int>>\ngrid=Grid.new;grid[0,0]=[1];saved=grid[0,0];grid[0,0][0]=8;[saved,grid[0,0]]\nend",
+    "source_with_alias": "class Grid\n@slots: hash<string, array<int>> = {}\ndef initialize;@slots={};end\ndef [](row: int,col: int) -> array<int>;@slots.fetch(\"#{row}:#{col}\");end\ndef []=(row: int,col: int,value: array<int>) -> string;@slots[\"#{row}:#{col}\"]=value;\"ignored\";end\nend\ndef run(input: any) -> array<array<int>>\ngrid=Grid.new;grid[0,0]=[1];saved=grid[0,0];unused_snapshot=saved;grid[0,0][0]=8;[saved,grid[0,0]]\nend",
+    "go": [
+      [
+        8
+      ],
+      [
+        8
+      ]
+    ],
+    "rust": [
+      [
+        1
+      ],
+      [
+        1
+      ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1
+      ],
+      [
+        1
+      ]
+    ],
+    "reason": "An array returned by an index method is a logical value; a nested write to that temporary cannot change the stored array or an earlier snapshot."
+  }
+]

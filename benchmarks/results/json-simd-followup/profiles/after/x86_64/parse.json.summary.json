@@ -1,0 +1,547 @@
+{
+  "samples": 18920,
+  "categories": {
+    "accounting": {
+      "percent": 29.54016913319239,
+      "samples": 5589,
+      "top_functions": [
+        {
+          "function": "<vibescript::budget::CallContext>::reserve",
+          "percent": 11.02536997885835,
+          "samples": 2086
+        },
+        {
+          "function": "<alloc::sync::Arc<vibescript::budget::Memory> as core::ops::drop::Drop>::drop",
+          "percent": 10.126849894291755,
+          "samples": 1916
+        },
+        {
+          "function": "<alloc::sync::Arc<vibescript::budget::Memory> as core::clone::Clone>::clone",
+          "percent": 4.6723044397463,
+          "samples": 884
+        },
+        {
+          "function": "<vibescript::budget::CallContext>::charge",
+          "percent": 1.2420718816067653,
+          "samples": 235
+        },
+        {
+          "function": "<vibescript::budget::CallContext>::charge_slowly",
+          "percent": 0.5919661733615222,
+          "samples": 112
+        },
+        {
+          "function": "<vibescript::budget::CallContext>::work_bytes",
+          "percent": 0.5232558139534884,
+          "samples": 99
+        },
+        {
+          "function": "<vibescript::budget::CallContext>::check_memory",
+          "percent": 0.4809725158562368,
+          "samples": 91
+        },
+        {
+          "function": "<core::option::Option<u64>>::is_none_or::<<vibescript::budget::CallContext>::charge::{closure#0}>",
+          "percent": 0.2219873150105708,
+          "samples": 42
+        }
+      ]
+    },
+    "value_construction_and_release": {
+      "percent": 28.292811839323466,
+      "samples": 5353,
+      "top_functions": [
+        {
+          "function": "<alloc::sync::Arc<vibescript::value::Bytes> as core::ops::drop::Drop>::drop",
+          "percent": 3.831923890063425,
+          "samples": 725
+        },
+        {
+          "function": "<core::result::Result<vibescript::value::Value, vibescript::error::Error> as core::ops::try_trait::Try>::branch",
+          "percent": 2.943974630021142,
+          "samples": 557
+        },
+        {
+          "function": "<alloc::sync::Arc<vibescript::value::Bytes> as core::clone::Clone>::clone",
+          "percent": 2.3202959830866807,
+          "samples": 439
+        },
+        {
+          "function": "<alloc::sync::Arc<alloc::vec::Vec<u8>> as core::ops::drop::Drop>::drop",
+          "percent": 2.193446088794926,
+          "samples": 415
+        },
+        {
+          "function": "<alloc::sync::Arc<vibescript::hash::Hash> as core::ops::drop::Drop>::drop",
+          "percent": 2.0824524312896404,
+          "samples": 394
+        },
+        {
+          "function": "core::ptr::drop_glue::<vibescript::value::Value>",
+          "percent": 1.4323467230443974,
+          "samples": 271
+        },
+        {
+          "function": "<alloc::boxed::Box<alloc::sync::ArcInner<vibescript::value::Bytes>>>::new",
+          "percent": 1.4006342494714588,
+          "samples": 265
+        },
+        {
+          "function": "<core::result::Result<vibescript::value::Value, vibescript::error::Error>>::map::<core::option::Option<vibescript::value::Value>, core::option::Option<vibescript::value::Value>::Some>",
+          "percent": 1.3054968287526427,
+          "samples": 247
+        }
+      ]
+    },
+    "allocation": {
+      "percent": 14.133192389006343,
+      "samples": 2674,
+      "top_functions": [
+        {
+          "function": "alloc::alloc::alloc",
+          "percent": 3.4143763213530653,
+          "samples": 646
+        },
+        {
+          "function": "_libc_free",
+          "percent": 3.3668076109936576,
+          "samples": 637
+        },
+        {
+          "function": "<alloc::sync::Weak<alloc::vec::Vec<u8>, &alloc::alloc::Global> as core::ops::drop::Drop>::drop",
+          "percent": 1.6649048625792813,
+          "samples": 315
+        },
+        {
+          "function": "<alloc::sync::Weak<vibescript::value::Bytes, &alloc::alloc::Global> as core::ops::drop::Drop>::drop",
+          "percent": 1.263213530655391,
+          "samples": 239
+        },
+        {
+          "function": "alloc::alloc::dealloc_nonnull",
+          "percent": 1.2209302325581395,
+          "samples": 231
+        },
+        {
+          "function": "<alloc::sync::Weak<vibescript::hash::Hash, &alloc::alloc::Global> as core::ops::drop::Drop>::drop",
+          "percent": 0.5443974630021141,
+          "samples": 103
+        },
+        {
+          "function": "<alloc::raw_vec::RawVecInner>::non_null::<u8>",
+          "percent": 0.5285412262156448,
+          "samples": 100
+        },
+        {
+          "function": "realloc",
+          "percent": 0.46511627906976744,
+          "samples": 88
+        }
+      ]
+    },
+    "string_decoding": {
+      "percent": 11.210359408033826,
+      "samples": 2121,
+      "top_functions": [
+        {
+          "function": "<vibescript::json::parser::Parser>::read_string::<true>",
+          "percent": 7.24630021141649,
+          "samples": 1371
+        },
+        {
+          "function": "<vibescript::budget::Buffer<u8>>::with_capacity",
+          "percent": 1.7494714587737843,
+          "samples": 331
+        },
+        {
+          "function": "<vibescript::budget::Buffer<u8>>::extend",
+          "percent": 0.5919661733615222,
+          "samples": 112
+        },
+        {
+          "function": "<vibescript::json::parser::Parser>::read_string::<true>::{closure#0}",
+          "percent": 0.3699788583509514,
+          "samples": 70
+        },
+        {
+          "function": "<vibescript::budget::Buffer<u8>>::ensure",
+          "percent": 0.33298097251585623,
+          "samples": 63
+        },
+        {
+          "function": "<core::slice::iter::Iter<u8> as core::iter::traits::iterator::Iterator>::fold::<usize, <vibescript::json::parser::Parser>::read_string<true>::{closure#0}>",
+          "percent": 0.3171247357293869,
+          "samples": 60
+        },
+        {
+          "function": "<vibescript::budget::Buffer<u8>>::extend_deferred",
+          "percent": 0.26955602536997886,
+          "samples": 51
+        },
+        {
+          "function": "vibescript::scan::text_span",
+          "percent": 0.12684989429175475,
+          "samples": 24
+        }
+      ]
+    },
+    "parser_control": {
+      "percent": 9.133192389006343,
+      "samples": 1728,
+      "top_functions": [
+        {
+          "function": "<vibescript::json::parser::Parser>::value_with::<true, false>",
+          "percent": 2.214587737843552,
+          "samples": 419
+        },
+        {
+          "function": "<vibescript::json::parser::Parser>::space_with::<true>",
+          "percent": 1.6807610993657505,
+          "samples": 318
+        },
+        {
+          "function": "<vibescript::json::parser::Parser>::span",
+          "percent": 1.1627906976744187,
+          "samples": 220
+        },
+        {
+          "function": "<vibescript::json::parser::Parser>::key::<true>",
+          "percent": 1.1522198731501057,
+          "samples": 218
+        },
+        {
+          "function": "<vibescript::json::parser::Parser>::start::<true, false>",
+          "percent": 1.025369978858351,
+          "samples": 194
+        },
+        {
+          "function": "core::ptr::read::<vibescript::json::parser::Frame>",
+          "percent": 0.7241014799154334,
+          "samples": 137
+        },
+        {
+          "function": "<vibescript::json::parser::Parser>::take::<true>",
+          "percent": 0.5391120507399577,
+          "samples": 102
+        },
+        {
+          "function": "core::ptr::write::<vibescript::json::parser::Frame>",
+          "percent": 0.2854122621564482,
+          "samples": 54
+        }
+      ]
+    },
+    "structural_scanning": {
+      "percent": 4.957716701902749,
+      "samples": 938,
+      "top_functions": [
+        {
+          "function": "<vibescript::json::scan::Scanner>::block",
+          "percent": 1.8181818181818181,
+          "samples": 344
+        },
+        {
+          "function": "vibescript::json::scan::strings",
+          "percent": 0.6342494714587738,
+          "samples": 120
+        },
+        {
+          "function": "vibescript::json::scan::classify",
+          "percent": 0.554968287526427,
+          "samples": 105
+        },
+        {
+          "function": "<vibescript::json::scan::Scanner>::string",
+          "percent": 0.5391120507399577,
+          "samples": 102
+        },
+        {
+          "function": "vibescript::json::scan::vector::{closure#1}",
+          "percent": 0.3224101479915433,
+          "samples": 61
+        },
+        {
+          "function": "vibescript::json::scan::vector",
+          "percent": 0.23255813953488372,
+          "samples": 44
+        },
+        {
+          "function": "vibescript::json::scan::vector::{closure#0}",
+          "percent": 0.21141649048625794,
+          "samples": 40
+        },
+        {
+          "function": "vibescript::scan::prefix",
+          "percent": 0.1849894291754757,
+          "samples": 35
+        }
+      ]
+    },
+    "number_decoding": {
+      "percent": 1.4534883720930232,
+      "samples": 275,
+      "top_functions": [
+        {
+          "function": "<vibescript::json::parser::Parser>::digits::<true>",
+          "percent": 0.2642706131078224,
+          "samples": 50
+        },
+        {
+          "function": "<vibescript::json::parser::Parser>::number::<true>",
+          "percent": 0.2536997885835095,
+          "samples": 48
+        },
+        {
+          "function": "vibescript::json::parse_float",
+          "percent": 0.2167019027484144,
+          "samples": 41
+        },
+        {
+          "function": "core::num::imp::dec2flt::dec2flt::<f64>",
+          "percent": 0.17970401691331925,
+          "samples": 34
+        },
+        {
+          "function": "core::num::imp::dec2flt::parse::parse_number",
+          "percent": 0.14799154334038056,
+          "samples": 28
+        },
+        {
+          "function": "<[u8] as core::num::imp::dec2flt::common::ByteSlice>::parse_digits::<core::num::imp::dec2flt::parse::try_parse_digits::{closure#0}>",
+          "percent": 0.07928118393234672,
+          "samples": 15
+        },
+        {
+          "function": "<core::num::imp::dec2flt::decimal::Decimal>::try_fast_path::<f64>",
+          "percent": 0.07399577167019028,
+          "samples": 14
+        },
+        {
+          "function": "core::num::imp::dec2flt::parse::try_parse_digits::{closure#0}",
+          "percent": 0.05813953488372093,
+          "samples": 11
+        }
+      ]
+    },
+    "utf8": {
+      "percent": 0.7399577167019028,
+      "samples": 140,
+      "top_functions": [
+        {
+          "function": "vibescript::scan::unicode_span",
+          "percent": 0.25898520084566595,
+          "samples": 49
+        },
+        {
+          "function": "core::str::validations::run_utf8_validation",
+          "percent": 0.19556025369978858,
+          "samples": 37
+        },
+        {
+          "function": "vibescript::scan::vector_unicode",
+          "percent": 0.13742071881606766,
+          "samples": 26
+        },
+        {
+          "function": "core::str::converts::from_utf8",
+          "percent": 0.1109936575052854,
+          "samples": 21
+        },
+        {
+          "function": "vibescript::scan::vector_unicode::{closure#0}",
+          "percent": 0.03699788583509514,
+          "samples": 7
+        }
+      ]
+    },
+    "other_runtime": {
+      "percent": 0.5285412262156448,
+      "samples": 100,
+      "top_functions": [
+        {
+          "function": "vibescript::json::bytes_equal",
+          "percent": 0.3012684989429176,
+          "samples": 57
+        },
+        {
+          "function": "<vibescript::budget::CancellationToken>::is_cancelled",
+          "percent": 0.12684989429175475,
+          "samples": 24
+        },
+        {
+          "function": "vibescript::scan::ordinary",
+          "percent": 0.04756871035940803,
+          "samples": 9
+        },
+        {
+          "function": "<vibescript::vm::Run>::advance",
+          "percent": 0.015856236786469344,
+          "samples": 3
+        },
+        {
+          "function": "<vibescript::budget::CallContext>::open",
+          "percent": 0.005285412262156448,
+          "samples": 1
+        },
+        {
+          "function": "vibescript::json::writer::write_string",
+          "percent": 0.005285412262156448,
+          "samples": 1
+        },
+        {
+          "function": "vibescript::vm::enter_arguments::<usize>",
+          "percent": 0.005285412262156448,
+          "samples": 1
+        },
+        {
+          "function": "<core::option::Option<vibescript::error::Error>>::is_some",
+          "percent": 0.005285412262156448,
+          "samples": 1
+        }
+      ]
+    },
+    "other": {
+      "percent": 0.010570824524312896,
+      "samples": 2,
+      "top_functions": [
+        {
+          "function": "<serde_json::read::SliceRead>::parse_str_bytes::<str, serde_json::read::as_str<serde_json::read::SliceRead>>",
+          "percent": 0.005285412262156448,
+          "samples": 1
+        },
+        {
+          "function": "serde_json::ser::format_escaped_str_contents::<&mut alloc::vec::Vec<u8>, serde_json::ser::CompactFormatter>",
+          "percent": 0.005285412262156448,
+          "samples": 1
+        }
+      ]
+    }
+  },
+  "top_leaf_functions": [
+    {
+      "function": "core::sync::atomic::atomic_sub::<usize, usize>",
+      "percent": 5.459830866807611,
+      "samples": 1033
+    },
+    {
+      "function": "<vibescript::budget::CallContext>::reserve",
+      "percent": 5.07399577167019,
+      "samples": 960
+    },
+    {
+      "function": "<vibescript::json::parser::Parser>::read_string::<true>",
+      "percent": 4.931289640591967,
+      "samples": 933
+    },
+    {
+      "function": "core::sync::atomic::atomic_umax::<usize>",
+      "percent": 4.799154334038055,
+      "samples": 908
+    },
+    {
+      "function": "<alloc::sync::Arc<vibescript::budget::Memory> as core::ops::drop::Drop>::drop",
+      "percent": 4.677589852008457,
+      "samples": 885
+    },
+    {
+      "function": "<alloc::sync::Arc<vibescript::budget::Memory> as core::clone::Clone>::clone",
+      "percent": 4.423890063424947,
+      "samples": 837
+    },
+    {
+      "function": "<alloc::sync::Arc<vibescript::value::Bytes> as core::ops::drop::Drop>::drop",
+      "percent": 3.831923890063425,
+      "samples": 725
+    },
+    {
+      "function": "_libc_free",
+      "percent": 3.3668076109936576,
+      "samples": 637
+    },
+    {
+      "function": "<core::result::Result<vibescript::value::Value, vibescript::error::Error> as core::ops::try_trait::Try>::branch",
+      "percent": 2.943974630021142,
+      "samples": 557
+    },
+    {
+      "function": "fun_a6e20",
+      "percent": 2.748414376321353,
+      "samples": 520
+    },
+    {
+      "function": "<alloc::sync::Arc<vibescript::value::Bytes> as core::clone::Clone>::clone",
+      "percent": 2.315010570824524,
+      "samples": 438
+    },
+    {
+      "function": "fun_175ca0",
+      "percent": 2.309725158562368,
+      "samples": 437
+    },
+    {
+      "function": "<vibescript::json::parser::Parser>::value_with::<true, false>",
+      "percent": 2.156448202959831,
+      "samples": 408
+    },
+    {
+      "function": "<alloc::sync::Arc<vibescript::hash::Hash> as core::ops::drop::Drop>::drop",
+      "percent": 2.0824524312896404,
+      "samples": 394
+    },
+    {
+      "function": "<vibescript::json::scan::Scanner>::block",
+      "percent": 1.791754756871036,
+      "samples": 339
+    },
+    {
+      "function": "<vibescript::budget::Buffer<u8>>::with_capacity",
+      "percent": 1.7124735729386893,
+      "samples": 324
+    },
+    {
+      "function": "<vibescript::json::parser::Parser>::space_with::<true>",
+      "percent": 1.675475687103594,
+      "samples": 317
+    },
+    {
+      "function": "<alloc::sync::Weak<alloc::vec::Vec<u8>, &alloc::alloc::Global> as core::ops::drop::Drop>::drop",
+      "percent": 1.6649048625792813,
+      "samples": 315
+    },
+    {
+      "function": "fun_a4fe0",
+      "percent": 1.4693446088794926,
+      "samples": 278
+    },
+    {
+      "function": "<alloc::boxed::Box<alloc::sync::ArcInner<vibescript::value::Bytes>>>::new",
+      "percent": 1.3953488372093024,
+      "samples": 264
+    },
+    {
+      "function": "core::sync::atomic::atomic_add::<usize, usize>",
+      "percent": 1.3953488372093024,
+      "samples": 264
+    },
+    {
+      "function": "<alloc::sync::Arc<alloc::vec::Vec<u8>> as core::ops::drop::Drop>::drop",
+      "percent": 1.390063424947146,
+      "samples": 263
+    },
+    {
+      "function": "<core::result::Result<vibescript::value::Value, vibescript::error::Error>>::map::<core::option::Option<vibescript::value::Value>, core::option::Option<vibescript::value::Value>::Some>",
+      "percent": 1.3054968287526427,
+      "samples": 247
+    },
+    {
+      "function": "<alloc::sync::Weak<vibescript::value::Bytes, &alloc::alloc::Global> as core::ops::drop::Drop>::drop",
+      "percent": 1.263213530655391,
+      "samples": 239
+    },
+    {
+      "function": "<vibescript::hash::Hash>::insert_with_limit",
+      "percent": 1.0306553911205074,
+      "samples": 195
+    }
+  ]
+}

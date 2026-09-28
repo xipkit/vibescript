@@ -1,0 +1,38 @@
+# title: Anagrams
+# source: https://rosettacode.org/wiki/Anagrams
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Group a fixed word list into anagram sets using sorted-letter signatures.
+# tags: popular, strings, hashes, sorting
+# vibe: 0.4
+
+def signature(word: string) -> string
+  word.downcase.chars.sort.join("")
+end
+
+def anagram_groups(words: array<string>) -> array<array<string>>
+  groups: hash<string, array<string>> = {}
+  order: array<string> = []
+
+  words.each { |word|
+    key = signature(word)
+    if groups[key] == nil
+      groups[key] = []
+      order << key
+    end
+    groups[key] = groups.fetch(key) + [word]
+  }
+
+  output: array<array<string>> = []
+  order.each { |key|
+    if groups.fetch(key).length > 1
+      output << groups.fetch(key).sort
+    end
+  }
+
+  output
+end
+
+def run -> array<array<string>>
+  anagram_groups(["care", "race", "acre", "dog", "god", "note", "tone", "vibe"])
+end

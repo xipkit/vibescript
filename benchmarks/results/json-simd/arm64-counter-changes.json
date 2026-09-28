@@ -1,0 +1,380 @@
+[
+  {
+    "name": "json_depth/mixed/128/scalar",
+    "before_steps": 640,
+    "before_tracked_peak_bytes": 63134,
+    "before_tracked_retained_bytes": 0,
+    "after_steps": 640,
+    "after_tracked_peak_bytes": 57023,
+    "after_tracked_retained_bytes": 0
+  },
+  {
+    "name": "json_depth/mixed/129/scalar",
+    "before_steps": 643,
+    "before_tracked_peak_bytes": 77694,
+    "before_tracked_retained_bytes": 0,
+    "after_steps": 643,
+    "after_tracked_peak_bytes": 71583,
+    "after_tracked_retained_bytes": 0
+  },
+  {
+    "name": "json_depth/mixed/9999/scalar",
+    "before_steps": 45674,
+    "before_tracked_peak_bytes": 5348757,
+    "before_tracked_retained_bytes": 0,
+    "after_steps": 45674,
+    "after_tracked_peak_bytes": 4863951,
+    "after_tracked_retained_bytes": 0
+  },
+  {
+    "name": "json_depth/mixed/10000/scalar",
+    "before_steps": 45681,
+    "before_tracked_peak_bytes": 5349222,
+    "before_tracked_retained_bytes": 0,
+    "after_steps": 45681,
+    "after_tracked_peak_bytes": 4864319,
+    "after_tracked_retained_bytes": 0
+  },
+  {
+    "name": "json_depth/mixed/10000/instance",
+    "before_steps": 95865,
+    "before_tracked_peak_bytes": 5350979,
+    "before_tracked_retained_bytes": 0,
+    "after_steps": 95865,
+    "after_tracked_peak_bytes": 4866076,
+    "after_tracked_retained_bytes": 0
+  },
+  {
+    "name": "json_depth/mixed/10000/module",
+    "before_steps": 45754,
+    "before_tracked_peak_bytes": 5351400,
+    "before_tracked_retained_bytes": 0,
+    "after_steps": 45754,
+    "after_tracked_peak_bytes": 4866497,
+    "after_tracked_retained_bytes": 0
+  },
+  {
+    "name": "json_depth/mixed/10000/empty",
+    "before_steps": 45672,
+    "before_tracked_peak_bytes": 5348853,
+    "before_tracked_retained_bytes": 0,
+    "after_steps": 45672,
+    "after_tracked_peak_bytes": 4864047,
+    "after_tracked_retained_bytes": 0
+  },
+  {
+    "name": "json_depth/mixed/10001/scalar",
+    "before_steps": 20081,
+    "before_tracked_peak_bytes": 3220254,
+    "before_tracked_retained_bytes": 0,
+    "after_steps": 20081,
+    "after_tracked_peak_bytes": 2823039,
+    "after_tracked_retained_bytes": 0
+  },
+  {
+    "name": "json_transform/metered",
+    "before_steps": 6438,
+    "before_tracked_peak_bytes": 68366,
+    "before_tracked_retained_bytes": 128,
+    "after_steps": 6438,
+    "after_tracked_peak_bytes": 43103,
+    "after_tracked_retained_bytes": 128
+  },
+  {
+    "name": "json_transform/unlimited",
+    "before_steps": 6438,
+    "before_tracked_peak_bytes": 68366,
+    "before_tracked_retained_bytes": 128,
+    "after_steps": 6438,
+    "after_tracked_peak_bytes": 43103,
+    "after_tracked_retained_bytes": 128
+  },
+  {
+    "name": "json_api_parse_1k/metered",
+    "before_steps": 547,
+    "before_tracked_peak_bytes": 20372,
+    "before_tracked_retained_bytes": 14774,
+    "after_steps": 547,
+    "after_tracked_peak_bytes": 17357,
+    "after_tracked_retained_bytes": 11759
+  },
+  {
+    "name": "json_api_parse_1k/unlimited",
+    "before_steps": 547,
+    "before_tracked_peak_bytes": 20372,
+    "before_tracked_retained_bytes": 14774,
+    "after_steps": 547,
+    "after_tracked_peak_bytes": 17357,
+    "after_tracked_retained_bytes": 11759
+  },
+  {
+    "name": "json_api_shape_1k/metered",
+    "before_steps": 1662,
+    "before_tracked_peak_bytes": 21984,
+    "before_tracked_retained_bytes": 14774,
+    "after_steps": 1662,
+    "after_tracked_peak_bytes": 18969,
+    "after_tracked_retained_bytes": 11759
+  },
+  {
+    "name": "json_api_shape_1k/unlimited",
+    "before_steps": 1662,
+    "before_tracked_peak_bytes": 21984,
+    "before_tracked_retained_bytes": 14774,
+    "after_steps": 1662,
+    "after_tracked_peak_bytes": 18969,
+    "after_tracked_retained_bytes": 11759
+  },
+  {
+    "name": "json_api_array_1k/metered",
+    "before_steps": 1617,
+    "before_tracked_peak_bytes": 20967,
+    "before_tracked_retained_bytes": 14096,
+    "after_steps": 1617,
+    "after_tracked_peak_bytes": 17952,
+    "after_tracked_retained_bytes": 11081
+  },
+  {
+    "name": "json_api_array_1k/unlimited",
+    "before_steps": 1617,
+    "before_tracked_peak_bytes": 20967,
+    "before_tracked_retained_bytes": 14096,
+    "after_steps": 1617,
+    "after_tracked_peak_bytes": 17952,
+    "after_tracked_retained_bytes": 11081
+  },
+  {
+    "name": "json_api_project_1k/metered",
+    "before_steps": 1472,
+    "before_tracked_peak_bytes": 29022,
+    "before_tracked_retained_bytes": 352,
+    "after_steps": 1472,
+    "after_tracked_peak_bytes": 26007,
+    "after_tracked_retained_bytes": 352
+  },
+  {
+    "name": "json_api_project_1k/unlimited",
+    "before_steps": 1472,
+    "before_tracked_peak_bytes": 29022,
+    "before_tracked_retained_bytes": 352,
+    "after_steps": 1472,
+    "after_tracked_peak_bytes": 26007,
+    "after_tracked_retained_bytes": 352
+  },
+  {
+    "name": "json_api_parse_16k/metered",
+    "before_steps": 8611,
+    "before_tracked_peak_bytes": 259604,
+    "before_tracked_retained_bytes": 238646,
+    "after_steps": 8611,
+    "after_tracked_peak_bytes": 198701,
+    "after_tracked_retained_bytes": 177743
+  },
+  {
+    "name": "json_api_parse_16k/unlimited",
+    "before_steps": 8611,
+    "before_tracked_peak_bytes": 259604,
+    "before_tracked_retained_bytes": 238646,
+    "after_steps": 8611,
+    "after_tracked_peak_bytes": 198701,
+    "after_tracked_retained_bytes": 177743
+  },
+  {
+    "name": "json_api_shape_16k/metered",
+    "before_steps": 26622,
+    "before_tracked_peak_bytes": 261216,
+    "before_tracked_retained_bytes": 238646,
+    "after_steps": 26622,
+    "after_tracked_peak_bytes": 200313,
+    "after_tracked_retained_bytes": 177743
+  },
+  {
+    "name": "json_api_shape_16k/unlimited",
+    "before_steps": 26622,
+    "before_tracked_peak_bytes": 261216,
+    "before_tracked_retained_bytes": 238646,
+    "after_steps": 26622,
+    "after_tracked_peak_bytes": 200313,
+    "after_tracked_retained_bytes": 177743
+  },
+  {
+    "name": "json_api_array_16k/metered",
+    "before_steps": 26577,
+    "before_tracked_peak_bytes": 260199,
+    "before_tracked_retained_bytes": 237968,
+    "after_steps": 26577,
+    "after_tracked_peak_bytes": 199296,
+    "after_tracked_retained_bytes": 177065
+  },
+  {
+    "name": "json_api_array_16k/unlimited",
+    "before_steps": 26577,
+    "before_tracked_peak_bytes": 260199,
+    "before_tracked_retained_bytes": 237968,
+    "after_steps": 26577,
+    "after_tracked_peak_bytes": 199296,
+    "after_tracked_retained_bytes": 177065
+  },
+  {
+    "name": "json_api_project_16k/metered",
+    "before_steps": 23552,
+    "before_tracked_peak_bytes": 309342,
+    "before_tracked_retained_bytes": 4192,
+    "after_steps": 23552,
+    "after_tracked_peak_bytes": 248439,
+    "after_tracked_retained_bytes": 4192
+  },
+  {
+    "name": "json_api_project_16k/unlimited",
+    "before_steps": 23552,
+    "before_tracked_peak_bytes": 309342,
+    "before_tracked_retained_bytes": 4192,
+    "after_steps": 23552,
+    "after_tracked_peak_bytes": 248439,
+    "after_tracked_retained_bytes": 4192
+  },
+  {
+    "name": "json_api_parse_256k/metered",
+    "before_steps": 135451,
+    "before_tracked_peak_bytes": 4027204,
+    "before_tracked_retained_bytes": 3760486,
+    "after_steps": 135451,
+    "after_tracked_peak_bytes": 3055771,
+    "after_tracked_retained_bytes": 2789053
+  },
+  {
+    "name": "json_api_parse_256k/unlimited",
+    "before_steps": 135451,
+    "before_tracked_peak_bytes": 4027204,
+    "before_tracked_retained_bytes": 3760486,
+    "after_steps": 135451,
+    "after_tracked_peak_bytes": 3055771,
+    "after_tracked_retained_bytes": 2789053
+  },
+  {
+    "name": "json_api_shape_256k/metered",
+    "before_steps": 419222,
+    "before_tracked_peak_bytes": 4028816,
+    "before_tracked_retained_bytes": 3760486,
+    "after_steps": 419222,
+    "after_tracked_peak_bytes": 3057383,
+    "after_tracked_retained_bytes": 2789053
+  },
+  {
+    "name": "json_api_shape_256k/unlimited",
+    "before_steps": 419222,
+    "before_tracked_peak_bytes": 4028816,
+    "before_tracked_retained_bytes": 3760486,
+    "after_steps": 419222,
+    "after_tracked_peak_bytes": 3057383,
+    "after_tracked_retained_bytes": 2789053
+  },
+  {
+    "name": "json_api_array_256k/metered",
+    "before_steps": 419177,
+    "before_tracked_peak_bytes": 4027799,
+    "before_tracked_retained_bytes": 3759808,
+    "after_steps": 419177,
+    "after_tracked_peak_bytes": 3056366,
+    "after_tracked_retained_bytes": 2788375
+  },
+  {
+    "name": "json_api_array_256k/unlimited",
+    "before_steps": 419177,
+    "before_tracked_peak_bytes": 4027799,
+    "before_tracked_retained_bytes": 3759808,
+    "after_steps": 419177,
+    "after_tracked_peak_bytes": 3056366,
+    "after_tracked_retained_bytes": 2788375
+  },
+  {
+    "name": "json_api_project_256k/metered",
+    "before_steps": 370810,
+    "before_tracked_peak_bytes": 4741590,
+    "before_tracked_retained_bytes": 65632,
+    "after_steps": 370810,
+    "after_tracked_peak_bytes": 3770157,
+    "after_tracked_retained_bytes": 65632
+  },
+  {
+    "name": "json_api_project_256k/unlimited",
+    "before_steps": 370810,
+    "before_tracked_peak_bytes": 4741590,
+    "before_tracked_retained_bytes": 65632,
+    "after_steps": 370810,
+    "after_tracked_peak_bytes": 3770157,
+    "after_tracked_retained_bytes": 65632
+  },
+  {
+    "name": "json_api_parse_1m/metered",
+    "before_steps": 538651,
+    "before_tracked_peak_bytes": 16009540,
+    "before_tracked_retained_bytes": 14956390,
+    "after_steps": 538651,
+    "after_tracked_peak_bytes": 12143707,
+    "after_tracked_retained_bytes": 11090557
+  },
+  {
+    "name": "json_api_parse_1m/unlimited",
+    "before_steps": 538651,
+    "before_tracked_peak_bytes": 16009540,
+    "before_tracked_retained_bytes": 14956390,
+    "after_steps": 538651,
+    "after_tracked_peak_bytes": 12143707,
+    "after_tracked_retained_bytes": 11090557
+  },
+  {
+    "name": "json_api_shape_1m/metered",
+    "before_steps": 1667222,
+    "before_tracked_peak_bytes": 16011152,
+    "before_tracked_retained_bytes": 14956390,
+    "after_steps": 1667222,
+    "after_tracked_peak_bytes": 12145319,
+    "after_tracked_retained_bytes": 11090557
+  },
+  {
+    "name": "json_api_shape_1m/unlimited",
+    "before_steps": 1667222,
+    "before_tracked_peak_bytes": 16011152,
+    "before_tracked_retained_bytes": 14956390,
+    "after_steps": 1667222,
+    "after_tracked_peak_bytes": 12145319,
+    "after_tracked_retained_bytes": 11090557
+  },
+  {
+    "name": "json_api_array_1m/metered",
+    "before_steps": 1667177,
+    "before_tracked_peak_bytes": 16010135,
+    "before_tracked_retained_bytes": 14955712,
+    "after_steps": 1667177,
+    "after_tracked_peak_bytes": 12144302,
+    "after_tracked_retained_bytes": 11089879
+  },
+  {
+    "name": "json_api_array_1m/unlimited",
+    "before_steps": 1667177,
+    "before_tracked_peak_bytes": 16010135,
+    "before_tracked_retained_bytes": 14955712,
+    "after_steps": 1667177,
+    "after_tracked_peak_bytes": 12144302,
+    "after_tracked_retained_bytes": 11089879
+  },
+  {
+    "name": "json_api_project_1m/metered",
+    "before_steps": 1474810,
+    "before_tracked_peak_bytes": 18841046,
+    "before_tracked_retained_bytes": 262240,
+    "after_steps": 1474810,
+    "after_tracked_peak_bytes": 14975213,
+    "after_tracked_retained_bytes": 262240
+  },
+  {
+    "name": "json_api_project_1m/unlimited",
+    "before_steps": 1474810,
+    "before_tracked_peak_bytes": 18841046,
+    "before_tracked_retained_bytes": 262240,
+    "after_steps": 1474810,
+    "after_tracked_peak_bytes": 14975213,
+    "after_tracked_retained_bytes": 262240
+  }
+]

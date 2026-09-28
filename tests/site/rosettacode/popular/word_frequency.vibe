@@ -1,0 +1,44 @@
+# title: Word frequency
+# source: https://rosettacode.org/wiki/Word_frequency
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Count the frequency of normalized words in a short sample passage.
+# tags: popular, strings, hashes, parsing
+# vibe: 0.2
+
+def letter?(char: string) -> bool
+  (char >= "a" && char <= "z") || (char >= "A" && char <= "Z")
+end
+
+def word_counts(text: string) -> hash<string, int>
+  counts: hash<string, int> = {}
+  current = ""
+  index = 0
+
+  while index < text.length
+    char = text.slice(index)
+    if letter?(char.as(string))
+      current = current + char.as(string).downcase
+    elsif current != ""
+      counts[current] = counts.fetch(current, 0) + 1
+      current = ""
+    end
+    index = index + 1
+  end
+
+  if current != ""
+    counts[current] = counts.fetch(current, 0) + 1
+  end
+
+  counts
+end
+
+def run -> array<{ count: int, word: string }>
+  counts = word_counts("To be, or not to be: that is the question. To be or not?")
+  rows: array<{ count: int, word: string }> = []
+  rows = rows.push({ word: "to", count: counts.fetch("to", 0) })
+  rows = rows.push({ word: "be", count: counts.fetch("be", 0) })
+  rows = rows.push({ word: "not", count: counts.fetch("not", 0) })
+  rows = rows.push({ word: "question", count: counts.fetch("question", 0) })
+  rows
+end

@@ -1,0 +1,7 @@
+The regular-expression parser and Thompson state-machine behavior are adapted from
+Go's regexp and regexp/syntax packages. The Unicode categories, scripts, aliases
+and simple-fold orbits are generated from Go 1.27.1's Unicode 17.0.0 tables.
+
+Copyright 2009 The Go Authors. All rights reserved.
+Use of this source code is governed by the BSD-style license in
+Go-BSD-3-Clause.txt.

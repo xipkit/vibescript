@@ -1,0 +1,49 @@
+# title: Long multiplication
+# source: https://rosettacode.org/wiki/Long_multiplication
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Break a multiplication problem into the partial products used by long multiplication.
+# tags: popular, math, formatting, digits
+# vibe: 0.2
+
+def digit_value(char: string) -> int
+  "0123456789".index(char).as(int)
+end
+
+def power_of_ten(exponent: int) -> int
+  value = 1
+  count = 0
+
+  while count < exponent
+    value = value * 10
+    count = count + 1
+  end
+
+  value
+end
+
+def partial_products(multiplicand: int, multiplier: int) -> array<int>
+  digits = "" + multiplier.to_s
+  products: array<int> = []
+  shift = 0
+  index = digits.length - 1
+
+  while index >= 0
+    products = products.push(multiplicand * digit_value(digits.slice(index).as(string)) * power_of_ten(shift))
+    shift = shift + 1
+    index = index - 1
+  end
+
+  products
+end
+
+def run -> { multiplicand: int, multiplier: int, partials: array<int>, product: int }
+  multiplicand = 123
+  multiplier = 45
+  {
+    multiplicand: multiplicand,
+    multiplier: multiplier,
+    partials: partial_products(multiplicand, multiplier),
+    product: multiplicand * multiplier
+  }
+end

@@ -1,0 +1,12 @@
+type Page = { items: array<{ id: int }>, has_more: bool }
+def collect_pages(pages: array<string>) -> array<int>
+  ids: array<int> = []
+  index = 0
+  loop {
+    page = JSON.parse_as(pages.fetch(index), Page)
+    page["items"].each { |item| ids << item["id"] }
+    break if !page["has_more"]
+    index += 1
+  }
+  ids
+end

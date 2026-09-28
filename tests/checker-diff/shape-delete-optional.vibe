@@ -1,0 +1,6 @@
+# expect: agreed
+# Deleting a field the shape declares optional keeps its type.
+s: { a: int, b?: int } = { a: 1, b: 2 }
+s.delete("b")
+t: { a: int, b?: int } = s
+p(t, s.delete("b") { |k| 0 })

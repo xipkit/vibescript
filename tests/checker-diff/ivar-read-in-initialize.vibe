@@ -1,0 +1,14 @@
+# expect: rejected V0205
+# `initialize` read a property before assigning it, passing nil where the
+# method's parameter declares an int.
+class C0
+  getter v1: int
+  def initialize(p1: int)
+    [1].each { |_i| p(self.m0(a0: { name: @v1 })) }
+    @v1 = p1
+  end
+  def m0(*, a0: { name: int }) -> int
+    a0["name"] + 1
+  end
+end
+p(C0.new(2).v1)

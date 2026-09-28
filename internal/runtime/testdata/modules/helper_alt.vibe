@@ -1,3 +1,0 @@
-def double(value)
-  value * 10
-end

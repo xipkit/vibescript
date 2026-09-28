@@ -1,4 +1,0 @@
-def apply(amount: int) -> int
-  fee = (amount * 3) / 100
-  amount + fee
-end

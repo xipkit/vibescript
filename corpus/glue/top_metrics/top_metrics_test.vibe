@@ -1,0 +1,7 @@
+def test_top_metrics
+  subject = require("top_metrics")
+  rows = [{ service: "api", ms: 30 }, { service: "db", ms: 90 }, { service: "cache", ms: 6 }]
+  assert subject.slowest(rows, 2) == ["db", "api"]
+  assert subject.average(rows) == 42.0
+  assert subject.average([]) == 0.0
+end

@@ -1,0 +1,15 @@
+# expect: rejected V0101
+# Assigning a parameter is not checked at runtime, so a symbol literal
+# assigned to an enum parameter stayed a symbol.
+enum E0
+  Red
+  Green
+end
+def m1(a0: E0) -> int
+  a0 = :green
+  case a0
+  when E0::Red then 1
+  when E0::Green then 2
+  end
+end
+p(m1(E0::Red))

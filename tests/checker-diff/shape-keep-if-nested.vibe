@@ -1,0 +1,4 @@
+# expect: rejected V0123
+s: { inner: { a: int, b: int } } = { inner: { a: 1, b: 2 } }
+s["inner"].delete_if { |k, v| v > 0 }
+p(s["inner"]["a"] + 1)

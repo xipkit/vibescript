@@ -1,0 +1,12 @@
+# expect: rejected V0101
+enum E1
+  Draft
+  Done
+end
+es: hash<string, E1> = { a: E1::Draft }
+es["b"] = :draft
+ev = es.fetch("b")
+n: int = case ev
+  when E1::Draft then 0
+  when E1::Done then 1
+end

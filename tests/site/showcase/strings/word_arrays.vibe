@@ -1,0 +1,29 @@
+# title: Word and symbol arrays
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Build string and symbol arrays with array literals.
+# description: Plain literals create fixed arrays. Interpolated strings build words from values.
+# tags: strings, symbols, literals
+# vibe: 0.4
+
+def static_tags -> array<string>
+  ["alpha", "beta", "gamma"]
+end
+
+def build_targets(env: string) -> array<string>
+  ["build-#{env}", "deploy-#{env}", "verify-#{env}"]
+end
+
+def lifecycle_states -> array<symbol>
+  [:queued, :running, :done]
+end
+
+def run -> { build_targets: array<string>, first_state: string, lifecycle_states: array<string>, static_tags: array<string>, target_count: int }
+  {
+    static_tags: static_tags,
+    build_targets: build_targets("prod"),
+    lifecycle_states: lifecycle_states.map { |state| state.to_s },
+    first_state: lifecycle_states[0].to_s,
+    target_count: build_targets("staging").length
+  }
+end

@@ -1,0 +1,65 @@
+# title: Parse an IP Address
+# source: https://rosettacode.org/wiki/Parse_an_IP_Address
+# category: Rosetta Code
+# difficulty: Easy
+# summary: Parse dotted IPv4 strings into four validated octets.
+# tags: popular, strings, parsing, networking
+# vibe: 0.2
+
+def digit_value(char: string) -> int
+  digits = "0123456789"
+  digits.index(char).as(int)
+end
+
+def parse_octet(text: string) -> int?
+  if text == ""
+    return nil
+  end
+
+  value = 0
+  index = 0
+
+  while index < text.length
+    digit = digit_value(text.slice(index).as(string))
+    if digit == nil
+      return nil
+    end
+    value = (value * 10) + digit
+    index = index + 1
+  end
+
+  if value < 0 || value > 255
+    return nil
+  end
+
+  value
+end
+
+def parse_ipv4(text: string) -> array<int>?
+  parts = text.split(".")
+  if parts.length != 4
+    return nil
+  end
+
+  octets: array<int> = []
+  index = 0
+  while index < parts.length
+    octet = parse_octet(parts.fetch(index))
+    if octet == nil
+      return nil
+    end
+    octets = octets + [octet]
+    index = index + 1
+  end
+
+  octets
+end
+
+def run -> { docs: array<int>?, invalid_range: array<int>?, invalid_shape: array<int>?, localhost: array<int>? }
+  {
+    localhost: parse_ipv4("127.0.0.1"),
+    docs: parse_ipv4("192.168.10.42"),
+    invalid_range: parse_ipv4("256.1.1.1"),
+    invalid_shape: parse_ipv4("10.20.30")
+  }
+end

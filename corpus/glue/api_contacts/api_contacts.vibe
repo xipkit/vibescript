@@ -1,0 +1,10 @@
+type Contact = { id: int, email: string, active: bool, ... }
+type Recipient = { id: string, email: string }
+def recipients(raw: string) -> string
+  contacts = JSON.parse_as(raw, array<Contact>)
+  selected = contacts.select { |contact| contact["active"] }
+  rows: array<Recipient> = selected.map { |contact|
+    { id: contact["id"].to_s, email: contact["email"].strip.downcase }
+  }
+  JSON.stringify(rows)
+end

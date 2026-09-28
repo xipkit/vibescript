@@ -1,0 +1,964 @@
+use super::*;
+use crate::{ErrorClass, budget::Charge};
+use std::{mem::size_of, sync::Arc};
+
+pub(super) enum Event {
+    Host,
+    Control(Control),
+    Error(Arc<SavedError>),
+}
+
+impl Control {
+    pub fn exits(&self, storage: &Storage, floor: usize) -> bool {
+        match self {
+            Self::Return { target, .. }
+            | Self::Break { target, .. }
+            | Self::Next { target, .. } => *target < floor,
+            Self::Invalid { frame, .. } => *frame < floor,
+            Self::Retry { handler } => storage.handlers.data[*handler].frame < floor,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum Jump {
+    Break,
+    Next,
+    Return,
+}
+
+impl Jump {
+    fn error(self) -> Error {
+        Error::local_jump(match self {
+            Self::Break => "break cannot cross call boundary",
+            Self::Next => "next cannot cross call boundary",
+            Self::Return => "unexpected return",
+        })
+    }
+}
+
+pub(super) enum Control {
+    Invalid {
+        frame: usize,
+        jump: Jump,
+        _value: Option<Value>,
+    },
+    Return {
+        target: usize,
+        value: Value,
+        normalize: bool,
+    },
+    Break {
+        target: usize,
+        loop_index: usize,
+        value: Option<Value>,
+    },
+    Next {
+        target: usize,
+        loop_index: usize,
+    },
+    Retry {
+        handler: usize,
+    },
+}
+
+pub(super) struct SavedError {
+    pub error: Error,
+    _charge: Option<Charge>,
+}
+
+impl SavedError {
+    pub fn new(
+        program: &Program,
+        ctx: &mut CallContext,
+        frames: &[Frame],
+        entry: usize,
+        mut error: Error,
+    ) -> Result<Arc<Self>> {
+        // The saved error assumes ownership of these allocations below.
+        error.retained_charge = None;
+        ctx.work_bytes(error.message_bytes().len())?;
+        let mut charge =
+            ctx.reserve(size_of::<Self>() + 2 * size_of::<usize>() + error.allocation_bytes())?;
+        if let Some(diagnostic) = &error.diagnostic {
+            Charge::merge(
+                &mut charge,
+                ctx.reserve(
+                    size_of::<crate::Diagnostic>()
+                        + 2 * size_of::<usize>()
+                        + diagnostic.code_frame.capacity()
+                        + diagnostic.frames.capacity() * size_of::<crate::StackFrame>(),
+                )?,
+            );
+            charge_filename(ctx, &mut charge, diagnostic.filename.as_ref(), [])?;
+            for (index, frame) in diagnostic.frames.iter().enumerate() {
+                ctx.charge(index as u64 + 1)?;
+                if !diagnostic.frames[..index]
+                    .iter()
+                    .any(|prior| Arc::ptr_eq(&prior.function, &frame.function))
+                {
+                    ctx.work_bytes(frame.function.len())?;
+                    Charge::merge(
+                        &mut charge,
+                        ctx.reserve(frame.function.len() + 2 * size_of::<usize>())?,
+                    );
+                }
+                charge_filename(
+                    ctx,
+                    &mut charge,
+                    frame.filename.as_ref(),
+                    std::iter::once(diagnostic.filename.as_ref()).chain(
+                        diagnostic.frames[..index]
+                            .iter()
+                            .map(|prior| prior.filename.as_ref()),
+                    ),
+                )?;
+            }
+        } else {
+            ctx.charge(frames.len() as u64)?;
+            let (program, frames, offset) = diagnostic_site(program, frames, entry);
+            charge_filename(ctx, &mut charge, program.source.filename.as_ref(), [])?;
+            let position = program.source.position_metered(ctx, offset)?;
+            let (code_frame, snippet_charge) =
+                program.source.frame_metered(ctx, offset, position)?;
+            Charge::merge(&mut charge, snippet_charge);
+            let mut trace: Buffer<crate::StackFrame> =
+                Buffer::with_capacity(ctx, trace_entries(program, frames, offset).count())?;
+            for (name, source, at) in trace_entries(program, frames, offset) {
+                ctx.charge(trace.data.len() as u64 + 1)?;
+                let seen = name.is_some_and(|name| {
+                    trace
+                        .data
+                        .iter()
+                        .any(|prior| Arc::ptr_eq(&prior.function, name))
+                });
+                if !seen {
+                    let name = name.map_or("<script>", |name| &**name);
+                    ctx.work_bytes(name.len())?;
+                    Charge::merge(
+                        &mut charge,
+                        ctx.reserve(name.len() + 2 * size_of::<usize>())?,
+                    );
+                }
+                charge_filename(
+                    ctx,
+                    &mut charge,
+                    source.filename.as_ref(),
+                    std::iter::once(program.source.filename.as_ref())
+                        .chain(trace.data.iter().map(|prior| prior.filename.as_ref())),
+                )?;
+                trace.data.push(crate::StackFrame {
+                    function: name.cloned().unwrap_or_else(|| "<script>".into()),
+                    filename: source.filename.clone(),
+                    position: source.position_metered(ctx, at)?,
+                });
+            }
+            let (trace, trace_charge) = trace.into_parts();
+            Charge::merge(&mut charge, trace_charge);
+            Charge::merge(
+                &mut charge,
+                ctx.reserve(size_of::<crate::Diagnostic>() + 2 * size_of::<usize>())?,
+            );
+            error.offset = Some(offset as usize);
+            error.diagnostic = Some(Arc::new(crate::Diagnostic {
+                filename: program.source.filename.clone(),
+                position,
+                code_frame,
+                frames: trace,
+            }));
+        }
+        Ok(Arc::new(Self {
+            error,
+            _charge: charge,
+        }))
+    }
+
+    pub fn into_error(self: Arc<Self>, ctx: &mut CallContext) -> Result<Error> {
+        let header = size_of::<Self>() - size_of::<Charge>();
+        match Arc::try_unwrap(self) {
+            Ok(mut saved) => {
+                if let Some(charge) = &mut saved._charge {
+                    charge.release(header);
+                }
+                saved.error.retained_charge = saved._charge.map(Arc::new);
+                Ok(saved.error)
+            }
+            Err(saved) => {
+                ctx.work_bytes(saved.error.message.len())?;
+                let charge = saved
+                    ._charge
+                    .as_ref()
+                    .map(|charge| ctx.reserve(charge.bytes() - header))
+                    .transpose()?
+                    .flatten();
+                let mut error = saved.error.clone();
+                error.retained_charge = charge.map(Arc::new);
+                Ok(error)
+            }
+        }
+    }
+
+    fn value(&self, ctx: &mut CallContext) -> Result<Value> {
+        let mut hash = Hash::empty();
+        let class = ctx.bytes(
+            self.error
+                .class()
+                .unwrap_or(ErrorClass::Runtime)
+                .name()
+                .as_bytes(),
+        )?;
+        let message = ctx.bytes(self.error.message_bytes())?;
+        let code = ctx.bytes(
+            self.error
+                .diagnostic
+                .as_ref()
+                .map_or("", |d| d.code_frame.as_str())
+                .as_bytes(),
+        )?;
+        let mut trace = Buffer::empty();
+        if let Some(diagnostic) = &self.error.diagnostic {
+            for frame in &diagnostic.frames {
+                ctx.work_bytes(frame.filename.as_ref().map_or(0, |name| name.len()))?;
+                let (text, _charge) = crate::source::formatted(
+                    ctx,
+                    format_args!(
+                        "{}:in `{}`",
+                        crate::source::Location {
+                            filename: frame.filename.as_deref(),
+                            position: frame.position,
+                        },
+                        frame.function
+                    ),
+                )?;
+                let value = ctx.bytes(text.as_bytes())?;
+                trace.push(ctx, value)?;
+            }
+        }
+        let trace = Value::from_array(ctx, trace)?;
+        // Fields are stored in sorted order, as Go exposes them to iteration.
+        for (key, value) in [
+            ("backtrace", trace),
+            ("class", class.clone()),
+            ("code_frame", code),
+            ("message", message.clone()),
+            ("to_s", message),
+            ("type", class),
+        ] {
+            let key = ctx.bytes(key.as_bytes())?;
+            hash.insert(ctx, key, value)?;
+        }
+        hash.object = true;
+        hash.tag = crate::hash::Tag::Error;
+        Ok(Value(Kind::Hash(hash.into_arc(ctx)?)))
+    }
+}
+
+fn charge_filename<'a>(
+    ctx: &mut CallContext,
+    charge: &mut Option<Charge>,
+    filename: Option<&Arc<[u8]>>,
+    prior: impl IntoIterator<Item = Option<&'a Arc<[u8]>>>,
+) -> Result<()> {
+    let Some(filename) = filename else {
+        return Ok(());
+    };
+    for previous in prior {
+        ctx.charge(1)?;
+        if previous.is_some_and(|previous| Arc::ptr_eq(previous, filename)) {
+            return Ok(());
+        }
+    }
+    ctx.work_bytes(filename.len())?;
+    Charge::merge(
+        charge,
+        ctx.reserve(filename.len() + 2 * size_of::<usize>())?,
+    );
+    Ok(())
+}
+
+#[derive(Clone, Copy)]
+struct Snapshot {
+    stack: usize,
+    addresses: usize,
+    bypasses: usize,
+    texts: usize,
+    arguments: usize,
+    loops: usize,
+    iterations: usize,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Phase {
+    Body,
+    Rescue,
+    Else,
+    Ensure,
+}
+
+pub(super) enum Pending {
+    Value(Value),
+    Control(Control),
+    Error(Arc<SavedError>),
+}
+
+pub(super) struct Handler {
+    frame: usize,
+    spec: usize,
+    snapshot: Snapshot,
+    phase: Phase,
+    binding: Option<usize>,
+    error: Option<Arc<SavedError>>,
+    pending: Option<Pending>,
+}
+
+fn declare(
+    ctx: &mut CallContext,
+    frames: &Buffer<Frame>,
+    storage: &mut Storage,
+    frame: usize,
+    slots: &[usize],
+) -> Result<()> {
+    for &slot in slots {
+        ctx.charge(1)?;
+        let resolved = resolve_slot(ctx, frames, storage, frame, slot, false)?;
+        let owner = &frames.data[frame];
+        let program = &owner.program;
+        if file_bindings::local(program, ctx, frames, storage, frame, slot, resolved)? {
+            let name = &program.functions[owner.function().unwrap()].local_names[slot];
+            file_bindings::declare(program, ctx, storage, name)?;
+        } else if !requires::local(ctx, frames, storage, frame, slot, resolved)? {
+            storage.locals.data[resolved].get_or_insert_with(Value::nil);
+        }
+    }
+    Ok(())
+}
+
+fn restore(
+    frames: &mut Buffer<Frame>,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+    handler: usize,
+) {
+    let h = &storage.handlers.data[handler];
+    let (owner, state) = (h.frame, h.snapshot);
+    if frames.data.len() > owner + 1 {
+        unwind(frames, storage, stack, owner + 1);
+    }
+    stack.data.truncate(state.stack);
+    storage.addresses.data.truncate(state.addresses);
+    storage.bypasses.data.truncate(state.bypasses);
+    storage.texts.data.truncate(state.texts);
+    storage.iterations.data.truncate(state.iterations);
+    storage.arguments.data.truncate(state.arguments);
+    storage.loops.data.truncate(state.loops);
+}
+
+fn clear_binding(storage: &mut Storage, handler: usize) {
+    if let Some(slot) = storage.handlers.data[handler].binding.take() {
+        storage.locals.data[slot] = None;
+    }
+    storage.handlers.data[handler].error = None;
+}
+
+pub(super) fn begin(
+    ctx: &mut CallContext,
+    frames: &Buffer<Frame>,
+    storage: &mut Storage,
+    stack: &Buffer<Value>,
+    spec: usize,
+) -> Result<()> {
+    let owner = frames.data.len() - 1;
+    let snapshot = Snapshot {
+        stack: stack.data.len(),
+        addresses: storage.addresses.data.len(),
+        bypasses: storage.bypasses.data.len(),
+        texts: storage.texts.data.len(),
+        arguments: storage.arguments.data.len(),
+        loops: storage.loops.data.len(),
+        iterations: storage.iterations.data.len(),
+    };
+    storage.handlers.push(
+        ctx,
+        Handler {
+            frame: owner,
+            spec,
+            snapshot,
+            phase: Phase::Body,
+            binding: None,
+            error: None,
+            pending: None,
+        },
+    )
+}
+
+pub(super) fn current_error(storage: &Storage) -> Option<Arc<SavedError>> {
+    storage.handlers.data.iter().rev().find_map(|h| {
+        (h.phase == Phase::Rescue)
+            .then(|| h.error.clone())
+            .flatten()
+    })
+}
+
+pub(super) fn retry(storage: &Storage) -> Result<Control> {
+    let Some((handler, _)) = storage
+        .handlers
+        .data
+        .iter()
+        .enumerate()
+        .rev()
+        .find(|(_, h)| h.phase == Phase::Rescue)
+    else {
+        return Err(Error::new(
+            ErrorKind::Runtime,
+            "retry used outside of rescue",
+        ));
+    };
+    Ok(Control::Retry { handler })
+}
+
+fn prepare_ensure(
+    ctx: &mut CallContext,
+    frames: &mut Buffer<Frame>,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+    handler: usize,
+    pending: Pending,
+) -> Result<Option<Pending>> {
+    let h = &storage.handlers.data[handler];
+    let (owner, index) = (h.frame, h.spec);
+    let program = frames.data[owner].program.clone();
+    let spec = &program.handlers[index];
+    declare(ctx, frames, storage, owner, &spec.body_locals)?;
+    for clause in &spec.rescues {
+        declare(ctx, frames, storage, owner, &clause.locals)?;
+    }
+    declare(ctx, frames, storage, owner, &spec.alternate_locals)?;
+    clear_binding(storage, handler);
+    restore(frames, storage, stack, handler);
+    if let Some(ensure) = spec.ensure {
+        let h = &mut storage.handlers.data[handler];
+        h.phase = Phase::Ensure;
+        h.pending = Some(pending);
+        frames.data[owner].ip = ensure;
+        Ok(None)
+    } else {
+        storage.handlers.data.pop();
+        frames.data[owner].ip = spec.end;
+        Ok(Some(pending))
+    }
+}
+
+pub(super) fn normal(
+    ctx: &mut CallContext,
+    frames: &mut Buffer<Frame>,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+    body: bool,
+) -> Result<()> {
+    let index = storage.handlers.data.len() - 1;
+    let h = &storage.handlers.data[index];
+    let program = frames.data[h.frame].program.clone();
+    let (owner, spec) = (h.frame, &program.handlers[h.spec]);
+    let value = stack.data.pop().unwrap();
+    if body {
+        declare(ctx, frames, storage, owner, &spec.body_locals)?;
+        for clause in &spec.rescues {
+            declare(ctx, frames, storage, owner, &clause.locals)?;
+        }
+        if let Some(alternate) = spec.alternate {
+            storage.handlers.data[index].phase = Phase::Else;
+            frames.data[owner].ip = alternate;
+            return Ok(());
+        }
+    }
+    if let Some(Pending::Value(value)) =
+        prepare_ensure(ctx, frames, storage, stack, index, Pending::Value(value))?
+    {
+        stack.push(ctx, value)?;
+    }
+    Ok(())
+}
+
+pub(super) fn end_ensure(
+    frames: &mut Buffer<Frame>,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+    ctx: &mut CallContext,
+) -> Result<Option<Event>> {
+    let mut h = storage.handlers.data.pop().unwrap();
+    frames.data[h.frame].ip = frames.data[h.frame].program.handlers[h.spec].end;
+    match h.pending.take().unwrap() {
+        Pending::Value(value) => {
+            stack.push(ctx, value)?;
+            Ok(None)
+        }
+        Pending::Control(control) => Ok(Some(Event::Control(control))),
+        Pending::Error(error) => Ok(Some(Event::Error(error))),
+    }
+}
+
+pub(super) fn error(
+    ctx: &mut CallContext,
+    frames: &mut Buffer<Frame>,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+    error: Arc<SavedError>,
+    floor: usize,
+) -> Result<()> {
+    ctx.checkpoint()?;
+    while let Some(index) = storage.handlers.data.len().checked_sub(1) {
+        ctx.charge(1)?;
+        let h = &storage.handlers.data[index];
+        if h.frame < floor {
+            break;
+        }
+        let program = frames.data[h.frame].program.clone();
+        let (owner, spec, phase) = (h.frame, &program.handlers[h.spec], h.phase);
+        if phase == Phase::Ensure {
+            clear_binding(storage, index);
+            storage.handlers.data.pop();
+            continue;
+        }
+        restore(frames, storage, stack, index);
+        declare(ctx, frames, storage, owner, &spec.body_locals)?;
+        if phase == Phase::Body {
+            for clause in &spec.rescues {
+                ctx.charge(1)?;
+                if error
+                    .error
+                    .class()
+                    .is_some_and(|class| clause.classes.iter().any(|filter| filter.matches(class)))
+                {
+                    if clause.empty {
+                        break;
+                    }
+                    let h = &mut storage.handlers.data[index];
+                    h.phase = Phase::Rescue;
+                    h.error = Some(error.clone());
+                    frames.data[owner].ip = clause.start;
+                    if let Some(slot) = clause.binding {
+                        let slot = frames.data[owner].local_base() + slot;
+                        let value = error.value(ctx)?;
+                        storage.locals.data[slot] = Some(value);
+                        storage.handlers.data[index].binding = Some(slot);
+                    }
+                    return Ok(());
+                }
+                declare(ctx, frames, storage, owner, &clause.locals)?;
+            }
+        }
+        if prepare_ensure(
+            ctx,
+            frames,
+            storage,
+            stack,
+            index,
+            Pending::Error(error.clone()),
+        )?
+        .is_none()
+        {
+            return Ok(());
+        }
+    }
+    Err(error.into_error(ctx)?)
+}
+
+/// Reports whether a handler belongs to `frame` or a frame above it, so that
+/// control leaving `frame` must pass through [`intercept`].
+pub(super) fn guards(storage: &Storage, frame: usize) -> bool {
+    storage
+        .handlers
+        .data
+        .last()
+        .is_some_and(|handler| handler.frame >= frame)
+}
+
+pub(super) fn intercept(
+    ctx: &mut CallContext,
+    frames: &mut Buffer<Frame>,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+    mut control: Control,
+    floor: usize,
+) -> Result<Option<Control>> {
+    let current = frames.data.len() - 1;
+    let cross_call_retry = matches!(&control, Control::Retry { handler } if storage.handlers.data[*handler].frame != current);
+    while let Some(index) = storage.handlers.data.len().checked_sub(1) {
+        let h = &storage.handlers.data[index];
+        if h.frame < floor {
+            break;
+        }
+        if cross_call_retry && h.frame != current {
+            break;
+        }
+        let exits = match &control {
+            Control::Invalid { frame, .. } => h.frame >= *frame,
+            Control::Return { target, .. } => h.frame >= *target,
+            Control::Break {
+                target, loop_index, ..
+            }
+            | Control::Next { target, loop_index } => {
+                h.frame > *target || (h.frame == *target && h.snapshot.loops > *loop_index)
+            }
+            Control::Retry { handler } => index > *handler,
+        };
+        if !exits {
+            break;
+        }
+        ctx.charge(1)?;
+        if h.phase == Phase::Ensure {
+            clear_binding(storage, index);
+            storage.handlers.data.pop();
+            continue;
+        }
+        match prepare_ensure(
+            ctx,
+            frames,
+            storage,
+            stack,
+            index,
+            Pending::Control(control),
+        )? {
+            None => return Ok(None),
+            Some(Pending::Control(pending)) => control = pending,
+            _ => unreachable!(),
+        }
+    }
+    if cross_call_retry {
+        unwind(frames, storage, stack, current);
+        return Err(Error::local_jump("retry cannot cross call boundary"));
+    }
+    Ok(Some(control))
+}
+
+pub(super) fn restart(
+    ctx: &mut CallContext,
+    frames: &mut Buffer<Frame>,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+    index: usize,
+) -> Result<()> {
+    ctx.charge(1)?;
+    clear_binding(storage, index);
+    restore(frames, storage, stack, index);
+    let h = &mut storage.handlers.data[index];
+    h.phase = Phase::Body;
+    h.pending = None;
+    frames.data[h.frame].ip = frames.data[h.frame].program.handlers[h.spec].body;
+    Ok(())
+}
+
+pub(super) fn class(value: &Value) -> Option<ErrorClass> {
+    let Kind::Namespace(namespace) = &value.0 else {
+        return None;
+    };
+    ErrorClass::from_name(&namespace.definition.name)
+}
+
+pub(super) fn class_constant_bound(
+    ctx: &mut CallContext,
+    frames: &mut Buffer<Frame>,
+    storage: &mut Storage,
+    current: usize,
+    name: &str,
+) -> Result<bool> {
+    let program = &frames.data[current].program;
+    let module = frames.data[current]
+        .function()
+        .and_then(|f| program.functions[f].namespace);
+    if let Some(module) = module {
+        return namespaces::field(program, ctx, storage, module, name).map(|value| value.is_some());
+    }
+    Ok(false)
+}
+
+pub(super) fn raise(
+    ctx: &mut CallContext,
+    class: Option<ErrorClass>,
+    message: Value,
+    typed: bool,
+) -> Result<Error> {
+    let Kind::Bytes(bytes) = &message.0 else {
+        return Ok(Error::new(
+            ErrorKind::Type,
+            if typed {
+                "exception message must be string"
+            } else if matches!(message.0, Kind::Nil) {
+                "exception object expected"
+            } else {
+                "exception class/object expected"
+            },
+        )
+        .with_class(ErrorClass::Type));
+    };
+    if typed && class.is_none() {
+        return Ok(
+            Error::new(ErrorKind::Type, "exception class/object expected")
+                .with_class(ErrorClass::Type),
+        );
+    }
+    Ok(Error::from_bytes(ctx, &bytes.data)?.with_class(class.unwrap_or(ErrorClass::Runtime)))
+}
+
+/// Whether frame `index` has an active loop. A frame's loops end where the
+/// next frame's start, since only the executing frame starts or ends one.
+pub(super) fn has_loops(frames: &Buffer<Frame>, storage: &Storage, index: usize) -> bool {
+    loop_count(frames, storage, index) > 0
+}
+
+/// How many loops frame `index` has active.
+fn loop_count(frames: &Buffer<Frame>, storage: &Storage, index: usize) -> usize {
+    let end = frames
+        .data
+        .get(index + 1)
+        .map_or(storage.loops.data.len(), |next| next.loop_base());
+    end - frames.data[index].loop_base()
+}
+
+pub(super) fn guard_loop(
+    ctx: &mut CallContext,
+    frames: &Buffer<Frame>,
+    storage: &Storage,
+    breaking: bool,
+) -> Result<()> {
+    for (index, frame) in frames.data.iter().enumerate().rev() {
+        ctx.charge(1)?;
+        if has_loops(frames, storage, index)
+            || frame
+                .function()
+                .is_none_or(|i| frame.program.functions[i].name == "<block>")
+        {
+            return Ok(());
+        }
+    }
+    Err(Error::new(
+        ErrorKind::Argument,
+        if breaking {
+            "break used outside of loop"
+        } else {
+            "next used outside of loop"
+        },
+    ))
+}
+
+fn invalid_loop_control(
+    frames: &Buffer<Frame>,
+    storage: &Storage,
+    breaking: bool,
+    value: Option<Value>,
+) -> Result<Control> {
+    let frame = frames.data.len() - 1;
+    if frames.data[..frame].iter().enumerate().any(|(index, f)| {
+        has_loops(frames, storage, index)
+            || f.function()
+                .is_none_or(|i| f.program.functions[i].name == "<block>")
+    }) {
+        Ok(Control::Invalid {
+            frame,
+            jump: if breaking { Jump::Break } else { Jump::Next },
+            _value: value,
+        })
+    } else {
+        Err(Error::new(
+            ErrorKind::Argument,
+            if breaking {
+                "break used outside of loop"
+            } else {
+                "next used outside of loop"
+            },
+        ))
+    }
+}
+
+pub(super) fn loop_control(
+    frames: &Buffer<Frame>,
+    storage: &Storage,
+    breaking: bool,
+    value: Option<Value>,
+) -> Result<Control> {
+    let current = frames.data.len() - 1;
+    let frame = &frames.data[current];
+    // Loop indexes are positions in the shared loop stack.
+    if has_loops(frames, storage, current) {
+        let loop_index = storage.loops.data.len() - 1;
+        return Ok(if breaking {
+            Control::Break {
+                target: current,
+                loop_index,
+                value,
+            }
+        } else {
+            Control::Next {
+                target: current,
+                loop_index,
+            }
+        });
+    }
+    // A namespace body keeps its declaring frame as a parent, but it is not a block.
+    let initializer = frame
+        .function()
+        .is_some_and(|index| frame.program.functions[index].initializer);
+    if frame.parent().is_none() || initializer {
+        return invalid_loop_control(frames, storage, breaking, value);
+    }
+    if !breaking {
+        return Ok(Control::Return {
+            target: current,
+            value: value.unwrap_or_default(),
+            normalize: false,
+        });
+    }
+    let target = (0..current)
+        .rev()
+        .find(|&i| has_loops(frames, storage, i) || frames.data[i].parent().is_none())
+        .unwrap();
+    if has_loops(frames, storage, target) {
+        let loop_index = frames.data[target].loop_base() + loop_count(frames, storage, target) - 1;
+        return Ok(Control::Break {
+            target,
+            loop_index,
+            value,
+        });
+    }
+    if frames.data[target].block.is_none() {
+        return invalid_loop_control(frames, storage, true, value);
+    }
+    Ok(Control::Return {
+        target,
+        value: value.unwrap_or_default(),
+        // A break replaces a constructor's instance and skips its return type.
+        normalize: !frames.data[target].constructor,
+    })
+}
+
+pub(super) fn apply_control(
+    ctx: &mut CallContext,
+    frames: &mut Buffer<Frame>,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+    pending_entry: bool,
+    control: Control,
+) -> Result<Option<Value>> {
+    match control {
+        Control::Invalid { frame, jump, .. } => {
+            unwind(frames, storage, stack, frame);
+            return Err(jump.error());
+        }
+        Control::Retry { handler } => restart(ctx, frames, storage, stack, handler)?,
+        Control::Break {
+            target,
+            loop_index,
+            value,
+        } => {
+            if frames.data.len() > target + 1 {
+                unwind(frames, storage, stack, target + 1);
+            }
+            let frame = &mut frames.data[target];
+            storage.loops.data.truncate(loop_index + 1);
+            let state = &mut storage.loops.data[loop_index];
+            state.broken = true;
+            state.break_value = value;
+            stack.data.truncate(state.base);
+            storage.addresses.data.truncate(state.address_base);
+            storage.bypasses.data.truncate(state.bypass_base);
+            storage.texts.data.truncate(state.text_base);
+            storage.arguments.data.truncate(state.argument_base);
+            frame.ip = state.end;
+        }
+        Control::Next { target, loop_index } => {
+            if frames.data.len() > target + 1 {
+                unwind(frames, storage, stack, target + 1);
+            }
+            let frame = &mut frames.data[target];
+            storage.loops.data.truncate(loop_index + 1);
+            let state = &storage.loops.data[loop_index];
+            stack.data.truncate(state.base);
+            storage.addresses.data.truncate(state.address_base);
+            storage.bypasses.data.truncate(state.bypass_base);
+            storage.texts.data.truncate(state.text_base);
+            storage.arguments.data.truncate(state.argument_base);
+            frame.ip = state.next;
+        }
+        Control::Return {
+            target,
+            value,
+            normalize,
+        } => {
+            let value = if normalize {
+                normalize_return(ctx, frames, storage, target, value)?
+            } else {
+                value
+            };
+            let return_to = std::mem::take(&mut frames.data[target].return_to);
+            let initialized = frames.data[target].function().and_then(|function| {
+                frames.data[target].program.functions[function]
+                    .initializer
+                    .then(|| {
+                        frames.data[target].program.functions[function]
+                            .namespace
+                            .unwrap()
+                    })
+            });
+            if let Some(module) = initialized {
+                let program = frames.data[target].program.clone();
+                let state = namespaces::state(&program, ctx, storage, module)?;
+                namespaces::initialized(ctx, storage, state)?;
+            }
+            if target == 0 && !pending_entry && storage.root_locals.is_some() {
+                execution::capture_root_locals(ctx, &frames.data[0], storage)?;
+            }
+            unwind(frames, storage, stack, target);
+            if frames.data.is_empty() {
+                if pending_entry {
+                    return Ok(None);
+                }
+                ctx.checkpoint()?;
+                return Ok(Some(value));
+            }
+            if initialized.is_some() {
+                return Ok(None);
+            }
+            match return_to {
+                ReturnTo::Require(index) => {
+                    let value = requires::complete(ctx, frames, storage, index)?;
+                    stack.push(ctx, value)?;
+                }
+                ReturnTo::Output => {
+                    let program = frames.data.last().unwrap().program.clone();
+                    output::resume(&program, ctx, frames, storage, stack, Some(value))?
+                }
+                ReturnTo::Format => {
+                    let program = frames.data.last().unwrap().program.clone();
+                    format::resume(&program, ctx, frames, storage, stack, Some(value))?
+                }
+                ReturnTo::Stack => stack.push(ctx, value)?,
+                ReturnTo::Address => storage.addresses.push(ctx, Address::new(None, value))?,
+                ReturnTo::Assigned(value) => stack.push(ctx, value)?,
+                ReturnTo::Negate => stack.push(ctx, Value::boolean(!value.truthy()))?,
+                ReturnTo::Local(slot) => {
+                    address::refresh(ctx, slot, &value, &mut storage.addresses.data, &[])?;
+                    storage.locals.data[slot] = Some(value.clone());
+                    stack.push(ctx, value)?;
+                }
+                ReturnTo::RootBinding(name) => {
+                    requires::set(
+                        ctx,
+                        storage,
+                        std::str::from_utf8(name.as_bytes().unwrap()).unwrap(),
+                        &value,
+                    )?;
+                    stack.push(ctx, value)?;
+                }
+                ReturnTo::Text(original) => {
+                    let rendered = if matches!(value.0, Kind::Bytes(_)) {
+                        value
+                    } else {
+                        original
+                    };
+                    crate::text::append(ctx, &rendered, storage.texts.data.last_mut().unwrap())?;
+                }
+            }
+        }
+    }
+    Ok(None)
+}

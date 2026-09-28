@@ -1,0 +1,51 @@
+# title: Permutations
+# source: https://rosettacode.org/wiki/Permutations
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Generate every permutation of three items with a simple recursive backtracking routine.
+# tags: popular, arrays, recursion, combinatorics
+# vibe: 0.2
+
+def remove_at(values: array<string>, skip_index: int) -> array<string>
+  output: array<string> = []
+  index = 0
+
+  while index < values.length
+    if index != skip_index
+      output = output.push(values.fetch(index))
+    end
+    index = index + 1
+  end
+
+  output
+end
+
+def permutations(values: array<string>) -> array<array<string>>
+  if values.empty?
+    return [[]]
+  end
+
+  output: array<array<string>> = []
+  index = 0
+
+  while index < values.length
+    current = values.fetch(index)
+    tails = permutations(remove_at(values, index))
+    tail_index = 0
+    while tail_index < tails.length
+      output = output.push([current] + tails.fetch(tail_index))
+      tail_index = tail_index + 1
+    end
+    index = index + 1
+  end
+
+  output
+end
+
+def run -> { count: int, permutations: array<array<string>> }
+  values = permutations(["A", "B", "C"])
+  {
+    count: values.length,
+    permutations: values
+  }
+end

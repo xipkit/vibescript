@@ -1,0 +1,4 @@
+def test_job_state
+  subject = require("job_state")
+  assert subject.execute == "done:1"
+end

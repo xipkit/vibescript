@@ -1,0 +1,54 @@
+# title: Late fee policy
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Choose a late fee from the account standing and days overdue.
+# description: Enums name each account standing. Money and durations keep the amounts and time windows clear.
+# tags: finance, money, durations, enums
+# vibe: 0.2
+
+enum AccountStanding
+  Current
+  Grace
+  Delinquent
+end
+
+def standing_for(overdue: duration) -> AccountStanding
+  if overdue <= 3.days
+    AccountStanding::Current
+  elsif overdue <= 15.days
+    AccountStanding::Grace
+  else
+    AccountStanding::Delinquent
+  end
+end
+
+def late_fee(standing: AccountStanding) -> money
+  if standing == AccountStanding::Current
+    money("0.00 USD")
+  elsif standing == AccountStanding::Grace
+    money("12.00 USD")
+  else
+    money("35.00 USD")
+  end
+end
+
+def account_snapshot(invoice_id: string, balance: money, overdue: duration) -> hash<string, money | string>
+  standing = standing_for(overdue)
+  fee = late_fee(standing)
+
+  {
+    invoice_id: invoice_id,
+    standing: standing.name,
+    overdue: overdue.iso8601,
+    balance: balance,
+    late_fee: fee,
+    total_due: balance + fee
+  }
+end
+
+def run -> { delinquent: hash<string, money | string>, grace: hash<string, money | string> }
+  {
+    grace: account_snapshot("inv_310", money("240.00 USD"), 7.days),
+    delinquent: account_snapshot("inv_311", money("240.00 USD"), 28.days)
+  }
+end

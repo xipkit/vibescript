@@ -1,8 +1,0 @@
-def helper
-  21
-end
-
-def start
-  dep = require("require_cached_b")
-  dep.use_a_helper
-end

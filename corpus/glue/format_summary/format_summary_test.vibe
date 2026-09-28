@@ -1,0 +1,5 @@
+def test_format_summary
+  subject = require("format_summary")
+  assert subject.summary(3, 4, 1205) == "3/4 (75.0%) USD 12.05"
+  assert subject.summary(0, 0, 0) == "0/0 (0.0%) USD 0.00"
+end

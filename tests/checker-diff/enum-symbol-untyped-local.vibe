@@ -1,0 +1,11 @@
+# expect: rejected V0101
+enum E
+  Red
+  Blue
+end
+x = E::Red
+x = :blue
+n: int = case x
+  when E::Red then 1
+  when E::Blue then 2
+end

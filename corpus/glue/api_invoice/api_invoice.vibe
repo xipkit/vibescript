@@ -1,0 +1,6 @@
+type Invoice = { id: string, customer: { name: string }, lines: array<{ sku: string, cents: int, quantity: int }> }
+def export_invoice(raw: string) -> string
+  invoice = JSON.parse_as(raw, Invoice)
+  total = invoice["lines"].sum { |line| line["cents"] * line["quantity"] }
+  JSON.stringify({ id: invoice["id"], customer: invoice["customer"]["name"], total_cents: total })
+end

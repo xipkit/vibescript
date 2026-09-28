@@ -1,0 +1,14 @@
+type Page = { values: array<string>, next: string? }
+def collect_cursors(pages: hash<string, string>, limit: int) -> array<string>
+  cursor: string? = "start"
+  values: array<string> = []
+  count = 0
+  while cursor != nil
+    raise "page budget exceeded" if count >= limit
+    page = JSON.parse_as(pages.fetch(cursor), Page)
+    values = values + page["values"]
+    cursor = page["next"]
+    count += 1
+  end
+  values
+end

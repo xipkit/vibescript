@@ -1,0 +1,37 @@
+# title: Synchronous blocks
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Pass short-lived behavior directly to the function that uses it.
+# description: Blocks run during the receiving call, so control flow stays local and visible.
+# tags: language, blocks, control-flow
+# vibe: 1.0
+
+def transform_twice(value: int, &block: int -> int) -> int
+  first = yield(value)
+  yield(first)
+end
+
+def select_ready(records: array<{ id: string, state: string }>, &block: { id: string, state: string } -> bool) -> array<{ id: string, state: string }>
+  records.select { |record|
+    yield(record)
+  }
+end
+
+def run -> { doubled_twice: int, ready_ids: array<string> }
+  doubled_twice = transform_twice(3) { |value|
+    value * 2
+  }
+
+  ready = select_ready([
+    { id: "a", state: "ready" },
+    { id: "b", state: "waiting" },
+    { id: "c", state: "ready" }
+  ]) { |record|
+    record["state"] == "ready"
+  }
+
+  {
+    doubled_twice: doubled_twice,
+    ready_ids: ready.map { |record| record["id"] }
+  }
+end

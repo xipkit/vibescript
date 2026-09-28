@@ -1,0 +1,9 @@
+# expect: rejected V0101
+# A getter declared with another type than its variable's returned the
+# variable's value as its own type: here a float as an int.
+class C
+  @x: float = 1.0
+  getter x: int
+end
+y: int = C.new.x
+p(y)

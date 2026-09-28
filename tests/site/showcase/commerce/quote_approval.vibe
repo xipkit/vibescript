@@ -1,0 +1,42 @@
+# title: Quote approval
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Send each quote to the right approval step based on its total.
+# description: Money values set the thresholds, and an enum names each approval step.
+# tags: commerce, money, enums, approvals
+# vibe: 0.2
+
+enum ApprovalLane
+  AutoApprove
+  Manager
+  Finance
+end
+
+def approval_lane(total: money, margin_points: int) -> ApprovalLane
+  if total >= money("25000.00 USD") || margin_points < 20
+    ApprovalLane::Finance
+  elsif total >= money("5000.00 USD") || margin_points < 35
+    ApprovalLane::Manager
+  else
+    ApprovalLane::AutoApprove
+  end
+end
+
+def quote_decision(quote_id: string, total: money, margin_points: int) -> hash<string, int | money | string>
+  lane = approval_lane(total, margin_points)
+
+  {
+    quote_id: quote_id,
+    total: total,
+    margin_points: margin_points,
+    approval_lane: lane.name,
+    note: "{{quote}} routes to {{lane}}".template({ quote: quote_id, lane: lane.name })
+  }
+end
+
+def run -> { enterprise: hash<string, int | money | string>, self_serve: hash<string, int | money | string> }
+  {
+    self_serve: quote_decision("quote_410", money("1800.00 USD"), 48),
+    enterprise: quote_decision("quote_411", money("48000.00 USD"), 18)
+  }
+end

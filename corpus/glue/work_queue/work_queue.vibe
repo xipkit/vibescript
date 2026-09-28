@@ -1,0 +1,24 @@
+type Job = { id: string, attempts: int }
+class Queue
+  @jobs: array<Job> = []
+  def add(job: Job)
+    @jobs.push(job)
+  end
+  def take -> Job?
+    @jobs.shift
+  end
+  def snapshot -> array<Job>
+    @jobs
+  end
+end
+def drain(jobs: array<Job>) -> array<string>
+  queue = Queue.new
+  jobs.each { |job| queue.add(job) }
+  ids: array<string> = []
+  loop {
+    job = queue.take
+    break if job == nil
+    ids << job["id"]
+  }
+  ids
+end

@@ -1,0 +1,7 @@
+def test_record_snapshot
+  subject = require("record_snapshot")
+  project = { name: "api", tags: ["prod"] }
+  result = subject.tagged(project, "ready")
+  assert project["tags"] == ["prod"]
+  assert result["tags"] == ["prod", "ready"]
+end

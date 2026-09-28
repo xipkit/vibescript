@@ -1,0 +1,23 @@
+# expect: agreed
+# Methods called after `initialize` assigns what they read, and variables
+# with defaults, are fine.
+class C
+  getter name: string
+  @count: int = 0
+  def initialize(n: string)
+    bump
+    @name = n
+    puts "#{self}"
+    p(label)
+  end
+  def bump
+    @count += 1
+  end
+  def label -> string
+    "#{@name}:#{@count}"
+  end
+  def to_s -> string
+    label
+  end
+end
+p(C.new("a").label)

@@ -1,0 +1,38 @@
+[package]
+name = "vibes"
+version = "0.80.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Command-line tools for the Vibescript interpreter"
+license = "MIT AND BSD-3-Clause"
+publish = false
+
+[features]
+default = ["simd"]
+simd = ["vibescript/simd"]
+allocation-stats = ["vibescript/allocation-stats"]
+tokio = ["vibescript/tokio"]
+
+[dependencies]
+unicode-width = "0.2"
+vibescript = { path = "..", default-features = false }
+vibescript-tools = { path = "../tools" }
+
+# The interactive REPL needs a terminal and fmt pins directories with handles;
+# WASI builds use the REPL's line mode and plain paths.
+[target.'cfg(not(target_os = "wasi"))'.dependencies]
+cap-std = "4.0.3"
+crossterm = { version = "0.29", default-features = false, features = ["bracketed-paste", "events"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+serde_json = "1"
+
+[[bin]]
+name = "vibes"
+path = "src/main.rs"
+
+[lints]
+workspace = true

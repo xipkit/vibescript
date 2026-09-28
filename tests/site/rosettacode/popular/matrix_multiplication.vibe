@@ -1,0 +1,50 @@
+# title: Matrix multiplication
+# source: https://rosettacode.org/wiki/Matrix_multiplication
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Multiply two small matrices.
+# tags: popular, math, arrays, nested-loops
+# vibe: 0.2
+
+def matrix_multiply(left: array<array<int>>, right: array<array<int>>) -> array<array<int>>
+  product: array<array<int>> = []
+  row_index = 0
+
+  while row_index < left.length
+    row: array<int> = []
+    column_index = 0
+
+    while column_index < right.fetch(0).length
+      total = 0
+      inner_index = 0
+
+      while inner_index < right.length
+        total = total + (left.fetch(row_index).fetch(inner_index) * right.fetch(inner_index).fetch(column_index))
+        inner_index = inner_index + 1
+      end
+
+      row = row.push(total)
+      column_index = column_index + 1
+    end
+
+    product = product.push(row)
+    row_index = row_index + 1
+  end
+
+  product
+end
+
+def run -> array<array<int>>
+  left = [
+    [1, 2, 3],
+    [4, 5, 6]
+  ]
+
+  right = [
+    [7, 8],
+    [9, 10],
+    [11, 12]
+  ]
+
+  matrix_multiply(left, right)
+end

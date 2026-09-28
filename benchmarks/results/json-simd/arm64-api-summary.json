@@ -1,0 +1,3485 @@
+{
+  "rounds": 8,
+  "order": [
+    [
+      "rust-portable",
+      "rust-simd",
+      "rust-before-portable",
+      "rust-before-simd"
+    ],
+    [
+      "rust-simd",
+      "rust-before-portable",
+      "rust-before-simd",
+      "rust-portable"
+    ],
+    [
+      "rust-before-portable",
+      "rust-before-simd",
+      "rust-portable",
+      "rust-simd"
+    ],
+    [
+      "rust-before-simd",
+      "rust-portable",
+      "rust-simd",
+      "rust-before-portable"
+    ],
+    [
+      "rust-before-simd",
+      "rust-before-portable",
+      "rust-simd",
+      "rust-portable"
+    ],
+    [
+      "rust-before-portable",
+      "rust-simd",
+      "rust-portable",
+      "rust-before-simd"
+    ],
+    [
+      "rust-simd",
+      "rust-portable",
+      "rust-before-simd",
+      "rust-before-portable"
+    ],
+    [
+      "rust-portable",
+      "rust-before-simd",
+      "rust-before-portable",
+      "rust-simd"
+    ]
+  ],
+  "peak_rss_bytes": {
+    "rust-portable": {
+      "json_api_parse_1k/metered": 6225920,
+      "json_api_parse_1k/unlimited": 6176768,
+      "json_api_shape_1k/metered": 6242304,
+      "json_api_shape_1k/unlimited": 6258688,
+      "json_api_array_1k/metered": 6225920,
+      "json_api_array_1k/unlimited": 6225920,
+      "json_api_project_1k/metered": 6504448,
+      "json_api_project_1k/unlimited": 6438912,
+      "json_api_parse_16k/metered": 7028736,
+      "json_api_parse_16k/unlimited": 7110656,
+      "json_api_shape_16k/metered": 7192576,
+      "json_api_shape_16k/unlimited": 7176192,
+      "json_api_array_16k/metered": 7061504,
+      "json_api_array_16k/unlimited": 7061504,
+      "json_api_project_16k/metered": 6963200,
+      "json_api_project_16k/unlimited": 6963200,
+      "json_api_stringify_16k/metered": 7061504,
+      "json_api_stringify_16k/unlimited": 7061504,
+      "json_api_parse_256k/metered": 18464768,
+      "json_api_parse_256k/unlimited": 17973248,
+      "json_api_shape_256k/metered": 18628608,
+      "json_api_shape_256k/unlimited": 18235392,
+      "json_api_array_256k/metered": 18530304,
+      "json_api_array_256k/unlimited": 18104320,
+      "json_api_project_256k/metered": 11206656,
+      "json_api_project_256k/unlimited": 11288576,
+      "json_api_stringify_256k/metered": 16564224,
+      "json_api_stringify_256k/unlimited": 16564224,
+      "json_api_parse_1m/metered": 54804480,
+      "json_api_parse_1m/unlimited": 52625408,
+      "json_api_shape_1m/metered": 52969472,
+      "json_api_shape_1m/unlimited": 52936704,
+      "json_api_array_1m/metered": 55050240,
+      "json_api_array_1m/unlimited": 52887552,
+      "json_api_project_1m/metered": 25247744,
+      "json_api_project_1m/unlimited": 25280512,
+      "json_api_stringify_1m/metered": 47087616,
+      "json_api_stringify_1m/unlimited": 47185920
+    },
+    "rust-simd": {
+      "json_api_parse_1k/metered": 6176768,
+      "json_api_parse_1k/unlimited": 6094848,
+      "json_api_shape_1k/metered": 6242304,
+      "json_api_shape_1k/unlimited": 6242304,
+      "json_api_array_1k/metered": 6160384,
+      "json_api_array_1k/unlimited": 6160384,
+      "json_api_project_1k/metered": 6488064,
+      "json_api_project_1k/unlimited": 6422528,
+      "json_api_parse_16k/metered": 7045120,
+      "json_api_parse_16k/unlimited": 7061504,
+      "json_api_shape_16k/metered": 7159808,
+      "json_api_shape_16k/unlimited": 7159808,
+      "json_api_array_16k/metered": 7127040,
+      "json_api_array_16k/unlimited": 7045120,
+      "json_api_project_16k/metered": 6946816,
+      "json_api_project_16k/unlimited": 6963200,
+      "json_api_stringify_16k/metered": 7061504,
+      "json_api_stringify_16k/unlimited": 7061504,
+      "json_api_parse_256k/metered": 18726912,
+      "json_api_parse_256k/unlimited": 17956864,
+      "json_api_shape_256k/metered": 18235392,
+      "json_api_shape_256k/unlimited": 18268160,
+      "json_api_array_256k/metered": 18087936,
+      "json_api_array_256k/unlimited": 18956288,
+      "json_api_project_256k/metered": 11124736,
+      "json_api_project_256k/unlimited": 11141120,
+      "json_api_stringify_256k/metered": 16596992,
+      "json_api_stringify_256k/unlimited": 16564224,
+      "json_api_parse_1m/metered": 55508992,
+      "json_api_parse_1m/unlimited": 52609024,
+      "json_api_shape_1m/metered": 52953088,
+      "json_api_shape_1m/unlimited": 52985856,
+      "json_api_array_1m/metered": 52887552,
+      "json_api_array_1m/unlimited": 55869440,
+      "json_api_project_1m/metered": 25296896,
+      "json_api_project_1m/unlimited": 25280512,
+      "json_api_stringify_1m/metered": 47218688,
+      "json_api_stringify_1m/unlimited": 47218688
+    },
+    "rust-before-portable": {
+      "json_api_parse_1k/metered": 6225920,
+      "json_api_parse_1k/unlimited": 6275072,
+      "json_api_shape_1k/metered": 6324224,
+      "json_api_shape_1k/unlimited": 6406144,
+      "json_api_array_1k/metered": 6193152,
+      "json_api_array_1k/unlimited": 6275072,
+      "json_api_project_1k/metered": 6619136,
+      "json_api_project_1k/unlimited": 6553600,
+      "json_api_parse_16k/metered": 7503872,
+      "json_api_parse_16k/unlimited": 7307264,
+      "json_api_shape_16k/metered": 7569408,
+      "json_api_shape_16k/unlimited": 7372800,
+      "json_api_array_16k/metered": 7323648,
+      "json_api_array_16k/unlimited": 7372800,
+      "json_api_project_16k/metered": 7258112,
+      "json_api_project_16k/unlimited": 7012352,
+      "json_api_stringify_16k/metered": 7258112,
+      "json_api_stringify_16k/unlimited": 7274496,
+      "json_api_parse_256k/metered": 22478848,
+      "json_api_parse_256k/unlimited": 22560768,
+      "json_api_shape_256k/metered": 22740992,
+      "json_api_shape_256k/unlimited": 22675456,
+      "json_api_array_256k/metered": 22626304,
+      "json_api_array_256k/unlimited": 22560768,
+      "json_api_project_256k/metered": 12337152,
+      "json_api_project_256k/unlimited": 12566528,
+      "json_api_stringify_256k/metered": 17956864,
+      "json_api_stringify_256k/unlimited": 17858560,
+      "json_api_parse_1m/metered": 70352896,
+      "json_api_parse_1m/unlimited": 70352896,
+      "json_api_shape_1m/metered": 70844416,
+      "json_api_shape_1m/unlimited": 70385664,
+      "json_api_array_1m/metered": 70631424,
+      "json_api_array_1m/unlimited": 70615040,
+      "json_api_project_1m/metered": 30343168,
+      "json_api_project_1m/unlimited": 30179328,
+      "json_api_stringify_1m/metered": 52264960,
+      "json_api_stringify_1m/unlimited": 52035584
+    },
+    "rust-before-simd": {
+      "json_api_parse_1k/metered": 6242304,
+      "json_api_parse_1k/unlimited": 6176768,
+      "json_api_shape_1k/metered": 6193152,
+      "json_api_shape_1k/unlimited": 6193152,
+      "json_api_array_1k/metered": 6160384,
+      "json_api_array_1k/unlimited": 6127616,
+      "json_api_project_1k/metered": 6520832,
+      "json_api_project_1k/unlimited": 6488064,
+      "json_api_parse_16k/metered": 7290880,
+      "json_api_parse_16k/unlimited": 7274496,
+      "json_api_shape_16k/metered": 7258112,
+      "json_api_shape_16k/unlimited": 7356416,
+      "json_api_array_16k/metered": 7176192,
+      "json_api_array_16k/unlimited": 7258112,
+      "json_api_project_16k/metered": 6995968,
+      "json_api_project_16k/unlimited": 6995968,
+      "json_api_stringify_16k/metered": 7061504,
+      "json_api_stringify_16k/unlimited": 7094272,
+      "json_api_parse_256k/metered": 22298624,
+      "json_api_parse_256k/unlimited": 22315008,
+      "json_api_shape_256k/metered": 22462464,
+      "json_api_shape_256k/unlimited": 22462464,
+      "json_api_array_256k/metered": 21053440,
+      "json_api_array_256k/unlimited": 21004288,
+      "json_api_project_256k/metered": 12337152,
+      "json_api_project_256k/unlimited": 12369920,
+      "json_api_stringify_256k/metered": 17842176,
+      "json_api_stringify_256k/unlimited": 17711104,
+      "json_api_parse_1m/metered": 64700416,
+      "json_api_parse_1m/unlimited": 70057984,
+      "json_api_shape_1m/metered": 65011712,
+      "json_api_shape_1m/unlimited": 65011712,
+      "json_api_array_1m/metered": 70696960,
+      "json_api_array_1m/unlimited": 64913408,
+      "json_api_project_1m/metered": 30277632,
+      "json_api_project_1m/unlimited": 30195712,
+      "json_api_stringify_1m/metered": 52150272,
+      "json_api_stringify_1m/unlimited": 52117504
+    }
+  },
+  "cases": {
+    "json_api_parse_1k/metered": {
+      "rust-portable": {
+        "median_ns": 8556.008110415481,
+        "min_ns": 8456.554638588503,
+        "max_ns": 8666.927575412636,
+        "samples_ns": [
+          8456.554638588503,
+          8546.43326693227,
+          8568.991889584519,
+          8523.382612407513,
+          8617.298662492885,
+          8666.927575412636,
+          8525.91420034149,
+          8565.58295389869
+        ],
+        "peak_rss_bytes": 6225920,
+        "alloc_bytes": 17159.0,
+        "allocations": 224.0,
+        "steps": 547,
+        "tracked_peak_bytes": 17357,
+        "tracked_retained_bytes": 11759
+      },
+      "rust-simd": {
+        "median_ns": 8605.536141149687,
+        "min_ns": 8506.023619806489,
+        "max_ns": 9463.876636311896,
+        "samples_ns": [
+          9463.876636311896,
+          8546.575554923165,
+          8631.201337507115,
+          8584.981502561184,
+          8651.21656232214,
+          8546.765224815026,
+          8506.023619806489,
+          8626.09077973819
+        ],
+        "peak_rss_bytes": 6176768,
+        "alloc_bytes": 17159.0,
+        "allocations": 224.0,
+        "steps": 547,
+        "tracked_peak_bytes": 17357,
+        "tracked_retained_bytes": 11759
+      },
+      "rust-before-portable": {
+        "median_ns": 8809.497154240182,
+        "min_ns": 8610.86610700057,
+        "max_ns": 9390.61610700057,
+        "samples_ns": [
+          8719.526607854297,
+          9390.61610700057,
+          8821.114399544678,
+          8850.983067729083,
+          8846.560187820149,
+          8797.879908935685,
+          8610.86610700057,
+          8733.595332953899
+        ],
+        "peak_rss_bytes": 6225920,
+        "alloc_bytes": 20174.0,
+        "allocations": 314.0,
+        "steps": 547,
+        "tracked_peak_bytes": 20372,
+        "tracked_retained_bytes": 14774
+      },
+      "rust-before-simd": {
+        "median_ns": 8697.329752418897,
+        "min_ns": 8664.484917472966,
+        "max_ns": 8889.11624928856,
+        "samples_ns": [
+          8680.267074558908,
+          8889.11624928856,
+          8823.355293113262,
+          8686.332100170746,
+          8815.150113830392,
+          8699.209163346613,
+          8695.450341491178,
+          8664.484917472966
+        ],
+        "peak_rss_bytes": 6242304,
+        "alloc_bytes": 20174.0,
+        "allocations": 314.0,
+        "steps": 547,
+        "tracked_peak_bytes": 20372,
+        "tracked_retained_bytes": 14774
+      }
+    },
+    "json_api_parse_1k/unlimited": {
+      "rust-portable": {
+        "median_ns": 8447.898877202955,
+        "min_ns": 8365.809266628767,
+        "max_ns": 8500.473706651506,
+        "samples_ns": [
+          8365.809266628767,
+          8430.594940306992,
+          8465.575753268902,
+          8409.459636156907,
+          8500.473706651506,
+          8465.20281409892,
+          8472.220153496304,
+          8417.969442865264
+        ],
+        "peak_rss_bytes": 6176768,
+        "alloc_bytes": 17159.0,
+        "allocations": 224.0,
+        "steps": 547,
+        "tracked_peak_bytes": 17357,
+        "tracked_retained_bytes": 11759
+      },
+      "rust-simd": {
+        "median_ns": 8491.940306992608,
+        "min_ns": 8408.162734508243,
+        "max_ns": 9376.39155770324,
+        "samples_ns": [
+          9376.39155770324,
+          8408.162734508243,
+          8538.71759522456,
+          8520.371517907903,
+          8553.658470722,
+          8459.855173393973,
+          8415.873081296191,
+          8463.509096077316
+        ],
+        "peak_rss_bytes": 6094848,
+        "alloc_bytes": 17159.0,
+        "allocations": 224.0,
+        "steps": 547,
+        "tracked_peak_bytes": 17357,
+        "tracked_retained_bytes": 11759
+      },
+      "rust-before-portable": {
+        "median_ns": 8645.463189312108,
+        "min_ns": 8471.154349061968,
+        "max_ns": 9270.910318362707,
+        "samples_ns": [
+          8471.154349061968,
+          9270.910318362707,
+          8757.923536100057,
+          8629.921119954519,
+          8821.856594656054,
+          8661.005258669698,
+          8531.392126208073,
+          8577.843803297328
+        ],
+        "peak_rss_bytes": 6275072,
+        "alloc_bytes": 20174.0,
+        "allocations": 314.0,
+        "steps": 547,
+        "tracked_peak_bytes": 20372,
+        "tracked_retained_bytes": 14774
+      },
+      "rust-before-simd": {
+        "median_ns": 8564.806637293917,
+        "min_ns": 8493.704945992042,
+        "max_ns": 9385.416714042069,
+        "samples_ns": [
+          8493.704945992042,
+          9385.416714042069,
+          8695.1866117112,
+          8546.56409891984,
+          8725.388430926663,
+          8563.027146105742,
+          8566.586128482091,
+          8546.682490051166
+        ],
+        "peak_rss_bytes": 6176768,
+        "alloc_bytes": 20174.0,
+        "allocations": 314.0,
+        "steps": 547,
+        "tracked_peak_bytes": 20372,
+        "tracked_retained_bytes": 14774
+      }
+    },
+    "json_api_shape_1k/metered": {
+      "rust-portable": {
+        "median_ns": 11298.844643204357,
+        "min_ns": 11201.309158078942,
+        "max_ns": 11383.134162939918,
+        "samples_ns": [
+          11201.309158078942,
+          11312.836087886448,
+          11284.853198522263,
+          11263.780867198133,
+          11383.134162939918,
+          11272.919502236049,
+          11321.999222243827,
+          11344.205716507875
+        ],
+        "peak_rss_bytes": 6242304,
+        "alloc_bytes": 17215.0,
+        "allocations": 225.0,
+        "steps": 1662,
+        "tracked_peak_bytes": 18969,
+        "tracked_retained_bytes": 11759
+      },
+      "rust-simd": {
+        "median_ns": 11397.797977833949,
+        "min_ns": 11271.841921057749,
+        "max_ns": 11824.656426210384,
+        "samples_ns": [
+          11824.656426210384,
+          11572.250437487848,
+          11395.553956834532,
+          11400.041998833365,
+          11446.991055804005,
+          11271.841921057749,
+          11306.905891503015,
+          11361.348629204744
+        ],
+        "peak_rss_bytes": 6242304,
+        "alloc_bytes": 17215.0,
+        "allocations": 225.0,
+        "steps": 1662,
+        "tracked_peak_bytes": 18969,
+        "tracked_retained_bytes": 11759
+      },
+      "rust-before-portable": {
+        "median_ns": 12092.885086525373,
+        "min_ns": 11953.067275909003,
+        "max_ns": 12851.100330546375,
+        "samples_ns": [
+          11953.067275909003,
+          12851.100330546375,
+          11998.889947501459,
+          12155.478320046665,
+          12108.456348434765,
+          12102.70425821505,
+          11999.15749562512,
+          12083.065914835699
+        ],
+        "peak_rss_bytes": 6324224,
+        "alloc_bytes": 20230.0,
+        "allocations": 315.0,
+        "steps": 1662,
+        "tracked_peak_bytes": 21984,
+        "tracked_retained_bytes": 14774
+      },
+      "rust-before-simd": {
+        "median_ns": 12076.341629399183,
+        "min_ns": 11994.555706785923,
+        "max_ns": 12937.68228660315,
+        "samples_ns": [
+          12001.89578067276,
+          12937.68228660315,
+          12115.934279603345,
+          11994.555706785923,
+          12266.04919307797,
+          12056.816643982113,
+          12038.020999416683,
+          12095.866614816256
+        ],
+        "peak_rss_bytes": 6193152,
+        "alloc_bytes": 20230.0,
+        "allocations": 315.0,
+        "steps": 1662,
+        "tracked_peak_bytes": 21984,
+        "tracked_retained_bytes": 14774
+      }
+    },
+    "json_api_shape_1k/unlimited": {
+      "rust-portable": {
+        "median_ns": 11285.958828996283,
+        "min_ns": 11186.059479553904,
+        "max_ns": 11456.644981412639,
+        "samples_ns": [
+          11186.059479553904,
+          11456.644981412639,
+          11283.97620817844,
+          11287.941449814127,
+          11344.478066914498,
+          11279.755204460967,
+          11224.14033457249,
+          11329.228624535315
+        ],
+        "peak_rss_bytes": 6258688,
+        "alloc_bytes": 17215.0,
+        "allocations": 225.0,
+        "steps": 1662,
+        "tracked_peak_bytes": 18969,
+        "tracked_retained_bytes": 11759
+      },
+      "rust-simd": {
+        "median_ns": 11301.359200743495,
+        "min_ns": 11234.828066914499,
+        "max_ns": 11719.08308550186,
+        "samples_ns": [
+          11719.08308550186,
+          11551.254646840149,
+          11313.398327137547,
+          11243.509851301114,
+          11400.348513011153,
+          11234.828066914499,
+          11288.011152416357,
+          11289.320074349442
+        ],
+        "peak_rss_bytes": 6242304,
+        "alloc_bytes": 17215.0,
+        "allocations": 225.0,
+        "steps": 1662,
+        "tracked_peak_bytes": 18969,
+        "tracked_retained_bytes": 11759
+      },
+      "rust-before-portable": {
+        "median_ns": 12058.244237918216,
+        "min_ns": 11917.29405204461,
+        "max_ns": 13698.396840148698,
+        "samples_ns": [
+          11924.643680297399,
+          13698.396840148698,
+          11989.312267657993,
+          12249.9843866171,
+          12105.963568773233,
+          12101.874163568773,
+          11917.29405204461,
+          12014.614312267659
+        ],
+        "peak_rss_bytes": 6406144,
+        "alloc_bytes": 20230.0,
+        "allocations": 315.0,
+        "steps": 1662,
+        "tracked_peak_bytes": 21984,
+        "tracked_retained_bytes": 14774
+      },
+      "rust-before-simd": {
+        "median_ns": 12076.363011152416,
+        "min_ns": 11927.1375464684,
+        "max_ns": 12946.75501858736,
+        "samples_ns": [
+          11927.1375464684,
+          12946.75501858736,
+          12032.349814126394,
+          12162.577323420075,
+          12185.401115241635,
+          12050.743494423792,
+          12031.133828996282,
+          12101.98252788104
+        ],
+        "peak_rss_bytes": 6193152,
+        "alloc_bytes": 20230.0,
+        "allocations": 315.0,
+        "steps": 1662,
+        "tracked_peak_bytes": 21984,
+        "tracked_retained_bytes": 14774
+      }
+    },
+    "json_api_array_1k/metered": {
+      "rust-portable": {
+        "median_ns": 10913.923148666294,
+        "min_ns": 10783.241559410557,
+        "max_ns": 11818.706024995337,
+        "samples_ns": [
+          10862.937511658272,
+          11818.706024995337,
+          10956.110613691475,
+          10894.049617608654,
+          10939.72673008767,
+          10903.966983771685,
+          10783.241559410557,
+          10923.879313560903
+        ],
+        "peak_rss_bytes": 6225920,
+        "alloc_bytes": 16537.0,
+        "allocations": 214.0,
+        "steps": 1617,
+        "tracked_peak_bytes": 17952,
+        "tracked_retained_bytes": 11081
+      },
+      "rust-simd": {
+        "median_ns": 10982.147267300876,
+        "min_ns": 10911.039544861032,
+        "max_ns": 11037.539638127215,
+        "samples_ns": [
+          10911.039544861032,
+          10913.138220481254,
+          10950.157060249954,
+          11001.717590001865,
+          11020.66629360194,
+          11037.539638127215,
+          10962.576944599889,
+          11017.43294161537
+        ],
+        "peak_rss_bytes": 6160384,
+        "alloc_bytes": 16537.0,
+        "allocations": 214.0,
+        "steps": 1617,
+        "tracked_peak_bytes": 17952,
+        "tracked_retained_bytes": 11081
+      },
+      "rust-before-portable": {
+        "median_ns": 11781.10809550457,
+        "min_ns": 11578.67785860847,
+        "max_ns": 13391.508114157807,
+        "samples_ns": [
+          11578.67785860847,
+          13391.508114157807,
+          11639.969222160045,
+          11980.227569483306,
+          11829.936765528819,
+          11804.809363924642,
+          11655.723559037493,
+          11757.4068270845
+        ],
+        "peak_rss_bytes": 6193152,
+        "alloc_bytes": 19552.0,
+        "allocations": 304.0,
+        "steps": 1617,
+        "tracked_peak_bytes": 20967,
+        "tracked_retained_bytes": 14096
+      },
+      "rust-before-simd": {
+        "median_ns": 11859.572281290804,
+        "min_ns": 11724.367282223466,
+        "max_ns": 12566.529751911956,
+        "samples_ns": [
+          11823.773549710875,
+          12566.529751911956,
+          11767.308524529006,
+          11897.935832867002,
+          11867.655288192502,
+          11851.489274389107,
+          11724.367282223466,
+          11872.7306472673
+        ],
+        "peak_rss_bytes": 6160384,
+        "alloc_bytes": 19552.0,
+        "allocations": 304.0,
+        "steps": 1617,
+        "tracked_peak_bytes": 20967,
+        "tracked_retained_bytes": 14096
+      }
+    },
+    "json_api_array_1k/unlimited": {
+      "rust-portable": {
+        "median_ns": 10937.431357254289,
+        "min_ns": 10784.003640145605,
+        "max_ns": 11388.318252730109,
+        "samples_ns": [
+          10818.736522794245,
+          11388.318252730109,
+          10988.978332466631,
+          10878.914716588664,
+          10960.882821979545,
+          10913.979892529034,
+          10784.003640145605,
+          10961.265557288958
+        ],
+        "peak_rss_bytes": 6225920,
+        "alloc_bytes": 16537.0,
+        "allocations": 214.0,
+        "steps": 1617,
+        "tracked_peak_bytes": 17952,
+        "tracked_retained_bytes": 11081
+      },
+      "rust-simd": {
+        "median_ns": 10974.320332813313,
+        "min_ns": 10930.584503380136,
+        "max_ns": 11055.129485179406,
+        "samples_ns": [
+          10930.584503380136,
+          10939.800312012481,
+          10970.503206794938,
+          10978.137458831687,
+          11018.143005720229,
+          11055.129485179406,
+          10944.364881261918,
+          10988.602877448431
+        ],
+        "peak_rss_bytes": 6160384,
+        "alloc_bytes": 16537.0,
+        "allocations": 214.0,
+        "steps": 1617,
+        "tracked_peak_bytes": 17952,
+        "tracked_retained_bytes": 11081
+      },
+      "rust-before-portable": {
+        "median_ns": 11802.897729242502,
+        "min_ns": 11638.910556422257,
+        "max_ns": 13385.826486392789,
+        "samples_ns": [
+          11638.910556422257,
+          13385.826486392789,
+          11693.274397642572,
+          11963.00624024961,
+          11868.897035881435,
+          11869.50372681574,
+          11663.142139018893,
+          11736.89842260357
+        ],
+        "peak_rss_bytes": 6275072,
+        "alloc_bytes": 19552.0,
+        "allocations": 304.0,
+        "steps": 1617,
+        "tracked_peak_bytes": 20967,
+        "tracked_retained_bytes": 14096
+      },
+      "rust-before-simd": {
+        "median_ns": 11848.215288611544,
+        "min_ns": 11689.5836366788,
+        "max_ns": 11927.77483099324,
+        "samples_ns": [
+          11689.5836366788,
+          11871.432137285492,
+          11712.869128098457,
+          11927.77483099324,
+          11872.24111631132,
+          11850.79008493673,
+          11748.94557115618,
+          11845.640492286358
+        ],
+        "peak_rss_bytes": 6127616,
+        "alloc_bytes": 19552.0,
+        "allocations": 304.0,
+        "steps": 1617,
+        "tracked_peak_bytes": 20967,
+        "tracked_retained_bytes": 14096
+      }
+    },
+    "json_api_project_1k/metered": {
+      "rust-portable": {
+        "median_ns": 13876.276915219612,
+        "min_ns": 13692.117875383045,
+        "max_ns": 14448.978549540347,
+        "samples_ns": [
+          13801.796118488253,
+          14448.978549540347,
+          13950.75771195097,
+          13763.840653728294,
+          13997.727272727272,
+          13791.82002042901,
+          13692.117875383045,
+          13969.816138917262
+        ],
+        "peak_rss_bytes": 6504448,
+        "alloc_bytes": 29985.0,
+        "allocations": 280.0,
+        "steps": 1472,
+        "tracked_peak_bytes": 26007,
+        "tracked_retained_bytes": 352
+      },
+      "rust-simd": {
+        "median_ns": 13861.946680286008,
+        "min_ns": 13780.149744637385,
+        "max_ns": 14004.979570990807,
+        "samples_ns": [
+          13834.797344228806,
+          13787.97242083759,
+          13889.096016343208,
+          13902.187742594484,
+          13929.996527068437,
+          14004.979570990807,
+          13780.149744637385,
+          13794.918283963229
+        ],
+        "peak_rss_bytes": 6488064,
+        "alloc_bytes": 29985.0,
+        "allocations": 280.0,
+        "steps": 1472,
+        "tracked_peak_bytes": 26007,
+        "tracked_retained_bytes": 352
+      },
+      "rust-before-portable": {
+        "median_ns": 14670.394994892747,
+        "min_ns": 14526.651481103167,
+        "max_ns": 14778.64330949949,
+        "samples_ns": [
+          14526.651481103167,
+          14755.286006128703,
+          14566.147497446374,
+          14778.64330949949,
+          14730.44759959142,
+          14711.84024514811,
+          14536.96813074566,
+          14628.949744637384
+        ],
+        "peak_rss_bytes": 6619136,
+        "alloc_bytes": 33000.0,
+        "allocations": 370.0,
+        "steps": 1472,
+        "tracked_peak_bytes": 29022,
+        "tracked_retained_bytes": 352
+      },
+      "rust-before-simd": {
+        "median_ns": 14649.8126659857,
+        "min_ns": 14462.504187946884,
+        "max_ns": 14790.773033707865,
+        "samples_ns": [
+          14462.504187946884,
+          14668.377528089888,
+          14547.752808988764,
+          14790.773033707865,
+          14710.163432073545,
+          14789.74279877426,
+          14618.922369765067,
+          14631.247803881512
+        ],
+        "peak_rss_bytes": 6520832,
+        "alloc_bytes": 33000.0,
+        "allocations": 370.0,
+        "steps": 1472,
+        "tracked_peak_bytes": 29022,
+        "tracked_retained_bytes": 352
+      }
+    },
+    "json_api_project_1k/unlimited": {
+      "rust-portable": {
+        "median_ns": 13842.519784902597,
+        "min_ns": 13649.739448051949,
+        "max_ns": 14118.422077922078,
+        "samples_ns": [
+          13854.885349025973,
+          13830.15422077922,
+          14118.422077922078,
+          13781.258319805194,
+          13957.732954545454,
+          13714.759131493507,
+          13649.739448051949,
+          13892.130073051949
+        ],
+        "peak_rss_bytes": 6438912,
+        "alloc_bytes": 29985.0,
+        "allocations": 280.0,
+        "steps": 1472,
+        "tracked_peak_bytes": 26007,
+        "tracked_retained_bytes": 352
+      },
+      "rust-simd": {
+        "median_ns": 13860.499594155845,
+        "min_ns": 13759.976866883117,
+        "max_ns": 14009.64732142857,
+        "samples_ns": [
+          13840.70616883117,
+          13820.78612012987,
+          13889.677962662337,
+          13891.123782467532,
+          13880.29301948052,
+          14009.64732142857,
+          13809.600040584415,
+          13759.976866883117
+        ],
+        "peak_rss_bytes": 6422528,
+        "alloc_bytes": 29985.0,
+        "allocations": 280.0,
+        "steps": 1472,
+        "tracked_peak_bytes": 26007,
+        "tracked_retained_bytes": 352
+      },
+      "rust-before-portable": {
+        "median_ns": 14632.453125,
+        "min_ns": 14500.997564935065,
+        "max_ns": 14952.254261363636,
+        "samples_ns": [
+          14525.923295454546,
+          14952.254261363636,
+          14500.997564935065,
+          14637.87702922078,
+          14750.37215909091,
+          14756.620332792209,
+          14566.397727272728,
+          14627.02922077922
+        ],
+        "peak_rss_bytes": 6553600,
+        "alloc_bytes": 33000.0,
+        "allocations": 370.0,
+        "steps": 1472,
+        "tracked_peak_bytes": 29022,
+        "tracked_retained_bytes": 352
+      },
+      "rust-before-simd": {
+        "median_ns": 14659.391030844155,
+        "min_ns": 14465.080560064935,
+        "max_ns": 14995.755478896104,
+        "samples_ns": [
+          14465.080560064935,
+          14995.755478896104,
+          14589.057426948051,
+          14781.579748376624,
+          14694.974431818182,
+          14669.05945616883,
+          14649.72260551948,
+          14629.371347402597
+        ],
+        "peak_rss_bytes": 6488064,
+        "alloc_bytes": 33000.0,
+        "allocations": 370.0,
+        "steps": 1472,
+        "tracked_peak_bytes": 29022,
+        "tracked_retained_bytes": 352
+      }
+    },
+    "json_api_parse_16k/metered": {
+      "rust-portable": {
+        "median_ns": 124651.54022988505,
+        "min_ns": 123404.77394636015,
+        "max_ns": 131255.34865900382,
+        "samples_ns": [
+          123729.32567049809,
+          123867.97701149425,
+          131255.34865900382,
+          124641.76245210729,
+          124661.31800766283,
+          125737.94636015326,
+          123404.77394636015,
+          124828.06513409961
+        ],
+        "peak_rss_bytes": 7028736,
+        "alloc_bytes": 187367.0,
+        "allocations": 3012.0,
+        "steps": 8611,
+        "tracked_peak_bytes": 198701,
+        "tracked_retained_bytes": 177743
+      },
+      "rust-simd": {
+        "median_ns": 124723.05938697318,
+        "min_ns": 123343.71072796934,
+        "max_ns": 127936.62260536398,
+        "samples_ns": [
+          123566.57088122606,
+          123343.71072796934,
+          127936.62260536398,
+          125745.92911877394,
+          124324.63218390805,
+          125121.48659003832,
+          124102.72988505747,
+          125547.89272030651
+        ],
+        "peak_rss_bytes": 7045120,
+        "alloc_bytes": 187367.0,
+        "allocations": 3012.0,
+        "steps": 8611,
+        "tracked_peak_bytes": 198701,
+        "tracked_retained_bytes": 177743
+      },
+      "rust-before-portable": {
+        "median_ns": 138142.75957854406,
+        "min_ns": 136126.91570881227,
+        "max_ns": 149622.2068965517,
+        "samples_ns": [
+          137312.5,
+          149622.2068965517,
+          137904.61302681992,
+          139980.60344827586,
+          138380.9061302682,
+          136567.04980842912,
+          136126.91570881227,
+          139392.48084291187
+        ],
+        "peak_rss_bytes": 7503872,
+        "alloc_bytes": 248270.0,
+        "allocations": 4830.0,
+        "steps": 8611,
+        "tracked_peak_bytes": 259604,
+        "tracked_retained_bytes": 238646
+      },
+      "rust-before-simd": {
+        "median_ns": 140496.20785440615,
+        "min_ns": 137558.27011494254,
+        "max_ns": 160854.00766283524,
+        "samples_ns": [
+          138383.69923371647,
+          160854.00766283524,
+          138459.77011494254,
+          140729.32567049807,
+          140554.11877394636,
+          141822.87739463602,
+          137558.27011494254,
+          140438.2969348659
+        ],
+        "peak_rss_bytes": 7290880,
+        "alloc_bytes": 248270.0,
+        "allocations": 4830.0,
+        "steps": 8611,
+        "tracked_peak_bytes": 259604,
+        "tracked_retained_bytes": 238646
+      }
+    },
+    "json_api_parse_16k/unlimited": {
+      "rust-portable": {
+        "median_ns": 124408.11393596987,
+        "min_ns": 123087.49340866291,
+        "max_ns": 131537.6647834275,
+        "samples_ns": [
+          123374.9209039548,
+          124159.91902071564,
+          131537.6647834275,
+          124664.62523540489,
+          124656.30885122411,
+          124679.77024482109,
+          123087.49340866291,
+          123469.32015065913
+        ],
+        "peak_rss_bytes": 7110656,
+        "alloc_bytes": 187367.0,
+        "allocations": 3012.0,
+        "steps": 8611,
+        "tracked_peak_bytes": 198701,
+        "tracked_retained_bytes": 177743
+      },
+      "rust-simd": {
+        "median_ns": 124168.39265536724,
+        "min_ns": 122987.131826742,
+        "max_ns": 126959.90207156309,
+        "samples_ns": [
+          124022.99058380414,
+          122987.131826742,
+          126959.90207156309,
+          124678.20150659134,
+          124518.36158192091,
+          124313.79472693033,
+          124010.51600753296,
+          123310.10734463276
+        ],
+        "peak_rss_bytes": 7061504,
+        "alloc_bytes": 187367.0,
+        "allocations": 3012.0,
+        "steps": 8611,
+        "tracked_peak_bytes": 198701,
+        "tracked_retained_bytes": 177743
+      },
+      "rust-before-portable": {
+        "median_ns": 138170.51224105462,
+        "min_ns": 136678.35781544255,
+        "max_ns": 149979.7551789077,
+        "samples_ns": [
+          138727.4802259887,
+          149979.7551789077,
+          137981.32580037665,
+          138359.69868173258,
+          147532.56497175142,
+          137528.40677966102,
+          136678.35781544255,
+          137365.2693032015
+        ],
+        "peak_rss_bytes": 7307264,
+        "alloc_bytes": 248270.0,
+        "allocations": 4830.0,
+        "steps": 8611,
+        "tracked_peak_bytes": 259604,
+        "tracked_retained_bytes": 238646
+      },
+      "rust-before-simd": {
+        "median_ns": 139858.16760828625,
+        "min_ns": 136694.7570621469,
+        "max_ns": 151147.12806026364,
+        "samples_ns": [
+          138969.39736346516,
+          151147.12806026364,
+          139246.7815442561,
+          141505.4934086629,
+          140469.5536723164,
+          141323.2900188324,
+          136694.7570621469,
+          138727.00941619586
+        ],
+        "peak_rss_bytes": 7274496,
+        "alloc_bytes": 248270.0,
+        "allocations": 4830.0,
+        "steps": 8611,
+        "tracked_peak_bytes": 259604,
+        "tracked_retained_bytes": 238646
+      }
+    },
+    "json_api_shape_16k/metered": {
+      "rust-portable": {
+        "median_ns": 167548.82939632545,
+        "min_ns": 166366.031496063,
+        "max_ns": 174737.3149606299,
+        "samples_ns": [
+          168039.04199475065,
+          168169.61942257217,
+          174737.3149606299,
+          166366.031496063,
+          167799.10236220472,
+          166717.08398950132,
+          166746.50131233595,
+          167298.5564304462
+        ],
+        "peak_rss_bytes": 7192576,
+        "alloc_bytes": 187423.0,
+        "allocations": 3013.0,
+        "steps": 26622,
+        "tracked_peak_bytes": 200313,
+        "tracked_retained_bytes": 177743
+      },
+      "rust-simd": {
+        "median_ns": 167263.6154855643,
+        "min_ns": 165584.5380577428,
+        "max_ns": 170291.66666666666,
+        "samples_ns": [
+          166460.8503937008,
+          165584.5380577428,
+          170291.66666666666,
+          167958.55118110238,
+          168223.20734908138,
+          167408.90288713912,
+          167118.3280839895,
+          166038.71391076114
+        ],
+        "peak_rss_bytes": 7159808,
+        "alloc_bytes": 187423.0,
+        "allocations": 3013.0,
+        "steps": 26622,
+        "tracked_peak_bytes": 200313,
+        "tracked_retained_bytes": 177743
+      },
+      "rust-before-portable": {
+        "median_ns": 192995.187664042,
+        "min_ns": 190100.7217847769,
+        "max_ns": 203839.0183727034,
+        "samples_ns": [
+          192245.07874015748,
+          203839.0183727034,
+          194703.08398950132,
+          193091.42519685038,
+          203254.92125984252,
+          190980.97112860892,
+          190100.7217847769,
+          192898.9501312336
+        ],
+        "peak_rss_bytes": 7569408,
+        "alloc_bytes": 248326.0,
+        "allocations": 4831.0,
+        "steps": 26622,
+        "tracked_peak_bytes": 261216,
+        "tracked_retained_bytes": 238646
+      },
+      "rust-before-simd": {
+        "median_ns": 195268.42650918633,
+        "min_ns": 192605.86089238845,
+        "max_ns": 206401.6850393701,
+        "samples_ns": [
+          192605.86089238845,
+          206401.6850393701,
+          195103.6745406824,
+          195433.1784776903,
+          195877.624671916,
+          197201.33333333334,
+          192968.28608923886,
+          194207.56692913387
+        ],
+        "peak_rss_bytes": 7258112,
+        "alloc_bytes": 248326.0,
+        "allocations": 4831.0,
+        "steps": 26622,
+        "tracked_peak_bytes": 261216,
+        "tracked_retained_bytes": 238646
+      }
+    },
+    "json_api_shape_16k/unlimited": {
+      "rust-portable": {
+        "median_ns": 167176.08181818182,
+        "min_ns": 165606.06233766233,
+        "max_ns": 174261.47012987014,
+        "samples_ns": [
+          168812.87792207793,
+          167768.07272727272,
+          174261.47012987014,
+          165606.06233766233,
+          166827.4883116883,
+          167524.67532467534,
+          166614.82597402597,
+          166745.23636363636
+        ],
+        "peak_rss_bytes": 7176192,
+        "alloc_bytes": 187423.0,
+        "allocations": 3013.0,
+        "steps": 26622,
+        "tracked_peak_bytes": 200313,
+        "tracked_retained_bytes": 177743
+      },
+      "rust-simd": {
+        "median_ns": 167052.86883116883,
+        "min_ns": 165708.76623376625,
+        "max_ns": 169917.2077922078,
+        "samples_ns": [
+          166768.29090909092,
+          165708.76623376625,
+          169917.2077922078,
+          167692.53246753247,
+          168244.4805194805,
+          167337.44675324674,
+          166579.54545454544,
+          166587.33766233767
+        ],
+        "peak_rss_bytes": 7159808,
+        "alloc_bytes": 187423.0,
+        "allocations": 3013.0,
+        "steps": 26622,
+        "tracked_peak_bytes": 200313,
+        "tracked_retained_bytes": 177743
+      },
+      "rust-before-portable": {
+        "median_ns": 193621.1051948052,
+        "min_ns": 189591.77402597404,
+        "max_ns": 203939.2857142857,
+        "samples_ns": [
+          193591.34285714285,
+          203939.2857142857,
+          203559.52467532468,
+          193650.86753246753,
+          202867.74805194806,
+          191000.75844155843,
+          189591.77402597404,
+          192010.2831168831
+        ],
+        "peak_rss_bytes": 7372800,
+        "alloc_bytes": 248326.0,
+        "allocations": 4831.0,
+        "steps": 26622,
+        "tracked_peak_bytes": 261216,
+        "tracked_retained_bytes": 238646
+      },
+      "rust-before-simd": {
+        "median_ns": 194175.65064935066,
+        "min_ns": 191074.8909090909,
+        "max_ns": 214852.16363636364,
+        "samples_ns": [
+          193021.21038961038,
+          214852.16363636364,
+          195334.63376623378,
+          195243.94025974025,
+          196346.86233766234,
+          192536.7948051948,
+          191074.8909090909,
+          193107.36103896104
+        ],
+        "peak_rss_bytes": 7356416,
+        "alloc_bytes": 248326.0,
+        "allocations": 4831.0,
+        "steps": 26622,
+        "tracked_peak_bytes": 261216,
+        "tracked_retained_bytes": 238646
+      }
+    },
+    "json_api_array_16k/metered": {
+      "rust-portable": {
+        "median_ns": 167901.01554404144,
+        "min_ns": 165911.0518134715,
+        "max_ns": 174201.42487046632,
+        "samples_ns": [
+          168196.1347150259,
+          168068.22279792745,
+          174201.42487046632,
+          166878.13212435233,
+          168421.84715025907,
+          167733.80829015543,
+          166201.96373056996,
+          165911.0518134715
+        ],
+        "peak_rss_bytes": 7061504,
+        "alloc_bytes": 186745.0,
+        "allocations": 3002.0,
+        "steps": 26577,
+        "tracked_peak_bytes": 199296,
+        "tracked_retained_bytes": 177065
+      },
+      "rust-simd": {
+        "median_ns": 167618.30699481867,
+        "min_ns": 166060.23316062175,
+        "max_ns": 168088.19170984457,
+        "samples_ns": [
+          167678.97150259066,
+          166060.23316062175,
+          167623.59585492229,
+          167920.8756476684,
+          168088.19170984457,
+          167356.65025906736,
+          167613.01813471504,
+          166447.97150259066
+        ],
+        "peak_rss_bytes": 7127040,
+        "alloc_bytes": 186745.0,
+        "allocations": 3002.0,
+        "steps": 26577,
+        "tracked_peak_bytes": 199296,
+        "tracked_retained_bytes": 177065
+      },
+      "rust-before-portable": {
+        "median_ns": 193156.73575129535,
+        "min_ns": 188820.05440414508,
+        "max_ns": 204418.7176165803,
+        "samples_ns": [
+          192271.6968911917,
+          203392.05440414508,
+          204418.7176165803,
+          192848.01554404144,
+          193465.45595854922,
+          193853.8419689119,
+          188820.05440414508,
+          192204.66321243523
+        ],
+        "peak_rss_bytes": 7323648,
+        "alloc_bytes": 247648.0,
+        "allocations": 4820.0,
+        "steps": 26577,
+        "tracked_peak_bytes": 260199,
+        "tracked_retained_bytes": 237968
+      },
+      "rust-before-simd": {
+        "median_ns": 194349.14896373055,
+        "min_ns": 191500.97150259066,
+        "max_ns": 215236.39896373058,
+        "samples_ns": [
+          191500.97150259066,
+          215236.39896373058,
+          195507.9896373057,
+          196048.57512953368,
+          195984.24093264248,
+          193058.72020725388,
+          192589.70207253887,
+          193190.30829015543
+        ],
+        "peak_rss_bytes": 7176192,
+        "alloc_bytes": 247648.0,
+        "allocations": 4820.0,
+        "steps": 26577,
+        "tracked_peak_bytes": 260199,
+        "tracked_retained_bytes": 237968
+      }
+    },
+    "json_api_array_16k/unlimited": {
+      "rust-portable": {
+        "median_ns": 167875.3772609819,
+        "min_ns": 166941.6434108527,
+        "max_ns": 172357.02067183462,
+        "samples_ns": [
+          167526.0542635659,
+          167879.63049095607,
+          172357.02067183462,
+          167916.34366925064,
+          167871.12403100776,
+          168099.48320413436,
+          166941.6434108527,
+          167764.85788113694
+        ],
+        "peak_rss_bytes": 7061504,
+        "alloc_bytes": 186745.0,
+        "allocations": 3002.0,
+        "steps": 26577,
+        "tracked_peak_bytes": 199296,
+        "tracked_retained_bytes": 177065
+      },
+      "rust-simd": {
+        "median_ns": 167624.46124031008,
+        "min_ns": 165934.1085271318,
+        "max_ns": 168559.1085271318,
+        "samples_ns": [
+          167393.08785529717,
+          167121.98449612403,
+          167872.09302325582,
+          167855.83462532298,
+          168351.42118863048,
+          166882.21447028423,
+          168559.1085271318,
+          165934.1085271318
+        ],
+        "peak_rss_bytes": 7045120,
+        "alloc_bytes": 186745.0,
+        "allocations": 3002.0,
+        "steps": 26577,
+        "tracked_peak_bytes": 199296,
+        "tracked_retained_bytes": 177065
+      },
+      "rust-before-portable": {
+        "median_ns": 193420.27260981913,
+        "min_ns": 189607.8811369509,
+        "max_ns": 204436.1550387597,
+        "samples_ns": [
+          193199.50387596898,
+          202095.50129198967,
+          204436.1550387597,
+          193641.04134366926,
+          195023.6873385013,
+          193197.4573643411,
+          189607.8811369509,
+          191071.70542635658
+        ],
+        "peak_rss_bytes": 7372800,
+        "alloc_bytes": 247648.0,
+        "allocations": 4820.0,
+        "steps": 26577,
+        "tracked_peak_bytes": 260199,
+        "tracked_retained_bytes": 237968
+      },
+      "rust-before-simd": {
+        "median_ns": 194043.12015503878,
+        "min_ns": 192248.70801033592,
+        "max_ns": 215958.11627906977,
+        "samples_ns": [
+          192248.70801033592,
+          215958.11627906977,
+          197185.18604651163,
+          196983.85012919895,
+          194271.6408268734,
+          193814.59948320413,
+          192713.60981912146,
+          192964.03875968992
+        ],
+        "peak_rss_bytes": 7258112,
+        "alloc_bytes": 247648.0,
+        "allocations": 4820.0,
+        "steps": 26577,
+        "tracked_peak_bytes": 260199,
+        "tracked_retained_bytes": 237968
+      }
+    },
+    "json_api_project_16k/metered": {
+      "rust-portable": {
+        "median_ns": 199707.56037151703,
+        "min_ns": 198807.0185758514,
+        "max_ns": 210397.0588235294,
+        "samples_ns": [
+          200148.09287925696,
+          199898.99380804953,
+          204210.78328173375,
+          210397.0588235294,
+          199516.12693498452,
+          199371.39009287924,
+          198807.0185758514,
+          198869.70897832818
+        ],
+        "peak_rss_bytes": 6963200,
+        "alloc_bytes": 258305.0,
+        "allocations": 3848.0,
+        "steps": 23552,
+        "tracked_peak_bytes": 248439,
+        "tracked_retained_bytes": 4192
+      },
+      "rust-simd": {
+        "median_ns": 201286.8931888545,
+        "min_ns": 198093.3962848297,
+        "max_ns": 202038.4427244582,
+        "samples_ns": [
+          201828.82043343654,
+          201249.48297213623,
+          199994.0681114551,
+          201324.30340557275,
+          202038.4427244582,
+          199568.75541795665,
+          201325.9814241486,
+          198093.3962848297
+        ],
+        "peak_rss_bytes": 6946816,
+        "alloc_bytes": 258305.0,
+        "allocations": 3848.0,
+        "steps": 23552,
+        "tracked_peak_bytes": 248439,
+        "tracked_retained_bytes": 4192
+      },
+      "rust-before-portable": {
+        "median_ns": 231319.01547987617,
+        "min_ns": 227518.44582043344,
+        "max_ns": 240966.2012383901,
+        "samples_ns": [
+          229713.49535603717,
+          240966.2012383901,
+          239120.74303405572,
+          231247.93808049537,
+          231935.4984520124,
+          230396.54179566563,
+          227518.44582043344,
+          231390.09287925696
+        ],
+        "peak_rss_bytes": 7258112,
+        "alloc_bytes": 319208.0,
+        "allocations": 5666.0,
+        "steps": 23552,
+        "tracked_peak_bytes": 309342,
+        "tracked_retained_bytes": 4192
+      },
+      "rust-before-simd": {
+        "median_ns": 231126.22445820432,
+        "min_ns": 227360.03405572756,
+        "max_ns": 235553.6625386997,
+        "samples_ns": [
+          228687.69349845202,
+          231347.39318885448,
+          235553.6625386997,
+          234276.44582043344,
+          232411.24767801858,
+          228909.82972136224,
+          227360.03405572756,
+          230905.05572755417
+        ],
+        "peak_rss_bytes": 6995968,
+        "alloc_bytes": 319208.0,
+        "allocations": 5666.0,
+        "steps": 23552,
+        "tracked_peak_bytes": 309342,
+        "tracked_retained_bytes": 4192
+      }
+    },
+    "json_api_project_16k/unlimited": {
+      "rust-portable": {
+        "median_ns": 199433.5787037037,
+        "min_ns": 198689.94444444444,
+        "max_ns": 209788.0648148148,
+        "samples_ns": [
+          199810.1851851852,
+          199508.74691358025,
+          198782.91975308643,
+          209788.0648148148,
+          199253.5987654321,
+          199576.25925925927,
+          198689.94444444444,
+          199358.41049382716
+        ],
+        "peak_rss_bytes": 6963200,
+        "alloc_bytes": 258305.0,
+        "allocations": 3848.0,
+        "steps": 23552,
+        "tracked_peak_bytes": 248439,
+        "tracked_retained_bytes": 4192
+      },
+      "rust-simd": {
+        "median_ns": 200578.89660493826,
+        "min_ns": 198121.39814814815,
+        "max_ns": 206566.48765432098,
+        "samples_ns": [
+          206566.48765432098,
+          200928.6265432099,
+          198994.34259259258,
+          198121.39814814815,
+          201593.1049382716,
+          201321.75925925927,
+          200229.16666666666,
+          198178.7561728395
+        ],
+        "peak_rss_bytes": 6963200,
+        "alloc_bytes": 258305.0,
+        "allocations": 3848.0,
+        "steps": 23552,
+        "tracked_peak_bytes": 248439,
+        "tracked_retained_bytes": 4192
+      },
+      "rust-before-portable": {
+        "median_ns": 230003.9212962963,
+        "min_ns": 227595.54938271604,
+        "max_ns": 241173.09567901236,
+        "samples_ns": [
+          229487.13888888888,
+          241173.09567901236,
+          230188.52777777778,
+          230930.55555555556,
+          227595.54938271604,
+          230652.52160493826,
+          228947.1450617284,
+          229819.3148148148
+        ],
+        "peak_rss_bytes": 7012352,
+        "alloc_bytes": 319208.0,
+        "allocations": 5666.0,
+        "steps": 23552,
+        "tracked_peak_bytes": 309342,
+        "tracked_retained_bytes": 4192
+      },
+      "rust-before-simd": {
+        "median_ns": 230544.30401234567,
+        "min_ns": 226239.71296296295,
+        "max_ns": 234644.16049382716,
+        "samples_ns": [
+          230017.8765432099,
+          231070.7314814815,
+          234644.16049382716,
+          226239.71296296295,
+          232272.63271604938,
+          231764.91666666666,
+          227785.75,
+          228094.13580246913
+        ],
+        "peak_rss_bytes": 6995968,
+        "alloc_bytes": 319208.0,
+        "allocations": 5666.0,
+        "steps": 23552,
+        "tracked_peak_bytes": 309342,
+        "tracked_retained_bytes": 4192
+      }
+    },
+    "json_api_stringify_16k/metered": {
+      "rust-portable": {
+        "median_ns": 135021.547833935,
+        "min_ns": 133617.93140794223,
+        "max_ns": 140396.73465703972,
+        "samples_ns": [
+          135019.70397111913,
+          135323.33032490974,
+          133617.93140794223,
+          140396.73465703972,
+          133919.6010830325,
+          134589.65162454874,
+          135023.3916967509,
+          135965.02707581228
+        ],
+        "peak_rss_bytes": 7061504,
+        "alloc_bytes": 176272.0,
+        "allocations": 1978.0,
+        "steps": 16500,
+        "tracked_peak_bytes": 230548,
+        "tracked_retained_bytes": 16480
+      },
+      "rust-simd": {
+        "median_ns": 132362.4774368231,
+        "min_ns": 131454.64801444043,
+        "max_ns": 135581.2274368231,
+        "samples_ns": [
+          135581.2274368231,
+          132329.12093862816,
+          131454.64801444043,
+          131948.1046931408,
+          131518.42599277978,
+          133517.44945848375,
+          132922.4584837545,
+          132395.83393501805
+        ],
+        "peak_rss_bytes": 7061504,
+        "alloc_bytes": 176272.0,
+        "allocations": 1978.0,
+        "steps": 16500,
+        "tracked_peak_bytes": 230548,
+        "tracked_retained_bytes": 16480
+      },
+      "rust-before-portable": {
+        "median_ns": 131781.43772563175,
+        "min_ns": 131016.77075812274,
+        "max_ns": 133544.97653429603,
+        "samples_ns": [
+          131760.83032490974,
+          131791.06498194946,
+          131798.13537906136,
+          132018.65162454874,
+          131505.49097472924,
+          131016.77075812274,
+          131771.81046931408,
+          133544.97653429603
+        ],
+        "peak_rss_bytes": 7258112,
+        "alloc_bytes": 176272.0,
+        "allocations": 1978.0,
+        "steps": 16500,
+        "tracked_peak_bytes": 230548,
+        "tracked_retained_bytes": 16480
+      },
+      "rust-before-simd": {
+        "median_ns": 132119.96028880865,
+        "min_ns": 130853.18953068592,
+        "max_ns": 134591.53249097473,
+        "samples_ns": [
+          132406.738267148,
+          132805.05415162456,
+          134591.53249097473,
+          131833.1823104693,
+          131073.48194945848,
+          130853.18953068592,
+          133627.85920577619,
+          131773.46570397113
+        ],
+        "peak_rss_bytes": 7061504,
+        "alloc_bytes": 176272.0,
+        "allocations": 1978.0,
+        "steps": 16500,
+        "tracked_peak_bytes": 230548,
+        "tracked_retained_bytes": 16480
+      }
+    },
+    "json_api_stringify_16k/unlimited": {
+      "rust-portable": {
+        "median_ns": 133238.25583482944,
+        "min_ns": 132489.67684021543,
+        "max_ns": 138859.96409335727,
+        "samples_ns": [
+          134087.29802513466,
+          133562.236983842,
+          132673.3249551167,
+          138859.96409335727,
+          133032.2405745063,
+          132489.67684021543,
+          133358.842010772,
+          133117.66965888688
+        ],
+        "peak_rss_bytes": 7061504,
+        "alloc_bytes": 176272.0,
+        "allocations": 1978.0,
+        "steps": 16500,
+        "tracked_peak_bytes": 230548,
+        "tracked_retained_bytes": 16480
+      },
+      "rust-simd": {
+        "median_ns": 131264.66157989227,
+        "min_ns": 130470.52782764811,
+        "max_ns": 135386.44524236984,
+        "samples_ns": [
+          135386.44524236984,
+          130470.52782764811,
+          131042.039497307,
+          130479.72710951525,
+          132001.42010771992,
+          131487.28366247757,
+          131577.49910233394,
+          130689.25673249552
+        ],
+        "peak_rss_bytes": 7061504,
+        "alloc_bytes": 176272.0,
+        "allocations": 1978.0,
+        "steps": 16500,
+        "tracked_peak_bytes": 230548,
+        "tracked_retained_bytes": 16480
+      },
+      "rust-before-portable": {
+        "median_ns": 130995.02513464991,
+        "min_ns": 130374.77558348294,
+        "max_ns": 131690.8276481149,
+        "samples_ns": [
+          131032.01615798923,
+          131690.8276481149,
+          130374.77558348294,
+          131627.0197486535,
+          131023.7881508079,
+          130966.26211849193,
+          130641.75763016158,
+          130581.38779174148
+        ],
+        "peak_rss_bytes": 7274496,
+        "alloc_bytes": 176272.0,
+        "allocations": 1978.0,
+        "steps": 16500,
+        "tracked_peak_bytes": 230548,
+        "tracked_retained_bytes": 16480
+      },
+      "rust-before-simd": {
+        "median_ns": 132022.89048473968,
+        "min_ns": 130820.24236983842,
+        "max_ns": 132509.80071813284,
+        "samples_ns": [
+          132233.9156193896,
+          132046.3052064632,
+          131999.47576301615,
+          131808.4236983842,
+          132509.80071813284,
+          130820.24236983842,
+          132440.4542190305,
+          131690.52962298025
+        ],
+        "peak_rss_bytes": 7094272,
+        "alloc_bytes": 176272.0,
+        "allocations": 1978.0,
+        "steps": 16500,
+        "tracked_peak_bytes": 230548,
+        "tracked_retained_bytes": 16480
+      }
+    },
+    "json_api_parse_256k/metered": {
+      "rust-portable": {
+        "median_ns": 1929002.3714285714,
+        "min_ns": 1915890.4857142856,
+        "max_ns": 2035246.4285714286,
+        "samples_ns": [
+          1916507.142857143,
+          2009191.6857142858,
+          1934796.4285714286,
+          2035246.4285714286,
+          1928175.0,
+          1929829.7428571428,
+          1921638.0857142857,
+          1915890.4857142856
+        ],
+        "peak_rss_bytes": 18464768,
+        "alloc_bytes": 2865637.0,
+        "allocations": 46806.0,
+        "steps": 135451,
+        "tracked_peak_bytes": 3055771,
+        "tracked_retained_bytes": 2789053
+      },
+      "rust-simd": {
+        "median_ns": 1927078.5714285714,
+        "min_ns": 1914241.657142857,
+        "max_ns": 1939294.0571428572,
+        "samples_ns": [
+          1923016.6857142858,
+          1915442.857142857,
+          1931140.4571428571,
+          1936738.0857142857,
+          1934609.5142857144,
+          1939294.0571428572,
+          1914241.657142857,
+          1922811.9142857143
+        ],
+        "peak_rss_bytes": 18726912,
+        "alloc_bytes": 2865637.0,
+        "allocations": 46806.0,
+        "steps": 135451,
+        "tracked_peak_bytes": 3055771,
+        "tracked_retained_bytes": 2789053
+      },
+      "rust-before-portable": {
+        "median_ns": 2145222.0142857144,
+        "min_ns": 2110485.714285714,
+        "max_ns": 2343320.2285714285,
+        "samples_ns": [
+          2123408.314285714,
+          2343320.2285714285,
+          2141384.5142857144,
+          2150467.8571428573,
+          2149059.5142857144,
+          2157076.2,
+          2110485.714285714,
+          2133998.8285714285
+        ],
+        "peak_rss_bytes": 22478848,
+        "alloc_bytes": 3837070.0,
+        "allocations": 75804.0,
+        "steps": 135451,
+        "tracked_peak_bytes": 4027204,
+        "tracked_retained_bytes": 3760486
+      },
+      "rust-before-simd": {
+        "median_ns": 2152964.3,
+        "min_ns": 2137836.9142857143,
+        "max_ns": 2179626.2,
+        "samples_ns": [
+          2148523.8285714285,
+          2173870.2285714285,
+          2157376.2,
+          2141420.2285714285,
+          2179626.2,
+          2171275.0,
+          2148552.4,
+          2137836.9142857143
+        ],
+        "peak_rss_bytes": 22298624,
+        "alloc_bytes": 3837070.0,
+        "allocations": 75804.0,
+        "steps": 135451,
+        "tracked_peak_bytes": 4027204,
+        "tracked_retained_bytes": 3760486
+      }
+    },
+    "json_api_parse_256k/unlimited": {
+      "rust-portable": {
+        "median_ns": 1924136.3142857142,
+        "min_ns": 1904821.4285714286,
+        "max_ns": 2017866.6857142858,
+        "samples_ns": [
+          1904821.4285714286,
+          2017866.6857142858,
+          1934342.857142857,
+          1934035.7142857143,
+          1922276.2,
+          1925996.4285714286,
+          1921508.3142857142,
+          1911390.4857142856
+        ],
+        "peak_rss_bytes": 17973248,
+        "alloc_bytes": 2865637.0,
+        "allocations": 46806.0,
+        "steps": 135451,
+        "tracked_peak_bytes": 3055771,
+        "tracked_retained_bytes": 2789053
+      },
+      "rust-simd": {
+        "median_ns": 1929920.2571428572,
+        "min_ns": 1912684.5142857144,
+        "max_ns": 1944464.2857142857,
+        "samples_ns": [
+          1917632.142857143,
+          1914153.5714285714,
+          1928573.8285714285,
+          1931266.6857142858,
+          1933891.657142857,
+          1944464.2857142857,
+          1912684.5142857144,
+          1935555.9428571428
+        ],
+        "peak_rss_bytes": 17956864,
+        "alloc_bytes": 2865637.0,
+        "allocations": 46806.0,
+        "steps": 135451,
+        "tracked_peak_bytes": 3055771,
+        "tracked_retained_bytes": 2789053
+      },
+      "rust-before-portable": {
+        "median_ns": 2130562.5142857144,
+        "min_ns": 2099184.5142857144,
+        "max_ns": 2149192.8571428573,
+        "samples_ns": [
+          2124340.4857142856,
+          2149192.8571428573,
+          2116888.0857142857,
+          2135234.5142857144,
+          2138608.314285714,
+          2126286.9142857143,
+          2099184.5142857144,
+          2134838.1142857145
+        ],
+        "peak_rss_bytes": 22560768,
+        "alloc_bytes": 3837070.0,
+        "allocations": 75804.0,
+        "steps": 135451,
+        "tracked_peak_bytes": 4027204,
+        "tracked_retained_bytes": 3760486
+      },
+      "rust-before-simd": {
+        "median_ns": 2152085.7142857146,
+        "min_ns": 2132729.742857143,
+        "max_ns": 2164241.657142857,
+        "samples_ns": [
+          2132729.742857143,
+          2149870.2285714285,
+          2159117.8571428573,
+          2137959.5428571426,
+          2154301.2,
+          2164241.657142857,
+          2145204.7714285715,
+          2157139.285714286
+        ],
+        "peak_rss_bytes": 22315008,
+        "alloc_bytes": 3837070.0,
+        "allocations": 75804.0,
+        "steps": 135451,
+        "tracked_peak_bytes": 4027204,
+        "tracked_retained_bytes": 3760486
+      }
+    },
+    "json_api_shape_256k/metered": {
+      "rust-portable": {
+        "median_ns": 2571053.32,
+        "min_ns": 2557566.68,
+        "max_ns": 2614178.32,
+        "samples_ns": [
+          2561781.64,
+          2570883.32,
+          2582391.68,
+          2614178.32,
+          2586206.68,
+          2571223.32,
+          2557566.68,
+          2561283.32
+        ],
+        "peak_rss_bytes": 18628608,
+        "alloc_bytes": 2865693.0,
+        "allocations": 46807.0,
+        "steps": 419222,
+        "tracked_peak_bytes": 3057383,
+        "tracked_retained_bytes": 2789053
+      },
+      "rust-simd": {
+        "median_ns": 2572332.5,
+        "min_ns": 2547645.0,
+        "max_ns": 2599076.68,
+        "samples_ns": [
+          2572580.0,
+          2560605.0,
+          2599076.68,
+          2584496.68,
+          2591290.0,
+          2567576.68,
+          2547645.0,
+          2572085.0
+        ],
+        "peak_rss_bytes": 18235392,
+        "alloc_bytes": 2865693.0,
+        "allocations": 46807.0,
+        "steps": 419222,
+        "tracked_peak_bytes": 3057383,
+        "tracked_retained_bytes": 2789053
+      },
+      "rust-before-portable": {
+        "median_ns": 2953277.5,
+        "min_ns": 2936630.0,
+        "max_ns": 2969566.68,
+        "samples_ns": [
+          2940428.36,
+          2951821.68,
+          2956766.68,
+          2950050.0,
+          2969566.68,
+          2964065.0,
+          2936630.0,
+          2954733.32
+        ],
+        "peak_rss_bytes": 22740992,
+        "alloc_bytes": 3837126.0,
+        "allocations": 75805.0,
+        "steps": 419222,
+        "tracked_peak_bytes": 4028816,
+        "tracked_retained_bytes": 3760486
+      },
+      "rust-before-simd": {
+        "median_ns": 2987714.16,
+        "min_ns": 2960248.32,
+        "max_ns": 3015820.0,
+        "samples_ns": [
+          2960248.32,
+          3015820.0,
+          2994998.36,
+          2981741.68,
+          2991696.64,
+          2983276.64,
+          2986256.68,
+          2989171.64
+        ],
+        "peak_rss_bytes": 22462464,
+        "alloc_bytes": 3837126.0,
+        "allocations": 75805.0,
+        "steps": 419222,
+        "tracked_peak_bytes": 4028816,
+        "tracked_retained_bytes": 3760486
+      }
+    },
+    "json_api_shape_256k/unlimited": {
+      "rust-portable": {
+        "median_ns": 2585949.98,
+        "min_ns": 2566668.32,
+        "max_ns": 2596830.0,
+        "samples_ns": [
+          2589256.68,
+          2577330.0,
+          2583988.32,
+          2596830.0,
+          2592210.0,
+          2566668.32,
+          2575990.0,
+          2587911.64
+        ],
+        "peak_rss_bytes": 18235392,
+        "alloc_bytes": 2865693.0,
+        "allocations": 46807.0,
+        "steps": 419222,
+        "tracked_peak_bytes": 3057383,
+        "tracked_retained_bytes": 2789053
+      },
+      "rust-simd": {
+        "median_ns": 2577828.32,
+        "min_ns": 2576618.32,
+        "max_ns": 2612008.36,
+        "samples_ns": [
+          2577658.32,
+          2577155.0,
+          2612008.36,
+          2577998.32,
+          2601143.32,
+          2576618.32,
+          2584918.32,
+          2577318.32
+        ],
+        "peak_rss_bytes": 18268160,
+        "alloc_bytes": 2865693.0,
+        "allocations": 46807.0,
+        "steps": 419222,
+        "tracked_peak_bytes": 3057383,
+        "tracked_retained_bytes": 2789053
+      },
+      "rust-before-portable": {
+        "median_ns": 2970186.6799999997,
+        "min_ns": 2937928.32,
+        "max_ns": 3109228.32,
+        "samples_ns": [
+          2961646.68,
+          2969200.0,
+          2956426.64,
+          2978786.68,
+          3109228.32,
+          2990388.32,
+          2937928.32,
+          2971173.36
+        ],
+        "peak_rss_bytes": 22675456,
+        "alloc_bytes": 3837126.0,
+        "allocations": 75805.0,
+        "steps": 419222,
+        "tracked_peak_bytes": 4028816,
+        "tracked_retained_bytes": 3760486
+      },
+      "rust-before-simd": {
+        "median_ns": 2988921.66,
+        "min_ns": 2954228.32,
+        "max_ns": 3154366.64,
+        "samples_ns": [
+          2955691.68,
+          3154366.64,
+          2987493.32,
+          2990350.0,
+          2979650.0,
+          3001890.0,
+          2954228.32,
+          3002455.0
+        ],
+        "peak_rss_bytes": 22462464,
+        "alloc_bytes": 3837126.0,
+        "allocations": 75805.0,
+        "steps": 419222,
+        "tracked_peak_bytes": 4028816,
+        "tracked_retained_bytes": 3760486
+      }
+    },
+    "json_api_array_256k/metered": {
+      "rust-portable": {
+        "median_ns": 2580573.36,
+        "min_ns": 2565676.64,
+        "max_ns": 2591225.0,
+        "samples_ns": [
+          2574893.36,
+          2571865.0,
+          2590115.0,
+          2586253.36,
+          2591225.0,
+          2566430.0,
+          2565676.64,
+          2591070.0
+        ],
+        "peak_rss_bytes": 18530304,
+        "alloc_bytes": 2865015.0,
+        "allocations": 46796.0,
+        "steps": 419177,
+        "tracked_peak_bytes": 3056366,
+        "tracked_retained_bytes": 2788375
+      },
+      "rust-simd": {
+        "median_ns": 2583331.6799999997,
+        "min_ns": 2568341.68,
+        "max_ns": 2607348.32,
+        "samples_ns": [
+          2581688.32,
+          2568463.32,
+          2582598.36,
+          2607348.32,
+          2595898.36,
+          2588486.68,
+          2568341.68,
+          2584065.0
+        ],
+        "peak_rss_bytes": 18087936,
+        "alloc_bytes": 2865015.0,
+        "allocations": 46796.0,
+        "steps": 419177,
+        "tracked_peak_bytes": 3056366,
+        "tracked_retained_bytes": 2788375
+      },
+      "rust-before-portable": {
+        "median_ns": 2996580.8200000003,
+        "min_ns": 2945766.68,
+        "max_ns": 3154033.32,
+        "samples_ns": [
+          2970851.68,
+          3142605.0,
+          3059321.64,
+          2991036.64,
+          3154033.32,
+          3002125.0,
+          2945766.68,
+          2969933.36
+        ],
+        "peak_rss_bytes": 22626304,
+        "alloc_bytes": 3836448.0,
+        "allocations": 75794.0,
+        "steps": 419177,
+        "tracked_peak_bytes": 4027799,
+        "tracked_retained_bytes": 3759808
+      },
+      "rust-before-simd": {
+        "median_ns": 3000194.16,
+        "min_ns": 2971248.32,
+        "max_ns": 3292913.32,
+        "samples_ns": [
+          2971248.32,
+          3292913.32,
+          2997268.32,
+          3040150.0,
+          3003120.0,
+          3028563.36,
+          2973586.64,
+          2996741.64
+        ],
+        "peak_rss_bytes": 21053440,
+        "alloc_bytes": 3836448.0,
+        "allocations": 75794.0,
+        "steps": 419177,
+        "tracked_peak_bytes": 4027799,
+        "tracked_retained_bytes": 3759808
+      }
+    },
+    "json_api_array_256k/unlimited": {
+      "rust-portable": {
+        "median_ns": 2580316.66,
+        "min_ns": 2562901.68,
+        "max_ns": 2601050.0,
+        "samples_ns": [
+          2601050.0,
+          2577765.0,
+          2582868.32,
+          2576423.36,
+          2585633.36,
+          2583003.36,
+          2562901.68,
+          2564675.0
+        ],
+        "peak_rss_bytes": 18104320,
+        "alloc_bytes": 2865015.0,
+        "allocations": 46796.0,
+        "steps": 419177,
+        "tracked_peak_bytes": 3056366,
+        "tracked_retained_bytes": 2788375
+      },
+      "rust-simd": {
+        "median_ns": 2577030.84,
+        "min_ns": 2556841.68,
+        "max_ns": 2605550.0,
+        "samples_ns": [
+          2572318.36,
+          2562948.36,
+          2581743.32,
+          2605550.0,
+          2603048.32,
+          2587098.32,
+          2559238.32,
+          2556841.68
+        ],
+        "peak_rss_bytes": 18956288,
+        "alloc_bytes": 2865015.0,
+        "allocations": 46796.0,
+        "steps": 419177,
+        "tracked_peak_bytes": 3056366,
+        "tracked_retained_bytes": 2788375
+      },
+      "rust-before-portable": {
+        "median_ns": 2982470.84,
+        "min_ns": 2960033.36,
+        "max_ns": 3151696.68,
+        "samples_ns": [
+          2969493.32,
+          3126055.0,
+          3151696.68,
+          2986461.68,
+          2978480.0,
+          3002908.32,
+          2970661.64,
+          2960033.36
+        ],
+        "peak_rss_bytes": 22560768,
+        "alloc_bytes": 3836448.0,
+        "allocations": 75794.0,
+        "steps": 419177,
+        "tracked_peak_bytes": 4027799,
+        "tracked_retained_bytes": 3759808
+      },
+      "rust-before-simd": {
+        "median_ns": 2992768.36,
+        "min_ns": 2961058.36,
+        "max_ns": 3325811.68,
+        "samples_ns": [
+          2961058.36,
+          3325811.68,
+          2991808.36,
+          2995955.0,
+          2999825.0,
+          2993728.36,
+          2970308.36,
+          2974530.0
+        ],
+        "peak_rss_bytes": 21004288,
+        "alloc_bytes": 3836448.0,
+        "allocations": 75794.0,
+        "steps": 419177,
+        "tracked_peak_bytes": 4027799,
+        "tracked_retained_bytes": 3759808
+      }
+    },
+    "json_api_project_256k/metered": {
+      "rust-portable": {
+        "median_ns": 3103427.5714285714,
+        "min_ns": 3095041.6666666665,
+        "max_ns": 3123565.476190476,
+        "samples_ns": [
+          3119507.9523809524,
+          3123565.476190476,
+          3106926.5714285714,
+          3099928.5714285714,
+          3096964.285714286,
+          3115406.761904762,
+          3095041.6666666665,
+          3098547.619047619
+        ],
+        "peak_rss_bytes": 11206656,
+        "alloc_bytes": 3854415.0,
+        "allocations": 59728.0,
+        "steps": 370810,
+        "tracked_peak_bytes": 3770157,
+        "tracked_retained_bytes": 65632
+      },
+      "rust-simd": {
+        "median_ns": 3122788.6904761903,
+        "min_ns": 3082996.0476190476,
+        "max_ns": 3163091.285714286,
+        "samples_ns": [
+          3117934.523809524,
+          3091269.8571428573,
+          3128688.476190476,
+          3163091.285714286,
+          3139430.5714285714,
+          3127642.8571428573,
+          3082996.0476190476,
+          3115972.1904761903
+        ],
+        "peak_rss_bytes": 11124736,
+        "alloc_bytes": 3854415.0,
+        "allocations": 59728.0,
+        "steps": 370810,
+        "tracked_peak_bytes": 3770157,
+        "tracked_retained_bytes": 65632
+      },
+      "rust-before-portable": {
+        "median_ns": 3573959.3095238097,
+        "min_ns": 3530763.904761905,
+        "max_ns": 3760069.476190476,
+        "samples_ns": [
+          3575837.285714286,
+          3716557.523809524,
+          3760069.476190476,
+          3570752.0,
+          3576297.619047619,
+          3572081.3333333335,
+          3530763.904761905,
+          3570906.761904762
+        ],
+        "peak_rss_bytes": 12337152,
+        "alloc_bytes": 4825848.0,
+        "allocations": 88726.0,
+        "steps": 370810,
+        "tracked_peak_bytes": 4741590,
+        "tracked_retained_bytes": 65632
+      },
+      "rust-before-simd": {
+        "median_ns": 3564693.4523809524,
+        "min_ns": 3526111.095238095,
+        "max_ns": 3959843.238095238,
+        "samples_ns": [
+          3526111.095238095,
+          3959843.238095238,
+          3608789.6666666665,
+          3566321.4285714286,
+          3592002.0,
+          3561081.380952381,
+          3535329.380952381,
+          3563065.476190476
+        ],
+        "peak_rss_bytes": 12337152,
+        "alloc_bytes": 4825848.0,
+        "allocations": 88726.0,
+        "steps": 370810,
+        "tracked_peak_bytes": 4741590,
+        "tracked_retained_bytes": 65632
+      }
+    },
+    "json_api_project_256k/unlimited": {
+      "rust-portable": {
+        "median_ns": 3111887.880952381,
+        "min_ns": 3077224.1904761903,
+        "max_ns": 3249892.8571428573,
+        "samples_ns": [
+          3117349.1904761903,
+          3115698.380952381,
+          3249892.8571428573,
+          3107065.476190476,
+          3106748.0,
+          3108077.380952381,
+          3077224.1904761903,
+          3119722.1904761903
+        ],
+        "peak_rss_bytes": 11288576,
+        "alloc_bytes": 3854415.0,
+        "allocations": 59728.0,
+        "steps": 370810,
+        "tracked_peak_bytes": 3770157,
+        "tracked_retained_bytes": 65632
+      },
+      "rust-simd": {
+        "median_ns": 3123454.3571428573,
+        "min_ns": 3105724.238095238,
+        "max_ns": 3166438.476190476,
+        "samples_ns": [
+          3166438.476190476,
+          3113805.5714285714,
+          3125047.619047619,
+          3151009.904761905,
+          3122285.714285714,
+          3124623.0,
+          3105724.238095238,
+          3115996.0476190476
+        ],
+        "peak_rss_bytes": 11141120,
+        "alloc_bytes": 3854415.0,
+        "allocations": 59728.0,
+        "steps": 370810,
+        "tracked_peak_bytes": 3770157,
+        "tracked_retained_bytes": 65632
+      },
+      "rust-before-portable": {
+        "median_ns": 3562287.7142857146,
+        "min_ns": 3507492.095238095,
+        "max_ns": 3731033.714285714,
+        "samples_ns": [
+          3525561.523809524,
+          3731033.714285714,
+          3675402.8095238097,
+          3507492.095238095,
+          3571353.1428571427,
+          3568688.523809524,
+          3538632.9523809524,
+          3555886.904761905
+        ],
+        "peak_rss_bytes": 12566528,
+        "alloc_bytes": 4825848.0,
+        "allocations": 88726.0,
+        "steps": 370810,
+        "tracked_peak_bytes": 4741590,
+        "tracked_retained_bytes": 65632
+      },
+      "rust-before-simd": {
+        "median_ns": 3569097.214285714,
+        "min_ns": 3540424.5714285714,
+        "max_ns": 3580045.6666666665,
+        "samples_ns": [
+          3574529.761904762,
+          3545541.6666666665,
+          3580045.6666666665,
+          3549017.8571428573,
+          3567906.714285714,
+          3570287.714285714,
+          3540424.5714285714,
+          3573335.3333333335
+        ],
+        "peak_rss_bytes": 12369920,
+        "alloc_bytes": 4825848.0,
+        "allocations": 88726.0,
+        "steps": 370810,
+        "tracked_peak_bytes": 4741590,
+        "tracked_retained_bytes": 65632
+      }
+    },
+    "json_api_stringify_256k/metered": {
+      "rust-portable": {
+        "median_ns": 2072729.1666666665,
+        "min_ns": 2061160.888888889,
+        "max_ns": 2141244.1944444445,
+        "samples_ns": [
+          2061160.888888889,
+          2076733.7777777778,
+          2141244.1944444445,
+          2081393.5277777778,
+          2068724.5555555555,
+          2067827.5277777778,
+          2067858.8055555555,
+          2082219.9166666667
+        ],
+        "peak_rss_bytes": 16564224,
+        "alloc_bytes": 2709312.0,
+        "allocations": 30672.0,
+        "steps": 259610,
+        "tracked_peak_bytes": 3582948,
+        "tracked_retained_bytes": 262240
+      },
+      "rust-simd": {
+        "median_ns": 2043308.4305555555,
+        "min_ns": 2028407.4166666667,
+        "max_ns": 2101169.0,
+        "samples_ns": [
+          2101169.0,
+          2028407.4166666667,
+          2048629.611111111,
+          2039674.7777777778,
+          2051307.888888889,
+          2043351.8333333333,
+          2043265.0277777778,
+          2041628.4722222222
+        ],
+        "peak_rss_bytes": 16596992,
+        "alloc_bytes": 2709312.0,
+        "allocations": 30672.0,
+        "steps": 259610,
+        "tracked_peak_bytes": 3582948,
+        "tracked_retained_bytes": 262240
+      },
+      "rust-before-portable": {
+        "median_ns": 2051377.9027777778,
+        "min_ns": 2041568.2777777778,
+        "max_ns": 2068815.9722222222,
+        "samples_ns": [
+          2051065.9722222222,
+          2068815.9722222222,
+          2051689.8333333333,
+          2048171.3055555555,
+          2042905.0833333333,
+          2052706.0277777778,
+          2041568.2777777778,
+          2065621.5277777778
+        ],
+        "peak_rss_bytes": 17956864,
+        "alloc_bytes": 2709312.0,
+        "allocations": 30672.0,
+        "steps": 259610,
+        "tracked_peak_bytes": 3582948,
+        "tracked_retained_bytes": 262240
+      },
+      "rust-before-simd": {
+        "median_ns": 2053287.0416666665,
+        "min_ns": 2046511.5555555555,
+        "max_ns": 2067763.888888889,
+        "samples_ns": [
+          2056563.6666666667,
+          2058194.4444444445,
+          2046511.5555555555,
+          2053843.75,
+          2067763.888888889,
+          2051144.6666666667,
+          2051876.1666666667,
+          2052730.3333333333
+        ],
+        "peak_rss_bytes": 17842176,
+        "alloc_bytes": 2709312.0,
+        "allocations": 30672.0,
+        "steps": 259610,
+        "tracked_peak_bytes": 3582948,
+        "tracked_retained_bytes": 262240
+      }
+    },
+    "json_api_stringify_256k/unlimited": {
+      "rust-portable": {
+        "median_ns": 2063138.3055555555,
+        "min_ns": 2048546.2777777778,
+        "max_ns": 2137016.1944444445,
+        "samples_ns": [
+          2063759.25,
+          2048546.2777777778,
+          2064894.6666666667,
+          2137016.1944444445,
+          2060401.638888889,
+          2062517.361111111,
+          2052217.5833333333,
+          2065379.638888889
+        ],
+        "peak_rss_bytes": 16564224,
+        "alloc_bytes": 2709312.0,
+        "allocations": 30672.0,
+        "steps": 259610,
+        "tracked_peak_bytes": 3582948,
+        "tracked_retained_bytes": 262240
+      },
+      "rust-simd": {
+        "median_ns": 2033743.625,
+        "min_ns": 2021969.9166666667,
+        "max_ns": 2097466.4444444445,
+        "samples_ns": [
+          2097466.4444444445,
+          2021969.9166666667,
+          2023523.138888889,
+          2037817.138888889,
+          2036673.611111111,
+          2038483.8055555555,
+          2023684.0277777778,
+          2030813.638888889
+        ],
+        "peak_rss_bytes": 16564224,
+        "alloc_bytes": 2709312.0,
+        "allocations": 30672.0,
+        "steps": 259610,
+        "tracked_peak_bytes": 3582948,
+        "tracked_retained_bytes": 262240
+      },
+      "rust-before-portable": {
+        "median_ns": 2045522.0,
+        "min_ns": 2022312.5,
+        "max_ns": 2065413.1944444445,
+        "samples_ns": [
+          2031731.4722222222,
+          2065413.1944444445,
+          2022312.5,
+          2046863.4444444445,
+          2050166.6666666667,
+          2044180.5555555555,
+          2030667.8055555555,
+          2058381.9444444445
+        ],
+        "peak_rss_bytes": 17858560,
+        "alloc_bytes": 2709312.0,
+        "allocations": 30672.0,
+        "steps": 259610,
+        "tracked_peak_bytes": 3582948,
+        "tracked_retained_bytes": 262240
+      },
+      "rust-before-simd": {
+        "median_ns": 2040833.3333333335,
+        "min_ns": 2028799.7777777778,
+        "max_ns": 2053902.7777777778,
+        "samples_ns": [
+          2039856.4722222222,
+          2028799.7777777778,
+          2039113.4444444445,
+          2043431.6944444445,
+          2053902.7777777778,
+          2049408.5555555555,
+          2041810.1944444445,
+          2035964.111111111
+        ],
+        "peak_rss_bytes": 17711104,
+        "alloc_bytes": 2709312.0,
+        "allocations": 30672.0,
+        "steps": 259610,
+        "tracked_peak_bytes": 3582948,
+        "tracked_retained_bytes": 262240
+      }
+    },
+    "json_api_parse_1m/metered": {
+      "rust-portable": {
+        "median_ns": 7623947.9,
+        "min_ns": 7547252.05,
+        "max_ns": 7686272.9,
+        "samples_ns": [
+          7560977.1,
+          7547252.05,
+          7677433.35,
+          7686272.9,
+          7617387.5,
+          7672083.35,
+          7600479.15,
+          7630508.3
+        ],
+        "peak_rss_bytes": 54804480,
+        "alloc_bytes": 11380645.0,
+        "allocations": 186008.0,
+        "steps": 538651,
+        "tracked_peak_bytes": 12143707,
+        "tracked_retained_bytes": 11090557
+      },
+      "rust-simd": {
+        "median_ns": 7632910.4,
+        "min_ns": 7577000.0,
+        "max_ns": 7695154.15,
+        "samples_ns": [
+          7625950.0,
+          7592981.25,
+          7624100.0,
+          7695154.15,
+          7686133.3,
+          7669164.6,
+          7577000.0,
+          7639870.8
+        ],
+        "peak_rss_bytes": 55508992,
+        "alloc_bytes": 11380645.0,
+        "allocations": 186008.0,
+        "steps": 538651,
+        "tracked_peak_bytes": 12143707,
+        "tracked_retained_bytes": 11090557
+      },
+      "rust-before-portable": {
+        "median_ns": 8434853.149999999,
+        "min_ns": 8353227.05,
+        "max_ns": 8607187.5,
+        "samples_ns": [
+          8420695.85,
+          8400181.25,
+          8448620.85,
+          8524647.9,
+          8607187.5,
+          8421085.45,
+          8353227.05,
+          8517868.75
+        ],
+        "peak_rss_bytes": 70352896,
+        "alloc_bytes": 15246478.0,
+        "allocations": 301406.0,
+        "steps": 538651,
+        "tracked_peak_bytes": 16009540,
+        "tracked_retained_bytes": 14956390
+      },
+      "rust-before-simd": {
+        "median_ns": 8555414.6,
+        "min_ns": 8470868.75,
+        "max_ns": 9290629.15,
+        "samples_ns": [
+          8473412.5,
+          9290629.15,
+          8556668.75,
+          8555847.95,
+          8595683.35,
+          8470868.75,
+          8554981.25,
+          8490339.6
+        ],
+        "peak_rss_bytes": 64700416,
+        "alloc_bytes": 15246478.0,
+        "allocations": 301406.0,
+        "steps": 538651,
+        "tracked_peak_bytes": 16009540,
+        "tracked_retained_bytes": 14956390
+      }
+    },
+    "json_api_parse_1m/unlimited": {
+      "rust-portable": {
+        "median_ns": 7622257.3,
+        "min_ns": 7575829.2,
+        "max_ns": 7644781.25,
+        "samples_ns": [
+          7631529.15,
+          7625306.25,
+          7608106.25,
+          7619208.35,
+          7644781.25,
+          7635656.25,
+          7608779.15,
+          7575829.2
+        ],
+        "peak_rss_bytes": 52625408,
+        "alloc_bytes": 11380645.0,
+        "allocations": 186008.0,
+        "steps": 538651,
+        "tracked_peak_bytes": 12143707,
+        "tracked_retained_bytes": 11090557
+      },
+      "rust-simd": {
+        "median_ns": 7623184.375,
+        "min_ns": 7573931.25,
+        "max_ns": 7711231.25,
+        "samples_ns": [
+          7579218.75,
+          7598202.05,
+          7692566.7,
+          7711231.25,
+          7644314.6,
+          7656806.25,
+          7573931.25,
+          7602054.15
+        ],
+        "peak_rss_bytes": 52609024,
+        "alloc_bytes": 11380645.0,
+        "allocations": 186008.0,
+        "steps": 538651,
+        "tracked_peak_bytes": 12143707,
+        "tracked_retained_bytes": 11090557
+      },
+      "rust-before-portable": {
+        "median_ns": 8433782.3,
+        "min_ns": 8343789.6,
+        "max_ns": 9061991.65,
+        "samples_ns": [
+          8343789.6,
+          9039493.75,
+          8422606.25,
+          8444958.35,
+          9061991.65,
+          8512835.4,
+          8382343.75,
+          8384156.25
+        ],
+        "peak_rss_bytes": 70352896,
+        "alloc_bytes": 15246478.0,
+        "allocations": 301406.0,
+        "steps": 538651,
+        "tracked_peak_bytes": 16009540,
+        "tracked_retained_bytes": 14956390
+      },
+      "rust-before-simd": {
+        "median_ns": 8536086.45,
+        "min_ns": 8373322.9,
+        "max_ns": 9147787.5,
+        "samples_ns": [
+          8373322.9,
+          9147787.5,
+          8575266.65,
+          8595060.4,
+          8592183.35,
+          8496906.25,
+          8425154.15,
+          8472997.95
+        ],
+        "peak_rss_bytes": 70057984,
+        "alloc_bytes": 15246478.0,
+        "allocations": 301406.0,
+        "steps": 538651,
+        "tracked_peak_bytes": 16009540,
+        "tracked_retained_bytes": 14956390
+      }
+    },
+    "json_api_shape_1m/metered": {
+      "rust-portable": {
+        "median_ns": 10246605.225,
+        "min_ns": 10158958.3,
+        "max_ns": 10576241.65,
+        "samples_ns": [
+          10284729.15,
+          10253056.25,
+          10555616.65,
+          10576241.65,
+          10203962.5,
+          10221877.1,
+          10158958.3,
+          10240154.2
+        ],
+        "peak_rss_bytes": 52969472,
+        "alloc_bytes": 11380701.0,
+        "allocations": 186009.0,
+        "steps": 1667222,
+        "tracked_peak_bytes": 12145319,
+        "tracked_retained_bytes": 11090557
+      },
+      "rust-simd": {
+        "median_ns": 10251206.25,
+        "min_ns": 10102175.0,
+        "max_ns": 10349670.8,
+        "samples_ns": [
+          10210175.0,
+          10185837.5,
+          10255431.25,
+          10298845.8,
+          10286718.75,
+          10349670.8,
+          10102175.0,
+          10246981.25
+        ],
+        "peak_rss_bytes": 52953088,
+        "alloc_bytes": 11380701.0,
+        "allocations": 186009.0,
+        "steps": 1667222,
+        "tracked_peak_bytes": 12145319,
+        "tracked_retained_bytes": 11090557
+      },
+      "rust-before-portable": {
+        "median_ns": 11812465.600000001,
+        "min_ns": 11670418.75,
+        "max_ns": 12455554.2,
+        "samples_ns": [
+          11730247.9,
+          12455554.2,
+          11900579.2,
+          11814372.9,
+          11810558.3,
+          11895270.85,
+          11724693.75,
+          11670418.75
+        ],
+        "peak_rss_bytes": 70844416,
+        "alloc_bytes": 15246534.0,
+        "allocations": 301407.0,
+        "steps": 1667222,
+        "tracked_peak_bytes": 16011152,
+        "tracked_retained_bytes": 14956390
+      },
+      "rust-before-simd": {
+        "median_ns": 11853152.05,
+        "min_ns": 11713868.75,
+        "max_ns": 11940070.85,
+        "samples_ns": [
+          11713868.75,
+          11855739.55,
+          11825333.35,
+          11850564.55,
+          11940070.85,
+          11879014.6,
+          11817102.1,
+          11862783.3
+        ],
+        "peak_rss_bytes": 65011712,
+        "alloc_bytes": 15246534.0,
+        "allocations": 301407.0,
+        "steps": 1667222,
+        "tracked_peak_bytes": 16011152,
+        "tracked_retained_bytes": 14956390
+      }
+    },
+    "json_api_shape_1m/unlimited": {
+      "rust-portable": {
+        "median_ns": 10228755.225,
+        "min_ns": 10193402.05,
+        "max_ns": 10303977.1,
+        "samples_ns": [
+          10193402.05,
+          10223356.25,
+          10256454.15,
+          10249068.75,
+          10213908.35,
+          10303977.1,
+          10234154.2,
+          10200802.1
+        ],
+        "peak_rss_bytes": 52936704,
+        "alloc_bytes": 11380701.0,
+        "allocations": 186009.0,
+        "steps": 1667222,
+        "tracked_peak_bytes": 12145319,
+        "tracked_retained_bytes": 11090557
+      },
+      "rust-simd": {
+        "median_ns": 10242516.65,
+        "min_ns": 10132120.85,
+        "max_ns": 10430435.45,
+        "samples_ns": [
+          10430435.45,
+          10195172.95,
+          10222454.15,
+          10262579.15,
+          10354541.7,
+          10354352.1,
+          10132120.85,
+          10209983.35
+        ],
+        "peak_rss_bytes": 52985856,
+        "alloc_bytes": 11380701.0,
+        "allocations": 186009.0,
+        "steps": 1667222,
+        "tracked_peak_bytes": 12145319,
+        "tracked_retained_bytes": 11090557
+      },
+      "rust-before-portable": {
+        "median_ns": 11762250.0,
+        "min_ns": 11686481.25,
+        "max_ns": 11899002.05,
+        "samples_ns": [
+          11731922.9,
+          11899002.05,
+          11699166.65,
+          11809641.7,
+          11775556.25,
+          11748943.75,
+          11686481.25,
+          11820977.1
+        ],
+        "peak_rss_bytes": 70385664,
+        "alloc_bytes": 15246534.0,
+        "allocations": 301407.0,
+        "steps": 1667222,
+        "tracked_peak_bytes": 16011152,
+        "tracked_retained_bytes": 14956390
+      },
+      "rust-before-simd": {
+        "median_ns": 11827487.5,
+        "min_ns": 11725322.95,
+        "max_ns": 12052187.5,
+        "samples_ns": [
+          11754089.6,
+          12052187.5,
+          11828072.9,
+          11841875.0,
+          11830293.75,
+          11765487.5,
+          11826902.1,
+          11725322.95
+        ],
+        "peak_rss_bytes": 65011712,
+        "alloc_bytes": 15246534.0,
+        "allocations": 301407.0,
+        "steps": 1667222,
+        "tracked_peak_bytes": 16011152,
+        "tracked_retained_bytes": 14956390
+      }
+    },
+    "json_api_array_1m/metered": {
+      "rust-portable": {
+        "median_ns": 10207917.7,
+        "min_ns": 10149197.95,
+        "max_ns": 10256970.8,
+        "samples_ns": [
+          10193100.0,
+          10218079.15,
+          10239381.25,
+          10165143.75,
+          10251318.75,
+          10256970.8,
+          10149197.95,
+          10197756.25
+        ],
+        "peak_rss_bytes": 55050240,
+        "alloc_bytes": 11380023.0,
+        "allocations": 185998.0,
+        "steps": 1667177,
+        "tracked_peak_bytes": 12144302,
+        "tracked_retained_bytes": 11089879
+      },
+      "rust-simd": {
+        "median_ns": 10238294.8,
+        "min_ns": 10195447.9,
+        "max_ns": 10343056.25,
+        "samples_ns": [
+          10212379.15,
+          10195447.9,
+          10245043.75,
+          10313356.25,
+          10343056.25,
+          10250502.1,
+          10230583.35,
+          10231545.85
+        ],
+        "peak_rss_bytes": 52887552,
+        "alloc_bytes": 11380023.0,
+        "allocations": 185998.0,
+        "steps": 1667177,
+        "tracked_peak_bytes": 12144302,
+        "tracked_retained_bytes": 11089879
+      },
+      "rust-before-portable": {
+        "median_ns": 11882207.325,
+        "min_ns": 11697141.65,
+        "max_ns": 12457120.85,
+        "samples_ns": [
+          11731489.6,
+          12416252.1,
+          12457120.85,
+          11880810.45,
+          11928333.3,
+          11883604.2,
+          11719275.0,
+          11697141.65
+        ],
+        "peak_rss_bytes": 70631424,
+        "alloc_bytes": 15245856.0,
+        "allocations": 301396.0,
+        "steps": 1667177,
+        "tracked_peak_bytes": 16010135,
+        "tracked_retained_bytes": 14955712
+      },
+      "rust-before-simd": {
+        "median_ns": 11894562.524999999,
+        "min_ns": 11723631.25,
+        "max_ns": 12258502.1,
+        "samples_ns": [
+          11723631.25,
+          12258502.1,
+          11878254.2,
+          11985691.65,
+          11918989.6,
+          11754050.0,
+          11734583.35,
+          11910870.85
+        ],
+        "peak_rss_bytes": 70696960,
+        "alloc_bytes": 15245856.0,
+        "allocations": 301396.0,
+        "steps": 1667177,
+        "tracked_peak_bytes": 16010135,
+        "tracked_retained_bytes": 14955712
+      }
+    },
+    "json_api_array_1m/unlimited": {
+      "rust-portable": {
+        "median_ns": 10278952.075,
+        "min_ns": 10182281.25,
+        "max_ns": 10298935.45,
+        "samples_ns": [
+          10294964.55,
+          10275750.0,
+          10273639.55,
+          10298935.45,
+          10185368.75,
+          10290181.25,
+          10182281.25,
+          10282154.15
+        ],
+        "peak_rss_bytes": 52887552,
+        "alloc_bytes": 11380023.0,
+        "allocations": 185998.0,
+        "steps": 1667177,
+        "tracked_peak_bytes": 12144302,
+        "tracked_retained_bytes": 11089879
+      },
+      "rust-simd": {
+        "median_ns": 10227705.2,
+        "min_ns": 10122366.7,
+        "max_ns": 10371612.5,
+        "samples_ns": [
+          10181050.0,
+          10178945.8,
+          10292718.75,
+          10290256.25,
+          10371612.5,
+          10274360.4,
+          10122366.7,
+          10166166.65
+        ],
+        "peak_rss_bytes": 55869440,
+        "alloc_bytes": 11380023.0,
+        "allocations": 185998.0,
+        "steps": 1667177,
+        "tracked_peak_bytes": 12144302,
+        "tracked_retained_bytes": 11089879
+      },
+      "rust-before-portable": {
+        "median_ns": 11836870.825,
+        "min_ns": 11707460.4,
+        "max_ns": 12254937.5,
+        "samples_ns": [
+          11709008.35,
+          12254937.5,
+          11886831.25,
+          11836114.55,
+          11837627.1,
+          11890012.5,
+          11707460.4,
+          11796464.55
+        ],
+        "peak_rss_bytes": 70615040,
+        "alloc_bytes": 15245856.0,
+        "allocations": 301396.0,
+        "steps": 1667177,
+        "tracked_peak_bytes": 16010135,
+        "tracked_retained_bytes": 14955712
+      },
+      "rust-before-simd": {
+        "median_ns": 11823862.5,
+        "min_ns": 11751227.1,
+        "max_ns": 11957610.45,
+        "samples_ns": [
+          11751227.1,
+          11822643.75,
+          11854895.85,
+          11802070.8,
+          11957610.45,
+          11908622.9,
+          11825081.25,
+          11810079.15
+        ],
+        "peak_rss_bytes": 64913408,
+        "alloc_bytes": 15245856.0,
+        "allocations": 301396.0,
+        "steps": 1667177,
+        "tracked_peak_bytes": 16010135,
+        "tracked_retained_bytes": 14955712
+      }
+    },
+    "json_api_project_1m/metered": {
+      "rust-portable": {
+        "median_ns": 12306123.975,
+        "min_ns": 12256114.6,
+        "max_ns": 12377606.25,
+        "samples_ns": [
+          12260506.25,
+          12256114.6,
+          12372400.0,
+          12287360.45,
+          12320766.7,
+          12377606.25,
+          12330089.55,
+          12291481.25
+        ],
+        "peak_rss_bytes": 25247744,
+        "alloc_bytes": 15293455.0,
+        "allocations": 237336.0,
+        "steps": 1474810,
+        "tracked_peak_bytes": 14975213,
+        "tracked_retained_bytes": 262240
+      },
+      "rust-simd": {
+        "median_ns": 12407690.625,
+        "min_ns": 12288497.9,
+        "max_ns": 12696364.6,
+        "samples_ns": [
+          12696364.6,
+          12288497.9,
+          12533739.55,
+          12397556.25,
+          12417825.0,
+          12498779.2,
+          12326235.4,
+          12336664.6
+        ],
+        "peak_rss_bytes": 25296896,
+        "alloc_bytes": 15293455.0,
+        "allocations": 237336.0,
+        "steps": 1474810,
+        "tracked_peak_bytes": 14975213,
+        "tracked_retained_bytes": 262240
+      },
+      "rust-before-portable": {
+        "median_ns": 14082184.375,
+        "min_ns": 13986197.95,
+        "max_ns": 14827875.0,
+        "samples_ns": [
+          14072518.75,
+          14593739.6,
+          14693270.85,
+          14091850.0,
+          14827875.0,
+          13986197.95,
+          14000083.35,
+          14007002.1
+        ],
+        "peak_rss_bytes": 30343168,
+        "alloc_bytes": 19159288.0,
+        "allocations": 352734.0,
+        "steps": 1474810,
+        "tracked_peak_bytes": 18841046,
+        "tracked_retained_bytes": 262240
+      },
+      "rust-before-simd": {
+        "median_ns": 14146189.575,
+        "min_ns": 13945489.55,
+        "max_ns": 14903643.75,
+        "samples_ns": [
+          14077212.5,
+          14903643.75,
+          14234029.15,
+          14219468.75,
+          14193156.25,
+          14062714.55,
+          13945489.55,
+          14099222.9
+        ],
+        "peak_rss_bytes": 30277632,
+        "alloc_bytes": 19159288.0,
+        "allocations": 352734.0,
+        "steps": 1474810,
+        "tracked_peak_bytes": 18841046,
+        "tracked_retained_bytes": 262240
+      }
+    },
+    "json_api_project_1m/unlimited": {
+      "rust-portable": {
+        "median_ns": 12310166.675,
+        "min_ns": 12184372.9,
+        "max_ns": 12694387.5,
+        "samples_ns": [
+          12305697.9,
+          12233400.0,
+          12432545.85,
+          12694387.5,
+          12350681.25,
+          12184372.9,
+          12237985.4,
+          12314635.45
+        ],
+        "peak_rss_bytes": 25280512,
+        "alloc_bytes": 15293455.0,
+        "allocations": 237336.0,
+        "steps": 1474810,
+        "tracked_peak_bytes": 14975213,
+        "tracked_retained_bytes": 262240
+      },
+      "rust-simd": {
+        "median_ns": 12330095.825,
+        "min_ns": 12270591.7,
+        "max_ns": 12426183.35,
+        "samples_ns": [
+          12289366.65,
+          12270591.7,
+          12370925.0,
+          12426183.35,
+          12389000.0,
+          12317104.15,
+          12336889.55,
+          12323302.1
+        ],
+        "peak_rss_bytes": 25280512,
+        "alloc_bytes": 15293455.0,
+        "allocations": 237336.0,
+        "steps": 1474810,
+        "tracked_peak_bytes": 14975213,
+        "tracked_retained_bytes": 262240
+      },
+      "rust-before-portable": {
+        "median_ns": 14022223.95,
+        "min_ns": 13948862.5,
+        "max_ns": 14951308.35,
+        "samples_ns": [
+          13949793.75,
+          14951308.35,
+          13948862.5,
+          14089562.5,
+          14061268.75,
+          14185541.65,
+          13983179.15,
+          13973087.5
+        ],
+        "peak_rss_bytes": 30179328,
+        "alloc_bytes": 19159288.0,
+        "allocations": 352734.0,
+        "steps": 1474810,
+        "tracked_peak_bytes": 18841046,
+        "tracked_retained_bytes": 262240
+      },
+      "rust-before-simd": {
+        "median_ns": 14104601.05,
+        "min_ns": 13953527.1,
+        "max_ns": 14259160.4,
+        "samples_ns": [
+          13953527.1,
+          14118268.75,
+          14147864.6,
+          14090933.35,
+          14259160.4,
+          14144912.5,
+          14044481.25,
+          13995660.4
+        ],
+        "peak_rss_bytes": 30195712,
+        "alloc_bytes": 19159288.0,
+        "allocations": 352734.0,
+        "steps": 1474810,
+        "tracked_peak_bytes": 18841046,
+        "tracked_retained_bytes": 262240
+      }
+    },
+    "json_api_stringify_1m/metered": {
+      "rust-portable": {
+        "median_ns": 8255555.199999999,
+        "min_ns": 8225831.25,
+        "max_ns": 8302081.25,
+        "samples_ns": [
+          8225831.25,
+          8230666.65,
+          8302081.25,
+          8256214.55,
+          8254895.85,
+          8268908.35,
+          8248658.35,
+          8274977.1
+        ],
+        "peak_rss_bytes": 47087616,
+        "alloc_bytes": 10771776.0,
+        "allocations": 121874.0,
+        "steps": 1032410,
+        "tracked_peak_bytes": 14247396,
+        "tracked_retained_bytes": 1048672
+      },
+      "rust-simd": {
+        "median_ns": 8138810.425,
+        "min_ns": 8085475.0,
+        "max_ns": 8228729.2,
+        "samples_ns": [
+          8171597.9,
+          8129108.35,
+          8145393.75,
+          8228729.2,
+          8154431.25,
+          8125172.9,
+          8085475.0,
+          8132227.1
+        ],
+        "peak_rss_bytes": 47218688,
+        "alloc_bytes": 10771776.0,
+        "allocations": 121874.0,
+        "steps": 1032410,
+        "tracked_peak_bytes": 14247396,
+        "tracked_retained_bytes": 1048672
+      },
+      "rust-before-portable": {
+        "median_ns": 8186220.85,
+        "min_ns": 8134389.6,
+        "max_ns": 8490279.2,
+        "samples_ns": [
+          8163727.05,
+          8164143.75,
+          8490279.2,
+          8191668.75,
+          8194047.95,
+          8180772.95,
+          8134389.6,
+          8240333.35
+        ],
+        "peak_rss_bytes": 52264960,
+        "alloc_bytes": 10771776.0,
+        "allocations": 121874.0,
+        "steps": 1032410,
+        "tracked_peak_bytes": 14247396,
+        "tracked_retained_bytes": 1048672
+      },
+      "rust-before-simd": {
+        "median_ns": 8197458.325,
+        "min_ns": 8143922.9,
+        "max_ns": 8274420.8,
+        "samples_ns": [
+          8182725.0,
+          8218414.6,
+          8143922.9,
+          8188393.75,
+          8274420.8,
+          8206522.9,
+          8172931.25,
+          8212975.0
+        ],
+        "peak_rss_bytes": 52150272,
+        "alloc_bytes": 10771776.0,
+        "allocations": 121874.0,
+        "steps": 1032410,
+        "tracked_peak_bytes": 14247396,
+        "tracked_retained_bytes": 1048672
+      }
+    },
+    "json_api_stringify_1m/unlimited": {
+      "rust-portable": {
+        "median_ns": 8245289.575,
+        "min_ns": 8197645.8,
+        "max_ns": 8274364.6,
+        "samples_ns": [
+          8249797.9,
+          8243650.0,
+          8261708.35,
+          8213479.2,
+          8223956.25,
+          8274364.6,
+          8246929.15,
+          8197645.8
+        ],
+        "peak_rss_bytes": 47185920,
+        "alloc_bytes": 10771776.0,
+        "allocations": 121874.0,
+        "steps": 1032410,
+        "tracked_peak_bytes": 14247396,
+        "tracked_retained_bytes": 1048672
+      },
+      "rust-simd": {
+        "median_ns": 8117324.975,
+        "min_ns": 8093552.1,
+        "max_ns": 8176727.05,
+        "samples_ns": [
+          8093656.25,
+          8093552.1,
+          8100027.1,
+          8127597.9,
+          8176727.05,
+          8149908.3,
+          8116285.4,
+          8118364.55
+        ],
+        "peak_rss_bytes": 47218688,
+        "alloc_bytes": 10771776.0,
+        "allocations": 121874.0,
+        "steps": 1032410,
+        "tracked_peak_bytes": 14247396,
+        "tracked_retained_bytes": 1048672
+      },
+      "rust-before-portable": {
+        "median_ns": 8143904.175,
+        "min_ns": 8092300.0,
+        "max_ns": 8446077.1,
+        "samples_ns": [
+          8121354.2,
+          8251106.25,
+          8186339.55,
+          8115350.0,
+          8446077.1,
+          8159412.5,
+          8092300.0,
+          8128395.85
+        ],
+        "peak_rss_bytes": 52035584,
+        "alloc_bytes": 10771776.0,
+        "allocations": 121874.0,
+        "steps": 1032410,
+        "tracked_peak_bytes": 14247396,
+        "tracked_retained_bytes": 1048672
+      },
+      "rust-before-simd": {
+        "median_ns": 8169137.5,
+        "min_ns": 8120268.75,
+        "max_ns": 8292870.8,
+        "samples_ns": [
+          8165920.85,
+          8292870.8,
+          8120268.75,
+          8204385.4,
+          8173291.7,
+          8124097.95,
+          8144712.5,
+          8172354.15
+        ],
+        "peak_rss_bytes": 52117504,
+        "alloc_bytes": 10771776.0,
+        "allocations": 121874.0,
+        "steps": 1032410,
+        "tracked_peak_bytes": 14247396,
+        "tracked_retained_bytes": 1048672
+      }
+    }
+  }
+}

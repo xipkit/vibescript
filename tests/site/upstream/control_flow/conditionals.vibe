@@ -1,0 +1,36 @@
+# vibe: 1.0
+
+def fundraising_badge(amount: int) -> string
+  if amount >= 100000
+    "legend"
+  elsif amount >= 10000
+    "elite"
+  elsif amount >= 1000
+    "gold"
+  elsif amount >= 500
+    "silver"
+  else
+    "bronze"
+  end
+end
+
+def choose_label(status: string) -> string
+  if status == "active"
+    "needs attention"
+  elsif status == "complete"
+    "done"
+  else
+    "unknown"
+  end
+end
+
+def run -> { active: string, bronze: string, complete: string, gold: string, legend: string, other: string }
+  {
+    legend: fundraising_badge(100000),
+    gold: fundraising_badge(5000),
+    bronze: fundraising_badge(100),
+    active: choose_label("active"),
+    complete: choose_label("complete"),
+    other: choose_label("pending")
+  }
+end

@@ -1,0 +1,7 @@
+# expect: agreed
+# An empty literal as `reduce`'s start binds its type, which the block's
+# result widens: `acc` then holds the ints pushed into it.
+t: array<int> = [1, 2].reduce([]) { |acc, x| acc.push(x) }
+h: hash<string, int> = [1, 2].reduce({}) { |acc, x| acc.merge({ k: x }) }
+u = [1, 2].reduce([]) { |acc, x| acc }
+p(t, h, u)

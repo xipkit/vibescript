@@ -1,0 +1,10 @@
+# expect: agreed
+# A function that yields outside loops and blocks returns a `break` value
+# through its checked result.
+def g(&block: int) -> int
+  yield 1
+  0
+end
+x: int = g { |n| break 5 }
+y = [1, 2].each { |q| break "s" if q == 2 }
+p(x, y)

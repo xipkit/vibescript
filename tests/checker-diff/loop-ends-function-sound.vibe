@@ -1,0 +1,31 @@
+# expect: agreed
+def tens -> array<int> | int
+  for n in [2, 4]
+    n * 10
+  end
+end
+def last_pair -> [string, int]
+  for pair in { a: 1, b: 2 }
+    pair
+  end
+end
+def count -> int?
+  i = 0
+  while i < 3
+    i += 1
+  end
+end
+def skipping -> int?
+  for n in [2, 4]
+    next if n > 3
+    n * 10
+  end
+end
+def spin -> int
+  i = 0
+  while true
+    i += 1
+    break i if i > 2
+  end
+end
+p(tens, last_pair, count, skipping, spin)

@@ -1,0 +1,4 @@
+# expect: rejected V0123
+s: { a: int, b?: int } = { a: 1 }
+s.clear
+t: { a: int, b?: int } = s

@@ -1,0 +1,11 @@
+# expect: agreed
+# Key removal that leaves every record its shape stays allowed: optional
+# fields only, a temporary receiver, or a replacement of the same shape.
+y: { a?: int, b?: int } = { a: 1, b: 2 }
+y.delete_if { |k, v| v > 1 }
+y.replace({ b: 3 })
+h = { a: 1 }
+h.replace(h)
+x = { a: 1, b: 2 }.delete("a")
+t: { a?: int, b?: int } = y
+p(t, h, x)

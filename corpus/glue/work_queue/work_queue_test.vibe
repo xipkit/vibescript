@@ -1,0 +1,5 @@
+def test_work_queue
+  subject = require("work_queue")
+  assert subject.drain([{ id: "a", attempts: 0 }, { id: "b", attempts: 1 }]) == ["a", "b"]
+  assert subject.drain([]) == []
+end

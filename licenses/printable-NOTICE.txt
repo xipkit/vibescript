@@ -1,0 +1,5 @@
+The Unicode printability table derives from Go 1.27.1's strconv/isprint.go.
+Copyright 2013 The Go Authors. All rights reserved.
+The source is distributed under the BSD 3-Clause license in Go-BSD-3-Clause.txt.
+
+scripts/generate-printable.py records the reference SHA-256 in src/printable.rs.

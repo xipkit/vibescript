@@ -1,0 +1,19 @@
+def each_without_block
+  [1, 2, 3].each
+end
+
+def map_without_block
+  [1, 2, 3].map
+end
+
+def reduce_empty_without_init -> int?
+  [].reduce { |acc, x|
+    acc + x
+  }
+end
+
+def reduce_empty_with_init -> int
+  [].reduce(10) { |acc, x|
+    acc + x
+  }
+end

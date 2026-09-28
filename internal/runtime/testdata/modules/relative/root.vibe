@@ -1,5 +1,0 @@
-def run(value)
-  helpers = require("./helpers")
-  math = require("../shared/math")
-  helpers.bump(value) + math.double(value)
-end

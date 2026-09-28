@@ -1,7 +1,0 @@
-def rate
-  1
-end
-
-def apply_fee(amount)
-  amount + rate
-end

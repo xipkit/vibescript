@@ -1,0 +1,5 @@
+# expect: agreed
+# A local declared first takes the missing element as nil.
+db: int? = 5
+da, db = [1]
+p(da, db)

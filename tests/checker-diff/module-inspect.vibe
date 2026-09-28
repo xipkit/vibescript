@@ -1,0 +1,5 @@
+# expect: rejected V0203
+module M
+  LIMIT = 3
+end
+x: string = M.inspect

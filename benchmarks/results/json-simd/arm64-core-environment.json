@@ -1,0 +1,35 @@
+{
+  "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "machine": "arm64",
+  "cpu": "Apple M4",
+  "rustc": "rustc 1.98.1 (48a229cea 2026-09-01) (Homebrew)\nbinary: rustc\ncommit-hash: 48a229ceaefd4985c50990b14116b6d856af0985\ncommit-date: 2026-09-01\nhost: aarch64-apple-darwin\nrelease: 1.98.1\nLLVM version: 22.1.8\n",
+  "source_revision": "68accfadee2ffb52678cfaea3d54a185a9277b32",
+  "dirty": "?? .cache\n?? target\n",
+  "binary_sha256": {
+    "rust-portable": "7ce5fa72fab369bc551e67d5b86274255e4c9cf451a427e33f974e03597fd35a",
+    "rust-simd": "613803867f99e851973316222b498a0b7c4989b6e287e1ac09516ecef179f1f5",
+    "rust-before-portable": "5bec3e3b1f78ed5b62c621a71b426defe42def4b66339667804c30945e939219",
+    "rust-before-simd": "75d6df2f0f9e1c92375276688fd8c828c8081c16165892c0dd2ea2a121cc7eab"
+  },
+  "RUSTFLAGS": "",
+  "target_ms": 75,
+  "command": [
+    "scripts/compare.py",
+    "--skip-build",
+    "--suite",
+    "core",
+    "--baseline",
+    "/tmp/json-baseline-bins",
+    "--rounds",
+    "8",
+    "--out",
+    "/tmp/json-core-after-v2"
+  ],
+  "baseline_source_revision": "bfe501d86d455d296732c4d3706661ab57194982",
+  "allocation_binary_sha256": {
+    "rust-portable-alloc": "b10ef51520815b7131a8bc9a0f55b96061d1435b39ebec4b6d1330ed5b6b917a",
+    "rust-simd-alloc": "0884cf179cd6c3cdbc931d3fb347227b72d99a22921fb728e40cfbae0a122d0b",
+    "rust-before-portable-alloc": "1a3ae1f9374d7e12eebb4169ce307cae59a2ed48c3a05336a5f9e0cf72ece607",
+    "rust-before-simd-alloc": "31a9e10aa8ef7c55dc122c4564f0ea4670bfb9585d686629ce5e767df3995c6a"
+  }
+}

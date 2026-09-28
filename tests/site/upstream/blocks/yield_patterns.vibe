@@ -1,0 +1,63 @@
+# vibe: 1.0
+
+def times(n: int, &block: int)
+  i = 0
+  while i < n
+    yield(i)
+    i = i + 1
+  end
+end
+
+def first_truthy(max_attempts: int, &block: int -> string?) -> string?
+  attempt = 0
+  while attempt < max_attempts
+    result = yield(attempt)
+    if result != nil
+      return result
+    end
+    attempt = attempt + 1
+  end
+  nil
+end
+
+def benchmark(&block: () -> int) -> { elapsed: float, result: int }
+  start = Time.now
+  result = yield
+  elapsed = Time.now - start
+  { result: result, elapsed: elapsed }
+end
+
+def tap(value: int, &block: int) -> int
+  yield(value)
+  value
+end
+
+def transform_keys(hash: hash<string, int | string>, &block: string -> string) -> hash<string, int | string>
+  result: hash<string, int | string> = {}
+  hash.keys.each { |key|
+    new_key = yield(key)
+    result[new_key] = hash.fetch(key)
+  }
+  result
+end
+
+def run -> { tap: int, times: array<int>, transform_keys: hash<string, int | string> }
+  collected: array<int> = []
+  times(5) { |i|
+    collected = collected + [i]
+  }
+
+  tapped = tap(42) { |v|
+    v * 2
+  }
+
+  keys = transform_keys({ name: "Alice", age: 30 }) { |k|
+    k
+  }
+
+  {
+    times: collected,
+    tap: tapped,
+    transform_keys: keys
+  }
+end

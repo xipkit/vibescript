@@ -1,0 +1,137 @@
+# title: Align columns
+# source: https://rosettacode.org/wiki/Align_columns
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Align Rosetta Code's dollar-delimited sample text into left, right, and centered columns.
+# tags: popular, text-processing, formatting, columns
+# vibe: 0.2
+
+def trim_trailing_dollars(line: string) -> string
+  while line.end_with?("$")
+    line = line.delete_suffix("$")
+  end
+  line
+end
+
+def split_columns(line: string) -> array<string>
+  trim_trailing_dollars(line).split("$")
+end
+
+def column_widths(rows: array<array<string>>) -> array<int>
+  widths: array<int> = []
+  rows.each { |row|
+    column = 0
+    while column < row.length
+      while widths.length <= column
+        widths = widths + [0]
+      end
+      current = widths[column]
+      width = row.fetch(column).length
+      if current == nil || width > current
+        widths[column] = width
+      end
+      column = column + 1
+    end
+  }
+  widths
+end
+
+def spaces(count: int) -> string
+  buffer = ""
+  index = 0
+  while index < count
+    buffer = buffer + " "
+    index = index + 1
+  end
+  buffer
+end
+
+def left_justify(text: string, width: int) -> string
+  text + spaces(width - text.length)
+end
+
+def right_justify(text: string, width: int) -> string
+  spaces(width - text.length) + text
+end
+
+def center_justify(text: string, width: int) -> string
+  padded = text
+  add_left = false
+  while padded.length < width
+    if add_left
+      padded = " " + padded
+      add_left = false
+    else
+      padded = padded + " "
+      add_left = true
+    end
+  end
+  padded
+end
+
+def justify(text: string, width: int, alignment: string) -> string
+  if alignment == "left"
+    left_justify(text, width)
+  elsif alignment == "right"
+    right_justify(text, width)
+  else
+    center_justify(text, width)
+  end
+end
+
+def render_row(row: array<string>, widths: array<int>, alignment: string) -> string
+  line = ""
+  column = 0
+  while column < widths.length
+    value = ""
+    if column < row.length
+      value = row.fetch(column)
+    end
+    line = line + justify(value, widths.fetch(column), alignment)
+    if column < widths.length - 1
+      line = line + " "
+    end
+    column = column + 1
+  end
+  line.rstrip
+end
+
+def align_columns(lines: array<string>, alignment: string) -> array<string>
+  rows: array<array<string>> = []
+  lines.each { |line|
+    rows = rows + [split_columns(line)]
+  }
+
+  widths = column_widths(rows)
+  aligned: array<string> = []
+  rows.each { |row|
+    aligned = aligned + [render_row(row, widths, alignment)]
+  }
+  aligned
+end
+
+def sample_lines -> array<string>
+  [
+    "Given$a$text$file$of$many$lines,$where$fields$within$a$line$",
+    "are$delineated$by$a$single$'dollar'$character,$write$a$program",
+    "that$aligns$each$column$of$fields$by$ensuring$that$words$in$each$",
+    "column$are$separated$by$at$least$one$space.",
+    "Further,$allow$for$each$word$in$a$column$to$be$either$left$",
+    "justified,$right$justified,$or$center$justified$within$its$column."
+  ]
+end
+
+def run -> { center: string, left: string, right: string, widths: array<int> }
+  lines = sample_lines
+  rows: array<array<string>> = []
+  lines.each { |line|
+    rows = rows + [split_columns(line)]
+  }
+  widths = column_widths(rows)
+  {
+    widths: widths,
+    left: render_row(rows.fetch(0), widths, "left"),
+    right: render_row(rows.fetch(0), widths, "right"),
+    center: render_row(rows.fetch(0), widths, "center")
+  }
+end

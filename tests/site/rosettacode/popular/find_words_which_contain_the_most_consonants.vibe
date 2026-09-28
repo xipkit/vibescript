@@ -1,0 +1,58 @@
+# title: Find words which contain the most consonants
+# source: https://rosettacode.org/wiki/Find_words_which_contain_the_most_consonants
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Count consonants in a fixed word list and return the words with the highest totals.
+# tags: popular, strings, search, metrics
+# vibe: 0.2
+
+def letter?(char: string) -> bool
+  char >= "a" && char <= "z"
+end
+
+def vowel?(char: string) -> bool
+  char == "a" || char == "e" || char == "i" || char == "o" || char == "u"
+end
+
+def consonant_count(word: string) -> int
+  count = 0
+  index = 0
+  lower = word.downcase
+
+  while index < lower.length
+    char = lower.slice(index)
+    if letter?(char.as(string)) && !vowel?(char.as(string))
+      count = count + 1
+    end
+    index = index + 1
+  end
+
+  count
+end
+
+def strongest_words(words: array<string>) -> { consonants: int, words: array<string> }
+  best = 0
+  output: array<string> = []
+  index = 0
+
+  while index < words.length
+    word = words.fetch(index)
+    count = consonant_count(word)
+    if count > best
+      best = count
+      output = [word]
+    elsif count == best
+      output = output.push(word)
+    end
+    index = index + 1
+  end
+
+  {
+    consonants: best,
+    words: output
+  }
+end
+
+def run -> { consonants: int, words: array<string> }
+  strongest_words(["strengths", "rhythms", "vibescript", "algorithms", "crypts"])
+end

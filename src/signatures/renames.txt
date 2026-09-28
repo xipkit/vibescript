@@ -1,0 +1,168 @@
+# Removed spellings and what replaces them (ADR-008).
+#
+# The signature table lists only canonical names. Every removed spelling is
+# listed here, and the compiler reports each call with its entry, offering
+# its rewrite as a fix. Lines have the form
+#
+#   receiver: pattern => replacement
+#
+# The receiver is a class from builtins.vibe (`T` for every type), `global`
+# for a global function, a namespace such as `Time`, `type` for a type name
+# in annotations, or `*` for a rule that applies to every name, whose `$name`
+# stands for that name. In a pattern, `$x` is the receiver expression and `$name`
+# one argument; `...` is every other argument and the block, passed through
+# unchanged. A pattern without parentheses matches only a call without
+# arguments or a block, and keywords in a pattern must appear with that value.
+# `manual: hint` marks a change that has no mechanical rewrite; the hint says
+# what to write instead. A trailing `# note` states a further condition. When
+# several entries match a call, the first one applies.
+#
+# Builtin type names are also lowercase only: `Int` and every other casing is
+# rewritten to its lowercase spelling, as a rule rather than an entry here.
+
+# Every call: one without arguments is written without parentheses.
+*: $x.$name() => $x.$name  # a block, if any, stays
+*: $name() => $name  # a block, if any, stays
+
+# Every type.
+T: $x.nil? => $x == nil
+T: $x.eql?($y) => $x == $y
+T: $x.equal?($y) => $x == $y
+T: $x.itself => $x
+T: $x.freeze => $x
+T: $x.frozen? => true
+T: $x.clone => $x.dup
+T: $x.string => $x.to_s
+T: $x.is_a?($type) => $x.is_type?(:$type)
+T: $x.kind_of?($type) => $x.is_type?(:$type)
+T: $x.instance_of?($type) => $x.is_type?(:$type)
+T: $x.tap(...) => manual: use the receiver itself, running the block's statements before it
+T: $x.yield_self(...) => manual: bind the receiver to a local and write the block's expression
+T: $x.send(...) => manual: dispatch by name is removed; call the member, or use case over the name
+T: $x.public_send(...) => manual: dispatch by name is removed; call the member, or use case over the name
+T: $x.respond_to?(...) => manual: dispatch by name is removed; use case over the name or is_type?
+
+# Strings.
+string: $x.size => $x.length
+string: $x.intern => $x.to_sym
+string: $x.clear => ""
+string: $x.replace($text) => $text
+string: $x.sub($pattern, ..., regex: true) => $x.sub(Regex.new($pattern), ...)
+string: $x.sub(..., regex: false) => $x.sub(...)
+string: $x.sub!($pattern, ..., regex: true) => $x.sub!(Regex.new($pattern), ...)
+string: $x.sub!(..., regex: false) => $x.sub!(...)
+string: $x.gsub($pattern, ..., regex: true) => $x.gsub(Regex.new($pattern), ...)
+string: $x.gsub(..., regex: false) => $x.gsub(...)
+string: $x.gsub!($pattern, ..., regex: true) => $x.gsub!(Regex.new($pattern), ...)
+string: $x.gsub!(..., regex: false) => $x.gsub!(...)
+
+# Symbols.
+symbol: $x.id2name => $x.to_s
+
+# Arrays.
+array: $x.size => $x.length
+array: $x.count => $x.length
+array: $x.find_index(...) => $x.index(...)
+array: $x.append(...) => $x.push(...)
+array: $x.unshift(...) => $x.prepend(...)
+array: $x.collect_concat(...) => $x.flat_map(...)
+array: $x.take($count) => $x.first($count)
+array: $x.at($index) => $x[$index]
+array: $x.slice(...) => $x[...]
+array: $x.reduce($operation) => manual: pass a block, such as `reduce { |acc, x| acc + x }`
+array: $x.reduce($initial, $operation) => manual: pass a block, such as `reduce(0) { |acc, x| acc + x }`
+
+# Hashes.
+hash: $x.size => $x.length
+hash: $x.has_key?($key) => $x.key?($key)
+hash: $x.member?($key) => $x.key?($key)
+hash: $x.include?($key) => $x.key?($key)
+hash: $x.has_value?($value) => $x.value?($value)
+hash: $x.store($key, $value) => $x[$key] = $value
+
+# Numbers.
+int: $x.second => $x.seconds
+int: $x.minute => $x.minutes
+int: $x.hour => $x.hours
+int: $x.day => $x.days
+int: $x.week => $x.weeks
+int: $x.next => $x.succ
+int: $x.modulo($divisor) => $x % $divisor
+float: $x.modulo($divisor) => $x % $divisor
+
+# Ranges.
+range: $x.size => $x.length
+range: $x.count => $x.length
+range: $x.member?($value) => $x.include?($value)
+range: $x.cover?($value) => $x.include?($value)
+range: $x.reduce($operation) => manual: pass a block, such as `reduce { |acc, x| acc + x }`
+range: $x.reduce($initial, $operation) => manual: pass a block, such as `reduce(0) { |acc, x| acc + x }`
+
+# Money.
+money: $x.amount => $x.to_s
+money: $x.format => $x.to_s
+
+# Durations.
+duration: $x.second => $x.to_i
+duration: $x.seconds => $x.to_i
+duration: $x.minute => $x.minutes
+duration: $x.hour => $x.hours
+duration: $x.day => $x.days
+duration: $x.week => $x.weeks
+duration: $x.format => $x.to_s
+duration: $x.since => $x.from_now
+duration: $x.since($start) => $x.after($start)
+duration: $x.until => $x.ago
+duration: $x.until($start) => $x.before($start)
+duration: $x.after => $x.from_now
+duration: $x.before => $x.ago
+duration: $x.from_now($start) => $x.after($start)
+duration: $x.ago($start) => $x.before($start)
+
+# Times.
+time: $x.mon => $x.month
+time: $x.mday => $x.day
+time: $x.tv_sec => $x.to_i
+time: $x.tv_usec => $x.usec
+time: $x.tv_nsec => $x.nsec
+time: $x.to_r => $x.to_f
+time: $x.hash => $x.to_i * 1000000000 + $x.nsec
+time: $x.gmt_offset => $x.utc_offset
+time: $x.gmtoff => $x.utc_offset
+time: $x.gmtime => $x.utc
+time: $x.getutc => $x.utc
+time: $x.getgm => $x.utc
+time: $x.gmt? => $x.utc?
+time: $x.isdst => $x.dst?
+time: $x.xmlschema(...) => $x.iso8601(...)
+time: $x.rfc3339(...) => $x.iso8601(...)
+time: $x.rfc822 => $x.rfc2822
+time: $x.getlocal(...) => $x.localtime(...)
+time: $x.<=>($other) => $x <=> $other
+
+# Rescued errors.
+error: $x.type => $x.class
+error: $x.to_s => $x.message
+
+# Global functions.
+global: sprintf(...) => format(...)
+global: now => Time.now.iso8601
+global: assert($condition, message: $message) => assert($condition, $message)
+
+# Namespaces.
+Hash: Hash.new => manual: write `{}` with a declared type, such as `counts: hash<string, int> = {}`
+Regexp: Regexp.new(...) => Regex.new(...)
+Regexp: Regexp.union(...) => Regex.union(...)
+Regexp: Regexp.escape(...) => Regex.escape(...)
+Regexp: Regexp.quote(...) => Regex.escape(...)
+Regexp: Regexp.last_match => nil
+Time: Time.gm(...) => Time.utc(...)
+Time: Time.mktime(...) => Time.local(...)
+Time: Time.new($year, $month, $day, $hour, $min, $sec, $zone, ...) => Time.local($year, $month, $day, $hour, $min, $sec, in: $zone, ...)
+Time: Time.new(...) => Time.local(...)
+Time: Time.at($seconds, $subsec, :usec, ...) => Time.at($seconds, $subsec, :microsecond, ...)
+Time: Time.at($seconds, $subsec, :nsec, ...) => Time.at($seconds, $subsec, :nanosecond, ...)
+Duration: Duration.build($seconds) => Duration.build(seconds: $seconds)
+
+# Type names.
+type: object => hash

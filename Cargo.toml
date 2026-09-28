@@ -1,0 +1,76 @@
+[workspace]
+members = ["cli", "tools"]
+# The WASI witness is its own package with its own lock file.
+exclude = ["tests/platforms/wasi"]
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.lints.clippy]
+undocumented_unsafe_blocks = "deny"
+
+[package]
+name = "vibescript"
+version = "0.80.0"
+edition = "2024"
+rust-version = "1.85"
+description = "An embeddable, metered, statically typed scripting language"
+license = "MIT AND BSD-3-Clause"
+publish = false
+autotests = false
+
+[[test]]
+name = "all"
+path = "tests/all.rs"
+
+# Allocation snapshots must not include work from unrelated tests.
+[[test]]
+name = "footprint"
+path = "tests/footprint.rs"
+
+[features]
+default = ["simd"]
+simd = []
+allocation-stats = []
+tokio = ["dep:tokio"]
+
+[dependencies]
+getrandom = "0.4"
+tokio = { version = "1", features = ["rt", "sync", "time", "macros"], optional = true }
+
+[target.'cfg(not(target_os = "wasi"))'.dependencies]
+cap-fs-ext = "4.0.3"
+cap-std = "4.0.3"
+
+[target.'cfg(target_os = "wasi")'.dependencies]
+rustix = { version = "1", default-features = false, features = ["std", "fs"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+serde_json = { version = "1", features = ["arbitrary_precision"] }
+
+# WASI preview 1 has no threads, so its tests build without the Tokio runner.
+[target.'cfg(not(target_os = "wasi"))'.dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+debug = 1
+
+# Tests and gates: release optimizations and overflow behaviour, but with
+# parallel code generation, since single-unit LTO builds dominated gate time.
+# Benchmarks and shipped binaries keep the release profile.
+[profile.gate]
+inherits = "release"
+lto = false
+codegen-units = 16
+debug = 0
+
+[lints]
+workspace = true

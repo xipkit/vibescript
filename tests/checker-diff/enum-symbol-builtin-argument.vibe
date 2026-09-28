@@ -1,0 +1,8 @@
+# expect: rejected V0101
+enum E0
+  Red
+  Blue
+end
+es: array<E0> = [E0::Red]
+ev = es.fetch(5, :blue)
+p(ev.name)

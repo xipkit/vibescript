@@ -1,0 +1,6 @@
+def test_dynamic_scalar
+  subject = require("dynamic_scalar")
+  assert subject.scalar_label("41") == "integer:42"
+  assert subject.scalar_label('" hi "') == "text:hi"
+  assert subject.scalar_label("null") == "unsupported"
+end

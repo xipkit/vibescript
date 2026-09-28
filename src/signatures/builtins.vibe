@@ -1,0 +1,692 @@
+# Vibescript builtin signatures
+#
+# Every builtin function, namespace and member of every value type, each under
+# its one canonical name.
+#
+# Quick lookup for glue scripts
+#   JSON.parse_as(raw, { id: string, ... })   validate an API record; ... allows extra keys
+#   JSON.stringify(record)                  serialize records and arrays
+#   items.length                            collection length (also strings and hashes)
+#   items.select { |item| condition }        filter an array with a bool block
+#   items.include?(value)                    test array membership (strings: substring)
+#   text.strip.downcase                     trim and lowercase text
+#   format("%d", count)                      format a value
+#   Time.parse(text) + Duration.parse("5m")  compute a deadline
+#   money_cents(1250, "USD")                 make exact money from integer cents
+#
+# Records use record["field"]. Array/dictionary reads and regex captures can
+# return nil: bind the read to a local and test it with != nil. Array/hash
+# fetch raises for a missing entry; match_data.fetch raises for a missing capture.
+# Strings have no fetch.
+# JSON schema mismatches and failed as casts raise TypeError; JSON syntax raises RuntimeError.
+# Narrow a JSON.parse result (any) before using its members or operators.
+# This is a signature reference: generic declarations and name?: T parameters
+# below are builtin notation, not declarations to paste into a script.
+#
+# Declarations
+#   def name(params) -> R        a function or member; without `-> R` it returns nil
+#   NAME: T                      a namespace constant
+#   module Name ... end          a namespace such as Math
+#   class T ... end              the members of every value of type T
+#   type name = T                a type alias
+#
+# A call without arguments is written without parentheses, such as
+# `items.length`, `uuid` or `Time.now`. A name may have several signatures;
+# a call selects one by its number of positional arguments, its keyword
+# names, and whether it passes a block and how many parameters the block
+# declares, never by the types of its arguments.
+#
+# Parameters
+#   name: T                      required
+#   name: T = value              optional; the builtin uses `value` when it is omitted
+#   name?: T                     optional; the builtin behaves differently when it is omitted
+#   *name: array<T>              any number of further arguments of type T
+#   *, name: T                   a required keyword argument, passed as `name: value`;
+#                                every parameter after a bare `*` or `*name` is a keyword
+#   *, name: T = value           an optional keyword argument
+#   &block: (A, B) -> R          a required block taking A and B and returning R
+#   &block?: A                   an optional block whose value is discarded
+#
+# Types
+#   T?                           T or nil
+#   A | B                        A or B
+#   { name: T, other?: U }       a hash with these string keys; `other` may be absent
+#   [A, B]                       an array of exactly two elements, an A and then a B
+#   :ascii                       exactly that symbol
+#   number                       int | float
+#   any                          a value whose type is not known statically
+#   type<T>                      a type literal describing T, such as array<int>
+#
+# Generics
+#   `class array<T>` binds T to the receiver's element type. `def map<U>` introduces U,
+#   inferred from the arguments and the block. `T: B` requires T to be a single type
+#   assignable to B, not a union.
+#   `class T` lists the members of every type.
+
+# Types that order with `<`, `>` and `<=>`.
+type comparable = number | string | symbol | time | duration | money
+
+# Raises an assertion error with `message` when `condition` is false.
+def assert(condition: bool, message?: string)
+
+def format(pattern: string, *values: array<any>) -> string
+
+# Runs the block until it breaks; the value of `break value` is the result.
+def loop(&block: ()) -> any
+
+# Parses an amount and currency, such as "12.50 USD".
+def money(amount: string) -> money
+
+def money_cents(cents: int, currency: string) -> money
+
+# Prints each value inspected and returns it: nil for none, the value for one,
+# and an array for several.
+def p
+
+def p<T>(value: T) -> T
+
+def p(first: any, second: any, *rest: array<any>) -> array<any>
+
+def print(*values: array<any>)
+
+def puts(*values: array<any>)
+
+# A float in [0, 1).
+def rand -> float
+
+# An int below `max`, or in the range.
+def rand(max: int | range) -> int
+
+def random_id(length: int = 16) -> string
+
+# Loads a module and returns its exports.
+def require(path: string, *, as: string? = nil) -> any
+
+# Seeds rand for this call and returns the previous seed.
+def srand(seed: int? = nil) -> int?
+
+def to_float(value: number | string) -> float
+
+def to_int(value: number | string) -> int
+
+def uuid -> string
+
+def warn(*values: array<any>)
+
+module Duration
+  # At least one part is required.
+  def build(*, weeks: number = 0, days: number = 0, hours: number = 0, minutes: number = 0, seconds: number = 0) -> duration
+  # Parses Go ("1h30m") or ISO 8601 ("PT1H30M") durations.
+  def parse(text: string) -> duration
+end
+
+module JSON
+  def parse(text: string) -> any
+  # Parses and checks the result against a type literal, such as `{ name: string }`.
+  # Shapes are exact unless they end in ...; mismatches raise TypeError, syntax raises RuntimeError.
+  def parse_as<T>(text: string, schema: type<T>) -> T
+  def stringify(value: any) -> string
+end
+
+module Math
+  E: float
+  PI: float
+  def acos(x: number) -> float
+  def asin(x: number) -> float
+  def atan(x: number) -> float
+  def atan2(y: number, x: number) -> float
+  def cbrt(x: number) -> float
+  def cos(x: number) -> float
+  def exp(x: number) -> float
+  def hypot(x: number, y: number) -> float
+  def log(x: number, base?: number) -> float
+  def log10(x: number) -> float
+  def log2(x: number) -> float
+  def sin(x: number) -> float
+  def sqrt(x: number) -> float
+  def tan(x: number) -> float
+end
+
+module Regex
+  def escape(text: string) -> string
+  # The first match of `pattern` in `text`.
+  def match(pattern: string, text: string) -> string?
+  def new(pattern: string) -> regex
+  # Replaces the first match; `replacement` expands `$1`.
+  def replace(text: string, pattern: string, replacement: string) -> string
+  def replace_all(text: string, pattern: string, replacement: string) -> string
+  def union(*patterns: array<string>) -> regex
+end
+
+module Time
+  def at(seconds: number, subsec?: number, unit?: :microsecond | :millisecond | :nanosecond, *, in: string? = nil) -> time
+  def local(year: int, month: int = 1, day: int = 1, hour: int = 0, min: int = 0, sec: int = 0, usec: number = 0, *, in: string? = nil) -> time
+  def now(*, in: string? = nil) -> time
+  # Parses common formats, or `text` in a Go layout such as "2006-01-02".
+  def parse(text: string, layout: string? = nil, *, in: string? = nil) -> time
+  def utc(year: int, month: int = 1, day: int = 1, hour: int = 0, min: int = 0, sec: int = 0, usec: number = 0) -> time
+end
+
+# Members of every type.
+class T
+  # Checks the value against a type at runtime, as a typed parameter does,
+  # and gives it that type, such as `JSON.parse(raw).as(int)`.
+  def as<U>(type: type<U>) -> U
+  def dup -> T
+  def inspect -> string
+  # Tests the value's type without converting it, such as `x.is_type?(:int)`.
+  def is_type?(type: symbol) -> bool
+end
+
+class nil
+  def to_s -> string
+end
+
+class bool
+  def to_s -> string
+end
+
+class int
+  def abs -> int
+  def between?(min: number, max: number) -> bool
+  def ceil(digits: int = 0) -> int
+  def clamp(bounds: range) -> int
+  # Bounds the receiver; nil leaves a side open.
+  def clamp(min: int?, max: int?) -> int
+  def days -> duration
+  def div(divisor: number) -> int
+  def divmod(divisor: int) -> [int, int]
+  def downto(limit: int, &block: int) -> int
+  def even? -> bool
+  def fdiv(divisor: number) -> float
+  def floor(digits: int = 0) -> int
+  def hours -> duration
+  def minutes -> duration
+  def negative? -> bool
+  def nonzero? -> int?
+  def odd? -> bool
+  def positive? -> bool
+  def pred -> int
+  def remainder(divisor: int) -> int
+  def round(digits: int = 0) -> int
+  def seconds -> duration
+  def step(limit: int, by: int = 1, &block: int) -> int
+  def succ -> int
+  def times(&block: int) -> int
+  def to_f -> float
+  def to_i -> int
+  def to_s -> string
+  def upto(limit: int, &block: int) -> int
+  def weeks -> duration
+  def zero? -> bool
+end
+
+class float
+  def abs -> float
+  def between?(min: number, max: number) -> bool
+  def ceil -> int
+  # A float when `digits` is positive, otherwise an int.
+  def ceil(digits: int) -> number
+  def clamp(bounds: range) -> number
+  # Bounds the receiver; nil leaves a side open.
+  def clamp(min: float?, max: float?) -> float
+  def div(divisor: number) -> int
+  def divmod(divisor: number) -> [int, float]
+  def fdiv(divisor: number) -> float
+  def finite? -> bool
+  def floor -> int
+  # A float when `digits` is positive, otherwise an int.
+  def floor(digits: int) -> number
+  # 1 or -1 for an infinity, otherwise nil.
+  def infinite? -> int?
+  def nan? -> bool
+  def negative? -> bool
+  def nonzero? -> float?
+  def positive? -> bool
+  def remainder(divisor: number) -> float
+  def round -> int
+  # A float when `digits` is positive, otherwise an int.
+  def round(digits: int) -> number
+  def to_f -> float
+  def to_i -> int
+  def to_s -> string
+  def zero? -> bool
+end
+
+class string
+  def between?(min: string, max: string) -> bool
+  def bytes -> array<int>
+  def bytesize -> int
+  def byteslice(start: int | range, length?: int) -> string?
+  def capitalize(mode?: :ascii) -> string
+  def capitalize!(mode?: :ascii) -> string?
+  def casecmp(other: string) -> int
+  def casecmp?(other: string) -> bool
+  def center(width: int, pad: string = " ") -> string
+  def chars -> array<string>
+  def chomp(separator?: string?) -> string
+  def chomp!(separator?: string?) -> string?
+  def chop -> string
+  def chop! -> string?
+  def chr -> string
+  def clamp(min: string?, max: string?) -> string
+  def codepoints -> array<int>
+  def concat(*texts: array<string>) -> string
+  def count(set: string, *sets: array<string>) -> int
+  def delete(set: string, *sets: array<string>) -> string
+  def delete!(set: string, *sets: array<string>) -> string?
+  def delete_prefix(prefix: string) -> string
+  def delete_prefix!(prefix: string) -> string?
+  def delete_suffix(suffix: string) -> string
+  def delete_suffix!(suffix: string) -> string?
+  def downcase(mode?: :ascii | :fold) -> string
+  def downcase!(mode?: :ascii | :fold) -> string?
+  def each_byte(&block: int) -> string
+  def each_char(&block: string) -> string
+  def each_codepoint(&block: int) -> string
+  def each_line(&block: string) -> string
+  def empty? -> bool
+  def end_with?(suffix: string, *suffixes: array<string>) -> bool
+  def getbyte(index: int) -> int?
+  # Replaces every match with `replacement`, or with the block's result for each
+  # match; a string pattern matches literally.
+  def gsub(pattern: string | regex, replacement: string) -> string
+  def gsub(pattern: string | regex, &block: string -> string) -> string
+  def gsub!(pattern: string | regex, replacement: string) -> string?
+  def gsub!(pattern: string | regex, &block: string -> string) -> string?
+  def hex -> int
+  def include?(text: string) -> bool
+  def index(text: string, offset: int = 0) -> int?
+  def insert(index: int, text: string) -> string
+  def length -> int
+  def lines -> array<string>
+  def ljust(width: int, pad: string = " ") -> string
+  def lstrip -> string
+  def lstrip! -> string?
+  def match(pattern: string | regex, offset: int = 0) -> match_data?
+  def match?(pattern: string | regex, offset: int = 0) -> bool
+  def oct -> int
+  def ord -> int
+  def partition(separator: string) -> [string, string, string]
+  def prepend(*texts: array<string>) -> string
+  def reverse -> string
+  def reverse! -> string?
+  def rindex(text: string, offset?: int) -> int?
+  def rjust(width: int, pad: string = " ") -> string
+  def rpartition(separator: string) -> [string, string, string]
+  def rstrip -> string
+  def rstrip! -> string?
+  # Every match; each is an array of the groups when the pattern has groups.
+  def scan(pattern: string | regex) -> array<string | array<string?>>
+  def slice(start: int | range | string, length?: int) -> string?
+  def split(separator: string? = nil, limit: int = 0) -> array<string>
+  def squeeze(*sets: array<string>) -> string
+  def squeeze!(*sets: array<string>) -> string?
+  def squish -> string
+  def squish! -> string?
+  def start_with?(prefix: string, *prefixes: array<string>) -> bool
+  def strip -> string
+  def strip! -> string?
+  # Replaces the first match with `replacement`, or with the block's result; a
+  # string pattern matches literally.
+  def sub(pattern: string | regex, replacement: string) -> string
+  def sub(pattern: string | regex, &block: string -> string) -> string
+  def sub!(pattern: string | regex, replacement: string) -> string?
+  def sub!(pattern: string | regex, &block: string -> string) -> string?
+  def swapcase(mode?: :ascii) -> string
+  def swapcase!(mode?: :ascii) -> string?
+  # Fills `{{name}}` placeholders from `context`.
+  def template(context: hash<string, any>, *, strict: bool = false) -> string
+  def to_f -> float
+  def to_i -> int
+  def to_s -> string
+  def to_sym -> symbol
+  def tr(from: string, to: string) -> string
+  def tr!(from: string, to: string) -> string?
+  def upcase(mode?: :ascii) -> string
+  def upcase!(mode?: :ascii) -> string?
+end
+
+class symbol
+  def to_s -> string
+  def to_sym -> symbol
+end
+
+class array<T>
+  def all?(pattern?: T | range, &block?: T -> bool) -> bool
+  def any?(pattern?: T | range, &block?: T -> bool) -> bool
+  def chunk(size: int) -> array<array<T>>
+  # Groups consecutive elements by the key the block returns. A `nil` or
+  # `:_separator` key drops its element, and `:_alone` gives it a group of
+  # its own.
+  def chunk<K>(&block: T -> K) -> array<[K, array<T>]>
+  def chunk_while(&block: (T, T) -> bool) -> array<array<T>>
+  def clear -> array<T>
+  def combination(size: int) -> array<array<T>>
+  # Counts the elements equal to `value`.
+  def count(value: T) -> int
+  # Counts the elements the block accepts.
+  def count(&block: T -> bool) -> int
+  # Repeats the elements `count` times, or until the block breaks.
+  def cycle(count: int? = nil, &block: T)
+  # Removes every element equal to `value` and returns the last, or the block's value on a miss.
+  def delete(value: T, &block?: T -> T) -> T?
+  def delete_if(&block: T -> bool) -> array<T>
+  def difference(*others: array<array<T>>) -> array<T>
+  def dig(index: int, *path: array<int | string>) -> any
+  def drop(count: int) -> array<T>
+  def drop_while(&block: T -> bool) -> array<T>
+  def each(&block: T) -> array<T>
+  def each_cons(size: int, &block: array<T>)
+  def each_slice(size: int, &block: array<T>)
+  def each_with_index(&block: (T, int)) -> array<T>
+  def empty? -> bool
+  # Raises when `index` is out of bounds, unless a default or block supplies a value.
+  def fetch(index: int, default?: T, &block?: int -> T) -> T
+  # Overwrites the elements from `start`, or all of them; raises past the end.
+  def fill(value: T, start?: int | range, length?: int) -> array<T>
+  def filter_map<U>(&block: T -> U?) -> array<U>
+  def find(&block: T -> bool) -> T?
+  def first -> T?
+  def first(count: int) -> array<T>
+  def flat_map<U>(&block: T -> U | array<U>) -> array<U>
+  def flatten(depth: int? = nil) -> array<any>
+  def grep(pattern: T | range) -> array<T>
+  def grep_v(pattern: T | range) -> array<T>
+  def group_by<K: string | symbol>(&block: T -> K) -> hash<string, array<T>>
+  # Groups in the order each key first appears.
+  def group_by_stable<K: string | symbol>(&block: T -> K) -> array<[K, array<T>]>
+  def include?(value: T) -> bool
+  # The index of the first element equal to `value`, searching from `offset`.
+  def index(value: T, offset: int = 0) -> int?
+  # The index of the first element the block accepts.
+  def index(&block: T -> bool) -> int?
+  # Inserts before `index`; raises past the end.
+  def insert(index: int, *values: array<T>) -> array<T>
+  def join(separator: string = "") -> string
+  def keep_if(&block: T -> bool) -> array<T>
+  def last -> T?
+  def last(count: int) -> array<T>
+  def length -> int
+  def map<U>(&block: T -> U) -> array<U>
+  def map_with_index<U>(&block: (T, int) -> U) -> array<U>
+  def max_by<K: comparable>(&block: T -> K) -> T?
+  def min_by<K: comparable>(&block: T -> K) -> T?
+  def none?(pattern?: T | range, &block?: T -> bool) -> bool
+  def one?(&block?: T -> bool) -> bool
+  # The elements the block accepts, then the others.
+  def partition(&block: T -> bool) -> [array<T>, array<T>]
+  def permutation(size?: int) -> array<array<T>>
+  # Removes and returns the last element.
+  def pop -> T?
+  # Removes and returns the last `count` elements.
+  def pop(count: int) -> array<T>
+  def prepend(*values: array<T>) -> array<T>
+  def product<U>(other: array<U>) -> array<[T, U]>
+  def product<U>(first: array<U>, second: array<U>, *others: array<array<U>>) -> array<array<T | U>>
+  def push(*values: array<T>) -> array<T>
+  # Folds from the first element; nil for an empty array.
+  def reduce(&block: (T, T) -> T) -> T?
+  # Folds from `initial`.
+  def reduce<A>(initial: A, &block: (A, T) -> A) -> A
+  def reject(&block: T -> bool) -> array<T>
+  def repeated_combination(size: int) -> array<array<T>>
+  def repeated_permutation(size: int) -> array<array<T>>
+  def reverse -> array<T>
+  def reverse_each(&block: T) -> array<T>
+  # The index of the last element equal to `value`, searching back from `offset`.
+  def rindex(value: T, offset?: int) -> int?
+  # The index of the last element the block accepts.
+  def rindex(&block: T -> bool) -> int?
+  def rotate(count: int = 1) -> array<T>
+  def sample -> T?
+  def sample(count: int) -> array<T>
+  def select(&block: T -> bool) -> array<T>
+  # Removes and returns the first element.
+  def shift -> T?
+  # Removes and returns the first `count` elements.
+  def shift(count: int) -> array<T>
+  def shuffle -> array<T>
+  def slice_when(&block: (T, T) -> bool) -> array<array<T>>
+  def sort_by<K: comparable>(&block: T -> K) -> array<T>
+  def sort(&block: (T, T) -> int) -> array<T>
+  # Adds the block's values, starting from 0.
+  def sum(&block: T -> int) -> int
+  # Adds the block's values to `initial`.
+  def sum<U: number | money | duration>(initial: U, &block: T -> U) -> U
+  def take_while(&block: T -> bool) -> array<T>
+  # Builds a hash from the [key, value] pair the block returns for each element.
+  def to_h<V>(&block: T -> [string, V]) -> hash<string, V>
+  def to_s -> string
+  def union(*others: array<array<T>>) -> array<T>
+  def uniq(&block?: T -> any) -> array<T>
+  def values_at(*indexes: array<int | range>) -> array<T?>
+  def window(size: int) -> array<array<T>>
+  # Pairs each element with the other array's element at its index, or nil.
+  def zip<U>(other: array<U>) -> array<[T, U?]>
+  def zip<U>(first: array<U>, second: array<U>, *others: array<array<U>>) -> array<array<T | U | nil>>
+end
+
+class array<T: comparable>
+  def max -> T?
+  def min -> T?
+  def minmax -> [T?, T?]
+  def sort -> array<T>
+end
+
+class array<T: int>
+  # Adds the elements, starting from 0.
+  def sum -> int
+end
+
+class array<T: number | money | duration>
+  # Adds the elements to `initial`.
+  def sum(initial: T) -> T
+end
+
+class array<T: string | symbol>
+  # Counts equal elements, or the keys the block returns.
+  def tally(&block?: T -> string | symbol) -> hash<string, int>
+end
+
+class array<T?>
+  def compact -> array<T>
+end
+
+class array<array<T>>
+  def transpose -> array<array<T>>
+end
+
+class array<[string, V]>
+  # Builds a hash from [key, value] pairs.
+  def to_h -> hash<string, V>
+end
+
+class hash<string, V>
+  def clear -> hash<string, V>
+  def deep_transform_keys(&block: string -> string | symbol) -> hash<string, V>
+  def delete(key: string, &block?: string -> V) -> V?
+  def delete_if(&block: (string, V) -> bool) -> hash<string, V>
+  def dig(key: string, *path: array<string | int>) -> any
+  def each(&block: (string, V)) -> hash<string, V>
+  def each(&block: [string, V]) -> hash<string, V>
+  def each_key(&block: string) -> hash<string, V>
+  def each_value(&block: V) -> hash<string, V>
+  def each_with_index(&block: ([string, V], int)) -> hash<string, V>
+  def empty? -> bool
+  def except(*keys: array<string>) -> hash<string, V>
+  # Raises when `key` is missing, unless a default or block supplies a value.
+  def fetch(key: string, default?: V, &block?: string -> V) -> V
+  def fetch_values(*keys: array<string>, &block?: string -> V) -> array<V>
+  def flatten(depth: int = 1) -> array<any>
+  def keep_if(&block: (string, V) -> bool) -> hash<string, V>
+  def key?(key: string) -> bool
+  def keys -> array<string>
+  def length -> int
+  def map<U>(&block: (string, V) -> U) -> array<U>
+  def map<U>(&block: [string, V] -> U) -> array<U>
+  def map_with_index<U>(&block: ([string, V], int) -> U) -> array<U>
+  # Later hashes win; the block resolves a key present in both.
+  def merge(*others: array<hash<string, V>>, &block?: (string, V, V) -> V) -> hash<string, V>
+  def reject(&block: (string, V) -> bool) -> hash<string, V>
+  def remap_keys(mapping: hash<string, string | symbol>) -> hash<string, V>
+  def replace(other: hash<string, V>) -> hash<string, V>
+  def select(&block: (string, V) -> bool) -> hash<string, V>
+  def slice(*keys: array<string>) -> hash<string, V>
+  def to_a -> array<[string, V]>
+  def transform_keys(&block: string -> string | symbol) -> hash<string, V>
+  def transform_values<U>(&block: V -> U) -> hash<string, U>
+  def value?(value: V) -> bool
+  def values -> array<V>
+  def values_at(*keys: array<string>) -> array<V?>
+end
+
+class hash<string, V?>
+  def compact -> hash<string, V>
+end
+
+class range
+  def count(&block: int -> bool) -> int
+  def each(&block: int) -> range
+  def exclude_end? -> bool
+  def find(&block: int -> bool) -> int?
+  def first -> int
+  def first(count: int) -> array<int>
+  def include?(value: number) -> bool
+  # The end, even when the range excludes it.
+  def last -> int
+  def last(count: int) -> array<int>
+  def length -> int
+  def map<U>(&block: int -> U) -> array<U>
+  def max -> int?
+  def min -> int?
+  # Folds from the first element; nil for an empty range.
+  def reduce(&block: (int, int) -> int) -> int?
+  # Folds from `initial`.
+  def reduce<A>(initial: A, &block: (A, int) -> A) -> A
+  def reject(&block: int -> bool) -> array<int>
+  def select(&block: int -> bool) -> array<int>
+  def step(by: int, &block: int) -> range
+  def sum(initial: int = 0) -> int
+  def to_a -> array<int>
+  def to_s -> string
+end
+
+class money
+  def between?(min: money, max: money) -> bool
+  def cents -> int
+  def currency -> string
+  def to_s -> string
+end
+
+class duration
+  # The time this long after `start`.
+  def after(start: time) -> time
+  # The time this long before now.
+  def ago -> time
+  # The time this long before `start`.
+  def before(start: time) -> time
+  def between?(min: duration, max: duration) -> bool
+  def days -> int
+  # The time this long after now.
+  def from_now -> time
+  def hours -> int
+  def in_days -> float
+  def in_hours -> float
+  def in_minutes -> float
+  def in_months -> float
+  def in_seconds -> float
+  def in_weeks -> float
+  def in_years -> float
+  def iso8601 -> string
+  def minutes -> int
+  def parts -> { days: int, hours: int, minutes: int, seconds: int }
+  def to_i -> int
+  def to_s -> string
+  def weeks -> int
+end
+
+class time
+  def between?(min: time, max: time) -> bool
+  def ceil -> time
+  def day -> int
+  def dst? -> bool
+  def floor -> time
+  # Formats with a Go layout such as "2006-01-02".
+  def format(layout: string) -> string
+  def friday? -> bool
+  def hour -> int
+  def httpdate -> string
+  def iso8601(digits: int = 0) -> string
+  def localtime(zone: string? = nil) -> time
+  def min -> int
+  def monday? -> bool
+  def month -> int
+  def nsec -> int
+  def rfc2822 -> string
+  def round(digits: int = 0) -> time
+  def saturday? -> bool
+  def sec -> int
+  # Formats with a Ruby-style pattern such as "%Y-%m-%d".
+  def strftime(format: string) -> string
+  def subsec -> float
+  def sunday? -> bool
+  def thursday? -> bool
+  # [sec, min, hour, day, month, year, wday, yday, dst?, zone]
+  def to_a -> [int, int, int, int, int, int, int, int, bool, string]
+  def to_f -> float
+  def to_i -> int
+  def to_s -> string
+  def tuesday? -> bool
+  def usec -> int
+  def utc -> time
+  def utc? -> bool
+  def utc_offset -> int
+  def wday -> int
+  def wednesday? -> bool
+  def yday -> int
+  def year -> int
+  def zone -> string
+end
+
+class regex
+  def flags -> string
+  def match(text: string) -> match_data?
+  def match?(text: string) -> bool
+  def source -> string
+end
+
+# The result of a successful regex match. Read captures with match[1] or
+# match["name"]; each may be nil even when the overall match succeeded.
+class match_data
+  def begin(group: int) -> int?
+  def captures -> array<string?>
+  def end(group: int) -> int?
+  def fetch(group: number | string) -> string
+  def named_captures -> hash<string, string?>
+  def post_match -> string
+  def pre_match -> string
+  def to_s -> string
+end
+
+# The value a `rescue => error` clause binds.
+class error
+  def backtrace -> array<string>
+  def class -> string
+  def code_frame -> string
+  def message -> string
+end
+
+# An enum, such as `Status` in `enum Status`.
+class enum_type
+  def name -> string
+  def to_s -> string
+end
+
+# A member of any enum, such as `Status::Draft`.
+class enum_value
+  def enum -> enum_type
+  def name -> string
+  def symbol -> symbol
+  def to_s -> string
+end

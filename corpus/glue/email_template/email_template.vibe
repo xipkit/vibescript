@@ -1,0 +1,6 @@
+def render_notice(name: string, count: int) -> string
+  "Hello {{user.name}}, {{count}} jobs are ready.".template({ user: { name: name }, count: count }, strict: true)
+end
+def missing_notice -> string
+  "Hello {{user.name}}".template({}, strict: true)
+end
