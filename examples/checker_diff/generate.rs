@@ -1499,7 +1499,8 @@ impl Gen {
     /// One construct from the areas where checkers go wrong.
     fn risky(&mut self, env: &mut Env, depth: usize) {
         let unsound = self.unsound();
-        match self.rng.weighted(&[12, 3, 3, 3, 3, 3, 2, 3, 2, 2, 2, 2]) {
+        match self.rng.weighted(&[12, 3, 3, 3, 3, 3, 2, 3, 2, 2, 2, 2, 2]) {
+            12 => self.ensure_flow(env, unsound),
             11 => self.retry_flow(env, unsound),
             0 => self.narrow_and_interfere(env, unsound),
             1 => self.any_narrowing(env, unsound),
@@ -3383,6 +3384,65 @@ impl Gen {
         self.indent -= 1;
         self.line("end");
         env.locals.push(Local::typed(count, Ty::Int));
+        env.locals.push(Local::typed(value, Ty::opt(inner)));
+    }
+
+    /// An optional local an `ensure` narrows or relies on, inside a
+    /// `begin` that rescues what it raises. The sound form guards the local
+    /// in the ensure, which narrows it after the `begin` however the body
+    /// assigned it; the unsound form uses it narrowed in the ensure, which
+    /// may start before the body's guard or after the body assigned it.
+    fn ensure_flow(&mut self, env: &mut Env, unsound: bool) {
+        let value = self.name("v");
+        let inner = if self.rng.chance(50) {
+            Ty::Int
+        } else {
+            Ty::Str
+        };
+        let literal = self.literal(&inner, 1);
+        let initial = if self.rng.chance(50) {
+            "nil".to_owned()
+        } else {
+            literal.clone()
+        };
+        let condition = self.expr(env, &Ty::Bool, 0, false);
+        self.line(format!("{value}: {}? = {initial}", self.render(&inner)));
+        self.line("begin");
+        self.indent += 1;
+        self.line("begin");
+        self.indent += 1;
+        self.line(format!("raise \"early\" if {condition}"));
+        let assigned = self.rng.chance(50);
+        if assigned {
+            let spoil = if self.rng.chance(50) {
+                "nil".to_owned()
+            } else {
+                literal
+            };
+            self.line(format!("{value} = {spoil}"));
+        }
+        if unsound && !assigned {
+            self.line(format!("raise \"none\" if {value} == nil"));
+        }
+        self.indent -= 1;
+        self.line("ensure");
+        self.indent += 1;
+        if unsound {
+            let use_it = self.use_narrowed(env, &value, &inner);
+            self.line(use_it);
+        } else {
+            self.line(format!("raise \"none\" if {value} == nil"));
+        }
+        self.indent -= 1;
+        self.line("end");
+        let use_it = self.use_narrowed(env, &value, &inner);
+        self.line(use_it);
+        self.indent -= 1;
+        self.line("rescue => failure");
+        self.indent += 1;
+        self.line("p(failure.message)");
+        self.indent -= 1;
+        self.line("end");
         env.locals.push(Local::typed(value, Ty::opt(inner)));
     }
 
