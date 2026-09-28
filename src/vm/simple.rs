@@ -392,8 +392,16 @@ fn special_value(ctx: &mut CallContext, value: &Value) -> Result<Value> {
     }
 }
 
-// Addressed updates carry large temporaries. Keep them out of the hot loop's
-// stack frame, including when new update instructions are added.
+#[inline]
+fn instruction(program: &Program, function: &Function, frame: &Frame) -> Extended {
+    let Op::Extended(index) = function.code[frame.ip] else {
+        unreachable!("outlined instruction expected");
+    };
+    program.extended[index as usize]
+}
+
+// Keep the selector small so another outlined instruction cannot rearrange
+// the large update bodies or increase this dispatcher's stack reservation.
 #[inline(never)]
 fn addressed(
     ctx: &mut CallContext,
@@ -403,77 +411,125 @@ fn addressed(
     storage: &mut Storage,
     stack: &mut Buffer<Value>,
 ) -> Result<bool> {
-    let Op::Extended(index) = function.code[frame.ip] else {
-        unreachable!("only outlined instructions reach this dispatcher");
-    };
-    match program.extended[index as usize] {
-        Extended::Mutate(site, n) => {
-            // Only direct array updates, which need no scan of their
-            // result, run here.
-            let direct = !(ctx.has_exports && !function.plain_values.contains(frame.ip))
-                && updatable(storage.addresses.data.last().unwrap(), site, false);
-            if !direct {
-                return Ok(false);
-            }
-            step(ctx, frame)?;
-            let address = storage.addresses.data.pop().unwrap();
-            let base = stack.data.len() - n as usize;
-            let name = &program.members[site.name as usize];
-            let value = update(ctx, storage, address, site, name, &stack.data[base..])?;
-            stack.data.truncate(base);
-            push(ctx, stack, value)?;
-        }
-        Extended::Shovel(site, last) => {
-            if !updatable(storage.addresses.data.last().unwrap(), site, true) {
-                return Ok(false);
-            }
-            step(ctx, frame)?;
-            let value = stack.data.pop().unwrap();
-            let address = storage.addresses.data.pop().unwrap();
-            let args = std::slice::from_ref(&value);
-            let result = if last {
-                append_loop_tail(ctx, storage, address, site, args)?
-            } else {
-                update(ctx, storage, address, site, "push", args)?
-            };
-            push(ctx, stack, result)?;
-        }
-        Extended::AddressTarget(n, read) => {
-            // An instance reads its element through its own `[]`.
-            let address = storage.addresses.data.last_mut().unwrap();
-            if read && matches!(address.value.0, Kind::Instance(_)) {
-                return Ok(false);
-            }
-            step(ctx, frame)?;
-            address.check_present(ctx)?;
-            address.selectors.ensure(ctx, n as usize)?;
-            let base = stack.data.len() - n as usize;
-            for value in stack.data.drain(base..) {
-                ctx.charge(1)?;
-                address.selectors.data.push(value);
-            }
-            if read {
-                let value = address.read_target(ctx)?;
-                push(ctx, stack, value)?;
-            }
-        }
-        Extended::AddressStore => {
-            // Members, instances and typed instance variables are stored
-            // through setters and guards.
-            let address = storage.addresses.data.last().unwrap();
-            if address.member_target
-                || matches!(address.value.0, Kind::Instance(_))
-                || address.object_binding().is_some()
-            {
-                return Ok(false);
-            }
-            step(ctx, frame)?;
-            let address = storage.addresses.data.pop().unwrap();
-            let value = stack.data.pop().unwrap();
-            let value = assign(ctx, storage, address, value)?;
-            push(ctx, stack, value)?;
-        }
+    match instruction(program, function, frame) {
+        Extended::Mutate(..) => mutate(ctx, program, function, frame, storage, stack),
+        Extended::Shovel(..) => shovel(ctx, program, function, frame, storage, stack),
+        Extended::AddressTarget(n, read) => address_target(ctx, frame, storage, stack, n, read),
+        Extended::AddressStore => address_store(ctx, frame, storage, stack),
     }
+}
+
+/// Executes an outlined mutate instruction when its receiver is plain.
+#[inline(never)]
+fn mutate(
+    ctx: &mut CallContext,
+    program: &Program,
+    function: &Function,
+    frame: &mut Frame,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+) -> Result<bool> {
+    let Extended::Mutate(site, n) = instruction(program, function, frame) else {
+        unreachable!("outlined opcode and handler agree");
+    };
+    // Only direct array updates, which need no scan of their
+    // result, run here.
+    let direct = !(ctx.has_exports && !function.plain_values.contains(frame.ip))
+        && updatable(storage.addresses.data.last().unwrap(), site, false);
+    if !direct {
+        return Ok(false);
+    }
+    step(ctx, frame)?;
+    let address = storage.addresses.data.pop().unwrap();
+    let base = stack.data.len() - n as usize;
+    let name = &program.members[site.name as usize];
+    let value = update(ctx, storage, address, site, name, &stack.data[base..])?;
+    stack.data.truncate(base);
+    push(ctx, stack, value)?;
+    Ok(true)
+}
+
+/// Executes an outlined shovel instruction when its receiver is plain.
+#[inline(never)]
+fn shovel(
+    ctx: &mut CallContext,
+    program: &Program,
+    function: &Function,
+    frame: &mut Frame,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+) -> Result<bool> {
+    let Extended::Shovel(site, last) = instruction(program, function, frame) else {
+        unreachable!("outlined opcode and handler agree");
+    };
+    if !updatable(storage.addresses.data.last().unwrap(), site, true) {
+        return Ok(false);
+    }
+    step(ctx, frame)?;
+    let value = stack.data.pop().unwrap();
+    let address = storage.addresses.data.pop().unwrap();
+    let args = std::slice::from_ref(&value);
+    let result = if last {
+        append_loop_tail(ctx, storage, address, site, args)?
+    } else {
+        update(ctx, storage, address, site, "push", args)?
+    };
+    push(ctx, stack, result)?;
+    Ok(true)
+}
+
+/// Executes an outlined address target instruction when its receiver is plain.
+#[inline(never)]
+fn address_target(
+    ctx: &mut CallContext,
+    frame: &mut Frame,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+    n: u32,
+    read: bool,
+) -> Result<bool> {
+    // An instance reads its element through its own `[]`.
+    let address = storage.addresses.data.last_mut().unwrap();
+    if read && matches!(address.value.0, Kind::Instance(_)) {
+        return Ok(false);
+    }
+    step(ctx, frame)?;
+    address.check_present(ctx)?;
+    address.selectors.ensure(ctx, n as usize)?;
+    let base = stack.data.len() - n as usize;
+    for value in stack.data.drain(base..) {
+        ctx.charge(1)?;
+        address.selectors.data.push(value);
+    }
+    if read {
+        let value = address.read_target(ctx)?;
+        push(ctx, stack, value)?;
+    }
+    Ok(true)
+}
+
+/// Executes an outlined address store instruction when its receiver is plain.
+#[inline(never)]
+fn address_store(
+    ctx: &mut CallContext,
+    frame: &mut Frame,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+) -> Result<bool> {
+    // Members, instances and typed instance variables are stored
+    // through setters and guards.
+    let address = storage.addresses.data.last().unwrap();
+    if address.member_target
+        || matches!(address.value.0, Kind::Instance(_))
+        || address.object_binding().is_some()
+    {
+        return Ok(false);
+    }
+    step(ctx, frame)?;
+    let address = storage.addresses.data.pop().unwrap();
+    let value = stack.data.pop().unwrap();
+    let value = assign(ctx, storage, address, value)?;
+    push(ctx, stack, value)?;
     Ok(true)
 }
 

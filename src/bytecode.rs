@@ -188,7 +188,8 @@ pub(crate) enum Extended {
 }
 
 impl Extended {
-    /// Restores the general interpreter's form when the simple loop declines it.
+    /// Restores the general form without growing its dispatcher with each new variant.
+    #[inline(never)]
     pub(crate) fn op(self) -> Op {
         match self {
             Self::Mutate(site, count) => Op::Mutate(site, count),
