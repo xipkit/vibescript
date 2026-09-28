@@ -22,9 +22,15 @@ def main():
     # Panic locations embed source paths. A rustc wrapper remaps them, so the
     # artifact names no local directories and is identical for every checkout,
     # while rustflags from every source still apply.
+    # The wrapper takes Cargo's highest-precedence wrapper slot, so it chains a
+    # wrapper the caller set in the environment. Cargo doesn't fingerprint
+    # wrappers, so the build gets a target directory of its own per wrapper
+    # version; artifacts compiled without these remaps are never reused.
+    wrapper = ROOT / "scripts/rustc-remap"
     env["VIBESCRIPT_REMAP_ROOT"] = str(ROOT)
-    env["VIBESCRIPT_INNER_WRAPPER"] = os.environ.get("RUSTC_WRAPPER", "")
-    env["RUSTC_WRAPPER"] = str(ROOT / "scripts/rustc-remap")
+    env["VIBESCRIPT_INNER_WRAPPER"] = os.environ.get("RUSTC_WRAPPER") or os.environ.get("CARGO_BUILD_RUSTC_WRAPPER", "")
+    env["RUSTC_WRAPPER"] = str(wrapper)
+    target_dir = ROOT / "target" / f"playground-{hashlib.sha256(wrapper.read_bytes()).hexdigest()[:12]}"
     toolchain = args.toolchain or (TOOLCHAIN if TOOLCHAIN.exists() else None)
     if toolchain:
         env["PATH"] = str(toolchain / "bin") + os.pathsep + env["PATH"]
@@ -33,12 +39,12 @@ def main():
     subprocess.run([
         ROOT / "scripts/cargo", "build", "--offline", "--locked", "--profile", "playground",
         "--target", TARGET, "-p", "vibescript-tools", "--no-default-features",
-        "--features", "playground", "--bin", "playground",
+        "--features", "playground", "--bin", "playground", "--target-dir", target_dir,
     ], cwd=ROOT, env=env, check=True)
     out = ROOT / "target/playground"
     out.mkdir(parents=True, exist_ok=True)
     binary = out / "playground.wasm"
-    shutil.copy2(ROOT / "target" / TARGET / "playground/playground.wasm", binary)
+    shutil.copy2(target_dir / TARGET / "playground/playground.wasm", binary)
     data = binary.read_bytes()
     manifest = {
         "schema_version": 1,

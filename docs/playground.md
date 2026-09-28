@@ -14,7 +14,9 @@ local WASI toolchain when available, and the `playground` profile: `opt-level="z
 `panic="abort"`, stripping, no debug information, thin LTO and one codegen unit.
 Override the toolchain with `--toolchain PREFIX`. A rustc wrapper (`scripts/rustc-remap`) maps
 the checkout and Cargo home out of embedded source paths, so the artifact names no
-local directories and is the same for every checkout.
+local directories and is the same for every checkout. The build uses a target
+directory named for the wrapper's hash, so artifacts compiled without it are never
+reused.
 
 Artifacts are `target/playground/playground.wasm` and `manifest.json`. The manifest
 records the Rust repository commit (`rust_commit`), working-tree dirty flag,
