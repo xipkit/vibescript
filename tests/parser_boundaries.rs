@@ -274,7 +274,12 @@ fn adjacent_expressions_report_the_gap_without_guessing_a_repair() {
             "the intended repair is ambiguous"
         );
     }
-    for (source, start, end) in [("x = 1\"0\"", 5, 5), ("1  2", 1, 3), ("\"é\" 2", 4, 5)] {
+    for (source, start, end) in [
+        ("x = 1\"0\"", 5, 5),
+        ("x = \"#{1 2}\"", 8, 9),
+        ("1  2", 1, 3),
+        ("\"é\" 2", 4, 5),
+    ] {
         let error = Engine::new().compile(source).err().unwrap();
         assert_eq!(
             error.diagnostics()[0].span,

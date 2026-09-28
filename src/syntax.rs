@@ -23,6 +23,7 @@ use tokens::Tokens;
 const MAX_DEPTH: usize = 1024;
 pub(crate) const MAX_SOURCE: usize = 8 << 20;
 pub(crate) const TOO_DEEP: &str = "syntax nesting too deep";
+const ADJACENT_EXPRESSIONS: &str = "adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements";
 
 #[derive(Debug)]
 pub(crate) struct Expr {
@@ -2591,7 +2592,7 @@ impl<'a> Parser<'a> {
             && self.prefix(self.pos)
             && !matches!(&next.token, Token::Word(word) if matches!(word.as_str(), "unless" | "until" | "do"))
         {
-            let message = "adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements";
+            let message = ADJACENT_EXPRESSIONS;
             let diagnostic = crate::diagnostic::Diagnostic::error(
                 crate::diagnostic::Code::SYNTAX,
                 crate::diagnostic::Span::new(previous.end, next.offset),
@@ -3103,7 +3104,9 @@ impl<'a> Parser<'a> {
             Ok(Parsed::Expr(expr)) => expr,
             Ok(_) => unreachable!(),
             Err(error) if error.kind == crate::ErrorKind::Syntax => {
-                return Err(if error.message == TOO_DEEP {
+                return Err(if error.message == ADJACENT_EXPRESSIONS {
+                    error
+                } else if error.message == TOO_DEEP {
                     Error::syntax(self.work, offset, TOO_DEEP)
                 } else {
                     Error::syntax(

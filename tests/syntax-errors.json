@@ -13190,8 +13190,8 @@
   {
     "name": "begin_modifier_boundary_plain_ensure",
     "source": "def run(_: any)\nbegin\n1\nensure\n2\nend unless false\nend",
-    "go_error": "parse error at 6:5: modifier unless is only supported after expression or assignment statements, or leaf control-flow statements\n  --> line 6, column 5\n 6 | end unless false\n   |     ^",
-    "error": "parse error at 6:4: adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements"
+    "go_error": "parse error at 6:5: unexpected token 'unless'\n  --> line 6, column 5\n 6 | end unless false\n   |     ^",
+    "error": "parse error at 6:5: unexpected token 'unless'"
   },
   {
     "name": "symbol_variable_boundary_instance_bare",
