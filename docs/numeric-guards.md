@@ -28,3 +28,7 @@ end
 A plain rescue catches `RuntimeError`. Exhaustion of the current invocation's step or memory budget, cancellation and deadlines remain uncatchable, including by an explicit `LimitError` clause.
 
 Mutations retain their previous binding until publication while a handler or type guard is active. A rejected update therefore leaves its local, nested, class or instance binding available to rescue and ensure. Prior completed statements and explicit writes inside a block remain visible; an unfinished `fill` result is not published. Retaining the previous value can require copying and additional tracked temporary memory for successful writes in handled regions.
+
+## Integer powers
+
+`int ** int` always returns an integer, including arbitrary-precision results. A negative integer exponent raises `ArgumentError` with a hint to use a float base, for example `2.0 ** -1`. This includes zero, one and negative bases, bigint operands, and `**=`; a failed compound assignment preserves the old value. A float operand retains floating-point exponentiation and its finite-result check. There is no separate `pow` builtin.

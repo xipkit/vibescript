@@ -562,6 +562,8 @@ assert (money("1.05 USD") * 3).cents == 315
 See [formatting examples](formatting.md) for float precision, CSV quoting,
 ISO time and duration output, and supported `strftime` directives.
 
+`int ** int` returns an `int`. A negative integer exponent raises `ArgumentError`; use a float base for a fractional result, such as `2.0 ** -1`. The same rule applies to `**=`. Non-negative integer powers stay exact and promote to arbitrary precision.
+
 Dividing two ints by zero, with `/` or `//`, raises `ZeroDivisionError`; a float operand gives an infinity or NaN instead.
 
 ## What the checker guarantees

@@ -299,7 +299,12 @@ fn nonfinite_powers_fail_during_execution_before_following_effects() {
         observed.fetch_add(1, Ordering::SeqCst);
         Ok(Value::nil())
     });
-    for expression in ["0 ** -1", "0 ** -(2**80)", "10.0 ** 1000", "(-1.0) ** 0.5"] {
+    for expression in [
+        "0.0 ** -1",
+        "0.0 ** -(2**80)",
+        "10.0 ** 1000",
+        "(-1.0) ** 0.5",
+    ] {
         let error = engine
             .compile(&format!("{expression}; effect()"))
             .unwrap()

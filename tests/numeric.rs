@@ -285,3 +285,53 @@ fn cancellation_prevents_numeric_results_and_later_effects() {
         assert_eq!(effects.load(Ordering::SeqCst), 0);
     }
 }
+
+#[test]
+fn integer_powers_reject_negative_exponents_without_changing_their_type() {
+    for base in ["0", "1", "-1", "2", "9223372036854775808"] {
+        for exponent in ["-1", "-9223372036854775808", "-9223372036854775809"] {
+            for expression in [
+                format!("({base}) ** ({exponent})"),
+                format!("n = {base}; n **= ({exponent}); n"),
+            ] {
+                let source = format!("def power -> int; {expression}; end; power");
+                let error = Engine::new()
+                    .compile(&source)
+                    .unwrap_or_else(|error| panic!("{source}: {error}"))
+                    .run(CallOptions::default())
+                    .unwrap_err();
+                assert_eq!(error.kind, ErrorKind::Argument, "{source}");
+                assert_eq!(error.class(), Some(vibescript::ErrorClass::Argument));
+                assert!(error.message.contains("float base"), "{error}");
+                assert!(error.message.contains("2.0 ** -1"), "{error}");
+            }
+        }
+    }
+    assert_eq!(
+        run("n=2; begin; n **= -1; rescue ArgumentError; nil; end; n")
+            .value
+            .as_int(),
+        Some(2)
+    );
+    for (source, expected) in [
+        ("0 ** 0", "1"),
+        ("2 ** 10", "1024"),
+        ("2 ** 100", "1267650600228229401496703205376"),
+        ("9223372036854775808 ** 0", "1"),
+        ("(-1) ** 9223372036854775808", "1"),
+    ] {
+        let value = run(&format!("def power -> int; {source}; end; power")).value;
+        assert!(value.is_integer(), "{source}");
+        assert_eq!(value.to_string(), expected, "{source}");
+    }
+    for source in ["2.0 ** -1", "n=2.0; n **= -1; n", "2 ** -1.0"] {
+        let value = run(&format!("def power -> float; {source}; end; power")).value;
+        assert_eq!(value.type_name(), "float");
+        assert_eq!(value.as_float(), Some(0.5), "{source}");
+    }
+    let error = Engine::new()
+        .compile("value: float = 2 ** 3")
+        .err()
+        .unwrap();
+    assert_eq!(common::codes(&error), ["V0101"]);
+}

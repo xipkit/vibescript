@@ -748,7 +748,7 @@ fn shift_right(
 fn power(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Value> {
     let (negative, exponent) = parts(b);
     if negative {
-        return crate::ops::float_power(a.as_float().unwrap(), b.as_float().unwrap());
+        return Err(crate::ops::negative_integer_exponent());
     }
     if exponent.len() == 0 {
         return Ok(Value::int(1));

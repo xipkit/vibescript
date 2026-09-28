@@ -303,3 +303,7 @@ This applies to scalar, collection, shape and nominal type mismatches.
 
 - [ADR-006: Slim the language for predictable sandboxing](006-slim-language-for-predictable-sandboxing.md)
 - [ADR-007: Static types with local inference](007-static-types.md)
+
+## Addendum: integer powers (2026-09-27)
+
+`int ** int` keeps type `int`. Negative integer exponents raise `ArgumentError`, including through `**=`, with a hint to use a float base (`2.0 ** -1`). This removes an implicit float result that violated the static type. Non-negative powers, bigint promotion and floating-point powers retain their behavior; there is no separate `pow` builtin.

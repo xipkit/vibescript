@@ -141,7 +141,7 @@ fn blocks_report_names_outside_their_enclosing_frames() {
 
 #[test]
 fn binary_operators_are_located_where_the_reference_lexer_stamps_them() {
-    let source = "def run(input: any)\n  x = 0 ** -1\nend";
+    let source = "def run(input: any)\n  x = 0.0 ** -1\nend";
     let error = failure(source);
     assert_eq!(error.message, "float exponentiation result is not finite");
     check_position(&error, source, source.find("* -1").unwrap());

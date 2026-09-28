@@ -280,7 +280,7 @@ fn integers(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Result<Value
                 }
                 "**" => {
                     if *b < 0 {
-                        return float_power(*a as f64, *b as f64);
+                        return Err(negative_integer_exponent());
                     }
                     u32::try_from(*b)
                         .ok()
@@ -382,6 +382,14 @@ fn negative_repetition() -> Error {
         ErrorKind::Argument,
         "negative argument for string repetition",
     )
+}
+
+pub(crate) fn negative_integer_exponent() -> Error {
+    Error::new(
+        ErrorKind::Argument,
+        "negative integer exponent; use a float base, for example 2.0 ** -1",
+    )
+    .with_class(crate::ErrorClass::Argument)
 }
 
 pub(crate) fn float_power(base: f64, exponent: f64) -> Result<Value> {
