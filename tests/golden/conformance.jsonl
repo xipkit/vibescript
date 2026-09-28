@@ -784,6 +784,10 @@
 {"id":"loop_control","ok":["int","25"]}
 {"id":"loop_float/metered","ok":["float","4004000000000000"]}
 {"id":"loop_float/unlimited","ok":["float","4004000000000000"]}
+{"id":"loop_float_compare/metered","ok":["int","500"]}
+{"id":"loop_float_compare/unlimited","ok":["int","500"]}
+{"id":"loop_float_order/metered","ok":["int","750"]}
+{"id":"loop_float_order/unlimited","ok":["int","750"]}
 {"id":"loop_nested_control/metered","ok":["int","53292"]}
 {"id":"loop_nested_control/unlimited","ok":["int","53292"]}
 {"id":"loop_range/metered","ok":["int","2002"]}
