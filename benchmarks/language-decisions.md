@@ -89,3 +89,15 @@ All raw evidence is outside Git under
 `golden-audit.json`, `final-*.log`, `validate.log`, `wasi.log`, `gate-head.txt`
 and `gate-all.log`. Assembly evidence includes binary copies, symbol/import
 tables, the comparison and source hashes. No raw benchmark output is committed.
+
+## Language-1 integration
+
+Rebased onto `187e0455`, preserving the money/formatting documentation, required
+match captures, V0201 hints and typed JSON failures alongside these four
+decisions. Conflicting golden files started from upstream and only the same
+language-2 cases were re-recorded, preserving upstream counter reductions.
+The timing tables above describe the earlier measured revisions; they are not
+new measurements of this integration. Fresh verification and the exact-head
+distributed gate are archived under `rebase-language-1/` in the same cache,
+including `verification.json`, `golden-audit.json`, `gate-head.txt` and
+`gate-all.log`.

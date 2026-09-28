@@ -221,3 +221,12 @@ ADR-008's four addenda intentionally change only the affected observations:
 Counter log addendum: the rewritten resilient-parse showcase uses `< 0` to test its NaN order, removing one comparison step (378 to 377); its shorter result key reduces peak bytes from 3883 to 3879 and retained bytes from 1329 to 1325. All other existing counter records are retained. The eight new core benchmark modes receive new counters; no existing accounting increase is accepted. Changed error paths and newly successful NaN/module cases are intentional semantic observations, not an accounting optimization. All other observation records remain unchanged.
 
 Rebased onto checker integration `f1c777b8`, taking upstream observations and counters before re-recording only the cases above. The checker corpus rewrites are preserved by case id; none overlaps these source edits.
+
+Rebased onto language-1 integration `187e0455`, retaining its typed JSON
+exception classes, fetch completion replies and counter reductions. Started
+from upstream's `rejections.jsonl.gz`, `replay.jsonl.gz`, `lsp.jsonl.gz` and
+`lsp.replies.jsonl.gz`; removed the same twenty-four successful cases from
+rejections, then re-recorded only the twenty-six rejection cases, six replay
+cases and one resilient-parse LSP session listed above. All other records and
+upstream counters are preserved. The fresh audit and verification logs are in
+`.cache/language-2/rebase-language-1/`.
