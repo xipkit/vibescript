@@ -58,11 +58,15 @@ A fixed finding becomes a regression program in `tests/checker-diff`, whose firs
 
 ## Known disagreements
 
-These findings are left for a language or runtime decision; long runs count the first two as `known` instead of writing each one out:
+ADR-008's 2026-09-27 addenda resolve the numeric and required-file findings:
+negative integer powers raise `ArgumentError`, float `<=>` returns an integer
+with NaNs first, and required-file calls retain their lexical function scope.
+The numeric integration tests also execute with every type check retained.
+The harness's historical `negative-power` and `nan-comparison` categories no
+longer describe accepted language behavior.
 
-- `negative-power`: `int ** int` with a negative exponent is a float, where the checker types an `int`. Typing it `number` would reject ordinary code such as `10 ** digits`, so the runtime should decide, for example by raising.
-- `nan-comparison`: `<=>` with a NaN operand gives `nil`, where the checker types an `int`.
-- A required file's top-level local that shares a name with a function, as in `helper = helper()`, makes the file's functions read the requiring script's function of that name, or fail, as the golden `same_name_call_*` cases record. The checker checks a file once for every script that requires it and types the local.
+Remaining findings:
+
 - A class with no `initialize` whose properties a setter assigns reads them as `nil` before then. Its methods keep their result check, and a `nil` surfaces as a type error where it is used.
 - A string repeated more times than an int holds raises "unsupported multiplication operands", a type error, instead of a range error.
 

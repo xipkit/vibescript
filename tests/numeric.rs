@@ -335,3 +335,51 @@ fn integer_powers_reject_negative_exponents_without_changing_their_type() {
         .unwrap();
     assert_eq!(common::codes(&error), ["V0101"]);
 }
+
+#[test]
+fn numeric_decisions_agree_with_retained_type_checks() {
+    for keep_checks in [false, true] {
+        let mut engine = Engine::new();
+        engine.set_keep_type_checks(keep_checks);
+        let script = engine
+            .compile(
+                "def power(base: int, exponent: int) -> int; base ** exponent; end
+             def order(a: float, b: float) -> int; a <=> b; end
+             def sorted(values: array<float>) -> array<float>; values.sort; end",
+            )
+            .unwrap();
+        let error = script
+            .call(
+                "power",
+                &[Value::int(2), Value::int(-1)],
+                CallOptions::default(),
+            )
+            .unwrap_err();
+        assert_eq!(error.class(), Some(vibescript::ErrorClass::Argument));
+        assert_eq!(
+            script
+                .call(
+                    "order",
+                    &[Value::float(f64::NAN), Value::float(1.0)],
+                    CallOptions::default()
+                )
+                .unwrap()
+                .value
+                .as_int(),
+            Some(-1)
+        );
+        let sorted = script
+            .call(
+                "sorted",
+                &[Value::array(vec![
+                    Value::float(1.0),
+                    Value::float(f64::NAN),
+                ])],
+                CallOptions::default(),
+            )
+            .unwrap()
+            .value;
+        assert!(sorted.as_array().unwrap()[0].as_float().unwrap().is_nan());
+        assert_eq!(sorted.as_array().unwrap()[1].as_float(), Some(1.0));
+    }
+}

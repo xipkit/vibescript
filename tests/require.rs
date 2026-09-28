@@ -2188,7 +2188,11 @@ fn same_name_calls_in_required_files_keep_the_file_scope() {
             &format!(
                 "{}; def peek -> int; {}; end",
                 std::fs::read_to_string(files.0.join(format!("{name}.vibe"))).unwrap(),
-                if name == "function" { "result" } else { "helper" }
+                if name == "function" {
+                    "result"
+                } else {
+                    "helper"
+                }
             ),
         );
         for prefix in ["", "def helper -> string; \"root\"; end\n"] {
