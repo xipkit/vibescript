@@ -831,26 +831,43 @@ impl<'a> Checker<'a> {
                         }
                     }
                 }
+                if op == "===" {
+                    return Ty::BOOL;
+                }
                 // A class's own `==` or `!=` gives what its method returns,
                 // `nil` without `-> T`; a `!=` the runtime answers by
-                // negating `==` is a `bool`.
-                if op != "==="
-                    && let Kind::Instance(ns) = self.types.kind(lt).clone()
-                {
+                // negating `==` is a `bool`. Each instance the left operand
+                // may be runs its class's method with the right operand, a
+                // `nil` too, as in a nil test of an optional instance.
+                let mut results = Vec::new();
+                let mut checked = Vec::new();
+                for alternative in self.types.members(lt) {
+                    let Kind::Instance(ns) = self.types.kind(alternative).clone() else {
+                        results.push(Ty::BOOL);
+                        continue;
+                    };
                     let methods = &self.program.namespaces[ns as usize].methods;
-                    if let Some(&id) = methods.get(op) {
+                    let (id, result) = match (methods.get(op), methods.get("==")) {
+                        (Some(&id), _) => (id, self.program.fns[id].sig.result.unwrap_or(Ty::NIL)),
+                        // The runtime answers `!=` by negating the class's
+                        // `==`, which takes the right operand.
+                        (None, Some(&id)) if op == "!=" => (id, Ty::BOOL),
+                        _ => {
+                            results.push(Ty::BOOL);
+                            continue;
+                        }
+                    };
+                    if !checked.contains(&id) {
+                        checked.push(id);
                         let span = self.spans.operator(expr.offset as usize);
                         self.operator_operand(id, rt, span);
-                        return self.program.fns[id].sig.result.unwrap_or(Ty::NIL);
                     }
-                    // The runtime answers `!=` by negating the class's `==`,
-                    // which takes the right operand.
-                    if let (Some(&id), "!=") = (methods.get("=="), op) {
-                        let span = self.spans.operator(expr.offset as usize);
-                        self.operator_operand(id, rt, span);
-                    }
+                    results.push(result);
                 }
-                Ty::BOOL
+                if checked.is_empty() {
+                    return Ty::BOOL;
+                }
+                self.types.union(&results)
             }
             _ => {
                 if op == "<<" {
@@ -873,17 +890,19 @@ impl<'a> Checker<'a> {
     /// Reports `==` or `!=` on an instance whose class hides the method the
     /// runtime calls: its own, or for `!=` without one, `==`.
     fn equality_visibility(&mut self, expr: &'a Expr, op: &str, left: Ty) {
-        let Kind::Instance(ns) = self.types.kind(left).clone() else {
-            return;
-        };
-        let methods = &self.program.namespaces[ns as usize].methods;
-        let (name, method) = match methods.get(op) {
-            None if op == "!=" => ("==", methods.get("==")),
-            method => (op, method),
-        };
-        if let Some(&id) = method {
-            let span = self.spans.containing(expr.offset as usize);
-            self.visibility(name, span, id, ns, true);
+        for alternative in self.types.members(left) {
+            let Kind::Instance(ns) = self.types.kind(alternative).clone() else {
+                continue;
+            };
+            let methods = &self.program.namespaces[ns as usize].methods;
+            let (name, method) = match methods.get(op) {
+                None if op == "!=" => ("==", methods.get("==")),
+                method => (op, method),
+            };
+            if let Some(&id) = method {
+                let span = self.spans.containing(expr.offset as usize);
+                self.visibility(name, span, id, ns, true);
+            }
         }
     }
 

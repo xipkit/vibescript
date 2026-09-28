@@ -1,0 +1,11 @@
+# expect: agreed
+class C0
+  def ==(other: C0?) -> bool
+    other != nil
+  end
+end
+class C1
+end
+x: C0? = C0.new
+y: C1? = nil
+p(x != nil, x == nil, y != nil)

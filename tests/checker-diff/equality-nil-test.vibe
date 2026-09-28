@@ -1,0 +1,10 @@
+# expect: rejected V0101
+# A nil test of an optional instance runs its class's `==` with `nil`
+# when the value is an instance, which its parameter must accept.
+class C0
+  def ==(other: C0) -> bool
+    true
+  end
+end
+x: C0? = C0.new
+p(x != nil)
