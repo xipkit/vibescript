@@ -35,12 +35,12 @@ def site_cases():
 def site_benchmark_cases():
     """Every site program, metered and unlimited, for timing whole programs.
 
-    Notification programs are left out: each harness accumulates their host
-    side effects across repeated calls in its own way.
+    Static rejections cannot run. Notification programs are left out: each
+    harness accumulates their host side effects across repeated calls in its own way.
     """
     out=[]
     for case in site_cases():
-        if case.get("notifications"):
+        if "static_error" in case or case.get("notifications"):
             continue
         for accounting in [True,False]:
             out.append({**case,"name":case["name"]+("/metered" if accounting else "/unlimited"),"accounting":accounting,"iterations":100})
