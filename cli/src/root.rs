@@ -90,7 +90,7 @@ pub fn main(args: Vec<OsString>) -> ExitCode {
     }
     if text == "--version" {
         return finish(print(&format!(
-            "vibescript.rs {}\n",
+            "vibescript {}\n",
             env!("CARGO_PKG_VERSION")
         )));
     }

@@ -177,7 +177,7 @@ fn leaf_commands_treat_help_as_an_argument() {
 fn version_prints_the_package_version() {
     vibes(&["--version"]).expect(
         0,
-        &format!("vibescript.rs {}\n", env!("CARGO_PKG_VERSION")),
+        &format!("vibescript {}\n", env!("CARGO_PKG_VERSION")),
         "",
     );
 }

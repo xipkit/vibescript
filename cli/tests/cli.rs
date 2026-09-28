@@ -587,7 +587,7 @@ fn help_explains_the_flat_form_and_version_prints() {
     vibes(&["--stats", "-h"]).expect(0, &flat_help, "");
     vibes(&["--version"]).expect(
         0,
-        &format!("vibescript.rs {}\n", env!("CARGO_PKG_VERSION")),
+        &format!("vibescript {}\n", env!("CARGO_PKG_VERSION")),
         "",
     );
     vibes(&["--help", "--bogus"]).expect(0, &vibes(&["-h"]).stdout, "");

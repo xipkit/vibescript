@@ -11,10 +11,10 @@ undocumented_unsafe_blocks = "deny"
 
 [package]
 name = "vibescript"
-version = "0.1.0"
+version = "0.80.0"
 edition = "2024"
 rust-version = "1.85"
-description = "An experimental metered Vibescript interpreter in Rust"
+description = "An embeddable, metered, statically typed scripting language"
 license = "MIT AND BSD-3-Clause"
 publish = false
 autotests = false
