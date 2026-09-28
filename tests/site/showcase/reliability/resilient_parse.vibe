@@ -27,6 +27,6 @@ def run -> { divide_guarded: int?, divide_ok: int?, nan_sorts_first: bool, infin
     infinity_label: infinity.to_s,
     is_finite: (3.0 / 4.0).finite?,
     nan_detected: not_a_number.nan?,
-    nan_sorts_first: (not_a_number <=> 1.0) == -1
+    nan_sorts_first: (not_a_number <=> 1.0) < 0
   }
 end
