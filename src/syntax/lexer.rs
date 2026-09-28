@@ -1041,7 +1041,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
             self.nesting.ternaries.pop();
         }
         let next = source[start + 1..].chars().next();
-        let symbol = !closes && !self.colon_separates_value(start);
+        let symbol = !closes && !self.colon_separates_value(start, line);
         if symbol && matches!(next, Some('"' | '\'')) {
             self.pos = start + 1;
             let parts = match self.quoted(next.unwrap() as u8, line) {
@@ -1102,7 +1102,9 @@ impl<'a, 'w> Lexer<'a, 'w> {
         Ok(self.nesting.last.is_some_and(|last| last.ends))
     }
 
-    fn colon_separates_value(&self, start: usize) -> bool {
+    /// Whether the colon at `start`, on `line`, separates a label, hash key
+    /// or keyword argument from its value rather than starting a symbol.
+    fn colon_separates_value(&self, start: usize, line: usize) -> bool {
         let nesting = &self.nesting;
         let Some(last) = nesting.last else {
             return false;
@@ -1112,8 +1114,16 @@ impl<'a, 'w> Lexer<'a, 'w> {
                 .chars()
                 .next_back()
                 .is_some_and(|c| !c.is_whitespace());
-            return abuts
-                || self.label_follows_bracket()
+            if abuts {
+                return true;
+            }
+            // Unlike Go, a spaced colon after a keyword such as `then` or
+            // `else` starts a symbol, and so does one on a later line than a
+            // label outside brackets, where a line ends a statement.
+            if !last.ends || (last.end_line != line && nesting.brackets.is_empty()) {
+                return false;
+            }
+            return self.label_follows_bracket()
                 || self.label_follows_callee()
                 || self.label_follows_comma();
         }
@@ -1797,6 +1807,33 @@ mod tests {
                     Token::Int(1),
                     Token::P(':'),
                     Token::Int(2),
+                ],
+            ),
+            (
+                "when 1 then :a",
+                vec![
+                    Token::Word(Word("when")),
+                    Token::Int(1),
+                    Token::Word(Word("then")),
+                    symbol("a"),
+                ],
+            ),
+            (
+                "p x\n:a",
+                vec![
+                    Token::Word(Word("p")),
+                    Token::Word(Word("x")),
+                    Token::EndLine,
+                    symbol("a"),
+                ],
+            ),
+            (
+                "f key: 1",
+                vec![
+                    Token::Word(Word("f")),
+                    Token::Word(Word("key")),
+                    Token::P(':'),
+                    Token::Int(1),
                 ],
             ),
         ] {

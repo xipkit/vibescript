@@ -12661,11 +12661,6 @@
     "go_error": "parse error at 5:5: unexpected token \".\""
   },
   {
-    "name": "rescue_label_after_a_call_result_needs_a_fallback",
-    "source": "def boom\n  raise \"x\"\nend\n\ndef run(input: any) -> any\n  x = boom() rescue :fb\n  x\nend",
-    "go_error": "parse error at 6:14: rescue modifier requires fallback expression"
-  },
-  {
     "name": "alias_inside_a_function_is_rejected",
     "source": "def foo -> int\n  1\nend\n\ndef run(input: any)\n  alias bar foo\nend",
     "go_error": "parse error at 6:3: alias declarations are only supported at the top level or in class bodies"

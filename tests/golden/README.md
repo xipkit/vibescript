@@ -166,6 +166,12 @@ fixture changes. Upstream's checker observations, `sum` completion text and
 all other counters are preserved; `lsp.jsonl.gz` is unchanged. The fresh audit
 is in `.cache/language-1/followup/rebased-f1c777b8/`.
 
+## Checker coverage fixes
+
+The [differential tests](../../docs/checker-diff.md), extended to hosts, nested requires, class variables, operator methods, `retry` and larger programs, found more programs the checker accepted although the runtime refuses them or gives a value of another type, and syntax the parser read another way. Only the affected cases were recorded.
+
+- A spaced colon after a keyword such as `rescue`, `then` or `in` starts a symbol. The syntax error `rescue_label_after_a_call_result_needs_a_fallback` gives way to the language cases `rescue_symbol_fallback_after_a_call` and `rescue_symbol_fallback_after_a_parenthesized_call`; `call53323`'s `missing rescue :sym` is a rescue modifier, so its V0201 names a missing local rather than a function; and the `parse` mutation `for value in :1..limit` parses.
+
 ## Counter log
 
 - Callable-name scan accounting (2026-09-29): validation now checks cancellation
@@ -217,6 +223,7 @@ Each re-recording of the counters, and why. Observations stay as recorded, inclu
 - Consumed the previous array result at an unused loop-tail append, retaining other aliases and the exact-capacity growth the old copy allocated. Removed element-copy work lowers `loop_array_build` from 76,297 to 20,686 steps; eliminating the copied header lowers peak bytes from 23,664 to 23,568, while retained bytes remain 10,752. Re-recorded only its two conformance modes and replay `call52200`; all observations are unchanged.
 - Rebased VM round 5 onto JSON integration `a4cc97a1`, taking upstream counter files first and re-recording only the same 933 regex/array cases (eight conformance, 722 language, three compatibility and 200 replay). A fresh paired audit of 164,767 engine cases found the same reductions and no increases or newly completed calls. All observation files and the ten upstream JSON peak reductions remain unchanged; four clock-dependent calls and 25 quota-dependent error outcomes keep their recorded observations.
 - Rewrote the corpus sources above for the checker differential fixes and recorded only their counters. Steps drop where a parameter's type is simpler to check when the host calls: `call1362` from 224 to 199, `call41650` from 51 to 46, `call45778` and `call45780` from 67 to 65, and `call4886` from 88 to 86. Peak bytes rise by 7 in `call49100` and 23 in `call49148`, whose class now defines `inspect`. Checker work charged to cold `require`s is unchanged in every case. The two cases that moved to the language corpus have new counters, and the three that moved out, and the replay cases that no longer compile, lost theirs. Rebased onto VM round 5 `32ae7e77`, taking upstream's counter files and re-recording only these cases.
+- Recorded counters for the checker coverage fixes above: the new language cases `rescue_symbol_fallback_after_a_call` and `rescue_symbol_fallback_after_a_parenthesized_call` have counters. No other counter changed, and the checker work charged to cold `require`s is unchanged.
 
 ## Language decisions, 2026-09-27
 

@@ -167,9 +167,9 @@ fn reserved_words_label_parenless_keyword_arguments() {
         result(source),
         serde_json::json!([{"rescue": 1}, {"rescue": "retry"}, {"begin": 1, "ensure": 3}, 5])
     );
-    let source = "def boom\n  raise \"x\"\nend\ndef run\n  boom() rescue :fallback\nend";
-    let error = Engine::new().compile(source).err().unwrap();
-    assert_eq!(error.kind, ErrorKind::Syntax);
+    // A spaced colon after `rescue` starts the fallback symbol.
+    let source = "def boom(n: int) -> symbol\n  raise \"x\"\nend\ndef run -> symbol\n  boom(1) rescue :fallback\nend";
+    assert_eq!(result(source), serde_json::json!("fallback"));
 }
 
 #[test]
