@@ -124,6 +124,7 @@ New static rejections:
 `control_called_function_own_loop` and `destructure_groups_each_bind_a_level` move from the rejections to the language corpus: a `for` loop over a literal with elements always runs its body, and a nested array literal destructured by a nested pattern is a tuple, so both now compile, and the differential tests confirm their values.
 
 Changed first errors: 30 `class_accessors_*` rejections report the setter whose type differs from its variable's at the declaration, `sum_initial` reports `[].sum(nil)`, and the replay expectations of `call2528`, `call3017`, `call41693`, `call41961`, `call54722`, `call54723`, `call54725`, `compile408`, `compile533` and `compile884` name the earlier error the checker now finds. Seven rejection messages say `array<never>` instead of `array<unknown>` for the result of a call whose block always breaks. Two LSP completion replies, which 197 sessions give, describe `array<T: int>.sum` as returning `int`.
+
 ## Required captures and foreign-name advice
 
 The 2026-09-27 language changes add `match_data.fetch` and V0201 advice for
@@ -155,6 +156,15 @@ checkout's external volume.
 Every error message and location is unchanged. Syntax failures and all other
 observations are preserved. Exact case lists and before/after observations are
 under `.cache/language-1/followup/` on the main checkout's external volume.
+
+Rebased onto checker integration `f1c777b8`, taking all upstream golden files
+first. Re-recorded the same 510 class-only observations in `rejections.jsonl.gz`,
+11 in `replay.jsonl.gz`, two reductions in `language.counters.jsonl.gz`, and
+three fetch completion replies in `lsp.replies.jsonl.gz` (11,125 occurrences
+in 197 sessions). The two `../language.json` class expectations remain the only
+fixture changes. Upstream's checker observations, `sum` completion text and
+all other counters are preserved; `lsp.jsonl.gz` is unchanged. The fresh audit
+is in `.cache/language-1/followup/rebased-f1c777b8/`.
 
 ## Counter log
 
