@@ -124947,7 +124947,8 @@
   {
     "name": "class_syntax_body_17",
     "source": "module M\nend\nclass C\nclass Inner\nend\nend\ndef run(input: any) -> int\n1\nend\n",
-    "go_error": "class Inner is not bound"
+    "go_error": "class Inner is not bound",
+    "static_error": {"code": "V0001", "at": [4, 1]}
   },
   {
     "name": "class_variables_4",
@@ -124997,13 +124998,14 @@
   {
     "name": "class_initial_0",
     "source": "class Outer\n class Inner\n  def value -> int; 7; end\n end\nend\ndef run(input: any) -> int\nOuter::Inner.new.value\nend\n",
-    "go_error": "class Inner is not bound"
+    "go_error": "class Inner is not bound",
+    "static_error": {"code": "V0001", "at": [2, 2]}
   },
   {
     "name": "class_initial_1",
     "source": "def maker\n class Inner\n def value -> int; 8; end\n end\nend\ndef run(input: any) -> any\nmaker; Inner.new.value\nend\n",
     "go_error": "class Inner is not bound",
-    "static_error": {"code": "V0201", "at": [7, 8]}
+    "static_error": {"code": "V0001", "at": [2, 2]}
   },
   {
     "name": "class_initial_8",

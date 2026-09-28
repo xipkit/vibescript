@@ -174,6 +174,7 @@ The [differential tests](../../docs/checker-diff.md), extended to hosts, nested 
 - An index abutting the end of a multi-line expression indexes it: the syntax error `parity_multiline_array_index_in_hash` moves to the language corpus, and the `parse` mutation `inspect_array: }[1, "x", nil]` indexes the hash its stray `}` closes, failing at the next `}` instead.
 - Assigning a global the host declares writes the global, in every form, so its value keeps the declared type (V0101, V0102). `call13733` now first fails where it writes `rows`, and the `host_globals/overwrite` fixture writes a value of the global's type, keeping its observation.
 - A `break` out of a host method's block becomes its result, which the runtime validates against the signature: the four `host_signatures/bad_break` compatibility cases are static rejections (V0101).
+- A class declared in a class or function body is never bound: `class_syntax_body_17`, `class_initial_0` and `class_initial_1` fail to compile (V0001) instead of when run or at the class's first use.
 
 ## Counter log
 

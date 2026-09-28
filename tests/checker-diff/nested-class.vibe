@@ -1,0 +1,10 @@
+# expect: rejected V0001
+# The runtime never binds a class declared in a class or function body.
+class Outer
+  class Inner
+    def v -> int
+      1
+    end
+  end
+end
+p(Outer::Inner.new.v)

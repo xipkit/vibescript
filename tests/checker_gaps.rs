@@ -106,7 +106,7 @@ mod scoped_calls {
     #[test]
     fn constants_nested_types_and_enum_members_keep_two_colons() {
         clean(
-            "class Outer\n  LIMIT = 3\n  class Inner\n  end\nend\nenum Status\n  Draft\nend\nlimit = Outer::LIMIT\nstatus = Status::Draft\npi = Math::PI\ninner = Outer::Inner.new\n",
+            "class Outer\n  LIMIT = 3\nend\nenum Status\n  Draft\nend\nlimit = Outer::LIMIT\nstatus = Status::Draft\npi = Math::PI\n",
         );
         // An enum member may be lowercase, so only a namespace's name
         // without arguments is a call.

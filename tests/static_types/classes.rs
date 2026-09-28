@@ -191,24 +191,16 @@ fn properties_declare_their_types() {
 }
 
 #[test]
-fn nested_classes_are_named_through_their_scope() {
-    let nested = "class Outer\n  class Inner\n    def label -> string\n      \"inner\"\n    end\n  end\nend\n";
-    clean(&format!(
-        "{nested}def keep(x: Outer::Inner, *, other: Outer::Inner? = nil) -> Outer::Inner\n  n: Outer::Inner? = other\n  x\nend\ndef label(x: Outer::Inner) -> string\n  x.label\nend\n"
-    ));
-    codes(
-        &format!("{nested}def keep(x: Outer::Inner) -> Outer::Inner\n  x\nend\nkeep(3)\n"),
-        &["V0101"],
-    );
-    codes(
-        &format!("{nested}def keep(x: Outer::Missing) -> int\n  1\nend\n"),
-        &["V0116"],
-    );
-    // The canonical surface's rules read the annotation too.
-    codes(
-        &format!("{nested}def keep(x: Outer::Inner) -> int\n  [1].size\nend\n"),
-        &["V0401"],
-    );
+fn nested_classes_are_refused() {
+    // The runtime never binds a class declared below the top level, and
+    // fails as soon as the declaration runs.
+    for source in [
+        "class Outer\n  class Inner\n  end\nend\n",
+        "def make\n  class Inner\n  end\nend\n",
+    ] {
+        let diagnostic = error(source, "V0001", "only supported at the top level");
+        assert_eq!(spanned(source, &diagnostic), "class", "{source}");
+    }
 }
 
 #[test]

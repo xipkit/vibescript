@@ -15,16 +15,6 @@ fn result(source: &str) -> serde_json::Value {
     serde_json::from_slice(encoded.value.as_bytes().unwrap()).unwrap()
 }
 
-fn failure(source: &str) -> String {
-    Engine::new()
-        .compile(source)
-        .unwrap_or_else(|error| panic!("{source}: {error}"))
-        .run(CallOptions::default())
-        .err()
-        .unwrap_or_else(|| panic!("{source} ran"))
-        .message
-}
-
 #[test]
 fn lexical_forms_match_the_reference() {
     for (source, expected) in [
@@ -76,16 +66,16 @@ fn line_breaks_end_expressions_where_the_reference_ends_them() {
 }
 
 #[test]
-fn accepted_forms_fail_where_the_reference_fails_at_run_time() {
-    let source = "def f -> int\n  def g -> int\n    1\n  end\n  2\nend\nf";
-    assert_eq!(failure(source), "unsupported statement");
-}
-
-#[test]
 fn forms_the_reference_rejects_at_run_time_are_refused_at_compile_time() {
     for (source, codes, at) in [
         // An instance variable outside any class.
         ("@1 = 2", &["V0204"][..], "@1"),
+        // A function declared in a function, which failed when it ran.
+        (
+            "def f -> int\n  def g -> int\n    1\n  end\n  2\nend\nf",
+            &["V0001"],
+            "def g",
+        ),
         // A block parameter's type continues after a line break.
         ("[1].map { |v: int|\n  v\n  |}", &["V0116"], "v"),
         // A statement or a call with arguments took a do block from the next

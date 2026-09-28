@@ -85,7 +85,19 @@ fn nested_declarations_and_destructuring_reach_the_reference_depth() {
         ("modules", "module A\n", "end\n", 1023),
     ] {
         let source = |depth: usize| format!("{}{}", prefix.repeat(depth), suffix.repeat(depth));
-        compile_deep(&source(depth), name);
+        if name == "classes" {
+            // The checker refuses a class in a class, which the runtime
+            // never binds, once the parser has read it.
+            let error = Engine::new().compile(&source(depth)).err().unwrap();
+            let codes = common::codes(&error);
+            assert!(
+                common::too_tall_for_wasi(&error)
+                    || (!codes.is_empty() && codes.iter().all(|code| code == "V0001")),
+                "{name}: {error}"
+            );
+        } else {
+            compile_deep(&source(depth), name);
+        }
         assert_too_deep(&source(depth + 1), name);
     }
     let destructure = |depth: usize| {

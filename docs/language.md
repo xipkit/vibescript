@@ -537,7 +537,9 @@ label = case post.status
 
 ## Modules and required files
 
-A module is a namespace of functions, constants and nested modules or classes:
+A module is a namespace of functions, constants and nested modules. Classes and enums are declared at the top level, and functions at the top level or in a class or module body; a declaration anywhere else, such as a class in a class or a function in a function, block or `if`, is an error (V0001).
+
+A module's functions are called through it:
 
 ```vibe
 module Pricing

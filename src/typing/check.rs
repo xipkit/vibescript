@@ -980,10 +980,30 @@ impl<'a> Checker<'a> {
                 }
                 self.statement_value(stmt, Ty::NIL, want)
             }
-            Statement::UnboundClass(_) | Statement::Unsupported => {
+            // The runtime refuses a declaration nested where it cannot bind
+            // one, whenever the statement runs.
+            Statement::UnboundClass(_) => {
+                self.nested_declaration(
+                    stmt,
+                    "class declarations are only supported at the top level",
+                );
+                self.statement_value(stmt, Ty::NIL, want)
+            }
+            Statement::Unsupported => {
+                self.nested_declaration(
+                    stmt,
+                    "function declarations are only supported at the top level or in class and module bodies",
+                );
                 self.statement_value(stmt, Ty::NIL, want)
             }
         }
+    }
+
+    /// Reports a declaration nested in a body, which the runtime refuses
+    /// when it runs.
+    fn nested_declaration(&mut self, stmt: &Stmt, message: &str) {
+        let span = self.spans.token(stmt.offset as usize);
+        self.report(Diagnostic::error(Code::SYNTAX, span, message));
     }
 
     /// Checks a statement's value against what is wanted of it.
