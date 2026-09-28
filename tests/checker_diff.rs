@@ -13,6 +13,8 @@ mod generate;
 #[allow(dead_code)]
 #[path = "../examples/checker_diff/harness.rs"]
 mod harness;
+#[path = "../examples/checker_diff/host.rs"]
+mod host;
 #[path = "../examples/checker_diff/rng.rs"]
 mod rng;
 
@@ -44,7 +46,6 @@ fn generated_programs_agree_with_their_checks_kept() {
     for seed in 0..SMOKE_SEEDS {
         let case = generate::program(seed);
         match harness::judge(&case, &mut scratch) {
-            Verdict::Finding(finding) if harness::known(&case, &finding).is_some() => accepted += 1,
             Verdict::Finding(finding) => failures.push(format!(
                 "seed {seed}: {}\n{}\n{}",
                 finding.kind.name(),

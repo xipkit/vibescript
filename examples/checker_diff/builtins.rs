@@ -955,11 +955,9 @@ fn operators(rng: &mut Rng) -> Case {
         let counts = right.contains("int") || right.contains("number") || right.contains("any");
         let value = if op == "=~" || op == "!~" {
             "/a/".to_owned()
-        } else if (op == "**" || (op == "*" && left == "string")) && counts {
-            // An integer to a negative power is a float the checker types
-            // as an int, and a string repeated more times than an int holds
-            // raises an operand error: known differences reported, not
-            // checker bugs.
+        } else if op == "*" && left == "string" && counts {
+            // A string repeated more times than an int holds raises an
+            // operand error, a known difference, not a checker bug.
             ["0", "1", "2", "3"][out.rng.below(4)].to_owned()
         } else if op == "*" && left == "string" {
             ["0.0", "1.5", "2.5"][out.rng.below(3)].to_owned()

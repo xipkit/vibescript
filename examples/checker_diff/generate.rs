@@ -500,6 +500,7 @@ impl Gen {
         Case {
             main: text,
             modules,
+            host: Default::default(),
         }
     }
 

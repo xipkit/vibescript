@@ -26,6 +26,8 @@ mod builtins;
 mod generate;
 #[path = "checker_diff/harness.rs"]
 mod harness;
+#[path = "checker_diff/host.rs"]
+mod host;
 #[path = "checker_diff/minimize.rs"]
 mod minimize;
 #[path = "checker_diff/mutate.rs"]
@@ -65,11 +67,6 @@ fn run() -> i32 {
                 let case = Case::parse(&text);
                 let verdict = harness::judge(&case, &mut scratch);
                 println!("{path}: {}", describe(&verdict));
-                if let Verdict::Finding(finding) = &verdict {
-                    if let Some(known) = harness::known(&case, finding) {
-                        println!("known difference: {known}");
-                    }
-                }
             }
             let _ = std::fs::remove_dir_all(scratch_root(0));
             0
@@ -157,26 +154,16 @@ struct Totals {
     inconclusive: u64,
     compared: u64,
     findings: BTreeMap<&'static str, u64>,
-    known: BTreeMap<&'static str, u64>,
 }
 
 impl Totals {
-    /// Counts `finding` of `case`, and returns the name its file takes, or
-    /// `None` when enough of its kind were written.
-    fn finding(&mut self, case: &Case, finding: &harness::Finding) -> Option<String> {
-        let (name, count) = match harness::known(case, finding) {
-            Some(known) => (
-                format!("known-{known}"),
-                self.known.entry(known).or_default(),
-            ),
-            None => (
-                finding.kind.name().to_owned(),
-                self.findings.entry(finding.kind.name()).or_default(),
-            ),
-        };
+    /// Counts `finding`, and returns the name its file takes, or `None`
+    /// when enough of its kind were written.
+    fn finding(&mut self, finding: &harness::Finding) -> Option<String> {
+        let count = self.findings.entry(finding.kind.name()).or_default();
         *count += 1;
         // A frequent finding need not fill the disk.
-        (*count <= KEEP).then_some(name)
+        (*count <= KEEP).then(|| finding.kind.name().to_owned())
     }
 }
 
@@ -303,7 +290,7 @@ fn record(totals: &Mutex<Totals>, out: &Path, seed: u64, case: &Case, verdict: &
         Verdict::Inconclusive => totals.inconclusive += 1,
         Verdict::Finding(finding) => {
             totals.compared += 1;
-            let Some(name) = totals.finding(case, finding) else {
+            let Some(name) = totals.finding(finding) else {
                 return;
             };
             let path = out.join(format!("{name}-{seed}.vibe"));
@@ -328,7 +315,7 @@ fn annotated(totals: &Mutex<Totals>, out: &Path, seed: u64, case: &Case, scratch
     counts.annotated += 1;
     match &verdict {
         Verdict::Finding(finding) => {
-            let Some(name) = counts.finding(&annotated, finding) else {
+            let Some(name) = counts.finding(finding) else {
                 return;
             };
             let path = out.join(format!("annotated-{name}-{seed}.vibe"));
@@ -361,9 +348,8 @@ fn annotated(totals: &Mutex<Totals>, out: &Path, seed: u64, case: &Case, scratch
 fn summary(totals: &Totals, started: Instant, out: &Path) {
     let rejected: u64 = totals.rejected.values().sum();
     let findings: u64 = totals.findings.values().sum();
-    let known: u64 = totals.known.values().sum();
     println!(
-        "generated {} accepted {} compared {} (agreed {}, inconclusive {}, annotated {}) rejected {} findings {} known {} in {:.1}s",
+        "generated {} accepted {} compared {} (agreed {}, inconclusive {}, annotated {}) rejected {} findings {} in {:.1}s",
         totals.generated,
         totals.generated - rejected,
         totals.compared,
@@ -372,14 +358,10 @@ fn summary(totals: &Totals, started: Instant, out: &Path) {
         totals.annotated,
         rejected,
         findings,
-        known,
         started.elapsed().as_secs_f64()
     );
     for (kind, count) in &totals.findings {
         println!("  finding {kind}: {count}");
-    }
-    for (kind, count) in &totals.known {
-        println!("  known {kind}: {count}");
     }
     let mut codes: Vec<(&String, &u64)> = totals.rejected.iter().collect();
     codes.sort_by(|a, b| b.1.cmp(a.1));

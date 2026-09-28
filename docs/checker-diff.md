@@ -8,12 +8,12 @@ The [typed VM](vm.md#proven-checks) leaves out the runtime type checks the check
 
 ## Judging a program
 
-Each program is compiled in both builds. If the checker rejects it, the verdict is the first error's code. Otherwise both builds run it under a step, memory, recursion and time limit, with the same seeded random source, and the harness compares the results, rendered exactly (kinds, float bits, bytes, hash order), and the output:
+Each program is compiled in both builds, against the same host (`host.rs`): the globals and capabilities the program declares, and three host functions every engine registers. If the checker rejects it, the verdict is the first error's code. Otherwise both builds run it under a step, memory, recursion and time limit, with the same seeded random source and the host's globals and capabilities, then make each call the host makes into it with arguments, and the harness compares the results, rendered exactly (kinds, float bits, bytes, hash order), and the output:
 
 - **agreed**: the same observations;
 - **check-failed**: only the build with checks raised a type error, so the checker proved something false;
 - **mismatch**: any other difference;
-- **unexpected-error**: both raised an error the checker rules out in a program it accepts, such as a name that does not exist or an operator on operands it does not take; failed casts, `JSON.parse_as`, a `nil` result of an instance method whose class the checker does not prove, hash key types no string satisfies and builtins' range errors are legitimate;
+- **unexpected-error**: both raised an error the checker rules out in a program it accepts, such as a name that does not exist or an operator on operands it does not take; failed casts, `JSON.parse_as`, a `nil` result of an instance method whose class the checker does not prove, hash key types no string satisfies, builtins' range errors and a host call's arguments that its function's parameters refuse are legitimate;
 - **panic**, and **compile-mismatch**, when only one build compiles;
 - **inconclusive** when a limit stops either run.
 
@@ -52,20 +52,13 @@ checker_diff minimize FILE...  # remove lines while the finding stays, into FILE
 checker_diff generate SEED     # print a seed's program; add `corpus` for an edit
 ```
 
-A program with required files lists each under a `#@ file PATH` line, then the script under `#@ main`.
+A program's host comes first, one directive a line: `#@ global NAME: TYPE = JSON`, or `#@ global NAME = JSON` for an `any` global; `#@ capability NAME`, `store` or `loose`; and `#@ call FUNCTION {"args": [...], "keywords": {...}}`. Each required file follows under a `#@ file PATH` line, then the script under `#@ main`.
 
 A fixed finding becomes a regression program in `tests/checker-diff`, whose first line says what it must now do: `# expect: rejected CODE`, for a program the checker now rejects, or `# expect: agreed`.
 
 ## Known disagreements
 
-ADR-008's 2026-09-27 addenda resolve the numeric and required-file findings:
-negative integer powers raise `ArgumentError`, float `<=>` returns an integer
-with NaNs first, and required-file calls retain their lexical function scope.
-The numeric integration tests also execute with every type check retained.
-The harness's historical `negative-power` and `nan-comparison` categories no
-longer describe accepted language behavior.
-
-Remaining findings:
+ADR-008's 2026-09-27 addenda resolved the numeric and required-file findings: negative integer powers raise `ArgumentError`, float `<=>` orders NaN first, and a required file's calls resolve within it. The numeric integration tests also run with every type check kept. The harness no longer counts any finding as known. Two remain, which it avoids generating:
 
 - A class with no `initialize` whose properties a setter assigns reads them as `nil` before then. Its methods keep their result check, and a `nil` surfaces as a type error where it is used.
 - A string repeated more times than an int holds raises "unsupported multiplication operands", a type error, instead of a range error.

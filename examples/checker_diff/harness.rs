@@ -2,6 +2,7 @@
 //! check kept ([`Engine::set_keep_type_checks`]), and judges whether the
 //! checker's verdict agrees with what happened.
 
+use super::host::{self, Host};
 use std::{
     panic::{AssertUnwindSafe, catch_unwind},
     path::Path,
@@ -15,6 +16,8 @@ use vibescript::{CallOptions, Engine, Error, ErrorKind, Limits, ModuleConfig, Va
 pub struct Case {
     pub main: String,
     pub modules: Vec<(String, String)>,
+    /// The host's globals, capabilities and calls into the script.
+    pub host: Host,
 }
 
 impl Case {
@@ -23,20 +26,21 @@ impl Case {
         Self {
             main: main.into(),
             modules: Vec::new(),
+            host: Host::default(),
         }
     }
 
-    /// The program as one text: each required file under a `#@ file PATH`
-    /// line, then the script under `#@ main`.
+    /// The program as one text: the host's directives, each required file
+    /// under a `#@ file PATH` line, then the script under `#@ main`.
     pub fn render(&self) -> String {
-        let mut text = String::new();
+        let mut text = self.host.render();
         for (path, source) in &self.modules {
             text.push_str(&format!("#@ file {path}\n{source}"));
             if !source.ends_with('\n') {
                 text.push('\n');
             }
         }
-        if !self.modules.is_empty() {
+        if !self.modules.is_empty() || !self.host.is_empty() {
             text.push_str("#@ main\n");
         }
         text.push_str(&self.main);
@@ -70,6 +74,11 @@ impl Case {
             } else if line.trim_end() == "#@ main" {
                 finish(&mut current, &mut body, &mut case);
                 current = Some(String::new());
+            } else if current.is_none()
+                && line
+                    .strip_prefix("#@ ")
+                    .is_some_and(|directive| case.host.parse_directive(directive.trim_end()))
+            {
             } else {
                 body.push_str(line);
             }
@@ -206,11 +215,11 @@ pub fn judge(case: &Case, scratch: &mut Scratch) -> Verdict {
         }
         Err(panic) => return finding(FindingKind::Panic, format!("compile with checks: {panic}")),
     };
-    let first = match observe(&normal) {
+    let first = match observe(&normal, &case.host) {
         Ok(observation) => observation,
         Err(panic) => return finding(FindingKind::Panic, format!("run: {panic}")),
     };
-    let second = match observe(&kept) {
+    let second = match observe(&kept, &case.host) {
         Ok(observation) => observation,
         Err(panic) => return finding(FindingKind::Panic, format!("run with checks: {panic}")),
     };
@@ -244,33 +253,6 @@ pub fn judge(case: &Case, scratch: &mut Scratch) -> Verdict {
     finding(kind, detail)
 }
 
-/// The known difference `finding` shows, if it is one: a disagreement
-/// reported and left for a language decision, which long runs count
-/// instead of writing each one out (see `docs/checker-diff.md`).
-pub fn known(case: &Case, finding: &Finding) -> Option<&'static str> {
-    // What the build with checks saw, or the error both builds raised.
-    let checked = match finding.kind {
-        FindingKind::CheckFailed => finding
-            .detail
-            .lines()
-            .find_map(|line| line.strip_prefix("checked: "))
-            .unwrap_or_default(),
-        FindingKind::Unexpected => &finding.detail,
-        _ => return None,
-    };
-    let sources =
-        || std::iter::once(&case.main).chain(case.modules.iter().map(|(_, source)| source));
-    // An integer to a negative power is a float the checker types as an int.
-    if checked.contains("float") && sources().any(|source| source.contains("**")) {
-        return Some("negative-power");
-    }
-    // A NaN compared with `<=>` gives nil, which the checker types as an int.
-    if checked.contains("got nil") && sources().any(|source| source.contains("<=>")) {
-        return Some("nan-comparison");
-    }
-    None
-}
-
 fn finding(kind: FindingKind, detail: String) -> Verdict {
     Verdict::Finding(Finding { kind, detail })
 }
@@ -293,6 +275,7 @@ pub fn annotate(case: &Case, scratch: &mut Scratch) -> Option<Case> {
         };
         engine.set_module_config(config).ok()?;
     }
+    case.host.declare(&mut engine).ok()?;
     let checked = catch_unwind(AssertUnwindSafe(|| engine.type_check(&case.main)))
         .ok()?
         .ok()?;
@@ -307,7 +290,9 @@ pub fn annotate(case: &Case, scratch: &mut Scratch) -> Option<Case> {
         let annotation = (!name.is_empty() && line[name.len()..].starts_with(" = "))
             .then(|| checked.locals.iter().find(|(local, _)| *local == name))
             .flatten()
-            .filter(|(_, ty)| ty != "any" && !ty.contains("never"));
+            .filter(|(_, ty)| ty != "any" && !ty.contains("never"))
+            // A global's name writes the global, whatever it declares.
+            .filter(|_| !case.host.globals.iter().any(|global| global.name == name));
         match annotation {
             Some((_, ty)) if declared.insert(name.clone()) => {
                 main.push_str(&format!("{name}: {ty}{}", &line[name.len()..]));
@@ -322,6 +307,7 @@ pub fn annotate(case: &Case, scratch: &mut Scratch) -> Option<Case> {
     changed.then(|| Case {
         main,
         modules: case.modules.clone(),
+        host: case.host.clone(),
     })
 }
 
@@ -370,6 +356,9 @@ fn compile(
         err.lock().unwrap().extend_from_slice(bytes);
         Ok(())
     });
+    if let Err(error) = case.host.declare(&mut engine) {
+        return Ok(Err(error));
+    }
     catch_unwind(AssertUnwindSafe(|| engine.compile(&case.main)))
         .map(|compiled| {
             compiled.map(|script| Compiled {
@@ -381,49 +370,84 @@ fn compile(
         .map_err(panic_message)
 }
 
-fn observe(compiled: &Compiled) -> Result<Observation, String> {
-    let options = CallOptions {
-        limits: Limits {
-            steps: Some(2_000_000),
-            memory_bytes: Some(64 << 20),
-            recursion: 128,
-        },
-        deadline: Some(Instant::now() + Duration::from_secs(10)),
-        ..CallOptions::default()
+/// Runs the script's top-level statements, then each call the host makes
+/// into it, each as a call of its own with the host's globals and
+/// capabilities.
+fn observe(compiled: &Compiled, host: &Host) -> Result<Observation, String> {
+    let options = || {
+        let mut options = CallOptions {
+            limits: Limits {
+                steps: Some(2_000_000),
+                memory_bytes: Some(64 << 20),
+                recursion: 128,
+            },
+            deadline: Some(Instant::now() + Duration::from_secs(10)),
+            ..CallOptions::default()
+        };
+        host.grant(&mut options);
+        options
     };
-    let outcome =
-        catch_unwind(AssertUnwindSafe(|| compiled.script.run(options))).map_err(panic_message)?;
-    let (result, limited, type_error, unexpected) = match outcome {
-        Ok(outcome) => (
-            format!("ok {}", render(&outcome.value)),
-            false,
-            false,
-            false,
-        ),
-        Err(error) => {
-            let limited = matches!(
-                error.kind,
-                ErrorKind::Steps
-                    | ErrorKind::Memory
-                    | ErrorKind::Recursion
-                    | ErrorKind::Deadline
-                    | ErrorKind::Cancelled
-            );
-            let type_error = error.kind == ErrorKind::Type;
-            let unexpected = unexpected(&error);
-            (describe(&error), limited, type_error, unexpected)
+    let mut observation = Observation {
+        result: String::new(),
+        stdout: Vec::new(),
+        stderr: Vec::new(),
+        limited: false,
+        type_error: false,
+        unexpected: false,
+    };
+    let main =
+        catch_unwind(AssertUnwindSafe(|| compiled.script.run(options()))).map_err(panic_message)?;
+    observation.record(main, false);
+    for call in &host.calls {
+        let (args, keywords) = host::arguments(&call.args);
+        let outcome = catch_unwind(AssertUnwindSafe(|| {
+            compiled
+                .script
+                .call_with_keywords(&call.function, &args, &keywords, options())
+        }))
+        .map_err(panic_message)?;
+        observation
+            .result
+            .push_str(&format!("; {}: ", call.function));
+        observation.record(outcome, true);
+    }
+    observation.stdout = std::mem::take(&mut *compiled.stdout.lock().unwrap());
+    observation.stderr = std::mem::take(&mut *compiled.stderr.lock().unwrap());
+    Ok(observation)
+}
+
+impl Observation {
+    /// Adds one call's outcome; a call from the host, `entry`, checks the
+    /// arguments it passes, which may not have the parameters' types.
+    fn record(&mut self, outcome: vibescript::Result<vibescript::Outcome>, entry: bool) {
+        match outcome {
+            Ok(outcome) => self
+                .result
+                .push_str(&format!("ok {}", render(&outcome.value))),
+            Err(error) => {
+                self.limited |= matches!(
+                    error.kind,
+                    ErrorKind::Steps
+                        | ErrorKind::Memory
+                        | ErrorKind::Recursion
+                        | ErrorKind::Deadline
+                        | ErrorKind::Cancelled
+                );
+                self.type_error |= error.kind == ErrorKind::Type;
+                // The entry check fails before any of the script's frames.
+                let arguments = entry
+                    && error
+                        .diagnostic
+                        .as_ref()
+                        .is_none_or(|diagnostic| diagnostic.frames.len() <= 1)
+                    && ["argument ", "global "].iter().any(|prefix| {
+                        String::from_utf8_lossy(error.message_bytes()).starts_with(prefix)
+                    });
+                self.unexpected |= unexpected(&error) && !arguments;
+                self.result.push_str(&describe(&error));
+            }
         }
-    };
-    let stdout = std::mem::take(&mut *compiled.stdout.lock().unwrap());
-    let stderr = std::mem::take(&mut *compiled.stderr.lock().unwrap());
-    Ok(Observation {
-        result,
-        stdout,
-        stderr,
-        limited,
-        type_error,
-        unexpected,
-    })
+    }
 }
 
 /// Whether the checker rules out `error` in a program it accepts: a call
