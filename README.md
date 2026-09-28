@@ -1,6 +1,15 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo-light.svg">
+    <img src="docs/logo-dark.svg" alt="Vibescript" height="60">
+  </picture>
+</p>
+
 # Vibescript
 
 Vibescript is a small, statically typed language for workflow scripts that a host program embeds and runs under explicit step, memory, recursion and time limits. This is its reference implementation, in Rust: a bytecode VM with cooperative cancellation, explicit resource accounting and optional SIMD scanners, a type checker, and the `vibes` command-line tools. It also runs on WASI; see [platforms](docs/platforms.md).
+
+As [vibe coding](https://en.wikipedia.org/wiki/Vibe_coding) spreads, many products need to narrow what their users can build: an opinionated set of well-defined primitives that combine into predictable, safe applications, flexible but within bounds, more like [HyperCard](https://en.wikipedia.org/wiki/HyperCard) than a blank canvas. Their users still need a way to express custom logic, and increasingly an AI writes it for them. Vibescript is that language: one way to write each thing, types the checker verifies before anything runs, and diagnostics that say how to fix what they report.
 
 Start with the [language guide](docs/language.md), which covers the whole language with examples that compile. Together with `vibes prelude`, which prints every builtin signature, it is the context to give a model that writes Vibescript.
 
@@ -16,7 +25,7 @@ total([{ price: 250, qty: 2 }, { price: 100, qty: 1 }]) # 600
 
 ## Try it
 
-This checkout lives on `/Volumes/AI/Work/xipkit/vibescript.rs`. The original sibling path links here. Use the wrapper so Cargo downloads, build artifacts, and temporary files stay on the external drive:
+Build and run with Cargo. `./scripts/cargo` wraps it and keeps Cargo's home, build output and temporary files inside the checkout; the examples below use it.
 
 ```sh
 ./scripts/cargo run --release -p vibes -- examples/total.vibe --function total --arg '[10,20,30]' --stats
@@ -128,4 +137,4 @@ Debug builds retain line numbers and backtraces without full variable and type i
 
 ## History
 
-This implementation began in 2026 as a port of Go Vibescript v0.70.0, which was its compatibility reference: shared fixtures, a replay of Go's whole test suite and differential comparisons held it to Go's results, apart from [deliberate differences](docs/compatibility.md) where Go contradicted Vibescript's documented value semantics or behaved inconsistently. [The port history](docs/language-port.md) summarizes that work. On 2026-09-24 the Rust implementation became the reference and the language moved to static types and a canonical surface (ADR-007 and ADR-008); the Go implementation is deprecated and keeps the earlier, dynamically typed language.
+Vibescript was first implemented in Go. That implementation's last release is v0.70.0; its history and tags remain in this repository, and it keeps the earlier, dynamically typed language. This implementation began in 2026 as a port of Go Vibescript v0.70.0, held to Go's results by shared fixtures, a replay of Go's whole test suite and differential comparisons, apart from [deliberate differences](docs/compatibility.md). [The port history](docs/language-port.md) summarizes that work. On 2026-09-24 the Rust implementation became the reference, and the language moved to static types and a canonical surface (ADR-007 and ADR-008). From v0.80.0 on, Vibescript is this implementation only.
