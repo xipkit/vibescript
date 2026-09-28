@@ -5,7 +5,7 @@ use crate::{
     types::Scalar,
 };
 
-impl Parsing<'_> {
+impl<M: super::recovery::Mode> Parsing<'_, M> {
     pub(super) async fn hash_expr(&self) -> Result<Expr> {
         let (candidate, end, malformed) = {
             let mut p = self.p();

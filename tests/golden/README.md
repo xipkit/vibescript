@@ -230,3 +230,31 @@ rejections, then re-recorded only the twenty-six rejection cases, six replay
 cases and one resilient-parse LSP session listed above. All other records and
 upstream counters are preserved. The fresh audit and verification logs are in
 `.cache/language-2/rebase-language-1/`.
+
+
+## Parser recovery, 2026-09-28
+
+Host compilation now reports independent syntax errors after the first one.
+The original `error` object, including its message and position, is retained
+exactly. `additional_syntax_errors` records only the later diagnostics, with
+codes, UTF-8 byte spans, positions and fixes. This is intentional new golden
+data: 1,774 parse mutations, 33 rejections and two replay compiles gain it.
+The broken-document LSP session gains additional published syntax diagnostics;
+its first diagnostic and all other sessions remain unchanged. No source is
+accepted that was rejected before, and syntax failures never reach the type
+checker. Recovering a malformed region does not publish a partial AST.
+
+Recovery stops at 100 diagnostics, syntax-depth failure or a source-proportional
+work bound. Host compilation with options also honors its caller's quotas,
+cancellation and deadline. Runtime compilation of cold required files remains
+fail-fast to preserve its accounting and rescue behavior.
+
+The mutation sweep compares against a preserved baseline harness, checks the
+entire first error, bounds output and treats panics and timeouts as failures.
+See `scripts/parse-sweep.py` and the parser recovery benchmark report.
+
+Counter log addendum: no counters were re-recorded for parser recovery. Paired
+runs of all 233,865 engine/parser cases preserve every first outcome, step count,
+peak byte count and retained byte count. Existing quota drift is identical in
+the baseline and candidate; it is not caused by recovery. Raw audits are under
+`.cache/parse-recovery/` on the external volume.

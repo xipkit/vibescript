@@ -28,7 +28,7 @@ enum Order {
     Alias(Name, Name, bool, usize),
 }
 
-impl Parsing<'_> {
+impl<M: super::recovery::Mode> Parsing<'_, M> {
     /// Parses one statement, as Go's `parseStatement` does, keeping the
     /// declarations it may make.
     pub(super) async fn declaration(&self) -> Result<Declared> {
@@ -216,7 +216,14 @@ impl Parsing<'_> {
                 }
                 (p.tokens[p.pos].offset as u32, p.pos)
             };
-            let declared = self.declaration().await?;
+            let checkpoint = self.recovery_checkpoint();
+            let declared = match self.declaration().await {
+                Ok(declared) => declared,
+                Err(error) => {
+                    self.recover(checkpoint, &[], error)?;
+                    continue;
+                }
+            };
             let mut p = self.p();
             let end = p.declaration_end(first);
             match declared {
@@ -313,6 +320,11 @@ impl Parsing<'_> {
                 }
                 Declared::TypeAlias(alias) => p.additions.aliases.push(work, (None, alias))?,
             }
+        }
+        if M::RECOVER
+            && let Some(error) = self.recovered_error()
+        {
+            return Err(error);
         }
         compile_checks(&order, &modules, &enums, work)?;
         defs.insert(

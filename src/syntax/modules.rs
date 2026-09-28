@@ -251,11 +251,12 @@ pub(super) struct Function {
     pub class_method: bool,
 }
 
-impl Parsing<'_> {
+impl<M: super::recovery::Mode> Parsing<'_, M> {
     /// Parses a function from its `def` through its `end`, as Go's
     /// `parseFunctionStatement` does. `constants` exposes the enclosing class
     /// body's constants to the body.
     pub(super) async fn function(&self, constants: bool) -> Result<Function> {
+        let _scope = self.recovery_scope()?;
         let work = self.p().work;
         let (offset, def_line, name, class_method, outer_locals, outer_it) = {
             let mut p = self.p();
@@ -388,6 +389,7 @@ impl Parsing<'_> {
     /// Parses a class or module declaration from its keyword, as Go's
     /// `parseClassStatement`, `parseModuleStatement` and `parseClassLikeBody` do.
     pub(super) async fn class_like(&self, module: bool) -> Result<Module> {
+        let _scope = self.recovery_scope()?;
         let work = self.p().work;
         let (mut class, outer_locals, outer_it, outer_class) = {
             let mut p = self.p();
@@ -439,192 +441,205 @@ impl Parsing<'_> {
         let mut section = Visibility::Public;
         let mut pending = None;
         loop {
-            let member = {
+            {
                 let mut p = self.p();
                 p.lines()?;
-                let word = match p.token() {
-                    Token::Eof => break,
-                    Token::Word(w) if w == "end" => break,
-                    Token::Word(w) => w.as_str(),
-                    _ => "",
-                };
-                work.charge(1)?;
-                match word {
-                    "class" if module => {
-                        return p.err("class declarations are not supported in module bodies");
-                    }
-                    "def" => Member::Method,
-                    "alias" if p.alias_ahead() => {
-                        let offset = p.tokens[p.pos].offset;
-                        let (new, old) = p.alias_names()?;
-                        if module {
-                            return Err(crate::Error::syntax(
-                                work,
-                                offset,
-                                format_args!(
-                                    "alias in module {} is not supported; a module has no instance methods to rename, so {NAMESPACES}",
-                                    source_text(&class.name)
-                                ),
-                            ));
-                        }
-                        p.class_alias(&mut class, new, old, offset as u32)?;
-                        Member::Done
-                    }
-                    "alias_method" => {
-                        let offset = p.tokens[p.pos].offset;
-                        let (new, old) = p.alias_method()?;
-                        if module {
-                            return Err(crate::Error::syntax(
-                                work,
-                                offset,
-                                format_args!(
-                                    "alias_method in module {} is not supported; a module has no instance methods to rename, so {NAMESPACES}",
-                                    source_text(&class.name)
-                                ),
-                            ));
-                        }
-                        p.class_alias(&mut class, new, old, offset as u32)?;
-                        Member::Done
-                    }
-                    "public" | "protected" | "private"
-                        if word == "private" || p.visibility_directive()? =>
-                    {
-                        let (level, word) = match word {
-                            "public" => (Visibility::Public, "public"),
-                            "protected" => (Visibility::Protected, "protected"),
-                            _ => (Visibility::Private, "private"),
-                        };
-                        match p.visibility_member(&mut class, level, word)? {
-                            Directive::Inline => pending = Some(level),
-                            Directive::Section => section = level,
-                            Directive::Named => (),
-                        }
-                        Member::Done
-                    }
-                    "module" if module && p.module_ahead() => Member::Module,
-                    "type" if p.type_alias_ahead() => {
-                        let alias = p.type_alias()?;
-                        p.additions
-                            .aliases
-                            .push(work, (Some(class.offset), alias))?;
-                        Member::Done
-                    }
-                    // A module has no instances, so `@name:` stays the syntax
-                    // error it always was there.
-                    _ if !module && p.ivar_ahead() => Member::Ivar,
-                    _ if p.class_var_ahead()? => Member::ClassVar,
-                    "include" | "extend" if p.mixin_directive()? => {
-                        return p.err(format_args!(
-                            "{word} is not supported; modules are namespaces: {NAMESPACES}"
-                        ));
-                    }
-                    "property" | "getter" | "setter" => {
-                        let kind = if word == "property" {
-                            "property"
-                        } else if word == "getter" {
-                            "getter"
-                        } else {
-                            "setter"
-                        };
-                        let offset = p.tokens[p.pos].offset;
-                        let visibility = pending.take().unwrap_or(section);
-                        p.class_properties(&mut class, kind, visibility)?;
-                        if module {
-                            return Err(crate::Error::syntax(
-                                work,
-                                offset,
-                                format_args!(
-                                    "{kind} in module {} is not supported; a module has no instances, so {NAMESPACES}",
-                                    source_text(&class.name)
-                                ),
-                            ));
-                        }
-                        Member::Done
-                    }
-                    _ => Member::Statement,
+                if matches!(p.token(), Token::Eof)
+                    || matches!(p.token(), Token::Word(w) if w == "end")
+                {
+                    break;
                 }
-            };
-            match member {
-                Member::Done => (),
-                Member::Statement => {
-                    let (stmt, inner) = self.class_statement().await?;
-                    class.depth = class.depth.max(1 + stmt.depth);
-                    class.body.push(work, stmt)?;
-                    if let Some(inner) = inner {
-                        class.inner.push(work, inner)?;
-                    }
-                }
-                Member::Module => {
-                    let nested = self.nested_module().await?;
-                    class.depth = class.depth.max(1 + nested.depth);
-                    class.modules.push(work, nested)?;
-                }
-                Member::Ivar => {
-                    let (ivar, default) = self.ivar().await?;
+            }
+            let checkpoint = self.recovery_checkpoint();
+            let result = async {
+                let member = {
                     let mut p = self.p();
-                    let ivars = &mut p.additions.ivars;
-                    work.charge(ivars.len())?;
-                    let duplicate = ivars
-                        .iter()
-                        .any(|(owner, prior)| *owner == class.offset && prior.name == ivar.name);
-                    if duplicate {
-                        return Err(crate::Error::syntax(
-                            work,
-                            ivar.offset as usize,
-                            format_args!(
-                                "duplicate instance variable declaration @{}",
-                                source_text(&ivar.name)
-                            ),
-                        ));
-                    }
-                    ivars.push(work, (class.offset, ivar))?;
-                    if let Some(default) = default {
-                        class.depth = class.depth.max(1 + default.depth);
-                        p.additions.defaults.push(work, (class.offset, default))?;
-                    }
-                }
-                Member::ClassVar => {
-                    let (declared, assignment) = self.class_var().await?;
-                    let mut p = self.p();
-                    let class_vars = &mut p.additions.class_vars;
-                    work.charge(class_vars.len())?;
-                    let duplicate = class_vars.iter().any(|(owner, prior)| {
-                        *owner == class.offset && prior.name == declared.name
-                    });
-                    if duplicate {
-                        return Err(crate::Error::syntax(
-                            work,
-                            declared.offset as usize,
-                            format_args!(
-                                "duplicate class variable declaration {}",
-                                source_text(&declared.name)
-                            ),
-                        ));
-                    }
-                    class_vars.push(work, (class.offset, declared))?;
-                    class.depth = class.depth.max(1 + assignment.depth);
-                    class.body.push(work, assignment)?;
-                }
-                Member::Method => {
-                    let Function {
-                        definition,
-                        class_method,
-                    } = self.function(true).await?;
-                    if module && !class_method {
-                        return Err(module_function(work, &definition, &class.name));
-                    }
-                    let mut visibility = pending.take().unwrap_or(section);
-                    if definition.name == "initialize" {
-                        visibility = Visibility::Private;
-                    }
-                    class.depth = class.depth.max(1 + definition.depth());
-                    let methods = if class_method {
-                        &mut class.methods
-                    } else {
-                        &mut class.instance_methods
+                    let word = match p.token() {
+                        Token::Word(w) => w.as_str(),
+                        _ => "",
                     };
-                    methods.push(work, (definition, visibility))?;
+                    work.charge(1)?;
+                    match word {
+                        "class" if module => {
+                            return p.err("class declarations are not supported in module bodies");
+                        }
+                        "def" => Member::Method,
+                        "alias" if p.alias_ahead() => {
+                            let offset = p.tokens[p.pos].offset;
+                            let (new, old) = p.alias_names()?;
+                            if module {
+                                return Err(crate::Error::syntax(
+                                    work,
+                                    offset,
+                                    format_args!(
+                                        "alias in module {} is not supported; a module has no instance methods to rename, so {NAMESPACES}",
+                                        source_text(&class.name)
+                                    ),
+                                ));
+                            }
+                            p.class_alias(&mut class, new, old, offset as u32)?;
+                            Member::Done
+                        }
+                        "alias_method" => {
+                            let offset = p.tokens[p.pos].offset;
+                            let (new, old) = p.alias_method()?;
+                            if module {
+                                return Err(crate::Error::syntax(
+                                    work,
+                                    offset,
+                                    format_args!(
+                                        "alias_method in module {} is not supported; a module has no instance methods to rename, so {NAMESPACES}",
+                                        source_text(&class.name)
+                                    ),
+                                ));
+                            }
+                            p.class_alias(&mut class, new, old, offset as u32)?;
+                            Member::Done
+                        }
+                        "public" | "protected" | "private"
+                            if word == "private" || p.visibility_directive()? =>
+                        {
+                            let (level, word) = match word {
+                                "public" => (Visibility::Public, "public"),
+                                "protected" => (Visibility::Protected, "protected"),
+                                _ => (Visibility::Private, "private"),
+                            };
+                            match p.visibility_member(&mut class, level, word)? {
+                                Directive::Inline => pending = Some(level),
+                                Directive::Section => section = level,
+                                Directive::Named => (),
+                            }
+                            Member::Done
+                        }
+                        "module" if module && p.module_ahead() => Member::Module,
+                        "type" if p.type_alias_ahead() => {
+                            let alias = p.type_alias()?;
+                            p.additions
+                                .aliases
+                                .push(work, (Some(class.offset), alias))?;
+                            Member::Done
+                        }
+                        // A module has no instances, so `@name:` stays the syntax
+                        // error it always was there.
+                        _ if !module && p.ivar_ahead() => Member::Ivar,
+                        _ if p.class_var_ahead()? => Member::ClassVar,
+                        "include" | "extend" if p.mixin_directive()? => {
+                            return p.err(format_args!(
+                                "{word} is not supported; modules are namespaces: {NAMESPACES}"
+                            ));
+                        }
+                        "property" | "getter" | "setter" => {
+                            let kind = if word == "property" {
+                                "property"
+                            } else if word == "getter" {
+                                "getter"
+                            } else {
+                                "setter"
+                            };
+                            let offset = p.tokens[p.pos].offset;
+                            let visibility = pending.take().unwrap_or(section);
+                            p.class_properties(&mut class, kind, visibility)?;
+                            if module {
+                                return Err(crate::Error::syntax(
+                                    work,
+                                    offset,
+                                    format_args!(
+                                        "{kind} in module {} is not supported; a module has no instances, so {NAMESPACES}",
+                                        source_text(&class.name)
+                                    ),
+                                ));
+                            }
+                            Member::Done
+                        }
+                        _ => Member::Statement,
+                    }
+                };
+                match member {
+                    Member::Done => (),
+                    Member::Statement => {
+                        let (stmt, inner) = self.class_statement().await?;
+                        class.depth = class.depth.max(1 + stmt.depth);
+                        class.body.push(work, stmt)?;
+                        if let Some(inner) = inner {
+                            class.inner.push(work, inner)?;
+                        }
+                    }
+                    Member::Module => {
+                        let nested = self.nested_module().await?;
+                        class.depth = class.depth.max(1 + nested.depth);
+                        class.modules.push(work, nested)?;
+                    }
+                    Member::Ivar => {
+                        let (ivar, default) = self.ivar().await?;
+                        let mut p = self.p();
+                        let ivars = &mut p.additions.ivars;
+                        work.charge(ivars.len())?;
+                        let duplicate = ivars
+                            .iter()
+                            .any(|(owner, prior)| *owner == class.offset && prior.name == ivar.name);
+                        if duplicate {
+                            return Err(crate::Error::syntax(
+                                work,
+                                ivar.offset as usize,
+                                format_args!(
+                                    "duplicate instance variable declaration @{}",
+                                    source_text(&ivar.name)
+                                ),
+                            ));
+                        }
+                        ivars.push(work, (class.offset, ivar))?;
+                        if let Some(default) = default {
+                            class.depth = class.depth.max(1 + default.depth);
+                            p.additions.defaults.push(work, (class.offset, default))?;
+                        }
+                    }
+                    Member::ClassVar => {
+                        let (declared, assignment) = self.class_var().await?;
+                        let mut p = self.p();
+                        let class_vars = &mut p.additions.class_vars;
+                        work.charge(class_vars.len())?;
+                        let duplicate = class_vars.iter().any(|(owner, prior)| {
+                            *owner == class.offset && prior.name == declared.name
+                        });
+                        if duplicate {
+                            return Err(crate::Error::syntax(
+                                work,
+                                declared.offset as usize,
+                                format_args!(
+                                    "duplicate class variable declaration {}",
+                                    source_text(&declared.name)
+                                ),
+                            ));
+                        }
+                        class_vars.push(work, (class.offset, declared))?;
+                        class.depth = class.depth.max(1 + assignment.depth);
+                        class.body.push(work, assignment)?;
+                    }
+                    Member::Method => {
+                        let Function {
+                            definition,
+                            class_method,
+                        } = self.function(true).await?;
+                        if module && !class_method {
+                            return Err(module_function(work, &definition, &class.name));
+                        }
+                        let mut visibility = pending.take().unwrap_or(section);
+                        if definition.name == "initialize" {
+                            visibility = Visibility::Private;
+                        }
+                        class.depth = class.depth.max(1 + definition.depth());
+                        let methods = if class_method {
+                            &mut class.methods
+                        } else {
+                            &mut class.instance_methods
+                        };
+                        methods.push(work, (definition, visibility))?;
+                    }
                 }
+                Ok(())
+            }.await;
+            if let Err(error) = result {
+                self.recover(checkpoint, &["end"], error)?;
             }
         }
         let mut p = self.p();

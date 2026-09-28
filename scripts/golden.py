@@ -642,6 +642,9 @@ def engine_record(observation):
         if "message" in detail:
             compact_text(error, "message", detail["message"])
         record["error"] = error
+        diagnostics = observation.get("diagnostics", [])
+        if detail.get("kind") == "Syntax" and len(diagnostics) > 1:
+            record["additional_syntax_errors"] = diagnostics[1:]
     for stream in ["stdout", "stderr"]:
         if observation.get(stream):
             record[stream] = stream_record(observation[stream])

@@ -161,8 +161,9 @@ pub(crate) fn analyze(uri: &str, source: &str, options: &Options) -> Analysis {
                 [] => vec![compile_diagnostic(source, &error)],
                 coded_errors => coded_errors
                     .iter()
-                    .map(|found| {
-                        if found.code == vibescript::diagnostic::Code::SYNTAX {
+                    .enumerate()
+                    .map(|(index, found)| {
+                        if index == 0 && found.code == vibescript::diagnostic::Code::SYNTAX {
                             let mut diagnostic = compile_diagnostic(source, &error);
                             diagnostic.code = Some(found.code.to_string());
                             diagnostic
@@ -216,7 +217,7 @@ impl Analysis {
 /// the whole source does not, or `None` when no section yields any.
 ///
 /// The reference's parser recovers from errors and keeps what it could parse;
-/// this port's parser stops at the first error. Splitting the source before
+/// the parser's recovery never publishes a partial AST. Splitting the source before
 /// each unindented declaration keyword and after each unindented `end`, and
 /// outlining the sections separately, keeps the declarations an error in
 /// another section would hide.

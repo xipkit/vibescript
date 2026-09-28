@@ -233,12 +233,21 @@ fn compile_failure(source: &str, error: &Error) -> Json {
                 let at = diagnostic.span.position(source);
                 [at.line, at.column]
             });
-            json!({
+            let mut item = json!({
                 "code": diagnostic.code.to_string(),
                 "at": at,
                 "file": diagnostic.file.as_deref().map(String::from_utf8_lossy),
                 "message": diagnostic.message,
-            })
+            });
+            if diagnostic.code.area() == Some(vibescript::diagnostic::Area::Syntax) {
+                item["span"] = json!([diagnostic.span.start, diagnostic.span.end]);
+                item["fixes"] = json!(diagnostic.fixes.iter().map(|fix| json!({
+                    "message": fix.message,
+                    "applicability": format!("{:?}", fix.applicability),
+                    "edits": fix.edits.iter().map(|edit| json!({"span": [edit.span.start, edit.span.end], "replacement": edit.replacement})).collect::<Vec<_>>(),
+                })).collect::<Vec<_>>());
+            }
+            item
         })
         .collect();
     if let Some(first) = diagnostics.first() {

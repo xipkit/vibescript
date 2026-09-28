@@ -610,6 +610,11 @@ impl<'a, 'w> Lexer<'a, 'w> {
                 Err(error) if error.kind == crate::ErrorKind::Syntax && !interpolation => {
                     // Resolving an earlier percent token may require re-lexing this suffix.
                     i = self.limit;
+                    if super::recovery::lexical() {
+                        i = source[start..self.limit]
+                            .find('\n')
+                            .map_or(self.limit, |end| start + end);
+                    }
                     let failure = if error.message == UNSUPPORTED_CHARACTER {
                         Failure::Character
                     } else {

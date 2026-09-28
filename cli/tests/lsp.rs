@@ -116,6 +116,59 @@ fn position(uri: &str, line: i64, character: i64) -> Value {
     json!({"textDocument": {"uri": uri}, "position": {"line": line, "character": character}})
 }
 
+#[test]
+fn did_change_reports_and_clears_multiple_syntax_errors() {
+    let mut session = Session::start();
+    session.request(1, "initialize", json!({"capabilities": {}}));
+    session.notify("initialized", json!({}));
+    let uri = "file:///parse-recovery.vibe";
+    session.notify("textDocument/didOpen", json!({"textDocument": {"uri": uri, "languageId": "vibescript", "version": 1, "text": "1\n"}}));
+    assert_eq!(session.next()["params"]["diagnostics"], json!([]));
+    for (version, source, expected) in [
+        (
+            2,
+            "unknown_name\né = )\nputs { a: 1 }\ny = ]\n",
+            vec![("V0001", 1, 4), ("V0002", 2, 5), ("V0001", 3, 4)],
+        ),
+        (
+            3,
+            "unknown_name\né = 1\nputs({ a: 1 })\ny = ]\n",
+            vec![("V0001", 3, 4)],
+        ),
+        (4, "é = 1\ny = 2\n", vec![]),
+    ] {
+        session.notify("textDocument/didChange", json!({"textDocument": {"uri": uri, "version": version}, "contentChanges": [{"text": source}]}));
+        let published = session.next();
+        let diagnostics = published["params"]["diagnostics"].as_array().unwrap();
+        let actual: Vec<_> = diagnostics
+            .iter()
+            .map(|d| {
+                (
+                    d["code"].as_str().unwrap(),
+                    d["range"]["start"]["line"].as_i64().unwrap(),
+                    d["range"]["start"]["character"].as_i64().unwrap(),
+                )
+            })
+            .collect();
+        assert_eq!(actual, expected, "{published}");
+        if version == 2 {
+            let actions = session.request(2, "textDocument/codeAction", json!({
+                "textDocument": {"uri": uri},
+                "range": {"start": {"line": 2, "character": 5}, "end": {"line": 2, "character": 13}},
+                "context": {"diagnostics": []}
+            }));
+            assert_eq!(
+                actions["result"][0]["title"],
+                "pass the hash in parentheses"
+            );
+            assert_eq!(actions["result"][0]["diagnostics"][0]["code"], "V0002");
+        }
+    }
+    session.request(3, "shutdown", Value::Null);
+    session.notify("exit", Value::Null);
+    assert_eq!(session.finish(), (Some(0), String::new()));
+}
+
 /// A `file:` URI for a path, percent-encoding everything but unreserved bytes.
 fn file_uri(path: &Path) -> String {
     let mut uri = String::from("file://");
