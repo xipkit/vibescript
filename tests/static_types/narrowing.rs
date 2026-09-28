@@ -31,6 +31,40 @@ fn early_returns_narrow_the_rest_of_the_function() {
 }
 
 #[test]
+fn an_ensure_sees_only_what_holds_wherever_it_starts() {
+    // Its guards and exits narrow the rest of the function, as the body's do.
+    clean(
+        "def f(x: int?) -> int\n  begin\n    1\n  ensure\n    return 0 if x == nil\n  end\n  x + 1\nend\n",
+    );
+    clean(
+        "def f(x: int?) -> int\n  begin\n    return 0 if x == nil\n  ensure\n    p(1)\n  end\n  x + 1\nend\n",
+    );
+    clean(
+        "def f -> int\n  x: int? = nil\n  begin\n    x = 5\n  ensure\n    p(0)\n  end\n  x + 1\nend\n",
+    );
+    clean(
+        "def f(c: bool) -> int\n  x: int? = 1\n  begin\n    x = nil if c\n  ensure\n    return 0 if x == nil\n  end\n  x + 1\nend\n",
+    );
+    // It may start before the body's guards, assignments and `else`.
+    codes(
+        "def f(c: bool, y: int?) -> int\n  begin\n    raise \"e\" if c\n    return 0 if y == nil\n  ensure\n    p(y + 1)\n  end\n  y\nend\n",
+        &["V0107"],
+    );
+    codes(
+        "def f(x: int?) -> int\n  return 0 if x == nil\n  begin\n    x = nil\n    raise \"e\"\n  ensure\n    p(x + 1)\n  end\n  0\nend\n",
+        &["V0107"],
+    );
+    codes(
+        "def f(x: int?) -> int\n  return 0 if x == nil\n  begin\n    1\n  rescue\n    2\n  else\n    x = nil\n  ensure\n    p(x + 1)\n  end\n  0\nend\n",
+        &["V0107"],
+    );
+    codes(
+        "def f -> int\n  begin\n    x = 1\n  ensure\n    p(x + 1)\n  end\n  0\nend\n",
+        &["V0202"],
+    );
+}
+
+#[test]
 fn assignment_narrows_an_optional_local() {
     clean("label: string? = nil\nlabel = \"ready\"\nlabel.upcase\n");
     codes(

@@ -1,0 +1,15 @@
+# expect: rejected V0202
+# A local the body assigns is unassigned in an `ensure` that runs after the
+# body raised before assigning it.
+def g -> int
+  raise "boom"
+end
+def f -> int
+  begin
+    x = g
+  ensure
+    p(x + 1)
+  end
+  0
+end
+p(f)

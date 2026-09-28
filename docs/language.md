@@ -378,7 +378,7 @@ label = scores.first&.to_s             # &. calls through nil; label is string?
 fallback = label == nil ? "none" : label
 ```
 
-Narrowing applies to locals and parameters. A `rescue` or `ensure` may run after any part of its `begin` body, so it keeps none of the narrowing that the body's assignments could end, and a `retry` runs the body again from what the rescue left. A member read or index expression is not narrowed, because it could change between the test and the use; bind it to a local first:
+Narrowing applies to locals and parameters. A `rescue` or `ensure` may run after any part of its `begin` body, so it keeps none of the narrowing that the body's assignments could end or its guards establish, and a local the body first assigns may be unassigned there; an `ensure` may also follow any part of the `else` or a rescue. A guard or exit in the `ensure` itself narrows what follows the `begin`, and a `retry` runs the body again from what the rescue left. A member read or index expression is not narrowed, because it could change between the test and the use; bind it to a local first:
 
 ```vibe
 user = JSON.parse_as("{\"nick\": null}", { nick: string? })

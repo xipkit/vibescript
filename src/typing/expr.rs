@@ -4,13 +4,14 @@
 use super::{
     Checker,
     check::{Purpose, Want, assigned_names, is_constant},
+    flow::{Branch, VarState},
     program::{FnId, NsId},
     sigs,
     ty::{Field, Kind, Ty},
 };
 use crate::{
     diagnostic::{Code, Diagnostic, Edit, Fix, Span},
-    syntax::{Expr, Node, Try, When},
+    syntax::{Expr, Node, Stmt, Try, When},
     value::Kind as ValueKind,
 };
 
@@ -1878,7 +1879,7 @@ impl<'a> Checker<'a> {
         // A rescue or the ensure may run after any part of the body, so
         // what the body assigns may have its value or its earlier one; the
         // ensure, or a `retry` running the body again, may also follow any
-        // part of a rescue.
+        // part of a rescue, and the ensure any part of the `else`.
         let retry = attempt.rescues.iter().any(|rescue| retries(&rescue.body));
         let mut assigned = Vec::new();
         if !attempt.rescues.is_empty() || !attempt.ensure.is_empty() {
@@ -1928,26 +1929,66 @@ impl<'a> Checker<'a> {
             explored.push(self.frame.flow.rollback(mark));
             self.close_scope();
         }
-        self.join(explored);
-        if !attempt.ensure.is_empty() {
-            // After the ensure, what it assigns holds, and the rest is as
-            // the body or the rescue left it.
-            let live = self.frame.flow.live;
-            let mark = self.frame.flow.mark();
-            self.widen(&handled);
-            self.stmts(&attempt.ensure, Want::Discard);
-            let ensured = self.frame.flow.live;
-            let branch = self.frame.flow.rollback(mark);
-            let mut kept = Vec::new();
-            assigned_names(&attempt.ensure, &mut kept);
-            for (id, state) in branch.changes {
-                if kept.contains(&self.frame.locals[id as usize].name) {
-                    self.frame.flow.set(id, state);
-                }
-            }
-            self.frame.flow.live = live && ensured;
+        if attempt.ensure.is_empty() {
+            self.join(explored);
+        } else {
+            assigned_names(&attempt.alternate, &mut handled);
+            self.ensure(&attempt.ensure, explored, &handled);
         }
         self.types.union(&results)
+    }
+
+    /// Checks an ensure from what holds wherever it may start: before the
+    /// body, less the narrowing of `handled`, what the body, the `else` and
+    /// the rescues assign. Then joins the `explored` ends of the body and
+    /// the rescues, and applies what the ensure proves on the way out: a
+    /// local it assigns has the state it leaves, and any other the state
+    /// both the join and the ensure's guards and exits prove.
+    fn ensure(&mut self, ensure: &'a [Stmt], explored: Vec<Branch>, handled: &[String]) {
+        let mark = self.frame.flow.mark();
+        self.widen(handled);
+        self.stmts(ensure, Want::Discard);
+        let ensured = self.frame.flow.live;
+        let branch = self.frame.flow.rollback(mark);
+        self.join(explored);
+        let mut kept = Vec::new();
+        assigned_names(ensure, &mut kept);
+        for (id, state) in branch.changes {
+            if kept.contains(&self.frame.locals[id as usize].name) {
+                self.frame.flow.set(id, state);
+            } else {
+                let joined = self.frame.flow.get(id);
+                let ty = self.both(joined.ty, state.ty);
+                self.frame.flow.set(id, VarState { ty, ..joined });
+            }
+        }
+        self.frame.flow.live = self.frame.flow.live && ensured;
+    }
+
+    /// The type of a value known to have both types `a` and `b`: the
+    /// narrower when one accepts the other, else the alternatives of `a`
+    /// that `b` accepts.
+    fn both(&mut self, a: Ty, b: Ty) -> Ty {
+        if a == b || b == Ty::ANY {
+            return a;
+        }
+        if a == Ty::ANY || self.types.assignable(b, a) {
+            return b;
+        }
+        if self.types.assignable(a, b) {
+            return a;
+        }
+        let members: Vec<Ty> = self
+            .types
+            .members(a)
+            .into_iter()
+            .filter(|&member| self.types.assignable(member, b))
+            .collect();
+        if members.is_empty() {
+            a
+        } else {
+            self.types.union(&members)
+        }
     }
 }
 
