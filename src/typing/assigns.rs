@@ -178,8 +178,8 @@ fn key(body: &[Stmt]) -> (usize, usize) {
     (body.as_ptr() as usize, body.len())
 }
 
-/// One walk, which lists the assignments the checker's rules see in the
-/// same statements and expressions they did before.
+/// One walk, which lists the assignments of every statement a body
+/// contains, however deep in its expressions.
 struct Walk<'a, 'w> {
     assigns: &'w mut Assigns<'a>,
     root: u32,
@@ -243,6 +243,11 @@ impl<'a> Walk<'a, '_> {
                 Statement::Return(Some(expr))
                 | Statement::Break(Some(expr))
                 | Statement::Next(Some(expr)) => self.expr(expr),
+                Statement::Raise(value, message) => {
+                    for expr in value.iter().chain(message) {
+                        self.expr(expr);
+                    }
+                }
                 _ => (),
             }
         }
@@ -277,6 +282,9 @@ impl<'a> Walk<'a, '_> {
                 node: Node::Var(name),
                 ..
             }) => self.site(name),
+            // An element or member target evaluates its receiver and
+            // selectors, which may contain blocks.
+            Target::Value(expr) => self.expr(expr),
             Target::Typed(inner, _) => self.target(inner),
             Target::Tuple(parts) => {
                 for (part, _) in parts.iter() {
@@ -285,10 +293,11 @@ impl<'a> Walk<'a, '_> {
                     }
                 }
             }
-            _ => (),
         }
     }
 
+    /// Lists the assignments in every statement `expr` contains: blocks,
+    /// `begin`s and compound statements anywhere inside it.
     fn expr(&mut self, expr: &'a Expr) {
         let mut pending = vec![expr];
         while let Some(expr) = pending.pop() {
@@ -301,6 +310,20 @@ impl<'a> Walk<'a, '_> {
                     pending.push(call);
                     self.stmts(&block.body);
                 }
+                Node::Shape(_, Some(fallback), _) => pending.push(fallback),
+                Node::Template(values, _) | Node::Array(values) | Node::Yield(values) => {
+                    pending.extend(values.iter());
+                }
+                Node::Hash(entries) => pending.extend(entries.iter().map(|(_, v)| v)),
+                Node::Unary(_, v) => pending.push(v),
+                Node::Binary(_, l, r) => {
+                    pending.push(l);
+                    pending.push(r);
+                }
+                Node::Range(start, end, _) => {
+                    pending.extend(start.as_deref());
+                    pending.extend(end.as_deref());
+                }
                 Node::Conditional(branches, alternate) => {
                     for (c, v) in branches.iter() {
                         pending.push(c);
@@ -311,23 +334,35 @@ impl<'a> Walk<'a, '_> {
                 Node::Case(subject, whens, alternate) => {
                     pending.extend(subject.as_deref());
                     for when in whens.iter() {
+                        pending.extend(when.values.iter().map(|(value, _)| value));
                         pending.push(&when.result);
                     }
                     pending.extend(alternate.as_deref());
                 }
-                Node::Binary(_, l, r) => {
-                    pending.push(l);
-                    pending.push(r);
-                }
-                Node::Unary(_, v) => pending.push(v),
                 Node::Call(_, args, _) => pending.extend(args.iter().map(|a| &a.value)),
+                Node::ComputedCall(callee, args) => {
+                    pending.push(callee);
+                    pending.extend(args.iter().map(|a| &a.value));
+                }
+                Node::Member(recv, _) | Node::SafeMember(recv, _) => pending.push(recv),
+                Node::Scope(recv, _, args) => {
+                    pending.push(recv);
+                    pending.extend(args.iter().flat_map(|args| args.iter().map(|a| &a.value)));
+                }
                 Node::Method(recv, _, args, _) | Node::SafeMethod(recv, _, args, _) => {
                     pending.push(recv);
                     pending.extend(args.iter().map(|a| &a.value));
                 }
-                Node::Array(items) => pending.extend(items.iter()),
-                Node::Hash(entries) => pending.extend(entries.iter().map(|(_, v)| v)),
-                _ => (),
+                Node::Index(recv, selectors) => {
+                    pending.push(recv);
+                    pending.extend(selectors.iter());
+                }
+                Node::Regex(..)
+                | Node::Shape(_, None, _)
+                | Node::Integer(_)
+                | Node::BigInteger(..)
+                | Node::Literal(_)
+                | Node::Var(_) => (),
             }
         }
     }

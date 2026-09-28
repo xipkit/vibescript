@@ -1,0 +1,15 @@
+# expect: rejected V0107
+# A block inside an index's receiver may assign a local, which a loop's
+# next pass sees.
+def f -> int
+  x: int? = 1
+  i = 0
+  total = 0
+  while i < 2
+    i += 1
+    total += x + 1
+    t = [1].map { |q| x = nil; q }[0]
+  end
+  total
+end
+p(f)

@@ -1557,7 +1557,7 @@ impl Gen {
         };
         let assign = format!("{name} = {spoil}");
         let condition = self.expr(env, &Ty::Bool, 0, false);
-        let interference = match self.rng.below(17) {
+        let interference = match self.rng.below(19) {
             0 => assign.clone(),
             1 => format!("[1].each {{ |_q| {assign} }}"),
             2 => format!("[1, 2].map {{ |_q|\n  {assign}\n  _q\n}}"),
@@ -1574,6 +1574,9 @@ impl Gen {
             13 => format!("(0..1).each {{ |_q| {assign} }}"),
             14 => format!("[1].each_with_index {{ |_q, _n| {assign} }}"),
             15 => format!("{assign} if {condition}"),
+            // A block written inside an index or a member read assigns too.
+            16 => format!("_i = [1].map {{ |_q| {assign}; _q }}[0]"),
+            17 => format!("_i = [1].map {{ |_q| {assign}; _q }}.length"),
             _ => match self.functions.iter().find(|def| {
                 def.block
                     .as_ref()

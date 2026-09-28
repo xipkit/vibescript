@@ -65,6 +65,29 @@ fn an_ensure_sees_only_what_holds_wherever_it_starts() {
 }
 
 #[test]
+fn assignments_anywhere_in_a_loop_or_begin_end_its_narrowing() {
+    // A block assigns wherever it is written: in an index's receiver or
+    // selector, a member read's receiver, a range or a raise.
+    for expression in [
+        "[1].map { |q| x = nil; q }[0]",
+        "[1][[1].map { |q| x = nil; q }.fetch(0)]",
+        "[1].map { |q| x = nil; q }.length",
+        "(0..[1].map { |q| x = nil; q }.fetch(0))",
+    ] {
+        codes(
+            &format!(
+                "def f(x: int?) -> int\n  return 0 if x == nil\n  t = 0\n  while t < 2\n    t += x\n    s = {expression}\n  end\n  t\nend\n"
+            ),
+            &["V0107"],
+        );
+    }
+    codes(
+        "def f(x: int?) -> int\n  return 0 if x == nil\n  begin\n    raise [\"e\"].map { |q| x = nil; q }.fetch(0)\n  rescue\n    return x + 1\n  end\n  0\nend\n",
+        &["V0107"],
+    );
+}
+
+#[test]
 fn assignment_narrows_an_optional_local() {
     clean("label: string? = nil\nlabel = \"ready\"\nlabel.upcase\n");
     codes(

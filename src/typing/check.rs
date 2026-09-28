@@ -2718,103 +2718,11 @@ fn target_expr(target: &Target) -> Option<&Expr> {
     }
 }
 
-/// The names of the locals a loop body may assign, including in nested blocks.
+/// The names of the locals a body may assign, including in nested blocks.
 pub(super) fn assigned_names(body: &[Stmt], names: &mut Vec<String>) {
-    for stmt in body {
-        match &stmt.node {
-            Statement::Assign(target, _, value) => {
-                target_names(target, names);
-                expr_assigned(value, names);
-            }
-            Statement::If(branches, alternate, _) => {
-                for (condition, body) in branches.iter() {
-                    expr_assigned(condition, names);
-                    assigned_names(body, names);
-                }
-                assigned_names(alternate, names);
-            }
-            Statement::While(condition, body, _) => {
-                expr_assigned(condition, names);
-                assigned_names(body, names);
-            }
-            Statement::For(target, iterable, body) => {
-                target_names(target, names);
-                expr_assigned(iterable, names);
-                assigned_names(body, names);
-            }
-            Statement::Expr(expr) => expr_assigned(expr, names),
-            Statement::Return(Some(expr))
-            | Statement::Break(Some(expr))
-            | Statement::Next(Some(expr)) => expr_assigned(expr, names),
-            _ => (),
-        }
-    }
-}
-
-fn target_names(target: &Target, names: &mut Vec<String>) {
-    match target {
-        Target::Value(Expr {
-            node: Node::Var(name),
-            ..
-        }) => names.push(name.to_string()),
-        Target::Typed(inner, _) => target_names(inner, names),
-        Target::Tuple(parts) => {
-            for (part, _) in parts.iter() {
-                if let Some(part) = part {
-                    target_names(part, names);
-                }
-            }
-        }
-        _ => (),
-    }
-}
-
-fn expr_assigned(expr: &Expr, names: &mut Vec<String>) {
-    let mut pending = vec![expr];
-    while let Some(expr) = pending.pop() {
-        match &expr.node {
-            Node::Compound(stmt) => assigned_names(std::slice::from_ref(&**stmt), names),
-            Node::Try(attempt) => {
-                assigned_names(&attempt.body, names);
-                assigned_names(&attempt.alternate, names);
-                assigned_names(&attempt.ensure, names);
-                for rescue in attempt.rescues.iter() {
-                    assigned_names(&rescue.body, names);
-                }
-            }
-            Node::BlockCall(call, block) => {
-                pending.push(call);
-                assigned_names(&block.body, names);
-            }
-            Node::Conditional(branches, alternate) => {
-                for (c, v) in branches.iter() {
-                    pending.push(c);
-                    pending.push(v);
-                }
-                pending.push(alternate);
-            }
-            Node::Case(subject, whens, alternate) => {
-                pending.extend(subject.as_deref());
-                for when in whens.iter() {
-                    pending.push(&when.result);
-                }
-                pending.extend(alternate.as_deref());
-            }
-            Node::Binary(_, l, r) => {
-                pending.push(l);
-                pending.push(r);
-            }
-            Node::Unary(_, v) => pending.push(v),
-            Node::Call(_, args, _) => pending.extend(args.iter().map(|a| &a.value)),
-            Node::Method(recv, _, args, _) | Node::SafeMethod(recv, _, args, _) => {
-                pending.push(recv);
-                pending.extend(args.iter().map(|a| &a.value));
-            }
-            Node::Array(items) => pending.extend(items.iter()),
-            Node::Hash(entries) => pending.extend(entries.iter().map(|(_, v)| v)),
-            _ => (),
-        }
-    }
+    let mut assigns = super::assigns::Assigns::default();
+    let span = assigns.body(body);
+    names.extend(assigns.distinct(span).into_iter().map(str::to_owned));
 }
 
 /// Why a value is checked against a type, for messages.
