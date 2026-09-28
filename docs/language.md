@@ -191,6 +191,16 @@ maybe_log("ready") { |text| text.upcase }
 
 `&block: int` takes an `int` and returns nothing; `&block: (string, int)` takes two values; `-> R` makes `yield` an expression of type `R`. With `&block?:` the block is optional and every `yield` must be guarded by `block_given?` (V0307).
 
+A block that takes no arguments uses `()`, so `&block: () -> T` yields a
+value of type `T`. For example, with `T` equal to `string`:
+
+```vibe run
+def read_label(&block: () -> string) -> string
+  yield
+end
+assert read_label { "ready" } == "ready"
+```
+
 ## Control flow
 
 ```vibe
@@ -296,6 +306,16 @@ lookup = pairs.to_h                 # hash<string, int>
 
 Arrays and hashes are values: assigning one to another local, passing it or storing it makes an independent copy, so an update through one name is never visible through another. Updating members such as `push`, `pop` and `<<`, and index assignment such as `items[0] = x`, change the local, field or nested path they name. A write through an element, such as `grid[0][1] = 9`, `grid[0] << 9` or `lists["a"].push(1)`, updates the element in place, and the element it goes through is typed as present, not optional: the write raises when `grid[0]` is missing. `vibes fix` never rewrites such a read as `fetch`, which would return a copy. `sort` on `array<int | string>` is an error (V0115): members with bounds, such as `sort`, `sum` and `max`, need one element type. `fill` and `insert` raise past the end of an array.
 
+Sort records with a two-parameter comparator returning a negative number,
+zero or a positive number. `<=>` compares the chosen fields:
+
+```vibe run
+type Metric = { name: string, latency: int }
+metrics: array<Metric> = [{ name: "slow", latency: 90 }, { name: "fast", latency: 12 }]
+ordered = metrics.sort { |left, right| left["latency"] <=> right["latency"] }
+assert ordered.map { |metric| metric["name"] } == ["fast", "slow"]
+```
+
 ## Shapes and dictionaries
 
 A hash literal is a shape: a record whose keys are fixed. Its fields are read and written with literal string keys, and reading a declared field gives the field's type, not an optional:
@@ -348,6 +368,15 @@ end
 ```
 
 `is_type?(:atom)` in a condition narrows a local or parameter of type `any` or a union. `value.as(T)` and `JSON.parse_as(text, T)` validate at runtime and have type `T`. Prefer `JSON.parse_as` for input with a known structure. Shapes reject extra keys unless they end in `...`, as in `{ id: string, ... }`.
+
+Each nested shape controls its own extra keys. Here the outer shape requires
+exactly `event`, while the nested event accepts extra fields such as `source`:
+
+```vibe run
+type Envelope = { event: { id: string, ... } }
+packet = JSON.parse_as('{"event":{"id":"evt_1","source":"api"}}', Envelope)
+assert packet["event"]["id"] == "evt_1"
+```
 
 Malformed JSON and a `JSON.parse_as` schema mismatch raise `RuntimeError`; a checked `.as(T)` mismatch raises `TypeError`. See the [webhook validation example](types.md#type-mismatch-diagnostics) before writing a rescue clause.
 
@@ -519,6 +548,19 @@ assert value >= -1, "unexpected value"
 | `+= -= *= /= //= %= **=` | Compound assignment; `&&=` and `\|\|=` take `bool` targets. |
 
 Money adds and subtracts money of the same currency and multiplies by integers. Durations add to times and to each other: `Time.now + 2.hours`, `5.minutes.ago`, `3.days.after(start)`.
+
+Money stores integer cents. Division by an integer discards fractional cents
+toward zero, for both signs; it does not round to the nearest cent. Money
+literals accept at most two decimal places.
+
+```vibe run
+assert (money("1.05 USD") / 2).cents == 52
+assert (money("-1.05 USD") / 2).cents == -52
+assert (money("1.05 USD") * 3).cents == 315
+```
+
+See [formatting examples](formatting.md) for float precision, CSV quoting,
+ISO time and duration output, and supported `strftime` directives.
 
 Dividing two ints by zero, with `/` or `//`, raises `ZeroDivisionError`; a float operand gives an infinity or NaN instead.
 

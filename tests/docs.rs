@@ -15,6 +15,8 @@
 //! - `global=name:type` declares a host global, as
 //!   [`Engine::declare_global`] does, for this block only. The type is
 //!   written without spaces.
+//! - `run` also executes the example, including its assertions. Use it for
+//!   self-contained examples with deterministic results and no host inputs.
 //!
 //! Architecture decision records keep the language they were written in and
 //! are not checked. Blocks fenced as `vibescript` are refused, so that no
@@ -43,6 +45,7 @@ struct Attributes {
     errors: Option<BTreeSet<String>>,
     module: Option<String>,
     globals: Vec<(String, String)>,
+    run: bool,
 }
 
 #[test]
@@ -150,6 +153,10 @@ fn fenced_blocks(text: &str) -> (Vec<Block>, Vec<String>) {
 fn attributes(info: &str) -> Result<Attributes, String> {
     let mut parsed = Attributes::default();
     for attribute in info.split_whitespace() {
+        if attribute == "run" {
+            parsed.run = true;
+            continue;
+        }
         match attribute.split_once('=') {
             Some(("error", codes)) => {
                 parsed.errors = Some(codes.split(',').map(str::to_owned).collect());
@@ -209,7 +216,16 @@ fn check(block: &Block, modules: &mut Option<PathBuf>) -> Result<(), String> {
             .join("\n")
     };
     match attributes.errors {
-        None if found.is_empty() => Ok(()),
+        None if found.is_empty() => {
+            if attributes.run {
+                engine
+                    .compile(&source)
+                    .map_err(|error| error.to_string())?
+                    .run(vibescript::CallOptions::default())
+                    .map_err(|error| format!("example failed: {error}"))?;
+            }
+            Ok(())
+        }
         None => Err(format!("expected no diagnostics, found\n{}", report())),
         Some(expected) if codes == expected => Ok(()),
         Some(expected) => Err(format!("expected {expected:?}, found\n{}", report())),

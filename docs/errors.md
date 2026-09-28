@@ -34,11 +34,15 @@ end
 
 `retry` restarts the protected body without running that handler's ensure between attempts. Each attempt consumes work. Nested ensures run when retry exits their regions. Retry cannot cross a function or block call boundary; a rescue inside a block can retry its own body. Invalid return, break, and next transfers become LocalJumpError only after the callee's cleanup has run. Break and next outside any loop or block reject before evaluating a value operand.
 
-```vibe
+The `begin` expression's type includes every branch that produces a value.
+A rescue ending in `retry` contributes no value or `nil`: this expression is
+an `int`, the type of its successful body.
+
+```vibe run
 def run -> [int, int, int]
   attempts = 0
   cleanups = 0
-  value = begin
+  value: int = begin
     attempts += 1
     raise "again" if attempts < 3
     42
@@ -49,6 +53,7 @@ def run -> [int, int, int]
   end
   [value, attempts, cleanups]
 end
+assert run == [42, 3, 1]
 ```
 
 This returns `[42, 3, 1]`.

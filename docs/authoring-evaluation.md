@@ -168,6 +168,12 @@ Each of these deserves an explicit example in the guides. The prompt, the
 solutions, the model's notes and the scores are under `.cache/blind-trial/` on
 the external volume.
 
+Follow-up (2026-09-27): these gaps now have examples with runtime assertions
+in [formatting](formatting.md), [the language guide](language.md) and
+[error handling](errors.md), checked by `tests/docs.rs`. The approved
+required-capture and typed-JSON error decisions are recorded in the
+[ADR-008 addenda](adr/008-canonical-surface-for-ai-authors.md#addendum-required-regex-captures-2026-09-27).
+
 ## Evidence and reproduction
 
 [The JSON Lines dataset](../corpus/glue/evaluation.jsonl) contains every source
