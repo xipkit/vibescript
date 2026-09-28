@@ -16,7 +16,8 @@ Override the toolchain with `--toolchain PREFIX`. A rustc wrapper (`scripts/rust
 the checkout and Cargo home out of embedded source paths, so the artifact names no
 local directories and is the same for every checkout. The build uses a target
 directory named for the wrapper's hash, so artifacts compiled without it are never
-reused.
+reused. It chains a wrapper set in `RUSTC_WRAPPER` or `CARGO_BUILD_RUSTC_WRAPPER`; a
+wrapper set only in a Cargo config file is not run.
 
 Artifacts are `target/playground/playground.wasm` and `manifest.json`. The manifest
 records the Rust repository commit (`rust_commit`), working-tree dirty flag,
