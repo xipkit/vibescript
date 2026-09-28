@@ -33,6 +33,10 @@ pub struct Host {
     pub calls: Vec<Call>,
 }
 
+/// The capabilities [`capability`] builds, and the host functions every
+/// engine registers.
+pub const CAPABILITIES: [&str; 2] = ["store", "loose"];
+
 impl Host {
     pub fn is_empty(&self) -> bool {
         self.globals.is_empty() && self.capabilities.is_empty() && self.calls.is_empty()
