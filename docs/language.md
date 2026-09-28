@@ -605,6 +605,8 @@ greeting = "Hello, #{customer["name"]}"
 discount = customer["tier"] == "gold" ? 10 : 0
 ```
 
+Assigning a global's name, in the script, a function or a block, writes the global, which every function reads with the type the host declares; the value must have that type (V0101), and declaring the name with another type is an error (V0102). A parameter or block parameter of the name is its own local.
+
 A capability's methods are typed by the signatures the host publishes; a host function or capability method without a signature takes and returns `any`. See [host globals](globals.md) and [host capabilities](capabilities.md).
 
 ## Errors

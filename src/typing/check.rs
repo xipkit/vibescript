@@ -689,6 +689,46 @@ impl<'a> Checker<'a> {
         result
     }
 
+    /// The declared type of the host global a write to `name` updates:
+    /// one the host declares, which no local, parameter or block parameter
+    /// of the name shadows. The runtime writes the global's binding, which
+    /// every function then reads, so the write keeps the declared type.
+    pub(super) fn host_global(&self, name: &str) -> Option<Ty> {
+        if name.starts_with('@') || self.local(name).is_some() {
+            return None;
+        }
+        self.program.declared.get(name).copied()
+    }
+
+    /// Checks a value of type `ty` written to host global `name`, which
+    /// the host declares as `declared`.
+    fn global_write(&mut self, name: &str, declared: Ty, ty: Ty, span: Span) {
+        if !self.types.assignable(ty, declared) {
+            self.mismatch(span, declared, ty, &Purpose::Global(name.to_owned()));
+        }
+    }
+
+    /// Checks a typed declaration of host global `name`, which the host
+    /// declares as `global`, with the `declared` type, which must be the
+    /// global's own, since the write keeps it; `false` once reported.
+    fn global_declaration(&mut self, name: &str, global: Ty, declared: Ty, span: Span) -> bool {
+        if global == declared || declared == Ty::ERROR {
+            return true;
+        }
+        let first = self.types.display(global);
+        self.report(
+            Diagnostic::error(
+                Code::LOCAL_TYPE_CHANGED,
+                span,
+                format!(
+                    "the host declares the global `{name}` as {first}, and assigning it writes the global, which keeps that type; assign it without a type"
+                ),
+            )
+            .with_types(first, self.types.display(declared)),
+        );
+        false
+    }
+
     // Locals -----------------------------------------------------------
 
     /// Declares a local in the innermost scope.
@@ -1149,7 +1189,10 @@ impl<'a> Checker<'a> {
         match target {
             Target::Value(expr) => {
                 if let Node::Var(name) = &expr.node {
-                    if self.local(name).is_none() && !name.starts_with('@') {
+                    if self.local(name).is_none()
+                        && !name.starts_with('@')
+                        && self.host_global(name).is_none()
+                    {
                         self.check_binding_target(target);
                         let declared = if nonempty {
                             element
@@ -1692,6 +1735,9 @@ impl<'a> Checker<'a> {
                             self.local_changed(id, span, ty);
                         }
                         self.assign_local(id, ty);
+                    } else if let Some(global) = self.host_global(name) {
+                        let span = self.spans.expr(value);
+                        self.global_write(name, global, ty, span);
                     }
                 }
                 Node::Index(receiver, selectors) => {
@@ -1722,6 +1768,19 @@ impl<'a> Checker<'a> {
                     return ty;
                 };
                 let declared = self.annotation(annotation, self.frame.owner, *offset as usize);
+                if let (Some(global), false) = (
+                    self.host_global(name),
+                    self.frame.namespace_body && is_constant(name),
+                ) {
+                    // A declaration writes the global too, whose type stays.
+                    let span = self.spans.token(*offset as usize);
+                    let purpose = if self.global_declaration(name, global, declared, span) {
+                        Purpose::Global(name.to_string())
+                    } else {
+                        Purpose::Local(name.to_string())
+                    };
+                    return self.expr_against(value, declared, &purpose);
+                }
                 let ty = self.symbols(None, |this| {
                     this.expr_against(value, declared, &Purpose::Local(name.to_string()))
                 });
@@ -1830,6 +1889,10 @@ impl<'a> Checker<'a> {
                             }
                             self.assign_local(id, ty);
                             ty
+                        }
+                        None if self.host_global(name).is_some() => {
+                            let global = self.host_global(name).unwrap();
+                            self.expr_against(value, global, &Purpose::Global(name.to_string()))
                         }
                         None => {
                             let ty = self.expr(value, None);
@@ -1988,6 +2051,11 @@ impl<'a> Checker<'a> {
         }
         match target {
             Target::Value(expr) => match &expr.node {
+                Node::Var(name) if assignment && self.host_global(name).is_some() => {
+                    let global = self.host_global(name).unwrap();
+                    let span = self.spans.expr(expr);
+                    self.global_write(name, global, ty, span);
+                }
                 Node::Var(name) if !name.starts_with('@') => {
                     let id = match (assignment, self.local(name)) {
                         (true, Some(id)) => {
@@ -2044,6 +2112,16 @@ impl<'a> Checker<'a> {
                     self.mismatch(span, declared, ty, &Purpose::Annotation);
                 }
                 match &**inner {
+                    Target::Value(Expr {
+                        node: Node::Var(name),
+                        offset,
+                        ..
+                    }) if assignment && self.host_global(name).is_some() => {
+                        // The value already has the declared type.
+                        let global = self.host_global(name).unwrap();
+                        let span = self.spans.token(*offset as usize);
+                        self.global_declaration(name, global, declared, span);
+                    }
                     Target::Value(Expr {
                         node: Node::Var(name),
                         offset,
@@ -2717,6 +2795,8 @@ pub(crate) enum Purpose {
     Result,
     BlockResult,
     Local(String),
+    /// A global the host declares, which a write updates.
+    Global(String),
     Ivar(String),
     Argument {
         index: usize,
@@ -2744,6 +2824,9 @@ impl<'a> Checker<'a> {
             Purpose::Result => format!("`{}` returns {expected_text}", self.current_function()),
             Purpose::BlockResult => format!("the block returns {expected_text}"),
             Purpose::Local(name) => format!("`{name}` is {expected_text}"),
+            Purpose::Global(name) => format!(
+                "the host declares the global `{name}` as {expected_text}, and this writes it"
+            ),
             Purpose::Ivar(name) => format!("`@{name}` is {expected_text}"),
             Purpose::Argument {
                 index,

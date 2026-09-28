@@ -1,0 +1,11 @@
+# expect: rejected V0101
+# A `for` loop whose variable names a global writes the global.
+#@ global g: int? = 5
+#@ main
+def read -> int?
+  g
+end
+for g in ["a"]
+  p(g)
+end
+p(read)

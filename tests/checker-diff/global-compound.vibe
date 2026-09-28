@@ -1,0 +1,8 @@
+# expect: rejected V0101
+#@ global g: int = 5
+#@ main
+def read -> int
+  g
+end
+g += 1.5
+p(read)

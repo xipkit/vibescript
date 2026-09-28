@@ -1,0 +1,25 @@
+# expect: agreed
+# Writes of a global's declared type, and parameters and block parameters
+# of its name, which shadow it.
+#@ global g: int? = 5
+#@ global names: array<string> = ["a"]
+#@ main
+def write
+  g = 7
+end
+def shadow(g: string) -> string
+  g = "x"
+  g
+end
+def read -> int?
+  g
+end
+write
+g = nil
+[1].each { |q| g = q }
+for g in [3]
+  p(g)
+end
+a, g = ["z", 4]
+names << "b"
+p(read, shadow("q"), names, [1].map { |g| g + 1 })

@@ -1,0 +1,11 @@
+# expect: rejected V0101
+# Assigning a global the host declares writes the global, which the
+# script's functions read with its declared type; the checker declared a
+# local of the value's type instead.
+#@ global g: int? = 5
+#@ main
+def read -> int?
+  g
+end
+g = "s"
+p(read)
