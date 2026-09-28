@@ -84,7 +84,7 @@ results are archived separately so that recording the outcome does not move
 the tested commit.
 
 All raw evidence is outside Git under
-`/Volumes/AI/Work/xipkit/vibescript.rs/.cache/language-2/`: `darwin/before-measure/`,
+`.cache/language-2/`: `darwin/before-measure/`,
 `darwin/after/`, `darwin/paired/`, `darwin/assembly/`, `compare-assembly.py`,
 `golden-audit.json`, `final-*.log`, `validate.log`, `wasi.log`, `gate-head.txt`
 and `gate-all.log`. Assembly evidence includes binary copies, symbol/import

@@ -25,7 +25,7 @@ Measurements use `scripts/compare.py --rounds 8 --target-ms 150`, both
 `--suite text` and `--suite core`, paired baseline/candidate portable and
 SIMD builds, and quiet host reservations. Raw artifacts, binaries,
 disassembly, and controls live under
-`/Volumes/AI/Work/xipkit/vibescript.rs/.cache/mgomes/text-regex/index/`
+`.cache/mgomes/text-regex/index/`
 locally, with the same branch cache hierarchy on each host. Only summary
 Markdown is committed alongside the code.
 All 752 comparisons have identical allocation counts/bytes and tracked

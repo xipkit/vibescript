@@ -147,7 +147,7 @@ The existing isolated allocation and retention guards pass. No Counter log entry
 is needed: steps and tracked peak/retained bytes match the baseline exactly.
 
 Raw results, controls, binaries, compiler identities, disassembly, and full local
-logs remain under `/Volumes/AI/Work/xipkit/vibescript.rs/.cache/startup-parser/`.
+logs remain under `.cache/startup-parser/`.
 `results/<host>/raw-results.tar.gz` preserves the remote run; `evidence/<host>/`
 contains original-binary instruction comparisons. Only this summary is committed
 as a measurement artifact.

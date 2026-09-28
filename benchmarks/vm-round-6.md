@@ -12,7 +12,7 @@ Each host runs eight paired core and text rounds through one fixed executable pa
 
 - arm64: vinci, Apple M4, native offline release builds.
 - x86_64: shannon, Intel Core Ultra 9 285H, pinned to performance core 2 with ASLR disabled per process.
-- The shared gate lock and host gate markers reserve both hosts. All raw data lives under /Volumes/AI/Work/xipkit/vibescript.rs/.cache/vm-round-6/. Official runs use {vinci,shannon}-opaque-{core,text}/; shorter diagnostics are kept separate.
+- The shared gate lock and host gate markers reserve both hosts. All raw data lives under .cache/vm-round-6/. Official runs use {vinci,shannon}-opaque-{core,text}/; shorter diagnostics are kept separate.
 
 ## Dispatch and layout control
 

@@ -83,7 +83,7 @@ The final branch is checked again with formatting, both Clippy configurations, w
 
 ## Artifacts and next steps
 
-All large local artifacts are under `/Volumes/AI/Work/xipkit/vibescript.rs/.cache/mgomes/text-regex/`. The final deliverable does not depend on files in the coordinator's scratchpad.
+All large local artifacts are under `.cache/mgomes/text-regex/`. The final deliverable does not depend on files in the coordinator's scratchpad.
 
 - `historical-f7-report/profiles/`: Samply profiles, symbol evidence and initial profile results.
 - `x86-results/`: complete latest candidate matrices, environments, raw regression list and repeated controls.
