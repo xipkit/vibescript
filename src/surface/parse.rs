@@ -2098,9 +2098,13 @@ impl<'s> Parser<'s> {
     }
 
     /// Whether the token at `index` can start a tuple type's first element:
-    /// a builtin type name or a type the source declares.
+    /// a builtin type name or a type the source declares, optional or not,
+    /// or a nested tuple or shape, whose leaves decide.
     fn tuple_start(&self, index: usize) -> bool {
-        self.word_at(index).is_some_and(|name| self.type_name(name))
+        matches!(self.kind_at(index), TokenKind::Punct('[' | '{'))
+            || self
+                .word_at(index)
+                .is_some_and(|name| self.type_name(name.trim_end_matches('?')))
     }
 
     /// Whether `name` names a builtin type, one of the signature table's
