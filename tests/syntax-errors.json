@@ -13454,11 +13454,6 @@
     "error": "parse error at 2:3: unexpected token 'do'"
   },
   {
-    "name": "parity_multiline_array_index_in_hash",
-    "source": "h = { a: [\n  1\n][0] }\n",
-    "go_error": "parse error at 3:2: invalid hash pair: expected key like name: or \"name\":"
-  },
-  {
     "name": "parity_multiline_hash_call_target",
     "source": "def run\n  {\n    a: 1,\n    b: f}(\"x\"),\n    c: 2\n  }\nend\n",
     "go_error": "parse error at 4:11: invalid destructuring assignment target",

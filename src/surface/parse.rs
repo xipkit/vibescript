@@ -693,6 +693,12 @@ impl<'s> Parser<'s> {
     fn limit_continues(&self, index: usize) -> bool {
         match self.kind_at(index) {
             TokenKind::Punct('.' | '?') => true,
+            // An index that abuts the end of an expression spanning lines, as
+            // in `(case x ... end)[0]`, indexes it; adjacent expressions are
+            // an error.
+            TokenKind::Punct('[') => {
+                index > 0 && self.tokens[index - 1].end == self.tokens[index].start
+            }
             TokenKind::Operator("*") => !self.splat_assignment_ahead(index),
             TokenKind::Operator("+" | "-") => {
                 let sign = &self.tokens[index];

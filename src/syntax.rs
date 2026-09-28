@@ -4025,6 +4025,10 @@ impl<'a> Parser<'a> {
     fn limit_continues(&self, index: usize) -> Result<bool> {
         Ok(match &self.tokens[index].token {
             Token::P('.' | '?') => true,
+            // An index that abuts the end of an expression spanning lines, as
+            // in `(case x ... end)[0]`, indexes it; adjacent expressions are
+            // an error.
+            Token::P('[') => index > 0 && self.tokens[index - 1].end == self.tokens[index].offset,
             Token::Words(words) => words.ambiguous,
             Token::Op("*") => !self.splat_assignment_ahead(index)?,
             Token::Op("+" | "-") => {

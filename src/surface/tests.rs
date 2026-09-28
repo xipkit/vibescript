@@ -951,6 +951,25 @@ fn the_rules_parser_reads_called_groups_and_tuple_type_arguments() {
     );
 }
 
+/// An index that abuts the end of an expression spanning lines indexes it
+/// in the rules' parser, as in the compiler's: the rules read these
+/// sources, as their `size` diagnostics show.
+#[test]
+fn an_abutting_index_continues_an_expression_spanning_lines() {
+    for source in [
+        "h = { a: [\n  1\n][0] }\nn = [1].size\n",
+        "x = [[1], (case 1\nwhen 1 then [1]\nelse [2]\nend)[0]]\nn = [1].size\n",
+    ] {
+        assert_eq!(
+            with_code(source, Code::REMOVED_NAME).len(),
+            1,
+            "{source:?}: {:?}",
+            diagnostics(source)
+        );
+        crate::Engine::new().type_check(source).unwrap();
+    }
+}
+
 /// The compiler's parser keeps no node for parentheses, so a grouped
 /// receiver or callee decides as a bare one does in the rules' parser too:
 /// the rules read these sources, as their `size` diagnostics show.
