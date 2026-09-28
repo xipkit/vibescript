@@ -790,6 +790,8 @@
 {"id":"loop_float_order/unlimited","ok":["int","750"]}
 {"id":"loop_nested_control/metered","ok":["int","53292"]}
 {"id":"loop_nested_control/unlimited","ok":["int","53292"]}
+{"id":"loop_numeric_union/metered","ok":["float","4004000000000000"]}
+{"id":"loop_numeric_union/unlimited","ok":["float","4004000000000000"]}
 {"id":"loop_range/metered","ok":["int","2002"]}
 {"id":"loop_range/unlimited","ok":["int","2002"]}
 {"id":"loop_record_totals/metered","ok":["array",[["int","654953"],["int","657"]]]}
