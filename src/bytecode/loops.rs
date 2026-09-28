@@ -1,8 +1,8 @@
 //! Consumes only aliases whose loop results cannot be observed.
 
-use super::{Function, Op};
+use super::{Extended, Function, Op};
 
-pub(super) fn discarded(functions: &mut [Function]) {
+pub(super) fn discarded(functions: &mut [Function], extended: &mut [Extended]) {
     for function in functions {
         for ip in 0..function.code.len() {
             let Op::LoopStart {
@@ -18,8 +18,11 @@ pub(super) fn discarded(functions: &mut [Function]) {
             let unused = expression
                 || matches!(following, Some(Op::Pop))
                 || (function.returns_nil && matches!(following, Some(Op::Finish)));
-            if unused && let Op::Shovel(site, _) = function.code[end - 2] {
-                function.code[end - 2] = Op::Shovel(site, true);
+            if unused
+                && let Op::Extended(index) = function.code[end - 2]
+                && let Extended::Shovel(_, last) = &mut extended[index as usize]
+            {
+                *last = true;
             }
         }
     }
@@ -33,9 +36,11 @@ mod tests {
     #[test]
     fn unused_array_loop_tails_consume_only_the_loop_alias() {
         let script = Engine::new().compile("def run -> array<int>\nout: array<int> = []\nfor i in 0...16\nnext if i%3==0\nout << i\nend\nout\nend").unwrap();
-        let code = &script.inner.code.program.functions[1].code;
+        let program = &script.inner.code.program;
+        let code = &program.functions[1].code;
         assert!(
-            code.iter().any(|op| matches!(op, Op::Shovel(_, true))),
+            code.iter().any(|op| matches!(op, Op::Extended(index)
+                if matches!(program.extended[*index as usize], Extended::Shovel(_, true)))),
             "{code:?}"
         );
         let value = script.call("run", &[], CallOptions::default()).unwrap();

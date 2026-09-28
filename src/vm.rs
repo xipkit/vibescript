@@ -671,6 +671,10 @@ impl Run {
             let namespace = function.namespace;
             let caller_instance = matches!(frame.receiver, Some(Value(Kind::Instance(_))));
             ctx.charge(1)?;
+            let op = match op {
+                Op::Extended(index) => program.extended[index as usize].op(),
+                op => op,
+            };
             let mut slot = |slot: usize, skip: bool| -> Result<usize> {
                 // A bound local of the executing frame always resolves to itself.
                 if !skip && storage.locals.data[local_base + slot].is_some() {
@@ -3315,6 +3319,7 @@ impl Run {
                     }
                 }
                 Op::Return | Op::Finish => unreachable!("returns skip the prologue"),
+                Op::Extended(_) => unreachable!("outlined instructions are expanded above"),
             }
             if ctx.has_exports
                 && matches!(

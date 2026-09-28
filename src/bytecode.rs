@@ -170,9 +170,35 @@ pub(crate) enum Op {
     AddressJumpNil(u32, bool),
     Return,
     Finish,
+    /// Executes an outlined instruction from [`Program::extended`].
+    Extended(u32),
 }
 
 const _: () = assert!(std::mem::size_of::<Op>() == 16);
+
+/// Instructions whose large temporaries stay outside the simple loop. Extending
+/// this table does not change the hot dispatch's opcode set or stack frame.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Extended {
+    AddressBound(u32, u32),
+    Mutate(CallSite, u32),
+    Shovel(CallSite, bool),
+    AddressTarget(u32, bool),
+    AddressStore,
+}
+
+impl Extended {
+    /// Restores the general interpreter's form when the simple loop declines it.
+    pub(crate) fn op(self) -> Op {
+        match self {
+            Self::AddressBound(slot, next) => Op::AddressBound(slot, next),
+            Self::Mutate(site, count) => Op::Mutate(site, count),
+            Self::Shovel(site, last) => Op::Shovel(site, last),
+            Self::AddressTarget(count, read) => Op::AddressTarget(count, read),
+            Self::AddressStore => Op::AddressStore,
+        }
+    }
+}
 
 /// Narrows an index to the 32 bits instructions and frames keep: a
 /// program's slots, jump targets and tables fit, as its source is at most
@@ -603,6 +629,8 @@ pub(crate) struct Program {
     pub raises: Vec<(usize, Option<usize>)>,
     /// How each destructuring target selects its value ([`Op::Extract`]).
     pub selections: Vec<Selection>,
+    /// Payloads for instructions executed outside the simple dispatch loop.
+    pub extended: Vec<Extended>,
     /// Top-level declarations in source order, for [`crate::Script::declarations`].
     pub outline: Vec<crate::Declaration>,
 }
@@ -728,6 +756,7 @@ pub(crate) fn compile_parsed(
         members: Vec::new(),
         raises: Vec::new(),
         selections: Vec::new(),
+        extended: Vec::new(),
         outline,
     };
     let declared = |name: &str| {
@@ -833,7 +862,7 @@ pub(crate) fn compile_parsed(
         program.functions[index] = function;
     }
     program.shared_slots = HashMap::new();
-    loops::discarded(&mut program.functions);
+    loops::discarded(&mut program.functions, &mut program.extended);
     program.prove_instance_variables(work)?;
     if facts.keep_type_checks {
         for function in &mut program.functions {
@@ -1330,6 +1359,21 @@ impl Compiler<'_> {
         Ok(())
     }
     fn emit(&mut self, op: Op) -> usize {
+        let extended = match op {
+            Op::AddressBound(slot, next) => Some(Extended::AddressBound(slot, next)),
+            Op::Mutate(site, count) => Some(Extended::Mutate(site, count)),
+            Op::Shovel(site, last) => Some(Extended::Shovel(site, last)),
+            Op::AddressTarget(count, read) => Some(Extended::AddressTarget(count, read)),
+            Op::AddressStore => Some(Extended::AddressStore),
+            _ => None,
+        };
+        let op = if let Some(extended) = extended {
+            let index = self.program.extended.len();
+            self.program.extended.push(extended);
+            Op::Extended(narrow(index))
+        } else {
+            op
+        };
         let pos = self.code.len();
         self.code.push(op);
         self.locations.push(self.offset);
@@ -1349,6 +1393,10 @@ impl Compiler<'_> {
     }
     fn patch(&mut self, pos: usize, target: usize) {
         match &mut self.code[pos] {
+            Op::Extended(index) => match &mut self.program.extended[*index as usize] {
+                Extended::AddressBound(_, next) => *next = narrow(target),
+                _ => unreachable!(),
+            },
             Op::RaiseStart(_, n)
             | Op::Jump(n)
             | Op::JumpFalse(n)
