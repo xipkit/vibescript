@@ -19,6 +19,12 @@ def main():
     parser.add_argument("--toolchain", type=Path, help="Rust install prefix with wasm32-wasip1")
     args = parser.parse_args()
     env = {**os.environ, "CARGO_BUILD_JOBS": "4", "CARGO_NET_OFFLINE": "true"}
+    # Panic locations embed source paths. A rustc wrapper remaps them, so the
+    # artifact names no local directories and is identical for every checkout,
+    # while rustflags from every source still apply.
+    env["VIBESCRIPT_REMAP_ROOT"] = str(ROOT)
+    env["VIBESCRIPT_INNER_WRAPPER"] = os.environ.get("RUSTC_WRAPPER", "")
+    env["RUSTC_WRAPPER"] = str(ROOT / "scripts/rustc-remap")
     toolchain = args.toolchain or (TOOLCHAIN if TOOLCHAIN.exists() else None)
     if toolchain:
         env["PATH"] = str(toolchain / "bin") + os.pathsep + env["PATH"]

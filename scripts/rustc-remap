@@ -1,0 +1,15 @@
+#!/bin/sh
+# RUSTC_WRAPPER for the playground build: keeps local paths out of every
+# compiled crate, then runs the caller's wrapper, if any, or rustc itself.
+set -eu
+# macOS strips DYLD_* when launching /bin/sh; restore the WASI toolchain's
+# library path, as scripts/cargo does, so its linker finds libLLVM.
+if [ -n "${VIBESCRIPT_DYLD_LIBRARY_PATH:-}" ]; then
+  export DYLD_FALLBACK_LIBRARY_PATH="$VIBESCRIPT_DYLD_LIBRARY_PATH"
+fi
+root=$VIBESCRIPT_REMAP_ROOT
+set -- "$@" "--remap-path-prefix=$root=/vibescript" "--remap-path-prefix=$root/.cache/cargo=/cargo"
+if [ -n "${VIBESCRIPT_INNER_WRAPPER:-}" ]; then
+  exec "$VIBESCRIPT_INNER_WRAPPER" "$@"
+fi
+exec "$@"
