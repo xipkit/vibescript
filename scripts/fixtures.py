@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Generate identical inputs and independently computed expected results."""
 import json
+import gzip
 import hashlib
 import random
 import sys
@@ -12,6 +13,27 @@ from signature_fixtures import cases as signature_cases
 
 UPSTREAM=Path(__file__).resolve().parent.parent/"tests/upstream"
 SITE=UPSTREAM.parent/"site"
+
+
+def parse_benchmark_cases():
+    """Large syntax-clean corpus programs and a bounded recovery workload."""
+    root = UPSTREAM.parent.parent
+    out = []
+    for path in ("tests/upstream/tests/complex/massive.vibe",
+                 "tests/site/rosettacode/popular/bitwise_operations.vibe"):
+        out.append({"name": "parse/" + Path(path).stem, "source": (root / path).read_text()})
+    selected = {"e018901b17434038": "large_enum", "01ca33781c4690e5": "wide_call",
+                "d93a23c7b52df4df": "wide_shape"}
+    with gzip.open(root / "tests/golden/replay/programs.jsonl.gz", "rt") as lines:
+        for line in lines:
+            case = json.loads(line)
+            if case["id"] in selected:
+                out.append({"name": "parse/" + selected[case["id"]], "source": case["source"]})
+    language = json.loads((root / "tests/language.json").read_text())
+    largest = max(language, key=lambda case: len(case.get("source", "")))
+    out.append({"name": "parse/large_literal", "source": largest["source"]})
+    out.append({"name": "parse/pathological", "source": "value = )\n" * 10000, "syntax_error": True})
+    return [{**case, "parse": True, "expected": True} for case in out]
 
 
 def upstream_cases():

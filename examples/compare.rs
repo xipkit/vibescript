@@ -85,6 +85,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for case in cases {
         let name = case["name"].as_str().ok_or("missing name")?;
         let source = case["source"].as_str().ok_or("missing source")?;
+        if case["parse"].as_bool().unwrap_or(false) {
+            println!("{}", measure_parse(&case, source, fixed, mode)?);
+            continue;
+        }
         let mut engine = Engine::new();
         engine.set_strict_effects(case["strict_effects"].as_bool().unwrap_or(false));
         if case.get("module_paths").is_some() {
@@ -237,6 +241,64 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("{}", serde_json::to_string(&record)?);
     }
     Ok(())
+}
+
+fn measure_parse(
+    case: &Json,
+    source: &str,
+    fixed: usize,
+    mode: &str,
+) -> Result<Json, Box<dyn std::error::Error>> {
+    let malformed = case["syntax_error"].as_bool().unwrap_or(false);
+    let parse = || -> Result<(), Box<dyn std::error::Error>> {
+        if malformed {
+            let error = Engine::new()
+                .type_check(black_box(source))
+                .err()
+                .ok_or("expected syntax error")?;
+            if error.kind != vibescript::ErrorKind::Syntax {
+                return Err(error.into());
+            }
+            black_box(error);
+        } else {
+            black_box(vibescript::tooling::tokens(black_box(source))?);
+        }
+        Ok(())
+    };
+    parse()?;
+    let mut record = json!({"name": case["name"], "digest": "parse", "output_bytes": 4,
+        "steps": 0, "tracked_peak_bytes": 0, "tracked_retained_bytes": 0});
+    if mode == "validate" {
+        record["result_json"] = json!("true");
+        return Ok(record);
+    }
+    let n = if fixed > 0 {
+        fixed
+    } else {
+        case["iterations"].as_u64().ok_or("missing iterations")? as usize
+    };
+    if n == 0 {
+        return Err("zero iterations".into());
+    }
+    for _ in 0..n.min(32) {
+        parse()?;
+    }
+    #[cfg(feature = "allocation-stats")]
+    let before = allocations::snapshot();
+    let start = Instant::now();
+    for _ in 0..n {
+        parse()?;
+    }
+    let elapsed = start.elapsed();
+    #[cfg(feature = "allocation-stats")]
+    {
+        let after = allocations::snapshot();
+        record["alloc_bytes"] = json!((after.0 - before.0) as f64 / n as f64);
+        record["allocations"] = json!((after.1 - before.1) as f64 / n as f64);
+    }
+    record["iterations"] = json!(n);
+    record["ns_per_call"] = json!(elapsed.as_nanos() as f64 / n as f64);
+    Ok(record)
 }
 
 fn strings(case: &Json, name: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
