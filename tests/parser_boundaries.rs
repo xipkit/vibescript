@@ -234,3 +234,79 @@ fn aliases_declare_top_level_functions_and_nowhere_but_classes() {
         assert_eq!(error.kind, ErrorKind::Syntax, "{source}: {error}");
     }
 }
+
+#[test]
+fn adjacent_expressions_report_the_gap_without_guessing_a_repair() {
+    for source in [
+        "x = 1\"0\"",
+        "1 2",
+        "\"a\"\"b\"",
+        "true false",
+        "[1] 2",
+        "x=1 x=2",
+        "puts 1 2",
+        "def f; 1\"0\"; end",
+        "if true; 1\"0\"; end",
+        "[1].each { 1\"0\" }",
+        "class C; x=1\"0\"; end",
+        "module M; x=1\"0\"; end",
+        "x = \"#{1 2}\"",
+        "\"é\" 2",
+    ] {
+        let error = Engine::new()
+            .compile(source)
+            .err()
+            .unwrap_or_else(|| panic!("compiled {source}"));
+        assert_eq!(error.kind, ErrorKind::Syntax, "{source}: {error}");
+        let diagnostics = error.diagnostics();
+        assert_eq!(diagnostics.len(), 1, "{source}");
+        let diagnostic = &diagnostics[0];
+        assert_eq!(diagnostic.code.to_string(), "V0001", "{source}");
+        assert!(
+            diagnostic.message.contains("adjacent expressions"),
+            "{source}: {error}"
+        );
+        assert!(diagnostic.message.contains("operator"));
+        assert!(diagnostic.message.contains("comma"));
+        assert!(diagnostic.message.contains("newline"));
+        assert!(
+            diagnostic.fixes.is_empty(),
+            "the intended repair is ambiguous"
+        );
+    }
+    for (source, start, end) in [("x = 1\"0\"", 5, 5), ("1  2", 1, 3), ("\"é\" 2", 4, 5)] {
+        let error = Engine::new().compile(source).err().unwrap();
+        assert_eq!(
+            error.diagnostics()[0].span,
+            vibescript::diagnostic::Span::new(start, end)
+        );
+    }
+}
+
+#[test]
+fn separators_and_parenless_calls_keep_their_meaning() {
+    for (source, expected) in [
+        ("x=1\n2", 2),
+        ("x=1;2", 2),
+        ("x=1 # comment\n2", 2),
+        (
+            "def fetch(key: string) -> int; key.length; end; fetch \"a\"",
+            1,
+        ),
+        ("def add(a: int, b: int) -> int; a+b; end; add 1, 2", 3),
+        ("x=1+\n2; puts x; x", 3),
+        ("[1].map { |x| x+1 }.fetch(0)", 2),
+        ("if true then 1 else 2 end", 1),
+        ("def f -> int 1 end\nf", 1),
+    ] {
+        let mut engine = Engine::new();
+        engine.set_output_writer(|_, _| Ok(()));
+        let value = engine
+            .compile(source)
+            .unwrap_or_else(|error| panic!("{source}: {error}"))
+            .run(CallOptions::default())
+            .unwrap()
+            .value;
+        assert_eq!(value.as_int(), Some(expected), "{source}");
+    }
+}

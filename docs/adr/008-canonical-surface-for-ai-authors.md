@@ -317,3 +317,12 @@ ordering builtins, including key-based selection and float `clamp`, share
 this rule. Equality and relational predicates retain IEEE semantics; NaN
 remains unequal to itself and `between?` remains false for NaN. This makes
 float selection deterministic without weakening the declared result type.
+
+## Addendum: expression separators (2026-09-27)
+
+Two expressions cannot form adjacent statements on the same line. `x = 1"0"`
+reports V0001 at their gap, suggesting an operator, a comma between arguments,
+or a newline or `;` between statements. The parser offers no automatic fix
+because those repairs mean different things. Parenless calls keep their
+existing grammar. A suffix that the multiline expression grammar leaves as a
+separate expression also requires a separator; it is no longer silently run.

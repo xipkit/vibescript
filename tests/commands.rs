@@ -186,7 +186,7 @@ fn statement_boundaries_preserve_host_call_order() {
         Ok(Value::int(expected))
     });
     let result = engine
-        .compile("tick(0) tick 1\nreturn tick(2), tick 3")
+        .compile("tick(0); tick 1\nreturn tick(2), tick 3")
         .unwrap()
         .run(CallOptions::default())
         .unwrap();

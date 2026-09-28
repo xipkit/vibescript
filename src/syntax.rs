@@ -798,6 +798,7 @@ impl<'a> Parsing<'a> {
         };
         let stmt = self.modified_statement(offset).await?.at(offset);
         let mut p = self.p();
+        p.expression_separator()?;
         p.check_depth(stmt.depth, stmt.offset)?;
         p.depth -= 1;
         Ok(stmt)
@@ -1704,7 +1705,9 @@ impl<'a> Parsing<'a> {
     }
 
     async fn interpolated(&self) -> Result<Expr> {
-        self.line_expr(0).await
+        let expr = self.line_expr(0).await?;
+        self.p().expression_separator()?;
+        Ok(expr)
     }
 
     /// Applies suffixes to `lhs`, starting with `next` if given. `line` is the
@@ -2577,6 +2580,24 @@ impl<'a> Parser<'a> {
         while matches!(self.token(), Token::EndLine) {
             self.work.charge(1)?;
             self.pos += 1;
+        }
+        Ok(())
+    }
+    fn expression_separator(&self) -> Result<()> {
+        let previous = &self.tokens[self.pos - 1];
+        let next = &self.tokens[self.pos];
+        if previous.token != Token::EndLine
+            && previous.end_line == next.line
+            && self.prefix(self.pos)
+            && !matches!(&next.token, Token::Word(word) if matches!(word.as_str(), "unless" | "until" | "do"))
+        {
+            let message = "adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements";
+            let diagnostic = crate::diagnostic::Diagnostic::error(
+                crate::diagnostic::Code::SYNTAX,
+                crate::diagnostic::Span::new(previous.end, next.offset),
+                message,
+            );
+            return Err(Error::syntax(self.work, previous.end, message).with_diagnostic(diagnostic));
         }
         Ok(())
     }

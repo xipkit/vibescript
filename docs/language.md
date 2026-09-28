@@ -32,7 +32,7 @@ puts greet("Ada")            # Hello, Ada!
 puts greet("Ada", LIMIT)
 ```
 
-Declarations may appear in any order; each function is checked once, from its own signature and the signatures of what it calls. Comments start with `#`. Statements end at a line break; a line ending in an operator, a comma or an opening bracket continues on the next line.
+Declarations may appear in any order; each function is checked once, from its own signature and the signatures of what it calls. Comments start with `#`. Separate statements with a line break or `;`. Adjacent expressions such as `x = 1"0"` are a syntax error (V0001): insert an operator, a comma between arguments, or a statement separator. Parenless calls such as `puts x` and `fetch "a"` remain calls. A statement ends at a line break; a line ending in an operator, a comma or an opening bracket continues on the next line.
 
 `vibes run script.vibe` runs a file, `vibes run --function greet script.vibe Ada` calls one function with command-line arguments, which are strings, and `vibes check` compiles and reports diagnostics without running anything. See [the command line](cli.md).
 

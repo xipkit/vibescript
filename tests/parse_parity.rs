@@ -44,10 +44,11 @@ fn lexical_forms_match_the_reference() {
 fn line_breaks_end_expressions_where_the_reference_ends_them() {
     for (source, expected) in [
         // A line expression stops at a suffix on a later line than its operand began.
-        ("x = [\n  1,\n  2\n][0]\nx", serde_json::json!([1, 2])),
-        ("y = {\n  a: 1\n}[:a]\ny", serde_json::json!({"a": 1})),
+        // The formerly adjacent statement now needs an explicit separator.
+        ("x = [\n  1,\n  2\n];[0]\nx", serde_json::json!([1, 2])),
+        ("y = {\n  a: 1\n};[:a]\ny", serde_json::json!({"a": 1})),
         (
-            "a = \"z\"\nx = a + \"b\nc\"[0]\nx",
+            "a = \"z\"\nx = a + \"b\nc\";[0]\nx",
             serde_json::json!("zb\nc"),
         ),
         // A condition may start on the line after its keyword.

@@ -32,6 +32,8 @@ Named locations render as `pkg/helper.vibe:line:column` in parse errors, code fr
 
 Argument and return checks point to the calling expression. Default expressions retain their own source positions, and a function enters the trace when its body begins. Blocks use the active function call stack. Top-level code and namespace initialization do not expose internal VM function names. Interpolations and implicit `to_s` calls retain their original source positions. Index and range validation uses the compiled expression or assignment position, and typed block bindings use the binding name. A negative number such as `-5` is located at its digits.
 
+Adjacent expressions such as `x = 1"0"` report V0001 at the gap. The message suggests an operator, a comma between arguments, or a newline or `;` between statements. No automatic edit is offered because the intended repair is ambiguous. Calls without parentheses still accept their arguments.
+
 The parser stops at its first error (V0001), except that a hash argument mistaken for a block has V0002 and a parenthesis fix. An error at the end of input is located at the last character, or at column 0 of the next line when the source ends with a line break. Computed call targets are rejected with V0310; use a direct function or method call. See [computed calls](computed-calls.md).
 
 Code frames show at most 160 source characters with clipping markers. Tabs are preserved in the caret indentation. Displayed traces longer than sixteen frames show eight frames from each end and an omitted-frame count; the structured trace remains complete.
