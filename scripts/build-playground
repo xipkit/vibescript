@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+"""Build the browser WASI command and its provenance manifest, offline."""
+
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+
+ROOT = Path(__file__).resolve().parents[1]
+TARGET = "wasm32-wasip1"
+TOOLCHAIN = ROOT / ".cache/toolchains/rust-1.98.1-wasi/install"
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--toolchain", type=Path, help="Rust install prefix with wasm32-wasip1")
+    args = parser.parse_args()
+    env = {**os.environ, "CARGO_BUILD_JOBS": "4", "CARGO_NET_OFFLINE": "true"}
+    toolchain = args.toolchain or (TOOLCHAIN if TOOLCHAIN.exists() else None)
+    if toolchain:
+        env["PATH"] = str(toolchain / "bin") + os.pathsep + env["PATH"]
+        env["DYLD_FALLBACK_LIBRARY_PATH"] = str(toolchain / "lib")
+        env["VIBESCRIPT_DYLD_LIBRARY_PATH"] = str(toolchain / "lib")
+    subprocess.run([
+        ROOT / "scripts/cargo", "build", "--offline", "--locked", "--profile", "playground",
+        "--target", TARGET, "-p", "vibescript-tools", "--no-default-features",
+        "--features", "playground", "--bin", "playground",
+    ], cwd=ROOT, env=env, check=True)
+    out = ROOT / "target/playground"
+    out.mkdir(parents=True, exist_ok=True)
+    binary = out / "playground.wasm"
+    shutil.copy2(ROOT / "target" / TARGET / "playground/playground.wasm", binary)
+    data = binary.read_bytes()
+    manifest = {
+        "schema_version": 1,
+        "rust_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
+        "dirty": bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT, text=True)),
+        "rustc": subprocess.check_output(["rustc", "--version"], env=env, text=True).strip(),
+        "target": TARGET, "file": binary.name,
+        "sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data),
+        "profile": {"opt_level": "z", "panic": "abort", "strip": True, "debug": 0, "lto": "thin", "codegen_units": 1},
+    }
+    compressed = binary.with_suffix(".wasm.br")
+    compressed.unlink(missing_ok=True)
+    if shutil.which("brotli"):
+        subprocess.run(["brotli", "-q", "11", "-f", "-o", compressed, binary], check=True)
+        manifest["brotli_bytes"] = compressed.stat().st_size
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    print(json.dumps(manifest, indent=2))
+
+
+if __name__ == "__main__":
+    main()

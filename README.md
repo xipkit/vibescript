@@ -122,6 +122,10 @@ SIMD uses 16-byte NEON operations on ARM64 and SSE2 on x86_64, with portable fal
 
 The library, the `vibes` CLI and the test suite [support `wasm32-wasip1`](docs/platforms.md), including module loading from host-provided directories. `./scripts/check-wasi` runs the suite and a filesystem witness under Wasmtime with normal stack limits, and `--node` repeats them under Node. Browser integration and execution on the remaining native platforms are still pending.
 
+The [browser playground runner](docs/playground.md) exposes checking, execution,
+formatting and fixes over JSON through a small WASI command, with in-memory
+modules and typed preview capabilities. Build it with `scripts/build-playground`.
+
 ## Validation
 
 ```sh

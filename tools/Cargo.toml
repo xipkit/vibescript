@@ -8,10 +8,17 @@ license = "MIT AND BSD-3-Clause"
 publish = false
 
 [features]
-default = ["lsp"]
+default = ["lsp", "playground"]
 lsp = ["dep:serde_json"]
+playground = ["dep:serde", "dep:serde_json"]
+
+[[bin]]
+name = "playground"
+path = "src/bin/playground.rs"
+required-features = ["playground"]
 
 [dependencies]
+serde = { version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", features = ["raw_value"], optional = true }
 vibescript = { path = "..", default-features = false }
 

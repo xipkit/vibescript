@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+"""Exercise the shipped command under Wasmtime and Node WASI without preopened files."""
+
+import argparse
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+
+ROOT = Path(__file__).resolve().parents[1]
+WASMTIME = ROOT / ".cache/toolchains/wasmtime-v48.0.2/wasmtime-v48.0.2-aarch64-macos/wasmtime"
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--no-build", action="store_true")
+    parser.add_argument("--wasmtime", default=str(WASMTIME) if WASMTIME.exists() else shutil.which("wasmtime"))
+    args = parser.parse_args()
+    if not args.no_build:
+        subprocess.run([ROOT / "scripts/build-playground"], check=True)
+    binary = ROOT / "target/playground/playground.wasm"
+    hosts = {
+        "wasmtime": [args.wasmtime, "run", binary],
+        "node": ["node", "--no-warnings", ROOT / "tests/platforms/wasi/node.mjs", binary],
+    }
+    capability = {"name": "email", "members": [{"name": "send", "behavior": "preview", "signature": {
+        "params": [{"name": name, "type": "string"} for name in ["to", "subject", "body"]],
+        "result": "{ to: string, subject: string, body: string, status: string }",
+    }}]}
+    error_source = "def run -> int\n [1][0] + 1\nend\n"
+    counters = {}
+    for host, command in hosts.items():
+        def invoke(request):
+            result = subprocess.run(command, input=json.dumps(request), capture_output=True, text=True,
+                                    env={k: v for k, v in os.environ.items() if k not in {"TZ", "ZONEINFO"}}, timeout=60, check=True)
+            response = json.loads(result.stdout)
+            assert set(response) >= {"ok", "output", "result", "error", "diagnostics", "stats"}, response
+            return response
+
+        run = invoke({"op": "run", "source": 'def add(n: int) -> int\n print "hi"\n puts "!"\n n + 1\nend', "entry": "add", "args": [41]})
+        assert run["ok"] and run["result"] == 42 and run["output"] == ["hi!"], run
+        counters[host] = [run["stats"]]
+        checked = invoke({"op": "check", "source": error_source})
+        assert not checked["ok"] and checked["diagnostics"][0]["fixes"][0]["applicability"] == "always", checked
+        fixed = invoke({"op": "fix", "source": error_source})
+        assert fixed["ok"] and fixed["applied"] > 0, fixed
+        assert invoke({"op": "run", "source": fixed["source"], "entry": "run"})["result"] == 2
+        formatted = invoke({"op": "format", "source": "1 + 2  \r\n\r\n"})
+        assert formatted["source"] == "1 + 2\n", formatted
+        preview = invoke({"op": "run", "source": 'email.send("a@b.c", "Hello", "Body")', "capabilities": [capability]})
+        assert preview["result"] == {"to": "a@b.c", "subject": "Hello", "body": "Body", "status": "preview"}, preview
+        counters[host].append(preview["stats"])
+        required = invoke({"op": "run", "source": 'require("lib/helper").answer', "files": {
+            "lib/helper.vibe": "def answer -> int\n require('../numbers').value\nend",
+            "numbers.vibe": "def value -> int\n 42\nend",
+        }})
+        assert required["result"] == 42, required
+        counters[host].append(required["stats"])
+        for source, limits, kind in [
+            ('puts "started"\nloop { }', {"steps": 100}, "Steps"),
+            ('"x" * 1000000', {"memory_bytes": 4096}, "Memory"),
+            ('def recurse -> int\n recurse\nend\nrecurse', {"recursion": 4}, "Recursion"),
+        ]:
+            exhausted = invoke({"op": "run", "source": source, "limits": limits})
+            assert exhausted["error"]["kind"] == kind and exhausted["stats"]["steps"] > 0, exhausted
+            assert exhausted["error"]["location"], exhausted
+            if kind == "Steps":
+                assert exhausted["output"] == ["started"], exhausted
+            counters[host].append(exhausted["stats"])
+        assert not invoke({"op": "check", "source": 'require("/etc/passwd")'})["ok"]
+        assert not invoke({"op": "check", "source": 'require("Cargo.toml")'})["ok"]
+        assert not invoke({"op": "check", "source": 'email.send("a", "b", "c")'})["ok"]
+        print(f"{host}: playground operations, quotas, previews, memory modules and confinement passed", flush=True)
+    assert counters["wasmtime"] == counters["node"], counters
+    print("WASI hosts report identical playground counters")
+
+
+if __name__ == "__main__":
+    main()

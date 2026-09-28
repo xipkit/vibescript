@@ -105,6 +105,7 @@ def main():
         # A standalone macOS install keeps libLLVM beside rustc, where rust-lld
         # only finds it through the fallback path that rustup would set.
         env["DYLD_FALLBACK_LIBRARY_PATH"] = str(toolchain / "lib")
+        env["VIBESCRIPT_DYLD_LIBRARY_PATH"] = str(toolchain / "lib")
     sysroot = subprocess.run(["rustc", "--print", "sysroot"], env=env, capture_output=True, text=True, check=True)
     if not (Path(sysroot.stdout.strip()) / "lib/rustlib" / TARGET).is_dir():
         sys.exit(f"rustc has no {TARGET} standard library; install it or pass --toolchain")
@@ -121,7 +122,7 @@ def main():
             sys.exit(f"{label} failed with status {result.returncode}")
         return result
 
-    cargo = ["cargo"]
+    cargo = [ROOT / "scripts/cargo", "--offline"]
     for features in [["--features", "simd,allocation-stats"], ["--no-default-features"]]:
         run("clippy " + " ".join(features), [*cargo, "clippy", "--locked", "--workspace", "--target", TARGET, "--all-targets", *features, "--", "-D", "warnings"])
 
