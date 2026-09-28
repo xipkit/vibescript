@@ -119,6 +119,20 @@ impl<'a> Assigns<'a> {
             .collect()
     }
 
+    /// About the bytes the lists, trees and maps hold.
+    pub fn bytes(&self) -> usize {
+        let word = std::mem::size_of::<u32>();
+        (self.sites.len() * 3
+            + self
+                .roots
+                .iter()
+                .map(|root| root.lowest.len())
+                .sum::<usize>())
+            * word
+            + self.names.len() * 2 * std::mem::size_of::<(&str, u32, Vec<u32>)>()
+            + (self.bodies.len() + self.tries.len()) * std::mem::size_of::<(usize, TrySpans)>()
+    }
+
     /// Whether some assignment in `span` writes `name`.
     pub fn writes(&self, span: Span, name: &str) -> bool {
         let Some(&id) = self.ids.get(name) else {

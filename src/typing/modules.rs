@@ -205,9 +205,11 @@ impl<'a> Checker<'a> {
             file: true,
             origin: Some(&origin),
             modules: self.modules.resolve,
+            budget: self.budget.less(self.total_steps()),
         };
         let checked = super::check_nested(&input, self.modules.depth + 1);
         self.steps += checked.steps;
+        self.stopped |= checked.stopped;
         let source: Arc<str> = source.into();
         for mut diagnostic in checked.diagnostics.into_iter().filter(Diagnostic::is_error) {
             if diagnostic.source.is_none() {

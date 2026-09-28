@@ -61,6 +61,12 @@ impl Flow {
         (self.vars.len() - 1) as LocalId
     }
 
+    /// About the bytes the states and the trail hold.
+    pub fn bytes(&self) -> usize {
+        self.vars.len() * std::mem::size_of::<VarState>()
+            + self.trail.len() * std::mem::size_of::<(LocalId, VarState)>()
+    }
+
     pub fn get(&self, id: LocalId) -> VarState {
         self.vars[id as usize]
     }

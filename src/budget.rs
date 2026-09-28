@@ -421,6 +421,27 @@ impl CallContext {
         Ok(())
     }
 
+    /// What compilation charged to this context may still spend.
+    pub(crate) fn budget(&self) -> crate::compilation::Budget {
+        let exhausted = self.exhausted.is_some();
+        crate::compilation::Budget {
+            steps: self.options.limits.steps.map(|limit| {
+                if exhausted {
+                    0
+                } else {
+                    limit.saturating_sub(self.steps)
+                }
+            }),
+            memory: self
+                .options
+                .limits
+                .memory_bytes
+                .map(|limit| limit.saturating_sub(self.memory.used())),
+            deadline: self.options.deadline,
+            cancellation: Some(self.options.cancellation.clone()),
+        }
+    }
+
     /// Returns the token for cooperative host operations.
     pub fn cancellation(&self) -> &CancellationToken {
         &self.options.cancellation

@@ -844,6 +844,10 @@ impl<'a> Checker<'a> {
     }
 
     pub(super) fn join(&mut self, branches: Vec<Branch>) {
+        // A stopped check unwinds without the work its budget ran out of.
+        if self.stopped {
+            return;
+        }
         let declared: Vec<Ty> = self.frame.locals.iter().map(|l| l.declared).collect();
         let lookup = move |id: LocalId| declared.get(id as usize).copied().unwrap_or(Ty::BOOL);
         self.frame.flow.join(&mut self.types, branches, &lookup);
@@ -861,6 +865,9 @@ impl<'a> Checker<'a> {
     /// declared type, which forgets its narrowing but not whether it is
     /// assigned.
     pub(super) fn widen(&mut self, span: super::assigns::Span) {
+        if self.stopped {
+            return;
+        }
         let names = self.assigns.distinct(span);
         self.steps += names.len() as u64;
         for name in names {
@@ -898,6 +905,40 @@ impl<'a> Checker<'a> {
         previous
     }
 
+    /// The work done so far, which [`super::Checked::steps`] reports.
+    pub(super) fn total_steps(&self) -> u64 {
+        self.steps + self.frame.flow.steps + self.types.steps + self.spans.steps.get()
+    }
+
+    /// Whether the check must stop: its work passed the steps its budget
+    /// leaves, the deadline passed, the host cancelled, or its largest
+    /// tables outgrew the memory left. Statements and expressions begun
+    /// after that are skipped, and compilation fails with the budget's
+    /// error. A check without a budget never stops.
+    pub(super) fn over_budget(&mut self) -> bool {
+        if self.stopped {
+            return true;
+        }
+        if self
+            .budget
+            .steps
+            .is_some_and(|left| self.total_steps() > left)
+        {
+            self.stopped = true;
+            return true;
+        }
+        self.polls = self.polls.wrapping_add(1);
+        if self.polls % 1024 == 0 {
+            let footprint = self.assigns.bytes()
+                + self.frame.flow.bytes()
+                + self.frame.locals.len() * std::mem::size_of::<Local>()
+                + self.types.bytes();
+            self.stopped = self.budget.interrupted()
+                || self.budget.memory.is_some_and(|left| footprint > left);
+        }
+        self.stopped
+    }
+
     /// Restores a frame [`Self::enter_frame`] replaced.
     pub(super) fn leave_frame(&mut self, previous: Frame) {
         let finished = std::mem::replace(&mut self.frame, previous);
@@ -914,6 +955,9 @@ impl<'a> Checker<'a> {
     /// another value than as an expression.
     fn statement(&mut self, stmt: &'a Stmt, want: Want, last: bool) -> Ty {
         self.steps += 1;
+        if self.over_budget() {
+            return Ty::ERROR;
+        }
         if super::too_tall(stmt.height()) {
             // The statement's first token: its whole span is as deep as it.
             let span = self.spans.token(stmt.offset as usize);

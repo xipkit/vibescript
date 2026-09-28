@@ -180,6 +180,7 @@ impl Engine {
             file: false,
             origin: None,
             modules: Some(&resolve),
+            budget: Default::default(),
         }))
     }
     /// Checks that a command line can call `function` in `source` with
@@ -223,6 +224,7 @@ impl Engine {
                 file: false,
                 origin: None,
                 modules: None,
+                budget: Default::default(),
             },
             function,
             count,

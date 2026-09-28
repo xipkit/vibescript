@@ -397,3 +397,82 @@ fn memory_limits_do_not_change_step_accounting() {
         assert_eq!(limited.stats.steps, unlimited.stats.steps, "{source}");
     }
 }
+
+/// Nested `begin`s around assignments of distinct locals, each narrowed
+/// before them: every level's rescue and ensure forget what the levels
+/// inside assign, so checking takes work proportional to the depth times
+/// the locals, which the compile budget must be able to stop.
+fn nested_begins(levels: usize, locals: usize) -> String {
+    let mut source: String = (0..locals).map(|i| format!("x{i}: int? = 1\n")).collect();
+    source.push_str(&"begin\n".repeat(levels));
+    source.extend((0..locals).map(|i| format!("x{i} = nil\n")));
+    source.push_str(&"rescue\nc = 1\nensure\nc = 2\nend\n".repeat(levels));
+    source
+}
+
+#[test]
+fn type_checking_stops_at_the_compile_budget() {
+    // WASI checks syntax at most 128 levels tall.
+    let (levels, locals) = if cfg!(target_os = "wasi") {
+        (100, 8_000)
+    } else {
+        (400, 2_000)
+    };
+    let source = nested_begins(levels, locals);
+    let engine = Engine::new();
+    let started = Instant::now();
+    let checked = engine.type_check(&source).unwrap();
+    let full = started.elapsed();
+    assert!(checked.steps > 4 * Limits::default().steps.unwrap());
+    // The default step quota stops the check, well before it would finish.
+    let started = Instant::now();
+    let error = engine
+        .compile_with_options(&source, &CallOptions::default())
+        .err()
+        .unwrap();
+    assert_eq!(error.kind, ErrorKind::Steps, "{error}");
+    assert!(
+        started.elapsed() < full / 2,
+        "{:?} with a quota, {full:?} without",
+        started.elapsed()
+    );
+    // So do a deadline and cancellation, without a step quota.
+    let unlimited = Limits {
+        steps: None,
+        ..Limits::default()
+    };
+    let started = Instant::now();
+    let options = CallOptions {
+        limits: unlimited.clone(),
+        deadline: Some(started + full / 10),
+        ..CallOptions::default()
+    };
+    let error = engine
+        .compile_with_options(&source, &options)
+        .err()
+        .unwrap();
+    assert_eq!(error.kind, ErrorKind::Deadline, "{error}");
+    assert!(started.elapsed() < full / 2);
+    // WASI has no threads to cancel from.
+    if cfg!(target_os = "wasi") {
+        return;
+    }
+    let cancellation = CancellationToken::new();
+    let options = CallOptions {
+        limits: unlimited,
+        cancellation: cancellation.clone(),
+        ..CallOptions::default()
+    };
+    let started = Instant::now();
+    let canceller = std::thread::spawn(move || {
+        std::thread::sleep(full / 10);
+        cancellation.cancel();
+    });
+    let error = engine
+        .compile_with_options(&source, &options)
+        .err()
+        .unwrap();
+    canceller.join().unwrap();
+    assert_eq!(error.kind, ErrorKind::Cancelled, "{error}");
+    assert!(started.elapsed() < full / 2);
+}

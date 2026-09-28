@@ -55,6 +55,8 @@ pub(crate) struct Input<'a> {
     /// Finds the source and filename of a module `require` names, when the
     /// engine can load modules.
     pub modules: Option<&'a Modules<'a>>,
+    /// What the check may spend before it stops; unlimited unless metered.
+    pub budget: crate::compilation::Budget,
 }
 
 /// Resolves a required module's name to its source and filename.
@@ -107,6 +109,9 @@ pub struct Checked {
     pub result: Option<String>,
     /// What the checker proved about expressions, which the compiler uses.
     pub(crate) facts: Facts,
+    /// Whether the check stopped at its budget before it finished, so its
+    /// findings are incomplete and compilation fails with the budget's error.
+    pub(crate) stopped: bool,
 }
 
 /// What the checker proved about expressions and blocks, by syntax node, for
@@ -383,6 +388,9 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         symbols_stay: None,
         storing_self: None,
         assigns: assigns::Assigns::default(),
+        budget: input.budget.clone(),
+        stopped: false,
+        polls: 0,
     };
     for (name, host) in &input.hosts {
         let function = crate::signatures::host::function(name, host);
@@ -400,8 +408,8 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     checker.declare_program(input.parsed);
     checker.check_retained_declarations(input.declared, input.parsed);
     checker.check_all();
-    let steps =
-        checker.steps + checker.frame.flow.steps + checker.types.steps + checker.spans.steps.get();
+    let steps = checker.total_steps();
+    let stopped = checker.stopped;
     let exported = input.file.then(|| std::sync::Arc::new(checker.export()));
     let (mut locals, result) = match checker.session.take() {
         Some(session) => (
@@ -427,10 +435,11 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         locals,
         result,
         facts: checker.facts,
+        stopped,
     };
     // Removed spellings of the canonical surface are compile errors too,
-    // unless the source is too tall to walk.
-    if !too_deep {
+    // unless the source is too tall to walk or the check stopped early.
+    if !too_deep && !stopped {
         crate::surface::add_to(&mut checked, input.source, input.tokens);
     }
     checked
@@ -466,6 +475,9 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
         symbols_stay: None,
         storing_self: None,
         assigns: assigns::Assigns::default(),
+        budget: input.budget.clone(),
+        stopped: false,
+        polls: 0,
     };
     checker.declare_hosts(input.declared);
     checker.declare_program(input.parsed);
@@ -529,6 +541,12 @@ pub(crate) struct Checker<'a> {
     storing_self: Option<String>,
     /// The names each `begin`, loop and block body assigns.
     assigns: assigns::Assigns<'a>,
+    /// What the check may spend, and whether it stopped there.
+    budget: crate::compilation::Budget,
+    stopped: bool,
+    /// Statements and expressions begun, which pace the clock and memory
+    /// checks of [`Self::over_budget`].
+    polls: u32,
 }
 
 /// Expression types by node, recorded or replayed.

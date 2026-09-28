@@ -152,9 +152,15 @@ impl Code {
             file,
             origin: origin.as_ref(),
             modules: loader.is_some().then_some(&resolve),
+            budget: work.budget(),
         });
         work.charge(usize::try_from(checked.steps).unwrap_or(usize::MAX))?;
         work.checkpoint()?;
+        if checked.stopped {
+            // Charging the steps or the checkpoint fails first unless the
+            // check stopped for memory, which it does not charge.
+            return Err(work.allocation_error("memory quota exceeded while checking types"));
+        }
         if checked.diagnostics.iter().any(|d| d.is_error()) {
             let mut text = crate::source::Source::compile(source, work)?;
             text.filename = filename.clone();

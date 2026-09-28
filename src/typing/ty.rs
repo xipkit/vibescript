@@ -123,6 +123,14 @@ pub(crate) struct Types {
 }
 
 impl Types {
+    /// About the bytes the interned types and the caches hold.
+    pub fn bytes(&self) -> usize {
+        let kind = std::mem::size_of::<Kind>() + std::mem::size_of::<Ty>();
+        self.kinds.len() * 2 * kind
+            + self.assignable.len() * std::mem::size_of::<((Ty, Ty), bool)>()
+            + self.plain.len() * std::mem::size_of::<(Ty, bool)>()
+    }
+
     pub fn new() -> Self {
         let mut types = Self {
             kinds: Vec::new(),

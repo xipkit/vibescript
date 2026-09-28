@@ -116,6 +116,9 @@ impl<'a> Checker<'a> {
 
     pub(super) fn expr_want(&mut self, expr: &'a Expr, want: Want) -> Ty {
         self.steps += 1;
+        if self.over_budget() {
+            return Ty::ERROR;
+        }
         if super::too_tall(expr.height()) {
             let span = self.spans.expr(expr);
             self.too_deep(span);
@@ -1940,6 +1943,9 @@ impl<'a> Checker<'a> {
         let ensured = self.frame.flow.live;
         let branch = self.frame.flow.rollback(mark);
         self.join(explored);
+        if self.stopped {
+            return;
+        }
         for (id, state) in branch.changes {
             if self
                 .assigns
