@@ -2127,9 +2127,8 @@ fn run_bindings_keep_required_modules_but_not_their_published_exports() {
 }
 
 #[test]
-fn same_name_calls_in_required_files_skip_the_file_scope() {
-    // A call with arguments or a block that assigns a file-scope name of the
-    // same name skips that scope and resolves in the receiving root.
+fn same_name_calls_in_required_files_keep_the_file_scope() {
+    // The assignment bypasses its data binding, never its file's functions.
     let files = Files::new();
     for (name, source) in [
         ("args", "def helper(x: int) -> int;x;end;helper=helper 2"),
@@ -2140,6 +2139,22 @@ fn same_name_calls_in_required_files_skip_the_file_scope() {
         (
             "block",
             "def helper(&block: () -> int) -> int;yield;end;helper=helper { 3 }",
+        ),
+        (
+            "keywords",
+            "private def helper(*, n: int) -> int; n; end; helper=helper(n: 4)",
+        ),
+        (
+            "splat",
+            "def helper(n: int) -> int; n; end; helper=helper(*[5])",
+        ),
+        (
+            "nested",
+            "def helper(n: int) -> int; n; end; helper=[6].map { |n| helper=helper(n); helper }.fetch(0)",
+        ),
+        (
+            "function",
+            "def helper(n: int) -> int; n; end; def other -> int; helper=helper(7); helper; end; result=other",
         ),
         // Without arguments the name reads the nearest binding: the file's
         // function, or a parameter.
@@ -2159,26 +2174,33 @@ fn same_name_calls_in_required_files_skip_the_file_scope() {
         files.write(&format!("{name}.vibe"), source);
     }
     let engine = files.engine();
-    let error = engine
-        .compile("require(\"parens\")")
-        .unwrap()
-        .run(CallOptions::default())
-        .unwrap_err();
-    assert_eq!(error.message, "undefined variable helper");
-    assert_eq!(
-        error.diagnostic.as_ref().unwrap().position,
-        Position {
-            line: 2,
-            column: 10
+    for (name, expected) in [
+        ("parens", 1),
+        ("args", 2),
+        ("block", 3),
+        ("keywords", 4),
+        ("splat", 5),
+        ("nested", 6),
+        ("function", 7),
+    ] {
+        files.write(
+            &format!("{name}.vibe"),
+            &format!(
+                "{}; def peek -> int; {}; end",
+                std::fs::read_to_string(files.0.join(format!("{name}.vibe"))).unwrap(),
+                if name == "function" { "result" } else { "helper" }
+            ),
+        );
+        for prefix in ["", "def helper -> string; \"root\"; end\n"] {
+            let source = format!("{prefix}require(\"{name}\").peek");
+            let value = engine
+                .compile(&source)
+                .unwrap()
+                .run(CallOptions::default())
+                .unwrap()
+                .value;
+            assert_eq!(value.as_int(), Some(expected), "{source}");
         }
-    );
-    for name in ["args", "block"] {
-        let error = engine
-            .compile(&format!("require(\"{name}\")"))
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap_err();
-        assert_eq!(error.message, "undefined variable helper", "{name}");
     }
     let script = engine
         .compile(

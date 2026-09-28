@@ -326,3 +326,13 @@ or a newline or `;` between statements. The parser offers no automatic fix
 because those repairs mean different things. Parenless calls keep their
 existing grammar. A suffix that the multiline expression grammar leaves as a
 separate expression also requires a separator; it is no longer silently run.
+
+## Addendum: required-file function scope (2026-09-27)
+
+A required file's function calls are lexically scoped to that file. During
+`helper = helper(...)`, bypass the local being assigned, but keep the file's
+function declarations in scope. The requiring script's `helper`, and exports
+from other files, cannot replace the function the checker resolved. The rule
+is independent of call syntax, visibility and nesting. Historical
+`same_name_call_*` golden observations intentionally change where they
+recorded lookup in the requiring script or an undefined-name error.

@@ -2879,7 +2879,7 @@ impl Run {
                         value_invocation(&requires::get(ctx, storage, name)?.unwrap())
                     } else if scoped && program.declaration_names.contains_key(name) {
                         crate::arguments::Target::Plain(Invocation::NonCallable)
-                    } else if let Some(&function) = program.names.get(name).filter(|_| scoped) {
+                    } else if let Some(&function) = program.names.get(name) {
                         crate::arguments::Target::Plain(Invocation::Function(narrow(function)))
                     } else if let Some(host) = program.hosts.iter().position(|h| h == name) {
                         crate::arguments::Target::Plain(Invocation::Host(narrow(host)))
@@ -4866,8 +4866,8 @@ fn bypassed(ctx: &mut CallContext, storage: &Storage, slot: usize) -> Result<boo
 }
 
 /// Reports whether an assignment in a required file is filling its file-scope
-/// binding of `name`. Go keeps that scope's locals, functions and declarations in
-/// one environment, so a same-name call in the value skips all of them.
+/// binding of `name`. Calls skip the binding being assigned, but still resolve
+/// functions in the declaring file.
 fn file_bypassed(
     ctx: &mut CallContext,
     program: &Program,

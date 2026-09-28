@@ -125,7 +125,7 @@ def cases():
         static_error=FILE_LOCAL)
     add("same_name_call_skips_file_scope",
         'begin;require("m");nil;rescue => e;[e.class.to_s,e.message];end',
-        ["RuntimeError","undefined variable helper"],
+        None,
         {"m.vibe":"def helper -> int;1;end;helper=helper()"}, returns="array<string>?")
     add("same_name_call_forms_skip_file_scope",
         '[:plus,:both,:args,:block,:nested,:func,:body].map{|m| begin;require(m);nil;rescue => e;e.message;end}',
@@ -147,7 +147,7 @@ def cases():
          "block_param.vibe":"def helper;1;end;def peek;[5].map{|helper| helper=helper()};end"},
         returns="array<any>", static_error={"code": "V0309", "at": [3, 60]})
     add("same_name_call_reaches_root_bindings",
-        '[require("m").peek,require("outer").peek,begin;require("late");other;end]', [2,7,1],
+        '[require("m").peek,require("outer").peek,begin;require("late");other;end]', [1,1,1],
         {"m.vibe":"def helper -> int;1;end;helper=helper();def peek -> int;helper;end",
          "inner.vibe":"def value -> int;7;end",
          "outer.vibe":"require(\"inner\");def value -> int;1;end;value=value();def peek -> int;value;end",
