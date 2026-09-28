@@ -11,7 +11,7 @@ Measured Rust source: `15b8c1c9`, against `cfc52131`. The latter adds the new fi
 - arm64: `vinci`, Apple M4. Native offline release builds.
 - x86_64: `shannon`, Intel Core Ultra 9 285H. Both revisions and profiling workloads are pinned to performance core 2. Final timing runs also disable ASLR per process (`setarch x86_64 -R`); the environment records personality `00040000`.
 - Each runner reserves its host with a gate marker. If another gate starts, the monitor discards the interrupted attempt and waits. Interrupted candidate runs are diagnostic artifacts, not reported measurements.
-- Raw rounds, allocation records, environment details, binary hashes, profiles and analysis are under `/Volumes/AI/Work/xipkit/vibescript.rs/.cache/vm-round-4/`. Final measurements are in `{vinci,shannon}-final/`; baseline profiles are in `{vinci,shannon}-baseline/profiles/`.
+- Raw rounds, allocation records, environment details, binary hashes, profiles and analysis are under `.cache/vm-round-4/`. Final measurements are in `{vinci,shannon}-final/`; baseline profiles are in `{vinci,shannon}-baseline/profiles/`.
 
 The 15 added workloads cover record totals, hash bucket counts, nested `for` and block loops with `break`/`next`, `times`, indexed array iteration, array/range `map`, `select` and `reduce`, and array/string construction. Existing numeric `while` loops, array `each` and glue workloads remain controls. Python computes the new expected results independently. Ranges already stream without materialization; this round preserves that behavior. The language exposes `each_with_index` on arrays, not ranges, so the indexed fixture uses an array.
 

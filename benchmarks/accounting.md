@@ -103,7 +103,7 @@ The measured revision passed local checks: formatting, Clippy with all features 
 
 After rebasing, the complete local verification sequence and a fresh paired golden audit are retained in `work/rebased/`; portable/SIMD validation is in `rebased-validate/`. The final distributed gate runs against the integrated branch including this report. Its log and exit status are retained in `work/gate-all.log` and `work/gate-all.exit`; the completion message records its result and exact branch head.
 
-All paths below are relative to `/Volumes/AI/Work/xipkit/vibescript.rs/.cache/accounting/`; host originals remain in each clone's `.cache/accounting/`.
+All paths below are relative to `.cache/accounting/`; host originals remain in each clone's `.cache/accounting/`.
 
 - `{darwin,shannon}/final-{core,json,site}/`: environments, hashes, per-round timing, allocation and RSS data; `all-comparisons.csv` summarizes every pair.
 - `{darwin,shannon}/{before,final}-profiles/` and `*-bins/`: Samply captures, symbols, derived sample counts and preserved executables. `after-*` retains the rejected first experiment.

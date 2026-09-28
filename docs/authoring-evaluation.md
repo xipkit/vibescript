@@ -181,7 +181,7 @@ revision, SHA-256 digest, diagnostic (including fixes), command status, failed
 behavioral output, and qualitative assessment. It also records the unchanged
 first-draft replay and all seeded exercises separately. Raw command streams,
 source snapshots, baseline/updated binaries and exploratory doc checks are kept
-under `/Volumes/AI/Work/xipkit/vibescript.rs/.cache/authoring-eval/evidence/`.
+under `.cache/authoring-eval/evidence/`.
 The baseline executable is `vibes-before`; the updated one is `vibes-after`.
 No raw benchmark data or binary is committed.
 

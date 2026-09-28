@@ -195,7 +195,7 @@ At the measured revision, the native suites pass 2,004 tests. Formatting, both C
 validation and WASI pass. No golden observations or sandbox counters changed
 relative to the preserved upstream baseline; no Counter log entry or golden
 re-recording is needed. Raw artifacts remain on the external volume at
-`/Volumes/AI/Work/xipkit/vibescript.rs/.cache/mgomes-footprint/`, with the
+`.cache/mgomes-footprint/`, with the
 per-round results and fresh summaries under `benchmarks/results/footprint/` there.
 The exact-head three-host gate log and revision metadata are saved under
 `final/gate-all.log` and `final/gate-result.json` in that directory.

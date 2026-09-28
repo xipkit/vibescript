@@ -108,4 +108,4 @@ These are the coordinator-provided M4 baseline figures, not fresh measurements o
 
 Raw logs, timing HTML, inventories, binaries and scripts remain under `shannon:~/work/build-speed-data/`: `before/`, `after/`, `layout-full-debug/`, `final/` and `counter-audit/`. The discarded run's artifacts are in `before/interrupted-gate-target/`. `measure.py` reproduces the loop and gate with a fresh label; `measure-debug.py` isolates debug information and `measure-links.py` records linker calls.
 
-Local verification logs, the inventory comparison, release-reuse proof and copied timing reports are under `/Volumes/AI/Work/xipkit/vibescript.rs/.cache/build-speed/`. Only this summary is committed under `benchmarks/`.
+Local verification logs, the inventory comparison, release-reuse proof and copied timing reports are under `.cache/build-speed/`. Only this summary is committed under `benchmarks/`.

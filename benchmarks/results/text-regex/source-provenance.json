@@ -6,7 +6,7 @@
   "candidate_base_revision": "3161370a4e20c0f08d286dccd95ce8f5d0bbd10a",
   "candidate_patch": "rejected-runtime.patch",
   "candidate_patch_sha256": "52e245e9325bd720611234506f1598bffa8131d4f4330403f5bc07af8f0091ab",
-  "artifact_root": "/Volumes/AI/Work/xipkit/vibescript.rs/.cache/mgomes/text-regex",
+  "artifact_root": ".cache/mgomes/text-regex",
   "matrix_comparisons": 752,
   "x86_comparisons_passing": 376,
   "arm_raw_metric_failures": 13,
