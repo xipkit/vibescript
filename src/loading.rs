@@ -62,6 +62,16 @@ impl Default for Loader {
 }
 
 impl Loader {
+    pub fn memory(sources: std::collections::BTreeMap<String, String>) -> Result<Self> {
+        Ok(Self {
+            keep_type_checks: false,
+            resolver: Arc::new(resolver::Resolver::memory(sources)?),
+            cache: cache::Cache::new(1000),
+            cache_limit: 1000,
+            development: false,
+        })
+    }
+
     pub fn new(config: ModuleConfig) -> Result<Self> {
         let cache_limit = if config.cache_limit == 0 {
             1000

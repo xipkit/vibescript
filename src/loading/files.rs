@@ -141,7 +141,7 @@ fn not_regular() -> Error {
     )
 }
 
-fn too_large(limit: usize) -> Error {
+pub(super) fn too_large(limit: usize) -> Error {
     Error::new(
         ErrorKind::Runtime,
         format!("require: source exceeds maximum size ({limit} bytes)"),

@@ -47,6 +47,31 @@ pub(super) struct Candidate {
 }
 
 impl Resolver {
+    pub fn memory(sources: std::collections::BTreeMap<String, String>) -> Result<Self> {
+        let limit = 1 << 20;
+        for (name, source) in &sources {
+            let mut ctx = CallContext::new(crate::CallOptions::default());
+            let parsed = Name::parse(&mut ctx, name.as_bytes())?;
+            if parsed.relative
+                || parsed.normalized.as_bytes() != Some(name.as_bytes())
+                || name.contains(['\\', ':', '\0'])
+            {
+                return Err(Error::new(
+                    ErrorKind::Argument,
+                    "memory module names must be canonical root-relative filenames with extensions",
+                ));
+            }
+            if source.len() > limit {
+                return Err(files::too_large(limit));
+            }
+        }
+        Ok(Self {
+            roots: vec![files::Root::memory(sources)],
+            policy: Policy::new(&[], &[])?,
+            limit,
+        })
+    }
+
     pub fn new(paths: &[PathBuf], allow: &[String], deny: &[String], limit: usize) -> Result<Self> {
         let mut roots = Vec::with_capacity(paths.len());
         for path in paths {
@@ -114,6 +139,24 @@ impl Resolver {
         ctx: &mut CallContext,
         candidate: &Candidate,
     ) -> Result<Option<files::Source>> {
+        if let Some(sources) = candidate.root.sources() {
+            let name = candidate.relative.as_bytes().unwrap();
+            ctx.charge(name.len() as u64 + 1)?;
+            let Some(source) = std::str::from_utf8(name)
+                .ok()
+                .and_then(|name| sources.get(name))
+            else {
+                return Ok(None);
+            };
+            ctx.charge(source.len() as u64)?;
+            return Ok(Some(files::Source {
+                contents: ctx.bytes(source.as_bytes())?,
+                stamp: files::Stamp {
+                    modified: std::time::UNIX_EPOCH,
+                    size: source.len() as u64,
+                },
+            }));
+        }
         let relative = candidate.path.strip_prefix(candidate.root.path()).unwrap();
         let file = match candidate.root.open(ctx, relative) {
             Ok(files::Opened::File(file)) => file,
@@ -136,6 +179,10 @@ impl Resolver {
         candidate: &Candidate,
         stamp: files::Stamp,
     ) -> Result<bool> {
+        if candidate.root.sources().is_some() {
+            ctx.checkpoint()?;
+            return Ok(true);
+        }
         let result = (|| {
             let relative = candidate.path.strip_prefix(candidate.root.path()).unwrap();
             let files::Opened::File(file) = candidate.root.open(ctx, relative)? else {
