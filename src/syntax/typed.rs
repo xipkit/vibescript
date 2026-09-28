@@ -333,7 +333,7 @@ impl Parser<'_> {
     }
 }
 
-impl Parsing<'_> {
+impl<M: super::recovery::Mode> Parsing<'_, M> {
     /// Parses a typed local or constant declaration, `name: T = value`.
     pub(super) async fn typed_local(&self) -> Result<Statement> {
         let work = self.p().work;
@@ -415,7 +415,7 @@ impl Parsing<'_> {
     }
 }
 
-impl Parsing<'_> {
+impl<M: super::recovery::Mode> Parsing<'_, M> {
     /// Parses a class-variable declaration in a class or module body,
     /// `@@name: T = value`, returning it and its value's assignment.
     pub(super) async fn class_var(&self) -> Result<(Ivar, super::Stmt)> {

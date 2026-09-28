@@ -52,3 +52,16 @@ def mutations(source, rng, per_kind):
     lines = source.split("\n")
     for n in range(1, len(lines)):
         yield from emit("truncate", "\n".join(lines[:n]))
+
+
+def recovery_mutations(source, rng):
+    """Combines distant edits and malformed regions for recovery stress tests."""
+    spans = tokens(source)
+    for count in (2, 4, 8):
+        positions = sorted(rng.sample(spans, min(count, len(spans))), reverse=True)
+        text = source
+        for start, end in positions:
+            text = text[:start] + rng.choice(STRAYS) + text[end:]
+        yield f"combined-{count}", text
+    yield "independent-lines", source + "\nfirst = )\nsecond = ]\nthird = }\n"
+    yield "broken-declarations", "def broken(,\nend\n" + source + "\nclass\nend\n"

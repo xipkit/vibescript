@@ -1,6 +1,6 @@
 use super::*;
 
-impl Parsing<'_> {
+impl<M: super::recovery::Mode> Parsing<'_, M> {
     pub(super) async fn raise_statement(&self) -> Result<Statement> {
         let work = self.p().work;
         {

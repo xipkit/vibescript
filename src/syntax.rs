@@ -10,6 +10,7 @@ mod errors;
 mod lexer;
 pub(crate) mod modules;
 pub(crate) mod record;
+mod recovery;
 mod teardown;
 mod tokens;
 pub(crate) mod typed;
@@ -404,11 +405,19 @@ pub(crate) struct Outline {
 }
 
 fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result<Parser<'a>> {
-    Ok(Parser::with_type_names(Parser {
+    Ok(parser_from_tokens(
+        source,
+        work,
+        Tokens::new(lex(source, work)?, work)?,
+    ))
+}
+
+fn parser_from_tokens<'a>(source: &'a str, work: &'a dyn Work, tokens: Tokens<'a>) -> Parser<'a> {
+    Parser::with_type_names(Parser {
         work,
         source,
         lex_depth: 0,
-        tokens: Tokens::new(lex(source, work)?, work)?,
+        tokens,
         pos: 0,
         depth: 0,
         groups: 0,
@@ -433,7 +442,7 @@ fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result
         type_names: Table::new(),
         alias_names: Table::new(),
         additions: typed::Additions::default(),
-    }))
+    })
 }
 
 pub(crate) fn parse_type(source: &str) -> Result<crate::types::Type> {
@@ -470,6 +479,10 @@ fn canonical() -> bool {
 /// checker's surface rules cannot read. Returns `None` when the canonical
 /// parse succeeds.
 pub(crate) fn canonical_error(source: &str, work: &dyn crate::compilation::Work) -> Option<Error> {
+    canonical_error_mode(source, work, work.unmetered())
+}
+
+fn canonical_error_mode(source: &str, work: &dyn Work, recover: bool) -> Option<Error> {
     struct Restore(bool);
     impl Drop for Restore {
         fn drop(&mut self) {
@@ -477,7 +490,19 @@ pub(crate) fn canonical_error(source: &str, work: &dyn crate::compilation::Work)
         }
     }
     let _restore = Restore(CANONICAL.with(|canonical| canonical.replace(true)));
-    parse(source, work).err()
+    if !recover {
+        return parse(source, work).err();
+    }
+    let parser = match parser(source, work) {
+        Ok(parser) => parser,
+        Err(error) => return Some(error),
+    };
+    let parsing = Parsing::<recovery::FailFast>::new(parser);
+    let error = parsing.run(Call::Program).err()?;
+    let tokens = parsing.parser.into_inner().tokens.original();
+    Some(recovery::diagnostics_with_tokens(
+        source, error, work, tokens,
+    ))
 }
 
 /// Replaces a syntax error of the full grammar with the one the canonical
@@ -488,14 +513,29 @@ pub(crate) fn canonical_syntax(
     work: &dyn crate::compilation::Work,
     error: Error,
 ) -> Error {
+    canonical_syntax_mode(source, work, error, work.unmetered())
+}
+
+/// Recovers host compilation errors under the caller's quotas and interruption.
+pub(crate) fn host_syntax(source: &str, work: &dyn Work, error: Error) -> Error {
+    canonical_syntax_mode(source, work, error, true)
+}
+
+fn canonical_syntax_mode(source: &str, work: &dyn Work, error: Error, recover: bool) -> Error {
     if error.kind != crate::ErrorKind::Syntax {
         return error;
     }
-    canonical_error(source, work).unwrap_or(error)
+    canonical_error_mode(source, work, recover).unwrap_or_else(|| {
+        if recover {
+            recovery::diagnostics(source, error, work)
+        } else {
+            error
+        }
+    })
 }
 
 pub(crate) fn parse(source: &str, work: &dyn crate::compilation::Work) -> Result<Declarations> {
-    let parsing = Parsing::new(parser(source, work)?);
+    let parsing = Parsing::<recovery::FailFast>::new(parser(source, work)?);
     match parsing.run(Call::Program)? {
         Parsed::Program(declarations) => Ok(declarations),
         _ => unreachable!(),
@@ -624,16 +664,18 @@ enum Leaf {
 
 /// Runs the recursive grammar over shared parser state, so source nesting
 /// grows a heap task stack instead of the native one.
-struct Parsing<'a> {
+struct Parsing<'a, M: recovery::Mode = recovery::FailFast> {
     parser: RefCell<Parser<'a>>,
     tasks: Tasks<Call, Parsed>,
+    recovery: RefCell<M::State>,
 }
 
-impl<'a> Parsing<'a> {
+impl<'a, M: recovery::Mode> Parsing<'a, M> {
     fn new(parser: Parser<'a>) -> Self {
         Self {
             parser: RefCell::new(parser),
             tasks: Tasks::new(),
+            recovery: RefCell::new(M::State::default()),
         }
     }
 
@@ -769,7 +811,11 @@ impl<'a> Parsing<'a> {
                     return p.expected(Label::Text(if stop.contains(&"}") { "}" } else { "end" }));
                 }
             }
-            body.push(work, self.statement().await?)?;
+            let checkpoint = self.recovery_checkpoint();
+            match self.statement().await {
+                Ok(statement) => body.push(work, statement)?,
+                Err(error) => self.recover(checkpoint, stop, error)?,
+            }
         }
         self.p().nesting -= 1;
         Ok(body)
@@ -2061,6 +2107,7 @@ impl<'a> Parsing<'a> {
     }
 
     async fn attached_block(&self, brace: bool) -> Result<Block> {
+        let _scope = self.recovery_scope()?;
         let (offset, outer, outer_it) = {
             let mut p = self.p();
             p.work.charge(1)?;
@@ -3089,7 +3136,7 @@ impl<'a> Parser<'a> {
         }
         // Interpolation depth is bounded by the lexer, so each level can run
         // its own task stack.
-        let parsing = Parsing::new(parser);
+        let parsing = Parsing::<recovery::FailFast>::new(parser);
         let result = parsing.run(Call::Interpolation);
         let parser = parsing.parser.into_inner();
         let complete = parser.token() == &Token::Eof;

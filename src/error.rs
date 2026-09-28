@@ -257,6 +257,15 @@ impl Error {
         self
     }
 
+    /// Attaches syntax diagnostics without changing the original first error.
+    pub(crate) fn with_diagnostics(
+        mut self,
+        diagnostics: Vec<crate::diagnostic::Diagnostic>,
+    ) -> Self {
+        self.extra = Some(Arc::new(Extra::Diagnostics(diagnostics.into())));
+        self
+    }
+
     /// Builds a compile error from diagnostics, of which at least one should be
     /// an error. The first error sets the message, offset and code frame.
     pub(crate) fn from_diagnostics(

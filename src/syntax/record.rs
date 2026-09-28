@@ -155,7 +155,7 @@ pub(crate) fn parse(source: &str, probe: Option<&str>) -> (Result<Declarations>,
         Err(error) => return (Err(error), record),
     };
     parser.record = Some(Box::new(record));
-    let parsing = Parsing::new(parser);
+    let parsing = Parsing::<super::recovery::FailFast>::new(parser);
     let result = parsing.run(Call::Program).map(|parsed| match parsed {
         Parsed::Program(declarations) => declarations,
         _ => unreachable!(),
@@ -173,7 +173,7 @@ pub(crate) fn parse(source: &str, probe: Option<&str>) -> (Result<Declarations>,
 /// Parses source and lists the tokens the parser finally read, after its
 /// regex and percent-literal re-reads.
 pub(crate) fn tokens(source: &str) -> Result<Vec<crate::tooling::Token>> {
-    let parsing = Parsing::new(parser(source, &())?);
+    let parsing = Parsing::<super::recovery::FailFast>::new(parser(source, &())?);
     parsing.run(Call::Program)?;
     Ok(token_list(source, &parsing.parser.into_inner()))
 }
@@ -184,7 +184,7 @@ pub(crate) fn parse_with_tokens(
     source: &str,
     work: &dyn crate::compilation::Work,
 ) -> Result<(Declarations, Vec<crate::tooling::Token>)> {
-    let parsing = Parsing::new(parser(source, work)?);
+    let parsing = Parsing::<super::recovery::FailFast>::new(parser(source, work)?);
     let declarations = match parsing.run(Call::Program)? {
         Parsed::Program(declarations) => declarations,
         _ => unreachable!(),

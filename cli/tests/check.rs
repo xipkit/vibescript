@@ -221,6 +221,42 @@ fn check_json_prints_warnings_and_codes_syntax_errors() {
 }
 
 #[test]
+fn check_json_reports_all_syntax_errors_with_fixes() {
+    let files = Files::new();
+    files.write("broken.vibe", "unknown_name\nx = )\nputs { a: 1 }\ny = ]\n");
+    let run = vibes_in(Some(&files.0), &["check", "--json", "broken.vibe"]);
+    assert_eq!(run.status, Some(1), "{run:?}");
+    assert_eq!(run.stderr, "check failed with 3 error(s)\n");
+    let diagnostics: Vec<serde_json::Value> = run
+        .stdout
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(
+        diagnostics
+            .iter()
+            .map(|d| d["code"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        ["V0001", "V0002", "V0001"]
+    );
+    assert_eq!(
+        diagnostics
+            .iter()
+            .map(|d| d["span"]["line"].as_u64().unwrap())
+            .collect::<Vec<_>>(),
+        [2, 3, 4]
+    );
+    assert_eq!(diagnostics[1]["fixes"][0]["applicability"], "always");
+    assert_eq!(
+        diagnostics[1]["fixes"][0]["edits"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+}
+
+#[test]
 fn check_renders_removed_spellings_for_people() {
     let files = Files::new();
     files.write("names.vibe", "n = [1].size\n");

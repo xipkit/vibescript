@@ -154,6 +154,8 @@ mod ordering;
 mod output;
 #[path = "parse_parity.rs"]
 mod parse_parity;
+#[path = "parse_recovery.rs"]
+mod parse_recovery;
 #[path = "parser_boundaries.rs"]
 mod parser_boundaries;
 #[path = "random.rs"]

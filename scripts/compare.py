@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build, validate, and measure compiled calls in the portable and SIMD Rust builds.
+"""Build, validate, and measure runtime or parser workloads in portable and SIMD builds.
 
 Validation checks every build against the golden corpora and the fixture
 expectations. --baseline adds preserved builds of an earlier revision to
@@ -16,7 +16,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from fixtures import benchmark_cases, conformance_cases, site_benchmark_cases, text_benchmark_cases
+from fixtures import parse_benchmark_cases, benchmark_cases, conformance_cases, site_benchmark_cases, text_benchmark_cases
 from json_fixtures import benchmark_cases as json_benchmark_cases
 from module_fixtures import materialize
 import golden
@@ -76,7 +76,7 @@ def equal_json(actual,expected):
 
 def validate(out):
     # A case whose purpose is a static rejection does not run; golden.py checks it.
-    cases=[case for case in conformance_cases()+benchmark_cases()+json_benchmark_cases()+text_benchmark_cases() if "static_error" not in case]
+    cases=[case for case in conformance_cases()+benchmark_cases()+json_benchmark_cases()+text_benchmark_cases()+parse_benchmark_cases() if "static_error" not in case]
     expected=materialize(cases,out)
     path=out/"validation-inputs.json"
     path.write_text(json.dumps(expected,ensure_ascii=False,sort_keys=True)+"\n")
@@ -110,7 +110,7 @@ def validate(out):
 
 
 def measure(out,rounds,target_ms,expected,suite):
-    source={"site":site_benchmark_cases,"core":benchmark_cases,"json":json_benchmark_cases,"text":text_benchmark_cases}[suite]()
+    source={"site":site_benchmark_cases,"core":benchmark_cases,"json":json_benchmark_cases,"text":text_benchmark_cases,"parse":parse_benchmark_cases}[suite]()
     cases=[{k:v for k,v in case.items() if k!="expected"} for case in source]
     path=out/"measurement-inputs.json";path.write_text(json.dumps(cases,ensure_ascii=False,sort_keys=True)+"\n")
     pilot={};pilot_digests={}
@@ -178,7 +178,7 @@ def cpu_name():
 
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument("--out",type=Path,default=ROOT/"benchmarks/results"/time.strftime("%Y-%m-%d-%H%M%S"));parser.add_argument("--skip-build",action="store_true");parser.add_argument("--validate-only",action="store_true");parser.add_argument("--rounds",type=int,default=8);parser.add_argument("--target-ms",type=float,default=75);parser.add_argument("--suite",choices=["core","site","json","text"],default="core",help="core micro-benchmarks, site programs, API JSON, or glue text workloads")
+    parser=argparse.ArgumentParser();parser.add_argument("--out",type=Path,default=ROOT/"benchmarks/results"/time.strftime("%Y-%m-%d-%H%M%S"));parser.add_argument("--skip-build",action="store_true");parser.add_argument("--validate-only",action="store_true");parser.add_argument("--rounds",type=int,default=8);parser.add_argument("--target-ms",type=float,default=75);parser.add_argument("--suite",choices=["core","site","json","text","parse"],default="core",help="core micro-benchmarks, site programs, API JSON, glue text, or parser workloads")
     parser.add_argument("--baseline",type=Path,help="Directory containing prior rust-portable/rust-simd timing and allocation binaries, plus a revision file")
     args=parser.parse_args();out=args.out.resolve();out.mkdir(parents=True,exist_ok=False)
     baseline_revision=None
