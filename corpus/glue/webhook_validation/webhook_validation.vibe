@@ -3,7 +3,7 @@ def accepted(raw: string) -> bool
   begin
     event = JSON.parse_as(raw, Event)
     !event["id"].empty? && event["amount"] > 0
-  rescue RuntimeError
+  rescue TypeError
     false
   end
 end

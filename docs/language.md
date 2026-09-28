@@ -378,7 +378,7 @@ packet = JSON.parse_as('{"event":{"id":"evt_1","source":"api"}}', Envelope)
 assert packet["event"]["id"] == "evt_1"
 ```
 
-Malformed JSON and a `JSON.parse_as` schema mismatch raise `RuntimeError`; a checked `.as(T)` mismatch raises `TypeError`. See the [webhook validation example](types.md#type-mismatch-diagnostics) before writing a rescue clause.
+A `JSON.parse_as` schema mismatch and a checked `.as(T)` mismatch raise `TypeError`. Malformed JSON raises `RuntimeError`. See the [webhook validation example](types.md#type-mismatch-diagnostics) before writing a rescue clause.
 
 ## Classes and enums
 

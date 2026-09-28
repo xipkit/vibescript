@@ -285,8 +285,8 @@ end
 
 ### `JSON.parse_as<T>(text: string, schema: type<T>) -> T`
 
-Parses JSON and checks the result against a type, in one step, as a typed
-parameter checks its argument; a mismatch raises the same boundary error. The
+Parses JSON and checks the result against a type, in one step. A mismatch
+raises `TypeError`; malformed JSON raises `RuntimeError`. The
 type is written as in an annotation: a shape such as `{ name: string, age?: int }`,
 `array<int>`, `int?` or a type alias. The result has that type, so later reads
 are checked without narrowing. A shape rejects extra fields unless it ends

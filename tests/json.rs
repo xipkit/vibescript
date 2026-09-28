@@ -1,6 +1,83 @@
-use vibescript::{CallOptions, Engine, ErrorKind, Limits, Value, parse_json, stringify_json};
+use vibescript::{
+    CallOptions, Engine, ErrorClass, ErrorKind, Limits, Value, parse_json, stringify_json,
+};
 
 const CAP: usize = 1 << 20;
+
+#[test]
+fn typed_json_mismatches_raise_type_error_with_the_existing_type_details() {
+    for (schema, input, expected) in [
+        ("int", "\"x\"", "int, got string"),
+        ("{ id: int }", "{}", "{ id: int }, got {}"),
+        (
+            "{ id: int }",
+            r#"{"id":1,"extra":true}"#,
+            "{ id: int }, got { extra: bool, id: int }",
+        ),
+        (
+            "{ rows: array<{ id: int }> }",
+            r#"{"rows":[{"id":"wrong"}]}"#,
+            "{ rows: array<{ id: int }> }, got { rows: array<{ id: string }> }",
+        ),
+        ("[int, string]", "[1,2]", "[int, string], got array<int>"),
+        ("int | bool", "null", "int | bool, got nil"),
+        ("Status", "\"unknown\"", "Status, got string"),
+    ] {
+        let script = Engine::new()
+            .compile(&format!(
+                "enum Status\nReady\nend\ndef parse(raw: string) -> any\nJSON.parse_as(raw, {schema})\nend"
+            ))
+            .unwrap();
+        let error = script
+            .call("parse", &[Value::bytes(input)], options())
+            .unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Type, "{schema}");
+        assert_eq!(error.class(), Some(ErrorClass::Type), "{schema}");
+        assert_eq!(
+            error.message,
+            format!("JSON.parse_as value expected {expected}")
+        );
+    }
+}
+
+#[test]
+fn typed_json_syntax_errors_remain_distinct_and_rescues_select_the_class() {
+    let script = Engine::new()
+        .compile(
+            r#"
+def parse(raw: string) -> string
+  begin
+    JSON.parse_as(raw, { id: int })
+    "valid"
+  rescue TypeError => error
+    error.class
+  rescue RuntimeError => error
+    error.class
+  end
+end
+"#,
+        )
+        .unwrap();
+    for (input, expected) in [
+        (r#"{"id":1}"#, "valid"),
+        (r#"{"id":"wrong"}"#, "TypeError"),
+        (r#"{"id":"wrong"} trailing"#, "RuntimeError"),
+        ("{", "RuntimeError"),
+    ] {
+        let result = script
+            .call("parse", &[Value::bytes(input)], options())
+            .unwrap();
+        assert_eq!(result.value.as_bytes(), Some(expected.as_bytes()));
+    }
+    let error = Engine::new()
+        .compile("JSON.parse_as(\"{\", { id: int })")
+        .unwrap()
+        .run(options())
+        .unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Json);
+    assert_eq!(error.class(), Some(ErrorClass::Runtime));
+    assert!(error.message.starts_with("JSON.parse_as"));
+}
 
 fn options() -> CallOptions {
     CallOptions {

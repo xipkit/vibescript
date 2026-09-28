@@ -290,6 +290,15 @@ negative indices and truncated floats. Names select captures, including names
 that collide with public fields; no default or block is accepted. V0107 may
 therefore rewrite an optional capture read to `fetch` when a string is required.
 
+## Addendum: typed JSON failures (2026-09-27)
+
+Accepted after the same evaluation: a valid JSON value that does not fit
+`JSON.parse_as`'s requested type raises `TypeError`, matching `.as(T)`.
+Its Rust kind remains `ErrorKind::Type`, and existing expected/actual type
+details remain intact. Malformed JSON keeps `RuntimeError` and
+`ErrorKind::Json`, so a `rescue TypeError` handles validation failures alone.
+This applies to scalar, collection, shape and nominal type mismatches.
+
 ## Links
 
 - [ADR-006: Slim the language for predictable sandboxing](006-slim-language-for-predictable-sandboxing.md)

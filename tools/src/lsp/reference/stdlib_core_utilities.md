@@ -1123,7 +1123,7 @@ Global functions and namespaces available in every script. See
   parse exactly. The result is `any` and must be narrowed.
 - `JSON.parse_as<T>(text: string, schema: type<T>) -> T` – parses and checks
   the result against a type literal, such as `{ name: string, age?: int }`;
-  a mismatch raises the boundary error.
+  a mismatch raises `TypeError`, while malformed JSON raises `RuntimeError`.
 - `JSON.stringify(value: any) -> string` – the JSON text; symbols and enum
   members become strings, and cycles and non-finite floats raise.
 

@@ -18,7 +18,7 @@
 # return nil: bind the read to a local and test it with != nil. Array/hash
 # fetch raises for a missing entry; match_data.fetch raises for a missing capture.
 # Strings have no fetch.
-# JSON syntax/schema mismatches raise RuntimeError; failed as casts raise TypeError.
+# JSON schema mismatches and failed as casts raise TypeError; JSON syntax raises RuntimeError.
 # Narrow a JSON.parse result (any) before using its members or operators.
 # This is a signature reference: generic declarations and name?: T parameters
 # below are builtin notation, not declarations to paste into a script.
@@ -123,7 +123,7 @@ end
 module JSON
   def parse(text: string) -> any
   # Parses and checks the result against a type literal, such as `{ name: string }`.
-  # Shapes are exact unless they end in ...; syntax/schema mismatches raise RuntimeError.
+  # Shapes are exact unless they end in ...; mismatches raise TypeError, syntax raises RuntimeError.
   def parse_as<T>(text: string, schema: type<T>) -> T
   def stringify(value: any) -> string
 end

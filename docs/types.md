@@ -78,20 +78,22 @@ Unchanged arrays and hashes retain their storage. Enum coercions copy changed co
 
 ## Type mismatch diagnostics
 
-Type mismatches found at runtime identify the boundary, expected annotation and actual value type. Rust's `ErrorKind` and the script exception class are separate: a `JSON.parse_as` mismatch has kind `Type` but script class `RuntimeError`; a checked `.as(T)` mismatch raises `TypeError`. Invalid JSON also raises `RuntimeError`. Rescue the class for the operation you are calling, rather than inferring it from the Rust error kind.
+Type mismatches found at runtime identify the boundary, expected annotation and actual value type. Rust's `ErrorKind` and the script exception class are separate: a `JSON.parse_as` mismatch and a checked `.as(T)` mismatch both have kind `Type` and script class `TypeError`. Malformed JSON has kind `Json` and class `RuntimeError`. Rescue the class for the operation you are calling, rather than inferring it from the Rust error kind.
 
-```vibe
+```vibe run
 def valid_webhook(raw: string) -> bool
   begin
     event = JSON.parse_as(raw, { id: string, amount: int })
     !event["id"].empty? && event["amount"] > 0
-  rescue RuntimeError
+  rescue TypeError
     false
   end
 end
+assert valid_webhook('{"id":"evt_1","amount":25}')
+assert !valid_webhook('{"id":"evt_1","amount":"25"}')
 ```
 
-Keep the protected region small: `RuntimeError` matches every script exception class, including unrelated application errors. Quota exhaustion and cancellation remain uncatchable.
+This example handles shape mismatches; malformed JSON propagates. To handle syntax failures too, add a following `rescue RuntimeError` clause. Keep that protected region small: `RuntimeError` matches every script exception class, including unrelated application errors. Quota exhaustion and cancellation remain uncatchable.
 
 ```text
 argument payload expected int, got string

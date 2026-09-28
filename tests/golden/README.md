@@ -136,9 +136,35 @@ observation changed. No counters were re-recorded, so this adds no Counter log
 entry. The reply audit is in `.cache/language-1/lsp-audit.json` on the main
 checkout's external volume.
 
+## Typed JSON exception class (2026-09-27)
+
+`JSON.parse_as` type mismatches now raise `TypeError`; malformed JSON retains
+`RuntimeError`. After rebasing onto `32ae7e77`, re-recorded only these changes:
+
+- `rejections.jsonl.gz`: 510 valid JSON values that fail their requested type
+  change only the script exception class from `RuntimeError` to `TypeError`.
+- `replay.jsonl.gz`: the same class-only change in 11 typed JSON calls.
+- `../language.json`: two rescued JSON mismatch observations return
+  `TypeError` in their class field; their messages are unchanged.
+- `language.counters.jsonl.gz`: those two rescued values retain the shorter
+  class name, reducing peak and retained bytes by three (see the Counter log).
+- `lsp.replies.jsonl.gz`: took upstream's version and re-recorded the required
+  capture completion change described above. The audit again found exactly
+  three fetch replies, with no other reply changes; `lsp.jsonl.gz` is unchanged.
+
+Every error message and location is unchanged. Syntax failures and all other
+observations are preserved. Exact case lists and before/after observations are
+under `.cache/language-1/followup/` on the main checkout's external volume.
+
 ## Counter log
 
 Each re-recording of the counters, and why. Observations stay as recorded, including the `replay` outcomes that follow accounting drift into or out of a quota error. Cases that load required files charge work for the paths of their scratch files, so about 150 `conformance` and `compatibility` cases drift by a few steps and bytes in a checkout at another path; these counters were recorded in a checkout at `/private/tmp/vibescript-typed-vm`.
+
+- Typed JSON mismatches now expose `TypeError` (nine bytes) instead of
+  `RuntimeError` (twelve). Re-recorded only `type_diagnostics_context_json`
+  (peak 4,548 → 4,545; retained 396 → 393) and
+  `type_diagnostics_context_json_scalar` (peak 4,486 → 4,483; retained 376 → 373)
+  in `language.counters.jsonl.gz`. Their step counts remain 180 and 164.
 
 - Re-recorded all engine corpora on macOS arm64 at the start of the typed VM work, so that later changes show only their own drift. The static-language migration had rewritten the sources without re-recording their counters. 322 `replay` cases keep their recorded quota outcomes.
 - Removed the runtime checks the checker proves: parameters of calls from script code, results of functions other than instance methods, typed locals, `yield` arguments and block results, when the type has no named part and every hash key type admits strings. Steps drop by the checks' work in about 106,000 language, 13,000 replay and 1,000 conformance cases, and peak bytes drop by a few words where a call no longer builds its argument binding. 53 more `replay` cases change quota outcome with the lower counts.
