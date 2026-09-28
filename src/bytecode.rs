@@ -180,7 +180,6 @@ const _: () = assert!(std::mem::size_of::<Op>() == 16);
 /// this table does not change the hot dispatch's opcode set or stack frame.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Extended {
-    AddressBound(u32, u32),
     Mutate(CallSite, u32),
     Shovel(CallSite, bool),
     AddressTarget(u32, bool),
@@ -191,7 +190,6 @@ impl Extended {
     /// Restores the general interpreter's form when the simple loop declines it.
     pub(crate) fn op(self) -> Op {
         match self {
-            Self::AddressBound(slot, next) => Op::AddressBound(slot, next),
             Self::Mutate(site, count) => Op::Mutate(site, count),
             Self::Shovel(site, last) => Op::Shovel(site, last),
             Self::AddressTarget(count, read) => Op::AddressTarget(count, read),
@@ -1360,7 +1358,6 @@ impl Compiler<'_> {
     }
     fn emit(&mut self, op: Op) -> usize {
         let extended = match op {
-            Op::AddressBound(slot, next) => Some(Extended::AddressBound(slot, next)),
             Op::Mutate(site, count) => Some(Extended::Mutate(site, count)),
             Op::Shovel(site, last) => Some(Extended::Shovel(site, last)),
             Op::AddressTarget(count, read) => Some(Extended::AddressTarget(count, read)),
@@ -1393,10 +1390,6 @@ impl Compiler<'_> {
     }
     fn patch(&mut self, pos: usize, target: usize) {
         match &mut self.code[pos] {
-            Op::Extended(index) => match &mut self.program.extended[*index as usize] {
-                Extended::AddressBound(_, next) => *next = narrow(target),
-                _ => unreachable!(),
-            },
             Op::RaiseStart(_, n)
             | Op::Jump(n)
             | Op::JumpFalse(n)

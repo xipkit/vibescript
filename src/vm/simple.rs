@@ -247,6 +247,23 @@ pub(super) fn run(
                     return Ok(());
                 }
             }
+            Op::AddressBound(n, next) => {
+                let own = frame.local_base() + n as usize;
+                let slot = if storage.locals.data[own].is_some() {
+                    step(ctx, frame)?;
+                    own
+                } else {
+                    match bound(ctx, outer, function, frame, storage, n as usize)? {
+                        Some(slot) => slot,
+                        None => return Ok(()),
+                    }
+                };
+                let value = storage.locals.data[slot].as_ref().unwrap().clone();
+                storage
+                    .addresses
+                    .push(ctx, Address::new(Some(slot), value))?;
+                frame.ip = next as usize;
+            }
             Op::PrepareMember(_, mutating) => {
                 // A hash's fields can take a member's place.
                 let receiver = if mutating {
@@ -351,7 +368,7 @@ pub(super) fn run(
                 step(ctx, frame)?;
             }
             Op::Extended(_) => {
-                if !addressed(ctx, program, function, outer, frame, storage, stack)? {
+                if !addressed(ctx, program, function, frame, storage, stack)? {
                     return Ok(());
                 }
             }
@@ -382,7 +399,6 @@ fn addressed(
     ctx: &mut CallContext,
     program: &Program,
     function: &Function,
-    outer: &[Frame],
     frame: &mut Frame,
     storage: &mut Storage,
     stack: &mut Buffer<Value>,
@@ -391,23 +407,6 @@ fn addressed(
         unreachable!("only outlined instructions reach this dispatcher");
     };
     match program.extended[index as usize] {
-        Extended::AddressBound(n, next) => {
-            let own = frame.local_base() + n as usize;
-            let slot = if storage.locals.data[own].is_some() {
-                step(ctx, frame)?;
-                own
-            } else {
-                match bound(ctx, outer, function, frame, storage, n as usize)? {
-                    Some(slot) => slot,
-                    None => return Ok(false),
-                }
-            };
-            let value = storage.locals.data[slot].as_ref().unwrap().clone();
-            storage
-                .addresses
-                .push(ctx, Address::new(Some(slot), value))?;
-            frame.ip = next as usize;
-        }
         Extended::Mutate(site, n) => {
             // Only direct array updates, which need no scan of their
             // result, run here.
