@@ -115,10 +115,59 @@ pub struct Stats {
 
 #[derive(Debug, Default)]
 pub(crate) struct Memory {
+    #[cfg(not(target_arch = "x86_64"))]
     used: AtomicUsize,
+    #[cfg(target_arch = "x86_64")]
+    reserved: AtomicUsize,
+    #[cfg(target_arch = "x86_64")]
+    released: AtomicUsize,
     peak: AtomicUsize,
     #[cfg(feature = "tokio")]
     pub(crate) interrupted: AtomicBool,
+}
+
+impl Memory {
+    fn used(&self) -> usize {
+        #[cfg(target_arch = "x86_64")]
+        {
+            // Lifetime totals may wrap, but checked live usage never does.
+            self.reserved
+                .load(Ordering::Relaxed)
+                .wrapping_sub(self.released.load(Ordering::Relaxed))
+        }
+        #[cfg(not(target_arch = "x86_64"))]
+        self.used.load(Ordering::Relaxed)
+    }
+
+    // On x86 only the executing call reserves, including its failure cleanup.
+    // Releases can race on other threads. Their load is the reservation's
+    // accounting point; publishing the total needs no read-modify-write.
+    fn reserve(&self, bytes: usize) -> usize {
+        #[cfg(target_arch = "x86_64")]
+        {
+            let reserved = self.reserved.load(Ordering::Relaxed);
+            let used = reserved.wrapping_sub(self.released.load(Ordering::Relaxed));
+            self.reserved
+                .store(reserved.wrapping_add(bytes), Ordering::Relaxed);
+            used + bytes
+        }
+        #[cfg(not(target_arch = "x86_64"))]
+        {
+            self.used.fetch_add(bytes, Ordering::Relaxed) + bytes
+        }
+    }
+
+    // All peak publishers belong to the same executing call, including JSON's
+    // exclusive reservation and failure cleanup. Remote drops only release.
+    fn publish_peak(&self, peak: usize) {
+        #[cfg(target_arch = "x86_64")]
+        if peak > self.peak.load(Ordering::Relaxed) {
+            self.peak.store(peak, Ordering::Relaxed);
+        }
+        // AArch64's ldumax is cheaper than the extra loads and branch here.
+        #[cfg(not(target_arch = "x86_64"))]
+        self.peak.fetch_max(peak, Ordering::Relaxed);
+    }
 }
 
 #[derive(Debug)]
@@ -136,17 +185,20 @@ impl Charge {
     /// the peak and releases that tail before any other reserve or return.
     pub(crate) fn reserved_usage(&self, unused: usize) -> usize {
         debug_assert!(unused <= self.bytes);
-        self.memory.used.load(Ordering::Relaxed) - unused
+        self.memory.used() - unused
     }
 
     /// Publishes a peak accumulated by an exclusive, non-reentrant builder.
     pub(crate) fn publish_peak(&self, peak: usize) {
-        self.memory.peak.fetch_max(peak, Ordering::Relaxed);
+        self.memory.publish_peak(peak);
     }
 
     pub(crate) fn release(&mut self, bytes: usize) {
         assert!(bytes <= self.bytes);
         self.bytes -= bytes;
+        #[cfg(target_arch = "x86_64")]
+        self.memory.released.fetch_add(bytes, Ordering::Relaxed);
+        #[cfg(not(target_arch = "x86_64"))]
         self.memory.used.fetch_sub(bytes, Ordering::Relaxed);
     }
 
@@ -165,6 +217,11 @@ impl Charge {
 
 impl Drop for Charge {
     fn drop(&mut self) {
+        #[cfg(target_arch = "x86_64")]
+        self.memory
+            .released
+            .fetch_add(self.bytes, Ordering::Relaxed);
+        #[cfg(not(target_arch = "x86_64"))]
         self.memory.used.fetch_sub(self.bytes, Ordering::Relaxed);
     }
 }
@@ -374,7 +431,7 @@ impl CallContext {
         Stats {
             steps: self.steps,
             peak_memory_bytes: self.memory.peak.load(Ordering::Relaxed),
-            retained_memory_bytes: self.memory.used.load(Ordering::Relaxed),
+            retained_memory_bytes: self.memory.used(),
         }
     }
 
@@ -460,7 +517,7 @@ impl CallContext {
 
     pub(crate) fn check_memory(&mut self, bytes: usize) -> Result<()> {
         self.checkpoint()?;
-        let used = self.memory.used.load(Ordering::Relaxed);
+        let used = self.memory.used();
         let Some(next) = used.checked_add(bytes) else {
             return self.fail(ErrorKind::Memory, "memory size overflow");
         };
@@ -479,8 +536,8 @@ impl CallContext {
         self.check_memory(bytes)?;
         // Ownership controls import work even when the host sets no memory quota.
         // Execution allocates on one thread; returned values can be dropped on another.
-        let actual = self.memory.used.fetch_add(bytes, Ordering::Relaxed) + bytes;
-        self.memory.peak.fetch_max(actual, Ordering::Relaxed);
+        let actual = self.memory.reserve(bytes);
+        self.memory.publish_peak(actual);
         Ok(Some(Charge {
             memory: self.memory.clone(),
             bytes,
@@ -491,10 +548,10 @@ impl CallContext {
     /// peak. The caller checks interruption at each original consumption point
     /// and releases unused bytes before calling another allocator or returning.
     pub(crate) fn reserve_available(&mut self, maximum: usize) -> Charge {
-        let used = self.memory.used.load(Ordering::Relaxed);
+        let used = self.memory.used();
         let limit = self.options.limits.memory_bytes.unwrap_or(usize::MAX);
         let bytes = maximum.min(limit.saturating_sub(used));
-        self.memory.used.fetch_add(bytes, Ordering::Relaxed);
+        self.memory.reserve(bytes);
         Charge {
             memory: self.memory.clone(),
             bytes,
@@ -626,15 +683,15 @@ impl<T> Buffer<T> {
         // It cannot call user code or resume execution.
         let bytes = std::mem::size_of_val(self.data.as_slice());
         let temporary = if let Some(charge) = &self.charge {
-            let used = charge.memory.used.load(Ordering::Relaxed);
+            let used = charge.memory.used();
             let Some(next) = used.checked_add(bytes) else {
                 return;
             };
             if limit.is_some_and(|limit| next > limit) {
                 return;
             }
-            let actual = charge.memory.used.fetch_add(bytes, Ordering::Relaxed) + bytes;
-            charge.memory.peak.fetch_max(actual, Ordering::Relaxed);
+            let actual = charge.memory.reserve(bytes);
+            charge.memory.publish_peak(actual);
             Some(Charge {
                 memory: charge.memory.clone(),
                 bytes,
@@ -645,11 +702,7 @@ impl<T> Buffer<T> {
         self.data.shrink_to_fit();
         if let Some(charge) = &mut self.charge {
             let bytes = self.data.capacity() * size_of::<T>();
-            charge
-                .memory
-                .used
-                .fetch_sub(charge.bytes - bytes, Ordering::Relaxed);
-            charge.bytes = bytes;
+            charge.release(charge.bytes - bytes);
         }
         drop(temporary);
     }
@@ -790,15 +843,15 @@ mod accounting_tests {
         let memory = observed.lock().unwrap().take().unwrap();
         let retained = result.stats.retained_memory_bytes;
         assert!(retained > 0);
-        assert_eq!(memory.used.load(Ordering::Relaxed), retained);
+        assert_eq!(memory.used(), retained);
         let clone = result.value.clone();
         drop(result);
-        assert_eq!(memory.used.load(Ordering::Relaxed), retained);
+        assert_eq!(memory.used(), retained);
         #[cfg(not(target_os = "wasi"))]
         std::thread::spawn(move || drop(clone)).join().unwrap();
         #[cfg(target_os = "wasi")]
         drop(clone);
-        assert_eq!(memory.used.load(Ordering::Relaxed), 0);
+        assert_eq!(memory.used(), 0);
         let weak = Arc::downgrade(&memory);
         drop(memory);
         assert!(weak.upgrade().is_none());
@@ -898,7 +951,7 @@ mod accounting_tests {
                 (original.kind, original.message)
             );
             assert_eq!(memory.peak.load(Ordering::Relaxed), stats.1);
-            assert_eq!(memory.used.load(Ordering::Relaxed), 0);
+            assert_eq!(memory.used(), 0);
         }
     }
 
@@ -916,15 +969,15 @@ mod accounting_tests {
                     let (temporary, before, allocated) = {
                         let ctx = call.context()?;
                         *saved.lock().unwrap() = Some(ctx.identity());
-                        let before = counters(&ctx);
+                        let before = counters(ctx);
                         let value = ctx.bytes(&[b'x'; 512])?;
-                        let allocated = counters(&ctx);
+                        let allocated = counters(ctx);
                         (value, before, allocated)
                     };
                     tokio::spawn(async move { drop(temporary) }).await.unwrap();
                     tokio::task::yield_now().await;
                     let ctx = call.context()?;
-                    assert_eq!(counters(&ctx), (allocated.0, allocated.1, before.2));
+                    assert_eq!(counters(ctx), (allocated.0, allocated.1, before.2));
                     ctx.bytes(b"async retained result")
                 })
             }),
@@ -936,15 +989,12 @@ mod accounting_tests {
             .await
             .unwrap();
         let memory = observed.lock().unwrap().take().unwrap();
-        assert_eq!(
-            memory.used.load(Ordering::Relaxed),
-            result.stats.retained_memory_bytes
-        );
+        assert_eq!(memory.used(), result.stats.retained_memory_bytes);
         assert!(result.stats.retained_memory_bytes > 0);
         tokio::task::spawn_blocking(move || drop(result))
             .await
             .unwrap();
-        assert_eq!(memory.used.load(Ordering::Relaxed), 0);
+        assert_eq!(memory.used(), 0);
     }
 }
 
