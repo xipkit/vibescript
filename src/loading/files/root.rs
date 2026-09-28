@@ -4,6 +4,7 @@ use crate::{CallContext, Error, ErrorKind, Result, budget::Buffer};
 #[cfg(not(target_os = "wasi"))]
 use cap_fs_ext::DirExt;
 use std::{
+    collections::BTreeMap,
     fs::File,
     hash::{Hash, Hasher},
     path::{Component, Path, PathBuf},
@@ -12,8 +13,9 @@ use std::{
 
 #[derive(Debug)]
 struct Directory {
-    handle: Dir,
+    handle: Option<Dir>,
     path: PathBuf,
+    sources: Option<BTreeMap<String, String>>,
 }
 
 #[derive(Clone, Debug)]
@@ -43,7 +45,23 @@ pub(in crate::loading) enum Opened {
 impl Root {
     pub fn new(path: &Path) -> std::io::Result<Self> {
         let (handle, path) = platform::open_root(path)?;
-        Ok(Self(Arc::new(Directory { handle, path })))
+        Ok(Self(Arc::new(Directory {
+            handle: Some(handle),
+            path,
+            sources: None,
+        })))
+    }
+
+    pub fn memory(sources: BTreeMap<String, String>) -> Self {
+        Self(Arc::new(Directory {
+            handle: None,
+            path: PathBuf::from("memory"),
+            sources: Some(sources),
+        }))
+    }
+
+    pub fn sources(&self) -> Option<&BTreeMap<String, String>> {
+        self.0.sources.as_ref()
     }
 
     pub fn path(&self) -> &Path {
@@ -52,6 +70,9 @@ impl Root {
 
     pub fn open(&self, ctx: &mut CallContext, relative: &Path) -> Result<Opened> {
         ctx.checkpoint()?;
+        if self.0.handle.is_none() {
+            return Ok(Opened::Missing);
+        }
         ctx.charge(relative.as_os_str().as_encoded_bytes().len() as u64)?;
         if relative.as_os_str().is_empty() {
             return Ok(Opened::Missing);
@@ -100,7 +121,10 @@ struct Walk<'a> {
 
 impl Walk<'_> {
     fn parent(&self) -> &Dir {
-        self.directories.data.last().unwrap_or(&self.root.0.handle)
+        self.directories
+            .data
+            .last()
+            .unwrap_or_else(|| self.root.0.handle.as_ref().unwrap())
     }
 
     fn resolve(&mut self, ctx: &mut CallContext, path: &Path, exact: bool) -> Result<bool> {

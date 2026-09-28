@@ -10,6 +10,27 @@ pub(crate) struct Execution {
 }
 
 impl Execution {
+    pub(crate) fn call_with_stats(
+        script: &Script,
+        name: &str,
+        args: &[Value],
+        options: CallOptions,
+    ) -> (Result<Value>, crate::Stats) {
+        let mut execution = Self::open(script, options);
+        let result = execution.start(script, name, args, &[]).and_then(|()| {
+            let result = execution.run.as_mut().unwrap().run(&mut execution.context);
+            execution.complete(result).map(|outcome| outcome.value)
+        });
+        if result.is_err() {
+            execution.release_execution();
+            crate::objects::cleanup(&mut execution.context);
+            execution.context.code_roots = None;
+            execution.context.host_roots = None;
+        }
+        let stats = execution.context.stats();
+        (result, stats)
+    }
+
     pub(crate) fn new(
         script: &Script,
         name: &str,

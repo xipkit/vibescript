@@ -236,6 +236,18 @@ impl Engine {
     pub fn clear_module_cache(&self) {
         self.loader.clear();
     }
+    /// Replaces filesystem module roots with immutable, in-memory source files.
+    ///
+    /// Keys are canonical root-relative filenames, such as `lib/numbers.vibe`.
+    /// Each file is limited to one MiB. Relative imports resolve from the required
+    /// file, and cannot escape this virtual root. No filesystem roots are opened.
+    /// Earlier scripts retain their previous module configuration.
+    pub fn set_module_sources(&mut self, sources: BTreeMap<String, String>) -> Result<()> {
+        let mut loader = loading::Loader::memory(sources)?;
+        loader.keep_type_checks = self.loader.keep_type_checks;
+        self.loader = Arc::new(loader);
+        Ok(())
+    }
     /// Sets the writer used by `puts`, `print`, and `p` in subsequently compiled scripts.
     ///
     /// The callback must write the entire byte slice or return an error. It may run
@@ -534,6 +546,20 @@ pub struct Script {
     inner: Arc<ScriptInner>,
 }
 impl Script {
+    /// Calls a named function and returns counters even if entry or execution fails.
+    ///
+    /// Counters are sampled after execution storage is released. Retained bytes
+    /// belong to the returned value or error, or values retained by host callbacks.
+    /// Use `__main__` to run top-level statements.
+    pub fn call_with_stats(
+        &self,
+        name: &str,
+        args: &[Value],
+        options: CallOptions,
+    ) -> (Result<Value>, Stats) {
+        vm::Execution::call_with_stats(self, name, args, options)
+    }
+
     /// Calls a named function with isolated arguments and fresh execution limits.
     pub fn call(&self, name: &str, args: &[Value], options: CallOptions) -> Result<Outcome> {
         self.call_with_keywords(name, args, &[], options)

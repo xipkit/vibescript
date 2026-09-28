@@ -260,3 +260,6 @@ fn every_root_test_file_is_registered() {
         "register each tests/*.rs file in all.rs or an explicit [[test]] target"
     );
 }
+
+#[path = "memory_modules.rs"]
+mod memory_modules;

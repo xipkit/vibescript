@@ -4,5 +4,10 @@ repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 export CARGO_HOME="$repo/.cache/cargo"
 export CARGO_TARGET_DIR="$repo/target"
 export TMPDIR="$repo/.cache/tmp"
+# macOS strips DYLD_* when launching /bin/sh; restore the standalone WASI
+# toolchain's library path after that boundary, before starting Cargo.
+if [ -n "${VIBESCRIPT_DYLD_LIBRARY_PATH:-}" ]; then
+    export DYLD_FALLBACK_LIBRARY_PATH="$VIBESCRIPT_DYLD_LIBRARY_PATH"
+fi
 mkdir -p "$TMPDIR"
 exec cargo "$@"

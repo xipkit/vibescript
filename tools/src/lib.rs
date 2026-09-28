@@ -10,5 +10,7 @@ pub mod fix;
 pub mod format;
 #[cfg(feature = "lsp")]
 pub mod lsp;
+#[cfg(feature = "playground")]
+pub mod playground;
 pub mod repl;
 pub mod test_runner;
