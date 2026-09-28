@@ -123,6 +123,11 @@ def benchmark_cases():
     add("json_transform",'rows=JSON.parse_as(input, array<{ active: bool, id: int, name: string, score: int }>)\ni=0\ntotal=0\nwhile i<rows.length\n total+=rows.fetch(i)["score"]\n i+=1\nend\nJSON.stringify({total:total,count:rows.length})',raw,expected,returns="string",param="string")
     # Loops: numeric work, blocks, member calls and string building.
     add("loop_float","x=0.0\ni=0\nwhile i<input\n x=x*0.5+1.25\n i+=1\nend\nx",1000,2.5,returns="float",param="int")
+    add("integer_power", "total=0\ninput.each { |n| total+=n ** 5 }\ntotal", list(range(32)), sum(n**5 for n in range(32)), returns="int", param="array<int>")
+    add("big_integer_power", "input.map { |n| (n ** 80).to_s }", [2, 3, 5, 7], [str(n**80) for n in [2, 3, 5, 7]], returns="array<string>", param="array<int>")
+    add("float_power", "input.map { |n| n ** -1 }", [float(n) for n in range(1, 33)], [1/n for n in range(1, 33)], returns="array<float>", param="array<float>")
+    floats=[float((i*73)%257)-128.5 for i in range(256)]
+    add("float_sort", "input.sort", floats, sorted(floats), returns="array<float>", param="array<float>")
     add("loop_range","total=0\nfor i in 1..input\n total+=i*i%7\nend\ntotal",1000,sum(i*i%7 for i in range(1,1001)),returns="int",param="int")
     add("loop_branches","i=0\nhits=0\nwhile i<input\n if i%3==0 && i != 9\n  hits+=1\n elsif i>900\n  hits+=2\n end\n i+=1\nend\nhits",1000,sum(1 if i%3==0 and i!=9 else 2 if i>900 else 0 for i in range(1000)),returns="int",param="int")
     add("array_each","total=0\ninput.each { |n| total+=n }\ntotal",list(range(1000)),499500,returns="int",param="array<int>")
