@@ -128,30 +128,61 @@ fn arrays_are_not_ordered() {
 }
 
 #[test]
-fn unordered_values_differ_from_numeric_comparator_results() {
-    let mut engine = Engine::new();
-    engine.register_method("nan", typed("nan", "float", |_| Ok(Value::float(f64::NAN))));
-    let result = engine
-        .compile("n=nan();[n<=>n,[n].sort.length]")
-        .unwrap()
-        .run(CallOptions::default())
+fn nan_ordering_preserves_ieee_comparisons() {
+    let script = Engine::new()
+        .compile(
+            "def order(a: float, b: float) -> int; a <=> b; end\n\
+         def ieee(a: float, b: float) -> array<bool>; [a==b,a<b,a<=b,a>b,a>=b]; end",
+        )
         .unwrap();
-    assert_eq!(json(&result.value), "[null,1]");
-    for source in [
-        "[nan(),1.0].sort",
-        "[nan(),1.0].min",
-        "[nan(),1.0].max",
-        "[nan(),1.0].minmax",
-        "[1,2].sort_by {nan()}",
-        "[1,2].min_by {nan()}",
-        "[1,2].max_by {nan()}",
-    ] {
-        let error = engine
-            .compile(source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap_err();
-        assert_eq!(error.kind, ErrorKind::Type, "{source}");
+    let values = [
+        f64::NAN,
+        f64::from_bits(0xfff8_0000_0000_0001),
+        f64::NEG_INFINITY,
+        -1.0,
+        -0.0,
+        0.0,
+        1.0,
+        f64::INFINITY,
+    ];
+    for a in values {
+        for b in values {
+            let args = [Value::float(a), Value::float(b)];
+            let expected = if a.is_nan() {
+                if b.is_nan() { 0 } else { -1 }
+            } else if b.is_nan() || a > b {
+                1
+            } else if a < b {
+                -1
+            } else {
+                0
+            };
+            let value = script
+                .call("order", &args, CallOptions::default())
+                .unwrap()
+                .value;
+            assert_eq!(value.as_int(), Some(expected), "{a:?} <=> {b:?}");
+            let value = script
+                .call("ieee", &args, CallOptions::default())
+                .unwrap()
+                .value;
+            assert_eq!(
+                json(&value),
+                serde_json::to_string(&[a == b, a < b, a <= b, a > b, a >= b]).unwrap()
+            );
+        }
+    }
+    for source in ["(0.0/0.0) <=> 1", "(0.0/0.0) <=> 9223372036854775808"] {
+        assert_eq!(
+            Engine::new()
+                .compile(source)
+                .unwrap()
+                .run(CallOptions::default())
+                .unwrap()
+                .value
+                .as_int(),
+            Some(-1)
+        );
     }
     // Arrays are not ordered, and a comparator returns an int.
     let mut engine = vibescript::Engine::new();
@@ -314,6 +345,98 @@ fn cancellation_from_comparator_and_key_blocks_prevents_later_effects() {
                 .unwrap_err();
             assert_eq!(error.kind, ErrorKind::Cancelled, "{method}: {body}");
             assert_eq!(effects.load(Ordering::SeqCst), 0);
+        }
+    }
+}
+
+#[test]
+fn float_selection_uses_nan_first_and_keeps_equal_values_stable() {
+    let source = "def sort(values: array<float>) -> array<float>; values.sort; end
+        def sort_by(values: array<float>) -> array<float>; values.sort_by { |n| n }; end
+        def compare(values: array<float>) -> array<float>; values.sort { |a,b| a <=> b }; end
+        def select(values: array<float>) -> array<float?>
+          [values.min,values.max,values.minmax[0],values.minmax[1],
+           values.min_by { |n| n },values.max_by { |n| n }]
+        end";
+    let script = Engine::new().compile(source).unwrap();
+    let nan1 = f64::from_bits(0x7ff8_0000_0000_0001);
+    let nan2 = f64::from_bits(0xfff8_0000_0000_0002);
+    let input = [
+        1.0,
+        nan1,
+        0.0,
+        -0.0,
+        f64::INFINITY,
+        nan2,
+        f64::NEG_INFINITY,
+        -2.0,
+    ];
+    let expected = [
+        nan1,
+        nan2,
+        f64::NEG_INFINITY,
+        -2.0,
+        0.0,
+        -0.0,
+        1.0,
+        f64::INFINITY,
+    ];
+    let args = [Value::array(input.map(Value::float).to_vec())];
+    for name in ["sort", "sort_by", "compare"] {
+        let result = script
+            .call(name, &args, CallOptions::default())
+            .unwrap()
+            .value;
+        let bits: Vec<_> = result
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_float().unwrap().to_bits())
+            .collect();
+        assert_eq!(bits, expected.map(f64::to_bits), "{name}");
+    }
+    let result = script
+        .call("select", &args, CallOptions::default())
+        .unwrap()
+        .value;
+    let bits: Vec<_> = result
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_float().unwrap().to_bits())
+        .collect();
+    assert_eq!(
+        bits,
+        [
+            nan1,
+            f64::INFINITY,
+            nan1,
+            f64::INFINITY,
+            nan1,
+            f64::INFINITY
+        ]
+        .map(f64::to_bits)
+    );
+    let result = script
+        .call("select", &[Value::array(vec![])], CallOptions::default())
+        .unwrap()
+        .value;
+    assert_eq!(json(&result), "[null,null,null,null,null,null]");
+    for (source, expected) in [
+        ("(0.0/0.0).clamp(0.0,1.0)", 0.0),
+        ("0.5.clamp(0.0/0.0,1.0)", 0.5),
+        ("(0.0/0.0).between?(0.0,1.0)", 0.0),
+    ] {
+        let value = Engine::new()
+            .compile(source)
+            .unwrap()
+            .run(CallOptions::default())
+            .unwrap()
+            .value;
+        if source.contains("between?") {
+            assert_eq!(json(&value), "false");
+        } else {
+            assert_eq!(value.as_float(), Some(expected));
         }
     }
 }

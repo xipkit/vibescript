@@ -440,6 +440,12 @@ pub(crate) fn case_matches(
     Ok(false)
 }
 
+/// Orders floats like Go's cmp.Compare: NaNs first, with equal signed zeros.
+pub(crate) fn float_order(a: f64, b: f64) -> Ordering {
+    a.partial_cmp(&b)
+        .unwrap_or_else(|| b.is_nan().cmp(&a.is_nan()))
+}
+
 pub(crate) fn compare(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Option<Ordering>> {
     match (&a.0, &b.0) {
         (Kind::Money(a), Kind::Money(b)) => a

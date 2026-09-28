@@ -17,3 +17,29 @@ result = a == a.push(2)
 Comparisons charge visited values, string bytes and hash lookups. Within one comparison, `==`, `<=>` and sorting walk each pair of shared arrays or hashes once: a pair reached again along another path reuses its recorded result, so structures built from shared parts compare in time proportional to their distinct pairs rather than their unfolded size. Recorded pairs are charged and reserved against the memory limit, and are released when the comparison finishes. Enum tokens and their temporary lookup cache are reserved before allocation; imports charge metadata independently. Exact step and memory limits, cancellation and uncatchable invocation exhaustion remain enforced.
 
 Array `uniq`, `union`, `difference`, `&` and `-` index their keys in a hash table reserved against the call's memory limit, so they take time and steps proportional to their inputs. Keys hash consistently with equality: numbers by exact value, times by instant and hashes independently of insertion order. Long strings, arrays and large integers hash bounded samples; equal hashes still compare by ordinary equality, and every probe and comparison is charged.
+
+## Float ordering
+
+Float `<=>` returns `-1`, `0` or `1`, always an `int`, using the order of
+[Go's `cmp.Compare`](https://pkg.go.dev/cmp#Compare). Every NaN precedes every
+non-NaN, two NaNs compare as zero, and negative and positive zero compare as
+zero. Infinities retain their numerical order. NaN sign and payload do not
+break ties.
+
+`sort`, `sort_by`, `min`, `max`, `minmax`, `min_by`, `max_by` and float `clamp`
+use that order. Sorting is stable: equal keys, including NaNs and signed zeros,
+keep their input order. Extrema keep the first value among ties. Empty arrays
+retain their existing nil results.
+
+```vibe
+nan = 0.0 / 0.0
+order: int = nan <=> 1.0             # -1
+same: int = nan <=> nan              # 0
+values = [1.0, nan, -2.0].sort        # [NaN, -2, 1]
+clamped = nan.clamp(0.0, 1.0)         # 0.0
+```
+
+Equality and relational predicates keep IEEE semantics: NaN is unequal even
+to itself, and `<`, `<=`, `>` and `>=` with NaN are false. `between?` remains
+a relational predicate and is false for NaN. Choose `<=>` when an ordering
+must include every float; a sort comparator should return that integer.

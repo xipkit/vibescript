@@ -149,6 +149,9 @@ impl Compare {
                     .order(crate::time::stamp(b).unwrap()),
             ),
             (Kind::Bool(a), Kind::Bool(b)) => Some(a.cmp(b)),
+            (Kind::Float(a), Kind::Float(b)) => Some(ops::float_order(*a, *b)),
+            (Kind::Float(a), Kind::Int(_) | Kind::Big(_)) if a.is_nan() => Some(Ordering::Less),
+            (Kind::Int(_) | Kind::Big(_), Kind::Float(b)) if b.is_nan() => Some(Ordering::Greater),
             (
                 Kind::Int(_) | Kind::Big(_) | Kind::Float(_),
                 Kind::Int(_) | Kind::Big(_) | Kind::Float(_),
@@ -318,7 +321,7 @@ impl Driver {
                             Ordering::Greater
                         }
                     }
-                    Kind::Float(n) => n.partial_cmp(&0.0).unwrap_or(Ordering::Equal),
+                    Kind::Float(n) => ops::float_order(n, 0.0),
                     _ => {
                         return Err(Error::new(
                             ErrorKind::Argument,

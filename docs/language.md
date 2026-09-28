@@ -564,6 +564,8 @@ ISO time and duration output, and supported `strftime` directives.
 
 `int ** int` returns an `int`. A negative integer exponent raises `ArgumentError`; use a float base for a fractional result, such as `2.0 ** -1`. The same rule applies to `**=`. Non-negative integer powers stay exact and promote to arbitrary precision.
 
+Float `<=>` always returns an `int`: NaN sorts before every non-NaN, two NaNs compare as `0`, and `-0.0` and `0.0` compare as `0`. `sort`, `sort_by`, `min`, `max`, `minmax`, `min_by`, `max_by` and float `clamp` use this order. Sorts are stable for equal values. `==`, `!=`, `<`, `<=`, `>` and `>=` keep IEEE semantics: NaN is unequal to everything and all relational comparisons with it are false. See [equality and ordering](equality.md).
+
 Dividing two ints by zero, with `/` or `//`, raises `ZeroDivisionError`; a float operand gives an infinity or NaN instead.
 
 ## What the checker guarantees

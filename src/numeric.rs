@@ -159,6 +159,7 @@ fn zero_division(method: &str) -> Error {
 
 fn exact_order(ctx: &mut CallContext, method: &str, a: &Value, b: &Value) -> Result<Ordering> {
     let order = match (&a.0, &b.0) {
+        (Kind::Float(a), Kind::Float(b)) => Some(ops::float_order(*a, *b)),
         (Kind::Int(_) | Kind::Big(_), Kind::Float(b)) => integer::compare_float(ctx, a, *b)?,
         (Kind::Float(a), Kind::Int(_) | Kind::Big(_)) => {
             integer::compare_float(ctx, b, *a)?.map(Ordering::reverse)

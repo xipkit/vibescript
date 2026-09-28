@@ -307,3 +307,13 @@ This applies to scalar, collection, shape and nominal type mismatches.
 ## Addendum: integer powers (2026-09-27)
 
 `int ** int` keeps type `int`. Negative integer exponents raise `ArgumentError`, including through `**=`, with a hint to use a float base (`2.0 ** -1`). This removes an implicit float result that violated the static type. Non-negative powers, bigint promotion and floating-point powers retain their behavior; there is no separate `pow` builtin.
+
+## Addendum: total float ordering (2026-09-27)
+
+Float `<=>` always returns `int`, ordered like Go's `cmp.Compare`: NaNs first,
+NaNs equal to each other, and signed zeros equal. Stable sorting preserves
+input order within those ties, and extrema keep the first tied value. All
+ordering builtins, including key-based selection and float `clamp`, share
+this rule. Equality and relational predicates retain IEEE semantics; NaN
+remains unequal to itself and `between?` remains false for NaN. This makes
+float selection deterministic without weakening the declared result type.
