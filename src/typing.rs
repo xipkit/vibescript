@@ -385,7 +385,8 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         let function = crate::signatures::host::function(name, host);
         let sig = checker
             .converter
-            .convert_owned(&mut checker.types, &function, None);
+            .convert_owned(&mut checker.types, &function, None)
+            .host();
         checker
             .program
             .hosts

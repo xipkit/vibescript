@@ -217,7 +217,8 @@ impl<'a> Checker<'a> {
                 crate::signatures::Item::Function(function) => {
                     let sig = self
                         .converter
-                        .convert_owned(&mut self.types, function, None);
+                        .convert_owned(&mut self.types, function, None)
+                        .host();
                     self.program.declared_calls.insert(name.clone());
                     self.program.hosts.insert(name.clone(), Rc::new(sig));
                 }

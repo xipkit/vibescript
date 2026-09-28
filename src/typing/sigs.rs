@@ -70,7 +70,8 @@ pub(crate) enum Breaks {
     Call,
     /// It returns from the function through the function's declared
     /// result, which the runtime checks: a script function that yields
-    /// only outside loops and blocks.
+    /// only outside loops and blocks, or a host method whose signature
+    /// declares its result.
     Result,
     /// It ends the loop or the call with a block around the function's
     /// `yield`, so the call's value is the function's result. The function
@@ -82,6 +83,16 @@ pub(crate) enum Breaks {
 }
 
 impl Sig {
+    /// A host method's signature: a `break` out of its block becomes its
+    /// result, which the runtime validates against the declared result, so
+    /// the break's value must have that type.
+    pub fn host(mut self) -> Self {
+        if self.block.is_some() && self.result.is_some_and(|result| result != Ty::ANY) {
+            self.breaks = Breaks::Result;
+        }
+        self
+    }
+
     /// The positional arguments the signature accepts: at least, and at most
     /// unless it has a rest parameter.
     pub fn positional(&self) -> (usize, Option<usize>) {

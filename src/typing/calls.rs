@@ -924,7 +924,8 @@ impl<'a> Checker<'a> {
                 crate::signatures::Member::Function(function) => {
                     let sig = self
                         .converter
-                        .convert_owned(&mut self.types, function, None);
+                        .convert_owned(&mut self.types, function, None)
+                        .host();
                     candidates.push((Rc::new(sig), Vec::new()));
                 }
                 crate::signatures::Member::Module(module) => {

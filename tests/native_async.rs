@@ -736,12 +736,44 @@ async fn async_keywords_result_contracts_and_constructor_calls_preserve_boundari
             .unwrap_or_else(|e| panic!("{source}: {e}"));
         assert_eq!(result.value.to_string(), expected, "{source}");
     }
-    let script = engine
+    // A break's value becomes the result, so the checker requires the
+    // result's type; code compiled without the signature still has it
+    // validated.
+    let error = engine
         .compile("def run -> any;typed(){break 'bad'};end")
+        .err()
         .unwrap();
+    assert_eq!(common::codes(&error), ["V0101"]);
+    let typed = || {
+        HostMethod::new_async("jobs.typed", |call, _, _| {
+            Box::pin(async move { call.call_block(vec![]).await })
+        })
+    };
+    let jobs = |method: HostMethod| {
+        Capability::from_value(
+            "jobs",
+            Value::object(vec![(b"typed".to_vec(), method.value())]),
+        )
+    };
+    let mut unsigned = Engine::new();
+    unsigned.declare_capability(&jobs(typed())).unwrap();
+    let script = unsigned
+        .compile("def run -> any;jobs.typed(){break 'bad'};end")
+        .unwrap();
+    let signed = typed()
+        .with_signature(Signature {
+            params: vec![],
+            result: "int".into(),
+            accepts_block: true,
+        })
+        .unwrap();
+    let options = CallOptions {
+        capabilities: vec![jobs(signed)],
+        ..CallOptions::default()
+    };
     assert_eq!(
         runner
-            .call(script, "run".into(), vec![], CallOptions::default())
+            .call(script, "run".into(), vec![], options)
             .await
             .unwrap_err()
             .kind,

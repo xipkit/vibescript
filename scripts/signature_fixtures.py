@@ -141,8 +141,10 @@ def cases():
                 go=["unexpected", "RuntimeError", f"{call} argument value expected {ty}, got {got}"],
                 policy="consistent_signature_type_scope",
                 reason="Apply the selected consistent binding rule to named host types: declarations in the active required source precede same-named root declarations, including defaults.")
+    # The checker now rejects the break value the result contract refuses.
     add("bad_break", 'begin; typed.echo(1) { break "bad" }; rescue => e; e.message; end',
         "return value for typed.echo expected int, got string", block=True, callback="block", returns="int", go="bad",
+        static_error={"code": "V0101", "at": [4, 30]},
         policy="signature_break_result",
         reason="Honor the documented invariant host result contract when a block break becomes the call result, as with existing capability return contracts.")
     assert len({case["name"] for case in result}) == len(result)
