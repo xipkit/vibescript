@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build, validate, and measure compiled calls in the portable and SIMD Rust builds.
+"""Build, validate, and measure runtime or parser workloads in portable and SIMD builds.
 
 Validation checks every build against the golden corpora and the fixture
 expectations. --baseline adds preserved builds of an earlier revision to
@@ -178,7 +178,7 @@ def cpu_name():
 
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument("--out",type=Path,default=ROOT/"benchmarks/results"/time.strftime("%Y-%m-%d-%H%M%S"));parser.add_argument("--skip-build",action="store_true");parser.add_argument("--validate-only",action="store_true");parser.add_argument("--rounds",type=int,default=8);parser.add_argument("--target-ms",type=float,default=75);parser.add_argument("--suite",choices=["core","site","json","text","parse"],default="core",help="core micro-benchmarks, site programs, API JSON, or glue text workloads")
+    parser=argparse.ArgumentParser();parser.add_argument("--out",type=Path,default=ROOT/"benchmarks/results"/time.strftime("%Y-%m-%d-%H%M%S"));parser.add_argument("--skip-build",action="store_true");parser.add_argument("--validate-only",action="store_true");parser.add_argument("--rounds",type=int,default=8);parser.add_argument("--target-ms",type=float,default=75);parser.add_argument("--suite",choices=["core","site","json","text","parse"],default="core",help="core micro-benchmarks, site programs, API JSON, glue text, or parser workloads")
     parser.add_argument("--baseline",type=Path,help="Directory containing prior rust-portable/rust-simd timing and allocation binaries, plus a revision file")
     args=parser.parse_args();out=args.out.resolve();out.mkdir(parents=True,exist_ok=False)
     baseline_revision=None
