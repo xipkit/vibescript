@@ -405,11 +405,19 @@ pub(crate) struct Outline {
 }
 
 fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result<Parser<'a>> {
-    Ok(Parser::with_type_names(Parser {
+    Ok(parser_from_tokens(
+        source,
+        work,
+        Tokens::new(lex(source, work)?, work)?,
+    ))
+}
+
+fn parser_from_tokens<'a>(source: &'a str, work: &'a dyn Work, tokens: Tokens<'a>) -> Parser<'a> {
+    Parser::with_type_names(Parser {
         work,
         source,
         lex_depth: 0,
-        tokens: Tokens::new(lex(source, work)?, work)?,
+        tokens,
         pos: 0,
         depth: 0,
         groups: 0,
@@ -434,7 +442,7 @@ fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result
         type_names: Table::new(),
         alias_names: Table::new(),
         additions: typed::Additions::default(),
-    }))
+    })
 }
 
 pub(crate) fn parse_type(source: &str) -> Result<crate::types::Type> {
@@ -482,13 +490,19 @@ fn canonical_error_mode(source: &str, work: &dyn Work, recover: bool) -> Option<
         }
     }
     let _restore = Restore(CANONICAL.with(|canonical| canonical.replace(true)));
-    parse(source, work).err().map(|error| {
-        if recover {
-            recovery::diagnostics(source, error, work)
-        } else {
-            error
-        }
-    })
+    if !recover {
+        return parse(source, work).err();
+    }
+    let parser = match parser(source, work) {
+        Ok(parser) => parser,
+        Err(error) => return Some(error),
+    };
+    let parsing = Parsing::<recovery::FailFast>::new(parser);
+    let error = parsing.run(Call::Program).err()?;
+    let tokens = parsing.parser.into_inner().tokens.original();
+    Some(recovery::diagnostics_with_tokens(
+        source, error, work, tokens,
+    ))
 }
 
 /// Replaces a syntax error of the full grammar with the one the canonical

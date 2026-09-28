@@ -23,6 +23,15 @@ pub(super) struct Recovery {
 /// Replays only a failed host parse. The ordinary parser has no recovery
 /// checkpoints or scope copies, and invocation compilation remains fail-fast.
 pub(super) fn diagnostics(source: &str, first: Error, caller: &dyn Work) -> Error {
+    diagnostics_with_tokens(source, first, caller, None)
+}
+
+pub(super) fn diagnostics_with_tokens(
+    source: &str,
+    first: Error,
+    caller: &dyn Work,
+    tokens: Option<Tokens<'_>>,
+) -> Error {
     if first.kind != ErrorKind::Syntax || first.message == TOO_DEEP || source.len() > MAX_SOURCE {
         return first;
     }
@@ -37,8 +46,13 @@ pub(super) fn diagnostics(source: &str, first: Error, caller: &dyn Work) -> Erro
         remaining: Cell::new(source.len().saturating_mul(128).saturating_add(16384)),
         caller,
     };
-    let Ok(parser) = parser(source, &work) else {
-        return caller.checkpoint().err().unwrap_or(first);
+    let parser = if let Some(tokens) = tokens {
+        parser_from_tokens(source, &work, tokens)
+    } else {
+        let Ok(parser) = parser(source, &work) else {
+            return caller.checkpoint().err().unwrap_or(first);
+        };
+        parser
     };
     let parsing = Parsing::<Recover>::new(parser);
     if let Err(error) = parsing.run(Call::Program) {

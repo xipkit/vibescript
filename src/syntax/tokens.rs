@@ -29,6 +29,17 @@ impl<'a> Tokens<'a> {
         self.before.len() + self.after.len()
     }
 
+    // Reuse only untouched, complete lexing. Every token replacement writes
+    // a nonempty prefix; a lexical failure consumes the remaining source.
+    pub fn original(self) -> Option<Self> {
+        (self.before.is_empty()
+            && !matches!(
+                self.get(self.len().saturating_sub(2)).map(|t| &t.token),
+                Some(super::Token::Invalid(_))
+            ))
+        .then_some(self)
+    }
+
     pub fn get(&self, index: usize) -> Option<&Lexeme<'a>> {
         (index < self.len()).then(|| &self[index])
     }
