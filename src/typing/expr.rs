@@ -486,18 +486,21 @@ impl<'a> Checker<'a> {
         }
     }
 
-    /// Of the shapes among `hint`'s alternatives, the one a literal with
-    /// `entries` is checked against: one whose fields its keys fit,
-    /// preferring one that declares no field the literal leaves out, and
-    /// then the widest, which accepts the values the others do.
-    fn fitting_shape(
+    /// The shapes among `hint`'s alternatives a literal with `entries` may
+    /// be checked against: those whose fields its keys fit, preferring
+    /// those that declare no field the literal leaves out, and of them the
+    /// widest, which accepts the values the others do, when there is one.
+    fn fitting_shapes(
         &mut self,
         entries: &[(crate::compilation::Bytes, Expr)],
         hint: Option<Ty>,
-    ) -> Option<Ty> {
+    ) -> Vec<Ty> {
         let mut exact = Vec::new();
         let mut loose = Vec::new();
-        for alternative in self.types.members(hint?) {
+        let Some(hint) = hint else {
+            return Vec::new();
+        };
+        for alternative in self.types.members(hint) {
             let Kind::Shape(fields, open) = self.types.kind(alternative) else {
                 continue;
             };
@@ -524,7 +527,47 @@ impl<'a> Checker<'a> {
                 .iter()
                 .all(|&other| self.types.assignable(other, wide))
         });
-        widest.or_else(|| candidates.first().copied())
+        match widest {
+            Some(widest) => vec![widest],
+            None => candidates,
+        }
+    }
+
+    /// Types a record literal that fits several shapes, none of which
+    /// accepts all the others' values: each value against the union of the
+    /// fields' types, and the literal as the first of the shapes that
+    /// accepts its values, or as its own shape when none does.
+    fn record_of_shapes(
+        &mut self,
+        entries: &'a [(crate::compilation::Bytes, Expr)],
+        shapes: &[Ty],
+    ) -> Ty {
+        let mut fields = Vec::new();
+        for (key, entry) in entries {
+            let hints: Vec<Ty> = shapes
+                .iter()
+                .filter_map(|&shape| match self.types.kind(shape) {
+                    Kind::Shape(fields, _) => fields
+                        .iter()
+                        .find(|field| field.name.as_bytes() == &key[..])
+                        .map(|field| field.ty),
+                    _ => None,
+                })
+                .collect();
+            let hint = (!hints.is_empty()).then(|| self.types.union(&hints));
+            let ty = self.expr(entry, hint);
+            fields.push(Field {
+                name: String::from_utf8_lossy(key).as_ref().into(),
+                ty,
+                optional: false,
+            });
+        }
+        let actual = self.types.shape(fields, false);
+        shapes
+            .iter()
+            .copied()
+            .find(|&shape| self.types.assignable(actual, shape))
+            .unwrap_or(actual)
     }
 
     fn hash_literal(
@@ -533,7 +576,11 @@ impl<'a> Checker<'a> {
         entries: &'a [(crate::compilation::Bytes, Expr)],
         hint: Option<Ty>,
     ) -> Ty {
-        let hint = self.fitting_shape(entries, hint).or_else(|| {
+        let shapes = self.fitting_shapes(entries, hint);
+        if shapes.len() > 1 {
+            return self.record_of_shapes(entries, &shapes);
+        }
+        let hint = shapes.first().copied().or_else(|| {
             self.literal_hint(hint, |kind| {
                 matches!(
                     kind,

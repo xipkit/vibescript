@@ -1,0 +1,7 @@
+# expect: agreed
+# A record literal that fits several shapes of a union, none of which
+# accepts the others' values, takes the first shape its values fit.
+n: int? = nil
+x: { id: int, tags: int? } | { id: int?, tags: int } = { id: n, tags: 0 }
+y: { id: int, tags: int? } | { id: int?, tags: int } = { id: 1, tags: n }
+p(x, y)
