@@ -123,6 +123,9 @@ def benchmark_cases():
     add("json_transform",'rows=JSON.parse_as(input, array<{ active: bool, id: int, name: string, score: int }>)\ni=0\ntotal=0\nwhile i<rows.length\n total+=rows.fetch(i)["score"]\n i+=1\nend\nJSON.stringify({total:total,count:rows.length})',raw,expected,returns="string",param="string")
     # Loops: numeric work, blocks, member calls and string building.
     add("loop_float","x=0.0\ni=0\nwhile i<input\n x=x*0.5+1.25\n i+=1\nend\nx",1000,2.5,returns="float",param="int")
+    add("loop_numeric_union","x: number = input\ni=0\nwhile i<1000\n x=x*0.5+1.25\n i+=1\nend\nx",0.0,2.5,returns="number",param="number")
+    add("loop_float_compare","x=0.0\nhits=0\ni=0\nwhile i<input\n x+=0.25\n hits+=1 if x>=0.5 && x<1.0\n x=0.0 if x>=1.0\n i+=1\nend\nhits",1000,sum(0.5 <= (i%4+1)*0.25 < 1.0 for i in range(1000)),returns="int",param="int")
+    add("loop_float_order","x=0.0\nnan=0.0/0.0\ntotal=0\ni=0\nwhile i<input\n x+=0.25\n x=0.0 if x>=1.0\n total+=(x<=>nan)+(nan<=>x)+(nan<=>nan)+(x<=>-0.0)\n i+=1\nend\ntotal",1000,sum((i+1)%4 != 0 for i in range(1000)),returns="int",param="int")
     add("integer_power", "total=0\ninput.each { |n| total+=n ** 5 }\ntotal", list(range(32)), sum(n**5 for n in range(32)), returns="int", param="array<int>")
     add("big_integer_power", "input.map { |n| (n ** 80).to_s }", [2, 3, 5, 7], [str(n**80) for n in [2, 3, 5, 7]], returns="array<string>", param="array<int>")
     add("float_power", "input.map { |n| n ** -1 }", [float(2**n) for n in range(32)], [1]+[2.0**(-n) for n in range(1, 32)], returns="array<float>", param="array<float>")

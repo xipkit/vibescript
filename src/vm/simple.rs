@@ -6,10 +6,11 @@
 //! these same ones whenever their conditions here do not hold.
 
 use super::*;
-use crate::bytecode::{Function, Method, Operator};
+use crate::bytecode::{Extended, Function, Method, Operator};
 
 /// Runs the executing frame's simple instructions, stopping before the first
 /// one it declines. A declined instruction is left unexecuted and uncharged.
+#[inline(never)]
 pub(super) fn run(
     ctx: &mut CallContext,
     program: &Program,
@@ -43,7 +44,16 @@ pub(super) fn run(
             }
             Op::Constant(n) => {
                 step(ctx, frame)?;
-                let value = ctx.import(&program.constants[n as usize])?;
+                let value = &program.constants[n as usize];
+                let value = if matches!(
+                    value.0,
+                    Kind::Nil | Kind::Bool(_) | Kind::Int(_) | Kind::Float(_)
+                ) {
+                    ctx.charge(1)?;
+                    copy(value)
+                } else {
+                    import_constant(ctx, value)?
+                };
                 push(ctx, stack, value)?;
             }
             Op::Shared(slot) => {
@@ -59,11 +69,8 @@ pub(super) fn run(
                 let mut value = storage.locals.data[slot]
                     .as_ref()
                     .map_or_else(Value::nil, copy);
-                if let Kind::Offset(offset) = &value.0 {
-                    return Err(offset.value_error());
-                }
-                if let Kind::Builtin(builtin) = value.0 {
-                    value = builtin.read(ctx)?;
+                if matches!(value.0, Kind::Offset(_) | Kind::Builtin(_)) {
+                    value = special_value(ctx, &value)?;
                 }
                 push(ctx, stack, value)?;
             }
@@ -79,11 +86,8 @@ pub(super) fn run(
                     }
                 };
                 let value = storage.locals.data[slot].as_ref().unwrap();
-                if let Kind::Offset(offset) = &value.0 {
-                    return Err(offset.value_error());
-                }
-                let value = if let Kind::Builtin(builtin) = value.0 {
-                    builtin.read(ctx)?
+                let value = if matches!(value.0, Kind::Offset(_) | Kind::Builtin(_)) {
+                    special_value(ctx, value)?
                 } else {
                     copy(value)
                 };
@@ -115,8 +119,8 @@ pub(super) fn run(
                 address::refresh(ctx, slot, value, &mut storage.addresses.data, &[])?;
                 store(storage, slot, copy(value));
             }
-            Op::AddStore(n) => {
-                if !plain_operand(stack) {
+            Op::AddStore(n, number) => {
+                if !number && !plain_operand(stack) {
                     return Ok(());
                 }
                 let Some(slot) = local(ctx, outer, function, frame, storage, n as usize, shadowed)?
@@ -142,8 +146,8 @@ pub(super) fn run(
                 store(storage, slot, copy(&value));
                 push(ctx, stack, value)?;
             }
-            Op::Binary(op) => {
-                if !plain_operand(stack) {
+            Op::Binary(op, number) => {
+                if !number && !plain_operand(stack) {
                     return Ok(());
                 }
                 step(ctx, frame)?;
@@ -159,6 +163,32 @@ pub(super) fn run(
                 };
                 if let Kind::Bool(value) = value.0 {
                     match function.code[frame.ip] {
+                        Op::Dup => {
+                            if let [
+                                Op::Dup,
+                                branch @ (Op::JumpFalse(_) | Op::JumpTrue(_)),
+                                Op::Pop,
+                                ..,
+                            ] = &function.code[frame.ip..]
+                            {
+                                let (target, taken) = match *branch {
+                                    Op::JumpFalse(target) => (target, !value),
+                                    Op::JumpTrue(target) => (target, value),
+                                    _ => unreachable!(),
+                                };
+                                // Binary already freed two operand slots, so neither
+                                // temporary boolean push could reserve storage.
+                                step(ctx, frame)?;
+                                step(ctx, frame)?;
+                                if taken {
+                                    push(ctx, stack, Value::boolean(value))?;
+                                    frame.ip = target as usize;
+                                } else {
+                                    step(ctx, frame)?;
+                                }
+                                continue;
+                            }
+                        }
                         Op::JumpFalse(target) => {
                             step(ctx, frame)?;
                             if !value {
@@ -249,72 +279,6 @@ pub(super) fn run(
                     storage.addresses.data.last().unwrap().check_present(ctx)?;
                 }
             }
-            Op::Mutate(site, n) => {
-                // Only direct array updates, which need no scan of their
-                // result, run here.
-                let direct = !(ctx.has_exports && !function.plain_values.contains(frame.ip))
-                    && updatable(storage.addresses.data.last().unwrap(), site, false);
-                if !direct {
-                    return Ok(());
-                }
-                step(ctx, frame)?;
-                let address = storage.addresses.data.pop().unwrap();
-                let base = stack.data.len() - n as usize;
-                let name = &program.members[site.name as usize];
-                let value = update(ctx, storage, address, site, name, &stack.data[base..])?;
-                stack.data.truncate(base);
-                push(ctx, stack, value)?;
-            }
-            Op::Shovel(site, last) => {
-                if !updatable(storage.addresses.data.last().unwrap(), site, true) {
-                    return Ok(());
-                }
-                step(ctx, frame)?;
-                let value = stack.data.pop().unwrap();
-                let address = storage.addresses.data.pop().unwrap();
-                let args = std::slice::from_ref(&value);
-                let result = if last {
-                    append_loop_tail(ctx, storage, address, site, args)?
-                } else {
-                    update(ctx, storage, address, site, "push", args)?
-                };
-                push(ctx, stack, result)?;
-            }
-            Op::AddressTarget(n, read) => {
-                // An instance reads its element through its own `[]`.
-                let address = storage.addresses.data.last_mut().unwrap();
-                if read && matches!(address.value.0, Kind::Instance(_)) {
-                    return Ok(());
-                }
-                step(ctx, frame)?;
-                address.check_present(ctx)?;
-                address.selectors.ensure(ctx, n as usize)?;
-                let base = stack.data.len() - n as usize;
-                for value in stack.data.drain(base..) {
-                    ctx.charge(1)?;
-                    address.selectors.data.push(value);
-                }
-                if read {
-                    let value = address.read_target(ctx)?;
-                    push(ctx, stack, value)?;
-                }
-            }
-            Op::AddressStore => {
-                // Members, instances and typed instance variables are stored
-                // through setters and guards.
-                let address = storage.addresses.data.last().unwrap();
-                if address.member_target
-                    || matches!(address.value.0, Kind::Instance(_))
-                    || address.object_binding().is_some()
-                {
-                    return Ok(());
-                }
-                step(ctx, frame)?;
-                let address = storage.addresses.data.pop().unwrap();
-                let value = stack.data.pop().unwrap();
-                let value = assign(ctx, storage, address, value)?;
-                push(ctx, stack, value)?;
-            }
             Op::Shadow(slot) => {
                 step(ctx, frame)?;
                 store(storage, frame.local_base() + slot as usize, Value::nil());
@@ -383,12 +347,15 @@ pub(super) fn run(
                     &mut state.last,
                     stack.data.pop().unwrap(),
                 ));
-                stack.data.truncate(state.base);
-                storage.addresses.data.truncate(state.address_base);
-                storage.bypasses.data.truncate(state.bypass_base);
-                storage.texts.data.truncate(state.text_base);
-                storage.arguments.data.truncate(state.argument_base);
                 frame.ip = state.next;
+                if stack.data.len() > state.base
+                    || storage.addresses.data.len() > state.address_base
+                    || storage.bypasses.data.len() > state.bypass_base
+                    || storage.texts.data.len() > state.text_base
+                    || storage.arguments.data.len() > state.argument_base
+                {
+                    clean_loop(storage, stack);
+                }
             }
             Op::RootCall(_, expanded) => {
                 // Without host bindings a resolved call needs no pending target.
@@ -400,9 +367,183 @@ pub(super) fn run(
                 }
                 step(ctx, frame)?;
             }
+            Op::Extended(_) => {
+                if !addressed(ctx, program, function, frame, storage, stack)? {
+                    return Ok(());
+                }
+            }
             _ => return Ok(()),
         }
     }
+}
+
+#[inline(never)]
+fn import_constant(ctx: &mut CallContext, value: &Value) -> Result<Value> {
+    ctx.import(value)
+}
+
+#[cold]
+#[inline(never)]
+fn special_value(ctx: &mut CallContext, value: &Value) -> Result<Value> {
+    match &value.0 {
+        Kind::Offset(offset) => Err(offset.value_error()),
+        Kind::Builtin(builtin) => builtin.read(ctx),
+        _ => unreachable!("ordinary values are copied inline"),
+    }
+}
+
+#[inline]
+fn instruction(program: &Program, function: &Function, frame: &Frame) -> Extended {
+    let Op::Extended(index) = function.code[frame.ip] else {
+        unreachable!("outlined instruction expected");
+    };
+    program.extended[index as usize]
+}
+
+// Keep the selector small so another outlined instruction cannot rearrange
+// the large update bodies or increase this dispatcher's stack reservation.
+#[inline(never)]
+fn addressed(
+    ctx: &mut CallContext,
+    program: &Program,
+    function: &Function,
+    frame: &mut Frame,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+) -> Result<bool> {
+    match instruction(program, function, frame) {
+        Extended::Mutate(..) => mutate(ctx, program, function, frame, storage, stack),
+        Extended::Shovel(..) => shovel(ctx, program, function, frame, storage, stack),
+        Extended::AddressTarget(n, read) => address_target(ctx, frame, storage, stack, n, read),
+        Extended::AddressStore => address_store(ctx, frame, storage, stack),
+    }
+}
+
+/// Executes an outlined mutate instruction when its receiver is plain.
+#[inline(never)]
+fn mutate(
+    ctx: &mut CallContext,
+    program: &Program,
+    function: &Function,
+    frame: &mut Frame,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+) -> Result<bool> {
+    let Extended::Mutate(site, n) = instruction(program, function, frame) else {
+        unreachable!("outlined opcode and handler agree");
+    };
+    // Only direct array updates, which need no scan of their
+    // result, run here.
+    let direct = !(ctx.has_exports && !function.plain_values.contains(frame.ip))
+        && updatable(storage.addresses.data.last().unwrap(), site, false);
+    if !direct {
+        return Ok(false);
+    }
+    step(ctx, frame)?;
+    let address = storage.addresses.data.pop().unwrap();
+    let base = stack.data.len() - n as usize;
+    let name = &program.members[site.name as usize];
+    let value = update(ctx, storage, address, site, name, &stack.data[base..])?;
+    stack.data.truncate(base);
+    push(ctx, stack, value)?;
+    Ok(true)
+}
+
+/// Executes an outlined shovel instruction when its receiver is plain.
+#[inline(never)]
+fn shovel(
+    ctx: &mut CallContext,
+    program: &Program,
+    function: &Function,
+    frame: &mut Frame,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+) -> Result<bool> {
+    let Extended::Shovel(site, last) = instruction(program, function, frame) else {
+        unreachable!("outlined opcode and handler agree");
+    };
+    if !updatable(storage.addresses.data.last().unwrap(), site, true) {
+        return Ok(false);
+    }
+    step(ctx, frame)?;
+    let value = stack.data.pop().unwrap();
+    let address = storage.addresses.data.pop().unwrap();
+    let args = std::slice::from_ref(&value);
+    let result = if last {
+        append_loop_tail(ctx, storage, address, site, args)?
+    } else {
+        update(ctx, storage, address, site, "push", args)?
+    };
+    push(ctx, stack, result)?;
+    Ok(true)
+}
+
+/// Executes an outlined address target instruction when its receiver is plain.
+#[inline(never)]
+fn address_target(
+    ctx: &mut CallContext,
+    frame: &mut Frame,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+    n: u32,
+    read: bool,
+) -> Result<bool> {
+    // An instance reads its element through its own `[]`.
+    let address = storage.addresses.data.last_mut().unwrap();
+    if read && matches!(address.value.0, Kind::Instance(_)) {
+        return Ok(false);
+    }
+    step(ctx, frame)?;
+    address.check_present(ctx)?;
+    address.selectors.ensure(ctx, n as usize)?;
+    let base = stack.data.len() - n as usize;
+    for value in stack.data.drain(base..) {
+        ctx.charge(1)?;
+        address.selectors.data.push(value);
+    }
+    if read {
+        let value = address.read_target(ctx)?;
+        push(ctx, stack, value)?;
+    }
+    Ok(true)
+}
+
+/// Executes an outlined address store instruction when its receiver is plain.
+#[inline(never)]
+fn address_store(
+    ctx: &mut CallContext,
+    frame: &mut Frame,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+) -> Result<bool> {
+    // Members, instances and typed instance variables are stored
+    // through setters and guards.
+    let address = storage.addresses.data.last().unwrap();
+    if address.member_target
+        || matches!(address.value.0, Kind::Instance(_))
+        || address.object_binding().is_some()
+    {
+        return Ok(false);
+    }
+    step(ctx, frame)?;
+    let address = storage.addresses.data.pop().unwrap();
+    let value = stack.data.pop().unwrap();
+    let value = assign(ctx, storage, address, value)?;
+    push(ctx, stack, value)?;
+    Ok(true)
+}
+
+// A completed body normally leaves only its result. Destruction of abandoned
+// builders and addresses must not inflate every iteration's stack frame.
+#[cold]
+#[inline(never)]
+fn clean_loop(storage: &mut Storage, stack: &mut Buffer<Value>) {
+    let state = storage.loops.data.last().unwrap();
+    stack.data.truncate(state.base);
+    storage.addresses.data.truncate(state.address_base);
+    storage.bypasses.data.truncate(state.bypass_base);
+    storage.texts.data.truncate(state.text_base);
+    storage.arguments.data.truncate(state.argument_base);
 }
 
 /// Borrows a compiled literal for a plain hash, leaving other receivers to

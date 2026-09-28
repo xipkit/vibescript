@@ -145,7 +145,12 @@ impl<'a> Checker<'a> {
             );
         if reported {
             let plain = self.types.plain(ty);
-            self.facts.record_plain(expr, plain);
+            let number = match ty {
+                Ty::INT => Some(super::Number::Int),
+                Ty::FLOAT => Some(super::Number::Float),
+                _ => None,
+            };
+            self.facts.record_value(expr, plain, number);
         }
         ty
     }

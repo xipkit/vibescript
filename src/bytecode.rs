@@ -14,6 +14,7 @@ mod calls;
 mod errors;
 mod loops;
 mod namespaces;
+mod numeric;
 mod regex;
 mod typing;
 
@@ -93,10 +94,10 @@ pub(crate) enum Op {
     Pop,
     Dup,
     Unary(Operator),
-    Binary(Operator),
+    Binary(Operator, bool),
     /// The flag marks an append whose enclosing loop result is unused.
     Shovel(CallSite, bool),
-    AddStore(u32),
+    AddStore(u32, bool),
     Array(u32),
     TextStart,
     TextPart,
@@ -170,9 +171,34 @@ pub(crate) enum Op {
     AddressJumpNil(u32, bool),
     Return,
     Finish,
+    /// Executes an outlined instruction from [`Program::extended`].
+    Extended(u32),
 }
 
 const _: () = assert!(std::mem::size_of::<Op>() == 16);
+
+/// Instructions whose large temporaries stay outside the simple loop. Extending
+/// this table does not change the hot dispatch's opcode set or stack frame.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Extended {
+    Mutate(CallSite, u32),
+    Shovel(CallSite, bool),
+    AddressTarget(u32, bool),
+    AddressStore,
+}
+
+impl Extended {
+    /// Restores the general form without growing its dispatcher with each new variant.
+    #[inline(never)]
+    pub(crate) fn op(self) -> Op {
+        match self {
+            Self::Mutate(site, count) => Op::Mutate(site, count),
+            Self::Shovel(site, last) => Op::Shovel(site, last),
+            Self::AddressTarget(count, read) => Op::AddressTarget(count, read),
+            Self::AddressStore => Op::AddressStore,
+        }
+    }
+}
 
 /// Narrows an index to the 32 bits instructions and frames keep: a
 /// program's slots, jump targets and tables fit, as its source is at most
@@ -603,6 +629,8 @@ pub(crate) struct Program {
     pub raises: Vec<(usize, Option<usize>)>,
     /// How each destructuring target selects its value ([`Op::Extract`]).
     pub selections: Vec<Selection>,
+    /// Payloads for instructions executed outside the simple dispatch loop.
+    pub extended: Vec<Extended>,
     /// Top-level declarations in source order, for [`crate::Script::declarations`].
     pub outline: Vec<crate::Declaration>,
 }
@@ -728,6 +756,7 @@ pub(crate) fn compile_parsed(
         members: Vec::new(),
         raises: Vec::new(),
         selections: Vec::new(),
+        extended: Vec::new(),
         outline,
     };
     let declared = |name: &str| {
@@ -833,7 +862,7 @@ pub(crate) fn compile_parsed(
         program.functions[index] = function;
     }
     program.shared_slots = HashMap::new();
-    loops::discarded(&mut program.functions);
+    loops::discarded(&mut program.functions, &mut program.extended);
     program.prove_instance_variables(work)?;
     if facts.keep_type_checks {
         for function in &mut program.functions {
@@ -1330,6 +1359,20 @@ impl Compiler<'_> {
         Ok(())
     }
     fn emit(&mut self, op: Op) -> usize {
+        let extended = match op {
+            Op::Mutate(site, count) => Some(Extended::Mutate(site, count)),
+            Op::Shovel(site, last) => Some(Extended::Shovel(site, last)),
+            Op::AddressTarget(count, read) => Some(Extended::AddressTarget(count, read)),
+            Op::AddressStore => Some(Extended::AddressStore),
+            _ => None,
+        };
+        let op = if let Some(extended) = extended {
+            let index = self.program.extended.len();
+            self.program.extended.push(extended);
+            Op::Extended(narrow(index))
+        } else {
+            op
+        };
         let pos = self.code.len();
         self.code.push(op);
         self.locations.push(self.offset);
@@ -1345,7 +1388,7 @@ impl Compiler<'_> {
     fn binary(&mut self, op: &str) -> Result<usize> {
         let operator = Operator::new(op)
             .ok_or_else(|| syntax::unsupported(self.work, "unsupported operator"))?;
-        Ok(self.emit(Op::Binary(operator)))
+        Ok(self.emit(Op::Binary(operator, false)))
     }
     fn patch(&mut self, pos: usize, target: usize) {
         match &mut self.code[pos] {
@@ -2315,7 +2358,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     self.assignment_rhs(binding_target, &[rhs]).await?;
                     let mut c = self.c();
                     if let Some(op) = binary {
-                        c.binary(op)?;
+                        c.number_binary(op, target, rhs)?;
                     }
                     c.emit(Op::StoreGlobal(narrow(global)));
                     return Ok(());
@@ -2350,7 +2393,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     if let Node::Binary("+", left, right) = &rhs.node {
                         self.assignment_rhs(binding_target, &[left, right]).await?;
                         let mut c = self.c();
-                        let instruction = c.emit(Op::AddStore(narrow(slot)));
+                        let instruction = c.number_store(slot, left, right);
                         c.locations[instruction] = rhs.offset;
                         return Ok(());
                     }
@@ -2361,11 +2404,11 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 self.assignment_rhs(binding_target, &[rhs]).await?;
                 let mut c = self.c();
                 if binary == Some("+") && fused {
-                    c.emit(Op::AddStore(narrow(slot)));
+                    c.number_store(slot, target, rhs);
                     return Ok(());
                 }
                 if let Some(op) = binary {
-                    c.binary(op)?;
+                    c.number_binary(op, target, rhs)?;
                 }
                 if typed {
                     c.check_local(name)?;
@@ -2407,7 +2450,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     } else {
                         self.assignment_rhs(binding_target, &[rhs]).await?;
                         let mut c = self.c();
-                        let operator = c.binary(binary.unwrap())?;
+                        let operator = c.number_binary(binary.unwrap(), target, rhs)?;
                         let store = c.emit(Op::AddressStore);
                         c.locations[operator] = target.offset;
                         c.locations[store] = target.offset;
@@ -2675,7 +2718,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     c.patch(jump, end);
                 } else {
                     self.expr(b).await?;
-                    self.c().binary(op)?;
+                    self.c().number_binary(op, a, b)?;
                 }
             }
             Node::Call(name, args, _) if name == "block_given?" => {

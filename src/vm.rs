@@ -671,6 +671,10 @@ impl Run {
             let namespace = function.namespace;
             let caller_instance = matches!(frame.receiver, Some(Value(Kind::Instance(_))));
             ctx.charge(1)?;
+            let op = match op {
+                Op::Extended(index) => program.extended[index as usize].op(),
+                op => op,
+            };
             let mut slot = |slot: usize, skip: bool| -> Result<usize> {
                 // A bound local of the executing frame always resolves to itself.
                 if !skip && storage.locals.data[local_base + slot].is_some() {
@@ -702,7 +706,7 @@ impl Run {
                 Op::ReceiverBound(n, next) => Op::ReceiverBound(bound(n)?, next),
                 Op::Declare(n) => Op::Declare(bound(n)?),
                 Op::Store(n) => Op::Store(bound(n)?),
-                Op::AddStore(n) => Op::AddStore(bound(n)?),
+                Op::AddStore(n, number) => Op::AddStore(bound(n)?, number),
                 Op::AddressLocal(n) => Op::AddressLocal(bound(n)?),
                 Op::AddressBound(n, next) => Op::AddressBound(bound(n)?, next),
                 // A required file's own bindings live in its scope rather than in slots.
@@ -1780,7 +1784,7 @@ impl Run {
                     let result = ops::unary(ctx, op, value)?;
                     stack.push(ctx, result)?;
                 }
-                Op::Binary(op) => {
+                Op::Binary(op, _) => {
                     let b = stack.data.pop().unwrap();
                     let a = stack.data.pop().unwrap();
                     if let Some(value) = ops::immediate(ctx, op, &a, &b)? {
@@ -1809,7 +1813,7 @@ impl Run {
                     let value = ops::binary(ctx, op, a, b)?;
                     stack.push(ctx, value)?;
                 }
-                Op::AddStore(n) => {
+                Op::AddStore(n, _) => {
                     let b = stack.data.pop().unwrap();
                     let a = stack.data.pop().unwrap();
                     // An immediate sum cannot fail part way, so the slot is written once.
@@ -3315,6 +3319,7 @@ impl Run {
                     }
                 }
                 Op::Return | Op::Finish => unreachable!("returns skip the prologue"),
+                Op::Extended(_) => unreachable!("outlined instructions are expanded above"),
             }
             if ctx.has_exports
                 && matches!(

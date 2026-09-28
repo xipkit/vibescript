@@ -335,7 +335,7 @@ impl<'x> Compiling<'_, 'x> {
         self.assignment_rhs(binding, &[rhs]).await?;
         let mut c = self.c();
         if let Some(op) = binary {
-            c.binary(op)?;
+            c.number_binary(op, target, rhs)?;
         }
         // A typed constant checks every value it is given.
         c.check_local(name)?;
