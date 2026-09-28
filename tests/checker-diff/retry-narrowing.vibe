@@ -1,0 +1,16 @@
+# expect: rejected V0107
+# A `retry` runs the body again after the rescue assigned `v`, so the
+# narrowing from before the `begin` no longer holds there.
+n = 0
+v: int? = -3
+if v != nil
+  begin
+    n += 1
+    t: int = v
+    raise "again" if n < 2
+  rescue
+    v = nil
+    retry if n < 3
+  end
+end
+p(n, v)

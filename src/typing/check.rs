@@ -854,9 +854,16 @@ impl<'a> Checker<'a> {
     pub(super) fn widen_for_loop(&mut self, body: &[Stmt]) {
         let mut names = Vec::new();
         assigned_names(body, &mut names);
-        self.steps += names.len() as u64 + body.len() as u64;
+        self.steps += body.len() as u64;
+        self.widen(&names);
+    }
+
+    /// Widens each local of `names` in scope to its declared type, which
+    /// forgets its narrowing but not whether it is assigned.
+    pub(super) fn widen(&mut self, names: &[String]) {
+        self.steps += names.len() as u64;
         for name in names {
-            if let Some(id) = self.local(&name) {
+            if let Some(id) = self.local(name) {
                 let state = self.frame.flow.get(id);
                 let declared = self.frame.locals[id as usize].declared;
                 self.frame.flow.set(

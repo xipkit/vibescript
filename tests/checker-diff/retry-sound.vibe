@@ -1,0 +1,15 @@
+# expect: agreed
+n = 0
+v: int? = -3
+begin
+  n += 1
+  if v != nil
+    t: int = v
+    p(t)
+  end
+  raise "again" if n < 2
+rescue
+  v = nil
+  retry if n < 3
+end
+p(n, v)

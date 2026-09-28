@@ -3,7 +3,7 @@
 
 use super::{
     Checker,
-    check::{Purpose, Want, is_constant},
+    check::{Purpose, Want, assigned_names, is_constant},
     program::{FnId, NsId},
     sigs,
     ty::{Field, Kind, Ty},
@@ -1856,6 +1856,25 @@ impl<'a> Checker<'a> {
     }
 
     fn attempt(&mut self, attempt: &'a Try, want: Want) -> Ty {
+        // A rescue or the ensure may run after any part of the body, so
+        // what the body assigns may have its value or its earlier one; the
+        // ensure, or a `retry` running the body again, may also follow any
+        // part of a rescue.
+        let retry = attempt.rescues.iter().any(|rescue| retries(&rescue.body));
+        let mut assigned = Vec::new();
+        if !attempt.rescues.is_empty() || !attempt.ensure.is_empty() {
+            assigned_names(&attempt.body, &mut assigned);
+        }
+        let mut handled = Vec::new();
+        if retry || !attempt.ensure.is_empty() {
+            handled.clone_from(&assigned);
+            for rescue in attempt.rescues.iter() {
+                assigned_names(&rescue.body, &mut handled);
+            }
+        }
+        if retry {
+            self.widen(&handled);
+        }
         let entry = self.frame.flow.mark();
         let body_want = if attempt.alternate.is_empty() {
             want
@@ -1873,9 +1892,10 @@ impl<'a> Checker<'a> {
             results.push(body);
         }
         let mut explored = vec![self.frame.flow.rollback(entry)];
+        if !attempt.rescues.is_empty() {
+            self.widen(&assigned);
+        }
         for rescue in attempt.rescues.iter() {
-            // A rescue may run after any part of the body: only what held
-            // before it is known.
             self.open_scope();
             if let Some(binding) = &rescue.binding {
                 let id = self.declare(binding, Ty::ERROR_VALUE, rescue.offset as usize, true);
@@ -1891,12 +1911,39 @@ impl<'a> Checker<'a> {
         }
         self.join(explored);
         if !attempt.ensure.is_empty() {
+            // After the ensure, what it assigns holds, and the rest is as
+            // the body or the rescue left it.
             let live = self.frame.flow.live;
+            let mark = self.frame.flow.mark();
+            self.widen(&handled);
             self.stmts(&attempt.ensure, Want::Discard);
-            self.frame.flow.live = live && self.frame.flow.live;
+            let ensured = self.frame.flow.live;
+            let branch = self.frame.flow.rollback(mark);
+            let mut kept = Vec::new();
+            assigned_names(&attempt.ensure, &mut kept);
+            for (id, state) in branch.changes {
+                if kept.contains(&self.frame.locals[id as usize].name) {
+                    self.frame.flow.set(id, state);
+                }
+            }
+            self.frame.flow.live = live && ensured;
         }
         self.types.union(&results)
     }
+}
+
+/// Whether statements `retry` their `begin`, outside any `begin` nested in
+/// them, which retries its own.
+fn retries(stmts: &[crate::syntax::Stmt]) -> bool {
+    use crate::syntax::Statement;
+    stmts.iter().any(|stmt| match &stmt.node {
+        Statement::Retry => true,
+        Statement::If(branches, alternate, _) => {
+            branches.iter().any(|(_, body)| retries(body)) || retries(alternate)
+        }
+        Statement::While(_, body, _) | Statement::For(_, _, body) => retries(body),
+        _ => false,
+    })
 }
 
 /// The integer a literal selector spells, including a negated one.
