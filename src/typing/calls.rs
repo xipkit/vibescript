@@ -2414,15 +2414,15 @@ impl<'a> Checker<'a> {
         // Union receivers supply different block parameter types on each pass.
         let outer_memo = self.memo.take();
         self.open_scope();
-        let mut assigned = Vec::new();
-        super::check::assigned_names(&block.body, &mut assigned);
-        for name in assigned {
-            if let Some(id) = self.local(&name) {
+        // The widening below charges for listing these names.
+        let span = self.assigns.body(&block.body);
+        for name in self.assigns.distinct(span) {
+            if let Some(id) = self.local(name) {
                 if self.frame.ambient.contains(&id)
                     && !name.chars().next().is_some_and(char::is_uppercase)
                 {
                     let ty = self.frame.locals[id as usize].declared;
-                    self.declare(&name, ty, block.offset as usize, false);
+                    self.declare(name, ty, block.offset as usize, false);
                 }
             }
         }

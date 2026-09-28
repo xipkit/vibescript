@@ -15,7 +15,8 @@
 //! the same form, with type variables and bounds. `check`, `expr` and `calls`
 //! walk each body once: `flow` keeps each local's narrowed type and
 //! definite assignment on one state with a trail of changes, so branches and
-//! loops join in time proportional to what they changed. `modules` resolves
+//! loops join in time proportional to what they changed, and `assigns` lists
+//! what each `begin`, loop and block assigns in one walk. `modules` resolves
 //! and checks the files a program requires, and `spans` turns the syntax
 //! tree's start offsets into exact spans from the parser's tokens.
 
@@ -25,6 +26,7 @@ use std::{
     fmt,
 };
 
+mod assigns;
 mod calls;
 mod check;
 mod construction;
@@ -380,6 +382,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         self_receiver: false,
         symbols_stay: None,
         storing_self: None,
+        assigns: assigns::Assigns::default(),
     };
     for (name, host) in &input.hosts {
         let function = crate::signatures::host::function(name, host);
@@ -462,6 +465,7 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
         self_receiver: false,
         symbols_stay: None,
         storing_self: None,
+        assigns: assigns::Assigns::default(),
     };
     checker.declare_hosts(input.declared);
     checker.declare_program(input.parsed);
@@ -523,6 +527,8 @@ pub(crate) struct Checker<'a> {
     /// The instance variable that `self` itself is being stored into, as in
     /// `@next = self`, which the store assigns rather than lets escape.
     storing_self: Option<String>,
+    /// The names each `begin`, loop and block body assigns.
+    assigns: assigns::Assigns<'a>,
 }
 
 /// Expression types by node, recorded or replayed.

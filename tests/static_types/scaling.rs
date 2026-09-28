@@ -11,7 +11,7 @@ fn repeat(count: usize, item: impl Fn(usize) -> String) -> String {
 /// statement or expression.
 type Shape = (&'static str, usize, fn(usize) -> String);
 
-const SHAPES: [Shape; 14] = [
+const SHAPES: [Shape; 17] = [
     ("functions calling their predecessor", 200, |count| {
         "def f0(n: int) -> int\n  n\nend\n".to_owned()
             + &repeat(count, |i| {
@@ -112,6 +112,15 @@ end\n"
             )
         },
     ),
+    ("begins nested around repeated assignments", 100, |count| {
+        nest(count, "begin\n", "rescue\n  c = 1\nensure\n  c = 2\nend\n")
+    }),
+    ("loops nested around repeated assignments", 100, |count| {
+        nest(count, "while c > 0\n", "  c -= 1\nend\n")
+    }),
+    ("blocks nested around repeated assignments", 60, |count| {
+        nest(count, "[1].each { |q|\n", "}\n")
+    }),
     ("loops assigning many locals", 100, |count| {
         format!(
             "def f(x: int) -> int\n{}  while x > 0\n{}    x -= 1\n  end\n  0\nend\n",
@@ -120,6 +129,17 @@ end\n"
         )
     }),
 ];
+
+/// A function whose body nests `count` levels of `open` and `close` around
+/// `count` assignments of one local.
+fn nest(count: usize, open: &str, close: &str) -> String {
+    format!(
+        "def f -> int\n  x: int? = 0\n  c = 1\n{}{}{}  0\nend\n",
+        open.repeat(count),
+        "x = 1\n".repeat(count),
+        close.repeat(count)
+    )
+}
 
 fn steps(source: &str) -> u64 {
     let checked = Engine::new().type_check(source).unwrap();
@@ -149,6 +169,26 @@ fn doubling_a_program_at_most_doubles_the_checking_work() {
             2 * count
         );
     }
+}
+
+#[test]
+fn a_deep_nest_around_many_assignments_checks_in_linear_work() {
+    // Each level's rescue and ensure may see what the levels inside assign;
+    // listing those assignments again at every level once took work and
+    // memory proportional to the depth times the assignments.
+    let levels = if cfg!(target_os = "wasi") { 100 } else { 900 };
+    let source = format!(
+        "x: int? = 1\nc = true\n{}{}{}",
+        "begin\n".repeat(levels),
+        "x = 1\n".repeat(10_000),
+        "rescue\nc = false\nensure\nc = true\nend\n".repeat(levels)
+    );
+    let steps = steps(&source);
+    assert!(
+        steps < 2 * source.len() as u64,
+        "{steps} steps for {} bytes",
+        source.len()
+    );
 }
 
 // WASI preview 1 cannot start the small-stack thread.

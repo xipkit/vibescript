@@ -851,16 +851,17 @@ impl<'a> Checker<'a> {
 
     /// Widens the locals a loop body assigns back to their declared types,
     /// since the body may run again after narrowing them.
-    pub(super) fn widen_for_loop(&mut self, body: &[Stmt]) {
-        let mut names = Vec::new();
-        assigned_names(body, &mut names);
+    pub(super) fn widen_for_loop(&mut self, body: &'a [Stmt]) {
+        let span = self.assigns.body(body);
         self.steps += body.len() as u64;
-        self.widen(&names);
+        self.widen(span);
     }
 
-    /// Widens each local of `names` in scope to its declared type, which
-    /// forgets its narrowing but not whether it is assigned.
-    pub(super) fn widen(&mut self, names: &[String]) {
+    /// Widens each local in scope that an assignment in `span` writes to its
+    /// declared type, which forgets its narrowing but not whether it is
+    /// assigned.
+    pub(super) fn widen(&mut self, span: super::assigns::Span) {
+        let names = self.assigns.distinct(span);
         self.steps += names.len() as u64;
         for name in names {
             if let Some(id) = self.local(name) {

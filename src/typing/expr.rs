@@ -3,7 +3,8 @@
 
 use super::{
     Checker,
-    check::{Purpose, Want, assigned_names, is_constant},
+    assigns::TrySpans,
+    check::{Purpose, Want, is_constant},
     flow::{Branch, VarState},
     program::{FnId, NsId},
     sigs,
@@ -1880,20 +1881,9 @@ impl<'a> Checker<'a> {
         // what the body assigns may have its value or its earlier one; the
         // ensure, or a `retry` running the body again, may also follow any
         // part of a rescue, and the ensure any part of the `else`.
-        let retry = attempt.rescues.iter().any(|rescue| retries(&rescue.body));
-        let mut assigned = Vec::new();
-        if !attempt.rescues.is_empty() || !attempt.ensure.is_empty() {
-            assigned_names(&attempt.body, &mut assigned);
-        }
-        let mut handled = Vec::new();
-        if retry || !attempt.ensure.is_empty() {
-            handled.clone_from(&assigned);
-            for rescue in attempt.rescues.iter() {
-                assigned_names(&rescue.body, &mut handled);
-            }
-        }
-        if retry {
-            self.widen(&handled);
+        let spans = self.assigns.attempt(attempt);
+        if attempt.rescues.iter().any(|rescue| retries(&rescue.body)) {
+            self.widen(spans.retried());
         }
         let entry = self.frame.flow.mark();
         let body_want = if attempt.alternate.is_empty() {
@@ -1913,7 +1903,7 @@ impl<'a> Checker<'a> {
         }
         let mut explored = vec![self.frame.flow.rollback(entry)];
         if !attempt.rescues.is_empty() {
-            self.widen(&assigned);
+            self.widen(spans.body);
         }
         for rescue in attempt.rescues.iter() {
             self.open_scope();
@@ -1932,29 +1922,29 @@ impl<'a> Checker<'a> {
         if attempt.ensure.is_empty() {
             self.join(explored);
         } else {
-            assigned_names(&attempt.alternate, &mut handled);
-            self.ensure(&attempt.ensure, explored, &handled);
+            self.ensure(&attempt.ensure, explored, spans);
         }
         self.types.union(&results)
     }
 
     /// Checks an ensure from what holds wherever it may start: before the
-    /// body, less the narrowing of `handled`, what the body, the `else` and
-    /// the rescues assign. Then joins the `explored` ends of the body and
-    /// the rescues, and applies what the ensure proves on the way out: a
-    /// local it assigns has the state it leaves, and any other the state
-    /// both the join and the ensure's guards and exits prove.
-    fn ensure(&mut self, ensure: &'a [Stmt], explored: Vec<Branch>, handled: &[String]) {
+    /// body, less the narrowing of what the body, the `else` and the rescues
+    /// assign. Then joins the `explored` ends of the body and the rescues,
+    /// and applies what the ensure proves on the way out: a local it assigns
+    /// has the state it leaves, and any other the state both the join and
+    /// the ensure's guards and exits prove.
+    fn ensure(&mut self, ensure: &'a [Stmt], explored: Vec<Branch>, spans: TrySpans) {
         let mark = self.frame.flow.mark();
-        self.widen(handled);
+        self.widen(spans.ensured());
         self.stmts(ensure, Want::Discard);
         let ensured = self.frame.flow.live;
         let branch = self.frame.flow.rollback(mark);
         self.join(explored);
-        let mut kept = Vec::new();
-        assigned_names(ensure, &mut kept);
         for (id, state) in branch.changes {
-            if kept.contains(&self.frame.locals[id as usize].name) {
+            if self
+                .assigns
+                .writes(spans.ensure, &self.frame.locals[id as usize].name)
+            {
                 self.frame.flow.set(id, state);
             } else {
                 let joined = self.frame.flow.get(id);
