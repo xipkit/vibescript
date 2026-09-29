@@ -69,7 +69,13 @@ impl<'a> Spans<'a> {
 
     /// What the spans' tables hold.
     pub fn bytes(&self) -> usize {
-        self.owned + super::meter::map(&self.lasts.borrow())
+        self.owned + self.table()
+    }
+
+    /// What the table of last offsets holds, which grows by an entry a
+    /// node.
+    pub fn table(&self) -> usize {
+        super::meter::map(&self.lasts.borrow())
     }
 
     fn step(&self, count: usize) {

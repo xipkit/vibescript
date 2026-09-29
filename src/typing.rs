@@ -253,6 +253,16 @@ impl Facts {
             + set(&self.results)
             + self.names
     }
+
+    /// The largest of the facts' tables, which grow by an entry a node.
+    fn largest(&self) -> usize {
+        use meter::{map, set};
+        map(&self.bases)
+            .max(map(&self.values))
+            .max(map(&self.blocks))
+            .max(map(&self.classes))
+            .max(set(&self.results))
+    }
 }
 
 /// A syntax node's identity, which is stable from checking to compiling.

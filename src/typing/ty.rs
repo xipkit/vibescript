@@ -268,13 +268,18 @@ impl Types {
     /// The bytes the interned types and the caches hold; the names of
     /// declarations are the checker's to count, since they change rarely.
     pub fn bytes(&self) -> usize {
+        let tables = [
+            meter::map(&self.ids),
+            meter::map(&self.assignable),
+            meter::map(&self.index),
+            meter::map(&self.plain),
+        ];
+        let largest = tables.iter().copied().max().unwrap_or(0);
         meter::vec(&self.kinds)
-            + meter::map(&self.ids)
+            + tables.iter().sum::<usize>()
             + self.payload
-            + meter::map(&self.assignable)
-            + meter::map(&self.index)
             + self.index_bytes
-            + meter::map(&self.plain)
+            + meter::growth(largest)
     }
 
     /// A type table with an account of its own.

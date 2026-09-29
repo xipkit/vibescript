@@ -143,6 +143,15 @@ impl<'a> Assigns<'a> {
             + self.held
     }
 
+    /// The largest of the tables, which grow by an entry a name or body.
+    pub fn largest(&self) -> usize {
+        use super::meter::{map, set};
+        map(&self.ids)
+            .max(map(&self.bodies))
+            .max(map(&self.tries))
+            .max(set(&self.retried))
+    }
+
     /// Whether some assignment in `span` writes `name`.
     pub fn writes(&self, span: Span, name: &str) -> bool {
         let Some(&id) = self.ids.get(name) else {

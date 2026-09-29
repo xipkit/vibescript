@@ -281,6 +281,14 @@ pub(crate) fn vec<T>(items: &Vec<T>) -> usize {
     items.capacity() * size_of::<T>()
 }
 
+/// What a hash table of `bytes` holds beside itself while it grows: its
+/// larger table is allocated before the old one, half the size, is freed.
+/// An account adds this for the largest of its growing tables, since
+/// only one grows at a time.
+pub(crate) fn growth(bytes: usize) -> usize {
+    bytes / 2
+}
+
 pub(crate) fn map<K, V, S>(entries: &HashMap<K, V, S>) -> usize {
     table::<(K, V)>(entries.capacity())
 }
@@ -395,7 +403,20 @@ impl<'a> super::Checker<'a> {
     fn outside(&self) -> usize {
         let frame = &self.frame;
         let contexts: usize = frame.contexts.iter().map(Heap::heap).sum();
-        vec(&self.diagnostics)
+        let largest = [
+            self.facts.largest(),
+            self.spans.table(),
+            self.assigns.largest(),
+            map(&self.constants),
+            set(&self.write_chain),
+            map(&self.fetch_receivers),
+            self.memo.as_ref().map_or(0, super::Memo::bytes),
+        ]
+        .into_iter()
+        .max()
+        .unwrap_or(0);
+        growth(largest)
+            + vec(&self.diagnostics)
             + vec(&self.calls)
             + map(&self.constants)
             + self.grown
