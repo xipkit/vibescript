@@ -508,26 +508,22 @@ impl<'a> Checker<'a> {
         let Some(hint) = hint else {
             return Vec::new();
         };
-        let keys: std::collections::HashSet<&[u8]> =
-            entries.iter().map(|(key, _)| &key[..]).collect();
         for alternative in self.types.members(hint) {
             let shared = self.types.shared(alternative);
             let Kind::Shape(fields, open) = &*shared else {
                 continue;
             };
-            self.types.work(fields.len() + entries.len());
-            let has = |name: &str| keys.contains(name.as_bytes());
-            let keys_fit = entries
+            let Some(given) = self.given_fields(fields, *open, entries) else {
+                continue;
+            };
+            let required = fields
                 .iter()
-                .all(|(key, _)| *open || Types::field(fields, key).is_some());
-            if !keys_fit
-                || fields
-                    .iter()
-                    .any(|field| !field.optional && !has(&field.name))
-            {
+                .zip(&given)
+                .all(|(field, &given)| field.optional || given);
+            if !required {
                 continue;
             }
-            if fields.iter().all(|field| has(&field.name)) {
+            if given.iter().all(|&given| given) {
                 exact.push(alternative);
             } else {
                 loose.push(alternative);
@@ -543,6 +539,32 @@ impl<'a> Checker<'a> {
             Some(widest) => vec![widest],
             None => candidates,
         }
+    }
+
+    /// Which of a shape's `fields` a literal with `entries` gives, found by
+    /// searching the sorted fields for each key, so the keys need no table
+    /// of their own; `None` when a key names no field of a closed shape,
+    /// or the check stopped at its budget.
+    fn given_fields(
+        &mut self,
+        fields: &[Field],
+        open: bool,
+        entries: &[(crate::compilation::Bytes, Expr)],
+    ) -> Option<Vec<bool>> {
+        self.types.work(fields.len() + entries.len());
+        self.transient(fields.len());
+        let mut given = vec![false; fields.len()];
+        for (index, (key, _)) in entries.iter().enumerate() {
+            if index % 4096 == 4095 && self.over_budget() {
+                return None;
+            }
+            match fields.binary_search_by(|field| field.name.as_bytes().cmp(key)) {
+                Ok(at) => given[at] = true,
+                Err(_) if open => (),
+                Err(_) => return None,
+            }
+        }
+        (!self.types.stopped()).then_some(given)
     }
 
     /// Types a record literal that fits several shapes, none of which
