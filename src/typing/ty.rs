@@ -370,6 +370,12 @@ impl Types {
         &self.kinds[ty.0 as usize]
     }
 
+    /// `ty`'s kind, shared rather than copied, which the table's own
+    /// changes then leave alone.
+    pub fn shared(&self, ty: Ty) -> Arc<Kind> {
+        Arc::clone(&self.kinds[ty.0 as usize])
+    }
+
     pub fn array(&mut self, element: Ty) -> Ty {
         self.intern(Kind::Array(element))
     }
@@ -391,22 +397,22 @@ impl Types {
     /// dictionary of its fields' types.
     pub fn rekeyed(&mut self, ty: Ty) -> Ty {
         self.charge(1);
-        match self.kind(ty).clone() {
+        match &*self.shared(ty) {
             Kind::Shape(fields, open) => {
                 let mut values: Vec<Ty> =
                     fields.iter().map(|field| self.rekeyed(field.ty)).collect();
-                if open {
+                if *open {
                     values.push(Ty::ANY);
                 }
                 let value = self.union(&values);
                 self.hash(value)
             }
             Kind::Hash(value) => {
-                let value = self.rekeyed(value);
+                let value = self.rekeyed(*value);
                 self.hash(value)
             }
             Kind::Array(element) => {
-                let element = self.rekeyed(element);
+                let element = self.rekeyed(*element);
                 self.array(element)
             }
             Kind::Tuple(items) => {
@@ -788,22 +794,22 @@ impl Types {
         if !self.has_var(ty) {
             return ty;
         }
-        match self.kind(ty).clone() {
+        match &*self.shared(ty) {
             Kind::Var(index) => bindings
-                .get(index as usize)
+                .get(*index as usize)
                 .copied()
                 .flatten()
                 .unwrap_or(ty),
             Kind::Array(t) => {
-                let t = self.subst(t, bindings);
+                let t = self.subst(*t, bindings);
                 self.array(t)
             }
             Kind::Hash(t) => {
-                let t = self.subst(t, bindings);
+                let t = self.subst(*t, bindings);
                 self.hash(t)
             }
             Kind::TypeLit(t) => {
-                let t = self.subst(t, bindings);
+                let t = self.subst(*t, bindings);
                 self.type_lit(t)
             }
             Kind::Shape(fields, open) => {
@@ -815,7 +821,7 @@ impl Types {
                         optional: field.optional,
                     })
                     .collect();
-                self.shape(fields, open)
+                self.shape(fields, *open)
             }
             Kind::Tuple(items) => {
                 let items = items.iter().map(|&t| self.subst(t, bindings)).collect();
@@ -854,9 +860,9 @@ impl Types {
 
     /// The element type an array, tuple or range yields when iterated.
     pub fn element(&mut self, ty: Ty) -> Option<Ty> {
-        match self.kind(ty).clone() {
-            Kind::Array(element) => Some(element),
-            Kind::Tuple(items) => Some(self.union(&items)),
+        match &*self.shared(ty) {
+            Kind::Array(element) => Some(*element),
+            Kind::Tuple(items) => Some(self.union(items)),
             Kind::Range => Some(Ty::INT),
             Kind::Error | Kind::Any | Kind::Never => Some(ty),
             _ => None,
@@ -865,11 +871,11 @@ impl Types {
 
     /// The value type of a hash or shape, as `hash<string, V>` would read it.
     pub fn hash_value(&mut self, ty: Ty) -> Option<Ty> {
-        match self.kind(ty).clone() {
-            Kind::Hash(value) => Some(value),
+        match &*self.shared(ty) {
+            Kind::Hash(value) => Some(*value),
             Kind::EmptyHash => Some(Ty::NEVER),
             Kind::Shape(fields, open) => {
-                if open {
+                if *open {
                     return Some(Ty::ANY);
                 }
                 let types: Vec<Ty> = fields.iter().map(|f| f.ty).collect();
@@ -1069,9 +1075,9 @@ impl Types {
         if let Some(&plain) = self.plain.get(&ty) {
             return plain;
         }
-        let plain = match self.kind(ty).clone() {
+        let plain = match &*self.shared(ty) {
             Kind::Any | Kind::Error | Kind::Var(_) | Kind::Exports(_) | Kind::Host(_) => false,
-            Kind::Array(element) | Kind::Hash(element) => self.plain(element),
+            Kind::Array(element) | Kind::Hash(element) => self.plain(*element),
             Kind::Shape(fields, _) => fields.iter().all(|field| self.plain(field.ty)),
             Kind::Tuple(items) | Kind::Union(items) => items.iter().all(|&item| self.plain(item)),
             _ => true,

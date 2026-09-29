@@ -429,14 +429,14 @@ impl<'a> Checker<'a> {
     /// not resolve, or one of a file it requires in turn, becomes `any`.
     fn import_ty(&mut self, from: &Types, ty: Ty, imports: &Imports) -> Ty {
         self.meter.charge(1);
-        match from.kind(ty).clone() {
+        match &*from.shared(ty) {
             Kind::Error | Kind::Namespace(_) | Kind::Exports(_) => Ty::ANY,
             Kind::Array(element) => {
-                let element = self.import_ty(from, element, imports);
+                let element = self.import_ty(from, *element, imports);
                 self.types.array(element)
             }
             Kind::Hash(value) => {
-                let value = self.import_ty(from, value, imports);
+                let value = self.import_ty(from, *value, imports);
                 self.types.hash(value)
             }
             Kind::Shape(fields, open) => {
@@ -448,7 +448,7 @@ impl<'a> Checker<'a> {
                         optional: field.optional,
                     })
                     .collect();
-                self.types.shape(fields, open)
+                self.types.shape(fields, *open)
             }
             Kind::Tuple(items) => {
                 let items = items
@@ -465,15 +465,15 @@ impl<'a> Checker<'a> {
                 self.types.union(&items)
             }
             Kind::TypeLit(described) => {
-                let described = self.import_ty(from, described, imports);
+                let described = self.import_ty(from, *described, imports);
                 self.types.type_lit(described)
             }
-            Kind::Instance(ns) => match imports.classes.get(&ns) {
+            Kind::Instance(ns) => match imports.classes.get(ns) {
                 Some(&id) => self.types.intern(Kind::Instance(id)),
                 None => Ty::ANY,
             },
             Kind::EnumValue(id) | Kind::EnumType(id) => {
-                let Some(&imported) = imports.enums.get(id as usize) else {
+                let Some(&imported) = imports.enums.get(*id as usize) else {
                     return Ty::ANY;
                 };
                 let kind = match from.kind(ty) {
@@ -483,7 +483,7 @@ impl<'a> Checker<'a> {
                 self.types.intern(kind)
             }
             Kind::Host(id) => {
-                let name = &from.names.hosts[id as usize];
+                let name = &from.names.hosts[*id as usize];
                 match self.types.names.hosts.iter().position(|host| host == name) {
                     Some(index) => self.types.intern(Kind::Host(index as u32)),
                     None => Ty::ANY,
@@ -491,7 +491,7 @@ impl<'a> Checker<'a> {
             }
             // Scalars, builtin namespaces, type variables and symbols mean
             // the same in both tables.
-            kind => self.types.intern(kind),
+            kind => self.types.intern(kind.clone()),
         }
     }
 

@@ -710,7 +710,7 @@ impl<'a> Checker<'a> {
 
     /// Checks a member call on a receiver of a single type.
     fn member(&mut self, call: &Call<'a, '_>, ty: Ty) -> Ty {
-        let kind = self.types.kind(ty).clone();
+        let kind = &*self.types.shared(ty);
         match kind {
             Kind::Error | Kind::Never => {
                 self.loose_args(call);
@@ -742,13 +742,13 @@ impl<'a> Checker<'a> {
                 Ty::ERROR
             }
             Kind::Instance(ns) => {
-                let method = self.program.namespaces[ns as usize]
+                let method = self.program.namespaces[*ns as usize]
                     .methods
                     .get(call.name)
                     .copied();
                 match method {
                     Some(id) if call.name != "initialize" => {
-                        self.visibility(call.name, call.name_span, id, ns, true);
+                        self.visibility(call.name, call.name_span, id, *ns, true);
                         let sig = self.program.fns[id].sig.clone();
                         self.call_sigs(call, &[(sig, Vec::new())])
                     }
@@ -758,22 +758,22 @@ impl<'a> Checker<'a> {
                     _ => self.table_member(call, ty),
                 }
             }
-            Kind::Namespace(ns) => self.namespace_member(call, ns, ty),
-            Kind::Exports(id) => match self.exported(id, call.name) {
+            Kind::Namespace(ns) => self.namespace_member(call, *ns, ty),
+            Kind::Exports(id) => match self.exported(*id, call.name) {
                 Some(sig) => self.call_sigs(call, &[(sig, Vec::new())]),
-                None => match self.exported_enum(id, call.name) {
+                None => match self.exported_enum(*id, call.name) {
                     Some(enumeration) if call.args.is_empty() && call.block.is_none() => {
                         self.types.intern(Kind::EnumType(enumeration))
                     }
                     _ => {
-                        self.unknown_export(id, call.name, call.name_span);
+                        self.unknown_export(*id, call.name, call.name_span);
                         self.loose_args(call);
                         Ty::ERROR
                     }
                 },
             },
-            Kind::Builtin(index) => self.builtin_member(call, index, ty),
-            Kind::Host(index) => self.host_member(call, index, ty),
+            Kind::Builtin(index) => self.builtin_member(call, *index, ty),
+            Kind::Host(index) => self.host_member(call, *index, ty),
             _ => self.table_member(call, ty),
         }
     }
@@ -1222,7 +1222,7 @@ impl<'a> Checker<'a> {
         };
         let literal = self.expr(&arg.value, None);
         let literal = self.nominal_type(literal);
-        let Kind::TypeLit(target) = self.types.kind(literal).clone() else {
+        let Kind::TypeLit(target) = *self.types.kind(literal) else {
             if literal != Ty::ERROR {
                 let span = self.spans.expr(&arg.value);
                 let found = self.types.display(literal);
@@ -1269,7 +1269,7 @@ impl<'a> Checker<'a> {
     /// The type literal a class or enum used as a value names, since each
     /// names its own type; any other type as it is.
     fn nominal_type(&mut self, ty: Ty) -> Ty {
-        match self.types.kind(ty).clone() {
+        match *self.types.kind(ty) {
             Kind::EnumType(id) => {
                 let member = self.types.intern(Kind::EnumValue(id));
                 self.types.type_lit(member)
@@ -1303,7 +1303,7 @@ impl<'a> Checker<'a> {
             extra: None,
             selectors: &[],
         };
-        match self.types.kind(ty).clone() {
+        match *self.types.kind(ty) {
             Kind::EnumValue(_) | Kind::AnyEnum => {
                 let span = self
                     .spans
@@ -1397,7 +1397,7 @@ impl<'a> Checker<'a> {
             self.grown += super::meter::Heap::heap(&receiver_type);
             self.calls.push((span.start, receiver_type));
         }
-        if let Kind::Host(index) = self.types.kind(ty).clone() {
+        if let Kind::Host(index) = *self.types.kind(ty) {
             let module = self.program.host_modules[index as usize];
             if let Some(crate::signatures::Member::Constant(constant)) =
                 module.members.iter().find(|member| member.name() == name)
@@ -1446,7 +1446,7 @@ impl<'a> Checker<'a> {
                 if alternative == Ty::NIL {
                     continue;
                 }
-                let method = match self.types.kind(alternative).clone() {
+                let method = match *self.types.kind(alternative) {
                     Kind::Instance(ns) => self.program.namespaces[ns as usize]
                         .methods
                         .get(setter)
@@ -1858,7 +1858,7 @@ impl<'a> Checker<'a> {
                         .with_types("array<any>", found),
                     );
                 }
-                if let Kind::Tuple(items) = self.types.kind(ty).clone() {
+                if let Kind::Tuple(items) = &*self.types.shared(ty) {
                     splatted = false;
                     for &element in items.iter() {
                         let param = positional_params.get(index).map(|p| p.ty).or(rest_element);
@@ -1962,7 +1962,7 @@ impl<'a> Checker<'a> {
                 }
                 ArgumentKind::KeywordSplat => {
                     let ty = self.expr(&arg.value, None);
-                    if let Kind::Shape(fields, _) = self.types.kind(ty).clone() {
+                    if let Kind::Shape(fields, _) = &*self.types.shared(ty) {
                         for field in fields.iter() {
                             if !field.optional {
                                 given.push(field.name.to_string());
@@ -2038,13 +2038,11 @@ impl<'a> Checker<'a> {
     /// receiver unchanged, so a shape or tuple keeps its exact type.
     fn member_result(&mut self, call: &Call<'a, '_>, receiver: Ty, result: Ty) -> Ty {
         // `fetch` of a field a shape declares gives that field's type.
-        if let (Kind::Shape(fields, _), "fetch", Some(first)) = (
-            self.types.kind(receiver).clone(),
-            call.name,
-            call.args.first(),
-        ) {
+        if let (Kind::Shape(fields, _), "fetch", Some(first)) =
+            (&*self.types.shared(receiver), call.name, call.args.first())
+        {
             if let Some(key) = super::expr::string_literal(&first.value) {
-                if let Some(field) = Types::field(&fields, key.as_bytes()) {
+                if let Some(field) = Types::field(fields, key.as_bytes()) {
                     return field.ty;
                 }
             }
@@ -2158,17 +2156,14 @@ impl<'a> Checker<'a> {
         if !self.types.has_var(pattern) || actual == Ty::NEVER {
             return;
         }
-        match (
-            self.types.kind(pattern).clone(),
-            self.types.kind(actual).clone(),
-        ) {
+        match (&*self.types.shared(pattern), &*self.types.shared(actual)) {
             (_, Kind::Union(arms)) => {
                 for actual in arms.iter() {
                     self.unify(pattern, *actual, bindings);
                 }
             }
             (Kind::Var(index), _) => {
-                let Some(slot) = bindings.get_mut(index as usize) else {
+                let Some(slot) = bindings.get_mut(*index as usize) else {
                     return;
                 };
                 *slot = Some(match *slot {
@@ -2184,14 +2179,14 @@ impl<'a> Checker<'a> {
                     }
                 });
             }
-            (Kind::Array(p), Kind::Array(a)) => self.unify(p, a, bindings),
+            (Kind::Array(p), Kind::Array(a)) => self.unify(*p, *a, bindings),
             (Kind::Array(p), Kind::Tuple(items)) => {
-                let element = self.types.union(&items);
-                self.unify(p, element, bindings);
+                let element = self.types.union(items);
+                self.unify(*p, element, bindings);
             }
             (Kind::Hash(p), _) => {
                 if let Some(value) = self.types.hash_value(actual) {
-                    self.unify(p, value, bindings);
+                    self.unify(*p, value, bindings);
                 }
             }
             (Kind::Tuple(ps), Kind::Tuple(items)) if ps.len() == items.len() => {
@@ -2201,13 +2196,13 @@ impl<'a> Checker<'a> {
             }
             (Kind::Tuple(ps), Kind::Array(a)) => {
                 for p in ps.iter() {
-                    self.unify(*p, a, bindings);
+                    self.unify(*p, *a, bindings);
                 }
             }
-            (Kind::TypeLit(p), Kind::TypeLit(a)) => self.unify(p, a, bindings),
+            (Kind::TypeLit(p), Kind::TypeLit(a)) => self.unify(*p, *a, bindings),
             (Kind::Shape(pf, _), Kind::Shape(af, _)) => {
                 for field in pf.iter() {
-                    if let Some(found) = Types::field(&af, field.name.as_bytes()) {
+                    if let Some(found) = Types::field(af, field.name.as_bytes()) {
                         self.unify(field.ty, found.ty, bindings);
                     }
                 }
@@ -2367,10 +2362,10 @@ impl<'a> Checker<'a> {
                 };
                 if self.types.has_var(expected) {
                     (Want::Infer(Some(expected)), Some(result))
-                } else if let (Kind::Var(index), true) = (self.types.kind(result).clone(), empty) {
+                } else if let (Kind::Var(index), true) = (&*self.types.shared(result), empty) {
                     // An empty literal bound the variable, and the block's
                     // result may widen it: `reduce([]) { |all, x| all.push(x) }`.
-                    widen = Some((index as usize, expected));
+                    widen = Some((*index as usize, expected));
                     (Want::Infer(Some(expected)), None)
                 } else {
                     (Want::Check(expected), None)

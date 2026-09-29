@@ -244,17 +244,17 @@ impl<'a> Checker<'a> {
         let alternatives = self.types.members(hint);
         let mut enums = Vec::new();
         for &alternative in &alternatives {
-            match self.types.kind(alternative).clone() {
-                Kind::SymbolLit(literal) if &*literal == name => return alternative,
+            match &*self.types.shared(alternative) {
+                Kind::SymbolLit(literal) if &**literal == name => return alternative,
                 Kind::Symbol | Kind::Any => return Ty::SYMBOL,
                 Kind::EnumValue(id) => {
-                    if self.program.enums[id as usize].symbol(name).is_some() {
+                    if self.program.enums[*id as usize].symbol(name).is_some() {
                         if let Some(why) = self.symbols_stay {
-                            self.enum_symbol(expr, id, name, why);
+                            self.enum_symbol(expr, *id, name, why);
                         }
                         return alternative;
                     }
-                    enums.push(id);
+                    enums.push(*id);
                 }
                 _ => (),
             }
@@ -455,7 +455,8 @@ impl<'a> Checker<'a> {
         let hint = self.literal_hint(hint, |kind| {
             matches!(kind, Kind::Array(_) | Kind::Tuple(_) | Kind::Any)
         });
-        match hint.map(|hint| (hint, self.types.kind(hint).clone())) {
+        let shared = hint.map(|hint| (hint, self.types.shared(hint)));
+        match shared.as_ref().map(|(hint, kind)| (*hint, &**kind)) {
             Some((hint, Kind::Tuple(elements))) if elements.len() == items.len() => {
                 if self.types.has_var(hint) {
                     let actual = items
@@ -474,13 +475,13 @@ impl<'a> Checker<'a> {
                 if self.types.has_var(hint) {
                     let actual: Vec<Ty> = items
                         .iter()
-                        .map(|item| self.expr(item, Some(element)))
+                        .map(|item| self.expr(item, Some(*element)))
                         .collect();
                     let element = self.types.union(&actual);
                     return self.types.array(element);
                 }
                 for item in items {
-                    self.expr_against(item, element, &Purpose::Element);
+                    self.expr_against(item, *element, &Purpose::Element);
                 }
                 hint
             }
@@ -594,18 +595,19 @@ impl<'a> Checker<'a> {
                 )
             })
         });
-        match hint.map(|hint| (hint, self.types.kind(hint).clone())) {
+        let shared = hint.map(|hint| (hint, self.types.shared(hint)));
+        match shared.as_ref().map(|(hint, kind)| (*hint, &**kind)) {
             Some((hint, Kind::Hash(value))) => {
                 if self.types.has_var(hint) {
                     let actual: Vec<Ty> = entries
                         .iter()
-                        .map(|(_, entry)| self.expr(entry, Some(value)))
+                        .map(|(_, entry)| self.expr(entry, Some(*value)))
                         .collect();
                     let value = self.types.union(&actual);
                     return self.types.hash(value);
                 }
                 for (_, entry) in entries {
-                    self.expr_against(entry, value, &Purpose::Element);
+                    self.expr_against(entry, *value, &Purpose::Element);
                 }
                 hint
             }
@@ -614,7 +616,7 @@ impl<'a> Checker<'a> {
                 let mut actual = Vec::new();
                 for (key, entry) in entries {
                     let key = String::from_utf8_lossy(key).into_owned();
-                    match Types::field(&fields, key.as_bytes()) {
+                    match Types::field(fields, key.as_bytes()) {
                         Some(field) => {
                             let ty =
                                 self.expr_against(entry, field.ty, &Purpose::Field(key.clone()));
@@ -823,12 +825,12 @@ impl<'a> Checker<'a> {
                 // The runtime never finds an enum member equal to a symbol.
                 for (member, other, value) in [(lt, rt, right), (rt, lt, left)] {
                     if let (Kind::EnumValue(id), true, Node::Literal(v)) = (
-                        self.types.kind(member).clone(),
+                        &*self.types.shared(member),
                         other == Ty::SYMBOL,
                         &value.node,
                     ) {
                         if let Some(symbol) = super::symbol_text(v) {
-                            self.enum_symbol(value, id, &symbol, "they never compare equal");
+                            self.enum_symbol(value, *id, &symbol, "they never compare equal");
                         }
                     }
                 }
@@ -843,7 +845,7 @@ impl<'a> Checker<'a> {
                 let mut results = Vec::new();
                 let mut checked = Vec::new();
                 for alternative in self.types.members(lt) {
-                    let Kind::Instance(ns) = self.types.kind(alternative).clone() else {
+                    let Kind::Instance(ns) = *self.types.kind(alternative) else {
                         results.push(Ty::BOOL);
                         continue;
                     };
@@ -892,7 +894,7 @@ impl<'a> Checker<'a> {
     /// runtime calls: its own, or for `!=` without one, `==`.
     fn equality_visibility(&mut self, expr: &'a Expr, op: &str, left: Ty) {
         for alternative in self.types.members(left) {
-            let Kind::Instance(ns) = self.types.kind(alternative).clone() else {
+            let Kind::Instance(ns) = *self.types.kind(alternative) else {
                 continue;
             };
             let methods = &self.program.namespaces[ns as usize].methods;
@@ -936,7 +938,7 @@ impl<'a> Checker<'a> {
         if left == Ty::NEVER || right == Ty::NEVER {
             return Ty::NEVER;
         }
-        if let Kind::Instance(ns) = self.types.kind(left).clone() {
+        if let Kind::Instance(ns) = *self.types.kind(left) {
             return self.operator_method(ns, op, left, right, span);
         }
         if let Some((left_expr, right_expr)) = operands {
@@ -1030,8 +1032,8 @@ impl<'a> Checker<'a> {
                 Ty::NUMBER
             }
         };
-        let lk = self.types.kind(left).clone();
-        let rk = self.types.kind(right).clone();
+        let lk = &*self.types.shared(left);
+        let rk = &*self.types.shared(right);
         let is_array = |kind: &Kind| matches!(kind, Kind::Array(_) | Kind::Tuple(_));
         Some(match op {
             "+" => {
@@ -1039,7 +1041,7 @@ impl<'a> Checker<'a> {
                     numeric()
                 } else if left == Ty::STRING && right == Ty::STRING {
                     Ty::STRING
-                } else if is_array(&lk) && is_array(&rk) {
+                } else if is_array(lk) && is_array(rk) {
                     let a = self.types.element(left)?;
                     let b = self.types.element(right)?;
                     let element = self.types.union(&[a, b]);
@@ -1069,7 +1071,7 @@ impl<'a> Checker<'a> {
                     Ty::DURATION
                 } else if left == Ty::MONEY && right == Ty::MONEY {
                     Ty::MONEY
-                } else if is_array(&lk) && is_array(&rk) {
+                } else if is_array(lk) && is_array(rk) {
                     let a = self.types.element(left)?;
                     self.types.array(a)
                 } else {
@@ -1163,8 +1165,8 @@ impl<'a> Checker<'a> {
                 let Kind::Array(element) = lk else {
                     return None;
                 };
-                if !self.types.assignable(right, element) {
-                    let expected = self.types.display(element);
+                if !self.types.assignable(right, *element) {
+                    let expected = self.types.display(*element);
                     let found = self.types.display(right);
                     self.report(
                         Diagnostic::error(
@@ -1178,7 +1180,7 @@ impl<'a> Checker<'a> {
                 }
                 left
             }
-            "&" if is_array(&lk) && is_array(&rk) => {
+            "&" if is_array(lk) && is_array(rk) => {
                 let a = self.types.element(left)?;
                 self.types.array(a)
             }
@@ -1236,7 +1238,7 @@ impl<'a> Checker<'a> {
             }
             return Ty::ERROR;
         }
-        let kind = self.types.kind(ty).clone();
+        let kind = &*self.types.shared(ty);
         match (&kind, selectors) {
             (Kind::Array(element), [selector]) => {
                 let key = self.expr(selector, Some(Ty::INT));
@@ -1528,14 +1530,14 @@ impl<'a> Checker<'a> {
                 value_ty
             };
         }
-        let element = match (self.types.kind(ty).clone(), selectors) {
+        let element = match (&*self.types.shared(ty), selectors) {
             (Kind::Array(element), [selector]) => {
                 if evaluate {
                     // Only a single index is assignable, not a range.
                     let key = self.expr(selector, Some(Ty::INT));
                     self.selector(selector, key, Ty::INT);
                 }
-                Some(element)
+                Some(*element)
             }
             (Kind::Tuple(items), [selector]) => {
                 let element = int_literal(selector).and_then(|index| {
@@ -1566,12 +1568,12 @@ impl<'a> Checker<'a> {
                     let key = self.expr(selector, Some(Ty::STRING));
                     self.selector(selector, key, Ty::STRING);
                 }
-                Some(value)
+                Some(*value)
             }
             (Kind::Shape(fields, open), [selector]) => match string_literal(selector) {
-                Some(name) => match Types::field(&fields, name.as_bytes()) {
+                Some(name) => match Types::field(fields, name.as_bytes()) {
                     Some(field) => Some(field.ty),
-                    None if open => Some(Ty::ANY),
+                    None if *open => Some(Ty::ANY),
                     None => {
                         let span = self.spans.expr(selector);
                         let shape = self.types.display(ty);
@@ -1600,7 +1602,7 @@ impl<'a> Checker<'a> {
                     self.restore_memo(outer);
                     return assigned;
                 }
-                self.computed_index_write(expr, ns, selectors, value_ty, value);
+                self.computed_index_write(expr, *ns, selectors, value_ty, value);
                 None
             }
             _ => {
@@ -1756,7 +1758,7 @@ impl<'a> Checker<'a> {
 
     /// The enum member or bool a `when` value names, for exhaustiveness.
     fn covered_value(&mut self, value: &Expr, ty: Ty, subject: Ty) -> Option<String> {
-        match self.types.kind(subject).clone() {
+        match *self.types.kind(subject) {
             Kind::EnumValue(id) => {
                 if let (Node::Literal(v), true) = (&value.node, ty == Ty::SYMBOL) {
                     let symbol = super::symbol_text(v)?;

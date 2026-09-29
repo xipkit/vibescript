@@ -542,14 +542,14 @@ pub(crate) fn declares(types: &Types, receiver: Ty, name: &str) -> bool {
 /// Matches a receiver pattern such as `array<T?>` against a receiver type,
 /// binding the pattern's variables.
 fn bind_receiver(types: &mut Types, pattern: Ty, actual: Ty, bindings: &mut [Option<Ty>]) -> bool {
-    match (types.kind(pattern).clone(), types.kind(actual).clone()) {
+    match (&*types.shared(pattern), &*types.shared(actual)) {
         (Kind::Var(index), _) => {
             // An empty literal's elements are unknown, not impossible: the
             // arguments and the block may bind the variable instead.
             if actual == Ty::NEVER {
                 return true;
             }
-            let slot = &mut bindings[index as usize];
+            let slot = &mut bindings[*index as usize];
             match slot {
                 Some(bound) => *bound == actual,
                 None => {
@@ -558,13 +558,13 @@ fn bind_receiver(types: &mut Types, pattern: Ty, actual: Ty, bindings: &mut [Opt
                 }
             }
         }
-        (Kind::Array(p), Kind::Array(a)) => bind_receiver(types, p, a, bindings),
+        (Kind::Array(p), Kind::Array(a)) => bind_receiver(types, *p, *a, bindings),
         (Kind::Array(p), Kind::Tuple(items)) => {
-            let element = types.union(&items);
-            bind_receiver(types, p, element, bindings)
+            let element = types.union(items);
+            bind_receiver(types, *p, element, bindings)
         }
         (Kind::Hash(p), _) => match types.hash_value(actual) {
-            Some(value) => bind_receiver(types, p, value, bindings),
+            Some(value) => bind_receiver(types, *p, value, bindings),
             None => false,
         },
         (Kind::Tuple(p), Kind::Tuple(a)) => {

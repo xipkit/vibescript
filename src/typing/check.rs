@@ -1709,7 +1709,7 @@ impl<'a> Checker<'a> {
             ),
         );
         let receiver_ty = self.expr(receiver, None);
-        let stored = match self.types.kind(receiver_ty).clone() {
+        let stored = match *self.types.kind(receiver_ty) {
             Kind::Array(element) => Some(element),
             Kind::Hash(value) => Some(value),
             _ => None,
@@ -2100,7 +2100,7 @@ impl<'a> Checker<'a> {
     }
 
     fn uniform_field_type(&mut self, shape: Ty) -> Option<Ty> {
-        let Kind::Shape(fields, false) = self.types.kind(shape).clone() else {
+        let Kind::Shape(fields, false) = &*self.types.shared(shape) else {
             return None;
         };
         let first = fields.first()?.ty;
@@ -2290,9 +2290,9 @@ impl<'a> Checker<'a> {
 
     /// The type of element `index` when destructuring a value of type `ty`.
     pub(super) fn element_of(&mut self, ty: Ty, index: usize) -> Ty {
-        match self.types.kind(ty).clone() {
+        match &*self.types.shared(ty) {
             Kind::Tuple(items) => items.get(index).copied().unwrap_or(Ty::NIL),
-            Kind::Array(element) => self.types.optional(element),
+            Kind::Array(element) => self.types.optional(*element),
             Kind::Error | Kind::Any => ty,
             _ if index == 0 => ty,
             _ => Ty::NIL,
@@ -2318,7 +2318,7 @@ impl<'a> Checker<'a> {
     }
 
     fn rest_of(&mut self, ty: Ty, index: usize, count: usize) -> Ty {
-        match self.types.kind(ty).clone() {
+        match &*self.types.shared(ty) {
             Kind::Tuple(items) => {
                 let end = items.len().saturating_sub(count - index - 1).max(index);
                 let slice: Vec<Ty> = items
