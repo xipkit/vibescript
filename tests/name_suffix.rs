@@ -149,7 +149,6 @@ fn bindings_reject_suffixes_with_applicable_fixes() {
         ("@@done! = true", "@@done = true"),
         ("@done?", "@done"),
         ("@@done!", "@@done"),
-        ("M::READY?", "M::READY"),
         (
             "class A; @done?: bool = true; end",
             "class A; @done: bool = true; end",
@@ -184,6 +183,92 @@ fn bindings_reject_suffixes_with_applicable_fixes() {
         if let Err(error) = Engine::new().compile(fixed) {
             assert_ne!(error.kind, ErrorKind::Syntax, "{fixed}: {error}");
         }
+    }
+}
+
+#[test]
+fn suffix_fixes_keep_names_valid_where_they_stand() {
+    for (source, fixed) in [
+        ("nil? = 3", "nil_ = 3"),
+        ("true? = 1", "true_ = 1"),
+        ("false! = 1", "false_ = 1"),
+        ("self? = 1", "self_ = 1"),
+        ("private? = 1", "private_ = 1"),
+        ("property! = 1", "property_ = 1"),
+        ("getter? = 1", "getter_ = 1"),
+        ("setter! = 1", "setter_ = 1"),
+        ("def f(nil?: int); end", "def f(nil_: int); end"),
+        ("[1].each { |then!| }", "[1].each { |then_| }"),
+        (
+            "class C; @nil?: int = 1; end",
+            "class C; @nil: int = 1; end",
+        ),
+        (
+            "def f(h: any); h.nil? = 2; end",
+            "def f(h: any); h.nil = 2; end",
+        ),
+        (
+            "class C; def ok!=(v: bool); end; end",
+            "class C; def ok=(v: bool); end; end",
+        ),
+        (
+            "class C; def self.ok!=(v: bool); end; end",
+            "class C; def self.ok=(v: bool); end; end",
+        ),
+        (
+            "class C; def ok?=(v: bool); end; end",
+            "class C; def ok=(v: bool); end; end",
+        ),
+    ] {
+        let error = Engine::new().compile(source).err().expect(source);
+        let diagnostic = &error.diagnostics()[0];
+        assert_eq!(diagnostic.code, Code::NAME_SUFFIX, "{source}: {error}");
+        let fix = diagnostic.applicable_fix().expect(source);
+        assert_eq!(fix.apply(source).unwrap(), fixed, "{source}");
+        if let Err(error) = Engine::new().compile(fixed) {
+            assert_ne!(error.kind, ErrorKind::Syntax, "{fixed}: {error}");
+        }
+    }
+}
+
+#[test]
+fn characters_inside_a_name_are_not_suffixes_to_remove() {
+    for source in [
+        "x1 = 5; x = true; p(x?1)",
+        "ready = true; limit = 5; ready_limit = 9; x = ready?limit : 0",
+        "x?1 = 5",
+        "x!y, z = [1, 2]",
+        "def f(a?b: int); end",
+        "def fo?o; end",
+        "def f(h: any); h.a?b; end",
+        "alias :a?b :ok",
+    ] {
+        let error = Engine::new().compile(source).err().expect(source);
+        assert_eq!(error.kind, ErrorKind::Syntax, "{source}: {error}");
+        let diagnostic = &error.diagnostics()[0];
+        assert_eq!(diagnostic.code, Code::NAME_SUFFIX, "{source}: {error}");
+        assert!(diagnostic.fixes.is_empty(), "{source}: {diagnostic:?}");
+    }
+}
+
+#[test]
+fn scoped_suffixed_calls_keep_their_dot_fix() {
+    for (source, fixed) in [
+        (
+            "module M; def self.OK? -> bool; true; end; end; M::OK?",
+            "module M; def self.OK? -> bool; true; end; end; M.OK?",
+        ),
+        (
+            "module M; def self.save! -> bool; true; end; end; M::save!",
+            "module M; def self.save! -> bool; true; end; end; M.save!",
+        ),
+    ] {
+        let checked = Engine::new().type_check(source).unwrap();
+        let diagnostic = &checked.diagnostics[0];
+        assert_eq!(diagnostic.code, Code::SCOPED_CALL, "{source}");
+        let fix = diagnostic.applicable_fix().expect(source);
+        assert_eq!(fix.apply(source).unwrap(), fixed);
+        assert_eq!(run(fixed), "true");
     }
 }
 
@@ -816,6 +901,10 @@ fn aliases_validate_bare_and_symbol_method_spellings() {
             let error = Engine::new().compile(&source).err().unwrap();
             let diagnostic = &error.diagnostics()[0];
             assert_eq!(diagnostic.code, Code::NAME_SUFFIX, "{source}: {error}");
+            if name.ends_with("name") {
+                assert!(diagnostic.fixes.is_empty(), "{source}: {diagnostic:?}");
+                continue;
+            }
             let fixed = diagnostic.applicable_fix().unwrap().apply(&source).unwrap();
             if let Err(error) = Engine::new().compile(&fixed) {
                 assert_ne!(
@@ -975,7 +1064,8 @@ fn exported_functions_share_method_spelling_validation() {
         } else {
             let error = engine.compile("require('methods')").err().unwrap();
             assert!(
-                error.message.contains("only method names may end"),
+                error.message.contains("may only end a method name")
+                    || error.message.contains("only method names may end"),
                 "{error}"
             );
             let error = Engine::new()

@@ -67,7 +67,10 @@ underscores. Only method names may end in one `?` or `!`: definitions such as
 parentheses: `valid? user`. Locals, parameters, constants, instance variables,
 class variables and host data globals have no suffix. `READY? = 1`, `x! = 3`,
 `@done? = true` and `def f(ok?: bool)` report V0003 with a fix removing the
-suffix.
+suffix. Where removal would leave a keyword, as in `nil? = 1`, the fix writes
+`nil_` instead. A `?` or `!` inside a name, as in `x?1`, is not a suffix:
+V0003 reports it without a fix, since removing it could name something else.
+A scoped call such as `M::ok?` keeps its V0416 fix, `M.ok?`.
 
 Member assignment targets also have no suffix: `h.ready? = 1`, compound
 updates such as `h.ready! += 1`, and destructuring targets report V0003.
@@ -77,7 +80,8 @@ An earlier receiver may still call a suffixed method, as in
 ordinary data keys.
 
 A suffix immediately followed by a single `=` is never part of a name:
-`a!=b` always compares `a` and `b`, and `x?=y` reports V0003. Before `==` or
+`a!=b` always compares `a` and `b`, and `x?=y` reports V0003, as do the
+setter definitions `def ok?=(value: T)` and `def ok!=(value: T)`. Before `==` or
 `=~`, the suffix remains part of the method name: `ok?==true` calls `ok?`
 and compares its result with `true`.
 

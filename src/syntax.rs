@@ -26,25 +26,59 @@ pub(crate) const MAX_SOURCE: usize = 8 << 20;
 pub(crate) const TOO_DEEP: &str = "syntax nesting too deep";
 const ADJACENT_EXPRESSIONS: &str = "adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements";
 
-/// Reports an invalid name suffix with a repair that preserves keyword legality.
+/// Reports the `?` or `!` at `offset` in `source`. A suffix that ends the
+/// name has a repair; one inside a name, as in `x?1`, has none, since
+/// removing it could name something else.
 pub(crate) fn name_suffix_error(work: &dyn Work, source: &str, offset: usize) -> Error {
     use crate::diagnostic::{Code, Diagnostic, Fix, Span};
-    let message = "only method names may end in `?` or `!`; remove the suffix from this name";
     let span = Span::new(offset, offset + 1);
-    let start = source[..offset]
-        .rfind(|c: char| c != '_' && !unicode::letter_or_digit(c))
-        .map_or(0, |i| i + source[i..].chars().next().unwrap().len_utf8());
-    let (label, replacement) = if reserved(&source[start..offset]) {
-        ("replace the name suffix with an underscore", "_")
-    } else {
-        ("remove the name suffix", "")
+    let Some((label, replacement)) = suffix_repair(source, offset) else {
+        let message = "`?` and `!` may only end a method name";
+        let diagnostic = Diagnostic::error(Code::NAME_SUFFIX, span, message);
+        return Error::syntax(work, offset, message).with_diagnostic(diagnostic);
     };
+    let message = "only method names may end in `?` or `!`; remove the suffix from this name";
     let diagnostic = Diagnostic::error(Code::NAME_SUFFIX, span, message).with_fix(Fix::replace(
         label,
         span,
         replacement,
     ));
     Error::syntax(work, offset, message).with_diagnostic(diagnostic)
+}
+
+/// The repair of the suffix at `offset`, with its label: removal, or an
+/// underscore where the name would become a keyword that cannot stand there.
+/// None when the name continues after its `?` and `!` characters.
+fn suffix_repair(source: &str, offset: usize) -> Option<(&'static str, &'static str)> {
+    let rest = source[offset..].trim_start_matches(['?', '!']);
+    if rest.starts_with(|c: char| c == '_' || unicode::letter_or_digit(c)) {
+        return None;
+    }
+    let start = source[..offset]
+        .rfind(|c: char| c != '_' && !unicode::letter_or_digit(c))
+        .map_or(0, |i| i + source[i..].chars().next().unwrap().len_utf8());
+    Some(
+        if keyword(&source[start..offset]) && !keyword_allowed(&source[..start]) {
+            ("replace the name suffix with an underscore", "_")
+        } else {
+            ("remove the name suffix", "")
+        },
+    )
+}
+
+/// Whether a keyword can be the name that follows `before`: a variable's
+/// after its sigil, a symbol's, or a member's, except in `def self.name`.
+fn keyword_allowed(before: &str) -> bool {
+    let before = before.trim_end();
+    if before.ends_with(['@', ':']) {
+        return true;
+    }
+    let Some(receiver) = before.strip_suffix('.').map(str::trim_end) else {
+        return false;
+    };
+    !receiver
+        .strip_suffix("self")
+        .is_some_and(|rest| rest.trim_end().ends_with("def"))
 }
 
 /// The registration a host-supplied name comes from, as its errors name it.
@@ -2274,9 +2308,6 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
             let Token::Word(name) = p.bump()? else {
                 unreachable!()
             };
-            if name.chars().next().is_some_and(unicode::upper) {
-                p.binding_name(&name, p.tokens[p.pos - 1].offset)?;
-            }
             (Name::new(work, &name)?, p.take_p('('))
         };
         let args = if parenthesized {
@@ -2964,17 +2995,20 @@ impl<'a> Parser<'a> {
             if matches!(token.token, Token::QuotedSymbol(_)) {
                 use crate::diagnostic::{Code, Diagnostic, Fix, Span};
                 let message = error.message();
-                let mut diagnostic =
-                    Diagnostic::error(Code::SYNTAX, Span::new(token.offset, token.end), &message);
+                let span = Span::new(token.offset, token.end);
+                let mut diagnostic = Diagnostic::error(Code::SYNTAX, span, &message);
                 if let MethodNameError::Suffix(suffix) = error {
-                    let mut fixed = name.to_string();
-                    fixed.remove(suffix);
-                    diagnostic = Diagnostic::error(Code::NAME_SUFFIX, diagnostic.span, &message)
-                        .with_fix(Fix::replace(
+                    diagnostic = Diagnostic::error(Code::NAME_SUFFIX, span, &message);
+                    // As in source, a `?` or `!` inside the name has no repair.
+                    if name[suffix..].bytes().all(|b| matches!(b, b'?' | b'!')) {
+                        let mut fixed = name.to_string();
+                        fixed.remove(suffix);
+                        diagnostic = diagnostic.with_fix(Fix::replace(
                             "remove the name suffix",
-                            diagnostic.span,
+                            span,
                             format!(":{fixed:?}"),
                         ));
+                    }
                 }
                 return Err(
                     Error::syntax(self.work, token.offset, message).with_diagnostic(diagnostic)

@@ -271,6 +271,17 @@ the baseline and candidate; it is not caused by recovery. Raw audits are under
 
 ## Method name suffixes, 2026-09-28
 
+Second PR #1319 review: a `?` or `!` followed by more of the name, as in
+`id!false` or `can?x`, is no suffix, so V0003 reports it as
+"`?` and `!` may only end a method name" without a fix. This re-records 30
+parse mutations and the rejections `command_identifier_embedded_bang` and
+`command_identifier_embedded_question`, whose first error keeps its code and
+position. Scoped names such as `State::Ready?` are left to the checker, which
+keeps V0416 for suffixed scoped calls, so `enums_symbols_30` through
+`enums_symbols_35` lose the additional V0003 recorded for those reads. Nothing
+else changes, and no counters were re-recorded: the pre-review head shows the
+same `call2881` and required-file counter drift.
+
 PR #1319 review follow-up: the parse mutation
 `tests/site/upstream/capabilities/context_access.vibe:insert =:8347c9e3190d`
 inserts `=` into `def coach? -> bool`. It now reports V0003 at 8:10 instead

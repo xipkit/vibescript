@@ -265,6 +265,13 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             p.line_breaks()?;
             let (mut name, class_method, operator) = p.function_name(offset)?;
             let name_offset = p.tokens[p.pos - 1].offset;
+            // `ok!=` reads as `ok` and `!=`, but after a definition's name it
+            // can only be a setter spelled with a suffix, as `ok?=` is.
+            let next = &p.tokens[p.pos];
+            if !operator && next.token == Token::Op("!=") && next.offset == p.tokens[p.pos - 1].end
+            {
+                return Err(p.name_suffix_error(next.offset));
+            }
             p.line_breaks()?;
             if p.token() == &Token::Op("=") && (!operator || name == "[]") {
                 p.bump()?;

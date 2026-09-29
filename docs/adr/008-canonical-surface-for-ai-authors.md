@@ -351,6 +351,12 @@ and safe-navigation targets. They report V0003 at the suffix before constructing
 a setter spelling. Definitions and generated accessors enforce the same rule;
 a suffixed method may still be called to obtain the receiver being assigned to.
 
+A repair must leave a valid name. Where removing the suffix would leave a
+keyword that cannot stand there, as in `nil? = 1`, V0003 offers `nil_`. A `?`
+or `!` followed by more of the name, as in `x?1`, is no suffix and has no
+repair, since removing it could name another binding. `M::ok?` remains a
+scoped call (V0416).
+
 Hash and keyword labels keep suffixes because they spell string keys, not
 bindings. A suffixed shorthand label calls the method with that name;
 an explicit value can read a local instead. Optional type, shape-field and
