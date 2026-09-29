@@ -66,6 +66,43 @@ pub(crate) struct Enum {
     pub members: Vec<String>,
     /// Each member's symbol, as `:in_review` names `InReview`.
     pub symbols: Vec<String>,
+    /// The position of each member and each symbol, so naming one does not
+    /// scan them all.
+    by_member: HashMap<String, usize>,
+    by_symbol: HashMap<String, usize>,
+}
+
+impl Enum {
+    pub fn new(name: String, members: Vec<String>) -> Self {
+        let symbols: Vec<String> = members.iter().map(|m| crate::enums::symbol(m)).collect();
+        let by_member = members
+            .iter()
+            .enumerate()
+            .map(|(index, member)| (member.clone(), index))
+            .collect();
+        let by_symbol = symbols
+            .iter()
+            .enumerate()
+            .map(|(index, symbol)| (symbol.clone(), index))
+            .collect();
+        Self {
+            name,
+            members,
+            symbols,
+            by_member,
+            by_symbol,
+        }
+    }
+
+    /// The position of the member named `name`.
+    pub fn member(&self, name: &str) -> Option<usize> {
+        self.by_member.get(name).copied()
+    }
+
+    /// The position of the member whose symbol is `symbol`.
+    pub fn symbol(&self, symbol: &str) -> Option<usize> {
+        self.by_symbol.get(symbol).copied()
+    }
 }
 
 /// Everything a program declares.
@@ -233,11 +270,10 @@ impl<'a> Checker<'a> {
             self.program
                 .enum_names
                 .insert(name.to_string(), index as u32);
-            self.program.enums.push(Enum {
-                name: name.to_string(),
-                members: members.iter().map(|m| m.to_string()).collect(),
-                symbols: members.iter().map(|m| crate::enums::symbol(m)).collect(),
-            });
+            self.program.enums.push(Enum::new(
+                name.to_string(),
+                members.iter().map(|m| m.to_string()).collect(),
+            ));
             self.types.names.enums.push(name.to_string());
         }
         for module in &parsed.modules {

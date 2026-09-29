@@ -248,11 +248,7 @@ impl<'a> Checker<'a> {
                 Kind::SymbolLit(literal) if &*literal == name => return alternative,
                 Kind::Symbol | Kind::Any => return Ty::SYMBOL,
                 Kind::EnumValue(id) => {
-                    if self.program.enums[id as usize]
-                        .symbols
-                        .iter()
-                        .any(|s| s == name)
-                    {
+                    if self.program.enums[id as usize].symbol(name).is_some() {
                         if let Some(why) = self.symbols_stay {
                             self.enum_symbol(expr, id, name, why);
                         }
@@ -1784,7 +1780,7 @@ impl<'a> Checker<'a> {
                     Node::Literal(v) => super::symbol_text(v),
                     Node::Scope(_, name, None) => {
                         let decl = &self.program.enums[id as usize];
-                        let index = decl.members.iter().position(|m| m == name.as_str())?;
+                        let index = decl.member(name)?;
                         Some(decl.symbols[index].clone())
                     }
                     _ => None,
@@ -1803,11 +1799,7 @@ impl<'a> Checker<'a> {
     fn enum_symbol(&mut self, value: &Expr, id: u32, symbol: &str, why: &str) {
         let decl = &self.program.enums[id as usize];
         let enum_name = decl.name.clone();
-        let member = decl
-            .symbols
-            .iter()
-            .position(|s| s == symbol)
-            .map(|index| decl.members[index].clone());
+        let member = decl.symbol(symbol).map(|index| decl.members[index].clone());
         let span = self.spans.expr(value);
         let mut diagnostic = Diagnostic::error(
             Code::TYPE_MISMATCH,
@@ -1846,9 +1838,10 @@ impl<'a> Checker<'a> {
             Kind::Bool => (vec!["true".into(), "false".into()], "bool".into()),
             _ => return false,
         };
+        let covered: std::collections::HashSet<&str> = covered.iter().map(String::as_str).collect();
         let missing: Vec<&String> = all
             .iter()
-            .filter(|value| !covered.contains(value))
+            .filter(|value| !covered.contains(value.as_str()))
             .collect();
         if missing.is_empty() {
             return true;
@@ -1862,7 +1855,7 @@ impl<'a> Checker<'a> {
                         format!("`{m}`")
                     } else if let Kind::EnumValue(id) = self.types.kind(subject) {
                         let decl = &self.program.enums[*id as usize];
-                        let index = decl.symbols.iter().position(|symbol| symbol == *m).unwrap();
+                        let index = decl.symbol(m).unwrap();
                         format!("`{name}::{}`", decl.members[index])
                     } else {
                         unreachable!()

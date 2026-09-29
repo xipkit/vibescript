@@ -12,7 +12,7 @@ fn repeat(count: usize, item: impl Fn(usize) -> String) -> String {
 /// statement or expression.
 type Shape = (&'static str, usize, fn(usize) -> String);
 
-const SHAPES: [Shape; 20] = [
+const SHAPES: [Shape; 21] = [
     ("functions calling their predecessor", 200, |count| {
         "def f0(n: int) -> int\n  n\nend\n".to_owned()
             + &repeat(count, |i| {
@@ -146,6 +146,13 @@ end\n"
                 .collect::<Vec<_>>()
                 .join(", "),
             repeat(count, |i| format!("  n{i} = c[\"f{i}\"]\n"))
+        )
+    }),
+    ("a case naming every member of a wide enum", 500, |count| {
+        format!(
+            "enum E\n{}end\ndef f(e: E) -> int\n  case e\n{}  end\nend\n",
+            repeat(count, |i| format!("  M{i}\n")),
+            repeat(count, |i| format!("  when E::M{i} then {i}\n"))
         )
     }),
     ("loops assigning many locals", 100, |count| {

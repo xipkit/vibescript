@@ -1326,7 +1326,7 @@ impl<'a> Checker<'a> {
             }
             Kind::EnumType(id) if args.is_none() => {
                 let decl = &self.program.enums[id as usize];
-                if decl.members.iter().any(|member| member == name) {
+                if decl.member(name).is_some() {
                     return self.types.intern(Kind::EnumValue(id));
                 }
                 let enum_name = decl.name.clone();
