@@ -262,6 +262,8 @@ pub(crate) struct Types {
     /// what it was and its size. It became unknown, and the checker
     /// reports it where it looks.
     pub too_large: Option<(&'static str, usize)>,
+    /// What operations under way keep beside the table.
+    scratch: usize,
 }
 
 impl Types {
@@ -279,6 +281,7 @@ impl Types {
             + tables.iter().sum::<usize>()
             + self.payload
             + self.index_bytes
+            + self.scratch
             + meter::growth(largest)
     }
 
@@ -301,6 +304,7 @@ impl Types {
             names: Names::default(),
             meter,
             too_large: None,
+            scratch: 0,
         };
         for kind in [
             Kind::Error,
@@ -353,6 +357,21 @@ impl Types {
         if bytes >= 4096 {
             self.meter.transient(self.bytes(), bytes);
         }
+    }
+
+    /// Counts `bytes` an operation keeps beside the table while it polls,
+    /// until [`Self::release`] takes them back; returns them.
+    fn hold(&mut self, bytes: usize) -> usize {
+        self.scratch += bytes;
+        if bytes >= 4096 {
+            self.meter.transient(self.bytes(), 0);
+        }
+        bytes
+    }
+
+    /// Takes back what [`Self::hold`] counted.
+    fn release(&mut self, bytes: usize) {
+        self.scratch -= bytes;
     }
 
     pub fn intern(&mut self, kind: Kind) -> Ty {
@@ -434,15 +453,22 @@ impl Types {
 
     /// A shape from fields in any order; a later field of the same name wins.
     pub fn shape(&mut self, mut fields: Vec<Field>, open: bool) -> Ty {
+        // The fields are held beside the table until they are interned.
+        let held = self.hold(fields.heap());
         fields.reverse();
         fields.sort_by(|a, b| a.name.cmp(&b.name));
+        // Sorting them in order kept a copy of them for a moment.
+        self.transient(fields.capacity() * std::mem::size_of::<Field>());
         fields.dedup_by(|a, b| a.name == b.name);
         self.work(fields.len());
-        if fields.len() > MAX_FIELDS {
+        let ty = if fields.len() > MAX_FIELDS {
             self.too_large.get_or_insert(("shape", fields.len()));
-            return Ty::ERROR;
-        }
-        self.intern(Kind::Shape(fields.into(), open))
+            Ty::ERROR
+        } else {
+            self.intern(Kind::Shape(fields.into(), open))
+        };
+        self.release(held);
+        ty
     }
 
     /// `ty?`.
@@ -453,6 +479,8 @@ impl Types {
     /// The union of `types`: nested unions flatten, `never` drops out, and
     /// `any` or an unknown type absorbs the rest.
     pub fn union(&mut self, types: &[Ty]) -> Ty {
+        // The caller's types are held beside the table while this runs.
+        self.transient(std::mem::size_of_val(types));
         self.charge(types.len() as u64);
         self.poll();
         if self.stopped() {
@@ -1018,7 +1046,7 @@ impl Types {
                 if number {
                     parts.push("number".to_owned());
                 }
-                parts.sort();
+                parts.sort_unstable();
                 if nil && parts.len() == 1 {
                     let single = others.len() == 1 || number;
                     if single {

@@ -47,6 +47,34 @@ struct ExportedClass {
     methods: Vec<(String, Sig, Visibility)>,
 }
 
+impl Exported {
+    /// What the file's exports hold while an importer reads them.
+    fn bytes(&self) -> usize {
+        let classes: usize = self
+            .classes
+            .iter()
+            .map(|class| {
+                std::mem::size_of::<ExportedClass>()
+                    + class.name.heap()
+                    + class
+                        .methods
+                        .iter()
+                        .map(|(name, sig, _)| {
+                            std::mem::size_of::<(String, Sig, Visibility)>()
+                                + name.heap()
+                                + sig.heap()
+                        })
+                        .sum::<usize>()
+            })
+            .sum();
+        self.types.bytes()
+            + self.types.names.heap()
+            + self.functions.heap()
+            + self.enums.heap()
+            + classes
+    }
+}
+
 impl fmt::Debug for Exported {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Exported")
@@ -166,11 +194,12 @@ impl<'a> Checker<'a> {
             bodies.extend(module.instance_methods.iter().map(|(def, _)| &def.body[..]));
             pending.extend(module.modules.iter().chain(&module.inner));
         }
+        self.transient(super::meter::vec(&bodies) + super::meter::vec(&pending));
         for body in bodies {
             let scratch = requires(body, &mut requests);
             self.transient(scratch);
         }
-        requests.sort_by_key(|request| request.2);
+        requests.sort_unstable_by_key(|request| request.2);
         for (path, alias, offset) in requests {
             let id = self.load_module(&path);
             if let Err(reason) = &id {
@@ -246,8 +275,7 @@ impl<'a> Checker<'a> {
         self.meter.charge(checked.steps);
         // What the file's check held beside this one's tables, and at most
         // its surface pass's too.
-        self.meter
-            .reach(held + checked.peak_bytes + checked.surface_bytes);
+        self.observed(held + checked.peak_bytes + checked.surface_bytes);
         if checked.stopped {
             self.stopped = true;
             self.meter.stop();
@@ -264,7 +292,12 @@ impl<'a> Checker<'a> {
             self.report(diagnostic.in_file(file));
         }
         let (functions, enums) = match &checked.exported {
-            Some(exported) => self.import(exported),
+            Some(exported) => {
+                let held = self.hold(exported.bytes());
+                let imported = self.import(exported);
+                self.release(held);
+                imported
+            }
             None => (HashMap::new(), HashMap::new()),
         };
         for (name, sig) in &functions {
@@ -293,7 +326,7 @@ impl<'a> Checker<'a> {
             .filter(|(_, id)| self.program.fns[**id].def.is_some_and(|def| !def.private))
             .map(|(name, id)| ((*name).to_owned(), (*self.program.fns[*id].sig).clone()))
             .collect();
-        functions.sort_by(|a, b| a.0.cmp(&b.0));
+        functions.sort_unstable_by(|a, b| a.0.cmp(&b.0));
         // The file's own enums come first; imported ones follow.
         let enums = self.program.enums[..self.parsed.enums.len()].to_vec();
         let mut classes = Vec::new();
@@ -310,7 +343,7 @@ impl<'a> Checker<'a> {
                     (name.clone(), (*decl.sig).clone(), decl.visibility)
                 })
                 .collect();
-            methods.sort_by(|a, b| a.0.cmp(&b.0));
+            methods.sort_unstable_by(|a, b| a.0.cmp(&b.0));
             classes.push(ExportedClass {
                 id: ns as NsId,
                 name: namespace.name.clone(),
@@ -390,6 +423,7 @@ impl<'a> Checker<'a> {
                 (name.clone(), Rc::new(sig))
             })
             .collect();
+        self.declaring();
         (functions, enums)
     }
 

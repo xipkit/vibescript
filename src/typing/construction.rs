@@ -201,6 +201,7 @@ impl<'a> Checker<'a> {
         let mut unproven: HashSet<NsId> = (0..self.program.namespaces.len() as NsId)
             .filter(|&ns| !self.initializes(ns))
             .collect();
+        self.transient(super::meter::set(&unproven));
         let reads = self.method_reads();
         for site in std::mem::take(&mut self.construction.sites) {
             if self.over_budget() {

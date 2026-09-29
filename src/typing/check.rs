@@ -268,7 +268,8 @@ impl<'a> Checker<'a> {
             let mut shared = Vec::new();
             for decl in self.program.fns.iter().filter(|decl| decl.main) {
                 if let Some(def) = decl.def {
-                    assigned_names(&def.body, &mut shared);
+                    let scratch = assigned_names(&def.body, &mut shared);
+                    self.transient(scratch + shared.heap());
                 }
             }
             let shared: std::collections::HashSet<String> = shared.into_iter().collect();
@@ -276,7 +277,8 @@ impl<'a> Checker<'a> {
             for decl in self.program.fns.iter().filter(|decl| !decl.main) {
                 let Some(def) = decl.def else { continue };
                 let mut names = Vec::new();
-                assigned_names(&def.body, &mut names);
+                let scratch = assigned_names(&def.body, &mut names);
+                self.transient(scratch + names.heap() + shared.heap() + written.heap());
                 names.retain(|name| {
                     shared.contains(name) && !def.params.iter().any(|param| param.name == *name)
                 });
@@ -284,6 +286,7 @@ impl<'a> Checker<'a> {
             }
             // Checking the bodies charges for these walks over them.
             self.program.file_written = written.into_iter().collect();
+            self.declared();
         }
         if let Some(main) = self.program.fns.iter().position(|decl| decl.main) {
             self.check_function(main);
@@ -339,6 +342,36 @@ impl<'a> Checker<'a> {
         pending.push((ns, children));
     }
 
+    /// The instance-variable defaults of the class at `offset`, in order,
+    /// with the variable each assigns. The first call gathers every
+    /// class's in one pass over the declarations, rather than each class
+    /// scanning all of them.
+    fn defaults_of(&mut self, offset: u32) -> Vec<(&'a Stmt, Option<&'a str>)> {
+        if self.defaults.is_none() {
+            let additions = &self.parsed.additions;
+            let names: HashMap<(u32, u32), &'a str> = additions
+                .ivars
+                .iter()
+                .map(|(class, ivar)| ((*class, ivar.offset), ivar.name.as_str()))
+                .collect();
+            self.transient(super::meter::map(&names));
+            let mut defaults: HashMap<u32, Vec<(&'a Stmt, Option<&'a str>)>> = HashMap::new();
+            for (class, stmt) in additions.defaults.iter() {
+                let name = names.get(&(*class, stmt.offset)).copied();
+                defaults.entry(*class).or_default().push((stmt, name));
+            }
+            let bytes = super::meter::map(&defaults)
+                + defaults.values().map(super::meter::vec).sum::<usize>();
+            self.hold(bytes);
+            self.defaults = Some((defaults, bytes));
+        }
+        let (defaults, bytes) = self.defaults.take().unwrap();
+        let mut defaults = defaults;
+        let taken = defaults.remove(&offset).unwrap_or_default();
+        self.defaults = Some((defaults, bytes));
+        taken
+    }
+
     fn namespace_body(&mut self, ns: NsId) {
         let Some(module) = self.program.namespaces[ns as usize].module else {
             return;
@@ -351,7 +384,8 @@ impl<'a> Checker<'a> {
         // copying every one into each of many namespaces would take their
         // number times the namespaces.
         let mut mentioned = std::collections::HashSet::new();
-        mentions(&module.body, &mut mentioned);
+        let scratch = mentions(&module.body, &mut mentioned);
+        self.transient(scratch + super::meter::set(&mentioned));
         let ambient: Vec<_> = mentioned
             .into_iter()
             .filter_map(|name| previous.names.get(name).map(|&id| (name, id)))
@@ -365,12 +399,20 @@ impl<'a> Checker<'a> {
                 )
             })
             .collect();
+        let held = self.hold(
+            super::meter::vec(&ambient)
+                + ambient
+                    .iter()
+                    .map(|(name, ..)| name.capacity())
+                    .sum::<usize>(),
+        );
         for (name, declared, offset, state) in &ambient {
             let id = self.declare(name, *declared, *offset, true);
             self.frame.flow.set(id, *state);
             self.frame.ambient.push(id);
         }
         self.stmts(&module.body, Want::Discard);
+        self.release(held);
         let changes: Vec<_> = ambient
             .iter()
             .filter_map(|(name, _, _, _)| {
@@ -378,15 +420,9 @@ impl<'a> Checker<'a> {
                     .map(|id| (name.clone(), self.frame.flow.get(id)))
             })
             .collect();
+        self.transient(changes.heap());
         // Instance-variable defaults run for each instance.
-        let defaults: Vec<&'a Stmt> = self
-            .parsed
-            .additions
-            .defaults
-            .iter()
-            .filter(|(owner, _)| *owner == module.offset)
-            .map(|(_, stmt)| stmt)
-            .collect();
+        let defaults = self.defaults_of(module.offset);
         let name = self.frame.name.clone();
         let body = self.enter_frame(Frame::new(&self.meter, Some(ns), true, None, name));
         // A default may read only the variables whose defaults precede it.
@@ -396,25 +432,16 @@ impl<'a> Checker<'a> {
                 unassigned.push(name.clone());
             }
         }
-        unassigned.sort();
-        let assigned: Vec<Option<String>> = defaults
-            .iter()
-            .map(|stmt| {
-                self.parsed
-                    .additions
-                    .ivars
-                    .iter()
-                    .find(|(class, ivar)| *class == module.offset && ivar.offset == stmt.offset)
-                    .map(|(_, ivar)| ivar.name.to_string())
-            })
-            .collect();
-        for (stmt, assigned) in defaults.into_iter().zip(assigned) {
+        unassigned.sort_unstable();
+        let held = self.hold(unassigned.heap());
+        for (stmt, assigned) in defaults.iter() {
             self.frame.building = Some(unassigned.clone());
             self.stmt(stmt, Want::Discard);
             if let Some(name) = assigned {
-                unassigned.retain(|unassigned| *unassigned != name);
+                unassigned.retain(|unassigned| unassigned.as_str() != *name);
             }
         }
+        self.release(held);
         self.leave_frame(body);
         self.leave_frame(previous);
         for (name, state) in changes {
@@ -441,6 +468,7 @@ impl<'a> Checker<'a> {
         let previous = self.enter_frame(frame);
         if self.program.file && !main {
             let locals = self.program.file_locals.clone();
+            self.transient(locals.heap());
             for (name, (ty, offset)) in locals {
                 if !def.params.iter().any(|param| param.name == name) {
                     let id = self.declare(&name, ty, offset, true);
@@ -510,6 +538,10 @@ impl<'a> Checker<'a> {
                     .collect(),
                 result,
             });
+            self.grown += self
+                .session
+                .as_ref()
+                .map_or(0, |session| session.locals.heap());
         }
         if main && self.program.file {
             for (name, &id) in &self.frame.names {
@@ -520,6 +552,7 @@ impl<'a> Checker<'a> {
                         .insert(name.clone(), (local.declared, local.offset));
                 }
             }
+            self.declared();
         }
         if self.frame.flow.live {
             if let (Some(result), false) = (sig.result, main) {
@@ -555,7 +588,8 @@ impl<'a> Checker<'a> {
             .filter(|(_, ivar)| !ivar.default)
             .map(|(name, ivar)| (name.clone(), ivar.ty))
             .collect();
-        required.sort_by(|a, b| a.0.cmp(&b.0));
+        self.transient(required.heap());
+        required.sort_unstable_by(|a, b| a.0.cmp(&b.0));
         for (name, ty) in required {
             if self.types.assignable(Ty::NIL, ty) {
                 continue;
@@ -579,6 +613,7 @@ impl<'a> Checker<'a> {
         }
         // Report each variable once per function.
         let ids: Vec<LocalId> = self.frame.initialize.iter().map(|(_, id)| *id).collect();
+        self.transient(super::meter::vec(&ids));
         for id in ids {
             let state = self.frame.flow.get(id);
             self.frame.flow.set(
@@ -612,6 +647,7 @@ impl<'a> Checker<'a> {
             return;
         }
         let written: Vec<String> = self.program.file_written.iter().cloned().collect();
+        self.transient(written.heap());
         for name in &written {
             self.meter.charge(1);
             if let Some(id) = self.local(name) {
@@ -898,14 +934,41 @@ impl<'a> Checker<'a> {
         }
     }
 
+    /// Keeps `branch`, one end of a construct's branches, in `explored`
+    /// until [`Self::join_explored`] joins them, counting it with the
+    /// tables meanwhile.
+    pub(super) fn explore(&mut self, explored: &mut Vec<Branch>, branch: Branch) {
+        self.hold(std::mem::size_of::<Branch>() + branch.heap());
+        explored.push(branch);
+    }
+
+    /// Joins the branches [`Self::explore`] kept.
+    pub(super) fn join_explored(&mut self, explored: Vec<Branch>) {
+        let held: usize = explored
+            .iter()
+            .map(|branch| std::mem::size_of::<Branch>() + branch.heap())
+            .sum();
+        self.release(held);
+        self.join(explored);
+    }
+
     pub(super) fn join(&mut self, branches: Vec<Branch>) {
         // A stopped check unwinds without the work its budget ran out of.
         if self.stopped {
             return;
         }
-        let declared: Vec<Ty> = self.frame.locals.iter().map(|l| l.declared).collect();
-        let lookup = move |id: LocalId| declared.get(id as usize).copied().unwrap_or(Ty::BOOL);
+        // The join keeps a table of each branch's changes while it runs.
+        let held = self.hold(Flow::join_scratch(&branches));
+        // The locals' declared types are read in place, not copied at every
+        // join.
+        let locals = &self.frame.locals;
+        let lookup = |id: LocalId| {
+            locals
+                .get(id as usize)
+                .map_or(Ty::BOOL, |local| local.declared)
+        };
         self.frame.flow.join(&mut self.types, branches, &lookup);
+        self.release(held);
     }
 
     /// Widens the locals a loop body assigns back to their declared types,
@@ -1106,7 +1169,8 @@ impl<'a> Checker<'a> {
             if self.frame.flow.live {
                 results.push(ty);
             }
-            explored.push(self.frame.flow.rollback(mark));
+            let branch = self.frame.flow.rollback(mark);
+            self.explore(&mut explored, branch);
             self.apply(&narrow.otherwise);
         }
         let ty = if alternate.is_empty() {
@@ -1133,8 +1197,9 @@ impl<'a> Checker<'a> {
         if self.frame.flow.live {
             results.push(ty);
         }
-        explored.push(self.frame.flow.rollback(entry));
-        self.join(explored);
+        let branch = self.frame.flow.rollback(entry);
+        self.explore(&mut explored, branch);
+        self.join_explored(explored);
         self.types.union(&results)
     }
 
@@ -2033,6 +2098,7 @@ impl<'a> Checker<'a> {
         };
         let splat = parts.iter().position(|(_, rest)| *rest);
         let after = splat.map_or(0, |splat| parts.len() - splat - 1);
+        let held = self.hold(items.len() * std::mem::size_of::<Ty>());
         let types: Vec<Ty> = items
             .iter()
             .enumerate()
@@ -2055,7 +2121,9 @@ impl<'a> Checker<'a> {
                 }
             })
             .collect();
-        self.types.tuple(types)
+        let tuple = self.types.tuple(types);
+        self.release(held);
+        tuple
     }
 
     /// The type a local first assigned a value of type `ty` gets; `nil`,
@@ -2801,7 +2869,8 @@ fn target_expr(target: &Target) -> Option<&Expr> {
 /// Adds the names `body` mentions as variables, assignment targets or bare
 /// calls, which are the enclosing locals a namespace body can read or
 /// update, however deep in its expressions.
-fn mentions<'s>(body: &'s [Stmt], names: &mut std::collections::HashSet<&'s str>) {
+/// Returns the bytes of the lists the walk kept.
+fn mentions<'s>(body: &'s [Stmt], names: &mut std::collections::HashSet<&'s str>) -> usize {
     let mut pending: Vec<&'s Expr> = Vec::new();
     let mut statements: Vec<&'s Stmt> = body.iter().collect();
     let target = |target: &'s Target, pending: &mut Vec<&'s Expr>| {
@@ -2851,7 +2920,7 @@ fn mentions<'s>(body: &'s [Stmt], names: &mut std::collections::HashSet<&'s str>
             continue;
         }
         let Some(expr) = pending.pop() else {
-            break;
+            return (statements.capacity() + pending.capacity()) * std::mem::size_of::<usize>();
         };
         match &expr.node {
             Node::Var(name) | Node::Call(name, _, _) => {
@@ -2926,10 +2995,12 @@ fn mentions<'s>(body: &'s [Stmt], names: &mut std::collections::HashSet<&'s str>
 }
 
 /// The names of the locals a body may assign, including in nested blocks.
-pub(super) fn assigned_names(body: &[Stmt], names: &mut Vec<String>) {
+/// Returns the bytes of the index it built to find them.
+pub(super) fn assigned_names(body: &[Stmt], names: &mut Vec<String>) -> usize {
     let mut assigns = super::assigns::Assigns::default();
     let span = assigns.body(body);
     names.extend(assigns.distinct(span).into_iter().map(str::to_owned));
+    assigns.bytes()
 }
 
 /// Why a value is checked against a type, for messages.

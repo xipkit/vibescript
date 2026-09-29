@@ -6,7 +6,7 @@
 //! changes the branch made, not to the number of locals.
 
 use super::{
-    meter::Meter,
+    meter::{Meter, map, table as map_of, vec},
     ty::{Ty, Types},
 };
 use std::{collections::HashMap, sync::Arc};
@@ -106,6 +106,7 @@ impl Flow {
             }
             self.vars[id as usize] = old;
         }
+        self.meter.scratch(map(&seen) + vec(&changes));
         self.live = mark.live;
         Branch { live, changes }
     }
@@ -121,11 +122,26 @@ impl Flow {
                 changes.push((id, self.vars[id as usize]));
             }
         }
+        self.meter.scratch(map(&seen) + vec(&changes));
         self.meter.charge(steps);
         Branch {
             live: true,
             changes,
         }
+    }
+
+    /// About what [`Self::join`] holds while it joins `branches`: a table of
+    /// each one's changes, and a list of the locals they change.
+    pub fn join_scratch(branches: &[Branch]) -> usize {
+        branches
+            .iter()
+            .map(|branch| {
+                let changes = branch.changes.len();
+                map_of::<(LocalId, VarState)>(changes)
+                    + changes * std::mem::size_of::<LocalId>()
+                    + std::mem::size_of::<HashMap<LocalId, VarState>>()
+            })
+            .sum()
     }
 
     /// Continues after sibling branches: a local's type is the union of its

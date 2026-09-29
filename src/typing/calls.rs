@@ -690,15 +690,18 @@ impl<'a> Checker<'a> {
         let outer = self.set_memo(Some(super::Memo::default()));
         let mark = self.frame.flow.mark();
         results.push(self.member(call, first));
-        let mut branches = vec![self.frame.flow.rollback(mark)];
+        let mut branches = Vec::new();
+        let branch = self.frame.flow.rollback(mark);
+        self.explore(&mut branches, branch);
         // Reuse evaluated argument types, but check every receiver's contract.
         self.memo.as_mut().unwrap().replay = true;
         for &alternative in rest {
             let mark = self.frame.flow.mark();
             results.push(self.member(call, alternative));
-            branches.push(self.frame.flow.rollback(mark));
+            let branch = self.frame.flow.rollback(mark);
+            self.explore(&mut branches, branch);
         }
-        self.join(branches);
+        self.join_explored(branches);
         self.restore_memo(outer);
         self.types.union(&results)
     }
@@ -1670,7 +1673,9 @@ impl<'a> Checker<'a> {
                 splat = true;
             }
         }
-        let mut keywords: Vec<String> = call.keywords().map(str::to_owned).collect();
+        // The names borrow the syntax's.
+        let mut keywords: Vec<std::borrow::Cow<'_, str>> =
+            call.keywords().map(std::borrow::Cow::Borrowed).collect();
         for arg in call
             .args
             .iter()
@@ -1680,11 +1685,16 @@ impl<'a> Checker<'a> {
                 keywords.extend(
                     entries
                         .iter()
-                        .map(|(name, _)| String::from_utf8_lossy(name).into_owned()),
+                        .map(|(name, _)| String::from_utf8_lossy(name)),
                 );
             }
         }
-        let declared = call.block.map(block_arity);
+        self.transient(keywords.capacity() * std::mem::size_of::<std::borrow::Cow<'_, str>>());
+        let declared = call.block.map(|block| {
+            let (arity, scratch) = block_arity(block);
+            self.transient(scratch);
+            arity
+        });
         let fits = |sig: &Sig, relaxed: bool| {
             let (min, max) = sig.positional();
             let count = positional >= min
@@ -1700,7 +1710,7 @@ impl<'a> Checker<'a> {
                     .params
                     .iter()
                     .filter(|p| p.kind == ParamKind::Keyword && !p.optional)
-                    .all(|p| keywords.contains(&p.name));
+                    .all(|p| keywords.iter().any(|name| *name == p.name));
             let block_ok = match (&sig.block, declared) {
                 (None, None) => true,
                 (None, Some(_)) => false,
@@ -1842,6 +1852,10 @@ impl<'a> Checker<'a> {
         if let Some(extra) = call.extra {
             arguments.push((extra, false));
         }
+        let held = self.hold(
+            positional_params.capacity() * std::mem::size_of::<&sigs::Param>()
+                + arguments.capacity() * std::mem::size_of::<(&Expr, bool)>(),
+        );
         for (value, splat) in arguments {
             if splat {
                 splatted = true;
@@ -1927,14 +1941,18 @@ impl<'a> Checker<'a> {
                 ));
             }
         }
+        self.release(held);
     }
 
     fn check_keywords(&mut self, call: &Call<'a, '_>, sig: &Sig, bindings: &mut [Option<Ty>]) {
         let function = sig.name.clone();
+        // The keywords given, kept while their values are checked.
         let mut given = Vec::new();
+        let mut held = 0;
         for arg in call.args {
             match &arg.kind {
                 ArgumentKind::Keyword(name) => {
+                    held += self.hold(std::mem::size_of::<String>() + name.len());
                     given.push(name.to_string());
                     let param = sig.keyword(name).map(|p| p.ty).or_else(|| {
                         sig.keyword_rest()
@@ -1963,8 +1981,10 @@ impl<'a> Checker<'a> {
                 ArgumentKind::KeywordSplat => {
                     let ty = self.expr(&arg.value, None);
                     if let Kind::Shape(fields, _) = &*self.types.shared(ty) {
+                        held += self.hold(fields.len() * std::mem::size_of::<String>());
                         for field in fields.iter() {
                             if !field.optional {
+                                held += self.hold(field.name.len());
                                 given.push(field.name.to_string());
                             }
                             let expected = sig.keyword(&field.name).map(|p| p.ty).or_else(|| {
@@ -2018,20 +2038,21 @@ impl<'a> Checker<'a> {
                 _ => (),
             }
         }
-        {
-            for param in &sig.params {
-                if param.kind == ParamKind::Keyword
-                    && !param.optional
-                    && !given.contains(&param.name)
-                {
-                    self.report(Diagnostic::error(
-                        Code::MISSING_KEYWORD,
-                        call.name_span,
-                        format!("`{function}` needs the keyword `{}:`", param.name),
-                    ));
-                }
+        // Sorted, so each required keyword is found by search.
+        given.sort_unstable();
+        for param in &sig.params {
+            if param.kind == ParamKind::Keyword
+                && !param.optional
+                && given.binary_search(&param.name).is_err()
+            {
+                self.report(Diagnostic::error(
+                    Code::MISSING_KEYWORD,
+                    call.name_span,
+                    format!("`{function}` needs the keyword `{}:`", param.name),
+                ));
             }
         }
+        self.release(held);
     }
 
     /// The type of a member call's result. Iterating members return their
@@ -2373,11 +2394,9 @@ impl<'a> Checker<'a> {
             }
             None => (Want::Discard, None),
         };
-        let mut all = params.clone();
-        if let Some(rest) = rest {
-            all.push(rest);
-        }
+        let held = self.hold(super::meter::vec(&params));
         let (result, breaks) = self.block_with_rest(block, &params, rest, want, break_to);
+        self.release(held);
         if let Some(pattern) = infer {
             self.unify(pattern, result, bindings);
             let expected = self.types.close(pattern, bindings);
@@ -2404,7 +2423,10 @@ impl<'a> Checker<'a> {
         } else {
             params.to_vec()
         };
-        self.block_with_rest(block, &params, None, want, None).0
+        let held = self.hold(super::meter::vec(&params));
+        let ty = self.block_with_rest(block, &params, None, want, None).0;
+        self.release(held);
+        ty
     }
 
     /// Checks a block and returns the type of its value and the types of
@@ -2613,10 +2635,11 @@ impl<'a> Checker<'a> {
 }
 
 /// How many parameters a block declares: its explicit list, or the highest
-/// numbered parameter or `it` it reads.
-fn block_arity(block: &Block) -> usize {
+/// numbered parameter or `it` it reads; with the bytes of the lists the
+/// walk kept.
+fn block_arity(block: &Block) -> (usize, usize) {
     if !block.implicit {
-        return block.params.len();
+        return (block.params.len(), 0);
     }
     let mut arity = 0;
     let mut pending: Vec<&Expr> = Vec::new();
@@ -2678,5 +2701,6 @@ fn block_arity(block: &Block) -> usize {
             }
         }
     }
-    arity
+    let scratch = (statements.capacity() + pending.capacity()) * std::mem::size_of::<usize>();
+    (arity, scratch)
 }

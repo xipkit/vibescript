@@ -430,7 +430,8 @@ impl<'a> Checker<'a> {
                 .filter(|&ty| matches!(self.types.kind(ty), Kind::Array(_) | Kind::Tuple(_)))
                 .collect();
             if alternatives.len() > 1 {
-                let mut values = Vec::new();
+                let held = self.hold(2 * types_bytes(items.len()));
+                let mut values = Vec::with_capacity(items.len());
                 for (index, item) in items.iter().enumerate() {
                     let hints: Vec<Ty> = alternatives
                         .iter()
@@ -444,13 +445,18 @@ impl<'a> Checker<'a> {
                     values.push(self.expr(item, Some(element)));
                 }
                 let tuple = self.types.tuple(values.clone());
-                for alternative in alternatives {
-                    if self.types.assignable(tuple, alternative) {
-                        return alternative;
+                let fitting = alternatives
+                    .into_iter()
+                    .find(|&alternative| self.types.assignable(tuple, alternative));
+                let result = match fitting {
+                    Some(alternative) => alternative,
+                    None => {
+                        let element = self.types.union(&values);
+                        self.types.array(element)
                     }
-                }
-                let element = self.types.union(&values);
-                return self.types.array(element);
+                };
+                self.release(held);
+                return result;
             }
         }
         let hint = self.literal_hint(hint, |kind| {
@@ -460,12 +466,15 @@ impl<'a> Checker<'a> {
         match shared.as_ref().map(|(hint, kind)| (*hint, &**kind)) {
             Some((hint, Kind::Tuple(elements))) if elements.len() == items.len() => {
                 if self.types.has_var(hint) {
+                    let held = self.hold(types_bytes(items.len()));
                     let actual = items
                         .iter()
                         .zip(elements.iter())
                         .map(|(item, &element)| self.expr(item, Some(element)))
                         .collect();
-                    return self.types.tuple(actual);
+                    let tuple = self.types.tuple(actual);
+                    self.release(held);
+                    return tuple;
                 }
                 for (item, &element) in items.iter().zip(elements.iter()) {
                     self.expr_against(item, element, &Purpose::Element);
@@ -474,11 +483,13 @@ impl<'a> Checker<'a> {
             }
             Some((hint, Kind::Array(element))) => {
                 if self.types.has_var(hint) {
+                    let held = self.hold(types_bytes(items.len()));
                     let actual: Vec<Ty> = items
                         .iter()
                         .map(|item| self.expr(item, Some(*element)))
                         .collect();
                     let element = self.types.union(&actual);
+                    self.release(held);
                     return self.types.array(element);
                 }
                 for item in items {
@@ -487,8 +498,10 @@ impl<'a> Checker<'a> {
                 hint
             }
             _ => {
+                let held = self.hold(types_bytes(items.len()));
                 let types: Vec<Ty> = items.iter().map(|item| self.expr(item, None)).collect();
                 let element = self.types.union(&types);
+                self.release(held);
                 self.types.array(element)
             }
         }
@@ -576,7 +589,8 @@ impl<'a> Checker<'a> {
         entries: &'a [(crate::compilation::Bytes, Expr)],
         shapes: &[Ty],
     ) -> Ty {
-        let mut fields = Vec::new();
+        let held = self.hold(fields_bytes(entries));
+        let mut fields = Vec::with_capacity(entries.len());
         for (key, entry) in entries {
             let hints: Vec<Ty> = shapes
                 .iter()
@@ -594,6 +608,7 @@ impl<'a> Checker<'a> {
             });
         }
         let actual = self.types.shape(fields, false);
+        self.release(held);
         shapes
             .iter()
             .copied()
@@ -623,11 +638,13 @@ impl<'a> Checker<'a> {
         match shared.as_ref().map(|(hint, kind)| (*hint, &**kind)) {
             Some((hint, Kind::Hash(value))) => {
                 if self.types.has_var(hint) {
+                    let held = self.hold(types_bytes(entries.len()));
                     let actual: Vec<Ty> = entries
                         .iter()
                         .map(|(_, entry)| self.expr(entry, Some(*value)))
                         .collect();
                     let value = self.types.union(&actual);
+                    self.release(held);
                     return self.types.hash(value);
                 }
                 for (_, entry) in entries {
@@ -639,6 +656,7 @@ impl<'a> Checker<'a> {
                 // Which fields the literal gives, by position, and its
                 // values' types, which name its own shape only if it lacks
                 // one.
+                let held = self.hold(fields.len() + types_bytes(entries.len()));
                 let mut present = vec![false; fields.len()];
                 let mut types = Vec::with_capacity(entries.len());
                 for (key, entry) in entries {
@@ -670,9 +688,12 @@ impl<'a> Checker<'a> {
                     .filter(|(field, present)| !field.optional && !**present)
                     .map(|(field, _)| format!("`{}`", field.name))
                     .collect();
-                if !missing.is_empty() {
+                if missing.is_empty() {
+                    self.release(held);
+                } else {
                     let span = self.spans.expr(expr);
                     let shape = self.types.display(hint);
+                    self.transient(fields_bytes(entries));
                     let actual = entries
                         .iter()
                         .zip(types)
@@ -695,6 +716,7 @@ impl<'a> Checker<'a> {
                         )
                         .with_types(shape, found),
                     );
+                    self.release(held);
                     return Ty::ERROR;
                 }
                 hint
@@ -711,6 +733,7 @@ impl<'a> Checker<'a> {
 
     /// The exact shape of a hash literal, checking each entry once.
     fn shape_of(&mut self, entries: &'a [(crate::compilation::Bytes, Expr)]) -> Ty {
+        let held = self.hold(fields_bytes(entries));
         let mut fields = Vec::with_capacity(entries.len());
         for (key, entry) in entries {
             let ty = self.expr(entry, None);
@@ -720,7 +743,9 @@ impl<'a> Checker<'a> {
                 optional: false,
             });
         }
-        self.types.shape(fields, false)
+        let shape = self.types.shape(fields, false);
+        self.release(held);
+        shape
     }
 
     /// A braced group that is a type literal unless one of its names is a
@@ -1505,11 +1530,13 @@ impl<'a> Checker<'a> {
         };
         self.visibility("[]=", span, id, ns, true);
         let sig = self.program.fns[id].sig.clone();
-        let mut values: Vec<(Ty, Span)> = selectors
-            .iter()
-            .map(|selector| (self.expr(selector, None), self.spans.expr(selector)))
-            .collect();
+        let held = self.hold((selectors.len() + 1) * std::mem::size_of::<(Ty, Span)>());
+        let mut values: Vec<(Ty, Span)> = Vec::with_capacity(selectors.len() + 1);
+        for selector in selectors {
+            values.push((self.expr(selector, None), self.spans.expr(selector)));
+        }
         values.push((value_ty, self.spans.expr(value)));
+        self.release(held);
         for (index, (ty, span)) in values.into_iter().enumerate() {
             if let Some(param) = sig.params.get(index) {
                 if !self.types.assignable(ty, param.ty) {
@@ -1687,15 +1714,17 @@ impl<'a> Checker<'a> {
             if self.frame.flow.live {
                 results.push(ty);
             }
-            explored.push(self.frame.flow.rollback(mark));
+            let branch = self.frame.flow.rollback(mark);
+            self.explore(&mut explored, branch);
             self.apply(&narrow.otherwise);
         }
         let ty = self.branch_value(alternate, want);
         if self.frame.flow.live {
             results.push(ty);
         }
-        explored.push(self.frame.flow.rollback(entry));
-        self.join(explored);
+        let branch = self.frame.flow.rollback(entry);
+        self.explore(&mut explored, branch);
+        self.join_explored(explored);
         self.types.union(&results)
     }
 
@@ -1720,7 +1749,9 @@ impl<'a> Checker<'a> {
         want: Want,
     ) -> Ty {
         let subject_ty = subject.map(|subject| self.expr(subject, None));
+        // The values the `when`s name, kept while the rest are checked.
         let mut covered: Vec<String> = Vec::new();
+        let mut held = 0;
         let mut results = Vec::new();
         let mut explored = Vec::new();
         let entry = self.frame.flow.mark();
@@ -1734,6 +1765,7 @@ impl<'a> Checker<'a> {
                             .then_some(subject);
                         let ty = self.expr(value, hint);
                         if let Some(name) = self.covered_value(value, ty, subject) {
+                            held += self.hold(std::mem::size_of::<String>() + name.len());
                             covered.push(name);
                         }
                     }
@@ -1747,12 +1779,15 @@ impl<'a> Checker<'a> {
             if self.frame.flow.live {
                 results.push(ty);
             }
-            explored.push(self.frame.flow.rollback(mark));
+            let branch = self.frame.flow.rollback(mark);
+            self.explore(&mut explored, branch);
         }
         let exhaustive = match subject_ty {
             Some(subject) => self.exhaustive(expr, subject, &covered, alternate.is_some()),
             None => false,
         };
+        drop(covered);
+        self.release(held);
         match alternate {
             Some(alternate) => {
                 let ty = self.branch_value(alternate, want);
@@ -1779,8 +1814,9 @@ impl<'a> Checker<'a> {
             }
             None => (),
         }
-        explored.push(self.frame.flow.rollback(entry));
-        self.join(explored);
+        let branch = self.frame.flow.rollback(entry);
+        self.explore(&mut explored, branch);
+        self.join_explored(explored);
         self.types.union(&results)
     }
 
@@ -1861,6 +1897,7 @@ impl<'a> Checker<'a> {
         alternate: bool,
     ) -> bool {
         let covered: std::collections::HashSet<&str> = covered.iter().map(String::as_str).collect();
+        self.transient(super::meter::set(&covered));
         // The values the `case` misses, as their `when`s name them.
         let (missing, name): (Vec<String>, &str) = match *self.types.kind(subject) {
             Kind::EnumValue(id) => {
@@ -1945,7 +1982,9 @@ impl<'a> Checker<'a> {
         } else if self.frame.flow.live {
             results.push(body);
         }
-        let mut explored = vec![self.frame.flow.rollback(entry)];
+        let mut explored = Vec::new();
+        let branch = self.frame.flow.rollback(entry);
+        self.explore(&mut explored, branch);
         if !attempt.rescues.is_empty() {
             self.widen(spans.body);
         }
@@ -1960,11 +1999,12 @@ impl<'a> Checker<'a> {
             if self.frame.flow.live {
                 results.push(ty);
             }
-            explored.push(self.frame.flow.rollback(mark));
+            let branch = self.frame.flow.rollback(mark);
+            self.explore(&mut explored, branch);
             self.close_scope();
         }
         if attempt.ensure.is_empty() {
-            self.join(explored);
+            self.join_explored(explored);
         } else {
             self.ensure(&attempt.ensure, explored, spans);
         }
@@ -1983,7 +2023,7 @@ impl<'a> Checker<'a> {
         self.stmts(ensure, Want::Discard);
         let ensured = self.frame.flow.live;
         let branch = self.frame.flow.rollback(mark);
-        self.join(explored);
+        self.join_explored(explored);
         if self.stopped {
             return;
         }
@@ -2027,6 +2067,17 @@ impl<'a> Checker<'a> {
             self.types.union(&members)
         }
     }
+}
+
+/// The bytes of a list of one type for each of `count` elements.
+fn types_bytes(count: usize) -> usize {
+    count * std::mem::size_of::<Ty>()
+}
+
+/// The bytes of a literal's entries as a shape's fields, with their names.
+fn fields_bytes(entries: &[(crate::compilation::Bytes, Expr)]) -> usize {
+    entries.len() * std::mem::size_of::<Field>()
+        + entries.iter().map(|(key, _)| key.len()).sum::<usize>()
 }
 
 /// The integer a literal selector spells, including a negated one.

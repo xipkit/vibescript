@@ -246,6 +246,7 @@ impl<'a> Checker<'a> {
                 aliases.insert(alias.name.as_str(), text);
             }
         }
+        self.transient(map(&carried) + nominal.heap() + aliases.heap());
         for (name, declaration) in declared {
             let Some((value, retained)) = declaration.retained() else {
                 continue;
@@ -340,6 +341,7 @@ impl<'a> Checker<'a> {
                 members.iter().map(|m| m.to_string()).collect(),
             )));
             self.types.names.enums.push(name.to_string());
+            self.declaring();
         }
         for module in &parsed.modules {
             self.namespace(module, None);
@@ -589,6 +591,7 @@ impl<'a> Checker<'a> {
                 self.program.roots.insert(module.name.as_str(), id);
             }
         }
+        self.declaring();
         id
     }
 
@@ -700,6 +703,7 @@ impl<'a> Checker<'a> {
             main,
             visibility,
         });
+        self.declaring();
         self.program.fns.len() - 1
     }
 

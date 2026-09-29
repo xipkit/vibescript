@@ -273,7 +273,7 @@ fn key<T>(node: &T) -> usize {
 /// What checking the top-level statements of a host script found, for
 /// [`Checked::locals`] and [`Checked::result`].
 pub(crate) struct Session {
-    locals: Vec<(String, ty::Ty)>,
+    pub(crate) locals: Vec<(String, ty::Ty)>,
     result: ty::Ty,
 }
 
@@ -398,15 +398,18 @@ pub(crate) fn check(input: &Input<'_>) -> Checked {
 /// Checks a source `depth` requires deep.
 fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     let meter = meter::Meter::new(input.budget.clone());
+    // The spans may copy the tokens, before the type table first polls.
+    let spans = spans::Spans::new(
+        input.source,
+        input.tokens,
+        &input.parsed.interpolations,
+        std::sync::Arc::clone(&meter),
+    );
+    meter.outside(spans.bytes());
     let mut checker = Checker {
         source: input.source,
         parsed: input.parsed,
-        spans: spans::Spans::new(
-            input.source,
-            input.tokens,
-            &input.parsed.interpolations,
-            std::sync::Arc::clone(&meter),
-        ),
+        spans,
         types: ty::Types::metered(std::sync::Arc::clone(&meter)),
         program: program::Program::default(),
         converter: sigs::Converter::default(),
@@ -432,7 +435,10 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         stopped: false,
         grown: 0,
         declared_bytes: 0,
+        declared_count: 0,
         saved: 0,
+        scratch: 0,
+        defaults: None,
     };
     for (name, host) in &input.hosts {
         let function = crate::signatures::host::function(name, host);
@@ -466,9 +472,13 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         ),
         None => (Vec::new(), None),
     };
-    locals.sort();
+    // The locals' annotations are written out after the last measure.
+    meter.scratch(meter::Heap::heap(&locals));
+    locals.sort_unstable();
     let too_deep = checker.too_deep;
     let mut diagnostics = checker.diagnostics;
+    // Sorting the diagnostics and the calls in order keeps a copy of each.
+    meter.scratch(meter::vec(&diagnostics) + meter::vec(&checker.calls));
     diagnostics.sort_by_key(|d| (d.span.start, d.span.end));
     diagnostics.dedup_by(|a, b| a.code == b.code && a.span == b.span && a.message == b.message);
     let mut checked = Checked {
@@ -518,15 +528,18 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
 /// accept `string`, and a rest parameter `array<string>`.
 pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -> Vec<Diagnostic> {
     let meter = meter::Meter::new(input.budget.clone());
+    // The spans may copy the tokens, before the type table first polls.
+    let spans = spans::Spans::new(
+        input.source,
+        input.tokens,
+        &input.parsed.interpolations,
+        std::sync::Arc::clone(&meter),
+    );
+    meter.outside(spans.bytes());
     let mut checker = Checker {
         source: input.source,
         parsed: input.parsed,
-        spans: spans::Spans::new(
-            input.source,
-            input.tokens,
-            &input.parsed.interpolations,
-            std::sync::Arc::clone(&meter),
-        ),
+        spans,
         types: ty::Types::metered(std::sync::Arc::clone(&meter)),
         program: program::Program::default(),
         converter: sigs::Converter::default(),
@@ -552,7 +565,10 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
         stopped: false,
         grown: 0,
         declared_bytes: 0,
+        declared_count: 0,
         saved: 0,
+        scratch: 0,
+        defaults: None,
     };
     checker.declare_hosts(input.declared);
     checker.declare_program(input.parsed);
@@ -624,9 +640,27 @@ pub(crate) struct Checker<'a> {
     grown: usize,
     /// What the program's declarations hold, measured when they change.
     declared_bytes: usize,
+    /// How many functions, classes, modules and enums there were when the
+    /// declarations were last measured.
+    declared_count: usize,
     /// What the frames that enclosing checks set aside hold.
     saved: usize,
+    /// What the operations under way keep beside the tables while they
+    /// check more code: [`Self::hold`] adds to it and [`Self::release`]
+    /// takes it back.
+    scratch: usize,
+    /// Each class's instance-variable defaults, by the class's offset,
+    /// with the variable each assigns: gathered in one pass the first time
+    /// a class body needs them, and taken as each is checked.
+    defaults: Option<Defaults<'a>>,
 }
+
+/// Instance-variable defaults by their class's offset, with the variable
+/// each assigns, and what the table holds.
+type Defaults<'a> = (
+    HashMap<u32, Vec<(&'a crate::syntax::Stmt, Option<&'a str>)>>,
+    usize,
+);
 
 /// Expression types by node, recorded or replayed.
 #[derive(Default)]

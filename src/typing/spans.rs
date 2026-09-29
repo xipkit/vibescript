@@ -57,6 +57,8 @@ impl<'a> Spans<'a> {
         if let std::borrow::Cow::Owned(tokens) = &mut tokens {
             tokens.sort_by_key(|token| token.span.start);
             owned = super::meter::Heap::heap(tokens);
+            // Sorting them in order kept a copy of them for a moment.
+            meter.scratch(owned + tokens.len() * std::mem::size_of::<Token>());
         }
         Self {
             source,

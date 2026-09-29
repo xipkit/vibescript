@@ -29,6 +29,8 @@ pub(crate) struct Meter {
     /// The bytes the checker's tables other than the type table held when
     /// it last polled, which the type table adds its own to.
     outside: AtomicUsize,
+    /// What the check held when it was last measured.
+    last: AtomicUsize,
     peak: AtomicUsize,
     stopped: AtomicBool,
     polls: AtomicU64,
@@ -78,9 +80,31 @@ impl Meter {
     /// Records the type table's `bytes`, with the rest the checker last
     /// reported, as the memory held now.
     pub fn held(&self, types: usize) -> usize {
-        let held = types + self.outside.load(Relaxed);
+        let held = self.account(types);
         self.reach(held);
         held
+    }
+
+    /// The type table's `bytes` with the rest the checker last reported,
+    /// kept as what the check held when last measured.
+    fn account(&self, types: usize) -> usize {
+        let held = types + self.outside.load(Relaxed);
+        self.last.store(held, Relaxed);
+        held
+    }
+
+    /// Records `extra` bytes of scratch an operation holds for a moment
+    /// beside what the check held when last measured, stopping it if they
+    /// pass the memory left; less than [`SCRATCH`] stays within the
+    /// account's margin.
+    pub fn scratch(&self, extra: usize) {
+        if extra >= SCRATCH {
+            let held = self.last.load(Relaxed) + extra;
+            self.reach(held);
+            if self.budget.memory.is_some_and(|left| held > left) {
+                self.stop();
+            }
+        }
     }
 
     /// Records that the check held `bytes` at some point, as while a
@@ -92,7 +116,7 @@ impl Meter {
     /// Records the type table's `bytes` with `extra` an operation holds
     /// while it runs, stopping the check if they pass the memory left.
     pub fn transient(&self, types: usize, extra: usize) {
-        let held = self.held(types) + extra;
+        let held = self.account(types) + extra;
         self.reach(held);
         if self.budget.memory.is_some_and(|left| held > left) {
             self.stop();
@@ -125,6 +149,10 @@ impl Meter {
 pub(crate) trait Heap {
     fn heap(&self) -> usize;
 }
+
+/// Scratch smaller than this is left to the account's margin rather than
+/// checked against the memory left as soon as it is taken.
+const SCRATCH: usize = 4096;
 
 /// The bytes a hash table of `capacity` entries of type `T` allocates:
 /// its buckets, a power of two that keeps it at most seven eighths full,
@@ -392,11 +420,24 @@ impl<'a> super::Checker<'a> {
         self.meter.held(self.types.bytes())
     }
 
+    /// Follows the declarations as they are made: measures them again, and
+    /// records what the checker holds, once they grow by a quarter, so the
+    /// account keeps up with them at a cost linear in their number.
+    pub(super) fn declaring(&mut self) {
+        let program = &self.program;
+        let count = program.fns.len() + program.namespaces.len() + program.enums.len();
+        if count > self.declared_count + self.declared_count / 4 {
+            self.declared_count = count;
+            self.declared();
+        }
+    }
+
     /// Measures the declarations once they change, which is rarely: the
     /// program's functions, classes, modules and enums, the host's, and
     /// their names in the type table.
     pub(super) fn declared(&mut self) {
         self.declared_bytes = self.program.heap() + self.types.names.heap() + self.modules.heap();
+        self.meter.outside(self.outside());
     }
 
     /// What the checker's tables other than the type table hold.
@@ -426,6 +467,7 @@ impl<'a> super::Checker<'a> {
             + frame.heap()
             + contexts
             + self.saved
+            + self.scratch
             + self.purposes.capacity() * size_of::<super::check::Purpose>()
             + self.memo.as_ref().map_or(0, super::Memo::bytes)
             + set(&self.write_chain)
@@ -436,10 +478,44 @@ impl<'a> super::Checker<'a> {
             + self.assigns.bytes()
     }
 
-    /// Records `bytes` of scratch that a walk over the syntax held beside
-    /// the tables, for the budget and the peak.
+    /// Records `bytes` of scratch an operation holds beside the tables
+    /// for a moment, such as the lists a walk over the syntax keeps, for
+    /// the budget and the peak. Less than [`SCRATCH`] stays within the
+    /// account's margin.
     pub(super) fn transient(&self, bytes: usize) {
-        self.meter.transient(self.types.bytes(), bytes);
+        if bytes >= SCRATCH {
+            self.check_memory(bytes);
+        }
+    }
+
+    /// Counts `bytes` of scratch that an operation keeps while it checks
+    /// more code, such as the types of a literal's elements, until
+    /// [`Self::release`] takes them back; returns them. Many are checked
+    /// against the memory left at once.
+    pub(super) fn hold(&mut self, bytes: usize) -> usize {
+        self.scratch += bytes;
+        if bytes >= SCRATCH {
+            self.check_memory(0);
+        }
+        bytes
+    }
+
+    /// Records that the check held `bytes` at some point, as while a
+    /// required file was checked.
+    pub(super) fn observed(&self, bytes: usize) {
+        self.meter.reach(bytes);
+    }
+
+    /// Takes back scratch [`Self::hold`] counted.
+    pub(super) fn release(&mut self, bytes: usize) {
+        self.scratch -= bytes;
+    }
+
+    /// Records what the tables hold now with `extra` bytes beside them,
+    /// stopping the check if they pass the memory left.
+    fn check_memory(&self, extra: usize) {
+        self.meter.outside(self.outside());
+        self.meter.transient(self.types.bytes(), extra);
     }
 
     /// Counts a diagnostic the checker keeps.
