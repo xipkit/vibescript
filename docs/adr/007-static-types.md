@@ -264,8 +264,10 @@ checker with predictable results.
   `Engine::declare_global(name, type)`, and `Engine::declare_capability`, which
   types a capability's methods by their published signatures and its data by
   its template's values. A global declared without a type, and a capability
-  built by a factory, are `any`. A bare name that is neither in scope nor
-  declared is a compile error (V0201), not `any`. `Engine::prelude` lists the
+  built by a factory, are `any`. A factory root ending in `?` or `!` must be
+  callable, so its declaration accepts `any` arguments and returns `any`;
+  binding checks the actual factory result. A bare name that is neither in
+  scope nor declared is a compile error (V0201), not `any`. `Engine::prelude` lists the
   declarations, and each call checks at entry that its globals and
   capabilities match them, as it checks arguments.
 - The CLI passes arguments as strings. `vibes run script.vibe a b` requires the

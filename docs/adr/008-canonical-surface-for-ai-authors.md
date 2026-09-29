@@ -358,7 +358,10 @@ host registrations, capability templates and factory results, callable globals,
 and methods added by host callbacks follow the same rule. Infallible host
 constructors remain infallible; validation happens at declaration, compilation
 or import, before the name reaches scripts or the generated prelude. Qualified
-host diagnostic labels are separate from published names.
+host diagnostic labels are separate from published names. Opaque factory roots
+may declare one terminal suffix because they can return a callable descriptor;
+binding validates the name against the actual result and rejects data under a
+suffixed root. Such roots have an unsigned function declaration until binding.
 
 Bare aliases and both quoted and unquoted symbol aliases validate the new
 name and target before lookup. Operators and ordinary setters remain valid;

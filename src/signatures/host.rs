@@ -60,14 +60,13 @@ pub(crate) fn table(
             Some(value) if valid_binding(name, value) => {
                 documented(binding(name, value), "A capability.")
             }
-            None if crate::syntax::binding_name(&(), name).is_ok() => documented(
-                Item::Constant(Constant {
-                    doc: Vec::new(),
-                    name: name.to_owned(),
-                    ty: Type::name("any"),
-                }),
-                "A capability bound when each call starts, so its members are not known here.",
-            ),
+            None => {
+                let Ok(item) = factory(name) else { continue };
+                documented(
+                    item,
+                    "A capability bound when each call starts, so its members are not known here.",
+                )
+            }
             _ => continue,
         };
         table.items.push(item);
@@ -91,6 +90,21 @@ pub(crate) fn table(
 fn valid_binding(name: &str, value: &Value) -> bool {
     crate::capability::binding_name(&(), name, value).is_ok()
         && crate::capability::template_names(&(), value).is_ok()
+}
+
+/// An opaque factory's declaration, deferring value-sensitive checks to binding.
+pub(crate) fn factory(name: &str) -> crate::Result<Item> {
+    if name.ends_with(['?', '!']) {
+        crate::syntax::host_function_name(&(), name)?;
+        Ok(Item::Function(unsigned(name, true, true)))
+    } else {
+        crate::syntax::binding_name(&(), name)?;
+        Ok(Item::Constant(Constant {
+            doc: Vec::new(),
+            name: name.to_owned(),
+            ty: Type::name("any"),
+        }))
+    }
 }
 
 /// A registered host function's signature, as the static checker reads it:

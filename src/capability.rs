@@ -90,6 +90,8 @@ impl Capability {
     /// The factory is opaque to static checking: reports for calls granted a
     /// factory remain incomplete, because inspecting its binding would require
     /// running host code. Use it when each invocation needs fresh callback state.
+    /// A name ending in `?` or `!` requires the factory to return a callable;
+    /// declaration accepts the name and binding checks the returned value.
     pub fn new(
         name: impl Into<String>,
         bind: impl Fn(&mut CallContext) -> Result<Value> + Send + Sync + 'static,

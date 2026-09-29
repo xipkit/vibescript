@@ -466,6 +466,68 @@ fn capability_roots_and_members_share_method_spelling_validation() {
 }
 
 #[test]
+fn suffixed_factory_roots_are_checked_against_the_bound_value() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    for name in ["ready?", "save!"] {
+        for callable in [true, false] {
+            let calls = Arc::new(AtomicUsize::new(0));
+            let seen = calls.clone();
+            let cap = Capability::new(name, move |_| {
+                seen.fetch_add(1, Ordering::Relaxed);
+                Ok(if callable {
+                    method().value()
+                } else {
+                    Value::boolean(true)
+                })
+            });
+            let options = CallOptions {
+                capabilities: vec![cap.clone()],
+                ..CallOptions::default()
+            };
+            let mut engine = Engine::new();
+            let granted_prelude = engine.prelude(&options);
+            assert!(granted_prelude.contains(&format!("def {name}(")));
+            assert!(vibescript::signatures::Table::parse(&granted_prelude).is_ok());
+            engine.declare_capability(&cap).unwrap();
+            let declared_prelude = engine.prelude(&CallOptions::default());
+            assert!(declared_prelude.contains(&format!("def {name}(")));
+            assert!(vibescript::signatures::Table::parse(&declared_prelude).is_ok());
+            assert_eq!(calls.load(Ordering::Relaxed), 0);
+            for source in [name.to_owned(), format!("{name}()")] {
+                let script = engine.compile(&source).unwrap();
+                let before = calls.load(Ordering::Relaxed);
+                let result = script.run(options.clone());
+                assert_eq!(calls.load(Ordering::Relaxed), before + 1);
+                if callable {
+                    assert_eq!(result.unwrap().value.to_string(), "true");
+                } else {
+                    suffix_error(result.unwrap_err(), name);
+                }
+            }
+            assert_eq!(calls.load(Ordering::Relaxed), 2);
+        }
+    }
+}
+
+#[test]
+fn factory_roots_reject_impossible_suffix_spellings_without_running() {
+    for name in ["bad??", "bad!!", "bad?!", "bad?name", "bad!name"] {
+        let cap = Capability::new(name, |_| panic!("invalid factory ran"));
+        let options = CallOptions {
+            capabilities: vec![cap.clone()],
+            ..CallOptions::default()
+        };
+        let mut engine = Engine::new();
+        suffix_error(engine.declare_capability(&cap).unwrap_err(), name);
+        assert!(!engine.prelude(&options).contains(name));
+    }
+}
+
+#[test]
 fn factories_globals_and_host_publication_reject_uncallable_members() {
     for name in ["ready?", "save!", "bad??", "bad!name"] {
         let valid = matches!(name, "ready?" | "save!");

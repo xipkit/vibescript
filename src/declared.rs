@@ -81,13 +81,13 @@ impl Declaration {
     /// function, an object holding host methods a namespace of its methods
     /// and data, and other data a value of the type its contents show. A
     /// factory capability, whose value is known only when a call starts, is
-    /// declared as `any`.
+    /// declared as `any`, or as an unsigned function when its suffix requires
+    /// a callable binding.
     pub fn capability(capability: &Capability) -> Result<Self> {
         let name = capability.name.as_str();
         let Some(template) = capability.template() else {
-            crate::syntax::binding_name(&(), name)?;
             return Ok(Self {
-                item: constant(name, signatures::Type::name("any")),
+                item: signatures::host::factory(name)?,
                 capability: true,
                 shape: Shape::Value(None),
             });
