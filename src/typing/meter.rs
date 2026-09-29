@@ -479,6 +479,7 @@ impl<'a> super::Checker<'a> {
             set(&self.write_chain),
             map(&self.fetch_receivers),
             self.memo.get().map_or(0, super::Memo::bytes),
+            self.construction.largest(),
         ]
         .into_iter()
         .max()

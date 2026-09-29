@@ -127,12 +127,26 @@ pub(crate) struct Construction {
     /// What the methods' uses and the sites hold beyond the tables' own
     /// storage, for the checker's memory account.
     held: usize,
+    /// The addresses of the rosters and of the nodes of the sets of
+    /// unassigned variables that the sites keep, which they share, so each
+    /// is counted in `held` once. The sites keep them after the frames
+    /// that made them are gone.
+    retained: HashSet<usize>,
 }
 
 impl Construction {
     /// What the records hold.
     pub fn bytes(&self) -> usize {
-        super::meter::map(&self.methods) + super::meter::vec(&self.sites) + self.held
+        super::meter::map(&self.methods)
+            + super::meter::vec(&self.sites)
+            + super::meter::set(&self.retained)
+            + self.held
+    }
+
+    /// The larger of the records' hash tables, which grow as sites are
+    /// kept.
+    pub fn largest(&self) -> usize {
+        super::meter::map(&self.methods).max(super::meter::set(&self.retained))
     }
 }
 
@@ -199,14 +213,28 @@ impl<'a> Checker<'a> {
             return;
         };
         if let Some(unassigned) = self.unassigned() {
-            self.construction.held += kind.heap();
-            self.construction.sites.push(Site {
+            self.record_site(Site {
                 class,
                 kind,
                 unassigned,
                 span,
             });
         }
+    }
+
+    /// Keeps `site`, counting what it holds that no earlier site shares:
+    /// its roster, and the nodes of its set of unassigned variables that
+    /// the assignments before it copied.
+    fn record_site(&mut self, site: Site) {
+        let construction = &mut self.construction;
+        let roster = Rc::as_ptr(&site.unassigned.roster).cast::<u8>() as usize;
+        if construction.retained.insert(roster) {
+            construction.held += roster_bytes(&site.unassigned.roster);
+        }
+        let (bytes, visited) = site.unassigned.marks.retain(&mut construction.retained);
+        construction.held += bytes + site.kind.heap();
+        construction.sites.push(site);
+        self.meter.charge(visited as u64);
     }
 
     /// Records a read of instance variable `name` of `self` at `span`.
@@ -252,11 +280,12 @@ impl<'a> Checker<'a> {
         let Some(mut unassigned) = self.unassigned() else {
             return;
         };
+        // The site counts the path the removal copies.
         if let Some(stored) = &stored {
-            self.construction.held += unassigned.remove(stored);
+            unassigned.remove(stored);
         }
         if !unassigned.is_empty() {
-            self.construction.sites.push(Site {
+            self.record_site(Site {
                 class,
                 kind: SiteKind::Escape,
                 unassigned,

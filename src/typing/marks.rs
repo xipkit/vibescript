@@ -112,6 +112,26 @@ impl Marks {
         }
     }
 
+    /// Adds the nodes of this set that `seen`, their addresses, lacks;
+    /// returns their bytes and the nodes it looked at. A node `seen` has
+    /// is not entered: what it holds was added with it, and nodes another
+    /// set shares never change.
+    pub fn retain(&self, seen: &mut std::collections::HashSet<usize>) -> (usize, usize) {
+        let (mut bytes, mut visited) = (0, 0);
+        let mut pending = vec![&self.root];
+        while let Some(node) = pending.pop() {
+            visited += 1;
+            if !seen.insert(Rc::as_ptr(node) as usize) {
+                continue;
+            }
+            bytes += node_bytes(node);
+            if let Node::Inner(children) = &**node {
+                pending.extend(children);
+            }
+        }
+        (bytes, visited)
+    }
+
     /// The indices in the set, in order.
     pub fn indices(&self) -> Vec<usize> {
         let mut found = Vec::with_capacity(self.len);

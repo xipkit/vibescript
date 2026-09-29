@@ -360,6 +360,23 @@ fn adversarial() -> Vec<(String, String)> {
             "def g(v: int | float | nil) -> int\n  0\nend\ndef f(u: array<int> | array<float>) -> int\n  x = {index}\n  0\nend\n"
         ),
     ));
+    // Each call on `self` while variables are unassigned keeps the set of
+    // those still unassigned, which the next assignment copies a path of.
+    let (classes, variables) = if small { (4, 500) } else { (20, 2_000) };
+    programs.push((
+        "classes whose initialize calls a method between assignments".to_owned(),
+        join(
+            classes,
+            &|class| {
+                format!(
+                    "class C{class}\n{}  def initialize\n{}  end\n  def touch -> int\n    1\n  end\nend\n",
+                    join(variables, &|i| format!("  @v{i}: int\n"), ""),
+                    join(variables, &|i| format!("    @v{i} = 1\n    touch\n"), "")
+                )
+            },
+            "",
+        ),
+    ));
     programs.push((
         "diagnostics for many wrong calls".to_owned(),
         format!(
