@@ -158,6 +158,21 @@ impl Engine {
     /// # Ok::<(), vibescript::Error>(())
     /// ```
     pub fn type_check(&self, source: &str) -> Result<typing::Checked> {
+        self.type_check_with(source, &mut || (), &|| ())
+    }
+
+    /// Like [`Self::type_check`], calling `checking` once the source is
+    /// parsed, just before the checker starts, and again once the check is
+    /// done, before the parsed source is dropped, and `surfacing` just
+    /// before the pass over the canonical surface, for a test measuring the
+    /// memory each one needs.
+    #[doc(hidden)]
+    pub fn type_check_with(
+        &self,
+        source: &str,
+        checking: &mut dyn FnMut(),
+        surfacing: &(dyn Fn() + Sync),
+    ) -> Result<typing::Checked> {
         for name in self.hosts.keys() {
             syntax::host_function_name(&(), syntax::HostName::FUNCTION, name)?;
         }
@@ -171,7 +186,7 @@ impl Engine {
         })?;
         let resolve =
             |path: &str, origin: Option<&loading::Origin>| self.loader.source(path, origin);
-        Ok(typing::check(&typing::Input {
+        let input = typing::Input {
             source,
             parsed: &parsed,
             tokens: &tokens,
@@ -181,8 +196,14 @@ impl Engine {
             origin: None,
             modules: Some(&resolve),
             budget: Default::default(),
-        }))
+            surfacing: Some(surfacing),
+        };
+        checking();
+        let checked = typing::check(&input);
+        checking();
+        Ok(checked)
     }
+
     /// Checks that a command line can call `function` in `source` with
     /// `count` arguments, which it passes as strings (ADR-007): each
     /// positional parameter they bind must accept `string`, and a rest
@@ -225,6 +246,7 @@ impl Engine {
                 origin: None,
                 modules: None,
                 budget: Default::default(),
+                surfacing: None,
             },
             function,
             count,

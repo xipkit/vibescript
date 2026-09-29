@@ -240,6 +240,7 @@ impl<'a> Checker<'a> {
             origin: Some(&origin),
             modules: self.modules.resolve,
             budget,
+            surfacing: None,
         };
         let checked = super::check_nested(&input, self.modules.depth + 1);
         self.meter.charge(checked.steps);

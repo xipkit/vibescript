@@ -58,6 +58,9 @@ pub(crate) struct Input<'a> {
     pub modules: Option<&'a Modules<'a>>,
     /// What the check may spend before it stops; unlimited unless metered.
     pub budget: crate::compilation::Budget,
+    /// Called once the checker finishes, before the pass over the canonical
+    /// surface, by a test measuring each pass's memory.
+    pub surfacing: Option<&'a (dyn Fn() + Sync)>,
 }
 
 /// Resolves a required module's name to its source and filename.
@@ -490,6 +493,9 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         } else if input.budget.memory.is_some_and(|left| held > left) {
             checked.stopped = true;
         } else {
+            if let Some(surfacing) = input.surfacing {
+                surfacing();
+            }
             checked.surface_bytes = surface;
             crate::surface::add_to(&mut checked, input.source, input.tokens);
         }

@@ -28,6 +28,11 @@ path = "tests/all.rs"
 name = "footprint"
 path = "tests/footprint.rs"
 
+# The checker's own memory account, measured by a counting allocator.
+[[test]]
+name = "checker_footprint"
+path = "tests/checker_footprint.rs"
+
 [features]
 default = ["simd"]
 simd = []
