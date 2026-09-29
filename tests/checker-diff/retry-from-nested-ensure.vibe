@@ -1,0 +1,21 @@
+# expect: rejected V0107
+# A `retry` in the ensure of a `begin` nested in a rescue reruns the
+# enclosing `begin`, whose body then sees what the rescue assigned.
+n = 0
+v: int? = 5
+if v != nil
+  begin
+    n += 1
+    t: int = v
+    p(t)
+    raise "again" if n < 2
+  rescue
+    v = nil
+    begin
+      p(1)
+    ensure
+      retry if n < 3
+    end
+  end
+end
+p(n)

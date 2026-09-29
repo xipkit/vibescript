@@ -1,0 +1,25 @@
+# expect: agreed
+# A `retry` in a nested `begin`'s own rescue reruns only that `begin`, so
+# the enclosing body keeps its narrowing; a `retry` in a block would cross
+# a call and fail, so it reruns nothing.
+n = 0
+m = 0
+v: int? = 5
+if v != nil
+  begin
+    m += 1
+    t: int = v
+    p(t)
+    raise "outer" if m < 2
+  rescue
+    begin
+      n += 1
+      raise "inner" if n < 3
+    rescue
+      v = nil
+      [].each { |q| retry }
+      retry
+    end
+  end
+end
+p(n, m, v)

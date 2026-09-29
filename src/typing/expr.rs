@@ -1885,7 +1885,7 @@ impl<'a> Checker<'a> {
         // ensure, or a `retry` running the body again, may also follow any
         // part of a rescue, and the ensure any part of the `else`.
         let spans = self.assigns.attempt(attempt);
-        if attempt.rescues.iter().any(|rescue| retries(&rescue.body)) {
+        if spans.retry {
             self.widen(spans.retried());
         }
         let entry = self.frame.flow.mark();
@@ -1986,20 +1986,6 @@ impl<'a> Checker<'a> {
             self.types.union(&members)
         }
     }
-}
-
-/// Whether statements `retry` their `begin`, outside any `begin` nested in
-/// them, which retries its own.
-fn retries(stmts: &[crate::syntax::Stmt]) -> bool {
-    use crate::syntax::Statement;
-    stmts.iter().any(|stmt| match &stmt.node {
-        Statement::Retry => true,
-        Statement::If(branches, alternate, _) => {
-            branches.iter().any(|(_, body)| retries(body)) || retries(alternate)
-        }
-        Statement::While(_, body, _) | Statement::For(_, _, body) => retries(body),
-        _ => false,
-    })
 }
 
 /// The integer a literal selector spells, including a negated one.

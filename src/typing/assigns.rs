@@ -26,6 +26,10 @@ pub(super) struct TrySpans {
     pub rescues: Span,
     pub alternate: Span,
     pub ensure: Span,
+    /// Whether a `retry` reruns the body: one in a rescue, outside any
+    /// `begin` nested there that is rescuing its own error, and outside any
+    /// block, where a `retry` would cross a call and fail.
+    pub retry: bool,
 }
 
 impl TrySpans {
@@ -77,6 +81,8 @@ pub(super) struct Assigns<'a> {
     /// The span of each walked statement list, by its address and length.
     bodies: HashMap<(usize, usize), Span>,
     tries: HashMap<usize, TrySpans>,
+    /// The `begin`s, by address, that a `retry` reruns.
+    retried: std::collections::HashSet<usize>,
 }
 
 impl<'a> Assigns<'a> {
@@ -171,6 +177,7 @@ impl<'a> Assigns<'a> {
         let mut walk = Walk {
             assigns: self,
             root,
+            target: None,
         };
         visit(&mut walk);
         let count = self.sites.len() - start as usize;
@@ -197,6 +204,10 @@ fn key(body: &[Stmt]) -> (usize, usize) {
 struct Walk<'a, 'w> {
     assigns: &'w mut Assigns<'a>,
     root: u32,
+    /// The `begin` a `retry` here reruns, by address: the innermost one
+    /// whose rescue the walk is in, as the runtime finds the innermost
+    /// handler that is rescuing.
+    target: Option<usize>,
 }
 
 impl<'a> Walk<'a, '_> {
@@ -262,6 +273,11 @@ impl<'a> Walk<'a, '_> {
                         self.expr(expr);
                     }
                 }
+                Statement::Retry => {
+                    if let Some(target) = self.target {
+                        self.assigns.retried.insert(target);
+                    }
+                }
                 _ => (),
             }
         }
@@ -271,11 +287,16 @@ impl<'a> Walk<'a, '_> {
     }
 
     fn attempt(&mut self, attempt: &'a Try) {
+        let address = attempt as *const Try as usize;
+        // A `retry` in the body, the `else` or the ensure reruns an
+        // enclosing `begin`, since this one is not rescuing then.
         let body = self.stmts(&attempt.body);
         let start = self.here();
+        let outer = self.target.replace(address);
         for rescue in attempt.rescues.iter() {
             self.stmts(&rescue.body);
         }
+        self.target = outer;
         let rescues = self.span(start);
         let alternate = self.stmts(&attempt.alternate);
         let ensure = self.stmts(&attempt.ensure);
@@ -284,10 +305,9 @@ impl<'a> Walk<'a, '_> {
             rescues,
             alternate,
             ensure,
+            retry: self.assigns.retried.contains(&address),
         };
-        self.assigns
-            .tries
-            .insert(attempt as *const Try as usize, spans);
+        self.assigns.tries.insert(address, spans);
     }
 
     fn target(&mut self, target: &'a Target) {
@@ -322,7 +342,10 @@ impl<'a> Walk<'a, '_> {
                 Node::Try(attempt) => self.attempt(attempt),
                 Node::BlockCall(call, block) => {
                     pending.push(call);
+                    // A block is a call, which a `retry` cannot leave.
+                    let outer = self.target.take();
                     self.stmts(&block.body);
+                    self.target = outer;
                 }
                 Node::Shape(_, Some(fallback), _) => pending.push(fallback),
                 Node::Template(values, _) | Node::Array(values) | Node::Yield(values) => {

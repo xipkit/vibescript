@@ -88,6 +88,33 @@ fn assignments_anywhere_in_a_loop_or_begin_end_its_narrowing() {
 }
 
 #[test]
+fn a_retry_reruns_the_innermost_begin_that_is_rescuing() {
+    let outer = |inner: &str| {
+        format!(
+            "def f(c: bool) -> int\n  v: int? = 5\n  return 0 if v == nil\n  begin\n    t = v + 1\n    raise \"e\" if c\n  rescue\n    v = nil\n    {inner}\n  end\n  0\nend\n"
+        )
+    };
+    // The nested `begin` is not rescuing in its body, `else` or ensure, so
+    // a `retry` there reruns the enclosing body, which sees `v = nil`.
+    for inner in [
+        "begin\n      1\n    ensure\n      retry if c\n    end",
+        "begin\n      1\n    rescue\n      2\n    else\n      retry if c\n    end",
+        "begin\n      retry if c\n    rescue ArgumentError\n      2\n    end",
+        "if c\n      begin\n        retry\n      ensure\n        p(1)\n      end\n    end",
+    ] {
+        codes(&outer(inner), &["V0107"]);
+    }
+    // A `retry` in the nested `begin`'s own rescue reruns only it, and one
+    // in a block would cross a call.
+    for inner in [
+        "begin\n      1\n    rescue\n      retry if c\n    end",
+        "[1].each { |q| retry if c }",
+    ] {
+        clean(&outer(inner));
+    }
+}
+
+#[test]
 fn assignment_narrows_an_optional_local() {
     clean("label: string? = nil\nlabel = \"ready\"\nlabel.upcase\n");
     codes(

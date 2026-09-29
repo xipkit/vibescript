@@ -1,0 +1,21 @@
+# expect: rejected V0107
+# A `retry` in the body of a `begin` nested in a rescue reruns the
+# enclosing `begin`, even when the nested one has rescues of its own.
+n = 0
+v: int? = 5
+if v != nil
+  begin
+    n += 1
+    t: int = v
+    p(t)
+    raise "again" if n < 2
+  rescue
+    v = nil
+    begin
+      retry if n < 3
+    rescue ArgumentError
+      p(2)
+    end
+  end
+end
+p(n)
