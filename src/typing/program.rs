@@ -699,14 +699,18 @@ impl<'a> Checker<'a> {
                         optional: field.optional,
                     })
                     .collect();
-                self.types.shape(fields, *open)
+                let shape = self.types.shape(fields, *open);
+                self.too_large(offset);
+                shape
             }
             TypeKind::Union(options) => {
                 let options: Vec<Ty> = options
                     .iter()
                     .map(|option| self.annotation(option, scope, offset))
                     .collect();
-                self.types.union(&options)
+                let union = self.types.union(&options);
+                self.too_large(offset);
+                union
             }
             TypeKind::Tuple(elements) => {
                 let elements = elements
@@ -729,6 +733,26 @@ impl<'a> Checker<'a> {
         } else {
             base
         }
+    }
+
+    /// Reports, at `offset`, a union or shape too large for the checker to
+    /// build since it last looked.
+    pub(super) fn too_large(&mut self, offset: usize) {
+        let Some((what, size)) = self.types.too_large.take() else {
+            return;
+        };
+        let (most, parts) = match what {
+            "union" => (super::ty::MAX_ALTERNATIVES, "alternatives"),
+            _ => (super::ty::MAX_FIELDS, "fields"),
+        };
+        let span = self.spans.token(offset);
+        self.report(Diagnostic::error(
+            Code::TYPE_TOO_LARGE,
+            span,
+            format!(
+                "this {what} has {size} {parts}, more than the {most} the checker relates; declare a wider type, such as a dictionary or an array of a smaller union"
+            ),
+        ));
     }
 
     /// Resolves a named type: an alias, class or enum visible from `scope`,

@@ -895,7 +895,9 @@ impl<'a> Checker<'a> {
         for stmt in rest {
             self.stmt(stmt, Want::Discard);
         }
-        self.statement(last, want, true)
+        let ty = self.statement(last, want, true);
+        self.too_large(last.offset as usize);
+        ty
     }
 
     /// Makes `frame` current, keeping the work the replaced frame did.
@@ -949,7 +951,11 @@ impl<'a> Checker<'a> {
     }
 
     pub(super) fn stmt(&mut self, stmt: &'a Stmt, want: Want) -> Ty {
-        self.statement(stmt, want, false)
+        let ty = self.statement(stmt, want, false);
+        // A type the statement inferred too large to build, such as the
+        // union of a literal's many shapes, is reported at it.
+        self.too_large(stmt.offset as usize);
+        ty
     }
 
     /// Checks a statement, `last` when it ends a body, where a loop gives

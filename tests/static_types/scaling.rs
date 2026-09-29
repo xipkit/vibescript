@@ -1,7 +1,8 @@
 //! Checking is linear: each function is checked once, from its signature and
 //! those of what it calls, so doubling a program at most doubles the work.
 
-use vibescript::Engine;
+use super::support::errors;
+use vibescript::{Engine, diagnostic::Diagnostic};
 
 fn repeat(count: usize, item: impl Fn(usize) -> String) -> String {
     (0..count).map(item).collect()
@@ -253,4 +254,58 @@ fn syntax_as_deep_as_the_parser_allows_checks_on_a_small_stack() {
         .unwrap()
         .join()
         .unwrap();
+}
+
+#[test]
+fn unions_and_shapes_past_their_bounds_are_reported_where_they_are_written() {
+    let arms = |count: usize| {
+        (0..count)
+            .map(|i| format!("{{ a{i}: int }}"))
+            .collect::<Vec<_>>()
+            .join(" | ")
+    };
+    // A declared union of 1,024 alternatives, `nil` among them, is fine;
+    // one more is not.
+    let source = format!(
+        "type Wide = {}\ndef f(x: Wide?) -> Wide?\n  x\nend\n",
+        arms(1023)
+    );
+    assert!(errors(&source).is_empty());
+    let source = format!(
+        "type Wide = {}\ndef f(x: Wide) -> Wide\n  x\nend\n",
+        arms(1025)
+    );
+    let found = errors(&source);
+    assert_eq!(codes_of(&found), ["V0124"], "{:?}", found.first());
+    assert!(
+        found[0].message.contains("1025 alternatives"),
+        "{}",
+        found[0].message
+    );
+    assert_eq!(found[0].span.start, 0);
+    // An inferred one is reported at its statement.
+    let items = (0..1100)
+        .map(|i| format!("{{ a{i}: {i} }}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let source = format!("y = 1\nx = [{items}]\n");
+    let found = errors(&source);
+    assert_eq!(codes_of(&found), ["V0124"]);
+    assert_eq!(found[0].span.start, source.find("x =").unwrap());
+    // So is a shape of too many fields.
+    let fields = (0..16_385)
+        .map(|i| format!("f{i}: int"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let found = errors(&format!("def f(x: {{ {fields} }}) -> int\n  1\nend\n"));
+    assert_eq!(codes_of(&found), ["V0124"]);
+    assert!(
+        found[0].message.contains("16385 fields"),
+        "{}",
+        found[0].message
+    );
+}
+
+fn codes_of(found: &[Diagnostic]) -> Vec<String> {
+    found.iter().map(|d| d.code.to_string()).collect()
 }

@@ -3,6 +3,16 @@
 
 use std::{collections::HashMap, sync::Arc};
 
+/// The most alternatives a union may have: a wider one is an error
+/// (V0124), reported where it is written or inferred, before the checker
+/// relates it to anything, like the 1,024 levels of syntax the parser
+/// allows. No corpus program comes near: the widest union in them has 10.
+pub const MAX_ALTERNATIVES: usize = 1024;
+
+/// The most fields a shape may have (V0124). A hash literal of a test that
+/// bounds shape writes has 6,003, the most in the corpora.
+pub const MAX_FIELDS: usize = 16_384;
+
 /// Entries the assignability memo holds before it starts over, so the memo
 /// stays small however many pairs a check compares.
 const MEMO: usize = 1 << 16;
@@ -216,6 +226,10 @@ pub(crate) struct Types {
     /// at once, and the check stops.
     pub stopped: bool,
     polls: u32,
+    /// A union or shape too large to build since the checker last looked:
+    /// what it was and its size. It became unknown, and the checker
+    /// reports it where it looks.
+    pub too_large: Option<(&'static str, usize)>,
 }
 
 impl Types {
@@ -241,6 +255,7 @@ impl Types {
             budget: crate::compilation::Budget::default(),
             stopped: false,
             polls: 0,
+            too_large: None,
         };
         for kind in [
             Kind::Error,
@@ -364,6 +379,11 @@ impl Types {
         fields.reverse();
         fields.sort_by(|a, b| a.name.cmp(&b.name));
         fields.dedup_by(|a, b| a.name == b.name);
+        self.work(fields.len());
+        if fields.len() > MAX_FIELDS {
+            self.too_large.get_or_insert(("shape", fields.len()));
+            return Ty::ERROR;
+        }
         self.intern(Kind::Shape(fields.into(), open))
     }
 
@@ -394,6 +414,10 @@ impl Types {
         }
         members.sort_unstable();
         members.dedup();
+        if members.len() > MAX_ALTERNATIVES {
+            self.too_large.get_or_insert(("union", members.len()));
+            return Ty::ERROR;
+        }
         match members.len() {
             0 => Ty::NEVER,
             1 => members[0],

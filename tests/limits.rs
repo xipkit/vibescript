@@ -529,3 +529,27 @@ fn type_operations_stop_at_the_compile_budget() {
     assert_eq!(error.kind, ErrorKind::Deadline, "{error}");
     assert!(started.elapsed() < full);
 }
+
+#[test]
+fn a_union_past_its_bound_fails_before_it_is_related() {
+    // The shape of Codex's witness: a 5,000-arm union of shapes, an
+    // optional of it, and an ensure that narrows it.
+    let arms = (0..5_000)
+        .map(|i| format!("{{a{i}: int}}"))
+        .collect::<Vec<_>>()
+        .join(" | ");
+    let source = format!(
+        "type Wide = {arms}\ndef f(x: Wide?) -> Wide?\n  begin\n    1\n  ensure\n    return nil if x == nil\n  end\n  x\nend\n"
+    );
+    let error = Engine::new()
+        .compile_with_options(&source, &CallOptions::default())
+        .err()
+        .unwrap();
+    assert_eq!(error.kind, ErrorKind::Type, "{error}");
+    let codes: Vec<String> = error
+        .diagnostics()
+        .iter()
+        .map(|diagnostic| diagnostic.code.to_string())
+        .collect();
+    assert_eq!(codes, ["V0124"]);
+}
