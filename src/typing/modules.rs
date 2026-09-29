@@ -245,15 +245,52 @@ impl<'a> Checker<'a> {
             return Ok(id);
         }
         let filename = origin.filename();
-        let (parsed, tokens) = crate::syntax::parse_with_tokens(&source, &()).map_err(|error| {
-            let error = crate::source::parse_error(
-                &source,
-                Some(&filename),
-                crate::syntax::canonical_syntax(&source, &(), error),
-                &(),
-            );
-            error.to_string()
-        })?;
+        // The file's source and syntax count toward this check's memory
+        // until it is imported. Its parse charges a context of its own,
+        // as a compilation does, which the memory left bounds.
+        let held = self.held() + source.len();
+        let budget = self.meter.budget();
+        let mut context = crate::CallContext::new(crate::CallOptions {
+            limits: crate::Limits {
+                steps: None,
+                memory_bytes: budget.memory.map(|left| left.saturating_sub(held)),
+                ..crate::Limits::default()
+            },
+            cancellation: budget.cancellation.clone().unwrap_or_default(),
+            deadline: budget.deadline,
+            ..crate::CallOptions::default()
+        });
+        let parse = crate::syntax::parse_with_tokens(
+            &source,
+            &crate::compilation::Meter(std::cell::RefCell::new(&mut context)),
+        );
+        let parsing = context.stats();
+        self.observed(held + parsing.peak_memory_bytes);
+        let (parsed, tokens) = match parse {
+            Ok(parsed) => parsed,
+            Err(error)
+                if matches!(
+                    error.kind,
+                    crate::ErrorKind::Memory
+                        | crate::ErrorKind::Deadline
+                        | crate::ErrorKind::Cancelled
+                ) =>
+            {
+                self.stopped = true;
+                self.meter.stop();
+                return Err(error.to_string());
+            }
+            Err(error) => {
+                let error = crate::source::parse_error(
+                    &source,
+                    Some(&filename),
+                    crate::syntax::canonical_syntax(&source, &(), error),
+                    &(),
+                );
+                return Err(error.to_string());
+            }
+        };
+        let tree = self.hold(source.len() + parsing.retained_memory_bytes);
         // The file's check may spend what this one leaves.
         let steps = self.total_steps();
         let mut budget = self.meter.budget().less(steps);
@@ -313,6 +350,7 @@ impl<'a> Checker<'a> {
             enums,
         });
         self.modules.by_origin.insert(origin, id);
+        self.release(tree);
         Ok(id)
     }
 
