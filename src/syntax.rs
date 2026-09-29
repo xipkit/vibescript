@@ -49,10 +49,15 @@ pub(crate) fn name_suffix_error(work: &dyn Work, source: &str, offset: usize) ->
 
 /// Checks a host binding against the same suffix rule as source bindings.
 pub(crate) fn binding_name(name: &str) -> Result<()> {
-    if let Some(offset) = name.find(['?', '!']) {
+    if let Some(offset) = name_suffix_position(name) {
         return Err(name_suffix_error(&(), name, offset));
     }
     Ok(())
+}
+
+fn name_suffix_position(name: &str) -> Option<usize> {
+    // Single ASCII characters use byte searches instead of decoding every rune.
+    name.find('?').into_iter().chain(name.find('!')).min()
 }
 
 #[derive(Debug)]
@@ -2777,13 +2782,13 @@ impl<'a> Parser<'a> {
         }
     }
     fn binding_name(&self, name: &str, offset: usize) -> Result<()> {
-        if let Some(suffix) = name.find(['?', '!']) {
+        if let Some(suffix) = name_suffix_position(name) {
             return Err(self.name_suffix_error(offset + suffix));
         }
         Ok(())
     }
     fn method_spelling(&self, name: &str, offset: usize) -> Result<()> {
-        if let Some(suffix) = name.find(['?', '!'])
+        if let Some(suffix) = name_suffix_position(name)
             && suffix + 1 < name.len()
         {
             return Err(self.name_suffix_error(offset + suffix));
