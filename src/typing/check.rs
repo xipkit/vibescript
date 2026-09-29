@@ -733,6 +733,8 @@ impl<'a> Checker<'a> {
     /// is undefined.
     fn check_file_calls(&mut self) {
         let uses = std::mem::take(&mut self.program.file_uses);
+        // Taken from the program, the table is held while it is read.
+        let taken = self.hold(super::meter::map(&uses));
         let mut reads: HashMap<FnId, std::collections::BTreeSet<String>> = uses
             .iter()
             .map(|(&id, (read, _))| (id, read.clone()))
@@ -745,6 +747,7 @@ impl<'a> Checker<'a> {
             changed = false;
             for (&caller, (_, callees)) in &uses {
                 if self.over_budget() {
+                    self.release(taken);
                     return;
                 }
                 for callee in callees {
@@ -765,7 +768,9 @@ impl<'a> Checker<'a> {
             }
             again = true;
         }
-        for call in std::mem::take(&mut self.program.file_calls) {
+        let calls = std::mem::take(&mut self.program.file_calls);
+        let taken = taken + self.hold(super::meter::vec(&calls));
+        for call in calls {
             let Some(read) = reads.get(&call.callee) else {
                 continue;
             };
@@ -788,6 +793,7 @@ impl<'a> Checker<'a> {
                 ),
             ));
         }
+        self.release(taken);
     }
 
     /// Runs `check` with symbol literals made enum members where `stay` is
@@ -978,8 +984,9 @@ impl<'a> Checker<'a> {
         if self.stopped {
             return;
         }
-        // The join keeps a table of each branch's changes while it runs.
-        let held = self.hold(Flow::join_scratch(&branches));
+        // The branches, taken from wherever they were kept, and a table of
+        // each one's changes are held while the join runs.
+        let held = self.hold(branches.heap() + Flow::join_scratch(&branches));
         // The locals' declared types are read in place, not copied at every
         // join.
         let locals = &self.frame.locals;

@@ -299,8 +299,12 @@ impl<'a> Checker<'a> {
             .collect();
         self.transient(super::meter::set(&unproven));
         let reads = self.method_reads();
-        for site in std::mem::take(&mut self.construction.sites) {
+        let sites = std::mem::take(&mut self.construction.sites);
+        // Taken from the records, the sites are held while they are read.
+        let taken = self.hold(super::meter::vec(&sites));
+        for site in sites {
             if self.over_budget() {
+                self.release(taken);
                 return;
             }
             // Each site costs what it looks at: its read variable, the
@@ -331,6 +335,7 @@ impl<'a> Checker<'a> {
                 self.unassigned_read(&site, &observed);
             }
         }
+        self.release(taken);
         for decl in &self.program.fns {
             if let (Some(def), Some(owner), true) = (decl.def, decl.owner, decl.instance) {
                 if !unproven.contains(&owner) {
