@@ -368,9 +368,13 @@ may declare one terminal suffix because they can return a callable descriptor;
 binding validates the name against the actual result and rejects data under a
 suffixed root. Such roots have an unsigned function declaration until binding.
 
-Bare aliases and both quoted and unquoted symbol aliases validate the new
-name and target before lookup. Operators and ordinary setters remain valid;
-constructing a setter may not turn a suffixed method into `ok?=`. Exported
-module functions use the same definition parser. There is no dynamic
-`define_method` API. Quoted-symbol repairs replace the whole literal so decoded
-escapes cannot produce an edit at the wrong source byte.
+Bare aliases and both quoted and unquoted symbol aliases validate the new name
+and target before lookup. Operators and ordinary setters remain valid;
+constructing a setter may not turn a suffixed method into `ok?=`. One list of
+operator methods serves `def` and aliases: an alias may name every operator an
+instance dispatches to a method, including `//`, `===`, `=~` and `!~`, which
+`def` cannot spell. `!`, `&&`, `||` and `|` never dispatch to a method, so
+aliases naming them are rejected. Exported module functions use the same
+definition parser. There is no dynamic `define_method` API. Quoted-symbol
+repairs replace the whole literal so decoded escapes cannot produce an edit at
+the wrong source byte.

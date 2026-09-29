@@ -89,7 +89,7 @@ An instance's class is tested with `value.is_type?(:Counter)` and asserted with 
 
 ## Operators and indexed access
 
-Instances can define `+`, `-`, `*`, `/`, `%`, `**`, `<<`, `&`, `==`, `!=`, `<`, `<=`, `>`, `>=` and `<=>`, each with typed parameters and a declared result. Operator syntax calls the left instance's method, and an operator the class does not define is a compile error (V0108); `<` is not derived from `<=>`. Compound assignments use the corresponding operator and store its result. An explicit `!=` takes precedence; otherwise `!=` negates the result of `==`.
+Instances can define `+`, `-`, `*`, `/`, `%`, `**`, `<<`, `&`, `==`, `!=`, `<`, `<=`, `>`, `>=` and `<=>`, each with typed parameters and a declared result. Operator syntax calls the left instance's method, and an operator the class does not define is a compile error (V0108); `<` is not derived from `<=>`. Compound assignments use the corresponding operator and store its result. An explicit `!=` takes precedence; otherwise `!=` negates the result of `==`. An instance also answers `//`, `===`, `=~` and `!~` with a method of that name, which only `alias` or `alias_method` can define, as in `alias_method :"=~", :matches`. `!`, `&&`, `||` and `|` never call a method, so an alias cannot name them.
 
 ```vibe
 class Counter

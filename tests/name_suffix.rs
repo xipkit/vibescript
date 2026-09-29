@@ -848,6 +848,80 @@ fn aliases_preserve_suffixes_operators_and_setters() {
 }
 
 #[test]
+fn aliases_name_every_operator_an_instance_dispatches() {
+    // Operators without a symbol token are spelled as quoted symbols.
+    for (op, symbol) in [
+        ("+", true),
+        ("-", true),
+        ("*", true),
+        ("/", true),
+        ("//", false),
+        ("%", true),
+        ("**", true),
+        ("&", true),
+        ("==", true),
+        ("!=", true),
+        ("===", true),
+        ("=~", false),
+        ("!~", false),
+        ("<", true),
+        ("<=", true),
+        (">", true),
+        (">=", true),
+        ("<=>", true),
+    ] {
+        let mut aliases = vec![
+            format!("alias :\"{op}\" :ok"),
+            format!("alias_method :\"{op}\", :ok"),
+        ];
+        if symbol {
+            aliases.push(format!("alias :{op} :ok"));
+            aliases.push(format!("alias_method :{op}, :ok"));
+        }
+        for alias in aliases {
+            let source =
+                format!("class C; def ok(n: int) -> bool; n == 2; end; {alias}; end; C.new {op} 2");
+            assert_eq!(run(&source), "true", "{source}");
+        }
+    }
+    for source in [
+        "class C; def ok(n: int) -> int; n + 3; end; alias :<< :ok; end; C.new << 2",
+        "class C; def ok(n: int) -> int; n + 3; end; alias :[] :ok; end; C.new[2]",
+        "class C; @last: int = 0; def store(n: int, v: int) -> int; @last = n + v; end; alias_method :[]=, :store; def last -> int; @last; end; end; c = C.new; c[2] = 3; c.last",
+    ] {
+        assert_eq!(run(source), "5", "{source}");
+    }
+}
+
+#[test]
+fn aliases_reject_operators_that_never_dispatch() {
+    for op in ["!", "&&", "||", "|"] {
+        for alias in [
+            format!("alias :{op} :ok"),
+            format!("alias :\"{op}\" :ok"),
+            format!("alias_method :{op}, :ok"),
+            format!("alias_method(:\"{op}\", :ok)"),
+            format!("alias :good :{op}"),
+            format!("private :{op}"),
+        ] {
+            let source = format!("class C; def ok -> bool; true; end; {alias}; end");
+            let error = Engine::new().compile(&source).err().expect(&source);
+            assert_eq!(error.kind, ErrorKind::Syntax, "{source}: {error}");
+            assert!(
+                error
+                    .message
+                    .starts_with(&format!("`{op}` cannot name a method")),
+                "{source}: {error}"
+            );
+            for diagnostic in error.diagnostics() {
+                assert_ne!(diagnostic.code, Code::NAME_SUFFIX, "{source}: {error}");
+                assert!(diagnostic.fixes.is_empty(), "{source}: {diagnostic:?}");
+            }
+        }
+    }
+}
+
+#[test]
 fn exported_functions_share_method_spelling_validation() {
     for name in ["ok?", "save!", "bad??", "bad!name"] {
         let source = format!("def {name} -> bool; true; end");

@@ -61,9 +61,46 @@ fn name_suffix_position(name: &str) -> Option<usize> {
     memchr::memchr2(b'?', b'!', name.as_bytes())
 }
 
+/// The operators an instance answers with the method of the same name: every
+/// binary operator that is not short-circuiting, `<<`, and indexing. Each is
+/// paired with whether `def` can spell it; an alias may name any of them.
+const OPERATOR_METHODS: [(&str, bool); 21] = [
+    ("+", true),
+    ("-", true),
+    ("*", true),
+    ("/", true),
+    ("//", false),
+    ("%", true),
+    ("**", true),
+    ("<<", true),
+    ("&", true),
+    ("==", true),
+    ("!=", true),
+    ("===", false),
+    ("=~", false),
+    ("!~", false),
+    ("<", true),
+    ("<=", true),
+    (">", true),
+    (">=", true),
+    ("<=>", true),
+    ("[]", true),
+    ("[]=", true),
+];
+
+/// Operators a symbol can spell that never call a method: `!`, `&&` and `||`
+/// act on bools, and `|` is no binary operator.
+const UNDISPATCHED_OPERATORS: [&str; 4] = ["!", "&&", "||", "|"];
+
+/// Whether `def` can define the operator method `op`.
+pub(super) fn def_operator(op: &str) -> bool {
+    OPERATOR_METHODS.contains(&(op, true))
+}
+
 /// A method spelling rejected before a callable can be published.
 enum MethodNameError {
     Suffix(usize),
+    Undispatched(&'static str),
     Invalid,
 }
 
@@ -71,7 +108,18 @@ impl MethodNameError {
     pub(crate) fn diagnostic(&self, work: &dyn Work, source: &str, offset: usize) -> Error {
         match self {
             Self::Suffix(suffix) => name_suffix_error(work, source, offset + suffix),
-            Self::Invalid => Error::syntax(work, offset, "invalid method name"),
+            _ => Error::syntax(work, offset, self.message()),
+        }
+    }
+
+    fn message(&self) -> String {
+        match self {
+            Self::Undispatched(op) => {
+                format!(
+                    "`{op}` cannot name a method: `!`, `&&`, `||` and `|` never dispatch to methods"
+                )
+            }
+            _ => "invalid method name".to_owned(),
         }
     }
 }
@@ -80,26 +128,11 @@ impl MethodNameError {
 /// Lexer identifiers already satisfy the character rule; host names and decoded
 /// symbols need that check too.
 fn method_spelling(name: &str, lexed: bool) -> std::result::Result<(), MethodNameError> {
-    if matches!(
-        name,
-        "+" | "-"
-            | "*"
-            | "/"
-            | "%"
-            | "**"
-            | "<<"
-            | "&"
-            | "=="
-            | "!="
-            | "<"
-            | "<="
-            | ">"
-            | ">="
-            | "<=>"
-            | "[]"
-            | "[]="
-    ) {
+    if OPERATOR_METHODS.iter().any(|(op, _)| *op == name) {
         return Ok(());
+    }
+    if let Some(op) = UNDISPATCHED_OPERATORS.iter().find(|op| **op == name) {
+        return Err(MethodNameError::Undispatched(op));
     }
     let stem = if let Some(suffix) = name_suffix_position(name) {
         if suffix + 1 != name.len() || name.starts_with('@') {
@@ -2854,13 +2887,13 @@ impl<'a> Parser<'a> {
             let token = &self.tokens[self.pos];
             if matches!(token.token, Token::QuotedSymbol(_)) {
                 use crate::diagnostic::{Code, Diagnostic, Fix, Span};
-                let message = "invalid method name";
+                let message = error.message();
                 let mut diagnostic =
-                    Diagnostic::error(Code::SYNTAX, Span::new(token.offset, token.end), message);
+                    Diagnostic::error(Code::SYNTAX, Span::new(token.offset, token.end), &message);
                 if let MethodNameError::Suffix(suffix) = error {
                     let mut fixed = name.to_string();
                     fixed.remove(suffix);
-                    diagnostic = Diagnostic::error(Code::NAME_SUFFIX, diagnostic.span, message)
+                    diagnostic = Diagnostic::error(Code::NAME_SUFFIX, diagnostic.span, &message)
                         .with_fix(Fix::replace(
                             "remove the name suffix",
                             diagnostic.span,

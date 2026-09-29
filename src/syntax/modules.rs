@@ -214,10 +214,7 @@ impl Parser<'_> {
             return Ok((self.method_name()?, true, false));
         }
         let operator = match self.token() {
-            Token::Op(
-                op @ ("+" | "-" | "*" | "/" | "%" | "**" | "<<" | "&" | "==" | "!=" | "<" | "<="
-                | ">" | ">=" | "<=>"),
-            ) => Some(*op),
+            Token::Op(op) if super::def_operator(op) => Some(*op),
             Token::P('[') if self.tokens[self.significant(self.pos + 1)].token == Token::P(']') => {
                 Some("[]")
             }
