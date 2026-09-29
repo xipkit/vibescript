@@ -260,7 +260,8 @@ impl<'a> Checker<'a> {
             }
         }
         if let [id] = enums[..] {
-            let decl = &self.program.enums[id as usize];
+            let decl = std::sync::Arc::clone(&self.program.enums[id as usize]);
+            self.types.work(decl.symbols.len());
             let members = decl
                 .symbols
                 .iter()
@@ -507,11 +508,15 @@ impl<'a> Checker<'a> {
         let Some(hint) = hint else {
             return Vec::new();
         };
+        let keys: std::collections::HashSet<&[u8]> =
+            entries.iter().map(|(key, _)| &key[..]).collect();
         for alternative in self.types.members(hint) {
-            let Kind::Shape(fields, open) = self.types.kind(alternative) else {
+            let shared = self.types.shared(alternative);
+            let Kind::Shape(fields, open) = &*shared else {
                 continue;
             };
-            let has = |name: &str| entries.iter().any(|(key, _)| name.as_bytes() == &key[..]);
+            self.types.work(fields.len() + entries.len());
+            let has = |name: &str| keys.contains(name.as_bytes());
             let keys_fit = entries
                 .iter()
                 .all(|(key, _)| *open || Types::field(fields, key).is_some());
@@ -554,10 +559,7 @@ impl<'a> Checker<'a> {
             let hints: Vec<Ty> = shapes
                 .iter()
                 .filter_map(|&shape| match self.types.kind(shape) {
-                    Kind::Shape(fields, _) => fields
-                        .iter()
-                        .find(|field| field.name.as_bytes() == &key[..])
-                        .map(|field| field.ty),
+                    Kind::Shape(fields, _) => Types::field(fields, key).map(|field| field.ty),
                     _ => None,
                 })
                 .collect();
@@ -612,23 +614,22 @@ impl<'a> Checker<'a> {
                 hint
             }
             Some((hint, Kind::Shape(fields, open))) => {
-                let mut present = Vec::new();
-                let mut actual = Vec::new();
+                // Which fields the literal gives, by position, and its
+                // values' types, which name its own shape only if it lacks
+                // one.
+                let mut present = vec![false; fields.len()];
+                let mut types = Vec::with_capacity(entries.len());
                 for (key, entry) in entries {
                     let key = String::from_utf8_lossy(key).into_owned();
-                    match Types::field(fields, key.as_bytes()) {
-                        Some(field) => {
-                            let ty =
-                                self.expr_against(entry, field.ty, &Purpose::Field(key.clone()));
-                            actual.push(Field {
-                                name: key.as_str().into(),
-                                ty,
-                                optional: false,
-                            });
-                            present.push(key);
+                    match fields.binary_search_by(|field| field.name.as_bytes().cmp(key.as_bytes()))
+                    {
+                        Ok(index) => {
+                            let expected = fields[index].ty;
+                            types.push(self.expr_against(entry, expected, &Purpose::Field(key)));
+                            present[index] = true;
                         }
-                        None => {
-                            let ty = self.expr(entry, None);
+                        Err(_) => {
+                            types.push(self.expr(entry, None));
                             if !open {
                                 let span = self.spans.expr(entry);
                                 let shape = self.types.display(hint);
@@ -638,22 +639,27 @@ impl<'a> Checker<'a> {
                                     format!("{shape} has no field `{key}`"),
                                 ));
                             }
-                            actual.push(Field {
-                                name: key.as_str().into(),
-                                ty,
-                                optional: false,
-                            });
                         }
                     }
                 }
                 let missing: Vec<String> = fields
                     .iter()
-                    .filter(|field| !field.optional && !present.iter().any(|p| **p == *field.name))
-                    .map(|field| format!("`{}`", field.name))
+                    .zip(&present)
+                    .filter(|(field, present)| !field.optional && !**present)
+                    .map(|(field, _)| format!("`{}`", field.name))
                     .collect();
                 if !missing.is_empty() {
                     let span = self.spans.expr(expr);
                     let shape = self.types.display(hint);
+                    let actual = entries
+                        .iter()
+                        .zip(types)
+                        .map(|((key, _), ty)| Field {
+                            name: String::from_utf8_lossy(key).as_ref().into(),
+                            ty,
+                            optional: false,
+                        })
+                        .collect();
                     let found = self.types.shape(actual, false);
                     let found = self.types.display(found);
                     self.report(
@@ -1832,46 +1838,64 @@ impl<'a> Checker<'a> {
         covered: &[String],
         alternate: bool,
     ) -> bool {
-        let (all, name): (Vec<String>, String) = match self.types.kind(subject).clone() {
+        let covered: std::collections::HashSet<&str> = covered.iter().map(String::as_str).collect();
+        // The values the `case` misses, as their `when`s name them.
+        let (missing, name): (Vec<String>, &str) = match *self.types.kind(subject) {
             Kind::EnumValue(id) => {
-                let decl = &self.program.enums[id as usize];
-                (decl.symbols.clone(), decl.name.clone())
+                let decl = std::sync::Arc::clone(&self.program.enums[id as usize]);
+                // Counting the members it covers takes time that grows
+                // with the `when`s alone, not with the enum.
+                let known = covered
+                    .iter()
+                    .filter(|symbol| decl.symbol(symbol).is_some())
+                    .count();
+                if known == decl.symbols.len() {
+                    return true;
+                }
+                if alternate {
+                    return false;
+                }
+                self.types.work(decl.symbols.len());
+                let missing = decl
+                    .symbols
+                    .iter()
+                    .zip(&decl.members)
+                    .filter(|(symbol, _)| !covered.contains(symbol.as_str()))
+                    .map(|(_, member)| format!("`{}::{member}`", decl.name))
+                    .collect();
+                let span = self.spans.token(expr.offset as usize);
+                self.non_exhaustive(span, &decl.name, missing);
+                return false;
             }
-            Kind::Bool => (vec!["true".into(), "false".into()], "bool".into()),
+            Kind::Bool => (
+                ["true", "false"]
+                    .into_iter()
+                    .filter(|value| !covered.contains(value))
+                    .map(|value| format!("`{value}`"))
+                    .collect(),
+                "bool",
+            ),
             _ => return false,
         };
-        let covered: std::collections::HashSet<&str> = covered.iter().map(String::as_str).collect();
-        let missing: Vec<&String> = all
-            .iter()
-            .filter(|value| !covered.contains(value.as_str()))
-            .collect();
         if missing.is_empty() {
             return true;
         }
         if !alternate {
             let span = self.spans.token(expr.offset as usize);
-            let list = missing
-                .iter()
-                .map(|m| {
-                    if name == "bool" {
-                        format!("`{m}`")
-                    } else if let Kind::EnumValue(id) = self.types.kind(subject) {
-                        let decl = &self.program.enums[*id as usize];
-                        let index = decl.symbol(m).unwrap();
-                        format!("`{name}::{}`", decl.members[index])
-                    } else {
-                        unreachable!()
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join(", ");
-            self.report(Diagnostic::error(
-                Code::NON_EXHAUSTIVE_CASE,
-                span,
-                format!("this `case` over {name} does not handle {list}; add a `when` for each, or an `else`"),
-            ));
+            self.non_exhaustive(span, name, missing);
         }
         false
+    }
+
+    /// Reports a `case` over `name` that does not handle the `missing`
+    /// values.
+    fn non_exhaustive(&mut self, span: crate::diagnostic::Span, name: &str, missing: Vec<String>) {
+        let list = missing.join(", ");
+        self.report(Diagnostic::error(
+            Code::NON_EXHAUSTIVE_CASE,
+            span,
+            format!("this `case` over {name} does not handle {list}; add a `when` for each, or an `else`"),
+        ));
     }
 
     fn attempt(&mut self, attempt: &'a Try, want: Want) -> Ty {

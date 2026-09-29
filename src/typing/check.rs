@@ -633,13 +633,15 @@ impl<'a> Checker<'a> {
             if !self.frame.flow.live {
                 return;
             }
-            let assigned: Vec<String> = self
+            let mut assigned: Vec<String> = self
                 .frame
                 .names
                 .iter()
                 .filter(|(_, id)| self.frame.flow.get(**id).assigned)
                 .map(|(name, _)| name.clone())
                 .collect();
+            // Sorted, so each name the callee reads is found by search.
+            assigned.sort_unstable();
             self.meter.charge(assigned.len() as u64);
             self.grown += assigned.heap();
             self.program.file_calls.push(FileCall {
@@ -713,7 +715,7 @@ impl<'a> Checker<'a> {
             self.meter.charge(read.len() as u64);
             let missing: Vec<&String> = read
                 .iter()
-                .filter(|name| !call.assigned.contains(name))
+                .filter(|name| call.assigned.binary_search(name).is_err())
                 .collect();
             let Some(first) = missing.first() else {
                 continue;

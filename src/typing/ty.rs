@@ -721,7 +721,7 @@ impl Types {
 
     /// Charges `units` of work that grows with a type's size, a step for
     /// every 64, so small types cost nothing more.
-    fn work(&mut self, units: usize) {
+    pub fn work(&mut self, units: usize) {
         if units >= 64 {
             self.charge((units / 64) as u64);
             self.poll();
