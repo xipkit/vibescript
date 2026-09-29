@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+"""Compare stable accounting counters from two golden observation files."""
+
+import argparse
+import json
+from itertools import zip_longest
+
+import golden
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("first")
+    parser.add_argument("second")
+    args = parser.parse_args()
+    varying = set()
+    for corpus in golden.CORPORA.values():
+        if corpus.golden.exists():
+            varying.update((corpus.name, row["id"]) for row in golden.read_jsonl(corpus.golden)
+                           if "varies" in row)
+        varying.update((corpus.name, cid) for cid, counts in golden.load_counters(corpus).items()
+                       if not counts)
+    checked = 0
+    with open(args.first, encoding="utf-8") as first, open(args.second, encoding="utf-8") as second:
+        for line_number, pair in enumerate(zip_longest(first, second), 1):
+            if None in pair:
+                raise SystemExit(f"Observation counts differ at line {line_number}")
+            a, b = map(json.loads, pair)
+            key = a["corpus"], a["id"]
+            if key != (b["corpus"], b["id"]):
+                raise SystemExit(f"Case ids differ at line {line_number}: {key} != {(b['corpus'], b['id'])}")
+            if key in varying:
+                continue
+            before = [a[field] for field in ("steps", "peak", "retained")] if a["phase"] == "ok" else None
+            after = [b[field] for field in ("steps", "peak", "retained")] if b["phase"] == "ok" else None
+            if before != after:
+                raise SystemExit(f"{key[0]}/{key[1]}: accounting differs: {before} != {after}")
+            checked += before is not None
+    if not checked:
+        raise SystemExit("No stable accounting counters were compared")
+    print(f"SIMD and portable accounting counters match for {checked} cases")
+
+
+if __name__ == "__main__":
+    main()

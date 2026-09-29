@@ -1,5 +1,5 @@
 #!/bin/sh
-# Runs the local validation gate.
+# Runs the local validation gate, mirrored by .github/workflows/ci.yml.
 set -eu
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 cd "$repo"
