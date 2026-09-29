@@ -3723,14 +3723,11 @@ impl<'s> Parser<'s> {
 
     fn type_atom(&mut self, depth: usize) -> Result<TypeExpr> {
         let start = self.start();
+        // As in the compiler's parser, a bracket in a type is always a
+        // tuple, whose elements may be shapes or tuples themselves.
         let mut ty = if self.take_p('{').is_some() {
             self.type_shape(depth, start)?
-        } else if self.at_p('[')
-            && self.word_at(self.pos + 1).is_some_and(|w| {
-                builtin_type(w.trim_end_matches('?'))
-                    || w.chars().next().is_some_and(char::is_uppercase)
-            })
-        {
+        } else if self.at_p('[') {
             self.bump();
             let mut elements = Vec::new();
             loop {

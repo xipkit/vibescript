@@ -902,3 +902,27 @@ fn removed_spellings_are_reported_however_they_are_written() {
         assert!(diagnostics.is_empty(), "{source:?}: {diagnostics:?}");
     }
 }
+
+#[test]
+fn the_rules_parser_reads_tuples_of_shapes_and_tuples() {
+    for source in [
+        "def run(input: any) -> [{}?, {}?]\n[{},{}].minmax\nend\n",
+        "def run(input: any) -> [{ a: array<int> }, int]\n[{a: [1]}, 2]\nend\n",
+        "enum Status\nDraft\nend\nrows: array<[[Status], int]> = [[[:draft], 2]]\nrows.map { |((state: Status), n: int)| state }\n",
+    ] {
+        let tokens = crate::tooling::tokens(source).unwrap();
+        super::parse::parse_tokens(source, &tokens, usize::MAX)
+            .unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+    let checked = crate::Engine::new()
+        .type_check("def run(input: any) -> [{}?, int]\n[nil, [1].size]\nend\n")
+        .unwrap();
+    assert!(
+        checked
+            .diagnostics
+            .iter()
+            .any(|d| d.code == Code::REMOVED_NAME),
+        "{:?}",
+        checked.diagnostics
+    );
+}
