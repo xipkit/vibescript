@@ -271,6 +271,15 @@ the baseline and candidate; it is not caused by recovery. Raw audits are under
 
 ## Method name suffixes, 2026-09-28
 
+Third PR #1319 review: `scripts/parse-sweep.py` also appends each run of `?`
+and `!` (`?`, `!`, `??`, `?!`, `!?`) to three sampled names of every program,
+3,765 more cases, and applies every machine-applicable V0003 fix it meets, 1,843
+of them. Each fixed source must drop that V0003 and add no syntax error where
+the fix edits. Against the pre-review head, the added cases change 18 first
+errors, all scoped reads of an enum member such as `Status::Draft?`, which the
+parser now leaves to the checker (V0203 or V0416). No golden observation or
+counter changes.
+
 Second PR #1319 review: a `?` or `!` followed by more of the name, as in
 `id!false` or `can?x`, is no suffix, so V0003 reports it as
 "`?` and `!` may only end a method name" without a fix. This re-records 30

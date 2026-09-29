@@ -1396,3 +1396,75 @@ fn scoped_reads_resolve_the_whole_namespace_path() {
     );
     assert_eq!(run(&migrate(source)), "[2,1]");
 }
+
+#[test]
+fn suffix_fixes_leave_a_valid_name_or_are_not_offered() {
+    // Without the suffix nothing names the variable, so no fix is offered.
+    for source in [
+        "@? = 1",
+        "@@! = 1",
+        "@?? = 1",
+        "@@!? = 1",
+        "class C; @?: int = 1; end",
+        "class C; @@!: int = 1; end",
+        // Without the `?` these would be assignments where none can stand.
+        "x = { a: ok?=(1) }",
+        "p(ok?=(1))",
+        "x = [ok?=(1)]",
+        "if true && ok?=(1); end",
+    ] {
+        let Err(error) = Engine::new().compile(source) else {
+            panic!("{source} compiles");
+        };
+        let diagnostic = &error.diagnostics()[0];
+        assert_eq!(diagnostic.code, Code::NAME_SUFFIX, "{source}: {error}");
+        assert!(diagnostic.fixes.is_empty(), "{source}: {diagnostic:?}");
+    }
+    for (source, fixed) in [
+        // A binding loses its whole run of suffix characters.
+        ("x?? = 1", "x = 1"),
+        ("x?! = 1", "x = 1"),
+        ("x!? = 1", "x = 1"),
+        ("x??? = 1; x???", "x = 1; x"),
+        ("nil?? = 1", "nil_ = 1"),
+        ("@x?? = 1", "@x = 1"),
+        ("@@x!? = 1", "@@x = 1"),
+        ("def f(ok?!: bool); end", "def f(ok: bool); end"),
+        ("[1].each { |x??| x?? }", "[1].each { |x| x }"),
+        ("for x?! in [1]; end", "for x in [1]; end"),
+        ("x??, y = [1, 2]", "x, y = [1, 2]"),
+        (
+            "def f(h: any); h.ready?? = 1; end",
+            "def f(h: any); h.ready = 1; end",
+        ),
+        (
+            "class C; def ok?!=(v: int); end; end",
+            "class C; def ok=(v: int); end; end",
+        ),
+        (
+            "class C; def nil?!=(v: int); end; end",
+            "class C; def nil_=(v: int); end; end",
+        ),
+        // A method keeps the run's last character.
+        ("def bad??; end", "def bad?; end"),
+        ("def bad?!; end", "def bad!; end"),
+        ("def bad!?!; end", "def bad!; end"),
+        (
+            "def ok? -> bool; true; end; ok??",
+            "def ok? -> bool; true; end; ok?",
+        ),
+        (
+            "class C; def ok -> bool; true; end; alias :bad?? :ok; end",
+            "class C; def ok -> bool; true; end; alias :bad? :ok; end",
+        ),
+        (
+            "class C; def ok -> bool; true; end; alias :\"bad???\" :ok; end",
+            "class C; def ok -> bool; true; end; alias :\"bad?\" :ok; end",
+        ),
+    ] {
+        assert_eq!(first_fix(source), fixed, "{source}");
+        if let Err(error) = Engine::new().compile(fixed) {
+            assert_ne!(error.kind, ErrorKind::Syntax, "{fixed}: {error}");
+        }
+    }
+}

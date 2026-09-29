@@ -27,44 +27,82 @@ pub(crate) const MAX_SOURCE: usize = 8 << 20;
 pub(crate) const TOO_DEEP: &str = "syntax nesting too deep";
 const ADJACENT_EXPRESSIONS: &str = "adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements";
 
-/// Reports the `?` or `!` at `offset` in `source`. A suffix that ends the
-/// name has a repair; one inside a name, as in `x?1`, has none, since
-/// removing it could name something else.
-pub(crate) fn name_suffix_error(work: &dyn Work, source: &str, offset: usize) -> Error {
+/// Reports the `?` or `!` at `offset` in `source`, one of a name's run of
+/// them. A `method` name keeps the run's last character unless a setter's
+/// `=` follows; any other name loses the whole run. A repair is offered only
+/// when what remains is a valid name: not for `@?`, whose name would be
+/// empty, nor for `x?1`, where the name continues and removing the `?` could
+/// name something else.
+pub(crate) fn name_suffix_error(
+    work: &dyn Work,
+    source: &str,
+    offset: usize,
+    method: bool,
+) -> Error {
     use crate::diagnostic::{Code, Diagnostic, Fix, Span};
     let span = Span::new(offset, offset + 1);
-    let Some((label, replacement)) = suffix_repair(source, offset) else {
-        let message = "`?` and `!` may only end a method name";
-        let diagnostic = Diagnostic::error(Code::NAME_SUFFIX, span, message);
-        return Error::syntax(work, offset, message).with_diagnostic(diagnostic);
-    };
+    let internal = "`?` and `!` may only end a method name";
     let message = "only method names may end in `?` or `!`; remove the suffix from this name";
-    let diagnostic = Diagnostic::error(Code::NAME_SUFFIX, span, message).with_fix(Fix::replace(
-        label,
-        span,
-        replacement,
-    ));
+    let diagnostic = match suffix_repair(source, offset, method) {
+        Repair::Internal => {
+            let diagnostic = Diagnostic::error(Code::NAME_SUFFIX, span, internal);
+            return Error::syntax(work, offset, internal).with_diagnostic(diagnostic);
+        }
+        Repair::None => Diagnostic::error(Code::NAME_SUFFIX, span, message),
+        Repair::Edit(label, edit, replacement) => Diagnostic::error(
+            Code::NAME_SUFFIX,
+            span,
+            message,
+        )
+        .with_fix(Fix::replace(label, edit, replacement)),
+    };
     Error::syntax(work, offset, message).with_diagnostic(diagnostic)
 }
 
-/// The repair of the suffix at `offset`, with its label: removal, or an
+/// How a name's suffix is repaired.
+enum Repair {
+    /// The name continues after the `?` or `!`, which is no suffix.
+    Internal,
+    /// No valid name remains without the suffix.
+    None,
+    /// Replaces the span, with a label.
+    Edit(&'static str, crate::diagnostic::Span, &'static str),
+}
+
+/// The repair of the run of `?` and `!` around `offset`: its removal, or an
 /// underscore where the name would become a keyword that cannot stand there.
-/// None when the name continues after its `?` and `!` characters.
-fn suffix_repair(source: &str, offset: usize) -> Option<(&'static str, &'static str)> {
-    let rest = source[offset..].trim_start_matches(['?', '!']);
-    if rest.starts_with(|c: char| c == '_' || unicode::letter_or_digit(c)) {
-        return None;
+fn suffix_repair(source: &str, offset: usize, method: bool) -> Repair {
+    let bytes = source.as_bytes();
+    let suffix = |at: usize| matches!(bytes.get(at), Some(b'?' | b'!'));
+    let mut run = offset;
+    while run > 0 && suffix(run - 1) {
+        run -= 1;
     }
-    let start = source[..offset]
+    let mut end = offset + 1;
+    while suffix(end) {
+        end += 1;
+    }
+    if source[end..].starts_with(|c: char| c == '_' || unicode::letter_or_digit(c)) {
+        return Repair::Internal;
+    }
+    let start = source[..run]
         .rfind(|c: char| c != '_' && !unicode::letter_or_digit(c))
         .map_or(0, |i| i + source[i..].chars().next().unwrap().len_utf8());
-    Some(
-        if keyword(&source[start..offset]) && !keyword_allowed(&source[..start]) {
-            ("replace the name suffix with an underscore", "_")
-        } else {
-            ("remove the name suffix", "")
-        },
-    )
+    let stem = &source[start..run];
+    if !identifier(stem) {
+        return Repair::None;
+    }
+    // A method keeps one suffix; a setter and every binding keep none.
+    if method && end - run > 1 && bytes.get(end) != Some(&b'=') {
+        let span = crate::diagnostic::Span::new(run, end - 1);
+        return Repair::Edit("remove the repeated name suffix", span, "");
+    }
+    let span = crate::diagnostic::Span::new(run, end);
+    if keyword(stem) && !keyword_allowed(&source[..start]) {
+        Repair::Edit("replace the name suffix with an underscore", span, "_")
+    } else {
+        Repair::Edit("remove the name suffix", span, "")
+    }
 }
 
 /// Whether a keyword can be the name that follows `before`: a variable's
@@ -220,8 +258,14 @@ enum MethodNameError {
 
 impl MethodNameError {
     pub(crate) fn diagnostic(&self, work: &dyn Work, source: &str, offset: usize) -> Error {
+        self.diagnostic_as(work, source, offset, true)
+    }
+
+    /// The error for a name at `offset` that is a `method`'s, which keeps one
+    /// suffix, or a binding's, which keeps none.
+    fn diagnostic_as(&self, work: &dyn Work, source: &str, offset: usize, method: bool) -> Error {
         match self {
-            Self::Suffix(suffix) => name_suffix_error(work, source, offset + suffix),
+            Self::Suffix(suffix) => name_suffix_error(work, source, offset + suffix, method),
             _ => Error::syntax(work, offset, self.message()),
         }
     }
@@ -2860,7 +2904,17 @@ impl<'a> Parser<'a> {
                     }))
             })
         {
-            return Some(self.name_suffix_error(token.offset));
+            let mut error = self.name_suffix_error(token.offset);
+            // Removing the `?` leaves an assignment, which only a statement
+            // can be: in `f(ok?=(x))` it would be a new syntax error.
+            if !self.assignment_starts(index - 1) {
+                let mut diagnostics = error.take_diagnostics();
+                for diagnostic in &mut diagnostics {
+                    diagnostic.fixes.clear();
+                }
+                error = error.with_diagnostics(diagnostics);
+            }
+            return Some(error);
         }
         match &self.tokens[index].token {
             Token::Invalid(invalid) if invalid.failure == Failure::Diagnostic => Some(
@@ -3049,14 +3103,17 @@ impl<'a> Parser<'a> {
                 let mut diagnostic = Diagnostic::error(Code::SYNTAX, span, &message);
                 if let MethodNameError::Suffix(suffix) = error {
                     diagnostic = Diagnostic::error(Code::NAME_SUFFIX, span, &message);
-                    // As in source, a `?` or `!` inside the name has no repair.
-                    if name[suffix..].bytes().all(|b| matches!(b, b'?' | b'!')) {
-                        let mut fixed = name.to_string();
-                        fixed.remove(suffix);
+                    // As in source, a `?` or `!` inside the name has no
+                    // repair, and a repeated one keeps its last character.
+                    if name[suffix..].bytes().all(|b| matches!(b, b'?' | b'!'))
+                        && identifier(&name[..suffix])
+                    {
+                        let fixed =
+                            Name::join(self.work, &[&name[..suffix], &name[name.len() - 1..]])?;
                         diagnostic = diagnostic.with_fix(Fix::replace(
                             "remove the name suffix",
                             span,
-                            format!(":{fixed:?}"),
+                            format!(":{:?}", fixed.as_str()),
                         ));
                     }
                 }
@@ -3110,8 +3167,54 @@ impl<'a> Parser<'a> {
         method_spelling(name, true)
             .map_err(|error| error.diagnostic(self.work, self.source, offset))
     }
+    /// Whether the name at `index`, with the receivers it is read through,
+    /// such as `obj.name` or `@name`, starts a statement, where an assignment
+    /// to it can stand, or follows `def`, where it names a setter.
+    fn assignment_starts(&self, index: usize) -> bool {
+        let mut first = index;
+        while let Some(previous) = first.checked_sub(1) {
+            match &self.tokens[previous].token {
+                Token::P('.') | Token::Op("&." | "::") => match previous.checked_sub(1) {
+                    Some(receiver) if matches!(self.tokens[receiver].token, Token::Word(_)) => {
+                        first = receiver;
+                    }
+                    _ => return false,
+                },
+                _ => break,
+            }
+        }
+        match first.checked_sub(1) {
+            None => true,
+            Some(previous) => {
+                matches!(
+                    &self.tokens[previous].token,
+                    Token::EndLine | Token::P('{' | '|')
+                ) || matches!(&self.tokens[previous].token, Token::Word(word)
+                if matches!(word.as_str(), "def" | "then" | "do" | "else" | "begin" | "ensure"))
+            }
+        }
+    }
+    /// Checks a name just read, bare or after a receiver, which names no
+    /// method when it is assigned, listed among destructuring targets or a
+    /// `for` loop's variable.
+    fn read_spelling(&self, name: &str, offset: usize) -> Result<()> {
+        self.work.checkpoint()?;
+        self.work.bytes(name.len())?;
+        if suffixes::lenient() {
+            return Ok(());
+        }
+        let binding = match &self.tokens[self.pos].token {
+            Token::P(',') => true,
+            Token::Op(op) => assignment(op),
+            // A `for` loop's variable.
+            Token::Word(word) => word == "in",
+            _ => false,
+        };
+        method_spelling(name, true)
+            .map_err(|error| error.diagnostic_as(self.work, self.source, offset, !binding))
+    }
     fn name_suffix_error(&self, offset: usize) -> Error {
-        name_suffix_error(self.work, self.source, offset)
+        name_suffix_error(self.work, self.source, offset, false)
     }
     fn assignment_member(&self, expr: &Expr) -> Result<()> {
         if !suffixes::lenient()
@@ -3382,7 +3485,7 @@ impl<'a> Parser<'a> {
         if name.starts_with('@') {
             self.binding_name(name, self.tokens[self.pos - 1].offset)?;
         } else {
-            self.method_spelling(name, self.tokens[self.pos - 1].offset)?;
+            self.read_spelling(name, self.tokens[self.pos - 1].offset)?;
             self.suffix_read(name)?;
         }
         if matches!(name, "@" | "@@") {
@@ -3809,8 +3912,9 @@ impl<'a> Parser<'a> {
         match self.token() {
             Token::Word(name) if !name.starts_with('@') => {
                 let name = *name;
-                self.method_spelling(&name, self.tokens[self.pos].offset)?;
+                let offset = self.tokens[self.pos].offset;
                 self.bump()?;
+                self.read_spelling(&name, offset)?;
                 Name::new(self.work, &name)
             }
             Token::Op("<=>") => {

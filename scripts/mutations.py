@@ -65,3 +65,16 @@ def recovery_mutations(source, rng):
         yield f"combined-{count}", text
     yield "independent-lines", source + "\nfirst = )\nsecond = ]\nthird = }\n"
     yield "broken-declarations", "def broken(,\nend\n" + source + "\nclass\nend\n"
+
+
+SUFFIX_RUNS = ["?", "!", "??", "?!", "!?"]
+
+
+def suffix_mutations(source, rng, per_run=3):
+    """Appends each run of `?` and `!` to a few sampled names, so the sweep
+    meets suffixed bindings, reads and definitions everywhere a name stands."""
+    words = [(m.start(), m.end()) for m in TOKEN.finditer(source) if m.lastgroup == "word"]
+    for run in SUFFIX_RUNS:
+        for index in sorted(rng.sample(range(len(words)), min(per_run, len(words)))):
+            _, end = words[index]
+            yield f"suffix {run}:{index}", source[:end] + run + source[end:]

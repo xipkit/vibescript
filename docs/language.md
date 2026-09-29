@@ -67,11 +67,13 @@ underscores. Only method names may end in one `?` or `!`: definitions such as
 parentheses: `valid? user`. Locals, parameters, constants, instance variables,
 class variables and host data globals have no suffix. `READY? = 1`, `x! = 3`,
 `@done? = true` and `def f(ok?: bool)` report V0003 with a fix removing the
-suffix. Where removal would leave a keyword, as in `nil? = 1`, the fix writes
-`nil_` instead. A `?` or `!` inside a name, as in `x?1`, is not a suffix:
-V0003 reports it without a fix, since removing it could name something else. A
-scoped call such as `M::ok?` keeps its V0416 fix, `M.ok?`. The fix for a
-binding renames it wherever it is used: every place that binds it and every
+suffix, the whole run of `?` and `!` in `x?! = 1`, while a method such as
+`def bad??` keeps one. Where removal would leave a keyword, as in `nil? = 1`,
+the fix writes `nil_` instead, and where no name would be left, as in
+`@? = 1`, there is no fix. A `?` or `!` inside a name, as in `x?1`, is not a
+suffix: V0003 reports it without a fix, since removing it could name something
+else. A scoped call such as `M::ok?` keeps its V0416 fix, `M.ok?`. The fix for
+a binding renames it wherever it is used: every place that binds it and every
 read of it in scope, and for a class's, module's or enum's constant also its
 scoped reads in the file, such as `C::LIMIT!`, so one fix, or one `vibes fix`
 run, migrates it whole. A suffixed name that no suffixed binding owns, such as
@@ -84,10 +86,11 @@ An earlier receiver may still call a suffixed method, as in
 `box.ready?.value = 1`; indexed string keys such as `h["ready?"] = 1` remain
 ordinary data keys.
 
-A suffix immediately followed by a single `=` is never part of a name:
-`a!=b` always compares `a` and `b`, and `x?=y` reports V0003, as do the
-setter definitions `def ok?=(value: T)` and `def ok!=(value: T)`. Likewise a
-`!` immediately followed by `~` is never a suffix, so `a!~b` is `a !~ b`, and
+A suffix immediately followed by a single `=` is never part of a name: `a!=b`
+always compares `a` and `b`, and `x?=y` reports V0003, as do the setter
+definitions `def ok?=(value: T)` and `def ok!=(value: T)`; the fix for `x?=y`
+is offered only where the assignment it leaves can stand. Likewise a `!`
+immediately followed by `~` is never a suffix, so `a!~b` is `a !~ b`, and
 `ok?!~/x/` calls `ok?`. Before `==` or `=~`, the suffix remains part of the
 method name: `ok?==true` calls `ok?` and compares its result with `true`.
 

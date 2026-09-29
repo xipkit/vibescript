@@ -341,12 +341,14 @@ fn extended(
             .saturating_add(diagnostic.fixes[0].message.len() + WHEREVER.len());
         crate::budget::Charge::merge(&mut charge, work.reserve(bytes)?);
         work.charge(count)?;
+        // Every use spells the same name, so the same run of `?` and `!`.
+        let width = edit.span.end - edit.span.start;
         let replacement = edit.replacement.clone();
         let message = format!("{}{WHEREVER}", diagnostic.fixes[0].message);
         let mut edits = Vec::with_capacity(count);
         for &(_, position) in &positions[start..end] {
             edits.push(Edit {
-                span: Span::new(position as usize, position as usize + 1),
+                span: Span::new(position as usize, position as usize + width),
                 replacement: replacement.clone(),
             });
         }
