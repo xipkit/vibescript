@@ -9800,11 +9800,6 @@
     "go_error": "parse error at 3:6: unterminated regex literal"
   },
   {
-    "name": "regex_value_syntax_19",
-    "source": "def run(input: any)\na=\"éa\";a!~/a/\nend",
-    "go_error": "parse error at 2:10: unexpected token invalid token"
-  },
-  {
     "name": "regex_value_syntax_21",
     "source": "def run(input: any)\n[:/, :/=, :=~, :!~]\nend",
     "go_error": "parse error at 2:8: expected \"]\", got \"=\""

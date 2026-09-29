@@ -343,8 +343,9 @@ Only method names may end in one `?` or `!`: definitions, calls (including
 safe navigation and parenless calls), aliases and symbols naming methods.
 Bindings, constants, nominal declarations and variables never take a suffix;
 V0003 offers its removal. Immediately before a single `=`, neither character
-is a suffix: `a!=b` compares, and `x?=y` is rejected. Before `==` or `=~`,
-the suffix remains part of the method name.
+is a suffix: `a!=b` compares, and `x?=y` is rejected. Nor is a `!` immediately
+before `~`: `a!~b` is `a !~ b`. Before `==` or `=~`, the suffix remains part
+of the method name.
 
 Member assignment targets have no suffix, including compound, destructuring
 and safe-navigation targets. They report V0003 at the suffix before constructing

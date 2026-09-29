@@ -282,6 +282,12 @@ keeps V0416 for suffixed scoped calls, so `enums_symbols_30` through
 else changes, and no counters were re-recorded: the pre-review head shows the
 same `call2881` and required-file counter drift.
 
+A `!` immediately before `~` no longer ends a name, as a `!` before a single
+`=` does not: `a!~/a/` is `a !~ /a/`. The syntax rejection
+`regex_value_syntax_19` therefore compiles and moves to `tests/language.json`,
+returning nil since its function declares no result; its rejection golden is
+removed and its language counters are recorded.
+
 PR #1319 review follow-up: the parse mutation
 `tests/site/upstream/capabilities/context_access.vibe:insert =:8347c9e3190d`
 inserts `=` into `def coach? -> bool`. It now reports V0003 at 8:10 instead

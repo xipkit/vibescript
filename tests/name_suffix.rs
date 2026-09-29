@@ -31,6 +31,21 @@ fn adjacent_inequality_compares_without_assigning() {
 }
 
 #[test]
+fn adjacent_negated_match_never_ends_a_name() {
+    for source in [
+        "s = 'abc'; [s!~/z/, s!~/b/] == [true, false]",
+        "S = 'abc'; S!~/z/",
+        "class C; @s: string = 'a'; def f -> bool; @s!~/z/; end; end; C.new.f",
+        "class C; @@s: string = 'a'; def self.f -> bool; @@s!~/z/; end; end; C.f",
+        "def ok? -> string; 'abc'; end; ok?!~/z/",
+        "def save! -> string; 'abc'; end; save!!~/z/",
+        "def text! -> string; 'yes'; end; (text!=~/yes/) == 0",
+    ] {
+        assert_eq!(run(source), "true", "{source}");
+    }
+}
+
+#[test]
 fn method_suffixes_survive_call_forms_and_operators() {
     for source in [
         "def ok? -> bool; true; end; ok?==true",

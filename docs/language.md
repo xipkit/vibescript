@@ -81,9 +81,10 @@ ordinary data keys.
 
 A suffix immediately followed by a single `=` is never part of a name:
 `a!=b` always compares `a` and `b`, and `x?=y` reports V0003, as do the
-setter definitions `def ok?=(value: T)` and `def ok!=(value: T)`. Before `==` or
-`=~`, the suffix remains part of the method name: `ok?==true` calls `ok?`
-and compares its result with `true`.
+setter definitions `def ok?=(value: T)` and `def ok!=(value: T)`. Likewise a
+`!` immediately followed by `~` is never a suffix, so `a!~b` is `a !~ b`, and
+`ok?!~/x/` calls `ok?`. Before `==` or `=~`, the suffix remains part of the
+method name: `ok?==true` calls `ok?` and compares its result with `true`.
 
 Hash and keyword labels are string keys, so `{ ready?: true }` has the key
 `"ready?"`, and `f(ready?: true)` passes that key to `**options`. The shorthand

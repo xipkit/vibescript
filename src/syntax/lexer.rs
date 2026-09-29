@@ -798,14 +798,15 @@ impl<'a, 'w> Lexer<'a, 'w> {
         Token::Word(Word(&self.source[start..i]))
     }
 
-    // `=` ends the scan, so only its last character can hide `!=`. Keep other
-    // malformed names intact for the parser's fix.
+    // `=` and `~` end the scan, so only its last character can hide `!=`,
+    // `?=` or `!~`. Keep other malformed names intact for the parser's fix.
     fn name_end(&self, end: usize) -> usize {
         let bytes = &self.source.as_bytes()[..self.limit];
-        if matches!(bytes.get(end.wrapping_sub(1)), Some(b'?' | b'!'))
+        let last = bytes.get(end.wrapping_sub(1));
+        let assigns = matches!(last, Some(b'?' | b'!'))
             && bytes.get(end) == Some(&b'=')
-            && !matches!(bytes.get(end + 1), Some(b'=' | b'~'))
-        {
+            && !matches!(bytes.get(end + 1), Some(b'=' | b'~'));
+        if assigns || (last == Some(&b'!') && bytes.get(end) == Some(&b'~')) {
             end - 1
         } else {
             end
