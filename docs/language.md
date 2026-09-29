@@ -86,7 +86,8 @@ Hash and keyword labels are string keys, so `{ ready?: true }` has the key
 `{ ready?: }` calls the method `ready?`; use `{ ready?: ready }` to read a
 local. In type syntax, `T?`, the optional shape field `ready?: bool`, and
 `&block?:` use `?` as an optional marker; it is not part of the type, field or
-block parameter name.
+block parameter name. The marker keeps that meaning before `=`, so
+`def f(x: int?=nil)` declares an `int?` parameter whose default is `nil`.
 
 Host functions and callable capability members obey the same method spelling
 rule, including functions supplied through globals. Their published names

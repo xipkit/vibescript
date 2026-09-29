@@ -72,6 +72,56 @@ fn labels_are_strings_and_optional_markers_are_not_name_suffixes() {
 }
 
 #[test]
+fn optional_type_markers_before_defaults_keep_their_meaning() {
+    for (source, expected) in [
+        ("def f(x: int?=nil) -> int?; x; end; f", "null"),
+        ("def f(x: int?= nil) -> int?; x; end; f", "null"),
+        ("def f(x:int?=nil) -> int?; x; end; f(2)", "2"),
+        ("def f(x: int?=\nnil) -> int?; x; end; f", "null"),
+        ("def f(x: bool?=true) -> bool?; x; end; f", "true"),
+        ("def f(x: string?=\"a\") -> string?; x; end; f", "\"a\""),
+        ("class K; end; def f(x: K?=nil) -> K?; x; end; f", "null"),
+        (
+            "enum E; A; end; def f(x: E?=nil) -> E?; x; end; f == nil",
+            "true",
+        ),
+        (
+            "enum E; A; end; def f(x: E?=E::A) -> E?; x; end; f == E::A",
+            "true",
+        ),
+        (
+            "class C; @x: int?; def initialize(x: int?=nil); @x = x; end; def x -> int?; @x; end; end; C.new.x",
+            "null",
+        ),
+        (
+            "class C; @x: int?; def initialize(x: int?=3); @x = x; end; def x -> int?; @x; end; end; C.new.x",
+            "3",
+        ),
+        ("def f x: int?=nil -> int?\n  x\nend\nf", "null"),
+        ("def f x: int?=4, y: bool?=nil -> int?\n  x\nend\nf", "4"),
+        (
+            "def f(x: int?=nil, y: bool?=false) -> array<any>; [x, y]; end; f",
+            "[null,false]",
+        ),
+        ("def f(*, x: int?=nil) -> int?; x; end; f", "null"),
+        ("x: int?=nil; x", "null"),
+        ("X: string?=nil; X", "null"),
+        (
+            "class C; @x: int?=nil; def x -> int?; @x; end; end; C.new.x",
+            "null",
+        ),
+    ] {
+        assert_eq!(run(source), expected, "{source}");
+        let checked = Engine::new().type_check(source).unwrap();
+        assert!(
+            checked.diagnostics.is_empty(),
+            "{source}: {:?}",
+            checked.diagnostics
+        );
+    }
+}
+
+#[test]
 fn bindings_reject_suffixes_with_applicable_fixes() {
     for (source, fixed) in [
         ("READY? = 1", "READY = 1"),

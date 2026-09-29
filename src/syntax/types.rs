@@ -698,7 +698,14 @@ impl Parser<'_> {
         let Token::Word(name) = &self.tokens[peek].token else {
             unreachable!()
         };
-        let next = self.significant(peek + 1);
+        let mut next = self.significant(peek + 1);
+        // The lexer splits `int?=nil` so that `?=` never ends a name; the
+        // adjacent `?` is still the type's optional marker.
+        if self.tokens[next].token == Token::P('?')
+            && self.tokens[next].offset == self.tokens[peek].end
+        {
+            next = self.significant(next + 1);
+        }
         Ok(match &self.tokens[next].token {
             Token::P(',' | ')' | ':' | '|') | Token::Op("=") => false,
             Token::Op("<") => {
