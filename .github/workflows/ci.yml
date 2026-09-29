@@ -1,0 +1,149 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  RUSTUP_TOOLCHAIN: 1.98.1
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_JOBS: 3
+  TZ: America/Detroit
+  PYTHONUNBUFFERED: '1'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up Rust and Cargo
+        uses: ./.github/actions/setup
+        with:
+          cache-key: lint
+      - name: Check formatting
+        run: ./scripts/cargo fmt --check
+      - name: Clippy with all features
+        run: ./scripts/cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+      - name: Clippy without default features
+        run: ./scripts/cargo clippy --locked --workspace --all-targets --no-default-features -- -D warnings
+
+  tests:
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+          - os: macos-latest
+            arch: arm64
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Verify runner architecture
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: test "$(uname -m)" = "$EXPECTED_ARCH"
+      - name: Set up Rust and Cargo
+        uses: ./.github/actions/setup
+        with:
+          cache-key: tests
+      - name: Debug tests with all features
+        run: ./scripts/cargo test --locked --workspace --all-targets --all-features --no-fail-fast
+      - name: Gate tests with all features (SIMD)
+        if: ${{ !cancelled() }}
+        run: ./scripts/cargo test --locked --workspace --profile gate --all-targets --all-features --no-fail-fast
+      - name: Gate tests without default features (portable)
+        if: ${{ !cancelled() }}
+        run: ./scripts/cargo test --locked --workspace --profile gate --all-targets --no-default-features --no-fail-fast
+      - name: Documentation tests with all features
+        if: ${{ !cancelled() }}
+        run: ./scripts/cargo test --locked --workspace --doc --all-features
+
+  golden:
+    name: Golden (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+          - os: macos-latest
+            arch: arm64
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Verify runner architecture
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: test "$(uname -m)" = "$EXPECTED_ARCH"
+      - name: Set up Rust and Cargo
+        uses: ./.github/actions/setup
+        with:
+          cache-key: golden
+      - name: Check SIMD goldens
+        run: |
+          mkdir -p .cache/ci-golden
+          python3 scripts/golden.py --observations .cache/ci-golden/simd.jsonl
+      - name: Build portable golden harness
+        run: ./scripts/cargo build --locked --offline --workspace --profile gate --no-default-features --example golden
+      - name: Build portable CLI
+        run: ./scripts/cargo build --locked --offline --workspace --profile gate --no-default-features --bin vibes
+      - name: Check portable goldens
+        run: python3 scripts/golden.py --no-build --observations .cache/ci-golden/portable.jsonl
+      - name: Compare SIMD and portable accounting counters
+        run: python3 scripts/check-golden-counters .cache/ci-golden/simd.jsonl .cache/ci-golden/portable.jsonl
+
+  wasi:
+    name: WASI
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up Rust and Cargo
+        uses: ./.github/actions/setup
+        with:
+          cache-key: wasi
+          target: wasm32-wasip1
+      - name: Fetch locked WASI witness dependencies
+        run: ./scripts/cargo fetch --locked --manifest-path tests/platforms/wasi/Cargo.toml
+      - name: Install Wasmtime 48.0.2
+        run: |
+          archive=wasmtime-v48.0.2-x86_64-linux.tar.xz
+          mkdir -p .cache/wasmtime
+          curl --fail --location --retry 3 "https://github.com/bytecodealliance/wasmtime/releases/download/v48.0.2/$archive" --output ".cache/wasmtime/$archive"
+          echo "f2b0ad1ce9253f2f9a38793c2c42cd1cba4e90b27dc40d685eaf723dc8438d94  .cache/wasmtime/$archive" | sha256sum --check
+          tar -xJf ".cache/wasmtime/$archive" -C .cache/wasmtime
+          echo "$GITHUB_WORKSPACE/.cache/wasmtime/wasmtime-v48.0.2-x86_64-linux" >> "$GITHUB_PATH"
+      - name: Print Wasmtime version
+        run: wasmtime --version
+      - name: Check WASI Clippy, tests, CLI and filesystem witness
+        run: python3 scripts/check-wasi

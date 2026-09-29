@@ -1,0 +1,40 @@
+name: Set up the CI gate
+description: Install the pinned toolchain and warm the checkout-local Cargo cache
+inputs:
+  cache-key:
+    description: Build configuration to keep target caches separate
+    required: true
+  target:
+    description: Additional Rust target to install
+    default: ''
+runs:
+  using: composite
+  steps:
+    - name: Install Rust
+      shell: bash
+      run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --component rustfmt --component clippy
+    - name: Install target
+      if: inputs.target != ''
+      shell: bash
+      env:
+        RUST_TARGET: ${{ inputs.target }}
+      run: rustup target add "$RUST_TARGET" --toolchain "$RUSTUP_TOOLCHAIN"
+    - name: Print tool versions
+      shell: bash
+      run: |
+        uname -m
+        rustc --version --verbose
+        ./scripts/cargo --version
+        python3 --version
+    - name: Cache Cargo dependencies and builds
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      with:
+        path: |
+          .cache/cargo
+          target
+        key: cargo-${{ runner.os }}-${{ runner.arch }}-${{ env.RUSTUP_TOOLCHAIN }}-${{ inputs.cache-key }}-${{ hashFiles('**/Cargo.lock') }}-${{ github.sha }}
+        restore-keys: |
+          cargo-${{ runner.os }}-${{ runner.arch }}-${{ env.RUSTUP_TOOLCHAIN }}-${{ inputs.cache-key }}-${{ hashFiles('**/Cargo.lock') }}-
+    - name: Fetch locked dependencies for offline checks
+      shell: bash
+      run: ./scripts/cargo fetch --locked
