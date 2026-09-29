@@ -405,10 +405,12 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 let block = p.block_param()?;
                 work.charge(params.len())?;
                 if params.iter().any(|param| param.name == block.name) {
-                    return Err(Error::syntax(
+                    let at = block.offset as usize + 1;
+                    return Err(super::duplicate_parameter(
                         work,
-                        block.offset as usize + 1,
-                        format_args!("duplicate parameter {}", source_text(&block.name)),
+                        &block.name,
+                        at,
+                        block.name.len(),
                     ));
                 }
                 let comma = p.significant(p.pos);
@@ -452,7 +454,15 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             if param.kind == ParamKind::Keyword {
                 p.labelled(id)?;
             }
-            p.locals.insert(work, param.name.clone(), id)?;
+            // Only an earlier parameter or a constant of the enclosing class
+            // has the name already.
+            if p.locals.insert(work, param.name.clone(), id)?.is_some() {
+                work.charge(params.len())?;
+                if params.iter().any(|earlier| earlier.name == param.name) {
+                    let width = param.name.len() + usize::from(param.ivar.is_some());
+                    return Err(super::duplicate_parameter(work, &param.name, offset, width));
+                }
+            }
             p.declared_it |= param.name == "it";
             params.push(work, param)?;
             let comma = p.significant(p.pos);

@@ -132,7 +132,7 @@ registry! {
     UNKNOWN_ENUM_MEMBER = 206, "unknown-enum-member", "A symbol or constant does not name a member of the enum.";
     BLOCK_NOT_VALUE = 207, "block-not-value", "A block parameter is used as a value.";
     VISIBILITY = 208, "visibility", "A private method is called with a receiver, or a protected one from outside its class's own methods.";
-    DUPLICATE_NAME = 209, "duplicate-name", "A function, method or alias takes a name its scope already defines.";
+    DUPLICATE_NAME = 209, "duplicate-name", "A function, method or alias takes a name its scope already defines, or a parameter repeats one of its list.";
     RESERVED_NAME = 210, "reserved-name", "A function or alias takes a reserved name: `require`, which the compiler resolves statically, or `__main__`.";
 
     NO_OVERLOAD = 301, "no-overload", "No signature accepts the call's positional arguments, keywords and block.";

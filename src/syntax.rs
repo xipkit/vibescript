@@ -2575,7 +2575,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
                 loop {
                     let target = self.block_parameter().await?;
                     let mut p = self.p();
-                    p.declare_target(&target)?;
+                    p.declare_block_parameter(&target, &params)?;
                     params.push(work, target)?;
                     let comma = p.significant(p.pos);
                     if p.tokens[comma].token != Token::P(',') {
@@ -3346,6 +3346,56 @@ impl<'a> Parser<'a> {
             self.declared_it |= name == "it";
             let id = self.local_id(&name, offset as usize)?;
             self.locals.insert(self.work, name, id)?;
+        }
+        Ok(())
+    }
+    /// Declares the names a block parameter binds, as
+    /// [`Self::declare_target`] does, and fails with V0209 at one that it
+    /// or an `earlier` parameter of the same list binds already. A block's
+    /// parameters may shadow the enclosing locals, so only a name the
+    /// locals already have is looked for among them.
+    fn declare_block_parameter(&mut self, target: &Target, earlier: &[Target]) -> Result<()> {
+        self.work.charge(1)?;
+        let mut names = Buffer::new();
+        let mut invalid = None;
+        target.parts(|part, _| {
+            if let Target::Value(Expr {
+                node: Node::Var(name),
+                offset,
+                ..
+            }) = part
+            {
+                if let Err(error) = self.binding_name(name, *offset as usize) {
+                    invalid = Some(error);
+                    return false;
+                }
+                names.push(self.work, (name.clone(), *offset)).is_ok()
+            } else {
+                true
+            }
+        });
+        if let Some(error) = invalid {
+            return Err(error);
+        }
+        for (index, (name, offset)) in names.iter().enumerate() {
+            self.work.charge(1)?;
+            self.declared_it |= name == "it";
+            let id = self.local_id(name, *offset as usize)?;
+            if self.locals.insert(self.work, name.clone(), id)?.is_none() {
+                continue;
+            }
+            self.work.charge(index)?;
+            let mut repeated = names[..index].iter().any(|(other, _)| other == name);
+            for other in earlier {
+                if repeated {
+                    break;
+                }
+                repeated = binds(other, name, self.work)?;
+            }
+            if repeated {
+                let at = binding_offset(target, index);
+                return Err(duplicate_parameter(self.work, name, at, name.len()));
+            }
         }
         Ok(())
     }
@@ -4497,6 +4547,64 @@ impl std::fmt::Display for Label<'_> {
         }
     }
 }
+/// The error for a parameter named like an earlier one of its list: a
+/// syntax error with V0209 at the name, which starts at `at` and is `width`
+/// bytes long.
+fn duplicate_parameter(work: &dyn Work, name: &str, at: usize, width: usize) -> Error {
+    let error = Error::syntax(
+        work,
+        at,
+        format_args!("duplicate parameter {}", source_text(name)),
+    );
+    let span = crate::diagnostic::Span::new(at, at + width);
+    let diagnostic = crate::diagnostic::Diagnostic::error(
+        crate::diagnostic::Code::DUPLICATE_NAME,
+        span,
+        &error.message,
+    );
+    error.with_diagnostic(diagnostic)
+}
+
+/// Whether a block parameter binds `name`, charging a step for each part of
+/// it looked at.
+fn binds(target: &Target, name: &str, work: &dyn Work) -> Result<bool> {
+    let (mut found, mut visited) = (false, 0);
+    target.parts(|part, _| {
+        visited += 1;
+        if let Target::Value(Expr {
+            node: Node::Var(bound),
+            ..
+        }) = part
+        {
+            found = bound == name;
+        }
+        !found
+    });
+    work.charge(visited)?;
+    Ok(found)
+}
+
+/// The offset of the name a block parameter binds `index`th.
+fn binding_offset(target: &Target, index: usize) -> usize {
+    let (mut seen, mut at) = (0, 0);
+    target.parts(|part, _| {
+        if let Target::Value(Expr {
+            node: Node::Var(_),
+            offset,
+            ..
+        }) = part
+        {
+            if seen == index {
+                at = *offset as usize;
+                return false;
+            }
+            seen += 1;
+        }
+        true
+    });
+    at
+}
+
 /// Go's bound on source text quoted in a diagnostic: at most 64 bytes, cut at
 /// a character boundary and marked.
 pub(super) struct SourceText<'a>(&'a str);

@@ -225,6 +225,7 @@ log "sent"
 ```
 
 - Every parameter declares its type. Optional parameters have defaults, `times: int = 1`.
+- Each parameter, including a rest, keyword rest or `&block` parameter, needs a name of its own: repeating one in a list is an error (V0209). The same holds for a block's parameters, down to the names they destructure, as in `|(a, b), a|`, though a block parameter may share an enclosing local's name.
 - Parameters after a bare `*`, or after a rest parameter `*items: array<int>`, are keywords, passed by name. `**options: hash<string, int>` collects extra keywords.
 - `-> T` declares the result, which is the last expression or an explicit `return`. A function without `->` returns `nil`: its last expression runs for its effect only, and `return value` in it is an error (V0117).
 - A call without arguments has no parentheses: `items.length`, `uuid`, `Time.now`, `log_all`.
