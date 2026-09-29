@@ -911,9 +911,9 @@ struct Parser<'a> {
     interpolations: Buffer<(u32, u32)>,
     /// The uses of suffixed bindings a lenient parse records.
     suffixed: RefCell<suffixes::Uses>,
-    /// The path of the class or module whose body or method is read, such
-    /// as `Outer::Inner`, from which scoped names resolve.
-    namespace: Option<Name>,
+    /// In a lenient parse, the class or module whose body or method is read,
+    /// from which scoped names resolve, by its id in the recorded uses.
+    namespace: Option<u32>,
     /// Whether the statement is directly in that body, where a constant
     /// belongs to the namespace.
     namespace_body: bool,
@@ -3640,7 +3640,7 @@ impl<'a> Parser<'a> {
             type_structural_error: false,
             interpolations: Buffer::new(),
             suffixed: RefCell::new(self.suffixed.take()),
-            namespace: self.namespace.clone(),
+            namespace: self.namespace,
             namespace_body: self.namespace_body,
             // Go parses interpolations without the member probe.
             record: None,

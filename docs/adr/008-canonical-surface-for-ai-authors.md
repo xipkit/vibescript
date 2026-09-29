@@ -364,10 +364,10 @@ it, and for a constant or enum member, the scoped reads whose full path
 resolves to its namespace as the checker resolves them, found by a second parse
 that accepts suffixed bindings as the grammar did before this addendum. The
 rename is one fix, on the binding's first V0003 only, so a person applying it
-alone gets consistent code, its edits are built once and charged to the
-caller's quotas, and nothing is guessed from undefined names: a suffixed read
-that no binding owns, such as a host function the check cannot see, keeps its
-V0201 without a fix.
+alone gets consistent code, its edits are built once, with work linear in the
+recorded uses, and charged to the caller's quotas, and nothing is guessed from
+undefined names: a suffixed read that no binding owns, such as a host function
+the check cannot see, keeps its V0201 without a fix.
 
 Hash and keyword labels keep suffixes because they spell string keys, not
 bindings. A suffixed shorthand label calls the method with that name;

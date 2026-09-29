@@ -666,8 +666,8 @@ impl Parser<'_> {
             return self.expected(Label::Text("identifier"));
         }
         let name = self.name()?;
-        // Enums are declared at the top level only, so the name is the path.
-        self.namespace_declared(&name)?;
+        // Enums are declared at the top level only.
+        let namespace = self.namespace_entered(&name)?;
         let mut members = Buffer::new();
         let mut member_offsets = Vec::new();
         let mut seen = Table::new();
@@ -689,7 +689,7 @@ impl Parser<'_> {
                 unreachable!()
             };
             self.binding_name(&member, member_offset)?;
-            self.member_binding(&member, member_offset, &name)?;
+            self.member_binding(&member, member_offset, namespace)?;
             let member = Name::new(work, &member)?;
             if seen.insert(work, member.clone(), ())?.is_some() {
                 return Err(Error::syntax(

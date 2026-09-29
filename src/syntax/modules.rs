@@ -440,14 +440,9 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             }
             p.enter()?;
             let outer_locals = std::mem::take(&mut p.locals);
-            // Scoped names resolve through the whole path, as `Outer::Inner`.
-            let path = match &p.namespace {
-                Some(outer) => Name::join(work, &[outer, "::", &name])?,
-                None => name.clone(),
-            };
-            p.namespace_declared(&path)?;
+            let inner = p.namespace_entered(&name)?;
             let outer_namespace = (
-                p.namespace.replace(path),
+                std::mem::replace(&mut p.namespace, inner),
                 std::mem::replace(&mut p.namespace_body, true),
             );
             let outer_it = std::mem::replace(&mut p.declared_it, false);
