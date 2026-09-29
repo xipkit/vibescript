@@ -280,7 +280,10 @@ position. Scoped names such as `State::Ready?` are left to the checker, which
 keeps V0416 for suffixed scoped calls, so `enums_symbols_30` through
 `enums_symbols_35` lose the additional V0003 recorded for those reads. Nothing
 else changes, and no counters were re-recorded: the pre-review head shows the
-same `call2881` and required-file counter drift.
+same `call2881` and required-file counter drift. Against that head, the
+37,227-case parse sweep changes only these 30 first errors, with no change in
+acceptance and no crash, hang, duplicate diagnostic or invalid span; its raw
+inputs and outcomes are under `.cache/review-1319/fix/parse-sweep/`.
 
 A `!` immediately before `~` no longer ends a name, as a `!` before a single
 `=` does not: `a!~/a/` is `a !~ /a/`. The syntax rejection
