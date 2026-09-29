@@ -1158,3 +1158,84 @@ fn setters_are_method_names_wherever_values_carry_methods() {
         }
     }
 }
+
+/// Applies the first applicable fix of each check until none remains, as
+/// `vibes fix` does one fix at a time.
+fn migrate(source: &str) -> String {
+    let engine = Engine::new();
+    let mut text = source.to_owned();
+    for _ in 0..64 {
+        let diagnostics = match engine.type_check(&text) {
+            Ok(checked) => checked.diagnostics,
+            Err(error) => error.diagnostics().to_vec(),
+        };
+        let Some(fix) = diagnostics.iter().find_map(|d| d.applicable_fix()) else {
+            return text;
+        };
+        text = fix.apply(&text).unwrap();
+    }
+    panic!("{source} did not converge: {text}");
+}
+
+#[test]
+fn suffixed_reads_of_renamed_bindings_get_the_same_rename() {
+    for (source, migrated, value) in [
+        (
+            "def check(ok?: bool, list!: array<int>) -> bool\n  total! = 0\n  list!.each { |x?| total! += x? }\n  ok? && total! == 1\nend\ncheck(true, [1])",
+            "def check(ok: bool, list: array<int>) -> bool\n  total = 0\n  list.each { |x| total += x }\n  ok && total == 1\nend\ncheck(true, [1])",
+            "true",
+        ),
+        (
+            "def f(nil?: int) -> int; nil?; end; f(1)",
+            "def f(nil_: int) -> int; nil_; end; f(1)",
+            "1",
+        ),
+        ("if? = 1; if?", "if_ = 1; if_", "1"),
+        ("ok? = 1; \"#{ok?}\"", "ok = 1; \"#{ok}\"", "\"1\""),
+        ("t? = 'x'; t?!~/z/", "t = 'x'; t!~/z/", "true"),
+        ("n! = 2; n!.to_s", "n = 2; n.to_s", "\"2\""),
+        (
+            "[1, 2].map { |x?| x? * 2 }",
+            "[1, 2].map { |x| x * 2 }",
+            "[2,4]",
+        ),
+        (
+            "class C; LIMIT! = 3; def f -> int; LIMIT!; end; end; C.new.f",
+            "class C; LIMIT = 3; def f -> int; LIMIT; end; end; C.new.f",
+            "3",
+        ),
+    ] {
+        assert_eq!(migrate(source), migrated, "{source}");
+        assert_eq!(run(migrated), value, "{migrated}");
+    }
+}
+
+#[test]
+fn suffixed_calls_and_names_out_of_scope_are_not_renamed() {
+    for source in [
+        "ok = 1; ok?(2)",
+        "ok = 1; ok? 2",
+        "ok = [1]; ok? { |x| x }",
+        "ready = true; { ready?: }",
+        "x = 1; def f -> int; x?; end",
+        "p(ok?); ok = 1",
+    ] {
+        let checked = Engine::new().type_check(source).unwrap();
+        let diagnostic = checked
+            .diagnostics
+            .iter()
+            .find(|d| d.code == Code::UNDEFINED_NAME)
+            .unwrap_or_else(|| panic!("{source}: {:?}", checked.diagnostics));
+        assert!(diagnostic.fixes.is_empty(), "{source}: {diagnostic:?}");
+    }
+    // A method of the suffixed name answers the read, so nothing changes.
+    let source = "def ok? -> bool; true; end; ok = false; ok?";
+    assert!(
+        Engine::new()
+            .type_check(source)
+            .unwrap()
+            .diagnostics
+            .is_empty()
+    );
+    assert_eq!(run(source), "true");
+}

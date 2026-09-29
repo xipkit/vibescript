@@ -661,6 +661,9 @@ pub(crate) struct Declarations {
     /// The byte span of every string interpolation's content, for tooling
     /// that reports positions relative to an interpolation as Go does.
     pub interpolations: Buffer<(u32, u32)>,
+    /// The spans of suffixed bare reads that a binding in scope would
+    /// satisfy without the suffix, sorted; see [`suffix_read_fixes`].
+    pub suffix_reads: Buffer<(u32, u32)>,
 }
 
 /// A top-level declaration's kind, name and source byte range, in source order.
@@ -669,6 +672,46 @@ pub(crate) struct Outline {
     pub name: Name,
     pub start: usize,
     pub end: usize,
+}
+
+/// Repairs an undefined suffixed read, such as `ok?` once V0003 has renamed
+/// the parameter `ok?` to `ok`, by reading the binding in scope that its
+/// name without the suffix names. Only bare reads recorded while parsing
+/// `source` qualify, never calls, so the repair cannot pick another method.
+pub(crate) fn suffix_read_fixes(
+    work: &dyn Work,
+    source: &str,
+    parsed: &Declarations,
+    diagnostics: &mut [crate::diagnostic::Diagnostic],
+) -> Result<()> {
+    use crate::diagnostic::{Code, Fix, Span};
+    if parsed.suffix_reads.is_empty() {
+        return Ok(());
+    }
+    work.charge(diagnostics.len())?;
+    for diagnostic in diagnostics {
+        if diagnostic.code != Code::UNDEFINED_NAME
+            || diagnostic.file.is_some()
+            || !diagnostic.fixes.is_empty()
+        {
+            continue;
+        }
+        let Span { start, end } = diagnostic.span;
+        let (Ok(first), Ok(last)) = (u32::try_from(start), u32::try_from(end)) else {
+            continue;
+        };
+        if parsed.suffix_reads.binary_search(&(first, last)).is_err() {
+            continue;
+        }
+        let stem = &source[start..end - 1];
+        let replacement = if keyword(stem) { "_" } else { "" };
+        diagnostic.fixes.push(Fix::replace(
+            format!("read `{stem}{replacement}`"),
+            Span::new(end - 1, end),
+            replacement,
+        ));
+    }
+    Ok(())
 }
 
 fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result<Parser<'a>> {
@@ -700,6 +743,7 @@ fn parser_from_tokens<'a>(source: &'a str, work: &'a dyn Work, tokens: Tokens<'a
         type_argument: false,
         type_structural_error: false,
         interpolations: Buffer::new(),
+        suffix_reads: Buffer::new(),
         record: None,
         inside_class: false,
         nesting: 0,
@@ -834,6 +878,10 @@ struct Parser<'a> {
     type_argument: bool,
     type_structural_error: bool,
     interpolations: Buffer<(u32, u32)>,
+    /// Bare reads such as `ok?` whose name without the suffix, as V0003
+    /// repairs it, is a binding in scope: a fix for them when nothing else
+    /// defines the suffixed name.
+    suffix_reads: Buffer<(u32, u32)>,
     /// Tooling facts, collected only by [`record::parse`].
     record: Option<Box<record::Record>>,
     /// Whether a class or module body encloses the current statement, as Go
@@ -2179,6 +2227,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
         p.command_depth -= 1;
         let depth = 1 + call_depth(&lhs).max(args.iter().map(|a| a.value.depth).max().unwrap_or(0));
         let offset = lhs.offset;
+        p.suffix_call(&lhs)?;
         let node = match lhs.into_node() {
             Node::Var(name) => Node::Call(name, args, CallForm::Bare),
             Node::Member(receiver, name) => Node::Method(receiver, name, args, CallForm::Bare),
@@ -2213,7 +2262,8 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
             .unwrap_or(0);
         let body = block.body.iter().map(|s| s.depth).max().unwrap_or(0);
         let depth = 1 + lhs.depth.max(1 + body.max(params));
-        let p = self.p();
+        let mut p = self.p();
+        p.suffix_call(&lhs)?;
         p.make_at(
             Node::BlockCall(Boxed::new(p.work, lhs)?, block),
             depth,
@@ -3064,6 +3114,39 @@ impl<'a> Parser<'a> {
     fn name_suffix_error(&self, offset: usize) -> Error {
         name_suffix_error(self.work, self.source, offset)
     }
+    /// Records the bare read of `name`, just consumed, when its name without
+    /// the suffix, spelled as V0003 repairs a declaration, is bound here.
+    fn suffix_read(&mut self, name: &str) -> Result<()> {
+        let Some(stem) = name.strip_suffix(['?', '!']) else {
+            return Ok(());
+        };
+        // A keyword is short, so its repaired spelling needs no accounting.
+        let bound = if keyword(stem) {
+            self.locals.contains(self.work, &format!("{stem}_"))?
+        } else {
+            self.locals.contains(self.work, stem)?
+        };
+        if bound {
+            let token = &self.tokens[self.pos - 1];
+            let span = (token.offset as u32, token.end as u32);
+            self.suffix_reads.push(self.work, span)?;
+        }
+        Ok(())
+    }
+    /// Drops the read recorded at `offset` once it turns out to be a call,
+    /// which a local cannot answer.
+    fn suffix_call(&mut self, callee: &Expr) -> Result<()> {
+        if matches!(&callee.node, Node::Var(name) if name.ends_with(['?', '!'])) {
+            for index in (0..self.suffix_reads.len()).rev() {
+                self.work.charge(1)?;
+                if self.suffix_reads[index].0 == callee.offset {
+                    self.suffix_reads.remove(index);
+                    break;
+                }
+            }
+        }
+        Ok(())
+    }
     fn assignment_member(&self, expr: &Expr) -> Result<()> {
         if matches!(&expr.node, Node::Member(_, name) | Node::SafeMember(_, name)
             if name.ends_with(['?', '!']))
@@ -3327,11 +3410,12 @@ impl<'a> Parser<'a> {
     }
     /// Reads the name just consumed. Like Go, a variable sigil at the end of
     /// input names nothing.
-    fn variable_name(&self, name: &str) -> Result<Expr> {
+    fn variable_name(&mut self, name: &str) -> Result<Expr> {
         if name.starts_with('@') {
             self.binding_name(name, self.tokens[self.pos - 1].offset)?;
         } else {
             self.method_spelling(name, self.tokens[self.pos - 1].offset)?;
+            self.suffix_read(name)?;
         }
         if matches!(name, "@" | "@@") {
             let (expected, got) = if name == "@" {
@@ -3484,6 +3568,7 @@ impl<'a> Parser<'a> {
             type_argument: false,
             type_structural_error: false,
             interpolations: Buffer::new(),
+            suffix_reads: Buffer::new(),
             // Go parses interpolations without the member probe.
             record: None,
             inside_class: false,
@@ -3514,6 +3599,7 @@ impl<'a> Parser<'a> {
         self.additions = parser.additions;
         self.interpolations
             .extend(self.work, parser.interpolations)?;
+        self.suffix_reads.extend(self.work, parser.suffix_reads)?;
         let expr = match result {
             Ok(Parsed::Expr(expr)) => expr,
             Ok(_) => unreachable!(),
@@ -3615,6 +3701,7 @@ impl<'a> Parser<'a> {
             let node = Node::ComputedCall(Boxed::new(self.work, lhs)?, args);
             return self.make_at(node, d, origin);
         }
+        self.suffix_call(&lhs)?;
         let node = match lhs.into_node() {
             Node::Var(name) => Node::Call(name, args, CallForm::Parenthesized),
             Node::Member(receiver, name) => {

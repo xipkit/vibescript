@@ -356,7 +356,10 @@ A repair must leave a valid name. Where removing the suffix would leave a
 keyword that cannot stand there, as in `nil? = 1`, V0003 offers `nil_`. A `?`
 or `!` followed by more of the name, as in `x?1`, is no suffix and has no
 repair, since removing it could name another binding. `M::ok?` remains a
-scoped call (V0416).
+scoped call (V0416). An undefined suffixed bare read whose repaired name is a
+binding in scope, as a read of a declaration V0003 renamed is, reports V0201
+with that rename, so a single `vibes fix` run migrates declarations and reads;
+calls get no such edit, since a local cannot answer them.
 
 Hash and keyword labels keep suffixes because they spell string keys, not
 bindings. A suffixed shorthand label calls the method with that name;
