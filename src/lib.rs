@@ -360,8 +360,9 @@ impl Engine {
     /// type, or the call fails before any script code runs, as an argument
     /// of the wrong type would. A later declaration of the name replaces an
     /// earlier one. Host values cannot be script classes or enums, so the
-    /// type uses builtin types only. A name ending in `?` or `!` is an
-    /// [`ErrorKind::Argument`] error, since only methods have such names.
+    /// type uses builtin types only. A name no script can read, such as a
+    /// keyword or one ending in `?` or `!`, which only methods have, is an
+    /// [`ErrorKind::Argument`] error.
     ///
     /// ```
     /// use vibescript::{CallOptions, Engine, ErrorKind, Value};

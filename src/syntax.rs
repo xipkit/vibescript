@@ -150,7 +150,25 @@ pub(crate) fn binding_name(work: &dyn Work, host: HostName<'_>, name: &str) -> R
         };
         return Err(host.error(name.as_bytes(), reason));
     }
+    // A script could never read another spelling, nor the prelude declare it.
+    if !identifier(name) {
+        return Err(host.error(
+            name.as_bytes(),
+            "a name starts with a letter or `_` and continues with letters, digits and `_`",
+        ));
+    }
+    if keyword(name) {
+        return Err(host.error(name.as_bytes(), "a keyword cannot name a binding"));
+    }
     Ok(())
+}
+
+/// Whether `name` is spelled as a local's name: a letter or `_`, then
+/// letters, digits and `_`.
+pub(crate) fn identifier(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars.next().is_some_and(|c| c == '_' || unicode::letter(c))
+        && chars.all(|c| c == '_' || unicode::letter_or_digit(c))
 }
 
 fn name_suffix_position(name: &str) -> Option<usize> {
@@ -251,16 +269,10 @@ fn method_spelling(name: &str, lexed: bool) -> std::result::Result<(), MethodNam
     } else {
         name.strip_suffix('=').unwrap_or(name)
     };
-    if lexed {
+    if lexed || identifier(stem) {
         return Ok(());
     }
-    let mut chars = stem.chars();
-    if !chars.next().is_some_and(|c| c == '_' || unicode::letter(c))
-        || !chars.all(|c| c == '_' || unicode::letter_or_digit(c))
-    {
-        return Err(MethodNameError::Invalid);
-    }
-    Ok(())
+    Err(MethodNameError::Invalid)
 }
 
 /// Validates a host function that scripts must be able to call without a receiver.

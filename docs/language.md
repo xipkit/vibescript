@@ -114,6 +114,10 @@ as a script's `def value=` is. A host method may not: no script can call a
 host setter, so a capability template, a factory's value, a global or a
 callback that publishes `value=` fails with a host error, as does a registered
 host function of that name.
+A global's or data capability's name is one a script can read: a letter or
+`_`, then letters, digits and `_`, and no keyword. A template's data keys that
+no script can read as a member, such as `"with space"`, are left out of the
+capability's declaration and the prelude, so the prelude always parses.
 An invalid host name is a host error (`ErrorKind::Argument`) that names the
 registration, such as `invalid global name "ready?"`; it has no script
 position and no fix, since the script is not what needs changing.

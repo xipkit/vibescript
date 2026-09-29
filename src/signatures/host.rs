@@ -141,8 +141,14 @@ pub(crate) fn binding(name: &str, value: &Value) -> Item {
                 .data
                 .iter()
                 .filter_map(|(key, field)| {
-                    let key = String::from_utf8_lossy(key.as_bytes()?).into_owned();
-                    Some(match binding(&key, field) {
+                    // A script reads a member by name, so a data key such as
+                    // `"with space"` names nothing to declare.
+                    let key = std::str::from_utf8(key.as_bytes()?).ok()?;
+                    let stem = key.strip_suffix(['?', '!']).unwrap_or(key);
+                    if !crate::syntax::identifier(stem) {
+                        return None;
+                    }
+                    Some(match binding(key, field) {
                         Item::Function(function) => Member::Function(function),
                         Item::Module(module) => Member::Module(module),
                         Item::Constant(constant) => Member::Constant(constant),
