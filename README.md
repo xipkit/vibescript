@@ -7,10 +7,11 @@
 
 # Vibescript
 
-Apps often need to let people write their own workflows without giving them a
-blank canvas or the keys to the whole system. As AI makes custom code easier to
-generate, products can offer a small set of useful, predictable building blocks
-instead. Think HyperCard: flexible, but within bounds.
+I built Vibescript for apps where people need room to write their own workflows,
+without handing them a blank canvas or the keys to the whole system. As AI makes
+custom code easier to generate, I think apps can offer a small set of useful,
+predictable building blocks instead. Think HyperCard: flexible, but within
+bounds.
 
 Vibescript is a small, statically typed language for those workflows. It’s
 Ruby-inspired and easy to read, and the host app decides what scripts can access
