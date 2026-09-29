@@ -137,6 +137,31 @@ fn optional_type_markers_before_defaults_keep_their_meaning() {
 }
 
 #[test]
+fn optional_type_defaults_keep_removed_spelling_diagnostics() {
+    for (source, code) in [
+        (
+            "def f(x: int?=nil) -> bool\n  y = 1\n  y.nil?\nend\nf",
+            Code::NIL_PREDICATE,
+        ),
+        (
+            "def f x: int?=nil -> bool\n  [1].each do |n| n end\n  true\nend\nf",
+            Code::DO_BLOCK,
+        ),
+        (
+            "class C; def initialize(x: bool?=true); end; def u(y: int) -> int; y; end; end; unless false; 1; end",
+            Code::UNLESS,
+        ),
+    ] {
+        let checked = Engine::new().type_check(source).unwrap();
+        assert!(
+            checked.diagnostics.iter().any(|d| d.code == code),
+            "{source}: {:?}",
+            checked.diagnostics
+        );
+    }
+}
+
+#[test]
 fn bindings_reject_suffixes_with_applicable_fixes() {
     for (source, fixed) in [
         ("READY? = 1", "READY = 1"),

@@ -2103,7 +2103,12 @@ impl<'s> Parser<'s> {
 
     fn name_starts_default(&self, peek: usize, parenthesized: bool) -> bool {
         let name = self.text(peek);
-        let next = self.significant(peek + 1);
+        let mut next = self.significant(peek + 1);
+        // The compiler's lexer splits `int?=nil` so that `?=` never ends a
+        // name; the adjacent `?` is still the type's optional marker.
+        if self.is_p(next, '?') && self.tokens[next].start == self.tokens[peek].end {
+            next = self.significant(next + 1);
+        }
         match self.kind_at(next) {
             TokenKind::Punct(',' | ')' | ':' | '|') | TokenKind::Operator("=") => false,
             TokenKind::Operator("<") => {
