@@ -285,8 +285,18 @@ unfiltered exit is 1 because it intentionally flags these changes; the audit
 finds zero unexpected changes, panics, hangs, duplicate diagnostics or invalid
 spans. Raw inputs, outcomes and the audit are under `.cache/name-suffix/`.
 
-Counter log addendum: no existing stable runtime counters were re-recorded.
+Counter log addendum: recorded five intentional reductions from the source
+rewrites. Renaming a `string?` local to `string_` removes the type-literal
+fallback: `shapes_shadow_60` drops from 42 to 35 steps, `shapes_shadow_63`
+from 57 to 52, and `shapes_scopes_native_1` from 57 to 50. Removing variable
+suffix bytes reduces `class_initial_25` peak bytes from 5,203 to 5,200 and
+`predicate_instance_and_class_variable_names` from 5,688 to 5,686. All their
+other counters stay unchanged. Preserved-baseline runs with the original
+sources confirm these reductions; no increase was accepted.
+
 Removed the 15 newly rejected language cases' counters and added counters for
 the 88 newly accepted comparisons. Paired runs of 127,420 successful cases
-preserve all stable counters; replay `call10334` reads the clock and retains its
-original record. Existing path and quota drift also occurs in the baseline.
+using the rewritten sources preserve all stable counters; replay `call10334`
+reads the clock and retains its original record. Existing path and quota drift
+also occurs in the baseline. See `.cache/name-suffix/counter-rewrite-audit.json`
+and `counter-audit.json`.
