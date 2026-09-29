@@ -37,11 +37,30 @@ impl<'a> Spans<'a> {
         let mut tokens = std::borrow::Cow::Borrowed(tokens);
         // The parser lists each interpolation separately from its outer string
         // token. Merge their tokens by source offset for member and edit spans.
+        // Each is parsed again for its tokens, which holds its syntax for a
+        // moment, within the memory the check may spend.
+        let mut parsing = 0;
         for &(start, end) in interpolations {
             let start = start as usize;
             let end = end as usize - 1;
             meter.charge((end - start) as u64);
-            if let Ok(inner) = crate::tooling::tokens(&source[start..end]) {
+            let budget = meter.budget();
+            let mut context = crate::CallContext::new(crate::CallOptions {
+                limits: crate::Limits {
+                    steps: None,
+                    memory_bytes: budget.memory,
+                    ..crate::Limits::default()
+                },
+                cancellation: budget.cancellation.clone().unwrap_or_default(),
+                deadline: budget.deadline,
+                ..crate::CallOptions::default()
+            });
+            let inner = crate::syntax::record::tokens_within(
+                &source[start..end],
+                &crate::compilation::Meter(std::cell::RefCell::new(&mut context)),
+            );
+            parsing = parsing.max(context.stats().peak_memory_bytes);
+            if let Ok(inner) = inner {
                 tokens
                     .to_mut()
                     .extend(inner.into_iter().filter_map(|mut token| {
@@ -57,8 +76,9 @@ impl<'a> Spans<'a> {
         if let std::borrow::Cow::Owned(tokens) = &mut tokens {
             tokens.sort_by_key(|token| token.span.start);
             owned = super::meter::Heap::heap(tokens);
-            // Sorting them in order kept a copy of them for a moment.
-            meter.scratch(owned + tokens.len() * std::mem::size_of::<Token>());
+            // Sorting them in order kept a copy of them for a moment, and
+            // the largest parse held its syntax for one before.
+            meter.scratch(owned + tokens.len() * std::mem::size_of::<Token>() + parsing);
         }
         Self {
             source,

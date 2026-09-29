@@ -173,7 +173,16 @@ pub(crate) fn parse(source: &str, probe: Option<&str>) -> (Result<Declarations>,
 /// Parses source and lists the tokens the parser finally read, after its
 /// regex and percent-literal re-reads.
 pub(crate) fn tokens(source: &str) -> Result<Vec<crate::tooling::Token>> {
-    let parsing = Parsing::<super::recovery::FailFast>::new(parser(source, &())?);
+    tokens_within(source, &())
+}
+
+/// Lists the tokens of `source` as [`tokens`] does, charging the parse to
+/// `work`.
+pub(crate) fn tokens_within(
+    source: &str,
+    work: &dyn crate::compilation::Work,
+) -> Result<Vec<crate::tooling::Token>> {
+    let parsing = Parsing::<super::recovery::FailFast>::new(parser(source, work)?);
     parsing.run(Call::Program)?;
     Ok(token_list(source, &parsing.parser.into_inner()))
 }
