@@ -1,4 +1,7 @@
-use vibescript::{CallOptions, Engine, ErrorKind, Value, diagnostic::Code, stringify_json};
+use vibescript::{
+    CallOptions, Capability, Engine, Error, ErrorKind, HostMethod, Value, diagnostic::Code,
+    stringify_json,
+};
 
 fn run(source: &str) -> String {
     let value = Engine::new()
@@ -219,5 +222,224 @@ fn recovers_and_preserves_utf8_suffix_fixes() {
     for diagnostic in error.diagnostics() {
         assert_eq!(diagnostic.code, Code::NAME_SUFFIX);
         assert!(diagnostic.applicable_fix().unwrap().apply(source).is_some());
+    }
+}
+
+fn method() -> HostMethod {
+    HostMethod::new("namespace.method (diagnostic label)", |_, _, _| {
+        Ok(Value::boolean(true))
+    })
+}
+
+fn suffix_error(error: Error, name: &str) {
+    assert_eq!(error.kind, ErrorKind::Syntax, "{name}: {error}");
+    let diagnostic = &error.diagnostics()[0];
+    assert_eq!(diagnostic.code, Code::NAME_SUFFIX, "{name}: {error}");
+    assert!(diagnostic.applicable_fix().unwrap().apply(name).is_some());
+}
+
+#[test]
+fn registered_methods_validate_their_published_spelling() {
+    for name in [
+        "ok?", "save!", "é?", "bad??", "bad!!", "bad?!", "bad?name", "bad!name",
+    ] {
+        let valid = matches!(name, "ok?" | "save!" | "é?");
+        for kind in 0..3 {
+            let mut engine = Engine::new();
+            match kind {
+                0 => engine.register(name, |_, _| Ok(Value::boolean(true))),
+                1 => engine.register_with_keywords(name, |_, _, _| Ok(Value::boolean(true))),
+                _ => engine.register_method(name, method()),
+            }
+            let prelude = engine.prelude(&CallOptions::default());
+            assert_eq!(prelude.contains(&format!("def {name}(")), valid, "{name}");
+            if valid {
+                let result = engine
+                    .compile(name)
+                    .unwrap()
+                    .run(CallOptions::default())
+                    .unwrap();
+                assert_eq!(result.value.to_string(), "true");
+            } else {
+                suffix_error(engine.compile("1").err().unwrap(), name);
+                suffix_error(engine.type_check("1").err().unwrap(), name);
+                suffix_error(
+                    engine
+                        .check_entry_arguments("def run; end", "run", 0)
+                        .err()
+                        .unwrap(),
+                    name,
+                );
+            }
+        }
+    }
+    for name in ["", "bad name", "3bad", "@bad", "if", "f=", "!="] {
+        let mut engine = Engine::new();
+        engine.register_method(name, method());
+        assert!(engine.compile("1").is_err(), "{name}");
+    }
+}
+
+#[test]
+fn capability_roots_and_members_share_method_spelling_validation() {
+    let cap = Capability::from_value(
+        "cap",
+        Value::object(vec![(b"nil".to_vec(), method().value())]),
+    );
+    let mut engine = Engine::new();
+    engine.declare_capability(&cap).unwrap();
+    assert_eq!(
+        engine
+            .compile("cap.nil")
+            .unwrap()
+            .run(CallOptions {
+                capabilities: vec![cap],
+                ..CallOptions::default()
+            })
+            .unwrap()
+            .value
+            .to_string(),
+        "true"
+    );
+    for name in ["ok?", "save!", "bad??", "bad!!", "bad?name", "bad!name"] {
+        let valid = matches!(name, "ok?" | "save!");
+        for nested in [false, true] {
+            let value = if nested {
+                Value::object(vec![(name.as_bytes().to_vec(), method().value())])
+            } else {
+                method().value()
+            };
+            let root = if nested { "cap" } else { name };
+            let cap = Capability::from_value(root, value.clone());
+            let options = CallOptions {
+                capabilities: vec![cap.clone()],
+                ..CallOptions::default()
+            };
+            let mut engine = Engine::new();
+            let declaration = engine.declare_capability(&cap);
+            if valid {
+                declaration.unwrap();
+                let source = if nested {
+                    format!("cap.{name}")
+                } else {
+                    name.to_owned()
+                };
+                let script = engine.compile(&source).unwrap();
+                for options in [
+                    options,
+                    CallOptions {
+                        capabilities: vec![Capability::new(root, move |_| Ok(value.clone()))],
+                        ..CallOptions::default()
+                    },
+                ] {
+                    assert_eq!(script.run(options).unwrap().value.to_string(), "true");
+                }
+            } else {
+                suffix_error(declaration.unwrap_err(), name);
+                assert!(!engine.prelude(&options).contains(name));
+            }
+        }
+        if !valid {
+            let nested = Value::object(vec![(
+                b"inner".to_vec(),
+                Value::array(vec![Value::object(vec![(
+                    name.as_bytes().to_vec(),
+                    method().value(),
+                )])]),
+            )]);
+            let cap = Capability::from_value("cap", nested);
+            suffix_error(Engine::new().declare_capability(&cap).unwrap_err(), name);
+        }
+    }
+}
+
+#[test]
+fn factories_globals_and_host_publication_reject_uncallable_members() {
+    for name in ["ready?", "save!", "bad??", "bad!name"] {
+        let valid = matches!(name, "ready?" | "save!");
+        let object = Value::object(vec![(name.as_bytes().to_vec(), method().value())]);
+        let mut engine = Engine::new();
+        engine.declare_global("cap", "").unwrap();
+        let script = engine.compile("cap").unwrap();
+        let result = script.run(CallOptions {
+            globals: [("cap".into(), object.clone())].into(),
+            ..CallOptions::default()
+        });
+        if valid {
+            result.unwrap();
+        } else {
+            suffix_error(result.unwrap_err(), name);
+        }
+
+        let mut engine = Engine::new();
+        let cap = Capability::new("cap", move |_| Ok(object.clone()));
+        engine.declare_capability(&cap).unwrap();
+        let result = engine.compile("1").unwrap().run(CallOptions {
+            capabilities: vec![cap],
+            ..CallOptions::default()
+        });
+        if valid {
+            result.unwrap();
+        } else {
+            suffix_error(result.unwrap_err(), name);
+        }
+
+        let install = HostMethod::new_with_block("cap.install", move |call, _, _| {
+            call.set_receiver_field(name.as_bytes(), &method().value())?;
+            Ok(Value::boolean(true))
+        });
+        let cap = Capability::from_value(
+            "cap",
+            Value::object(vec![(b"install".to_vec(), install.value())]),
+        );
+        let mut engine = Engine::new();
+        engine.declare_capability(&cap).unwrap();
+        let result = engine.compile("cap.install").unwrap().run(CallOptions {
+            capabilities: vec![cap],
+            ..CallOptions::default()
+        });
+        if valid {
+            assert_eq!(result.unwrap().value.to_string(), "true");
+        } else {
+            suffix_error(result.unwrap_err(), name);
+        }
+    }
+    let mut engine = Engine::new();
+    engine.declare_global("cap", "").unwrap();
+    let script = engine.compile("cap").unwrap();
+    let data = Value::object(vec![(b"bad??".to_vec(), Value::int(1))]);
+    script
+        .run(CallOptions {
+            globals: [("cap".into(), data)].into(),
+            ..CallOptions::default()
+        })
+        .unwrap();
+}
+
+#[test]
+fn callable_globals_validate_the_binding_name() {
+    let script = Engine::new().compile("1").unwrap();
+    for name in ["bad??", "bad!!", "bad?name"] {
+        let options = CallOptions {
+            globals: [(name.into(), method().value())].into(),
+            ..CallOptions::default()
+        };
+        assert!(!Engine::new().prelude(&options).contains(name));
+        suffix_error(script.run(options).unwrap_err(), name);
+    }
+    for name in ["ok?", "save!"] {
+        let mut engine = Engine::new();
+        engine
+            .declare_capability(&Capability::from_value(name, method().value()))
+            .unwrap();
+        let result = engine
+            .compile(name)
+            .unwrap()
+            .run(CallOptions {
+                globals: [(name.into(), method().value())].into(),
+                ..CallOptions::default()
+            })
+            .unwrap();
+        assert_eq!(result.value.to_string(), "true");
     }
 }

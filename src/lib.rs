@@ -158,6 +158,9 @@ impl Engine {
     /// # Ok::<(), vibescript::Error>(())
     /// ```
     pub fn type_check(&self, source: &str) -> Result<typing::Checked> {
+        for name in self.hosts.keys() {
+            syntax::host_function_name(name)?;
+        }
         let (parsed, tokens) = syntax::parse_with_tokens(source, &()).map_err(|error| {
             source::parse_error(
                 source,
@@ -199,6 +202,9 @@ impl Engine {
         function: &str,
         count: usize,
     ) -> Result<Vec<diagnostic::Diagnostic>> {
+        for name in self.hosts.keys() {
+            syntax::host_function_name(name)?;
+        }
         let (parsed, tokens) = syntax::parse_with_tokens(source, &()).map_err(|error| {
             source::parse_error(
                 source,
@@ -282,6 +288,7 @@ impl Engine {
         self.random_source = Some(Arc::new(reader));
     }
     /// Registers a synchronous host function for subsequently compiled scripts.
+    /// Invalid callable names fail compilation and are omitted from the prelude.
     pub fn register(
         &mut self,
         name: impl Into<String>,
@@ -300,6 +307,7 @@ impl Engine {
         self.keywordless.insert(name);
     }
     /// Registers a synchronous callback that accepts positional and keyword arguments.
+    /// Invalid callable names fail compilation and are omitted from the prelude.
     ///
     /// Keyword keys are byte-string values. Both argument collections are accounted to
     /// the current call; the callback validates its own names, types, and required values.
@@ -321,6 +329,7 @@ impl Engine {
     }
 
     /// Registers a host method, including its signature, contracts and block driver.
+    /// Invalid callable names fail compilation and are omitted from the prelude.
     ///
     /// Registration affects subsequently compiled scripts and their required files.
     /// Each invocation receives a fresh grant. Script declarations and explicit

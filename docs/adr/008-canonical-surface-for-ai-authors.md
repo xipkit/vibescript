@@ -352,3 +352,10 @@ an explicit value can read a local instead. Optional type, shape-field and
 block markers keep their existing meaning and do not become part of a name.
 This removes the whitespace-dependent accidental assignment in `a!=b`
 without changing method calls or string keys.
+
+Callable publication uses the parser's shared method-spelling validator:
+host registrations, capability templates and factory results, callable globals,
+and methods added by host callbacks follow the same rule. Infallible host
+constructors remain infallible; validation happens at declaration, compilation
+or import, before the name reaches scripts or the generated prelude. Qualified
+host diagnostic labels are separate from published names.

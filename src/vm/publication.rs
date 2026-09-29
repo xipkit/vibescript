@@ -46,6 +46,7 @@ pub(super) fn set_field(
         *location = None;
     }
     reject_method_field(ctx, target.as_ref().unwrap_or(receiver), key)?;
+    crate::capability::member_name(key, value)?;
     let key = ctx.bytes(key)?;
     let value = ctx.snapshot(value)?;
     if !matches!(value.0, Kind::Host(_)) {

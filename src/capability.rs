@@ -143,8 +143,55 @@ impl Capability {
             Binding::Value(value) => Ok(value.clone()),
         };
         ctx.checkpoint()?;
-        ctx.import(&value?)
+        let value = value?;
+        binding_name(&self.name, &value)?;
+        ctx.import(&value)
     }
+}
+
+/// Validates a published root as either a method or a data binding.
+pub(crate) fn binding_name(name: &str, value: &Value) -> Result<()> {
+    if matches!(value.0, Kind::Host(_) | Kind::Function(_)) {
+        crate::syntax::host_function_name(name)
+    } else {
+        crate::syntax::binding_name(name)
+    }
+}
+
+/// Checks callable fields without constraining ordinary string keys.
+pub(crate) fn member_name(key: &[u8], value: &Value) -> Result<()> {
+    if matches!(value.0, Kind::Host(_) | Kind::Function(_)) {
+        let name = std::str::from_utf8(key)
+            .map_err(|_| Error::new(ErrorKind::Syntax, "method names must be UTF-8"))?;
+        crate::syntax::host_method_name(name)?;
+    }
+    Ok(())
+}
+
+/// Validates immutable host templates before the checker or prelude publishes them.
+pub(crate) fn template_names(value: &Value) -> Result<()> {
+    if value.depth() > crate::budget::MAX_VALUE_DEPTH {
+        return Err(Error::new(ErrorKind::Recursion, "value nesting too deep"));
+    }
+    let mut pending = vec![value];
+    let mut seen = std::collections::BTreeSet::new();
+    while let Some(value) = pending.pop() {
+        match &value.0 {
+            Kind::Hash(hash) if seen.insert(Arc::as_ptr(hash) as usize) => {
+                for (key, field) in &hash.buffer.data {
+                    if let Some(key) = key.as_bytes() {
+                        member_name(key, field)?;
+                    }
+                    pending.push(field);
+                }
+            }
+            Kind::Array(array) if seen.insert(Arc::as_ptr(array) as usize) => {
+                pending.extend(&array.buffer.data);
+            }
+            _ => (),
+        }
+    }
+    Ok(())
 }
 
 impl fmt::Debug for Capability {

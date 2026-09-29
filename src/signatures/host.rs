@@ -24,6 +24,9 @@ pub(crate) fn table(
 ) -> Table {
     let mut table = super::table().clone();
     for (name, host) in hosts {
+        if crate::syntax::host_function_name(name).is_err() {
+            continue;
+        }
         let function = match host {
             Registered::Callback(_) => unsigned(name, !keywordless.contains(name), false),
             Registered::Method(method) => match &method.value().0 {
@@ -54,8 +57,10 @@ pub(crate) fn table(
             continue;
         }
         let item = match capability.template() {
-            Some(value) => documented(binding(name, value), "A capability."),
-            None => documented(
+            Some(value) if valid_binding(name, value) => {
+                documented(binding(name, value), "A capability.")
+            }
+            None if crate::syntax::binding_name(name).is_ok() => documented(
                 Item::Constant(Constant {
                     doc: Vec::new(),
                     name: name.to_owned(),
@@ -63,11 +68,12 @@ pub(crate) fn table(
                 }),
                 "A capability bound when each call starts, so its members are not known here.",
             ),
+            _ => continue,
         };
         table.items.push(item);
     }
     for (name, value) in &options.globals {
-        if declared.contains_key(name) {
+        if declared.contains_key(name) || !valid_binding(name, value) {
             continue;
         }
         let item = match binding(name, value) {
@@ -80,6 +86,11 @@ pub(crate) fn table(
         table.items.push(documented(item, "A global."));
     }
     table
+}
+
+fn valid_binding(name: &str, value: &Value) -> bool {
+    crate::capability::binding_name(name, value).is_ok()
+        && crate::capability::template_names(value).is_ok()
 }
 
 /// A registered host function's signature, as the static checker reads it:

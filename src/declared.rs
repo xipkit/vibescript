@@ -92,9 +92,8 @@ impl Declaration {
                 shape: Shape::Value(None),
             });
         };
-        if !matches!(template.0, Kind::Host(_)) {
-            crate::syntax::binding_name(name)?;
-        }
+        crate::capability::binding_name(name, template)?;
+        crate::capability::template_names(template)?;
         Ok(Self {
             item: signatures::host::binding(name, template),
             capability: true,
@@ -339,8 +338,9 @@ pub(crate) fn check_globals(ctx: &mut CallContext, declared: &Declarations) -> R
     let globals = std::mem::take(&mut ctx.options.globals);
     let capabilities = std::mem::take(&mut ctx.options.capabilities);
     let result = (|| {
-        for name in globals.keys() {
+        for (name, value) in &globals {
             ctx.work_bytes(name.len())?;
+            crate::capability::binding_name(name, value)?;
             if !declared.contains_key(name) {
                 return Err(Error::new(
                     ErrorKind::Argument,

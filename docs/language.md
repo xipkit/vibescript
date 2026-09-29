@@ -65,7 +65,7 @@ underscores. Only method names may end in one `?` or `!`: definitions such as
 `def ok?` and `def save!`, calls such as `ok?`, `user.valid?` and
 `list&.empty?`, and symbols such as `:ok?`. Calls with arguments may omit
 parentheses: `valid? user`. Locals, parameters, constants, instance variables,
-class variables and host globals have no suffix. `READY? = 1`, `x! = 3`,
+class variables and host data globals have no suffix. `READY? = 1`, `x! = 3`,
 `@done? = true` and `def f(ok?: bool)` report V0003 with a fix removing the
 suffix.
 
@@ -80,6 +80,15 @@ Hash and keyword labels are string keys, so `{ ready?: true }` has the key
 local. In type syntax, `T?`, the optional shape field `ready?: bool`, and
 `&block?:` use `?` as an optional marker; it is not part of the type, field or
 block parameter name.
+
+Host functions and callable capability members obey the same method spelling
+rule, including functions supplied through globals. Their published names
+are checked independently of host diagnostic labels such as `SMS.send`.
+Registration keeps its infallible API: an invalid registered name fails
+compilation or type checking and is omitted from the prelude. Capability
+templates are checked when declared, and factory results and newly published
+methods are checked before scripts can access them. Ordinary data keys remain
+strings and may contain punctuation.
 
 ## Types
 

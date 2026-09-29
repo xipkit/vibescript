@@ -53,6 +53,11 @@ impl Frame {
         match self {
             Self::Array { out, .. } => Value::from_array(ctx, out),
             Self::Hash { source, out, .. } => {
+                if source.object {
+                    for (key, value) in &out.data {
+                        crate::capability::member_name(key.require_bytes()?, value)?;
+                    }
+                }
                 let mut hash = Hash::from_entries(ctx, out)?;
                 hash.object = source.object;
                 hash.tag = source.tag;

@@ -59,6 +59,84 @@ fn name_suffix_position(name: &str) -> Option<usize> {
     memchr::memchr2(b'?', b'!', name.as_bytes())
 }
 
+/// A method spelling rejected before a callable can be published.
+pub(crate) enum MethodNameError {
+    Suffix(usize),
+    Invalid,
+}
+
+impl MethodNameError {
+    pub(crate) fn diagnostic(&self, work: &dyn Work, source: &str, offset: usize) -> Error {
+        match self {
+            Self::Suffix(suffix) => name_suffix_error(work, source, offset + suffix),
+            Self::Invalid => Error::syntax(work, offset, "invalid method name"),
+        }
+    }
+}
+
+/// Validates callable spellings, including operator methods and setters.
+/// Lexer identifiers already satisfy the character rule; host names and decoded
+/// symbols need that check too.
+pub(crate) fn method_spelling(name: &str, lexed: bool) -> std::result::Result<(), MethodNameError> {
+    if matches!(
+        name,
+        "+" | "-"
+            | "*"
+            | "/"
+            | "%"
+            | "**"
+            | "<<"
+            | "&"
+            | "=="
+            | "!="
+            | "<"
+            | "<="
+            | ">"
+            | ">="
+            | "<=>"
+            | "[]"
+            | "[]="
+    ) {
+        return Ok(());
+    }
+    let stem = if let Some(suffix) = name_suffix_position(name) {
+        if suffix + 1 != name.len() || name.starts_with('@') {
+            return Err(MethodNameError::Suffix(suffix));
+        }
+        &name[..suffix]
+    } else {
+        name.strip_suffix('=').unwrap_or(name)
+    };
+    if lexed {
+        return Ok(());
+    }
+    let mut chars = stem.chars();
+    if !chars.next().is_some_and(|c| c == '_' || unicode::letter(c))
+        || !chars.all(|c| c == '_' || unicode::letter_or_digit(c))
+    {
+        return Err(MethodNameError::Invalid);
+    }
+    Ok(())
+}
+
+/// Validates a host function that scripts must be able to call without a receiver.
+pub(crate) fn host_function_name(name: &str) -> Result<()> {
+    host_method_name(name)?;
+    if keyword(name) {
+        return Err(Error::syntax(&(), 0, "invalid host function name"));
+    }
+    Ok(())
+}
+
+/// Checks a host method's published name; its descriptor's diagnostic label is separate.
+pub(crate) fn host_method_name(name: &str) -> Result<()> {
+    method_spelling(name, false).map_err(|error| error.diagnostic(&(), name, 0))?;
+    if name.ends_with('=') || !name.starts_with(|c: char| c == '_' || unicode::letter(c)) {
+        return Err(Error::syntax(&(), 0, "invalid host method name"));
+    }
+    Ok(())
+}
+
 #[derive(Debug)]
 pub(crate) struct Expr {
     pub node: Node,
@@ -2795,12 +2873,8 @@ impl<'a> Parser<'a> {
         Ok(())
     }
     fn method_spelling(&self, name: &str, offset: usize) -> Result<()> {
-        if let Some(suffix) = name_suffix_position(name)
-            && (suffix + 1 < name.len() || name.starts_with('@'))
-        {
-            return Err(self.name_suffix_error(offset + suffix));
-        }
-        Ok(())
+        method_spelling(name, true)
+            .map_err(|error| error.diagnostic(self.work, self.source, offset))
     }
     fn name_suffix_error(&self, offset: usize) -> Error {
         name_suffix_error(self.work, self.source, offset)
@@ -3053,7 +3127,11 @@ impl<'a> Parser<'a> {
     /// Reads the name just consumed. Like Go, a variable sigil at the end of
     /// input names nothing.
     fn variable_name(&self, name: &str) -> Result<Expr> {
-        self.method_spelling(name, self.tokens[self.pos - 1].offset)?;
+        if name.starts_with('@') {
+            self.binding_name(name, self.tokens[self.pos - 1].offset)?;
+        } else {
+            self.method_spelling(name, self.tokens[self.pos - 1].offset)?;
+        }
         if matches!(name, "@" | "@@") {
             let (expected, got) = if name == "@" {
                 ("instance variable name", "instance variable")
