@@ -56,8 +56,7 @@ pub(crate) fn binding_name(name: &str) -> Result<()> {
 }
 
 fn name_suffix_position(name: &str) -> Option<usize> {
-    // Single ASCII characters use byte searches instead of decoding every rune.
-    name.find('?').into_iter().chain(name.find('!')).min()
+    memchr::memchr2(b'?', b'!', name.as_bytes())
 }
 
 #[derive(Debug)]
@@ -2757,16 +2756,20 @@ impl<'a> Parser<'a> {
         Ok(Some(name))
     }
     fn name(&mut self) -> Result<Name> {
-        if let Token::Word(name) = self.token() {
-            self.binding_name(name, self.tokens[self.pos].offset)?;
-        }
-        self.method_name()
+        self.read_name(false)
     }
     fn method_name(&mut self) -> Result<Name> {
+        self.read_name(true)
+    }
+    fn read_name(&mut self, method: bool) -> Result<Name> {
         self.work.charge(1)?;
         let offset = self.tokens[self.pos].offset;
         if let Token::Word(w) = self.bump()? {
-            self.method_spelling(&w, offset)?;
+            if method {
+                self.method_spelling(&w, offset)?;
+            } else {
+                self.binding_name(&w, offset)?;
+            }
             if reserved(&w) {
                 return Err(Error::syntax(self.work, offset, "reserved name"));
             }
