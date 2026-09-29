@@ -265,7 +265,7 @@ fn method_spelling(name: &str, lexed: bool) -> std::result::Result<(), MethodNam
 
 /// Validates a host function that scripts must be able to call without a receiver.
 pub(crate) fn host_function_name(work: &dyn Work, host: HostName<'_>, name: &str) -> Result<()> {
-    host_method_name(work, host, name.as_bytes())?;
+    host_method_name(work, host, name.as_bytes(), true)?;
     if keyword(name) {
         return Err(host.error(name.as_bytes(), "a keyword cannot name a host function"));
     }
@@ -278,10 +278,16 @@ pub(crate) fn host_function_name(work: &dyn Work, host: HostName<'_>, name: &str
     Ok(())
 }
 
-/// Checks a host method's published name; its descriptor's diagnostic label
-/// is separate. Setters such as `value=` are methods too, as a module's or a
-/// class's `def value=` is.
-pub(crate) fn host_method_name(work: &dyn Work, host: HostName<'_>, key: &[u8]) -> Result<()> {
+/// Checks a method's published name; a host method's diagnostic label is
+/// separate. A script's function may be a setter such as `value=`, as a
+/// module's `def value=` is, where a `setter` is allowed; a host method may
+/// not, since no script can call a host setter.
+pub(crate) fn host_method_name(
+    work: &dyn Work,
+    host: HostName<'_>,
+    key: &[u8],
+    setter: bool,
+) -> Result<()> {
     work.checkpoint()?;
     work.bytes(key.len())?;
     let Ok(name) = std::str::from_utf8(key) else {
@@ -290,6 +296,12 @@ pub(crate) fn host_method_name(work: &dyn Work, host: HostName<'_>, key: &[u8]) 
     method_spelling(name, false).map_err(|error| host.error(key, error.reason()))?;
     if !name.starts_with(|c: char| c == '_' || unicode::letter(c)) {
         return Err(host.error(key, HOST_METHOD_SPELLING));
+    }
+    if !setter && name.ends_with('=') {
+        return Err(host.error(
+            key,
+            "scripts cannot call a host method as a setter; publish one such as `set_value` instead",
+        ));
     }
     Ok(())
 }

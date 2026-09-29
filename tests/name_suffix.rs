@@ -1118,7 +1118,7 @@ fn exported_functions_share_method_spelling_validation() {
 }
 
 #[test]
-fn setters_are_method_names_wherever_values_carry_methods() {
+fn only_script_functions_publish_setters() {
     let mut engine = Engine::new();
     engine.register_method(
         "echo",
@@ -1144,43 +1144,70 @@ fn setters_are_method_names_wherever_values_carry_methods() {
             .unwrap_or_else(|error| panic!("{source}: {error}"));
     }
 
-    // A host setter is a method too, though scripts cannot assign through a
-    // capability's methods.
-    let setter = HostMethod::new("cap.value=", |_, args, _| Ok(args[0].clone()));
-    let getter = HostMethod::new("cap.value", |_, _, _| Ok(Value::int(0)));
+    // No script can call a host method as a setter, so no host value may
+    // publish one: not a template, a factory's value, a global or a callback.
+    fn setter() -> HostMethod {
+        HostMethod::new("cap.value=", |_, args, _| Ok(args[0].clone()))
+    }
+    fn object() -> Value {
+        Value::object(vec![(b"value=".to_vec(), setter().value())])
+    }
+    let error = Engine::new()
+        .declare_capability(&Capability::from_value("cap", object()))
+        .unwrap_err();
+    registration_error(&error, "method", "value=");
+    assert!(
+        error.message.contains(" in capability \"cap\": "),
+        "{error}"
+    );
+    assert!(error.message.contains("setter"), "{error}");
+    let mut engine = Engine::new();
+    engine.declare_global("cap", "").unwrap();
+    let error = engine
+        .compile("cap")
+        .unwrap()
+        .run(CallOptions {
+            globals: [("cap".into(), object())].into(),
+            ..CallOptions::default()
+        })
+        .unwrap_err();
+    host_name_error(&error, "method", "value=");
+    let factory = Capability::new("cap", move |_| Ok(object()));
+    let mut engine = Engine::new();
+    engine.declare_capability(&factory).unwrap();
+    let error = engine
+        .compile("1")
+        .unwrap()
+        .run(CallOptions {
+            capabilities: vec![factory],
+            ..CallOptions::default()
+        })
+        .unwrap_err();
+    host_name_error(&error, "method", "value=");
+    let install = HostMethod::new_with_block("cap.install", |call, _, _| {
+        call.set_receiver_field(b"value=", &setter().value())?;
+        Ok(Value::nil())
+    });
     let cap = Capability::from_value(
         "cap",
-        Value::object(vec![
-            (b"value=".to_vec(), setter.value()),
-            (b"value".to_vec(), getter.value()),
-        ]),
+        Value::object(vec![(b"install".to_vec(), install.value())]),
     );
     let mut engine = Engine::new();
     engine.declare_capability(&cap).unwrap();
-    let result = engine
-        .compile("cap.value")
+    let error = engine
+        .compile("cap.install")
         .unwrap()
         .run(CallOptions {
             capabilities: vec![cap],
             ..CallOptions::default()
         })
-        .unwrap();
-    assert_eq!(result.value.as_int(), Some(0));
+        .unwrap_err();
+    host_name_error(&error, "method", "value=");
 
     for name in ["value=", "ok?="] {
         let mut engine = Engine::new();
         engine.register_method(name, method());
         registration_error(&engine.compile("1").err().unwrap(), "host function", name);
-        let cap = Capability::from_value(
-            "cap",
-            Value::object(vec![(name.as_bytes().to_vec(), method().value())]),
-        );
-        let result = Engine::new().declare_capability(&cap);
-        if name == "ok?=" {
-            registration_error(&result.unwrap_err(), "method", name);
-        } else {
-            result.unwrap();
-        }
     }
 }
 

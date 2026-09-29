@@ -184,10 +184,11 @@ pub(crate) fn member_name(
     key: &[u8],
     value: &Value,
 ) -> Result<()> {
-    if matches!(value.0, Kind::Host(_) | Kind::Function(_)) {
-        crate::syntax::host_method_name(work, host, key)?;
+    match value.0 {
+        Kind::Host(_) => crate::syntax::host_method_name(work, host, key, false),
+        Kind::Function(_) => crate::syntax::host_method_name(work, host, key, true),
+        _ => Ok(()),
     }
-    Ok(())
 }
 
 /// Validates immutable host templates before the checker or prelude publishes
