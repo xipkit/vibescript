@@ -171,7 +171,7 @@ impl Engine {
         })?;
         let resolve =
             |path: &str, origin: Option<&loading::Origin>| self.loader.source(path, origin);
-        let mut checked = typing::check(&typing::Input {
+        Ok(typing::check(&typing::Input {
             source,
             parsed: &parsed,
             tokens: &tokens,
@@ -180,9 +180,7 @@ impl Engine {
             file: false,
             origin: None,
             modules: Some(&resolve),
-        });
-        syntax::suffix_read_fixes(&(), source, &parsed, &mut checked.diagnostics)?;
-        Ok(checked)
+        }))
     }
     /// Checks that a command line can call `function` in `source` with
     /// `count` arguments, which it passes as strings (ADR-007): each

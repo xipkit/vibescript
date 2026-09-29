@@ -803,9 +803,12 @@ impl<'a, 'w> Lexer<'a, 'w> {
     fn name_end(&self, end: usize) -> usize {
         let bytes = &self.source.as_bytes()[..self.limit];
         let last = bytes.get(end.wrapping_sub(1));
+        // A lenient parse reads `x?=1` as it did before suffixes were
+        // reserved, as an assignment to `x?`.
         let assigns = matches!(last, Some(b'?' | b'!'))
             && bytes.get(end) == Some(&b'=')
-            && !matches!(bytes.get(end + 1), Some(b'=' | b'~'));
+            && !matches!(bytes.get(end + 1), Some(b'=' | b'~'))
+            && (last == Some(&b'!') || !super::suffixes::lenient());
         if assigns || (last == Some(&b'!') && bytes.get(end) == Some(&b'~')) {
             end - 1
         } else {

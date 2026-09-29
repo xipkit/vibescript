@@ -341,9 +341,6 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             },
         )?;
         let interpolations = std::mem::take(&mut self.p().interpolations);
-        let mut suffix_reads = std::mem::take(&mut self.p().suffix_reads);
-        work.charge(suffix_reads.len())?;
-        suffix_reads.sort_unstable();
         let additions = std::mem::take(&mut self.p().additions);
         Ok(Declarations {
             functions: defs,
@@ -352,7 +349,6 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             additions,
             outline,
             interpolations,
-            suffix_reads,
         })
     }
 
@@ -448,7 +444,8 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 ParamKind::KeywordRest => keyword_rest = true,
                 ParamKind::Positional => (),
             }
-            p.locals.insert(work, param.name.clone(), ())?;
+            let id = p.local_id(&param.name, offset)?;
+            p.locals.insert(work, param.name.clone(), id)?;
             p.declared_it |= param.name == "it";
             params.push(work, param)?;
             let comma = p.significant(p.pos);

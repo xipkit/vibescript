@@ -1202,65 +1202,89 @@ fn migrate(source: &str) -> String {
     panic!("{source} did not converge: {text}");
 }
 
+/// The first diagnostic's applicable fix, applied alone.
+fn first_fix(source: &str) -> String {
+    let Err(error) = Engine::new().type_check(source) else {
+        panic!("{source} checks");
+    };
+    let diagnostic = &error.diagnostics()[0];
+    assert_eq!(diagnostic.code, Code::NAME_SUFFIX, "{source}: {error}");
+    let fix = diagnostic.applicable_fix().expect(source);
+    fix.apply(source).unwrap()
+}
+
 #[test]
-fn suffixed_reads_of_renamed_bindings_get_the_same_rename() {
-    for (source, migrated, value) in [
+fn a_binding_fix_renames_every_use_of_the_binding_at_once() {
+    for (source, fixed) in [
         (
-            "def check(ok?: bool, list!: array<int>) -> bool\n  total! = 0\n  list!.each { |x?| total! += x? }\n  ok? && total! == 1\nend\ncheck(true, [1])",
-            "def check(ok: bool, list: array<int>) -> bool\n  total = 0\n  list.each { |x| total += x }\n  ok && total == 1\nend\ncheck(true, [1])",
-            "true",
+            "def check(ok?: bool) -> bool\n  ok?\nend\ncheck(true)",
+            "def check(ok: bool) -> bool\n  ok\nend\ncheck(true)",
+        ),
+        (
+            "total! = 0\n[1].each { |n| total! += n }\ntotal!",
+            "total = 0\n[1].each { |n| total += n }\ntotal",
+        ),
+        ("x?=3; x? + 1", "x=3; x + 1"),
+        ("ok? = 1; \"#{ok?}\"", "ok = 1; \"#{ok}\""),
+        ("n! = 2; n!.to_s", "n = 2; n.to_s"),
+        (
+            "list! = [1]; list!.each { |x| x }",
+            "list = [1]; list.each { |x| x }",
         ),
         (
             "def f(nil?: int) -> int; nil?; end; f(1)",
             "def f(nil_: int) -> int; nil_; end; f(1)",
-            "1",
         ),
-        ("if? = 1; if?", "if_ = 1; if_", "1"),
-        ("ok? = 1; \"#{ok?}\"", "ok = 1; \"#{ok}\"", "\"1\""),
-        ("t? = 'x'; t?!~/z/", "t = 'x'; t!~/z/", "true"),
-        ("n! = 2; n!.to_s", "n = 2; n.to_s", "\"2\""),
+        ("if? = 1; if? + 1", "if_ = 1; if_ + 1"),
         (
-            "[1, 2].map { |x?| x? * 2 }",
-            "[1, 2].map { |x| x * 2 }",
-            "[2,4]",
+            "begin; raise 'x'; rescue => error!; error!.message; end",
+            "begin; raise 'x'; rescue => error; error.message; end",
         ),
+        ("[1, 2].map { |x?| x? * 2 }", "[1, 2].map { |x| x * 2 }"),
         (
             "class C; LIMIT! = 3; def f -> int; LIMIT!; end; end; C.new.f",
             "class C; LIMIT = 3; def f -> int; LIMIT; end; end; C.new.f",
-            "3",
         ),
     ] {
-        assert_eq!(migrate(source), migrated, "{source}");
-        assert_eq!(run(migrated), value, "{migrated}");
+        assert_eq!(first_fix(source), fixed, "{source}");
+        run(fixed);
     }
+    // A block parameter of the same name is renamed with the local it
+    // shadows, so either fix leaves every use consistent.
+    let source = "x? = 1\n[2].map { |x?| x? }\nx?";
+    let error = Engine::new().type_check(source).err().unwrap();
+    for diagnostic in error.diagnostics() {
+        assert_eq!(
+            diagnostic.applicable_fix().unwrap().apply(source).unwrap(),
+            "x = 1\n[2].map { |x| x }\nx"
+        );
+    }
+    assert_eq!(migrate(source), "x = 1\n[2].map { |x| x }\nx");
 }
 
 #[test]
-fn suffixed_calls_and_names_out_of_scope_are_not_renamed() {
+fn reads_that_no_suffixed_binding_owns_are_never_renamed() {
+    // A host function the check cannot see, as in a host-less `vibes fix`.
+    let host = "def run(ready: bool) -> string\n  if ready?\n    \"go\"\n  else\n    \"wait\"\n  end\nend\n";
     for source in [
+        host,
+        "ok = 1; ok?",
         "ok = 1; ok?(2)",
-        "ok = 1; ok? 2",
-        "ok = [1]; ok? { |x| x }",
-        "ready = true; { ready?: }",
         "x = 1; def f -> int; x?; end",
         "p(ok?); ok = 1",
     ] {
         let checked = Engine::new().type_check(source).unwrap();
-        let diagnostic = checked
+        let undefined = checked
             .diagnostics
             .iter()
             .find(|d| d.code == Code::UNDEFINED_NAME)
             .unwrap_or_else(|| panic!("{source}: {:?}", checked.diagnostics));
-        assert!(diagnostic.fixes.is_empty(), "{source}: {diagnostic:?}");
+        assert!(undefined.fixes.is_empty(), "{source}: {undefined:?}");
+        assert_eq!(migrate(source), source);
     }
-    // A method of the suffixed name answers the read, so nothing changes.
-    let source = "def ok? -> bool; true; end; ok = false; ok?";
-    assert!(
-        Engine::new()
-            .type_check(source)
-            .unwrap()
-            .diagnostics
-            .is_empty()
+    // The shorthand label calls the method `ready?`, so the key stays.
+    assert_eq!(
+        first_fix("ready? = true; { ready?: 1 }"),
+        "ready = true; { ready?: 1 }"
     );
-    assert_eq!(run(source), "true");
 }

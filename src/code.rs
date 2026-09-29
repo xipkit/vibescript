@@ -156,7 +156,6 @@ impl Code {
         work.charge(usize::try_from(checked.steps).unwrap_or(usize::MAX))?;
         work.checkpoint()?;
         if checked.diagnostics.iter().any(|d| d.is_error()) {
-            crate::syntax::suffix_read_fixes(work, source, &parsed, &mut checked.diagnostics)?;
             let mut text = crate::source::Source::compile(source, work)?;
             text.filename = filename.clone();
             let diagnostics = checked

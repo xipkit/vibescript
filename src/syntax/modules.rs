@@ -268,7 +268,10 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             // `ok!=` reads as `ok` and `!=`, but after a definition's name it
             // can only be a setter spelled with a suffix, as `ok?=` is.
             let next = &p.tokens[p.pos];
-            if !operator && next.token == Token::Op("!=") && next.offset == p.tokens[p.pos - 1].end
+            if !operator
+                && next.token == Token::Op("!=")
+                && next.offset == p.tokens[p.pos - 1].end
+                && !super::suffixes::lenient()
             {
                 return Err(p.name_suffix_error(next.offset));
             }
@@ -281,9 +284,9 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             }
             let outer_locals = std::mem::take(&mut p.locals);
             if constants {
-                for (name, _) in outer_locals.iter(work)? {
+                for (name, &id) in outer_locals.iter(work)? {
                     if name.chars().next().is_some_and(super::unicode::upper) {
-                        p.locals.insert(work, name.clone(), ())?;
+                        p.locals.insert(work, name.clone(), id)?;
                     }
                 }
             }
