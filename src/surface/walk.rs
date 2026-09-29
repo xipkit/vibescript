@@ -431,6 +431,7 @@ impl<'a> Checker<'a> {
         let mut scope = Scope {
             def: self.scope().def,
             class: self.scope().class,
+            block: true,
             ..Scope::default()
         };
         for param in &block.params {

@@ -197,6 +197,12 @@ struct Parser<'s> {
     loop_condition: Option<usize>,
     then_stop: Option<usize>,
     locals: HashSet<String>,
+    /// The closing bracket of each opening one [`Self::closer`] looked for.
+    closers: std::cell::RefCell<std::collections::HashMap<usize, Option<usize>>>,
+    /// Each change to [`Self::locals`] a block or a speculative parse may
+    /// undo: a name added, `true`, or removed, `false`. Undoing them keeps
+    /// the work of restoring the locals proportional to what changed.
+    journal: Vec<(String, bool)>,
     declared_it: bool,
     inside_class: bool,
     nesting: usize,
@@ -228,7 +234,8 @@ struct Saved {
     command_group: usize,
     loop_condition: Option<usize>,
     then_stop: Option<usize>,
-    locals: HashSet<String>,
+    /// The length of the locals' journal.
+    locals: usize,
     declared_it: bool,
     call_end: usize,
 }
@@ -247,6 +254,8 @@ impl<'s> Parser<'s> {
             loop_condition: None,
             then_stop: None,
             locals: HashSet::new(),
+            journal: Vec::new(),
+            closers: Default::default(),
             declared_it: false,
             inside_class: false,
             nesting: 0,
@@ -291,9 +300,36 @@ impl<'s> Parser<'s> {
             command_group: self.command_group,
             loop_condition: self.loop_condition,
             then_stop: self.then_stop,
-            locals: self.locals.clone(),
+            locals: self.journal.len(),
             declared_it: self.declared_it,
             call_end: self.call_end,
+        }
+    }
+
+    /// Adds a local, journaled.
+    fn declare_local(&mut self, name: String) {
+        if !self.locals.contains(&name) {
+            self.locals.insert(name.clone());
+            self.journal.push((name, true));
+        }
+    }
+
+    /// Removes a local, journaled.
+    fn forget_local(&mut self, name: &str) {
+        if self.locals.remove(name) {
+            self.journal.push((name.to_owned(), false));
+        }
+    }
+
+    /// Undoes the changes to the locals since the journal was `length` long.
+    fn undo_locals(&mut self, length: usize) {
+        while self.journal.len() > length {
+            let (name, added) = self.journal.pop().unwrap();
+            if added {
+                self.locals.remove(&name);
+            } else {
+                self.locals.insert(name);
+            }
         }
     }
 
@@ -306,7 +342,7 @@ impl<'s> Parser<'s> {
         self.command_group = saved.command_group;
         self.loop_condition = saved.loop_condition;
         self.then_stop = saved.then_stop;
-        self.locals = saved.locals;
+        self.undo_locals(saved.locals);
         self.declared_it = saved.declared_it;
         self.call_end = saved.call_end;
     }
@@ -632,22 +668,22 @@ impl<'s> Parser<'s> {
     }
 
     fn assignment_ahead(&self) -> bool {
-        let mut nesting = 0usize;
         let mut comma = false;
         let mut after_member_separator = false;
-        for i in self.pos..self.tokens.len() {
+        let mut i = self.pos;
+        while i < self.tokens.len() {
             match self.kind_at(i) {
-                TokenKind::Punct('(' | '[' | '{') => nesting += 1,
-                TokenKind::Punct(')' | ']' | '}') => {
-                    if nesting == 0 {
-                        return false;
-                    }
-                    nesting -= 1;
-                }
-                TokenKind::Operator(op) if nesting == 0 && assignment(op) => return true,
-                TokenKind::Semicolon if nesting == 0 => return false,
-                TokenKind::Newline if nesting == 0 => {
+                // A group is skipped whole, to its closing bracket.
+                TokenKind::Punct('(' | '[' | '{') => match self.closer(i) {
+                    Some(close) => i = close,
+                    None => return false,
+                },
+                TokenKind::Punct(')' | ']' | '}') => return false,
+                TokenKind::Operator(op) if assignment(op) => return true,
+                TokenKind::Semicolon => return false,
+                TokenKind::Newline => {
                     if after_member_separator {
+                        i += 1;
                         continue;
                     }
                     let next = (i + 1..self.tokens.len()).find(|&j| !self.end_line(j));
@@ -661,8 +697,7 @@ impl<'s> Parser<'s> {
                     }
                 }
                 TokenKind::Word
-                    if nesting == 0
-                        && reserved(self.text(i))
+                    if reserved(self.text(i))
                         && self.text(i) != "then"
                         && !after_member_separator =>
                 {
@@ -675,8 +710,49 @@ impl<'s> Parser<'s> {
                 comma = self.is_p(i, ',');
                 after_member_separator = self.is_p(i, '.') || self.is_op(i, "&.");
             }
+            i += 1;
         }
         false
+    }
+
+    /// The bracket closing the one at `open`, if the tokens close it. One
+    /// scan finds the closers of every group inside, so lookaheads that skip
+    /// nested groups scan each token once.
+    fn closer(&self, open: usize) -> Option<usize> {
+        if let Some(&close) = self.closers.borrow().get(&open) {
+            return close;
+        }
+        let mut closers = self.closers.borrow_mut();
+        let mut open_groups = vec![open];
+        let mut i = open + 1;
+        let mut found = None;
+        while i < self.tokens.len() {
+            match self.kind_at(i) {
+                TokenKind::Punct('(' | '[' | '{') => match closers.get(&i) {
+                    Some(&Some(close)) => {
+                        i = close + 1;
+                        continue;
+                    }
+                    Some(None) => break,
+                    None => open_groups.push(i),
+                },
+                TokenKind::Punct(')' | ']' | '}') => {
+                    let opened = open_groups.pop().expect("an open group");
+                    closers.insert(opened, Some(i));
+                    if open_groups.is_empty() {
+                        found = Some(i);
+                        break;
+                    }
+                }
+                TokenKind::Eof => break,
+                _ => (),
+            }
+            i += 1;
+        }
+        for unclosed in open_groups {
+            closers.insert(unclosed, None);
+        }
+        found
     }
 
     fn statement_continues(&self) -> bool {
@@ -1470,7 +1546,7 @@ impl<'s> Parser<'s> {
         target.names(&mut |name, _| names.push(name.to_owned()));
         for name in names {
             self.declared_it |= name == "it";
-            self.locals.insert(name);
+            self.declare_local(name);
         }
     }
 
@@ -1713,6 +1789,7 @@ impl<'s> Parser<'s> {
             name.push('=');
         }
         let outer_locals = std::mem::take(&mut self.locals);
+        let outer_journal = self.journal.len();
         if constants {
             for local in &outer_locals {
                 if local.chars().next().is_some_and(char::is_uppercase) {
@@ -1782,6 +1859,8 @@ impl<'s> Parser<'s> {
         };
         let end = self.expect_word("end")?;
         self.locals = outer_locals;
+        // The body's changes were to its own locals, which are gone.
+        self.journal.truncate(outer_journal);
         self.declared_it = outer_it;
         Ok(Def {
             keyword: def_tok,
@@ -1916,7 +1995,7 @@ impl<'s> Parser<'s> {
             if (strict || rest) && param.kind == ParamKind::Positional {
                 param.kind = ParamKind::Keyword;
             }
-            self.locals.insert(param.name.clone());
+            self.declare_local(param.name.clone());
             self.declared_it |= param.name == "it";
             params.push(param);
             let comma = self.significant(self.pos);
@@ -2271,6 +2350,7 @@ impl<'s> Parser<'s> {
         let name_tok = self.bump();
         let name = self.text(name_tok).to_owned();
         let outer_locals = std::mem::take(&mut self.locals);
+        let outer_journal = self.journal.len();
         let outer_it = std::mem::replace(&mut self.declared_it, false);
         let outer_class = std::mem::replace(&mut self.inside_class, true);
         self.nesting += 1;
@@ -2361,6 +2441,8 @@ impl<'s> Parser<'s> {
         self.nesting -= 1;
         let end = self.expect_word("end")?;
         self.locals = outer_locals;
+        // The body's changes were to its own locals, which are gone.
+        self.journal.truncate(outer_journal);
         self.declared_it = outer_it;
         Ok(Class {
             keyword,
@@ -2491,13 +2573,13 @@ impl<'s> Parser<'s> {
                 .as_ref()
                 .is_some_and(|name| self.locals.contains(name));
             if let Some(name) = &binding {
-                self.locals.insert(name.clone());
+                self.declare_local(name.clone());
             }
             let body = self.block(&["rescue", "else", "ensure", "end"])?;
             if let Some(name) = &binding
                 && !existed
             {
-                self.locals.remove(name);
+                self.forget_local(name);
             }
             rescues.push(RescueClause {
                 keyword,
@@ -2722,7 +2804,7 @@ impl<'s> Parser<'s> {
         parser.floor = base;
         parser.depth = self.depth;
         parser.limit = self.limit;
-        parser.locals = self.locals.clone();
+        parser.locals = std::mem::take(&mut self.locals);
         parser.declared_it = self.declared_it;
         parser.type_names = self.type_names.clone();
         parser.lines();
@@ -2730,6 +2812,9 @@ impl<'s> Parser<'s> {
         parser.lines();
         let complete = parser.eof(parser.pos);
         self.too_deep = self.too_deep.or(parser.too_deep);
+        // What the interpolation declared stays in it.
+        parser.undo_locals(0);
+        self.locals = parser.locals;
         self.tokens = parser.tokens;
         expr.filter(|_| complete)
     }
@@ -3556,7 +3641,7 @@ impl<'s> Parser<'s> {
     fn attached_block(&mut self, brace: bool) -> Result<Block> {
         let open = self.bump();
         self.line_breaks();
-        let outer = self.locals.clone();
+        let outer = self.journal.len();
         let outer_it = self.declared_it;
         let (params, pipes) = self.block_parameters()?;
         let previous_loop = self.loop_condition.take();
@@ -3572,7 +3657,7 @@ impl<'s> Parser<'s> {
         } else {
             self.expect_word("end")?
         };
-        self.locals = outer;
+        self.undo_locals(outer);
         self.declared_it = outer_it;
         Ok(Block {
             open,
@@ -3613,9 +3698,9 @@ impl<'s> Parser<'s> {
             None
         };
         if pipes.is_none() {
-            self.locals.insert("it".to_owned());
+            self.declare_local("it".to_owned());
             for n in ["_1", "_2", "_3", "_4", "_5", "_6", "_7", "_8", "_9"] {
-                self.locals.insert(n.to_owned());
+                self.declare_local(n.to_owned());
             }
         }
         Ok((params, pipes))

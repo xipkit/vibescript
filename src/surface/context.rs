@@ -89,6 +89,10 @@ pub struct Scope<'a> {
     pub locals: HashSet<String>,
     /// The names `rescue => name` binds.
     pub rescues: HashSet<String>,
+    /// Whether the scope is a block's, whose collection stops at the blocks
+    /// nested in it: they collect their own, and the enclosing function's
+    /// scope already holds what they assign.
+    pub block: bool,
 }
 
 /// The state the canonical-surface rules share while they walk one source.
@@ -597,7 +601,9 @@ pub fn collect_expr(expr: &Expr, scope: &mut Scope<'_>) {
                 collect_expr(&arg.value, scope);
             }
             // Blocks see the enclosing locals and may assign them.
-            if let Some(block) = &call.block {
+            if let Some(block) = &call.block
+                && !scope.block
+            {
                 collect_locals(&block.body, scope);
             }
         }
