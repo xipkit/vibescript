@@ -34,12 +34,16 @@ pub(crate) struct Meter {
     peak: AtomicUsize,
     stopped: AtomicBool,
     polls: AtomicU64,
+    /// Told of every measure, by a test comparing the account with what
+    /// the check really holds.
+    observe: Option<fn(super::Observed)>,
 }
 
 impl Meter {
-    pub fn new(budget: Budget) -> Arc<Self> {
+    pub fn new(budget: Budget, observe: Option<fn(super::Observed)>) -> Arc<Self> {
         Arc::new(Self {
             budget,
+            observe,
             ..Self::default()
         })
     }
@@ -111,6 +115,13 @@ impl Meter {
     /// required file was checked.
     pub fn reach(&self, bytes: usize) {
         self.peak.fetch_max(bytes, Relaxed);
+        if let Some(observe) = self.observe {
+            let held = self.last.load(Relaxed);
+            observe(super::Observed::Measured {
+                held: held.min(bytes),
+                peak: bytes,
+            });
+        }
     }
 
     /// Records the type table's `bytes` with `extra` an operation holds

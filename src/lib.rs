@@ -158,20 +158,16 @@ impl Engine {
     /// # Ok::<(), vibescript::Error>(())
     /// ```
     pub fn type_check(&self, source: &str) -> Result<typing::Checked> {
-        self.type_check_with(source, &mut || (), &|| ())
+        self.type_check_with(source, |_| ())
     }
 
-    /// Like [`Self::type_check`], calling `checking` once the source is
-    /// parsed, just before the checker starts, and again once the check is
-    /// done, before the parsed source is dropped, and `surfacing` just
-    /// before the pass over the canonical surface, for a test measuring the
-    /// memory each one needs.
+    /// Like [`Self::type_check`], telling `observe` what the check does as
+    /// it goes, for a test measuring the memory it needs.
     #[doc(hidden)]
     pub fn type_check_with(
         &self,
         source: &str,
-        checking: &mut dyn FnMut(),
-        surfacing: &(dyn Fn() + Sync),
+        observe: fn(typing::Observed),
     ) -> Result<typing::Checked> {
         for name in self.hosts.keys() {
             syntax::host_function_name(&(), syntax::HostName::FUNCTION, name)?;
@@ -196,11 +192,11 @@ impl Engine {
             origin: None,
             modules: Some(&resolve),
             budget: Default::default(),
-            surfacing: Some(surfacing),
+            observe: Some(observe),
         };
-        checking();
+        observe(typing::Observed::Checking);
         let checked = typing::check(&input);
-        checking();
+        observe(typing::Observed::Checked);
         Ok(checked)
     }
 
@@ -246,7 +242,7 @@ impl Engine {
                 origin: None,
                 modules: None,
                 budget: Default::default(),
-                surfacing: None,
+                observe: None,
             },
             function,
             count,

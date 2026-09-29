@@ -58,9 +58,25 @@ pub(crate) struct Input<'a> {
     pub modules: Option<&'a Modules<'a>>,
     /// What the check may spend before it stops; unlimited unless metered.
     pub budget: crate::compilation::Budget,
-    /// Called once the checker finishes, before the pass over the canonical
-    /// surface, by a test measuring each pass's memory.
-    pub surfacing: Option<&'a (dyn Fn() + Sync)>,
+    /// Told what the check does as it goes, by a test measuring its
+    /// memory.
+    pub observe: Option<fn(Observed)>,
+}
+
+/// What a check tells a test observing it.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
+pub enum Observed {
+    /// The source is parsed, and the checker is about to start.
+    Checking,
+    /// The checker measured what it holds by its account: `held` stays,
+    /// and `peak` adds what an operation holds for a moment beside it.
+    Measured { held: usize, peak: usize },
+    /// The checker is done, and the pass over the canonical surface is
+    /// about to start.
+    Surfacing,
+    /// The check is done, and the parsed source is about to be dropped.
+    Checked,
 }
 
 /// Resolves a required module's name to its source and filename.
@@ -397,7 +413,7 @@ pub(crate) fn check(input: &Input<'_>) -> Checked {
 
 /// Checks a source `depth` requires deep.
 fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
-    let meter = meter::Meter::new(input.budget.clone());
+    let meter = meter::Meter::new(input.budget.clone(), input.observe);
     // The spans may copy the tokens, before the type table first polls.
     let spans = spans::Spans::new(
         input.source,
@@ -513,8 +529,8 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         } else if input.budget.memory.is_some_and(|left| held > left) {
             checked.stopped = true;
         } else {
-            if let Some(surfacing) = input.surfacing {
-                surfacing();
+            if let Some(observe) = input.observe {
+                observe(Observed::Surfacing);
             }
             checked.surface_bytes = surface;
             crate::surface::add_to(&mut checked, input.source, input.tokens);
@@ -527,7 +543,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
 /// which it passes as strings: each positional parameter they bind must
 /// accept `string`, and a rest parameter `array<string>`.
 pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -> Vec<Diagnostic> {
-    let meter = meter::Meter::new(input.budget.clone());
+    let meter = meter::Meter::new(input.budget.clone(), input.observe);
     // The spans may copy the tokens, before the type table first polls.
     let spans = spans::Spans::new(
         input.source,

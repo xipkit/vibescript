@@ -287,7 +287,7 @@ impl Types {
 
     /// A type table with an account of its own.
     pub fn new() -> Self {
-        Self::metered(Meter::new(Default::default()))
+        Self::metered(Meter::new(Default::default(), None))
     }
 
     /// A type table charging `meter`.
