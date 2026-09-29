@@ -25,6 +25,8 @@ pub(crate) struct Spans<'a> {
     lasts: std::cell::RefCell<std::collections::HashMap<usize, usize>>,
     /// What the tokens hold when they are a merged copy of their own.
     owned: usize,
+    /// The most that parsing one interpolation again held.
+    parsing: usize,
 }
 
 impl<'a> Spans<'a> {
@@ -86,7 +88,14 @@ impl<'a> Spans<'a> {
             meter,
             lasts: std::cell::RefCell::default(),
             owned,
+            parsing,
         }
+    }
+
+    /// The most that parsing one interpolation again held, as the pass
+    /// over the canonical surface does too.
+    pub fn parsing(&self) -> usize {
+        self.parsing
     }
 
     /// What the spans' tables hold.

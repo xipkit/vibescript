@@ -762,6 +762,21 @@ pub(crate) struct Declarations {
     /// The byte span of every string interpolation's content, for tooling
     /// that reports positions relative to an interpolation as Go does.
     pub interpolations: Buffer<(u32, u32)>,
+    /// What the interpolations hold beside the source's own tokens, when
+    /// it was parsed with them.
+    pub interpolated: Interpolated,
+}
+
+/// What a source's string interpolations hold, at every depth, which a
+/// pass that lexes each interpolation again reads beside the source's own
+/// tokens.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct Interpolated {
+    /// The tokens inside them, each one's end among them.
+    pub tokens: usize,
+    /// The bytes of the strings among those tokens, and of the spans of
+    /// the interpolations nested in them.
+    pub bytes: usize,
 }
 
 /// A top-level declaration's kind, name and source byte range, in source order.

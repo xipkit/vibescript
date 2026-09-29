@@ -267,6 +267,13 @@ fn adversarial() -> Vec<(String, String)> {
         ),
     ));
     programs.push((
+        "a 40,000-element literal in an interpolation".to_owned(),
+        format!(
+            "x = \"#{{[{}].length}}\"\np(x)\n",
+            join(scale(40_000), &|_| "1".to_owned(), ", ")
+        ),
+    ));
+    programs.push((
         "a 16,000-key hash literal".to_owned(),
         format!(
             "x = {{{}}}\np(x[\"k0\"])\n",

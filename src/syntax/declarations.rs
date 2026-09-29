@@ -353,6 +353,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             additions,
             outline,
             interpolations,
+            interpolated: super::Interpolated::default(),
         })
     }
 

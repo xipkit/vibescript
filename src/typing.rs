@@ -513,16 +513,20 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     // Removed spellings of the canonical surface are compile errors too,
     // unless the source is too tall to walk or the check stopped early.
     if !too_deep && !stopped {
-        // The pass charges a step a token up front, and holds a tree of the
-        // tokens beside what the checker keeps.
-        let tokens = input.tokens.len() as u64;
+        // The pass charges a step a token up front, those it lexes again
+        // inside interpolations too, and holds a tree of the tokens beside
+        // what the checker keeps, and for a moment the syntax of each
+        // interpolation it parses again.
+        let interpolated = input.parsed.interpolated;
+        let tokens = (input.tokens.len() + interpolated.tokens) as u64;
         let names = checker
             .program
             .namespaces
             .iter()
             .map(|ns| ns.name.len())
             .sum();
-        let surface = crate::surface::footprint(input.tokens, names);
+        let surface =
+            crate::surface::footprint(input.tokens, interpolated, names) + checker.spans.parsing();
         let held = meter.held(checker.types.bytes()) + surface;
         if input.budget.steps.is_some_and(|left| steps + tokens > left) {
             // Compilation fails charging them.
@@ -534,7 +538,12 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
                 observe(Observed::Surfacing);
             }
             checked.surface_bytes = surface;
-            crate::surface::add_to(&mut checked, input.source, input.tokens);
+            crate::surface::add_to(
+                &mut checked,
+                input.source,
+                input.tokens,
+                interpolated.tokens,
+            );
         }
     }
     checked

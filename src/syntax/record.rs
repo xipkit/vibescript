@@ -194,12 +194,53 @@ pub(crate) fn parse_with_tokens(
     work: &dyn crate::compilation::Work,
 ) -> Result<(Declarations, Vec<crate::tooling::Token>)> {
     let parsing = Parsing::<super::recovery::FailFast>::new(parser(source, work)?);
-    let declarations = match parsing.run(Call::Program)? {
+    let mut declarations = match parsing.run(Call::Program)? {
         Parsed::Program(declarations) => declarations,
         _ => unreachable!(),
     };
-    let tokens = token_list(source, &parsing.parser.into_inner());
+    let parser = parsing.parser.into_inner();
+    let tokens = token_list(source, &parser);
+    declarations.interpolated = interpolated(&parser);
     Ok((declarations, tokens))
+}
+
+/// What the interpolations of the parser's tokens hold, at every depth.
+fn interpolated(parser: &super::Parser<'_>) -> super::Interpolated {
+    let mut found = super::Interpolated::default();
+    let mut pending = Vec::new();
+    for lexeme in parser.tokens.range(0..parser.tokens.len()) {
+        open(&lexeme.token, false, &mut found, &mut pending);
+    }
+    while let Some(lexeme) = pending.pop() {
+        if let super::lexer::Token::Bytes(bytes) = &lexeme.token {
+            found.bytes += bytes.len();
+        }
+        open(&lexeme.token, true, &mut found, &mut pending);
+    }
+    found
+}
+
+/// Adds the tokens inside `token`'s interpolations, if it has any, to
+/// `found` and to `pending`, and the spans of them when it is `nested` in
+/// another's.
+fn open<'p, 'a>(
+    token: &'p super::lexer::Token<'a>,
+    nested: bool,
+    found: &mut super::Interpolated,
+    pending: &mut Vec<&'p super::lexer::Lexeme<'a>>,
+) {
+    let super::lexer::Token::Template(parts) = token else {
+        return;
+    };
+    for part in parts.iter() {
+        if let super::lexer::Part::Expr(tokens, _) = part {
+            found.tokens += tokens.len();
+            if nested {
+                found.bytes += std::mem::size_of::<std::ops::Range<usize>>();
+            }
+            pending.extend(tokens.iter());
+        }
+    }
 }
 
 fn token_list(source: &str, parser: &super::Parser<'_>) -> Vec<crate::tooling::Token> {

@@ -50,9 +50,14 @@ const PER_TOKEN: usize = 240;
 const NAME_COPIES: usize = 3;
 
 /// About the most memory [`add_to`] holds while it reads a source with
-/// `tokens`, whose classes and modules have qualified names of `names`
-/// bytes in all, which the checker's memory account adds to its own.
-pub(crate) fn footprint(tokens: &[tooling::Token], names: usize) -> usize {
+/// `tokens`, whose interpolations hold what `interpolated` says and whose
+/// classes and modules have qualified names of `names` bytes in all, which
+/// the checker's memory account adds to its own.
+pub(crate) fn footprint(
+    tokens: &[tooling::Token],
+    interpolated: crate::syntax::Interpolated,
+    names: usize,
+) -> usize {
     let payloads: usize = tokens
         .iter()
         .map(|token| match &token.kind {
@@ -63,11 +68,15 @@ pub(crate) fn footprint(tokens: &[tooling::Token], names: usize) -> usize {
             _ => 0,
         })
         .sum();
-    tokens.len() * PER_TOKEN + payloads + names * NAME_COPIES
+    (tokens.len() + interpolated.tokens) * PER_TOKEN
+        + payloads
+        + interpolated.bytes
+        + names * NAME_COPIES
 }
 
 /// Adds the removed spellings in `source` to a static check's diagnostics,
-/// in source order.
+/// in source order, charging a step for each of its tokens and of the
+/// `interpolated` ones inside its interpolations, which it lexes again.
 ///
 /// A static checker's diagnostic inside a removed spelling, such as the
 /// unknown member `nil?` or the missing block of `reduce(:+)`, is left
@@ -76,13 +85,15 @@ pub(crate) fn add_to(
     checked: &mut crate::typing::Checked,
     source: &str,
     tokens: &[tooling::Token],
+    interpolated: usize,
 ) {
-    checked.steps += u64::try_from(tokens.len()).unwrap_or(u64::MAX);
+    let read = u64::try_from(tokens.len() + interpolated).unwrap_or(u64::MAX);
+    checked.steps += read;
     let Some(surface) = walk(source, tokens, &checked.calls) else {
         // The compiler's grammar reads the removed syntax only so that these
         // rules report it. A source they cannot read must parse without
         // it, so that removed syntax never compiles.
-        checked.steps += u64::try_from(tokens.len()).unwrap_or(u64::MAX);
+        checked.steps += read;
         let error = crate::syntax::canonical_error(source, &());
         // A source both grammars accept that the rules cannot read skips
         // every rule, so the rules' parser has fallen behind the compiler's.
