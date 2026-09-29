@@ -261,6 +261,16 @@ the baseline and candidate; it is not caused by recovery. Raw audits are under
 
 ## Method name suffixes, 2026-09-28
 
+PR #1319 review follow-up: the parse mutation
+`tests/site/upstream/capabilities/context_access.vibe:insert =:8347c9e3190d`
+inserts `=` into `def coach? -> bool`. It now reports V0003 at 8:10 instead
+of publishing the uncallable setter `coach?=`. This is the only additional
+first-error or acceptance change in the 37,227-case parse sweep against the
+pre-review head. Host publication and symbolic alias regressions are covered
+by `tests/name_suffix.rs`. No counters were re-recorded for these review fixes;
+the existing `call2881` and required-file drift also occurs at the pre-review
+head and is unchanged.
+
 ADR-008 now reserves `?` and `!` for method names. V0003 rejects suffixes on
 bindings, nominal declarations and enum members, with a machine-applicable
 removal (or an underscore when removal would leave a keyword). Host globals

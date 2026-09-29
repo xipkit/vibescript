@@ -224,6 +224,7 @@ impl Parser<'_> {
             _ => None,
         };
         if let Some(op) = operator {
+            self.method_spelling(op, self.tokens[self.pos].offset)?;
             if !self.inside_class {
                 return Err(crate::Error::syntax(
                     self.work,
@@ -266,11 +267,13 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             p.bump()?;
             p.line_breaks()?;
             let (mut name, class_method, operator) = p.function_name(offset)?;
+            let name_offset = p.tokens[p.pos - 1].offset;
             p.line_breaks()?;
             if p.token() == &Token::Op("=") && (!operator || name == "[]") {
                 p.bump()?;
                 p.line_breaks()?;
                 name = Name::join(work, &[&name, "="])?;
+                p.method_spelling(&name, name_offset)?;
             }
             let outer_locals = std::mem::take(&mut p.locals);
             if constants {

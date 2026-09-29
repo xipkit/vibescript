@@ -443,3 +443,117 @@ fn callable_globals_validate_the_binding_name() {
         assert_eq!(result.value.to_string(), "true");
     }
 }
+
+#[test]
+fn aliases_validate_bare_and_symbol_method_spellings() {
+    for name in ["bad??", "bad!!", "bad?!", "bad?name", "bad!name", "é??"] {
+        for alias in [
+            format!("alias {name} ok"),
+            format!("alias :{name} :ok"),
+            format!("alias :\"{name}\" :ok"),
+            format!("alias_method :{name}, :ok"),
+            format!("alias_method(:\"{name}\", :ok)"),
+            format!("alias good {name}"),
+            format!("alias :good :{name}"),
+            format!("alias_method :good, :\"{name}\""),
+        ] {
+            let source = format!("class C; def ok -> bool; true; end; {alias}; end");
+            let error = Engine::new().compile(&source).err().unwrap();
+            let diagnostic = &error.diagnostics()[0];
+            assert_eq!(diagnostic.code, Code::NAME_SUFFIX, "{source}: {error}");
+            let fixed = diagnostic.applicable_fix().unwrap().apply(&source).unwrap();
+            if let Err(error) = Engine::new().compile(&fixed) {
+                assert_ne!(
+                    error.diagnostics().first().map(|d| d.code),
+                    Some(Code::NAME_SUFFIX),
+                    "{fixed}: {error}"
+                );
+            }
+        }
+    }
+    for (source, fixed) in [
+        (
+            r#"class C; def ok -> bool; true; end; alias_method :"bad\x3f?", :ok; end"#,
+            r#"class C; def ok -> bool; true; end; alias_method :"bad?", :ok; end"#,
+        ),
+        ("def ok? = (v: bool); end", "def ok = (v: bool); end"),
+        (
+            "class C; def self.ok? = (v: bool); end; end",
+            "class C; def self.ok = (v: bool); end; end",
+        ),
+    ] {
+        let error = Engine::new().compile(source).err().unwrap();
+        let diagnostic = &error.diagnostics()[0];
+        assert_eq!(diagnostic.code, Code::NAME_SUFFIX, "{source}: {error}");
+        assert_eq!(
+            diagnostic.applicable_fix().unwrap().apply(source).unwrap(),
+            fixed
+        );
+        if let Err(error) = Engine::new().compile(fixed) {
+            assert_ne!(error.kind, ErrorKind::Syntax, "{fixed}: {error}");
+        }
+    }
+}
+
+#[test]
+fn aliases_preserve_suffixes_operators_and_setters() {
+    for alias in [
+        "alias ready? ok",
+        "alias :ready? :ok",
+        "alias :\"ready?\" :ok",
+        "alias_method :ready?, :ok",
+        "alias_method(:\"ready?\", :ok)",
+    ] {
+        assert_eq!(
+            run(&format!(
+                "class C; def ok -> bool; true; end; {alias}; end; C.new.ready?"
+            )),
+            "true"
+        );
+    }
+    for source in [
+        "class C; def ok! -> bool; true; end; alias_method :ready?, :ok!; end; C.new.ready?",
+        "class C; def ok(n: int) -> bool; n == 1; end; alias_method :!=, :ok; end; C.new != 1",
+        "class C; def ok(n: int) -> bool; n == 1; end; alias :\"!=\" :ok; end; C.new != 1",
+        "class C; def ok(n: int) -> bool; n == 1; end; alias_method :[], :ok; end; C.new[1]",
+        "class C; property x: int; alias_method :\"y=\", :\"x=\"; end; c = C.new; c.y = 1; c.x == 1",
+    ] {
+        assert_eq!(run(source), "true", "{source}");
+    }
+}
+
+#[test]
+fn exported_functions_share_method_spelling_validation() {
+    for name in ["ok?", "save!", "bad??", "bad!name"] {
+        let source = format!("def {name} -> bool; true; end");
+        let mut engine = Engine::new();
+        engine
+            .set_module_sources([("methods.vibe".into(), source)].into())
+            .unwrap();
+        if matches!(name, "ok?" | "save!") {
+            let result = engine
+                .compile(&format!("require('methods').{name}"))
+                .unwrap()
+                .run(CallOptions::default())
+                .unwrap();
+            assert_eq!(result.value.to_string(), "true");
+            assert_eq!(
+                run(&format!(
+                    "module M; def self.{name} -> bool; true; end; end; M.{name}"
+                )),
+                "true"
+            );
+        } else {
+            let error = engine.compile("require('methods')").err().unwrap();
+            assert!(
+                error.message.contains("only method names may end"),
+                "{error}"
+            );
+            let error = Engine::new()
+                .compile(&format!("module M; def self.{name}; end; end"))
+                .err()
+                .unwrap();
+            assert_eq!(error.diagnostics()[0].code, Code::NAME_SUFFIX);
+        }
+    }
+}

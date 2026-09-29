@@ -148,6 +148,7 @@ impl Parser<'_> {
                 return self.expected(Label::Text("property name"));
             }
             let name = self.name()?;
+            self.method_spelling(&name, offset as usize)?;
             let colon = self.significant(self.pos);
             let ty = if self.tokens[colon].token == Token::P(':') {
                 self.pos = colon + 1;
@@ -182,6 +183,8 @@ impl Parser<'_> {
                 )?;
             }
             if kind != "getter" {
+                let setter = Name::join(self.work, &[&name, "="])?;
+                self.method_spelling(&setter, offset as usize)?;
                 class.instance_methods.push(
                     self.work,
                     (
@@ -189,7 +192,7 @@ impl Parser<'_> {
                             private: false,
                             offset,
                             accessor: Some((name.clone(), true)),
-                            name: Name::join(self.work, &[&name, "="])?,
+                            name: setter,
                             params: Buffer::from_array(
                                 self.work,
                                 [Parameter {

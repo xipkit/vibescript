@@ -2840,6 +2840,29 @@ impl<'a> Parser<'a> {
             }
             _ => return Ok(None),
         };
+        if let Err(error) = method_spelling(&name, false) {
+            let token = &self.tokens[self.pos];
+            if matches!(token.token, Token::QuotedSymbol(_)) {
+                use crate::diagnostic::{Code, Diagnostic, Fix, Span};
+                let message = "invalid method name";
+                let mut diagnostic =
+                    Diagnostic::error(Code::SYNTAX, Span::new(token.offset, token.end), message);
+                if let MethodNameError::Suffix(suffix) = error {
+                    let mut fixed = name.to_string();
+                    fixed.remove(suffix);
+                    diagnostic = Diagnostic::error(Code::NAME_SUFFIX, diagnostic.span, message)
+                        .with_fix(Fix::replace(
+                            "remove the name suffix",
+                            diagnostic.span,
+                            format!(":{fixed:?}"),
+                        ));
+                }
+                return Err(
+                    Error::syntax(self.work, token.offset, message).with_diagnostic(diagnostic)
+                );
+            }
+            return Err(error.diagnostic(self.work, self.source, token.offset + 1));
+        }
         self.bump()?;
         Ok(Some(name))
     }

@@ -359,3 +359,10 @@ and methods added by host callbacks follow the same rule. Infallible host
 constructors remain infallible; validation happens at declaration, compilation
 or import, before the name reaches scripts or the generated prelude. Qualified
 host diagnostic labels are separate from published names.
+
+Bare aliases and both quoted and unquoted symbol aliases validate the new
+name and target before lookup. Operators and ordinary setters remain valid;
+constructing a setter may not turn a suffixed method into `ok?=`. Exported
+module functions use the same definition parser. There is no dynamic
+`define_method` API. Quoted-symbol repairs replace the whole literal so decoded
+escapes cannot produce an edit at the wrong source byte.
