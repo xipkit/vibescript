@@ -48,7 +48,7 @@ pub(crate) struct RetainedSource {
 impl Declaration {
     /// A global of the annotation `ty`, or of any type when `ty` is empty.
     pub fn global(name: &str, ty: &str) -> Result<Self> {
-        crate::syntax::binding_name(name)?;
+        crate::syntax::binding_name(&(), name)?;
         if ty.trim().is_empty() {
             return Ok(Self {
                 item: constant(name, signatures::Type::name("any")),
@@ -85,15 +85,15 @@ impl Declaration {
     pub fn capability(capability: &Capability) -> Result<Self> {
         let name = capability.name.as_str();
         let Some(template) = capability.template() else {
-            crate::syntax::binding_name(name)?;
+            crate::syntax::binding_name(&(), name)?;
             return Ok(Self {
                 item: constant(name, signatures::Type::name("any")),
                 capability: true,
                 shape: Shape::Value(None),
             });
         };
-        crate::capability::binding_name(name, template)?;
-        crate::capability::template_names(template)?;
+        crate::capability::binding_name(&(), name, template)?;
+        crate::capability::template_names(&(), template)?;
         Ok(Self {
             item: signatures::host::binding(name, template),
             capability: true,
@@ -339,8 +339,11 @@ pub(crate) fn check_globals(ctx: &mut CallContext, declared: &Declarations) -> R
     let capabilities = std::mem::take(&mut ctx.options.capabilities);
     let result = (|| {
         for (name, value) in &globals {
-            ctx.work_bytes(name.len())?;
-            crate::capability::binding_name(name, value)?;
+            crate::capability::binding_name(
+                &crate::compilation::Meter(std::cell::RefCell::new(ctx)),
+                name,
+                value,
+            )?;
             if !declared.contains_key(name) {
                 return Err(Error::new(
                     ErrorKind::Argument,

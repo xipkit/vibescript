@@ -24,7 +24,7 @@ pub(crate) fn table(
 ) -> Table {
     let mut table = super::table().clone();
     for (name, host) in hosts {
-        if crate::syntax::host_function_name(name).is_err() {
+        if crate::syntax::host_function_name(&(), name).is_err() {
             continue;
         }
         let function = match host {
@@ -60,7 +60,7 @@ pub(crate) fn table(
             Some(value) if valid_binding(name, value) => {
                 documented(binding(name, value), "A capability.")
             }
-            None if crate::syntax::binding_name(name).is_ok() => documented(
+            None if crate::syntax::binding_name(&(), name).is_ok() => documented(
                 Item::Constant(Constant {
                     doc: Vec::new(),
                     name: name.to_owned(),
@@ -89,8 +89,8 @@ pub(crate) fn table(
 }
 
 fn valid_binding(name: &str, value: &Value) -> bool {
-    crate::capability::binding_name(name, value).is_ok()
-        && crate::capability::template_names(value).is_ok()
+    crate::capability::binding_name(&(), name, value).is_ok()
+        && crate::capability::template_names(&(), value).is_ok()
 }
 
 /// A registered host function's signature, as the static checker reads it:

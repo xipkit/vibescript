@@ -168,6 +168,16 @@ is in `.cache/language-1/followup/rebased-f1c777b8/`.
 
 ## Counter log
 
+- Callable-name scan accounting (2026-09-29): validation now checks cancellation
+  and charges one step per started 64 key bytes before UTF-8 and spelling scans,
+  through execution or compilation work as appropriate. This intentionally adds
+  1–17 steps to 540 conformance and 40 compatibility cases, including ordinary
+  short names. For example, `glue_orders_cap/metered` changes from 31,272 to
+  31,279 steps. Peak and retained bytes do not change. The paired 197,906-case
+  audit finds no stable observation changes or other counter changes. Only these
+  step deltas were applied to existing records, preserving unrelated path and
+  quota drift; evidence is under `.cache/name-suffix/name-work/`.
+
 Each re-recording of the counters, and why. Observations stay as recorded, including the `replay` outcomes that follow accounting drift into or out of a quota error. Cases that load required files charge work for the paths of their scratch files, so about 150 `conformance` and `compatibility` cases drift by a few steps and bytes in a checkout at another path; these counters were recorded in a checkout at `/private/tmp/vibescript-typed-vm`.
 
 - Typed JSON mismatches now expose `TypeError` (nine bytes) instead of

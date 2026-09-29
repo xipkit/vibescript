@@ -159,7 +159,7 @@ impl Engine {
     /// ```
     pub fn type_check(&self, source: &str) -> Result<typing::Checked> {
         for name in self.hosts.keys() {
-            syntax::host_function_name(name)?;
+            syntax::host_function_name(&(), name)?;
         }
         let (parsed, tokens) = syntax::parse_with_tokens(source, &()).map_err(|error| {
             source::parse_error(
@@ -203,7 +203,7 @@ impl Engine {
         count: usize,
     ) -> Result<Vec<diagnostic::Diagnostic>> {
         for name in self.hosts.keys() {
-            syntax::host_function_name(name)?;
+            syntax::host_function_name(&(), name)?;
         }
         let (parsed, tokens) = syntax::parse_with_tokens(source, &()).map_err(|error| {
             source::parse_error(

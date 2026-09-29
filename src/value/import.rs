@@ -56,7 +56,11 @@ impl Frame {
                 if source.object {
                     for (key, value) in &out.data {
                         if matches!(value.0, Kind::Host(_) | Kind::Function(_)) {
-                            crate::capability::member_name(key.require_bytes()?, value)?;
+                            crate::capability::member_name(
+                                &crate::compilation::Meter(std::cell::RefCell::new(ctx)),
+                                key.require_bytes()?,
+                                value,
+                            )?;
                         }
                     }
                 }

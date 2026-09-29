@@ -1,5 +1,5 @@
 use vibescript::{
-    CallOptions, Capability, Engine, Error, ErrorKind, HostMethod, Value, diagnostic::Code,
+    CallOptions, Capability, Engine, Error, ErrorKind, HostMethod, Limits, Value, diagnostic::Code,
     stringify_json,
 };
 
@@ -229,6 +229,118 @@ fn method() -> HostMethod {
     HostMethod::new("namespace.method (diagnostic label)", |_, _, _| {
         Ok(Value::boolean(true))
     })
+}
+
+#[test]
+fn huge_callable_keys_exhaust_the_execution_budget() {
+    let key = vec![b'x'; 1 << 20];
+    let mut exporting = Engine::new();
+    exporting
+        .set_module_sources([("methods.vibe".into(), "def ok? -> bool; true; end".into())].into())
+        .unwrap();
+    let exported = exporting
+        .compile("require('methods')")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap()
+        .value;
+    let function = exported.as_hash().unwrap()[0].1.clone();
+    for callable in [method().value(), function] {
+        let object = Value::object(vec![(key.clone(), callable)]);
+        for route in ["global", "factory", "host return"] {
+            let mut engine = Engine::new();
+            let mut options = CallOptions {
+                limits: Limits {
+                    steps: Some(1024),
+                    memory_bytes: None,
+                    ..Limits::default()
+                },
+                ..CallOptions::default()
+            };
+            let source = match route {
+                "global" => {
+                    engine.declare_global("cap", "").unwrap();
+                    options.globals.insert("cap".into(), object.clone());
+                    "cap"
+                }
+                "factory" => {
+                    let object = object.clone();
+                    let cap = Capability::new("cap", move |_| Ok(object.clone()));
+                    engine.declare_capability(&cap).unwrap();
+                    options.capabilities.push(cap);
+                    "cap"
+                }
+                _ => {
+                    let object = object.clone();
+                    engine.register_method(
+                        "supply",
+                        HostMethod::new("supply", move |_, _, _| Ok(object.clone())),
+                    );
+                    "supply()"
+                }
+            };
+            let script = engine.compile(source).unwrap();
+            let error = script
+                .run(options.clone())
+                .err()
+                .unwrap_or_else(|| panic!("{route} scanned a huge callable key within 1024 steps"));
+            assert_eq!(error.kind, ErrorKind::Steps, "{route}: {error}");
+            options.limits.steps = None;
+            assert!(script.run(options).is_ok(), "{route}");
+        }
+    }
+}
+
+#[test]
+fn registered_callable_names_use_the_compilation_budget() {
+    let mut engine = Engine::new();
+    engine.register_method("x".repeat(1 << 20), method());
+    let options = CallOptions {
+        limits: Limits {
+            steps: Some(1024),
+            memory_bytes: None,
+            ..Limits::default()
+        },
+        ..CallOptions::default()
+    };
+    let error = engine.compile_with_options("nil", &options).err().unwrap();
+    assert_eq!(error.kind, ErrorKind::Steps);
+    assert!(engine.compile("nil").is_ok());
+}
+
+#[test]
+fn callable_publication_charges_before_copying_the_key() {
+    let key = vec![b'x'; 1 << 20];
+    let size = key.len();
+    let install = HostMethod::new_with_block("cap.install", move |call, _, _| {
+        call.set_receiver_field(&key, &method().value())?;
+        Ok(Value::nil())
+    });
+    let cap = Capability::from_value(
+        "cap",
+        Value::object(vec![(b"install".to_vec(), install.value())]),
+    );
+    let mut engine = Engine::new();
+    engine.declare_capability(&cap).unwrap();
+    let options = CallOptions {
+        capabilities: vec![cap],
+        limits: Limits {
+            steps: Some(1024),
+            memory_bytes: None,
+            ..Limits::default()
+        },
+        ..CallOptions::default()
+    };
+    let (result, stats) =
+        engine
+            .compile("cap.install()")
+            .unwrap()
+            .call_with_stats("__main__", &[], options);
+    assert_eq!(result.unwrap_err().kind, ErrorKind::Steps);
+    assert!(
+        stats.peak_memory_bytes < size,
+        "the key was copied before its scan was charged"
+    );
 }
 
 fn suffix_error(error: Error, name: &str) {

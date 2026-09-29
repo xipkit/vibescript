@@ -1,5 +1,11 @@
-use crate::{CallContext, Error, ErrorKind, Result, Value, budget::Charge, value::Kind};
+use crate::{
+    CallContext, Error, ErrorKind, Result, Value,
+    budget::Charge,
+    compilation::{Meter, Work},
+    value::Kind,
+};
 use std::{
+    cell::RefCell,
     fmt,
     sync::{Arc, Weak},
 };
@@ -144,32 +150,30 @@ impl Capability {
         };
         ctx.checkpoint()?;
         let value = value?;
-        binding_name(&self.name, &value)?;
+        binding_name(&Meter(RefCell::new(ctx)), &self.name, &value)?;
         ctx.import(&value)
     }
 }
 
 /// Validates a published root as either a method or a data binding.
-pub(crate) fn binding_name(name: &str, value: &Value) -> Result<()> {
+pub(crate) fn binding_name(work: &dyn Work, name: &str, value: &Value) -> Result<()> {
     if matches!(value.0, Kind::Host(_) | Kind::Function(_)) {
-        crate::syntax::host_function_name(name)
+        crate::syntax::host_function_name(work, name)
     } else {
-        crate::syntax::binding_name(name)
+        crate::syntax::binding_name(work, name)
     }
 }
 
 /// Checks callable fields without constraining ordinary string keys.
-pub(crate) fn member_name(key: &[u8], value: &Value) -> Result<()> {
+pub(crate) fn member_name(work: &dyn Work, key: &[u8], value: &Value) -> Result<()> {
     if matches!(value.0, Kind::Host(_) | Kind::Function(_)) {
-        let name = std::str::from_utf8(key)
-            .map_err(|_| Error::new(ErrorKind::Syntax, "method names must be UTF-8"))?;
-        crate::syntax::host_method_name(name)?;
+        crate::syntax::host_method_name(work, key)?;
     }
     Ok(())
 }
 
 /// Validates immutable host templates before the checker or prelude publishes them.
-pub(crate) fn template_names(value: &Value) -> Result<()> {
+pub(crate) fn template_names(work: &dyn Work, value: &Value) -> Result<()> {
     if value.depth() > crate::budget::MAX_VALUE_DEPTH {
         return Err(Error::new(ErrorKind::Recursion, "value nesting too deep"));
     }
@@ -180,7 +184,7 @@ pub(crate) fn template_names(value: &Value) -> Result<()> {
             Kind::Hash(hash) if seen.insert(Arc::as_ptr(hash) as usize) => {
                 for (key, field) in &hash.buffer.data {
                     if let Some(key) = key.as_bytes() {
-                        member_name(key, field)?;
+                        member_name(work, key, field)?;
                     }
                     pending.push(field);
                 }
@@ -646,4 +650,39 @@ fn retain(
     })();
     ctx.host_roots = roots;
     result
+}
+
+#[cfg(test)]
+mod name_work_tests {
+    use super::*;
+    use crate::CallOptions;
+
+    #[test]
+    fn callable_names_check_limits_and_cancellation_before_scanning() {
+        let method = HostMethod::new("method", |_, _, _| Ok(Value::nil())).value();
+        for key in [vec![b'x'; 65], vec![0xff; 65]] {
+            for cancelled in [false, true] {
+                let mut options = CallOptions::default();
+                options.limits.steps = Some(1);
+                if cancelled {
+                    options.cancellation.cancel();
+                }
+                let mut ctx = CallContext::new(options);
+                let error = member_name(&Meter(RefCell::new(&mut ctx)), &key, &method).unwrap_err();
+                assert_eq!(
+                    error.kind,
+                    if cancelled {
+                        ErrorKind::Cancelled
+                    } else {
+                        ErrorKind::Steps
+                    }
+                );
+            }
+            let mut options = CallOptions::default();
+            options.limits.steps = Some(0);
+            let mut ctx = CallContext::new(options);
+            member_name(&Meter(RefCell::new(&mut ctx)), &key, &Value::int(1)).unwrap();
+            assert_eq!(ctx.stats().steps, 0);
+        }
+    }
 }

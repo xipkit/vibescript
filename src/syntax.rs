@@ -48,9 +48,11 @@ pub(crate) fn name_suffix_error(work: &dyn Work, source: &str, offset: usize) ->
 }
 
 /// Checks a host binding against the same suffix rule as source bindings.
-pub(crate) fn binding_name(name: &str) -> Result<()> {
+pub(crate) fn binding_name(work: &dyn Work, name: &str) -> Result<()> {
+    work.checkpoint()?;
+    work.bytes(name.len())?;
     if let Some(offset) = name_suffix_position(name) {
-        return Err(name_suffix_error(&(), name, offset));
+        return Err(name_suffix_error(work, name, offset));
     }
     Ok(())
 }
@@ -60,7 +62,7 @@ fn name_suffix_position(name: &str) -> Option<usize> {
 }
 
 /// A method spelling rejected before a callable can be published.
-pub(crate) enum MethodNameError {
+enum MethodNameError {
     Suffix(usize),
     Invalid,
 }
@@ -77,7 +79,7 @@ impl MethodNameError {
 /// Validates callable spellings, including operator methods and setters.
 /// Lexer identifiers already satisfy the character rule; host names and decoded
 /// symbols need that check too.
-pub(crate) fn method_spelling(name: &str, lexed: bool) -> std::result::Result<(), MethodNameError> {
+fn method_spelling(name: &str, lexed: bool) -> std::result::Result<(), MethodNameError> {
     if matches!(
         name,
         "+" | "-"
@@ -120,19 +122,23 @@ pub(crate) fn method_spelling(name: &str, lexed: bool) -> std::result::Result<()
 }
 
 /// Validates a host function that scripts must be able to call without a receiver.
-pub(crate) fn host_function_name(name: &str) -> Result<()> {
-    host_method_name(name)?;
+pub(crate) fn host_function_name(work: &dyn Work, name: &str) -> Result<()> {
+    host_method_name(work, name.as_bytes())?;
     if keyword(name) {
-        return Err(Error::syntax(&(), 0, "invalid host function name"));
+        return Err(Error::syntax(work, 0, "invalid host function name"));
     }
     Ok(())
 }
 
 /// Checks a host method's published name; its descriptor's diagnostic label is separate.
-pub(crate) fn host_method_name(name: &str) -> Result<()> {
-    method_spelling(name, false).map_err(|error| error.diagnostic(&(), name, 0))?;
+pub(crate) fn host_method_name(work: &dyn Work, key: &[u8]) -> Result<()> {
+    work.checkpoint()?;
+    work.bytes(key.len())?;
+    let name = std::str::from_utf8(key)
+        .map_err(|_| Error::new(crate::ErrorKind::Syntax, "method names must be UTF-8"))?;
+    method_spelling(name, false).map_err(|error| error.diagnostic(work, name, 0))?;
     if name.ends_with('=') || !name.starts_with(|c: char| c == '_' || unicode::letter(c)) {
-        return Err(Error::syntax(&(), 0, "invalid host method name"));
+        return Err(Error::syntax(work, 0, "invalid host method name"));
     }
     Ok(())
 }
@@ -2840,6 +2846,8 @@ impl<'a> Parser<'a> {
             }
             _ => return Ok(None),
         };
+        self.work.checkpoint()?;
+        self.work.bytes(name.len())?;
         if let Err(error) = method_spelling(&name, false) {
             let token = &self.tokens[self.pos];
             if matches!(token.token, Token::QuotedSymbol(_)) {
@@ -2896,6 +2904,8 @@ impl<'a> Parser<'a> {
         Ok(())
     }
     fn method_spelling(&self, name: &str, offset: usize) -> Result<()> {
+        self.work.checkpoint()?;
+        self.work.bytes(name.len())?;
         method_spelling(name, true)
             .map_err(|error| error.diagnostic(self.work, self.source, offset))
     }
