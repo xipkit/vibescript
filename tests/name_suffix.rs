@@ -1359,3 +1359,40 @@ fn constant_fixes_rename_scoped_reads_of_their_namespace() {
         "class C; LIMIT = 3; end\nclass D; def self.LIMIT! -> int; 4; end; end\n[C::LIMIT, D.LIMIT!]"
     );
 }
+
+#[test]
+fn scoped_reads_resolve_the_whole_namespace_path() {
+    for (source, fixed) in [
+        // Same-named namespaces in different parents: only `A::M`'s
+        // constant is renamed, not `B::M`'s method of the same name.
+        (
+            "module A; module M; READY? = 1; end; end\nmodule B; module M; def self.READY? -> int; 2; end; end; end\n[A::M::READY?, B::M::READY?]",
+            "module A; module M; READY = 1; end; end\nmodule B; module M; def self.READY? -> int; 2; end; end; end\n[A::M::READY, B::M::READY?]",
+        ),
+        // Nested modules, read through the full path and from the parent.
+        (
+            "module A; module M; X! = 1; end; def self.f -> int; M::X!; end; end\n[A::M::X!, A.f]",
+            "module A; module M; X = 1; end; def self.f -> int; M::X; end; end\n[A::M::X, A.f]",
+        ),
+        // A relative reference resolves inside the reading namespace first,
+        // so the top-level `M` is not `A::M`.
+        (
+            "module M; X! = 2; end\nmodule A; module M; X! = 1; end; def self.f -> int; M::X!; end; end\n[M::X!, A.f]",
+            "module M; X = 2; end\nmodule A; module M; X! = 1; end; def self.f -> int; M::X!; end; end\n[M::X, A.f]",
+        ),
+        // A sibling's constant, reached through the enclosing namespace.
+        (
+            "module A; module M; X? = 1; end; module N; def self.f -> int; M::X?; end; end; end\nA::M::X?",
+            "module A; module M; X = 1; end; module N; def self.f -> int; M::X; end; end; end\nA::M::X",
+        ),
+    ] {
+        assert_eq!(first_fix(source), fixed, "{source}");
+    }
+    // The inner `A::M` is renamed by its own fix, with the read inside `A`.
+    let source = "module M; X! = 2; end\nmodule A; module M; X! = 1; end; def self.f -> int; M::X!; end; end\n[M::X!, A.f]";
+    assert_eq!(
+        migrate(source),
+        "module M; X = 2; end\nmodule A; module M; X = 1; end; def self.f -> int; M::X; end; end\n[M::X, A.f]"
+    );
+    assert_eq!(run(&migrate(source)), "[2,1]");
+}

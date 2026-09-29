@@ -727,6 +727,7 @@ fn parser_from_tokens<'a>(source: &'a str, work: &'a dyn Work, tokens: Tokens<'a
         interpolations: Buffer::new(),
         suffixed: RefCell::default(),
         namespace: None,
+        namespace_body: false,
         record: None,
         inside_class: false,
         nesting: 0,
@@ -866,9 +867,12 @@ struct Parser<'a> {
     interpolations: Buffer<(u32, u32)>,
     /// The uses of suffixed bindings a lenient parse records.
     suffixed: RefCell<suffixes::Uses>,
-    /// The class, module or enum whose body is read, which declares the
-    /// constants bound there.
+    /// The path of the class or module whose body or method is read, such
+    /// as `Outer::Inner`, from which scoped names resolve.
     namespace: Option<Name>,
+    /// Whether the statement is directly in that body, where a constant
+    /// belongs to the namespace.
+    namespace_body: bool,
     /// Tooling facts, collected only by [`record::parse`].
     record: Option<Box<record::Record>>,
     /// Whether a class or module body encloses the current statement, as Go
@@ -2350,11 +2354,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
             let Token::Word(name) = p.bump()? else {
                 unreachable!()
             };
-            let scope = match &lhs.node {
-                Node::Var(scope) | Node::Scope(_, scope, None) => Some(scope),
-                _ => None,
-            };
-            p.scoped_suffix_read(scope, &name)?;
+            p.scoped_suffix_read(&lhs, &name)?;
             (Name::new(work, &name)?, p.take_p('('))
         };
         let args = if parenthesized {
@@ -3538,6 +3538,7 @@ impl<'a> Parser<'a> {
             interpolations: Buffer::new(),
             suffixed: RefCell::new(self.suffixed.take()),
             namespace: self.namespace.clone(),
+            namespace_body: self.namespace_body,
             // Go parses interpolations without the member probe.
             record: None,
             inside_class: false,

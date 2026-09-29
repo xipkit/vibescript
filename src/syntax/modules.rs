@@ -256,7 +256,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
     pub(super) async fn function(&self, constants: bool) -> Result<Function> {
         let _scope = self.recovery_scope()?;
         let work = self.p().work;
-        let (offset, def_line, name, class_method, outer_locals, outer_it, outer_namespace) = {
+        let (offset, def_line, name, class_method, outer_locals, outer_it, outer_body) = {
             let mut p = self.p();
             work.charge(1)?;
             let offset = p.tokens[p.pos].offset as u32;
@@ -292,7 +292,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             }
             let outer_it = std::mem::replace(&mut p.declared_it, false);
             // A function's locals are no namespace's constants.
-            let outer_namespace = p.namespace.take();
+            let outer_body = std::mem::replace(&mut p.namespace_body, false);
             (
                 offset,
                 def_line,
@@ -300,7 +300,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 class_method,
                 outer_locals,
                 outer_it,
-                outer_namespace,
+                outer_body,
             )
         };
         let (parenthesized, bare) = {
@@ -390,7 +390,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let mut p = self.p();
         p.note(super::record::Record::leave_function);
         p.locals = outer_locals;
-        p.namespace = outer_namespace;
+        p.namespace_body = outer_body;
         p.declared_it = outer_it;
         p.block_name = outer_block;
         Ok(Function {
@@ -440,7 +440,16 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             }
             p.enter()?;
             let outer_locals = std::mem::take(&mut p.locals);
-            let outer_namespace = p.namespace.replace(name.clone());
+            // Scoped names resolve through the whole path, as `Outer::Inner`.
+            let path = match &p.namespace {
+                Some(outer) => Name::join(work, &[outer, "::", &name])?,
+                None => name.clone(),
+            };
+            p.namespace_declared(&path)?;
+            let outer_namespace = (
+                p.namespace.replace(path),
+                std::mem::replace(&mut p.namespace_body, true),
+            );
             let outer_it = std::mem::replace(&mut p.declared_it, false);
             let outer_class = std::mem::replace(&mut p.inside_class, true);
             p.nesting += 1;
@@ -670,7 +679,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         p.expect_word("end")?;
         p.check_depth(class.depth, class.offset)?;
         p.locals = outer_locals;
-        p.namespace = outer_namespace;
+        (p.namespace, p.namespace_body) = outer_namespace;
         p.declared_it = outer_it;
         p.depth -= 1;
         Ok(class)

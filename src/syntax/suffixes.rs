@@ -3,15 +3,17 @@
 //! the fix renames the binding everywhere it is used: each place that binds
 //! it and each read of it in scope, including scoped reads of a namespace's
 //! constant, such as `Limits::MAX!`. A read counts only where the parser's
-//! scope says the name is that binding, so a suffixed method that merely
-//! shares the name, such as a host's `ready?`, is never renamed.
+//! scope says the name is that binding, and a scoped read only where its
+//! scope resolves to the constant's namespace as the checker resolves it, so
+//! a suffixed method that merely shares the name, such as a host's `ready?`,
+//! is never renamed.
 //!
 //! The uses come from a second, lenient parse that accepts suffixed
 //! bindings, as the grammar did before ADR-008, and tracks each binding
 //! through the parser's own scopes. Every table and every edit of a fix is
 //! charged to the caller's work.
 
-use super::{Error, Name, Parser, Result, Work, name_suffix_position};
+use super::{Error, Expr, Name, Node, Parser, Result, Work, name_suffix_position};
 use crate::{
     compilation::Buffer,
     diagnostic::{Code, Diagnostic, Edit, Fix, Span},
@@ -29,17 +31,18 @@ pub(super) fn lenient() -> bool {
     LENIENT.with(Cell::get)
 }
 
-/// A suffixed binding: its name, and the namespace whose body declares it,
-/// which a scoped read names.
+/// A suffixed binding: its name, and the path of the namespace whose body
+/// declares it, which a scoped read resolves to.
 struct Binding {
     name: Name,
     namespace: Option<Name>,
 }
 
-/// A scoped read, `Scope::NAME?`: where its suffix is, its scope and its
-/// name.
+/// A scoped read, `Scope::NAME?`: where its suffix is, the namespace path
+/// it is read in, its scope as written and its name.
 struct Scoped {
     at: u32,
+    owner: Option<Name>,
     scope: Name,
     name: Name,
 }
@@ -54,6 +57,8 @@ pub(super) struct Uses {
     /// Where each binding is read, with its id.
     reads: Buffer<(u32, u32)>,
     scoped: Buffer<Scoped>,
+    /// The path of every class, module and enum the source declares.
+    namespaces: Buffer<Name>,
 }
 
 impl Uses {
@@ -104,7 +109,13 @@ impl Parser<'_> {
                 uses.sites.push(self.work, (suffix, id))?;
                 Ok(id)
             }
-            _ => uses.binding(self.work, name, self.namespace.as_ref(), suffix),
+            _ => {
+                // Only a capitalized name bound in a namespace's own body is
+                // a constant that scoped reads reach.
+                let constant = self.namespace_body && name.starts_with(super::unicode::upper);
+                let namespace = self.namespace.as_ref().filter(|_| constant);
+                uses.binding(self.work, name, namespace, suffix)
+            }
         }
     }
 
@@ -114,6 +125,15 @@ impl Parser<'_> {
         if let (true, Some(suffix)) = (lenient(), suffix_at(self.source, name, at)) {
             let mut uses = self.suffixed.borrow_mut();
             uses.binding(self.work, name, Some(namespace), suffix)?;
+        }
+        Ok(())
+    }
+
+    /// Records that the source declares the class, module or enum `path`.
+    pub(super) fn namespace_declared(&self, path: &Name) -> Result<()> {
+        if lenient() {
+            let mut uses = self.suffixed.borrow_mut();
+            uses.namespaces.push(self.work, path.clone())?;
         }
         Ok(())
     }
@@ -139,21 +159,55 @@ impl Parser<'_> {
         Ok(())
     }
 
-    /// Records the scoped read of `name`, just consumed, in `scope`.
-    pub(super) fn scoped_suffix_read(&self, scope: Option<&Name>, name: &str) -> Result<()> {
-        let Some(scope) = scope.filter(|_| lenient()) else {
+    /// Records the scoped read of `name`, just consumed, through `scope`
+    /// when that is a path of names, such as `Outer::Inner`.
+    pub(super) fn scoped_suffix_read(&self, scope: &Expr, name: &str) -> Result<()> {
+        if !lenient() {
+            return Ok(());
+        }
+        let at = self.tokens[self.pos - 1].offset;
+        let Some(suffix) = suffix_at(self.source, name, at) else {
             return Ok(());
         };
-        let at = self.tokens[self.pos - 1].offset;
-        if let Some(suffix) = suffix_at(self.source, name, at) {
-            let entry = Scoped {
-                at: suffix,
-                scope: scope.clone(),
-                name: Name::new(self.work, name)?,
-            };
-            self.suffixed.borrow_mut().scoped.push(self.work, entry)?;
-        }
+        let Some(scope) = self.scope_path(scope)? else {
+            return Ok(());
+        };
+        let entry = Scoped {
+            at: suffix,
+            owner: self.namespace.clone(),
+            scope,
+            name: Name::new(self.work, name)?,
+        };
+        self.suffixed.borrow_mut().scoped.push(self.work, entry)?;
         Ok(())
+    }
+
+    /// The path `expr` names, such as `Outer::Inner`, or none.
+    fn scope_path(&self, expr: &Expr) -> Result<Option<Name>> {
+        let mut names: Buffer<&str> = Buffer::new();
+        let mut expr = expr;
+        loop {
+            self.work.charge(1)?;
+            match &expr.node {
+                Node::Var(name) => {
+                    names.push(self.work, name)?;
+                    break;
+                }
+                Node::Scope(inner, name, None) => {
+                    names.push(self.work, name)?;
+                    expr = inner;
+                }
+                _ => return Ok(None),
+            }
+        }
+        let mut pieces: Buffer<&str> = Buffer::new();
+        for (index, name) in names.iter().rev().enumerate() {
+            if index > 0 {
+                pieces.push(self.work, "::")?;
+            }
+            pieces.push(self.work, name)?;
+        }
+        Name::join(self.work, &pieces).map(Some)
     }
 }
 
@@ -229,10 +283,18 @@ fn extended(
     for &(at, id) in uses.sites.iter().chain(uses.reads.iter()) {
         positions.push(work, (id, at))?;
     }
+    let mut namespaces = Buffer::new();
+    for namespace in uses.namespaces.iter() {
+        namespaces.push(work, namespace.clone())?;
+    }
+    sort(work, &mut namespaces)?;
     for scoped in uses.scoped.iter() {
+        let Some(path) = resolve(work, &namespaces, scoped)? else {
+            continue;
+        };
         for (index, binding) in uses.bindings.iter().enumerate() {
             work.charge(1)?;
-            if binding.namespace.as_ref() == Some(&scoped.scope) && binding.name == scoped.name {
+            if binding.namespace.as_ref() == Some(&path) && binding.name == scoped.name {
                 let id = u32::try_from(index + 1).unwrap_or(u32::MAX);
                 positions.push(work, (id, scoped.at))?;
             }
@@ -300,6 +362,53 @@ fn sort<T: Ord>(work: &dyn Work, values: &mut Buffer<T>) -> Result<()> {
     work.charge(length.saturating_mul(log as usize))?;
     values.sort_unstable();
     Ok(())
+}
+
+/// The namespace `scoped` names, resolved as the checker resolves a
+/// capitalized name: in the namespace it is read in, then at the top
+/// level, then in each namespace enclosing that, and from there through
+/// the rest of the path. None when the source declares no such namespace.
+fn resolve(work: &dyn Work, namespaces: &[Name], scoped: &Scoped) -> Result<Option<Name>> {
+    let declared = |path: &str| -> Result<bool> {
+        work.charge(1)?;
+        Ok(namespaces
+            .binary_search_by(|name| name.as_str().cmp(path))
+            .is_ok())
+    };
+    let joined = |outer: &str, inner: &str| Name::join(work, &[outer, "::", inner]);
+    let (head, rest) = match scoped.scope.split_once("::") {
+        Some((head, rest)) => (head, Some(rest)),
+        None => (scoped.scope.as_str(), None),
+    };
+    let mut base = None;
+    if let Some(owner) = &scoped.owner {
+        let candidate = joined(owner, head)?;
+        if declared(&candidate)? {
+            base = Some(candidate);
+        }
+    }
+    if base.is_none() && declared(head)? {
+        base = Some(Name::new(work, head)?);
+    }
+    let mut enclosing = scoped.owner.as_ref().map(Name::as_str);
+    while base.is_none() {
+        let Some((outer, _)) = enclosing.and_then(|path| path.rsplit_once("::")) else {
+            break;
+        };
+        let candidate = joined(outer, head)?;
+        if declared(&candidate)? {
+            base = Some(candidate);
+        }
+        enclosing = Some(outer);
+    }
+    let Some(base) = base else {
+        return Ok(None);
+    };
+    let path = match rest {
+        Some(rest) => joined(&base, rest)?,
+        None => base,
+    };
+    Ok(declared(&path)?.then_some(path))
 }
 
 #[cfg(test)]

@@ -666,6 +666,8 @@ impl Parser<'_> {
             return self.expected(Label::Text("identifier"));
         }
         let name = self.name()?;
+        // Enums are declared at the top level only, so the name is the path.
+        self.namespace_declared(&name)?;
         let mut members = Buffer::new();
         let mut member_offsets = Vec::new();
         let mut seen = Table::new();
