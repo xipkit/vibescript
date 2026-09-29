@@ -437,7 +437,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         purposes: Vec::new(),
         mute: 0,
         modules: modules::Required::new(input, depth),
-        memo: None,
+        memo: meter::MemoSlot::default(),
         write_chain: HashSet::new(),
         fetch_receivers: HashMap::new(),
         session: None,
@@ -567,7 +567,7 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
         purposes: Vec::new(),
         mute: 0,
         modules: modules::Required::new(input, 0),
-        memo: None,
+        memo: meter::MemoSlot::default(),
         write_chain: HashSet::new(),
         fetch_receivers: HashMap::new(),
         session: None,
@@ -617,7 +617,7 @@ pub(crate) struct Checker<'a> {
     modules: modules::Required<'a>,
     /// Expression types recorded while checking a call on one alternative
     /// of a union receiver, which the other alternatives replay.
-    memo: Option<Memo>,
+    memo: meter::MemoSlot,
     /// The reads a write goes through, by node: the receivers of an index
     /// or member assignment's target and of a mutating call, down to their
     /// root. An index among them reads its element as present, since the

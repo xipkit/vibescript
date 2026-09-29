@@ -1039,19 +1039,6 @@ impl<'a> Checker<'a> {
         ty
     }
 
-    /// Makes `frame` current, setting the replaced one aside.
-    pub(super) fn enter_frame(&mut self, frame: Frame) -> Frame {
-        let previous = std::mem::replace(&mut self.frame, frame);
-        self.saved += previous.heap();
-        previous
-    }
-
-    /// Restores a frame [`Self::enter_frame`] replaced.
-    pub(super) fn leave_frame(&mut self, previous: Frame) {
-        self.saved = self.saved.saturating_sub(previous.heap());
-        self.frame = previous;
-    }
-
     pub(super) fn stmt(&mut self, stmt: &'a Stmt, want: Want) -> Ty {
         let ty = self.statement(stmt, want, false);
         // A type the statement inferred too large to build, such as the
@@ -1730,7 +1717,7 @@ impl<'a> Checker<'a> {
                     );
                 }
                 let ty = self.expr(value, Some(current));
-                self.memo.as_mut().unwrap().replay = true;
+                self.memo.get_mut().unwrap().replay = true;
                 self.target_write(target, ty, value);
                 self.restore_memo(outer);
                 ty
@@ -1743,7 +1730,7 @@ impl<'a> Checker<'a> {
                 let current = self.target_read(target);
                 let right = self.expr(value, None);
                 let span = self.spans.stmt(stmt);
-                self.memo.as_mut().unwrap().replay = true;
+                self.memo.get_mut().unwrap().replay = true;
                 let result = match self.optional_element(target, op, value, current) {
                     Some(present) => {
                         self.binary_types(operator, present, right, span, Some((None, value)))
@@ -2277,7 +2264,7 @@ impl<'a> Checker<'a> {
                     // receiver and keys, and the write replays their types.
                     let outer = self.set_memo(Some(super::Memo::default()));
                     self.expr(expr, None);
-                    self.memo.as_mut().unwrap().replay = true;
+                    self.memo.get_mut().unwrap().replay = true;
                     self.index_write(expr, receiver, selectors, ty, expr, false);
                     self.restore_memo(outer);
                 }

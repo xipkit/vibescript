@@ -125,7 +125,7 @@ impl<'a> Checker<'a> {
             return Ty::ANY;
         }
         let key = std::ptr::from_ref(expr) as usize;
-        if let Some(memo) = &self.memo {
+        if let Some(memo) = self.memo.get() {
             if memo.replay {
                 if let Some(&ty) = memo.types.get(&key) {
                     return ty;
@@ -133,7 +133,7 @@ impl<'a> Checker<'a> {
             }
         }
         let ty = self.expr_uncached(expr, want);
-        if let Some(memo) = &mut self.memo {
+        if let Some(memo) = self.memo.get_mut() {
             if !memo.replay {
                 memo.types.insert(key, ty);
             }
@@ -1431,11 +1431,11 @@ impl<'a> Checker<'a> {
             }
             (Kind::Union(_), _) => {
                 let alternatives = self.types.members(ty);
-                let outer = self.memo.replace(super::Memo::default());
+                let outer = self.set_memo(Some(super::Memo::default()));
                 let result = self.index_type(expr, receiver, alternatives[0], selectors);
                 let mut results = vec![result];
                 // The other alternatives reuse the selectors' types.
-                self.memo.as_mut().unwrap().replay = true;
+                self.memo.get_mut().unwrap().replay = true;
                 for &alternative in &alternatives[1..] {
                     let mark = self.frame.flow.mark();
                     results.push(self.index_type(expr, receiver, alternative, selectors));
@@ -1650,9 +1650,9 @@ impl<'a> Checker<'a> {
             },
             (Kind::Instance(ns), _) => {
                 if evaluate {
-                    let outer = self.memo.replace(super::Memo::default());
+                    let outer = self.set_memo(Some(super::Memo::default()));
                     self.method_on(expr, ty, "[]=", None, selectors, Some(value));
-                    self.memo.as_mut().unwrap().replay = true;
+                    self.memo.get_mut().unwrap().replay = true;
                     let assigned = self.expr(value, None);
                     self.restore_memo(outer);
                     return assigned;

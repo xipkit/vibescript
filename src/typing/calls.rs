@@ -469,7 +469,7 @@ impl<'a> Checker<'a> {
         // the types of its parts for [`Self::field_addresses`].
         let addressed = crate::bytecode::mutating_member(name)
             && matches!(receiver.node, Node::Member(..) | Node::SafeMember(..))
-            && !self.memo.as_ref().is_some_and(|memo| memo.replay);
+            && !self.memo.get().is_some_and(|memo| memo.replay);
         let outer = addressed.then(|| self.set_memo(Some(super::Memo::default())));
         let ty = self.member_receiver(receiver, name);
         if let Some(outer) = outer {
@@ -614,7 +614,7 @@ impl<'a> Checker<'a> {
         let result = self.checked_member(call, receiver, ty, safe);
         let valid = self.diagnostics.len() == reported;
         // Another argument's type, as the call just checked it.
-        self.memo.as_mut().unwrap().replay = true;
+        self.memo.get_mut().unwrap().replay = true;
         self.mute += 1;
         let other = literal.or_else(|| argument.map(|value| self.expr(value, None)));
         self.mute -= 1;
@@ -694,7 +694,7 @@ impl<'a> Checker<'a> {
         let branch = self.frame.flow.rollback(mark);
         self.explore(&mut branches, branch);
         // Reuse evaluated argument types, but check every receiver's contract.
-        self.memo.as_mut().unwrap().replay = true;
+        self.memo.get_mut().unwrap().replay = true;
         for &alternative in rest {
             let mark = self.frame.flow.mark();
             results.push(self.member(call, alternative));
@@ -798,7 +798,7 @@ impl<'a> Checker<'a> {
     fn field_addresses(&mut self, receiver: &Expr, name: &str) {
         let mut node = receiver;
         while let Node::Member(inner, member) | Node::SafeMember(inner, member) = &node.node {
-            let types = &self.memo.as_ref().unwrap().types;
+            let types = &self.memo.get().unwrap().types;
             let called = types.get(&(std::ptr::from_ref(node) as usize)).copied();
             let Some(inner_ty) = types.get(&(std::ptr::from_ref(&**inner) as usize)).copied()
             else {
@@ -1487,7 +1487,7 @@ impl<'a> Checker<'a> {
         // The assigned value was checked as the setter's argument.
         let assigned = self
             .memo
-            .as_ref()
+            .get()
             .and_then(|memo| {
                 memo.types
                     .get(&(std::ptr::from_ref(value) as usize))
@@ -1554,28 +1554,6 @@ impl<'a> Checker<'a> {
             diagnostic = diagnostic.with_label(declared, format!("declared {word} here"));
         }
         self.report(diagnostic);
-    }
-
-    /// Makes `memo` current and returns the one it replaces, which the
-    /// memory account counts while it is set aside.
-    pub(super) fn set_memo(&mut self, memo: Option<super::Memo>) -> Option<super::Memo> {
-        let aside = std::mem::replace(&mut self.memo, memo);
-        self.saved += aside.as_ref().map_or(0, super::Memo::bytes);
-        aside
-    }
-
-    /// Restores an enclosing memo, keeping what the inner one recorded when
-    /// the enclosing one records too.
-    pub(super) fn restore_memo(&mut self, outer: Option<super::Memo>) {
-        self.saved = self
-            .saved
-            .saturating_sub(outer.as_ref().map_or(0, super::Memo::bytes));
-        let inner = std::mem::replace(&mut self.memo, outer);
-        if let (Some(inner), Some(outer)) = (inner, self.memo.as_mut()) {
-            if !outer.replay {
-                outer.types.extend(inner.types);
-            }
-        }
     }
 
     /// A method of a script class called with index syntax, `[]` or `[]=`.
@@ -2544,10 +2522,7 @@ impl<'a> Checker<'a> {
         }
         let breaks = self.finish_loop(before, context, true);
         self.close_scope();
-        self.saved = self
-            .saved
-            .saturating_sub(outer_memo.as_ref().map_or(0, super::Memo::bytes));
-        self.memo = outer_memo;
+        self.put_back_memo(outer_memo);
         (self.types.union(&results), breaks)
     }
 

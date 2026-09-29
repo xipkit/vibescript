@@ -21,6 +21,22 @@ use std::{
     },
 };
 
+/// The memo of expression types the checker records or replays, which
+/// only [`super::Checker::set_memo`] and the restores that undo it swap,
+/// so a memo set aside stays in the account.
+#[derive(Default)]
+pub(crate) struct MemoSlot(Option<super::Memo>);
+
+impl MemoSlot {
+    pub fn get(&self) -> Option<&super::Memo> {
+        self.0.as_ref()
+    }
+
+    pub fn get_mut(&mut self) -> Option<&mut super::Memo> {
+        self.0.as_mut()
+    }
+}
+
 /// The running totals, which the checker and its type table share.
 #[derive(Debug, Default)]
 pub(crate) struct Meter {
@@ -462,7 +478,7 @@ impl<'a> super::Checker<'a> {
             map(&self.constants),
             set(&self.write_chain),
             map(&self.fetch_receivers),
-            self.memo.as_ref().map_or(0, super::Memo::bytes),
+            self.memo.get().map_or(0, super::Memo::bytes),
         ]
         .into_iter()
         .max()
@@ -480,7 +496,7 @@ impl<'a> super::Checker<'a> {
             + self.saved
             + self.scratch
             + self.purposes.capacity() * size_of::<super::check::Purpose>()
-            + self.memo.as_ref().map_or(0, super::Memo::bytes)
+            + self.memo.get().map_or(0, super::Memo::bytes)
             + set(&self.write_chain)
             + map(&self.fetch_receivers)
             + self.facts.bytes()
@@ -529,8 +545,103 @@ impl<'a> super::Checker<'a> {
         self.meter.transient(self.types.bytes(), extra);
     }
 
+    /// Makes `frame` current, setting the replaced one aside, which the
+    /// account counts while it is.
+    pub(super) fn enter_frame(&mut self, frame: super::check::Frame) -> super::check::Frame {
+        let previous = std::mem::replace(&mut self.frame, frame);
+        self.saved += previous.heap();
+        previous
+    }
+
+    /// Restores a frame [`Self::enter_frame`] replaced.
+    pub(super) fn leave_frame(&mut self, previous: super::check::Frame) {
+        self.saved = self.saved.saturating_sub(previous.heap());
+        self.frame = previous;
+    }
+
+    /// Makes `memo` current and returns the one it replaces, which the
+    /// account counts while it is set aside.
+    pub(super) fn set_memo(&mut self, memo: Option<super::Memo>) -> Option<super::Memo> {
+        let aside = std::mem::replace(&mut self.memo.0, memo);
+        self.saved += aside.as_ref().map_or(0, super::Memo::bytes);
+        aside
+    }
+
+    /// Restores an enclosing memo [`Self::set_memo`] set aside, keeping
+    /// what the inner one recorded when the enclosing one records too.
+    pub(super) fn restore_memo(&mut self, outer: Option<super::Memo>) {
+        let inner = self.put_back_memo(outer);
+        if let (Some(inner), Some(outer)) = (inner, self.memo.0.as_mut()) {
+            if !outer.replay {
+                outer.types.extend(inner.types);
+            }
+        }
+    }
+
+    /// Restores an enclosing memo [`Self::set_memo`] set aside, and
+    /// returns the inner one.
+    pub(super) fn put_back_memo(&mut self, outer: Option<super::Memo>) -> Option<super::Memo> {
+        self.saved = self
+            .saved
+            .saturating_sub(outer.as_ref().map_or(0, super::Memo::bytes));
+        std::mem::replace(&mut self.memo.0, outer)
+    }
+
     /// Counts a diagnostic the checker keeps.
     pub(super) fn keep(&mut self, diagnostic: &crate::diagnostic::Diagnostic) {
         self.grown += diagnostic.heap();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// Swaps of state the account counts while it is set aside: the memo,
+    /// the frame, its flow and the facts.
+    const SWAPS: &[&str] = &[
+        "self.memo = ",
+        "self.memo.replace(",
+        "self.memo.take(",
+        "mem::replace(&mut self.memo",
+        "mem::take(&mut self.memo",
+        "mem::swap(&mut self.memo",
+        "self.frame = ",
+        "mem::replace(&mut self.frame",
+        "mem::take(&mut self.frame",
+        "mem::swap(&mut self.frame",
+        "self.frame.flow = ",
+        "self.facts = ",
+        "mem::replace(&mut self.facts",
+        "mem::take(&mut self.facts",
+        "mem::swap(&mut self.facts",
+    ];
+
+    #[test]
+    fn only_the_meter_sets_counted_state_aside() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut sources = vec![root.join("typing.rs")];
+        for entry in std::fs::read_dir(root.join("typing")).unwrap() {
+            sources.push(entry.unwrap().path());
+        }
+        let mut found = Vec::new();
+        for path in sources {
+            if path.file_name().is_some_and(|name| name == "meter.rs") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).unwrap();
+            for (number, line) in text.lines().enumerate() {
+                let line = line.trim();
+                if line.starts_with("//") {
+                    continue;
+                }
+                if SWAPS.iter().any(|swap| line.contains(swap)) {
+                    found.push(format!("{}:{}: {line}", path.display(), number + 1));
+                }
+            }
+        }
+        assert!(
+            found.is_empty(),
+            "set counted state aside through the meter's methods, so the account follows it:\n{}",
+            found.join("\n")
+        );
     }
 }
