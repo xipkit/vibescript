@@ -7,6 +7,7 @@ use super::{
 use crate::{
     CallOptions, Value,
     capability::{BoundMethod, Registered},
+    syntax::HostName,
     types::{Scalar, TypeKind},
     value::Kind,
 };
@@ -24,7 +25,7 @@ pub(crate) fn table(
 ) -> Table {
     let mut table = super::table().clone();
     for (name, host) in hosts {
-        if crate::syntax::host_function_name(&(), name).is_err() {
+        if crate::syntax::host_function_name(&(), HostName::FUNCTION, name).is_err() {
             continue;
         }
         let function = match host {
@@ -57,7 +58,7 @@ pub(crate) fn table(
             continue;
         }
         let item = match capability.template() {
-            Some(value) if valid_binding(name, value) => {
+            Some(value) if valid_binding(HostName::CAPABILITY, name, value) => {
                 documented(binding(name, value), "A capability.")
             }
             None => {
@@ -72,7 +73,7 @@ pub(crate) fn table(
         table.items.push(item);
     }
     for (name, value) in &options.globals {
-        if declared.contains_key(name) || !valid_binding(name, value) {
+        if declared.contains_key(name) || !valid_binding(HostName::GLOBAL, name, value) {
             continue;
         }
         let item = match binding(name, value) {
@@ -87,18 +88,18 @@ pub(crate) fn table(
     table
 }
 
-fn valid_binding(name: &str, value: &Value) -> bool {
-    crate::capability::binding_name(&(), name, value).is_ok()
-        && crate::capability::template_names(&(), value).is_ok()
+fn valid_binding(host: HostName<'_>, name: &str, value: &Value) -> bool {
+    crate::capability::binding_name(&(), host, name, value).is_ok()
+        && crate::capability::template_names(&(), host.member_of(name), value).is_ok()
 }
 
 /// An opaque factory's declaration, deferring value-sensitive checks to binding.
 pub(crate) fn factory(name: &str) -> crate::Result<Item> {
     if name.ends_with(['?', '!']) {
-        crate::syntax::host_function_name(&(), name)?;
+        crate::syntax::host_function_name(&(), HostName::CAPABILITY, name)?;
         Ok(Item::Function(unsigned(name, true, true)))
     } else {
-        crate::syntax::binding_name(&(), name)?;
+        crate::syntax::binding_name(&(), HostName::CAPABILITY, name)?;
         Ok(Item::Constant(Constant {
             doc: Vec::new(),
             name: name.to_owned(),

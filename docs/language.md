@@ -99,6 +99,9 @@ methods are checked before scripts can access them. A factory root ending in
 `?` or `!` is declared as a callable with unknown argument and result types;
 binding rejects it if the factory returns data. Internal or repeated suffixes
 are rejected at declaration. Ordinary string data keys may contain punctuation.
+An invalid host name is a host error (`ErrorKind::Argument`) that names the
+registration, such as `invalid global name "ready?"`; it has no script
+position and no fix, since the script is not what needs changing.
 
 ## Types
 

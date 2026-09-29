@@ -2,6 +2,7 @@ use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::Charge,
     compilation::{Meter, Work},
+    syntax::HostName,
     value::Kind,
 };
 use std::{
@@ -152,30 +153,46 @@ impl Capability {
         };
         ctx.checkpoint()?;
         let value = value?;
-        binding_name(&Meter(RefCell::new(ctx)), &self.name, &value)?;
+        binding_name(
+            &Meter(RefCell::new(ctx)),
+            HostName::CAPABILITY,
+            &self.name,
+            &value,
+        )?;
         ctx.import(&value)
     }
 }
 
 /// Validates a published root as either a method or a data binding.
-pub(crate) fn binding_name(work: &dyn Work, name: &str, value: &Value) -> Result<()> {
+pub(crate) fn binding_name(
+    work: &dyn Work,
+    host: HostName<'_>,
+    name: &str,
+    value: &Value,
+) -> Result<()> {
     if matches!(value.0, Kind::Host(_) | Kind::Function(_)) {
-        crate::syntax::host_function_name(work, name)
+        crate::syntax::host_function_name(work, host, name)
     } else {
-        crate::syntax::binding_name(work, name)
+        crate::syntax::binding_name(work, host.bound(), name)
     }
 }
 
 /// Checks callable fields without constraining ordinary string keys.
-pub(crate) fn member_name(work: &dyn Work, key: &[u8], value: &Value) -> Result<()> {
+pub(crate) fn member_name(
+    work: &dyn Work,
+    host: HostName<'_>,
+    key: &[u8],
+    value: &Value,
+) -> Result<()> {
     if matches!(value.0, Kind::Host(_) | Kind::Function(_)) {
-        crate::syntax::host_method_name(work, key)?;
+        crate::syntax::host_method_name(work, host, key)?;
     }
     Ok(())
 }
 
-/// Validates immutable host templates before the checker or prelude publishes them.
-pub(crate) fn template_names(work: &dyn Work, value: &Value) -> Result<()> {
+/// Validates immutable host templates before the checker or prelude publishes
+/// them; `host` names the methods the template holds.
+pub(crate) fn template_names(work: &dyn Work, host: HostName<'_>, value: &Value) -> Result<()> {
     if value.depth() > crate::budget::MAX_VALUE_DEPTH {
         return Err(Error::new(ErrorKind::Recursion, "value nesting too deep"));
     }
@@ -186,7 +203,7 @@ pub(crate) fn template_names(work: &dyn Work, value: &Value) -> Result<()> {
             Kind::Hash(hash) if seen.insert(Arc::as_ptr(hash) as usize) => {
                 for (key, field) in &hash.buffer.data {
                     if let Some(key) = key.as_bytes() {
-                        member_name(work, key, field)?;
+                        member_name(work, host, key, field)?;
                     }
                     pending.push(field);
                 }
@@ -670,7 +687,13 @@ mod name_work_tests {
                     options.cancellation.cancel();
                 }
                 let mut ctx = CallContext::new(options);
-                let error = member_name(&Meter(RefCell::new(&mut ctx)), &key, &method).unwrap_err();
+                let error = member_name(
+                    &Meter(RefCell::new(&mut ctx)),
+                    HostName::METHOD,
+                    &key,
+                    &method,
+                )
+                .unwrap_err();
                 assert_eq!(
                     error.kind,
                     if cancelled {
@@ -683,7 +706,13 @@ mod name_work_tests {
             let mut options = CallOptions::default();
             options.limits.steps = Some(0);
             let mut ctx = CallContext::new(options);
-            member_name(&Meter(RefCell::new(&mut ctx)), &key, &Value::int(1)).unwrap();
+            member_name(
+                &Meter(RefCell::new(&mut ctx)),
+                HostName::METHOD,
+                &key,
+                &Value::int(1),
+            )
+            .unwrap();
             assert_eq!(ctx.stats().steps, 0);
         }
     }

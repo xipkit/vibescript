@@ -127,7 +127,7 @@ impl Code {
         work.checkpoint()?;
         let mut names = Vec::new();
         for (name, _) in registered.clone() {
-            crate::syntax::host_function_name(work, name)?;
+            crate::syntax::host_function_name(work, crate::syntax::HostName::FUNCTION, name)?;
             names.push(name.clone());
         }
         let filename = origin.as_ref().map(crate::loading::Origin::filename);

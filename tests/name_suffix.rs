@@ -333,12 +333,11 @@ fn question_equals_requires_an_adjacent_name_for_a_suffix_fix() {
 fn host_global_names_have_no_suffix() {
     for name in ["ready?", "done!", "READY?"] {
         let error = Engine::new().declare_global(name, "bool").unwrap_err();
-        assert_eq!(error.kind, ErrorKind::Syntax);
-        let diagnostic = &error.diagnostics()[0];
-        assert_eq!(diagnostic.code, Code::NAME_SUFFIX);
-        assert_eq!(
-            diagnostic.applicable_fix().unwrap().apply(name).unwrap(),
-            &name[..name.len() - 1]
+        registration_error(&error, "global", name);
+        assert!(
+            error
+                .message
+                .ends_with("only method names may end in `?` or `!`")
         );
     }
     let mut engine = Engine::new();
@@ -494,11 +493,29 @@ fn callable_publication_charges_before_copying_the_key() {
     );
 }
 
-fn suffix_error(error: Error, name: &str) {
-    assert_eq!(error.kind, ErrorKind::Syntax, "{name}: {error}");
-    let diagnostic = &error.diagnostics()[0];
-    assert_eq!(diagnostic.code, Code::NAME_SUFFIX, "{name}: {error}");
-    assert!(diagnostic.applicable_fix().unwrap().apply(name).is_some());
+/// Asserts a host API error that names the registration of `name`, with no
+/// diagnostic or fix that could edit a script, and returns it rendered.
+fn host_name_error(error: &Error, kind: &str, name: &str) -> String {
+    assert_eq!(error.kind, ErrorKind::Argument, "{name}: {error}");
+    assert!(
+        error
+            .message
+            .starts_with(&format!("invalid {kind} name \"{name}\"")),
+        "{name}: {error}"
+    );
+    assert!(error.diagnostics().is_empty(), "{name}: {error}");
+    let rendered = error.to_string();
+    assert!(!rendered.contains("parse error"), "{name}: {rendered}");
+    rendered
+}
+
+/// Asserts a host API error reported by a registration, or by compiling
+/// before any script runs, which has no position in the script.
+fn registration_error(error: &Error, kind: &str, name: &str) {
+    let rendered = host_name_error(error, kind, name);
+    assert!(error.offset.is_none(), "{name}: {rendered}");
+    assert!(error.diagnostic.is_none(), "{name}: {rendered}");
+    assert_eq!(rendered, error.message);
 }
 
 #[test]
@@ -524,22 +541,23 @@ fn registered_methods_validate_their_published_spelling() {
                     .unwrap();
                 assert_eq!(result.value.to_string(), "true");
             } else {
-                suffix_error(engine.compile("1").err().unwrap(), name);
-                suffix_error(engine.type_check("1").err().unwrap(), name);
-                suffix_error(
+                for error in [
+                    engine.compile("total = 1; total").err().unwrap(),
+                    engine.type_check("total = 1; total").err().unwrap(),
                     engine
                         .check_entry_arguments("def run; end", "run", 0)
                         .err()
                         .unwrap(),
-                    name,
-                );
+                ] {
+                    registration_error(&error, "host function", name);
+                }
             }
         }
     }
     for name in ["", "bad name", "3bad", "@bad", "if", "f=", "!="] {
         let mut engine = Engine::new();
         engine.register_method(name, method());
-        assert!(engine.compile("1").is_err(), "{name}");
+        registration_error(&engine.compile("1").err().unwrap(), "host function", name);
     }
 }
 
@@ -598,7 +616,8 @@ fn capability_roots_and_members_share_method_spelling_validation() {
                     assert_eq!(script.run(options).unwrap().value.to_string(), "true");
                 }
             } else {
-                suffix_error(declaration.unwrap_err(), name);
+                let kind = if nested { "method" } else { "capability" };
+                registration_error(&declaration.unwrap_err(), kind, name);
                 assert!(!engine.prelude(&options).contains(name));
             }
         }
@@ -611,7 +630,12 @@ fn capability_roots_and_members_share_method_spelling_validation() {
                 )])]),
             )]);
             let cap = Capability::from_value("cap", nested);
-            suffix_error(Engine::new().declare_capability(&cap).unwrap_err(), name);
+            let error = Engine::new().declare_capability(&cap).unwrap_err();
+            registration_error(&error, "method", name);
+            assert!(
+                error.message.contains(" in capability \"cap\": "),
+                "{error}"
+            );
         }
     }
 }
@@ -656,7 +680,9 @@ fn suffixed_factory_roots_are_checked_against_the_bound_value() {
                 if callable {
                     assert_eq!(result.unwrap().value.to_string(), "true");
                 } else {
-                    suffix_error(result.unwrap_err(), name);
+                    let error = result.unwrap_err();
+                    host_name_error(&error, "capability", name);
+                    assert!(error.message.ends_with("not callable"), "{error}");
                 }
             }
             assert_eq!(calls.load(Ordering::Relaxed), 2);
@@ -673,7 +699,11 @@ fn factory_roots_reject_impossible_suffix_spellings_without_running() {
             ..CallOptions::default()
         };
         let mut engine = Engine::new();
-        suffix_error(engine.declare_capability(&cap).unwrap_err(), name);
+        registration_error(
+            &engine.declare_capability(&cap).unwrap_err(),
+            "capability",
+            name,
+        );
         assert!(!engine.prelude(&options).contains(name));
     }
 }
@@ -693,7 +723,7 @@ fn factories_globals_and_host_publication_reject_uncallable_members() {
         if valid {
             result.unwrap();
         } else {
-            suffix_error(result.unwrap_err(), name);
+            host_name_error(&result.unwrap_err(), "method", name);
         }
 
         let mut engine = Engine::new();
@@ -706,7 +736,7 @@ fn factories_globals_and_host_publication_reject_uncallable_members() {
         if valid {
             result.unwrap();
         } else {
-            suffix_error(result.unwrap_err(), name);
+            host_name_error(&result.unwrap_err(), "method", name);
         }
 
         let install = HostMethod::new_with_block("cap.install", move |call, _, _| {
@@ -726,7 +756,7 @@ fn factories_globals_and_host_publication_reject_uncallable_members() {
         if valid {
             assert_eq!(result.unwrap().value.to_string(), "true");
         } else {
-            suffix_error(result.unwrap_err(), name);
+            host_name_error(&result.unwrap_err(), "method", name);
         }
     }
     let mut engine = Engine::new();
@@ -750,7 +780,7 @@ fn callable_globals_validate_the_binding_name() {
             ..CallOptions::default()
         };
         assert!(!Engine::new().prelude(&options).contains(name));
-        suffix_error(script.run(options).unwrap_err(), name);
+        host_name_error(&script.run(options).unwrap_err(), "global", name);
     }
     for name in ["ok?", "save!"] {
         let mut engine = Engine::new();

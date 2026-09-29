@@ -6,6 +6,7 @@
 use crate::{
     CallContext, Capability, Error, ErrorKind, Result, Value,
     signatures::{self, Item},
+    syntax::HostName,
     types::{Type, TypeKind},
     value::Kind,
 };
@@ -48,7 +49,7 @@ pub(crate) struct RetainedSource {
 impl Declaration {
     /// A global of the annotation `ty`, or of any type when `ty` is empty.
     pub fn global(name: &str, ty: &str) -> Result<Self> {
-        crate::syntax::binding_name(&(), name)?;
+        crate::syntax::binding_name(&(), HostName::GLOBAL, name)?;
         if ty.trim().is_empty() {
             return Ok(Self {
                 item: constant(name, signatures::Type::name("any")),
@@ -92,8 +93,8 @@ impl Declaration {
                 shape: Shape::Value(None),
             });
         };
-        crate::capability::binding_name(&(), name, template)?;
-        crate::capability::template_names(&(), template)?;
+        crate::capability::binding_name(&(), HostName::CAPABILITY, name, template)?;
+        crate::capability::template_names(&(), HostName::CAPABILITY.member_of(name), template)?;
         Ok(Self {
             item: signatures::host::binding(name, template),
             capability: true,
@@ -341,6 +342,7 @@ pub(crate) fn check_globals(ctx: &mut CallContext, declared: &Declarations) -> R
         for (name, value) in &globals {
             crate::capability::binding_name(
                 &crate::compilation::Meter(std::cell::RefCell::new(ctx)),
+                HostName::GLOBAL,
                 name,
                 value,
             )?;

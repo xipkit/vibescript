@@ -47,12 +47,73 @@ pub(crate) fn name_suffix_error(work: &dyn Work, source: &str, offset: usize) ->
     Error::syntax(work, offset, message).with_diagnostic(diagnostic)
 }
 
+/// The registration a host-supplied name comes from, as its errors name it.
+/// Such a name has no position in any script, so its errors carry no fix.
+#[derive(Clone, Copy)]
+pub(crate) struct HostName<'a> {
+    kind: &'a str,
+    owner: Option<(&'a str, &'a str)>,
+    value: bool,
+}
+
+impl<'a> HostName<'a> {
+    /// A function registered on the engine.
+    pub(crate) const FUNCTION: Self = Self::new("host function");
+    /// A global declared on the engine or supplied by a call.
+    pub(crate) const GLOBAL: Self = Self::new("global");
+    /// A capability's root name.
+    pub(crate) const CAPABILITY: Self = Self::new("capability");
+    /// A method in a host object that reaches a script.
+    pub(crate) const METHOD: Self = Self::new("method");
+
+    const fn new(kind: &'a str) -> Self {
+        Self {
+            kind,
+            owner: None,
+            value: false,
+        }
+    }
+
+    /// A method in the value this registration binds to `name`.
+    pub(crate) fn member_of(self, name: &'a str) -> Self {
+        Self {
+            owner: Some((self.kind, name)),
+            ..Self::METHOD
+        }
+    }
+
+    /// The same registration, known to be bound to the value being checked.
+    pub(crate) fn bound(self) -> Self {
+        Self {
+            value: true,
+            ..self
+        }
+    }
+
+    fn error(self, name: &[u8], reason: impl std::fmt::Display) -> Error {
+        use std::fmt::Write;
+        // Enough bytes for `source_text` to mark a cut.
+        let shown = String::from_utf8_lossy(&name[..name.len().min(72)]);
+        let mut message = format!("invalid {} name \"{}\"", self.kind, source_text(&shown));
+        if let Some((kind, owner)) = self.owner {
+            let _ = write!(message, " in {kind} \"{}\"", source_text(owner));
+        }
+        let _ = write!(message, ": {reason}");
+        Error::new(crate::ErrorKind::Argument, message)
+    }
+}
+
 /// Checks a host binding against the same suffix rule as source bindings.
-pub(crate) fn binding_name(work: &dyn Work, name: &str) -> Result<()> {
+pub(crate) fn binding_name(work: &dyn Work, host: HostName<'_>, name: &str) -> Result<()> {
     work.checkpoint()?;
     work.bytes(name.len())?;
-    if let Some(offset) = name_suffix_position(name) {
-        return Err(name_suffix_error(work, name, offset));
+    if name_suffix_position(name).is_some() {
+        let reason = if host.value {
+            "only method names may end in `?` or `!`, and this value is not callable"
+        } else {
+            "only method names may end in `?` or `!`"
+        };
+        return Err(host.error(name.as_bytes(), reason));
     }
     Ok(())
 }
@@ -122,7 +183,21 @@ impl MethodNameError {
             _ => "invalid method name".to_owned(),
         }
     }
+
+    /// Why a host's method name is invalid, with no source to repair.
+    fn reason(&self) -> String {
+        match self {
+            Self::Suffix(_) => {
+                "a method name may end in one `?` or `!`, and has neither elsewhere".to_owned()
+            }
+            Self::Undispatched(_) => self.message(),
+            Self::Invalid => HOST_METHOD_SPELLING.to_owned(),
+        }
+    }
 }
+
+const HOST_METHOD_SPELLING: &str =
+    "a method name starts with a letter or `_` and continues with letters, digits and `_`";
 
 /// Validates callable spellings, including operator methods and setters.
 /// Lexer identifiers already satisfy the character rule; host names and decoded
@@ -155,23 +230,24 @@ fn method_spelling(name: &str, lexed: bool) -> std::result::Result<(), MethodNam
 }
 
 /// Validates a host function that scripts must be able to call without a receiver.
-pub(crate) fn host_function_name(work: &dyn Work, name: &str) -> Result<()> {
-    host_method_name(work, name.as_bytes())?;
+pub(crate) fn host_function_name(work: &dyn Work, host: HostName<'_>, name: &str) -> Result<()> {
+    host_method_name(work, host, name.as_bytes())?;
     if keyword(name) {
-        return Err(Error::syntax(work, 0, "invalid host function name"));
+        return Err(host.error(name.as_bytes(), "a keyword cannot name a host function"));
     }
     Ok(())
 }
 
 /// Checks a host method's published name; its descriptor's diagnostic label is separate.
-pub(crate) fn host_method_name(work: &dyn Work, key: &[u8]) -> Result<()> {
+pub(crate) fn host_method_name(work: &dyn Work, host: HostName<'_>, key: &[u8]) -> Result<()> {
     work.checkpoint()?;
     work.bytes(key.len())?;
-    let name = std::str::from_utf8(key)
-        .map_err(|_| Error::new(crate::ErrorKind::Syntax, "method names must be UTF-8"))?;
-    method_spelling(name, false).map_err(|error| error.diagnostic(work, name, 0))?;
+    let Ok(name) = std::str::from_utf8(key) else {
+        return Err(host.error(key, "method names must be UTF-8"));
+    };
+    method_spelling(name, false).map_err(|error| host.error(key, error.reason()))?;
     if name.ends_with('=') || !name.starts_with(|c: char| c == '_' || unicode::letter(c)) {
-        return Err(Error::syntax(work, 0, "invalid host method name"));
+        return Err(host.error(key, HOST_METHOD_SPELLING));
     }
     Ok(())
 }

@@ -58,6 +58,7 @@ impl Frame {
                         if matches!(value.0, Kind::Host(_) | Kind::Function(_)) {
                             crate::capability::member_name(
                                 &crate::compilation::Meter(std::cell::RefCell::new(ctx)),
+                                crate::syntax::HostName::METHOD,
                                 key.require_bytes()?,
                                 value,
                             )?;

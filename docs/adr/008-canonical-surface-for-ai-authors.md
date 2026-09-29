@@ -367,6 +367,9 @@ host diagnostic labels are separate from published names. Opaque factory roots
 may declare one terminal suffix because they can return a callable descriptor;
 binding validates the name against the actual result and rejects data under a
 suffixed root. Such roots have an unsigned function declaration until binding.
+These are host configuration errors, `ErrorKind::Argument` naming the
+registration, never V0003: a host name has no position in the script being
+compiled, so a fix could only edit unrelated source.
 
 Bare aliases and both quoted and unquoted symbol aliases validate the new name
 and target before lookup. Operators and ordinary setters remain valid;
