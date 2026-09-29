@@ -570,11 +570,32 @@ impl<'a> super::Checker<'a> {
     /// Restores an enclosing memo [`Self::set_memo`] set aside, keeping
     /// what the inner one recorded when the enclosing one records too.
     pub(super) fn restore_memo(&mut self, outer: Option<super::Memo>) {
-        let inner = self.put_back_memo(outer);
-        if let (Some(inner), Some(outer)) = (inner, self.memo.0.as_mut()) {
-            if !outer.replay {
-                outer.types.extend(inner.types);
+        let Some(mut inner) = self.put_back_memo(outer) else {
+            return;
+        };
+        let Some(outer) = self.memo.0.as_mut().filter(|outer| !outer.replay) else {
+            return;
+        };
+        // The smaller table moves into the larger, so a type recorded deep
+        // in nested memos moves a logarithmic number of times rather than
+        // once a level. The inner memo's types win.
+        let swapped = inner.types.len() > outer.types.len();
+        if swapped {
+            std::mem::swap(&mut inner.types, &mut outer.types);
+        }
+        // Each type that moves is a step, and the table they move from is
+        // live beside the tables until they have.
+        self.meter.charge(inner.types.len() as u64);
+        self.transient(inner.bytes());
+        let Some(outer) = self.memo.0.as_mut() else {
+            return;
+        };
+        if swapped {
+            for (key, ty) in inner.types {
+                outer.types.entry(key).or_insert(ty);
             }
+        } else {
+            outer.types.extend(inner.types);
         }
     }
 
