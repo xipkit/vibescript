@@ -52,7 +52,7 @@ fn nominal_values_support_reflection_collections_and_serialization() {
         ("HTTPServer", "http_server"),
         ("__A__B__", "a_b_"),
         ("_", ""),
-        ("Ready?", "ready?"),
+        ("Ready", "ready"),
         ("İ", "i"),
         ("ΣState", "σ_state"),
         ("ǅState", "ǆ_state"),

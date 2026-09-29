@@ -258,3 +258,35 @@ runs of all 233,865 engine/parser cases preserve every first outcome, step count
 peak byte count and retained byte count. Existing quota drift is identical in
 the baseline and candidate; it is not caused by recovery. Raw audits are under
 `.cache/parse-recovery/` on the external volume.
+
+## Method name suffixes, 2026-09-28
+
+ADR-008 now reserves `?` and `!` for method names. V0003 rejects suffixes on
+bindings, nominal declarations and enum members, with a machine-applicable
+removal (or an underscore when removal would leave a keyword). Host globals
+follow the same rule. Hash and keyword labels retain their string keys;
+suffixed shorthand labels call methods. Optional type and block markers keep
+their meaning. Adjacent `!=` always compares, including after variable sigils.
+
+Rewrote 140 successful language sources and six rejection sources to remove
+suffixed bindings while preserving their observations. Shorthand-key fixtures
+use explicit values so their `"name?"` and `"name!"` keys stay unchanged.
+Fifteen tests specifically exercising forbidden names move from `language`
+to static rejections. Of the old syntax rejections containing adjacent `!=`,
+88 now compile and return nil (their functions declare no result), and 37
+now reach their independent type errors. Twelve remaining syntax fixtures
+record the new first diagnostic. Only 82 selected rejection records (including
+the 15 new records) and 44 selected parse observations were recorded.
+
+The 37,227-case mutation sweep changes 44 first errors: 43 report V0003, and
+one inserted `=` turns `.sub!(...)` into a `!=` comparison whose comma is
+invalid. Every other first error and acceptance is unchanged. The sweep's
+unfiltered exit is 1 because it intentionally flags these changes; the audit
+finds zero unexpected changes, panics, hangs, duplicate diagnostics or invalid
+spans. Raw inputs, outcomes and the audit are under `.cache/name-suffix/`.
+
+Counter log addendum: no existing stable runtime counters were re-recorded.
+Removed the 15 newly rejected language cases' counters and added counters for
+the 88 newly accepted comparisons. Paired runs of 127,420 successful cases
+preserve all stable counters; replay `call10334` reads the clock and retains its
+original record. Existing path and quota drift also occurs in the baseline.

@@ -26,6 +26,35 @@ pub(crate) const MAX_SOURCE: usize = 8 << 20;
 pub(crate) const TOO_DEEP: &str = "syntax nesting too deep";
 const ADJACENT_EXPRESSIONS: &str = "adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements";
 
+/// Reports an invalid name suffix with a repair that preserves keyword legality.
+pub(crate) fn name_suffix_error(work: &dyn Work, source: &str, offset: usize) -> Error {
+    use crate::diagnostic::{Code, Diagnostic, Fix, Span};
+    let message = "only method names may end in `?` or `!`; remove the suffix from this name";
+    let span = Span::new(offset, offset + 1);
+    let start = source[..offset]
+        .rfind(|c: char| c != '_' && !unicode::letter_or_digit(c))
+        .map_or(0, |i| i + source[i..].chars().next().unwrap().len_utf8());
+    let (label, replacement) = if reserved(&source[start..offset]) {
+        ("replace the name suffix with an underscore", "_")
+    } else {
+        ("remove the name suffix", "")
+    };
+    let diagnostic = Diagnostic::error(Code::NAME_SUFFIX, span, message).with_fix(Fix::replace(
+        label,
+        span,
+        replacement,
+    ));
+    Error::syntax(work, offset, message).with_diagnostic(diagnostic)
+}
+
+/// Checks a host binding against the same suffix rule as source bindings.
+pub(crate) fn binding_name(name: &str) -> Result<()> {
+    if let Some(offset) = name.find(['?', '!']) {
+        return Err(name_suffix_error(&(), name, offset));
+    }
+    Ok(())
+}
+
 #[derive(Debug)]
 pub(crate) struct Expr {
     pub node: Node,
@@ -2046,6 +2075,9 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
             let Token::Word(name) = p.bump()? else {
                 unreachable!()
             };
+            if name.chars().next().is_some_and(unicode::upper) {
+                p.binding_name(&name, p.tokens[p.pos - 1].offset)?;
+            }
             (Name::new(work, &name)?, p.take_p('('))
         };
         let args = if parenthesized {
@@ -2538,6 +2570,10 @@ impl<'a> Parser<'a> {
     }
     /// A lexer diagnostic that Go reports in place of any expectation at `index`.
     fn diagnostic(&self, index: usize) -> Option<Error> {
+        let token = &self.tokens[index];
+        if token.token == Token::P('?') && self.source.as_bytes().get(token.end) == Some(&b'=') {
+            return Some(self.name_suffix_error(token.offset));
+        }
         match &self.tokens[index].token {
             Token::Invalid(invalid) if invalid.failure == Failure::Diagnostic => Some(
                 Error::syntax(self.work, invalid.offset, invalid.message.as_str()),
@@ -2572,6 +2608,12 @@ impl<'a> Parser<'a> {
         ))
     }
     fn bump(&mut self) -> Result<Token<'a>> {
+        if let Token::Word(name) = self.token() {
+            let offset = self.tokens[self.pos].offset;
+            if name.starts_with('@') {
+                self.binding_name(name, offset)?;
+            }
+        }
         self.work
             .bytes(self.tokens[self.pos].end - self.tokens[self.pos].offset)?;
         let t = self.token().copy(self.work)?;
@@ -2716,9 +2758,16 @@ impl<'a> Parser<'a> {
         Ok(Some(name))
     }
     fn name(&mut self) -> Result<Name> {
+        if let Token::Word(name) = self.token() {
+            self.binding_name(name, self.tokens[self.pos].offset)?;
+        }
+        self.method_name()
+    }
+    fn method_name(&mut self) -> Result<Name> {
         self.work.charge(1)?;
         let offset = self.tokens[self.pos].offset;
         if let Token::Word(w) = self.bump()? {
+            self.method_spelling(&w, offset)?;
             if reserved(&w) {
                 return Err(Error::syntax(self.work, offset, "reserved name"));
             }
@@ -2726,6 +2775,23 @@ impl<'a> Parser<'a> {
         } else {
             Err(Error::syntax(self.work, offset, "expected name"))
         }
+    }
+    fn binding_name(&self, name: &str, offset: usize) -> Result<()> {
+        if let Some(suffix) = name.find(['?', '!']) {
+            return Err(self.name_suffix_error(offset + suffix));
+        }
+        Ok(())
+    }
+    fn method_spelling(&self, name: &str, offset: usize) -> Result<()> {
+        if let Some(suffix) = name.find(['?', '!'])
+            && suffix + 1 < name.len()
+        {
+            return Err(self.name_suffix_error(offset + suffix));
+        }
+        Ok(())
+    }
+    fn name_suffix_error(&self, offset: usize) -> Error {
+        name_suffix_error(self.work, self.source, offset)
     }
     fn enter(&mut self) -> Result<()> {
         self.work.charge(1)?;
@@ -2748,17 +2814,26 @@ impl<'a> Parser<'a> {
     fn declare_target(&mut self, target: &Target) -> Result<()> {
         self.work.charge(1)?;
         let mut names = Buffer::new();
+        let mut invalid = None;
         target.parts(|part, _| {
             if let Target::Value(Expr {
                 node: Node::Var(name),
+                offset,
                 ..
             }) = part
             {
+                if let Err(error) = self.binding_name(name, *offset as usize) {
+                    invalid = Some(error);
+                    return false;
+                }
                 names.push(self.work, name.clone()).is_ok()
             } else {
                 true
             }
         });
+        if let Some(error) = invalid {
+            return Err(error);
+        }
         for name in names {
             self.work.charge(1)?;
             self.declared_it |= name == "it";
@@ -2966,6 +3041,7 @@ impl<'a> Parser<'a> {
     /// Reads the name just consumed. Like Go, a variable sigil at the end of
     /// input names nothing.
     fn variable_name(&self, name: &str) -> Result<Expr> {
+        self.method_spelling(name, self.tokens[self.pos - 1].offset)?;
         if matches!(name, "@" | "@@") {
             let (expected, got) = if name == "@" {
                 ("instance variable name", "instance variable")
@@ -3355,6 +3431,11 @@ impl<'a> Parser<'a> {
         if self.take_p('[') {
             return Ok(Some(Suffix::Index(offset)));
         }
+        if self.token() == &Token::P('?')
+            && let Some(error) = self.diagnostic(self.pos)
+        {
+            return Err(error);
+        }
         if min <= 2 && self.take_p('?') {
             return Ok(Some(Suffix::Ternary(offset)));
         }
@@ -3381,6 +3462,7 @@ impl<'a> Parser<'a> {
         match self.token() {
             Token::Word(name) if !name.starts_with('@') => {
                 let name = *name;
+                self.method_spelling(&name, self.tokens[self.pos].offset)?;
                 self.bump()?;
                 Name::new(self.work, &name)
             }

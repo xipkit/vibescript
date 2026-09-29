@@ -132,7 +132,7 @@ fn literal_fallback_uses_bound_names_and_current_lexical_scopes() {
         serde_json::json!([[[7,{"x":7}]]])
     );
     assert_eq!(
-        evaluate("string?=9;[identity(string?),\"#{{x:string?}}\"]"),
+        evaluate("string_=9;[identity(string_),\"#{{x:string?}}\"]"),
         serde_json::json!([9, "<Shape { x: string? }>"])
     );
     let mut engine = Engine::new();

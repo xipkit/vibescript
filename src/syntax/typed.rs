@@ -208,6 +208,7 @@ impl Parser<'_> {
             unreachable!()
         };
         let written = word.strip_suffix('?').unwrap_or(&word);
+        self.binding_name(written, at)?;
         if written.is_empty() || super::keyword(written) || written.ends_with(['?', '!']) {
             return Err(Error::syntax(work, at, "expected block parameter name"));
         }

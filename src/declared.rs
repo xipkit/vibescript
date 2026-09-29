@@ -48,6 +48,7 @@ pub(crate) struct RetainedSource {
 impl Declaration {
     /// A global of the annotation `ty`, or of any type when `ty` is empty.
     pub fn global(name: &str, ty: &str) -> Result<Self> {
+        crate::syntax::binding_name(name)?;
         if ty.trim().is_empty() {
             return Ok(Self {
                 item: constant(name, signatures::Type::name("any")),
@@ -84,12 +85,16 @@ impl Declaration {
     pub fn capability(capability: &Capability) -> Result<Self> {
         let name = capability.name.as_str();
         let Some(template) = capability.template() else {
+            crate::syntax::binding_name(name)?;
             return Ok(Self {
                 item: constant(name, signatures::Type::name("any")),
                 capability: true,
                 shape: Shape::Value(None),
             });
         };
+        if !matches!(template.0, Kind::Host(_)) {
+            crate::syntax::binding_name(name)?;
+        }
         Ok(Self {
             item: signatures::host::binding(name, template),
             capability: true,

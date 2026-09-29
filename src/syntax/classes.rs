@@ -34,7 +34,7 @@ impl Parser<'_> {
         self.pos = self.significant(self.pos);
         if self.tokens[self.pos].line == line {
             if self.ident(self.pos) {
-                return self.name();
+                return self.method_name();
             }
             if let Some(name) = self.symbol_name()? {
                 return Ok(name);

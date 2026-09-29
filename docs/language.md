@@ -58,6 +58,29 @@ pattern = /id-([0-9]+)/i      # regex
 
 Strings are immutable byte strings, usually UTF-8, and character positions count Unicode code points. Integers never overflow; they grow as needed. Floats that are whole numbers print without a fractional part, so `p 3.0` prints `3`.
 
+## Names
+
+Names begin with a Unicode letter or `_` and continue with letters, digits or
+underscores. Only method names may end in one `?` or `!`: definitions such as
+`def ok?` and `def save!`, calls such as `ok?`, `user.valid?` and
+`list&.empty?`, and symbols such as `:ok?`. Calls with arguments may omit
+parentheses: `valid? user`. Locals, parameters, constants, instance variables,
+class variables and host globals have no suffix. `READY? = 1`, `x! = 3`,
+`@done? = true` and `def f(ok?: bool)` report V0003 with a fix removing the
+suffix.
+
+A suffix immediately followed by a single `=` is never part of a name:
+`a!=b` always compares `a` and `b`, and `x?=y` reports V0003. Before `==` or
+`=~`, the suffix remains part of the method name: `ok?==true` calls `ok?`
+and compares its result with `true`.
+
+Hash and keyword labels are string keys, so `{ ready?: true }` has the key
+`"ready?"`, and `f(ready?: true)` passes that key to `**options`. The shorthand
+`{ ready?: }` calls the method `ready?`; use `{ ready?: ready }` to read a
+local. In type syntax, `T?`, the optional
+shape field `ready?: bool`, and `&block?:` use `?` as an optional marker; it
+is not part of the type, field or block parameter name.
+
 ## Types
 
 | Type | Meaning |

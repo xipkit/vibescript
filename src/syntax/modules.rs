@@ -211,7 +211,7 @@ impl Parser<'_> {
             if !self.ident(self.pos) {
                 return self.expected(Label::Text("identifier"));
             }
-            return Ok((self.name()?, true, false));
+            return Ok((self.method_name()?, true, false));
         }
         let operator = match self.token() {
             Token::Op(
@@ -241,7 +241,7 @@ impl Parser<'_> {
         if !self.ident(self.pos) {
             return self.expected(Label::Text("function name"));
         }
-        Ok((self.name()?, false, false))
+        Ok((self.method_name()?, false, false))
     }
 }
 

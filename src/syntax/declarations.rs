@@ -501,6 +501,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             let Token::Word(word) = p.bump()? else {
                 unreachable!()
             };
+            p.binding_name(&word, offset)?;
             let name = Name::new(work, word.strip_prefix('@').unwrap_or(&word))?;
             (kind, name, instance, offset)
         };
@@ -684,6 +685,7 @@ impl Parser<'_> {
             let Token::Word(member) = self.bump()? else {
                 unreachable!()
             };
+            self.binding_name(&member, member_offset)?;
             let member = Name::new(work, &member)?;
             if seen.insert(work, member.clone(), ())?.is_some() {
                 return Err(Error::syntax(

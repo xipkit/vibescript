@@ -98,6 +98,7 @@ macro_rules! registry {
 registry! {
     SYNTAX = 1, "syntax", "The source does not parse.";
     HASH_ARGUMENT = 2, "hash-argument", "A hash literal is passed to a call without parentheses, where `{` after the call starts a block; the call's arguments need parentheses.";
+    NAME_SUFFIX = 3, "name-suffix", "Only method names may end in `?` or `!`; bindings never have a suffix.";
 
     TYPE_MISMATCH = 101, "type-mismatch", "A value's type is not assignable to the type its position expects.";
     LOCAL_TYPE_CHANGED = 102, "local-type-changed", "A local is assigned a value of a type other than the one its first assignment fixed.";

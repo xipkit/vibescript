@@ -265,3 +265,5 @@ fn every_root_test_file_is_registered() {
 
 #[path = "memory_modules.rs"]
 mod memory_modules;
+#[path = "name_suffix.rs"]
+mod name_suffix;

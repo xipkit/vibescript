@@ -336,3 +336,19 @@ from other files, cannot replace the function the checker resolved. The rule
 is independent of call syntax, visibility and nesting. Historical
 `same_name_call_*` golden observations intentionally change where they
 recorded lookup in the requiring script or an undefined-name error.
+
+## Addendum: method name suffixes (2026-09-28)
+
+Only method names may end in one `?` or `!`: definitions, calls (including
+safe navigation and parenless calls), aliases and symbols naming methods.
+Bindings, constants, nominal declarations and variables never take a suffix;
+V0003 offers its removal. Immediately before a single `=`, neither character
+is a suffix: `a!=b` compares, and `x?=y` is rejected. Before `==` or `=~`,
+the suffix remains part of the method name.
+
+Hash and keyword labels keep suffixes because they spell string keys, not
+bindings. A suffixed shorthand label calls the method with that name;
+an explicit value can read a local instead. Optional type, shape-field and block markers keep
+their existing meaning and do not become part of a name. This removes the
+whitespace-dependent accidental assignment in `a!=b` without changing method
+calls or string keys.
