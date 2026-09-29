@@ -69,12 +69,13 @@ class variables and host data globals have no suffix. `READY? = 1`, `x! = 3`,
 `@done? = true` and `def f(ok?: bool)` report V0003 with a fix removing the
 suffix. Where removal would leave a keyword, as in `nil? = 1`, the fix writes
 `nil_` instead. A `?` or `!` inside a name, as in `x?1`, is not a suffix:
-V0003 reports it without a fix, since removing it could name something else.
-A scoped call such as `M::ok?` keeps its V0416 fix, `M.ok?`. The fix for a
+V0003 reports it without a fix, since removing it could name something else. A
+scoped call such as `M::ok?` keeps its V0416 fix, `M.ok?`. The fix for a
 binding renames it wherever it is used: every place that binds it and every
-read of it in scope, so one fix, or one `vibes fix` run, migrates it whole. A
-suffixed name that no suffixed binding owns, such as a call of a host's
-`ready?`, is never renamed.
+read of it in scope, and for a class's, module's or enum's constant also its
+scoped reads in the file, such as `C::LIMIT!`, so one fix, or one `vibes fix`
+run, migrates it whole. A suffixed name that no suffixed binding owns, such as
+a call of a host's `ready?`, is never renamed.
 
 Member assignment targets also have no suffix: `h.ready? = 1`, compound
 updates such as `h.ready! += 1`, and destructuring targets report V0003.

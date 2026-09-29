@@ -1288,3 +1288,39 @@ fn reads_that_no_suffixed_binding_owns_are_never_renamed() {
         "ready = true; { ready?: 1 }"
     );
 }
+
+#[test]
+fn constant_fixes_rename_scoped_reads_of_their_namespace() {
+    for (source, fixed, value) in [
+        (
+            "class C; LIMIT! = 3; end; C::LIMIT!",
+            "class C; LIMIT = 3; end; C::LIMIT",
+            "3",
+        ),
+        (
+            "module M; READY? = true; end; M::READY?",
+            "module M; READY = true; end; M::READY",
+            "true",
+        ),
+        (
+            "enum State; Ready?; end; State::Ready? == State::Ready?",
+            "enum State; Ready; end; State::Ready == State::Ready",
+            "true",
+        ),
+        (
+            "class C; LIMIT! = 3; def f -> int; C::LIMIT! + LIMIT!; end; end; C.new.f",
+            "class C; LIMIT = 3; def f -> int; C::LIMIT + LIMIT; end; end; C.new.f",
+            "6",
+        ),
+    ] {
+        assert_eq!(first_fix(source), fixed, "{source}");
+        assert_eq!(migrate(source), fixed, "{source}");
+        assert_eq!(run(fixed), value, "{fixed}");
+    }
+    // Only the declaring namespace's scoped reads are renamed.
+    let source = "class C; LIMIT! = 3; end\nclass D; def self.LIMIT! -> int; 4; end; end\n[C::LIMIT!, D.LIMIT!]";
+    assert_eq!(
+        first_fix(source),
+        "class C; LIMIT = 3; end\nclass D; def self.LIMIT! -> int; 4; end; end\n[C::LIMIT, D.LIMIT!]"
+    );
+}

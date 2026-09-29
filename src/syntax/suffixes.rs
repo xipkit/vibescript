@@ -1,7 +1,8 @@
 //! Where V0003's rename of a suffixed binding reaches. A binding such as
 //! `ok? = true` or `def f(list!: array<int>)` is reported at its suffix, and
 //! the fix renames the binding everywhere it is used: each place that binds
-//! it and each read of it in scope. A read counts only where the parser's
+//! it and each read of it in scope, including scoped reads of a namespace's
+//! constant, such as `Limits::MAX!`. A read counts only where the parser's
 //! scope says the name is that binding, so a suffixed method that merely
 //! shares the name, such as a host's `ready?`, is never renamed.
 //!
@@ -9,7 +10,7 @@
 //! bindings, as the grammar did before ADR-008, and tracks each binding
 //! through the parser's own scopes.
 
-use super::{Error, Parser, Result, Work, name_suffix_position};
+use super::{Error, Name, Parser, Result, Work, name_suffix_position};
 use crate::{
     compilation::Buffer,
     diagnostic::{Code, Edit, Fix, Span},
@@ -27,23 +28,45 @@ pub(super) fn lenient() -> bool {
     LENIENT.with(Cell::get)
 }
 
+/// A suffixed binding: its name, and the namespace whose body declares it,
+/// which a scoped read names.
+struct Binding {
+    name: Name,
+    namespace: Option<Name>,
+}
+
 /// The uses of suffixed bindings a lenient parse records, each at the
 /// offset of the name's first `?` or `!`.
 #[derive(Default)]
 pub(super) struct Uses {
-    /// How many bindings there are; each has its index plus one as its id.
-    bindings: u32,
-    /// Where each binding is bound, with its id.
+    bindings: Buffer<Binding>,
+    /// Where each binding is bound, with its id: its index plus one.
     sites: Buffer<(u32, u32)>,
     /// Where each binding is read, with its id.
     reads: Buffer<(u32, u32)>,
+    /// Scoped reads, `Scope::NAME?`, by the scope and the name.
+    scoped: Buffer<(u32, Name, Name)>,
 }
 
 impl Uses {
-    fn binding(&mut self, work: &dyn Work, at: u32) -> Result<u32> {
-        self.bindings = self.bindings.saturating_add(1);
-        self.sites.push(work, (at, self.bindings))?;
-        Ok(self.bindings)
+    fn binding(
+        &mut self,
+        work: &dyn Work,
+        name: &str,
+        namespace: Option<&Name>,
+        at: u32,
+    ) -> Result<u32> {
+        let namespace = namespace.map(|name| Name::new(work, name)).transpose()?;
+        self.bindings.push(
+            work,
+            Binding {
+                name: Name::new(work, name)?,
+                namespace,
+            },
+        )?;
+        let id = u32::try_from(self.bindings.len()).unwrap_or(u32::MAX);
+        self.sites.push(work, (at, id))?;
+        Ok(id)
     }
 }
 
@@ -74,8 +97,18 @@ impl Parser<'_> {
                 uses.sites.push(self.work, (suffix, id))?;
                 Ok(id)
             }
-            _ => uses.binding(self.work, suffix),
+            _ => uses.binding(self.work, name, self.namespace.as_ref(), suffix),
         }
+    }
+
+    /// Records a binding that is not a local, such as an enum member, which
+    /// scoped reads of `namespace` reach.
+    pub(super) fn member_binding(&self, name: &str, at: usize, namespace: &Name) -> Result<()> {
+        if let (true, Some(suffix)) = (lenient(), suffix_at(self.source, name, at)) {
+            let mut uses = self.suffixed.borrow_mut();
+            uses.binding(self.work, name, Some(namespace), suffix)?;
+        }
+        Ok(())
     }
 
     /// Records the bare read of `name`, just consumed, when it is a
@@ -95,6 +128,23 @@ impl Parser<'_> {
                 .borrow_mut()
                 .reads
                 .push(self.work, (suffix, id))?;
+        }
+        Ok(())
+    }
+
+    /// Records the scoped read of `name`, just consumed, in `scope`.
+    pub(super) fn scoped_suffix_read(&self, scope: Option<&Name>, name: &str) -> Result<()> {
+        let Some(scope) = scope.filter(|_| lenient()) else {
+            return Ok(());
+        };
+        let at = self.tokens[self.pos - 1].offset;
+        if let Some(suffix) = suffix_at(self.source, name, at) {
+            let entry = (
+                suffix,
+                Name::new(self.work, scope)?,
+                Name::new(self.work, name)?,
+            );
+            self.suffixed.borrow_mut().scoped.push(self.work, entry)?;
         }
         Ok(())
     }
@@ -157,7 +207,7 @@ fn extended(
     diagnostics: &[crate::diagnostic::Diagnostic],
     renames: impl Fn(&crate::diagnostic::Diagnostic) -> bool,
 ) -> Result<Vec<crate::diagnostic::Diagnostic>> {
-    work.charge(uses.sites.len() + uses.reads.len())?;
+    work.charge(uses.sites.len() + uses.reads.len() + uses.scoped.len())?;
     let mut out = Vec::with_capacity(diagnostics.len());
     for diagnostic in diagnostics {
         let mut diagnostic = diagnostic.clone();
@@ -174,6 +224,7 @@ fn extended(
             out.push(diagnostic);
             continue;
         };
+        let binding = &uses.bindings[id as usize - 1];
         let mut positions: Vec<u32> = uses
             .sites
             .iter()
@@ -181,6 +232,14 @@ fn extended(
             .filter(|(_, other)| *other == id)
             .map(|(position, _)| *position)
             .collect();
+        if let Some(namespace) = &binding.namespace {
+            positions.extend(
+                uses.scoped
+                    .iter()
+                    .filter(|(_, scope, name)| scope == namespace && *name == binding.name)
+                    .map(|(position, ..)| *position),
+            );
+        }
         work.charge(positions.len())?;
         positions.sort_unstable();
         positions.dedup();

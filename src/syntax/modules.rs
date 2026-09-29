@@ -256,7 +256,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
     pub(super) async fn function(&self, constants: bool) -> Result<Function> {
         let _scope = self.recovery_scope()?;
         let work = self.p().work;
-        let (offset, def_line, name, class_method, outer_locals, outer_it) = {
+        let (offset, def_line, name, class_method, outer_locals, outer_it, outer_namespace) = {
             let mut p = self.p();
             work.charge(1)?;
             let offset = p.tokens[p.pos].offset as u32;
@@ -291,7 +291,17 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 }
             }
             let outer_it = std::mem::replace(&mut p.declared_it, false);
-            (offset, def_line, name, class_method, outer_locals, outer_it)
+            // A function's locals are no namespace's constants.
+            let outer_namespace = p.namespace.take();
+            (
+                offset,
+                def_line,
+                name,
+                class_method,
+                outer_locals,
+                outer_it,
+                outer_namespace,
+            )
         };
         let (parenthesized, bare) = {
             let p = self.p();
@@ -380,6 +390,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let mut p = self.p();
         p.note(super::record::Record::leave_function);
         p.locals = outer_locals;
+        p.namespace = outer_namespace;
         p.declared_it = outer_it;
         p.block_name = outer_block;
         Ok(Function {
@@ -401,7 +412,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
     pub(super) async fn class_like(&self, module: bool) -> Result<Module> {
         let _scope = self.recovery_scope()?;
         let work = self.p().work;
-        let (mut class, outer_locals, outer_it, outer_class) = {
+        let (mut class, outer_locals, outer_it, outer_class, outer_namespace) = {
             let mut p = self.p();
             work.charge(1)?;
             let offset = p.tokens[p.pos].offset as u32;
@@ -429,6 +440,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             }
             p.enter()?;
             let outer_locals = std::mem::take(&mut p.locals);
+            let outer_namespace = p.namespace.replace(name.clone());
             let outer_it = std::mem::replace(&mut p.declared_it, false);
             let outer_class = std::mem::replace(&mut p.inside_class, true);
             p.nesting += 1;
@@ -446,7 +458,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 aliases: Buffer::new(),
                 depth: 1,
             };
-            (class, outer_locals, outer_it, outer_class)
+            (class, outer_locals, outer_it, outer_class, outer_namespace)
         };
         let mut section = Visibility::Public;
         let mut pending = None;
@@ -658,6 +670,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         p.expect_word("end")?;
         p.check_depth(class.depth, class.offset)?;
         p.locals = outer_locals;
+        p.namespace = outer_namespace;
         p.declared_it = outer_it;
         p.depth -= 1;
         Ok(class)

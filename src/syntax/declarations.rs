@@ -687,6 +687,7 @@ impl Parser<'_> {
                 unreachable!()
             };
             self.binding_name(&member, member_offset)?;
+            self.member_binding(&member, member_offset, &name)?;
             let member = Name::new(work, &member)?;
             if seen.insert(work, member.clone(), ())?.is_some() {
                 return Err(Error::syntax(

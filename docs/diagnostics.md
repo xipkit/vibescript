@@ -8,7 +8,7 @@ For V0107, bind an optional read to a local and test that local with `!= nil`. A
 
 V0201 adds a note for common Ruby, Python, JavaScript and Go names: `len(x)` uses `x.length`, `fmt.Sprintf(pattern, ...)` uses `format(pattern, ...)`, and `strings.ToLower(text)` uses `text.downcase`. These notes are related `labels` in JSON diagnostics. They apply only when the name is undefined; scripts and hosts may still declare these names. The curated table lives in `src/typing/foreign.rs`. Most entries offer advice only because argument conventions, conversion failures or formatting behavior can differ. `len` with one positional argument of a known array, tuple, dictionary or record type offers a machine-applicable `length` edit; strings get a note because character and byte counts differ between languages.
 
-V0003's fix for a suffixed binding renames every place that binds it and every read of it in scope, written `nil_` where the name is a keyword, so one fix migrates the binding. It never renames a name that no suffixed binding owns: an undefined `ready?`, such as a host function the check cannot see, keeps its V0201 without a fix.
+V0003's fix for a suffixed binding renames every place that binds it and every read of it in scope, written `nil_` where the name is a keyword, so one fix migrates the binding. For a constant or enum member it also renames the scoped reads in the file that name its class, module or enum, such as `C::LIMIT!`. It never renames a name that no suffixed binding owns: an undefined `ready?`, such as a host function the check cannot see, keeps its V0201 without a fix.
 
 ## Execution failures
 
