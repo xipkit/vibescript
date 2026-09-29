@@ -666,3 +666,102 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod budget_tests {
+    use crate::{CancellationToken, compilation::Budget};
+
+    /// Checks `source` within `budget`.
+    fn checked(source: &str, budget: Budget) -> super::super::Checked {
+        let (parsed, tokens) = crate::syntax::parse_with_tokens(source, &()).unwrap();
+        let declared = crate::declared::Declarations::new();
+        super::super::check(&super::super::Input {
+            source,
+            parsed: &parsed,
+            tokens: &tokens,
+            hosts: Vec::new(),
+            declared: &declared,
+            file: false,
+            origin: None,
+            modules: None,
+            budget,
+            observe: None,
+        })
+    }
+
+    /// Nested `begin`s around assignments of distinct locals, each narrowed
+    /// before them: every level's rescue and ensure forget what the levels
+    /// inside assign, so checking takes work proportional to the depth
+    /// times the locals.
+    fn nested_begins(levels: usize, locals: usize) -> String {
+        let mut source: String = (0..locals).map(|i| format!("x{i}: int? = 1\n")).collect();
+        source.push_str(&"begin\n".repeat(levels));
+        source.extend((0..locals).map(|i| format!("x{i} = nil\n")));
+        source.push_str(&"rescue\nc = 1\nensure\nc = 2\nend\n".repeat(levels));
+        source
+    }
+
+    /// Two unions of shapes with optional fields, which a value of one may
+    /// fit in any alternative of the other, so relating them in the first
+    /// assignment compares every pair.
+    fn loose_unions(arms: usize) -> String {
+        let union = |prefix: &str, extra: &str| {
+            (0..arms)
+                .map(|i| format!("{{{prefix}{i}?: int{extra}}}"))
+                .collect::<Vec<_>>()
+                .join(" | ")
+        };
+        format!(
+            "type A = {}\ntype B = {}\ndef f(x: A, y: B?) -> B?\n  z: A? = x\n  y\nend\ndef g(x: A) -> B\n  x\nend\n",
+            union("a", ""),
+            union("b", ", x: int")
+        )
+    }
+
+    #[test]
+    fn the_check_stops_within_its_budget() {
+        for source in [nested_begins(60, 300), loose_unions(200)] {
+            let full = checked(&source, Budget::default());
+            assert!(!full.stopped);
+            // A step quota stops the check within a statement's or a type
+            // operation's work of it, long before the check would end.
+            let quota = full.steps / 10;
+            let stopped = checked(
+                &source,
+                Budget {
+                    steps: Some(quota),
+                    ..Budget::default()
+                },
+            );
+            assert!(stopped.stopped);
+            assert!(
+                stopped.steps < 2 * quota,
+                "{} steps for a quota of {quota}",
+                stopped.steps
+            );
+            // A deadline that has passed, or a cancellation, stops it at
+            // its first poll.
+            let cancellation = CancellationToken::new();
+            cancellation.cancel();
+            for budget in [
+                Budget {
+                    deadline: Some(std::time::Instant::now()),
+                    ..Budget::default()
+                },
+                Budget {
+                    cancellation: Some(cancellation),
+                    ..Budget::default()
+                },
+            ] {
+                let stopped = checked(&source, budget);
+                assert!(stopped.stopped);
+                assert!(
+                    stopped.steps < full.steps / 100,
+                    "{} steps of {}",
+                    stopped.steps,
+                    full.steps
+                );
+            }
+        }
+    }
+}

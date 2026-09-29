@@ -420,61 +420,44 @@ fn type_checking_stops_at_the_compile_budget() {
     };
     let source = nested_begins(levels, locals);
     let engine = Engine::new();
-    let started = Instant::now();
     let checked = engine.type_check(&source).unwrap();
-    let full = started.elapsed();
     assert!(checked.steps > 4 * Limits::default().steps.unwrap());
-    // The default step quota stops the check, well before it would finish.
-    let started = Instant::now();
+    // The default step quota fails the compilation, and so do a deadline
+    // that has passed and a cancellation without one. That the check
+    // itself stops within its budget's work, long before it would end, is
+    // measured in steps by the checker's own tests rather than by a clock.
+    assert_compile_stops(&engine, &source);
+}
+
+/// Compiles `source` under the default step quota, which it must pass,
+/// and without a step quota once its deadline has passed and once it is
+/// cancelled, each failing with its own error.
+fn assert_compile_stops(engine: &Engine, source: &str) {
     let error = engine
-        .compile_with_options(&source, &CallOptions::default())
+        .compile_with_options(source, &CallOptions::default())
         .err()
         .unwrap();
     assert_eq!(error.kind, ErrorKind::Steps, "{error}");
-    assert!(
-        started.elapsed() < full / 2,
-        "{:?} with a quota, {full:?} without",
-        started.elapsed()
-    );
-    // So do a deadline and cancellation, without a step quota.
     let unlimited = Limits {
         steps: None,
         ..Limits::default()
     };
-    let started = Instant::now();
     let options = CallOptions {
         limits: unlimited.clone(),
-        deadline: Some(started + full / 10),
+        deadline: Some(Instant::now()),
         ..CallOptions::default()
     };
-    let error = engine
-        .compile_with_options(&source, &options)
-        .err()
-        .unwrap();
+    let error = engine.compile_with_options(source, &options).err().unwrap();
     assert_eq!(error.kind, ErrorKind::Deadline, "{error}");
-    assert!(started.elapsed() < full / 2);
-    // WASI has no threads to cancel from.
-    if cfg!(target_os = "wasi") {
-        return;
-    }
     let cancellation = CancellationToken::new();
+    cancellation.cancel();
     let options = CallOptions {
         limits: unlimited,
-        cancellation: cancellation.clone(),
+        cancellation,
         ..CallOptions::default()
     };
-    let started = Instant::now();
-    let canceller = std::thread::spawn(move || {
-        std::thread::sleep(full / 10);
-        cancellation.cancel();
-    });
-    let error = engine
-        .compile_with_options(&source, &options)
-        .err()
-        .unwrap();
-    canceller.join().unwrap();
+    let error = engine.compile_with_options(source, &options).err().unwrap();
     assert_eq!(error.kind, ErrorKind::Cancelled, "{error}");
-    assert!(started.elapsed() < full / 2);
 }
 
 /// Two unions of shapes with optional fields, which a value of one may fit
@@ -497,37 +480,11 @@ fn loose_unions(arms: usize) -> String {
 fn type_operations_stop_at_the_compile_budget() {
     let source = loose_unions(1_000);
     let engine = Engine::new();
-    let started = Instant::now();
     let checked = engine.type_check(&source).unwrap();
-    let full = started.elapsed();
     assert!(checked.steps > 2 * Limits::default().steps.unwrap());
-    // The step quota stops the comparison inside one assignment.
-    let started = Instant::now();
-    let error = engine
-        .compile_with_options(&source, &CallOptions::default())
-        .err()
-        .unwrap();
-    assert_eq!(error.kind, ErrorKind::Steps, "{error}");
-    assert!(
-        started.elapsed() < full,
-        "{:?} with a quota, {full:?} without",
-        started.elapsed()
-    );
-    let started = Instant::now();
-    let options = CallOptions {
-        limits: Limits {
-            steps: None,
-            ..Limits::default()
-        },
-        deadline: Some(started + full / 10),
-        ..CallOptions::default()
-    };
-    let error = engine
-        .compile_with_options(&source, &options)
-        .err()
-        .unwrap();
-    assert_eq!(error.kind, ErrorKind::Deadline, "{error}");
-    assert!(started.elapsed() < full);
+    // The step quota stops the comparison inside one assignment, as the
+    // checker's own tests measure.
+    assert_compile_stops(&engine, &source);
 }
 
 #[test]
