@@ -3350,8 +3350,9 @@ impl Gen {
         })
     }
 
-    /// A `begin` whose `rescue` retries it: narrowing from before it must
-    /// not survive the rescue's assignment when it runs again. In the
+    /// A `begin` whose `rescue` retries it, directly or from the body,
+    /// `else` or ensure of a `begin` nested there: narrowing from before it
+    /// must not survive the rescue's assignment when it runs again. In the
     /// unsound form the body relies on it.
     fn retry_flow(&mut self, env: &mut Env, unsound: bool) {
         let count = self.name("n");
@@ -3381,7 +3382,26 @@ impl Gen {
         self.line("rescue");
         self.indent += 1;
         self.line(format!("{value} = nil"));
-        self.line(format!("retry if {count} < 3"));
+        if self.rng.chance(30) {
+            // A nested `begin` rescuing its own error, whose `retry` reruns
+            // only it.
+            let tries = self.name("k");
+            self.line(format!(
+                "{tries} = 0\nbegin\n  {tries} += 1\n  raise \"inner\" if {tries} < 2\nrescue\n  retry\nend"
+            ));
+            env.locals.push(Local::typed(tries, Ty::Int));
+        }
+        // A `retry` in a nested `begin`'s body, `else` or ensure reruns
+        // this one, since the nested one is not rescuing then.
+        let again = format!("retry if {count} < 3");
+        let placed = match self.rng.below(5) {
+            0 => again,
+            1 => format!("begin\n  p(0)\nensure\n  {again}\nend"),
+            2 => format!("begin\n  {again}\nrescue ArgumentError\n  p(1)\nend"),
+            3 => format!("begin\n  p(0)\nrescue\n  p(1)\nelse\n  {again}\nend"),
+            _ => format!("if {count} < 3\n  begin\n    retry\n  ensure\n    p(2)\n  end\nend"),
+        };
+        self.line(placed);
         self.indent -= 1;
         self.line("end");
         self.indent -= 1;
