@@ -8,7 +8,7 @@ use super::{
     flow::{Branch, VarState},
     program::{FnId, NsId},
     sigs,
-    ty::{Field, Kind, Ty},
+    ty::{Field, Kind, Ty, Types},
 };
 use crate::{
     diagnostic::{Code, Diagnostic, Edit, Fix, Span},
@@ -90,7 +90,7 @@ impl<'a> Checker<'a> {
                     return None;
                 };
                 let key = key.as_bytes()?;
-                fields.iter().find(|field| field.name.as_bytes() == key)?.ty
+                Types::field(fields, key)?.ty
             }
             _ => return None,
         };
@@ -515,9 +515,9 @@ impl<'a> Checker<'a> {
                 continue;
             };
             let has = |name: &str| entries.iter().any(|(key, _)| name.as_bytes() == &key[..]);
-            let keys_fit = entries.iter().all(|(key, _)| {
-                *open || fields.iter().any(|field| field.name.as_bytes() == &key[..])
-            });
+            let keys_fit = entries
+                .iter()
+                .all(|(key, _)| *open || Types::field(fields, key).is_some());
             if !keys_fit
                 || fields
                     .iter()
@@ -618,7 +618,7 @@ impl<'a> Checker<'a> {
                 let mut actual = Vec::new();
                 for (key, entry) in entries {
                     let key = String::from_utf8_lossy(key).into_owned();
-                    match fields.iter().find(|field| *field.name == *key) {
+                    match Types::field(&fields, key.as_bytes()) {
                         Some(field) => {
                             let ty =
                                 self.expr_against(entry, field.ty, &Purpose::Field(key.clone()));
@@ -1304,7 +1304,7 @@ impl<'a> Checker<'a> {
             (Kind::Shape(fields, open), [selector]) => {
                 let key = self.expr(selector, Some(Ty::STRING));
                 match string_literal(selector) {
-                    Some(name) => match fields.iter().find(|field| *field.name == *name) {
+                    Some(name) => match Types::field(fields, name.as_bytes()) {
                         Some(field) if field.optional => self.types.optional(field.ty),
                         Some(field) => field.ty,
                         None if *open => Ty::ANY,
@@ -1573,7 +1573,7 @@ impl<'a> Checker<'a> {
                 Some(value)
             }
             (Kind::Shape(fields, open), [selector]) => match string_literal(selector) {
-                Some(name) => match fields.iter().find(|field| *field.name == *name) {
+                Some(name) => match Types::field(&fields, name.as_bytes()) {
                     Some(field) => Some(field.ty),
                     None if open => Some(Ty::ANY),
                     None => {

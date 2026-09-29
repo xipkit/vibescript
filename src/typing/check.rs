@@ -797,15 +797,10 @@ impl<'a> Checker<'a> {
         if ty == Ty::ERROR || declared == Ty::ERROR || declared == Ty::ANY {
             return declared;
         }
-        let alternatives = self.types.members(declared);
-        if alternatives.len() < 2 {
+        if !matches!(self.types.kind(declared), Kind::Union(_)) {
             return declared;
         }
-        let values = self.types.members(ty);
-        let kept: Vec<Ty> = alternatives
-            .into_iter()
-            .filter(|&alt| values.iter().any(|&v| self.types.assignable(v, alt)))
-            .collect();
+        let kept = self.types.meet(declared, ty);
         if kept.is_empty() {
             declared
         } else {
@@ -2696,14 +2691,23 @@ impl<'a> Checker<'a> {
         if current == Ty::ANY || current == Ty::ERROR {
             return tested;
         }
+        // A member matches a tested alternative it fits, or one of the same
+        // base, which the tested alternatives' bases decide at once.
         let tested_members = self.types.members(tested);
+        let arrays = tested_members
+            .iter()
+            .any(|&t| same_base(&Kind::Array(Ty::ANY), self.types.kind(t)));
+        let hashes = tested_members
+            .iter()
+            .any(|&t| same_base(&Kind::EmptyHash, self.types.kind(t)));
         let mut kept = Vec::new();
         for member in self.types.members(current) {
-            let matches = tested_members.iter().any(|&t| {
-                self.types.assignable(member, t)
-                    || same_base(self.types.kind(member), self.types.kind(t))
-            });
-            if matches {
+            let base = match self.types.kind(member) {
+                Kind::Array(_) | Kind::Tuple(_) => arrays,
+                Kind::Hash(_) | Kind::Shape(..) | Kind::EmptyHash => hashes,
+                _ => false,
+            };
+            if base || self.types.assignable(member, tested) {
                 kept.push(member);
             }
         }

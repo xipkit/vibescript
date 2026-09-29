@@ -1,7 +1,92 @@
 //! Compile-time types: interned, so a type is a small copyable id and
 //! comparing two types compares ids.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
+
+/// Entries the assignability memo holds before it starts over, so the memo
+/// stays small however many pairs a check compares.
+const MEMO: usize = 1 << 16;
+
+/// Alternatives the union index holds, across the unions it indexes,
+/// before it starts over.
+const INDEXED: usize = 1 << 16;
+
+/// Where an alternative of a union files in its index: a value can fit only
+/// the alternatives under the heads [`targets`] lists for it, so a value is
+/// compared with those, never with the whole union.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum Head {
+    /// A kind without parts or ids, by its discriminant.
+    Plain(std::mem::Discriminant<Kind>),
+    /// A kind with an id, such as the instances of one class.
+    Id(std::mem::Discriminant<Kind>, u32),
+    Array,
+    Hash,
+    Tuple(usize),
+    /// A closed shape whose fields are all required, by its keys: only a
+    /// shape of the same keys fits it.
+    Exact(u64),
+    /// An open shape, or one with optional fields, which shapes of other
+    /// keys may fit.
+    Loose,
+}
+
+/// The head an alternative of `kind` files under.
+fn head(kind: &Kind) -> Head {
+    match kind {
+        Kind::Array(_) => Head::Array,
+        Kind::Hash(_) => Head::Hash,
+        Kind::Tuple(items) => Head::Tuple(items.len()),
+        Kind::Shape(fields, open) => {
+            if *open || fields.iter().any(|field| field.optional) {
+                Head::Loose
+            } else {
+                Head::Exact(keys(fields))
+            }
+        }
+        Kind::Instance(id)
+        | Kind::EnumValue(id)
+        | Kind::EnumType(id)
+        | Kind::Namespace(id)
+        | Kind::Builtin(id)
+        | Kind::Var(id)
+        | Kind::Exports(id)
+        | Kind::Host(id) => Head::Id(std::mem::discriminant(kind), *id),
+        _ => Head::Plain(std::mem::discriminant(kind)),
+    }
+}
+
+/// The heads of every alternative a value of `kind` may fit, besides itself:
+/// [`Types::assignable`]'s rules relate only these.
+fn targets(kind: &Kind) -> Vec<Head> {
+    let plain = |kind: Kind| Head::Plain(std::mem::discriminant(&kind));
+    match kind {
+        Kind::Tuple(items) => vec![Head::Tuple(items.len()), Head::Array],
+        Kind::Shape(fields, open) => {
+            if *open {
+                vec![Head::Loose, Head::Hash]
+            } else {
+                vec![Head::Exact(keys(fields)), Head::Loose, Head::Hash]
+            }
+        }
+        Kind::EmptyHash => vec![Head::Hash, Head::Loose, Head::Exact(keys(&[]))],
+        Kind::Hash(_) => vec![Head::Hash, Head::Loose],
+        Kind::SymbolLit(_) => vec![head(kind), plain(Kind::Symbol)],
+        Kind::EnumValue(_) => vec![head(kind), plain(Kind::AnyEnum)],
+        Kind::EnumType(_) => vec![head(kind), plain(Kind::AnyEnumType)],
+        _ => vec![head(kind)],
+    }
+}
+
+/// A shape's keys, as one number.
+fn keys(fields: &[Field]) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    for field in fields {
+        field.name.hash(&mut hasher);
+    }
+    hasher.finish()
+}
 
 /// An interned type. Equal types have equal ids.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -114,7 +199,12 @@ pub(crate) struct Names {
 pub(crate) struct Types {
     kinds: Vec<Kind>,
     ids: HashMap<Kind, Ty>,
+    /// Pairs already decided, up to [`MEMO`] of them.
     assignable: HashMap<(Ty, Ty), bool>,
+    /// Each indexed union's alternatives by [`Head`], up to [`INDEXED`]
+    /// alternatives in all.
+    index: HashMap<Ty, Arc<HashMap<Head, Vec<Ty>>>>,
+    indexed: usize,
     /// [`Self::plain`] of each type asked about.
     plain: HashMap<Ty, bool>,
     pub names: Names,
@@ -128,6 +218,7 @@ impl Types {
         let kind = std::mem::size_of::<Kind>() + std::mem::size_of::<Ty>();
         self.kinds.len() * 2 * kind
             + self.assignable.len() * std::mem::size_of::<((Ty, Ty), bool)>()
+            + self.indexed * std::mem::size_of::<(Head, Ty)>()
             + self.plain.len() * std::mem::size_of::<(Ty, bool)>()
     }
 
@@ -136,6 +227,8 @@ impl Types {
             kinds: Vec::new(),
             ids: HashMap::new(),
             assignable: HashMap::new(),
+            index: HashMap::new(),
+            indexed: 0,
             plain: HashMap::new(),
             names: Names::default(),
             steps: 0,
@@ -317,63 +410,71 @@ impl Types {
             return known;
         }
         let result = self.assignable_uncached(from, to);
+        if self.assignable.len() >= MEMO {
+            self.assignable.clear();
+        }
         self.assignable.insert((from, to), result);
         result
     }
 
     fn assignable_uncached(&mut self, from: Ty, to: Ty) -> bool {
         self.steps += 1;
-        let from_kind = self.kind(from).clone();
-        let to_kind = self.kind(to).clone();
-        if let Kind::Union(members) = &from_kind {
-            return members.iter().all(|&member| self.assignable(member, to));
-        }
-        if let Kind::Union(members) = &to_kind {
-            if members.iter().any(|&member| self.assignable(from, member)) {
-                return true;
+        if let Kind::Union(members) = self.kind(from) {
+            let count = members.len();
+            for index in 0..count {
+                let Kind::Union(members) = self.kind(from) else {
+                    unreachable!("a union stays one");
+                };
+                let member = members[index];
+                if !self.fits(member, to) {
+                    return false;
+                }
             }
-            // A collection of a union may be split across alternatives
-            // only element-wise, which the alternatives above cover.
-            return false;
+            return true;
         }
-        match (&from_kind, &to_kind) {
-            (Kind::Array(a), Kind::Array(b)) => self.assignable(*a, *b),
+        if matches!(self.kind(to), Kind::Union(_)) {
+            // A collection of a union may be split across alternatives
+            // only element-wise, which the alternatives cover.
+            return self.fits(from, to);
+        }
+        match (self.kind(from), self.kind(to)) {
+            (Kind::Array(a), Kind::Array(b)) | (Kind::Hash(a), Kind::Hash(b)) => {
+                let (a, b) = (*a, *b);
+                self.assignable(a, b)
+            }
             (Kind::Tuple(items), Kind::Array(element)) => {
-                items.iter().all(|&item| self.assignable(item, *element))
+                let (count, element) = (items.len(), *element);
+                self.work(count);
+                (0..count).all(|index| {
+                    let item = self.tuple_item(from, index);
+                    self.assignable(item, element)
+                })
             }
             (Kind::Tuple(a), Kind::Tuple(b)) => {
-                a.len() == b.len() && a.iter().zip(b.iter()).all(|(&x, &y)| self.assignable(x, y))
+                let count = a.len();
+                if count != b.len() {
+                    return false;
+                }
+                self.work(count);
+                (0..count).all(|index| {
+                    let (x, y) = (self.tuple_item(from, index), self.tuple_item(to, index));
+                    self.assignable(x, y)
+                })
             }
-            (Kind::Hash(a), Kind::Hash(b)) => self.assignable(*a, *b),
             (Kind::EmptyHash, Kind::Hash(_)) => true,
             (Kind::EmptyHash, Kind::Shape(fields, _)) => fields.iter().all(|field| field.optional),
             (Kind::Shape(fields, open), Kind::Hash(value)) => {
-                (!open || *value == Ty::ANY)
-                    && fields.iter().all(|field| self.assignable(field.ty, *value))
-            }
-            (Kind::Shape(from_fields, from_open), Kind::Shape(to_fields, to_open)) => {
-                if *from_open && !to_open {
+                let (count, open, value) = (fields.len(), *open, *value);
+                if open && value != Ty::ANY {
                     return false;
                 }
-                for field in to_fields.iter() {
-                    match from_fields.iter().find(|f| f.name == field.name) {
-                        Some(found) => {
-                            if found.optional && !field.optional {
-                                return false;
-                            }
-                            if !self.assignable(found.ty, field.ty) {
-                                return false;
-                            }
-                        }
-                        None if field.optional || *from_open => (),
-                        None => return false,
-                    }
-                }
-                *to_open
-                    || from_fields
-                        .iter()
-                        .all(|f| to_fields.iter().any(|t| t.name == f.name))
+                self.work(count);
+                (0..count).all(|index| {
+                    let field = self.field_type(from, index);
+                    self.assignable(field, value)
+                })
             }
+            (Kind::Shape(..), Kind::Shape(..)) => self.shape_fits(from, to),
             (Kind::Hash(value), Kind::Shape(fields, true)) => {
                 *value == Ty::ANY && fields.iter().all(|field| field.optional)
             }
@@ -383,6 +484,169 @@ impl Types {
             (Kind::SymbolLit(_), Kind::Symbol) => true,
             _ => false,
         }
+    }
+
+    /// Whether `value`, which is not a union, fits `to`: when `to` is a
+    /// union, the alternative it is, or one of the alternatives its kind
+    /// may fit, which the union's index lists, so wide unions compare a
+    /// value with a few alternatives, not all of them.
+    fn fits(&mut self, value: Ty, to: Ty) -> bool {
+        let Kind::Union(alternatives) = self.kind(to) else {
+            return self.assignable(value, to);
+        };
+        if value == Ty::ERROR || value == Ty::NEVER || alternatives.binary_search(&value).is_ok() {
+            return true;
+        }
+        let candidates = self.candidates(to, value);
+        candidates
+            .into_iter()
+            .any(|candidate| self.assignable(value, candidate))
+    }
+
+    /// The alternatives of the union `union` that a value of `value`'s kind
+    /// may fit, by the union's index.
+    fn candidates(&mut self, union: Ty, value: Ty) -> Vec<Ty> {
+        let index = match self.index.get(&union) {
+            Some(index) => Arc::clone(index),
+            None => {
+                let Kind::Union(alternatives) = self.kind(union) else {
+                    return Vec::new();
+                };
+                let mut index: HashMap<Head, Vec<Ty>> = HashMap::new();
+                for &alternative in alternatives.iter() {
+                    index
+                        .entry(head(self.kind(alternative)))
+                        .or_default()
+                        .push(alternative);
+                }
+                let count = alternatives.len();
+                self.work(count);
+                if self.indexed + count > INDEXED {
+                    self.index.clear();
+                    self.indexed = 0;
+                }
+                self.indexed += count;
+                let index = Arc::new(index);
+                self.index.insert(union, Arc::clone(&index));
+                index
+            }
+        };
+        let mut found = Vec::new();
+        for target in targets(self.kind(value)) {
+            if let Some(alternatives) = index.get(&target) {
+                found.extend_from_slice(alternatives);
+            }
+        }
+        self.work(found.len());
+        found
+    }
+
+    /// Whether the shape `from` fits the shape `to`, comparing their fields,
+    /// which both keep sorted by name, in one pass.
+    fn shape_fits(&mut self, from: Ty, to: Ty) -> bool {
+        let (count, from_open, to_open) = match (self.kind(from), self.kind(to)) {
+            (Kind::Shape(a, from_open), Kind::Shape(b, to_open)) => {
+                (a.len() + b.len(), *from_open, *to_open)
+            }
+            _ => return false,
+        };
+        if from_open && !to_open {
+            return false;
+        }
+        self.work(count);
+        let (Kind::Shape(a, _), Kind::Shape(b, _)) = (self.kind(from), self.kind(to)) else {
+            return false;
+        };
+        let mut pairs = Vec::new();
+        let (mut i, mut j) = (0, 0);
+        while i < a.len() || j < b.len() {
+            let order = match (a.get(i), b.get(j)) {
+                (Some(x), Some(y)) => x.name.cmp(&y.name),
+                (Some(_), None) => std::cmp::Ordering::Less,
+                _ => std::cmp::Ordering::Greater,
+            };
+            match order {
+                std::cmp::Ordering::Equal => {
+                    if a[i].optional && !b[j].optional {
+                        return false;
+                    }
+                    pairs.push((a[i].ty, b[j].ty));
+                    i += 1;
+                    j += 1;
+                }
+                // A field `to` does not declare.
+                std::cmp::Ordering::Less => {
+                    if !to_open {
+                        return false;
+                    }
+                    i += 1;
+                }
+                // A field `from` lacks.
+                std::cmp::Ordering::Greater => {
+                    if !(b[j].optional || from_open) {
+                        return false;
+                    }
+                    j += 1;
+                }
+            }
+        }
+        pairs.into_iter().all(|(x, y)| self.assignable(x, y))
+    }
+
+    /// Charges `units` of work that grows with a type's size, a step for
+    /// every 64, so small types cost nothing more.
+    fn work(&mut self, units: usize) {
+        self.steps += (units / 64) as u64;
+    }
+
+    fn tuple_item(&self, tuple: Ty, index: usize) -> Ty {
+        match self.kind(tuple) {
+            Kind::Tuple(items) => items[index],
+            _ => Ty::ERROR,
+        }
+    }
+
+    fn field_type(&self, shape: Ty, index: usize) -> Ty {
+        match self.kind(shape) {
+            Kind::Shape(fields, _) => fields[index].ty,
+            _ => Ty::ERROR,
+        }
+    }
+
+    /// The alternatives of `declared` that a value of `ty` may be: those
+    /// some alternative of `ty` fits, found through `declared`'s index.
+    pub fn meet(&mut self, declared: Ty, ty: Ty) -> Vec<Ty> {
+        let values = self.members(ty);
+        let mut kept = Vec::new();
+        for value in values {
+            if !matches!(self.kind(declared), Kind::Union(_)) {
+                if self.assignable(value, declared) {
+                    kept.push(declared);
+                }
+                continue;
+            }
+            if matches!(self.kind(declared), Kind::Union(alternatives) if alternatives.binary_search(&value).is_ok())
+            {
+                kept.push(value);
+            }
+            for candidate in self.candidates(declared, value) {
+                if candidate != value && self.assignable(value, candidate) {
+                    kept.push(candidate);
+                }
+            }
+        }
+        kept.sort_unstable();
+        kept.dedup();
+        kept
+    }
+
+    /// The field of a shape's `fields` named `name`, by binary search:
+    /// shapes keep their fields sorted by name.
+    pub fn field<'f>(fields: &'f [Field], name: &[u8]) -> Option<&'f Field> {
+        fields
+            .binary_search_by(|field| field.name.as_bytes().cmp(name))
+            .ok()
+            .map(|index| &fields[index])
     }
 
     /// Whether the type mentions a signature's type variable.
@@ -759,6 +1023,44 @@ mod tests {
             types.without_nil(nested),
             types.union(&[Ty::INT, Ty::STRING])
         );
+    }
+
+    #[test]
+    fn unions_compare_each_value_with_the_alternatives_it_can_fit() {
+        let mut types = Types::new();
+        let field = |name: &str, optional| Field {
+            name: name.into(),
+            ty: Ty::INT,
+            optional,
+        };
+        let shapes: Vec<Ty> = (0..1_000)
+            .map(|i| types.shape(vec![field(&format!("a{i}"), false)], false))
+            .collect();
+        let wide = types.union(&shapes);
+        let optional = types.optional(wide);
+        assert!(types.assignable(wide, optional));
+        assert!(!types.assignable(optional, wide));
+        assert_eq!(types.meet(optional, wide).len(), 1_000);
+        // Deciding them compares no pair of different shapes.
+        assert!(types.assignable.len() < 100, "{}", types.assignable.len());
+        // Values of other kinds still fit the alternatives their rules name.
+        let ints = types.array(Ty::INT);
+        let dictionary = types.hash(Ty::INT);
+        let loose = types.shape(vec![field("a0", false), field("z", true)], false);
+        let open = types.shape(vec![], true);
+        let members = types.union(&[ints, dictionary, loose, Ty::SYMBOL, Ty::ANY_ENUM]);
+        let pair = types.tuple(vec![Ty::INT, Ty::INT]);
+        let enum_value = types.intern(Kind::EnumValue(0));
+        let symbol = types.intern(Kind::SymbolLit("a".into()));
+        for value in [pair, shapes[0], Ty::EMPTY_HASH, enum_value, symbol] {
+            assert!(types.assignable(value, members), "{}", types.display(value));
+        }
+        let with_open = types.union(&[open, Ty::INT]);
+        assert!(types.assignable(shapes[1], with_open));
+        let anything = types.hash(Ty::ANY);
+        assert!(types.assignable(anything, with_open));
+        assert!(!types.assignable(dictionary, with_open));
+        assert!(!types.assignable(Ty::STRING, members));
     }
 
     #[test]

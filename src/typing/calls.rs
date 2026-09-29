@@ -7,7 +7,7 @@ use super::{
     check::{Context, Purpose, Want},
     program::{FnId, NsId},
     sigs::{self, BlockSig, ParamKind, Sig},
-    ty::{Kind, Ty},
+    ty::{Kind, Ty, Types},
 };
 use crate::{
     diagnostic::{Code, Diagnostic, Fix, Span},
@@ -806,7 +806,7 @@ impl<'a> Checker<'a> {
                     && self.types.members(inner_ty).into_iter().any(|ty| {
                         match self.types.kind(ty) {
                             Kind::Shape(fields, open) => {
-                                *open || fields.iter().any(|field| *field.name == **member)
+                                *open || Types::field(fields, member.as_bytes()).is_some()
                             }
                             Kind::Hash(_) => true,
                             _ => false,
@@ -1239,13 +1239,18 @@ impl<'a> Checker<'a> {
             return Ty::ERROR;
         };
         if ty != Ty::ANY && ty != Ty::ERROR {
-            let possible = self.types.members(target).into_iter().any(|t| {
-                self.types.members(ty).into_iter().any(|m| {
-                    self.types.assignable(m, t)
-                        || self.types.assignable(t, m)
-                        || (m == Ty::SYMBOL && matches!(self.types.kind(t), Kind::EnumValue(_)))
-                })
-            });
+            // Some alternative of one fits the other, compared through the
+            // unions' indexes rather than pair by pair.
+            let symbol = self.types.members(ty).contains(&Ty::SYMBOL);
+            let possible = self
+                .types
+                .members(ty)
+                .into_iter()
+                .any(|m| self.types.assignable(m, target))
+                || self.types.members(target).into_iter().any(|t| {
+                    self.types.assignable(t, ty)
+                        || (symbol && matches!(self.types.kind(t), Kind::EnumValue(_)))
+                });
             if !possible {
                 let found = self.types.display(ty);
                 let wanted = self.types.display(target);
@@ -2028,7 +2033,7 @@ impl<'a> Checker<'a> {
             call.args.first(),
         ) {
             if let Some(key) = super::expr::string_literal(&first.value) {
-                if let Some(field) = fields.iter().find(|field| *field.name == *key) {
+                if let Some(field) = Types::field(&fields, key.as_bytes()) {
                     return field.ty;
                 }
             }
@@ -2191,7 +2196,7 @@ impl<'a> Checker<'a> {
             (Kind::TypeLit(p), Kind::TypeLit(a)) => self.unify(p, a, bindings),
             (Kind::Shape(pf, _), Kind::Shape(af, _)) => {
                 for field in pf.iter() {
-                    if let Some(found) = af.iter().find(|f| f.name == field.name) {
+                    if let Some(found) = Types::field(&af, field.name.as_bytes()) {
                         self.unify(field.ty, found.ty, bindings);
                     }
                 }

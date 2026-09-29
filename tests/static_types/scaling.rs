@@ -11,7 +11,7 @@ fn repeat(count: usize, item: impl Fn(usize) -> String) -> String {
 /// statement or expression.
 type Shape = (&'static str, usize, fn(usize) -> String);
 
-const SHAPES: [Shape; 17] = [
+const SHAPES: [Shape; 20] = [
     ("functions calling their predecessor", 200, |count| {
         "def f0(n: int) -> int\n  n\nend\n".to_owned()
             + &repeat(count, |i| {
@@ -121,6 +121,32 @@ end\n"
     ("blocks nested around repeated assignments", 60, |count| {
         nest(count, "[1].each { |q|\n", "}\n")
     }),
+    (
+        "a wide union of shapes that an ensure narrows",
+        200,
+        |count| {
+            format!(
+                "type Wide = {}\ndef f(x: Wide?) -> Wide?\n  begin\n    1\n  ensure\n    return nil if x == nil\n  end\n  x\nend\n",
+                wide_union(count)
+            )
+        },
+    ),
+    ("a wide union of shapes cast and assigned", 200, |count| {
+        format!(
+            "type Wide = {}\ndef f(x: any, y: Wide?) -> Wide\n  z: Wide = x.as(Wide)\n  w: Wide? = y\n  z\nend\n",
+            wide_union(count)
+        )
+    }),
+    ("a wide shape read and assigned", 200, |count| {
+        format!(
+            "type Big = {{ {} }}\ndef f(b: Big) -> int\n  c: Big = b\n{}  0\nend\n",
+            (0..count)
+                .map(|i| format!("f{i}: int"))
+                .collect::<Vec<_>>()
+                .join(", "),
+            repeat(count, |i| format!("  n{i} = c[\"f{i}\"]\n"))
+        )
+    }),
     ("loops assigning many locals", 100, |count| {
         format!(
             "def f(x: int) -> int\n{}  while x > 0\n{}    x -= 1\n  end\n  0\nend\n",
@@ -129,6 +155,14 @@ end\n"
         )
     }),
 ];
+
+/// A union of `count` one-field shapes.
+fn wide_union(count: usize) -> String {
+    (0..count)
+        .map(|i| format!("{{ a{i}: int }}"))
+        .collect::<Vec<_>>()
+        .join(" | ")
+}
 
 /// A function whose body nests `count` levels of `open` and `close` around
 /// `count` assignments of one local.
