@@ -8,12 +8,12 @@
 # Vibescript
 
 Vibecoding will have a profound impact on personal computing. Software can
-become malleable: a solid base package that people shape around how they work,
-instead of waiting for every customization to be built into the product.
+become malleable, with a solid base package that people shape around how they
+work instead of waiting for every customization to be built into the product.
 
 Vibecoding still needs expertise. Generated code must be understood and
 maintained, or it can rot and become vulnerable to attack. Vibescript helps
-power this future: a small, statically typed scripting language for
+power this future with a small, statically typed scripting language for
 customizations on top of an existing app. The host decides which capabilities
 scripts can access and how much work they can do.
 
@@ -24,7 +24,7 @@ can write custom behavior while the host app stays in control.
 ## The language
 
 Here’s a Vibescript function that totals a list of line items. Types are part of
-the function signature, and blocks make collection work straightforward:
+the function signature, and blocks make collection work straightforward.
 
 ```vibe
 def total(items: array<{ price: int, qty: int }>) -> int
@@ -39,7 +39,7 @@ examples. Run `vibes prelude` to see the built-in functions and their signatures
 
 ## Try it
 
-From a checkout, run the example or open the REPL:
+From a checkout, run the example or open the REPL.
 
 ```sh
 ./scripts/cargo run --release -p vibes -- examples/total.vibe --function total --arg '[10,20,30]'
@@ -51,7 +51,7 @@ formatting and testing scripts, plus editor setup.
 
 ## Use it in a Rust app
 
-Compile a script and call a function from your app:
+Compile a script and call a function from your app.
 
 ```rust
 use vibescript::{CallOptions, Engine, Value};
