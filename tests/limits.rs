@@ -601,3 +601,25 @@ fn nested_union_indexes_count_the_records_they_set_aside() {
     assert_eq!(compiles(&plain, quota), Ok(()));
     assert_eq!(compiles(&union, quota), Err(ErrorKind::Memory));
 }
+
+#[test]
+fn a_required_files_parse_counts_toward_the_check() {
+    // Parsing a file costs the checker more steps than checking it, and
+    // the steps of both count toward the compile budget.
+    let file: String = (0..2_000)
+        .map(|i| format!("x{i} = [{i}, {i}].length\n"))
+        .collect();
+    let mut engine = Engine::new();
+    engine
+        .set_module_sources(std::collections::BTreeMap::from([(
+            "big.vibe".to_owned(),
+            file.clone(),
+        )]))
+        .unwrap();
+    let checked = engine.type_check(&file).unwrap().steps;
+    let required = engine.type_check("require(\"big\")\n").unwrap().steps;
+    assert!(
+        required > 2 * checked,
+        "{required} steps requiring it, {checked} checking it"
+    );
+}

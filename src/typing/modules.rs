@@ -247,12 +247,14 @@ impl<'a> Checker<'a> {
         let filename = origin.filename();
         // The file's source and syntax count toward this check's memory
         // until it is imported. Its parse charges a context of its own,
-        // as a compilation does, which the memory left bounds.
+        // as a compilation does, which the steps and memory left bound,
+        // and its steps are this check's.
         let held = self.held() + source.len();
         let budget = self.meter.budget();
+        let steps = self.total_steps();
         let mut context = crate::CallContext::new(crate::CallOptions {
             limits: crate::Limits {
-                steps: None,
+                steps: budget.steps.map(|left| left.saturating_sub(steps)),
                 memory_bytes: budget.memory.map(|left| left.saturating_sub(held)),
                 ..crate::Limits::default()
             },
@@ -265,13 +267,15 @@ impl<'a> Checker<'a> {
             &crate::compilation::Meter(std::cell::RefCell::new(&mut context)),
         );
         let parsing = context.stats();
+        self.meter.charge(parsing.steps);
         self.observed(held + parsing.peak_memory_bytes);
         let (parsed, tokens) = match parse {
             Ok(parsed) => parsed,
             Err(error)
                 if matches!(
                     error.kind,
-                    crate::ErrorKind::Memory
+                    crate::ErrorKind::Steps
+                        | crate::ErrorKind::Memory
                         | crate::ErrorKind::Deadline
                         | crate::ErrorKind::Cancelled
                 ) =>
