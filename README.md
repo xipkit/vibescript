@@ -7,13 +7,13 @@
 
 # Vibescript
 
-I think vibecoding will have a profound impact on personal computing. Software
-can become malleable: a solid base package that people shape around how they
-work, instead of waiting for every customization to be built into the product.
+Vibecoding will have a profound impact on personal computing. Software can
+become malleable: a solid base package that people shape around how they work,
+instead of waiting for every customization to be built into the product.
 
 Vibecoding still needs expertise. Generated code must be understood and
-maintained, or it can rot and become vulnerable to attack. I built Vibescript to
-help power this future: a small, statically typed scripting language for
+maintained, or it can rot and become vulnerable to attack. Vibescript helps
+power this future: a small, statically typed scripting language for
 customizations on top of an existing app. The host decides which capabilities
 scripts can access and how much work they can do.
 
