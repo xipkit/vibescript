@@ -926,3 +926,27 @@ fn the_rules_parser_reads_tuples_of_shapes_and_tuples() {
         checked.diagnostics
     );
 }
+
+#[test]
+fn the_rules_parser_reads_called_groups_and_tuple_type_arguments() {
+    for source in [
+        "def f(x: int) -> int\nx\nend\n(begin\nf\nend)()",
+        "x = [\"lo\", {}].as([string, hash<string, int>])",
+        "x = JSON.parse_as(\"[]\", [string, array<int>])",
+    ] {
+        let tokens = crate::tooling::tokens(source).unwrap();
+        super::parse::parse_tokens(source, &tokens, usize::MAX)
+            .unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+    let checked = crate::Engine::new()
+        .type_check("x = [\"lo\", {}].as([string, hash<string, int>])\ny = [1].size\n")
+        .unwrap();
+    assert!(
+        checked
+            .diagnostics
+            .iter()
+            .any(|d| d.code == Code::REMOVED_NAME),
+        "{:?}",
+        checked.diagnostics
+    );
+}

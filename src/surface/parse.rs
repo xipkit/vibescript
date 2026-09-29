@@ -3022,7 +3022,7 @@ impl<'s> Parser<'s> {
                 Suffix::Block(brace) => self.block_expression(lhs, brace)?,
                 Suffix::Call => {
                     let open = self.pos - 1;
-                    let items = self.call_arguments()?;
+                    let items = self.call_arguments(false)?;
                     let close = self.pos - 1;
                     self.parenthesized_call(
                         lhs,
@@ -3067,6 +3067,12 @@ impl<'s> Parser<'s> {
     }
 
     fn begin_call(&self, lhs: &Expr) -> bool {
+        // The compiler's parser keeps no node for parentheses, so a
+        // parenthesized `begin` calls as the bare one does.
+        let mut lhs = lhs;
+        while let ExprKind::Group(_, inner, _) = &lhs.kind {
+            lhs = inner;
+        }
         self.at_p('(') && matches!(lhs.kind, ExprKind::Begin(_))
     }
 
@@ -3174,7 +3180,7 @@ impl<'s> Parser<'s> {
     fn command_arguments(&mut self) -> Result<Vec<Arg>> {
         let mut items = Vec::new();
         loop {
-            items.push(self.call_argument(false)?);
+            items.push(self.call_argument(false, false)?);
             let last = self.previous().line;
             if !self.at_p(',')
                 || self.tokens[self.pos].line != last
@@ -3215,7 +3221,7 @@ impl<'s> Parser<'s> {
         Ok(items)
     }
 
-    fn call_arguments(&mut self) -> Result<Vec<Arg>> {
+    fn call_arguments(&mut self, types: bool) -> Result<Vec<Arg>> {
         let mut items = Vec::new();
         self.groups += 1;
         self.line_breaks();
@@ -3224,7 +3230,7 @@ impl<'s> Parser<'s> {
             return Ok(items);
         }
         loop {
-            items.push(self.call_argument(true)?);
+            items.push(self.call_argument(true, types)?);
             self.line_breaks();
             if self.take_p(')').is_some() {
                 break;
@@ -3243,7 +3249,7 @@ impl<'s> Parser<'s> {
         Ok(items)
     }
 
-    fn call_argument(&mut self, parenthesized: bool) -> Result<Arg> {
+    fn call_argument(&mut self, parenthesized: bool, types: bool) -> Result<Arg> {
         let start = self.start();
         if self.at_op("&") {
             return self.fail("block arguments are not supported");
@@ -3295,7 +3301,7 @@ impl<'s> Parser<'s> {
             }
         } else if parenthesized
             && kind == ArgKind::Positional
-            && let Some(value) = self.argument_type_literal()
+            && let Some(value) = self.argument_type_literal(types)
         {
             return Ok(Arg {
                 kind,
@@ -3316,8 +3322,12 @@ impl<'s> Parser<'s> {
 
     /// Reads a builtin type literal passed as a parenthesized argument, such
     /// as the `array<int>` of `JSON.parse_as(text, array<int>)`.
-    fn argument_type_literal(&mut self) -> Option<Expr> {
-        self.word_at(self.pos)?;
+    /// In a call that takes types, as `as` and `JSON.parse_as` do, a tuple
+    /// type such as `[string, hash<string, int>]` is one too.
+    fn argument_type_literal(&mut self, types: bool) -> Option<Expr> {
+        if self.word_at(self.pos).is_none() && !(types && self.at_p('[')) {
+            return None;
+        }
         let start = self.pos;
         let saved = self.save();
         let candidate = self.type_expr(1, false);
@@ -3452,7 +3462,7 @@ impl<'s> Parser<'s> {
         let name_tok = self.bump();
         let name = self.text(name_tok).to_owned();
         let args = if let Some(open) = self.take_p('(') {
-            let items = self.call_arguments()?;
+            let items = self.call_arguments(false)?;
             Some(Args {
                 parens: Some((open, self.pos - 1)),
                 items,
@@ -3486,7 +3496,10 @@ impl<'s> Parser<'s> {
         };
         let name = self.text(name_tok).to_owned();
         let args = if let Some(open) = self.take_p('(') {
-            let items = self.call_arguments()?;
+            // As in the compiler, `as` and `JSON.parse_as` take types.
+            let types = name == "as"
+                || (name == "parse_as" && matches!(&lhs.kind, ExprKind::Name(r) if r == "JSON"));
+            let items = self.call_arguments(types)?;
             Some(Args {
                 parens: Some((open, self.pos - 1)),
                 items,
