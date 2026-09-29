@@ -8,12 +8,13 @@
 //!
 //! The uses come from a second, lenient parse that accepts suffixed
 //! bindings, as the grammar did before ADR-008, and tracks each binding
-//! through the parser's own scopes.
+//! through the parser's own scopes. Every table and every edit of a fix is
+//! charged to the caller's work.
 
 use super::{Error, Name, Parser, Result, Work, name_suffix_position};
 use crate::{
     compilation::Buffer,
-    diagnostic::{Code, Edit, Fix, Span},
+    diagnostic::{Code, Diagnostic, Edit, Fix, Span},
 };
 use std::cell::Cell;
 
@@ -35,6 +36,14 @@ struct Binding {
     namespace: Option<Name>,
 }
 
+/// A scoped read, `Scope::NAME?`: where its suffix is, its scope and its
+/// name.
+struct Scoped {
+    at: u32,
+    scope: Name,
+    name: Name,
+}
+
 /// The uses of suffixed bindings a lenient parse records, each at the
 /// offset of the name's first `?` or `!`.
 #[derive(Default)]
@@ -44,8 +53,7 @@ pub(super) struct Uses {
     sites: Buffer<(u32, u32)>,
     /// Where each binding is read, with its id.
     reads: Buffer<(u32, u32)>,
-    /// Scoped reads, `Scope::NAME?`, by the scope and the name.
-    scoped: Buffer<(u32, Name, Name)>,
+    scoped: Buffer<Scoped>,
 }
 
 impl Uses {
@@ -56,12 +64,11 @@ impl Uses {
         namespace: Option<&Name>,
         at: u32,
     ) -> Result<u32> {
-        let namespace = namespace.map(|name| Name::new(work, name)).transpose()?;
         self.bindings.push(
             work,
             Binding {
                 name: Name::new(work, name)?,
-                namespace,
+                namespace: namespace.cloned(),
             },
         )?;
         let id = u32::try_from(self.bindings.len()).unwrap_or(u32::MAX);
@@ -139,11 +146,11 @@ impl Parser<'_> {
         };
         let at = self.tokens[self.pos - 1].offset;
         if let Some(suffix) = suffix_at(self.source, name, at) {
-            let entry = (
-                suffix,
-                Name::new(self.work, scope)?,
-                Name::new(self.work, name)?,
-            );
+            let entry = Scoped {
+                at: suffix,
+                scope: scope.clone(),
+                name: Name::new(self.work, name)?,
+            };
             self.suffixed.borrow_mut().scoped.push(self.work, entry)?;
         }
         Ok(())
@@ -177,16 +184,20 @@ fn uses(source: &str, work: &dyn Work) -> Result<Option<Uses>> {
     }
 }
 
-/// Extends each V0003 fix of `error` that renames a suffixed binding with
-/// the same edit at the binding's other sites and reads, so one fix renames
-/// the binding whole.
-pub(super) fn extend_fixes(source: &str, work: &dyn Work, error: Error) -> Error {
-    let renames = |diagnostic: &crate::diagnostic::Diagnostic| {
-        diagnostic.code == Code::NAME_SUFFIX
-            && diagnostic
-                .applicable_fix()
-                .is_some_and(|fix| fix.edits.len() == 1)
-    };
+/// Whether a V0003 diagnostic's fix removes or replaces one suffix, which
+/// may rename a binding.
+fn renames(diagnostic: &Diagnostic) -> bool {
+    diagnostic.code == Code::NAME_SUFFIX
+        && diagnostic
+            .applicable_fix()
+            .is_some_and(|fix| fix.edits.len() == 1)
+}
+
+/// Gives the first V0003 fix of each suffixed binding in `error` the same
+/// edit at every other place the binding is bound or read, so one fix
+/// renames the binding whole. The binding's other V0003 diagnostics keep
+/// no fix of their own, which could otherwise rename only part of it.
+pub(super) fn extend_fixes(source: &str, work: &dyn Work, mut error: Error) -> Error {
     if !error.diagnostics().iter().any(renames) {
         return error;
     }
@@ -195,69 +206,169 @@ pub(super) fn extend_fixes(source: &str, work: &dyn Work, error: Error) -> Error
         Ok(None) => return error,
         Err(failure) => return failure,
     };
-    match extended(work, &uses, error.diagnostics(), renames) {
-        Ok(diagnostics) => error.with_diagnostics(diagnostics),
+    let mut diagnostics = error.take_diagnostics();
+    let charge = match extended(work, &uses, &mut diagnostics) {
+        Ok(charge) => charge,
+        Err(failure) => return failure,
+    };
+    let mut error = error.with_diagnostics(diagnostics);
+    match error.retain(work, charge) {
+        Ok(()) => error,
         Err(failure) => failure,
     }
 }
 
+/// Extends the fixes in place, returning the charge for their edits.
 fn extended(
     work: &dyn Work,
     uses: &Uses,
-    diagnostics: &[crate::diagnostic::Diagnostic],
-    renames: impl Fn(&crate::diagnostic::Diagnostic) -> bool,
-) -> Result<Vec<crate::diagnostic::Diagnostic>> {
-    work.charge(uses.sites.len() + uses.reads.len() + uses.scoped.len())?;
-    let mut out = Vec::with_capacity(diagnostics.len());
-    for diagnostic in diagnostics {
-        let mut diagnostic = diagnostic.clone();
-        if !renames(&diagnostic) {
-            out.push(diagnostic);
-            continue;
-        }
-        let edit = diagnostic.fixes[0].edits[0].clone();
-        let Ok(at) = u32::try_from(edit.span.start) else {
-            out.push(diagnostic);
-            continue;
-        };
-        let Some(&(_, id)) = uses.sites.iter().find(|(site, _)| *site == at) else {
-            out.push(diagnostic);
-            continue;
-        };
-        let binding = &uses.bindings[id as usize - 1];
-        let mut positions: Vec<u32> = uses
-            .sites
-            .iter()
-            .chain(uses.reads.iter())
-            .filter(|(_, other)| *other == id)
-            .map(|(position, _)| *position)
-            .collect();
-        if let Some(namespace) = &binding.namespace {
-            positions.extend(
-                uses.scoped
-                    .iter()
-                    .filter(|(_, scope, name)| scope == namespace && *name == binding.name)
-                    .map(|(position, ..)| *position),
-            );
-        }
-        work.charge(positions.len())?;
-        positions.sort_unstable();
-        positions.dedup();
-        if positions.len() > 1 {
-            let edits = positions
-                .into_iter()
-                .map(|position| Edit {
-                    span: Span::new(position as usize, position as usize + 1),
-                    replacement: edit.replacement.clone(),
-                })
-                .collect();
-            let message = format!(
-                "{} wherever the binding is used",
-                diagnostic.fixes[0].message
-            );
-            diagnostic.fixes[0] = Fix::edits(message, edits);
-        }
-        out.push(diagnostic);
+    diagnostics: &mut [Diagnostic],
+) -> Result<Option<crate::budget::Charge>> {
+    // Each binding's positions, grouped by its id.
+    let mut positions = Buffer::new();
+    for &(at, id) in uses.sites.iter().chain(uses.reads.iter()) {
+        positions.push(work, (id, at))?;
     }
-    Ok(out)
+    for scoped in uses.scoped.iter() {
+        for (index, binding) in uses.bindings.iter().enumerate() {
+            work.charge(1)?;
+            if binding.namespace.as_ref() == Some(&scoped.scope) && binding.name == scoped.name {
+                let id = u32::try_from(index + 1).unwrap_or(u32::MAX);
+                positions.push(work, (id, scoped.at))?;
+            }
+        }
+    }
+    sort(work, &mut positions)?;
+    positions.dedup();
+    // Each binding's sites by where they are.
+    let mut sites = Buffer::new();
+    for &site in uses.sites.iter() {
+        sites.push(work, site)?;
+    }
+    sort(work, &mut sites)?;
+    let mut fixed = Buffer::new();
+    let mut charge = None;
+    for diagnostic in diagnostics.iter_mut() {
+        work.charge(1)?;
+        if !renames(diagnostic) {
+            continue;
+        }
+        let edit = &diagnostic.fixes[0].edits[0];
+        let Ok(at) = u32::try_from(edit.span.start) else {
+            continue;
+        };
+        let Ok(site) = sites.binary_search_by_key(&at, |&(site, _)| site) else {
+            continue;
+        };
+        let id = sites[site].1;
+        let start = positions.partition_point(|&(other, _)| other < id);
+        let end = positions.partition_point(|&(other, _)| other <= id);
+        if end - start <= 1 {
+            continue;
+        }
+        work.charge(fixed.len())?;
+        if fixed.contains(&id) {
+            diagnostic.fixes.clear();
+            continue;
+        }
+        fixed.push(work, id)?;
+        const WHEREVER: &str = " wherever the binding is used";
+        let count = end - start;
+        let bytes = count
+            .saturating_mul(std::mem::size_of::<Edit>() + edit.replacement.len())
+            .saturating_add(diagnostic.fixes[0].message.len() + WHEREVER.len());
+        crate::budget::Charge::merge(&mut charge, work.reserve(bytes)?);
+        work.charge(count)?;
+        let replacement = edit.replacement.clone();
+        let message = format!("{}{WHEREVER}", diagnostic.fixes[0].message);
+        let mut edits = Vec::with_capacity(count);
+        for &(_, position) in &positions[start..end] {
+            edits.push(Edit {
+                span: Span::new(position as usize, position as usize + 1),
+                replacement: replacement.clone(),
+            });
+        }
+        diagnostic.fixes[0] = Fix::edits(message, edits);
+    }
+    Ok(charge)
+}
+
+/// Sorts `values`, charging for the comparisons.
+fn sort<T: Ord>(work: &dyn Work, values: &mut Buffer<T>) -> Result<()> {
+    let length = values.len();
+    let log = usize::BITS - length.leading_zeros();
+    work.charge(length.saturating_mul(log as usize))?;
+    values.sort_unstable();
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{CallContext, CallOptions, ErrorKind, compilation::Meter};
+    use std::cell::RefCell;
+
+    /// One binding that recovery reports at each of its `sites` and that is
+    /// read `reads` times, so its fix holds an edit for every use.
+    fn repeated(sites: usize, reads: usize) -> String {
+        "x? = 1\n".repeat(sites) + &"p(x?)\n".repeat(reads)
+    }
+
+    /// Checks `source` as a host compilation does, under `options`.
+    fn check(source: &str, options: CallOptions) -> (Error, crate::Stats, usize) {
+        let mut context = CallContext::new(options);
+        let error = {
+            let work = Meter(RefCell::new(&mut context));
+            match super::super::parse(source, &work) {
+                Err(error) => super::super::host_syntax(source, &work, error),
+                Ok(_) => panic!("{source} parses"),
+            }
+        };
+        let stats = context.stats();
+        let fixes = error
+            .diagnostics()
+            .iter()
+            .filter(|d| d.applicable_fix().is_some())
+            .count();
+        (error, stats, fixes)
+    }
+
+    fn unlimited() -> CallOptions {
+        let mut options = CallOptions::default();
+        options.limits.steps = None;
+        options.limits.memory_bytes = None;
+        options
+    }
+
+    #[test]
+    fn a_binding_fix_is_built_once_and_charged() {
+        let (few, few_stats, _) = check(&repeated(100, 1), unlimited());
+        let (error, stats, fixes) = check(&repeated(100, 4000), unlimited());
+        assert_eq!(error.kind, ErrorKind::Syntax, "{error}");
+        // Recovery reports every site, but only the first carries the fix.
+        let diagnostics = error.diagnostics();
+        assert!(diagnostics.len() > 50, "{}", diagnostics.len());
+        assert_eq!(fixes, 1);
+        assert_eq!(diagnostics[0].fixes[0].edits.len(), 4100);
+        // The edits are held as long as the error, beyond what one read costs.
+        assert!(
+            stats.retained_memory_bytes
+                >= few_stats.retained_memory_bytes + 3999 * std::mem::size_of::<Edit>(),
+            "{stats:?} {few_stats:?}"
+        );
+        assert!(stats.steps > few_stats.steps + 3999);
+        drop((few, error));
+        for memory in [stats.peak_memory_bytes - 1, stats.peak_memory_bytes * 3 / 4] {
+            let mut options = unlimited();
+            options.limits.memory_bytes = Some(memory);
+            let (error, _, _) = check(&repeated(100, 4000), options);
+            assert_eq!(error.kind, ErrorKind::Memory, "{error}");
+        }
+        for steps in [stats.steps - 1, stats.steps * 3 / 4] {
+            let mut options = unlimited();
+            options.limits.steps = Some(steps);
+            let (error, _, _) = check(&repeated(100, 4000), options);
+            assert_eq!(error.kind, ErrorKind::Steps, "{error}");
+        }
+    }
 }

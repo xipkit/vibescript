@@ -1277,15 +1277,23 @@ fn a_binding_fix_renames_every_use_of_the_binding_at_once() {
         run(fixed);
     }
     // A block parameter of the same name is renamed with the local it
-    // shadows, so either fix leaves every use consistent.
+    // shadows. The binding's first diagnostic carries the one fix; the
+    // others carry none, which could rename only part of it.
     let source = "x? = 1\n[2].map { |x?| x? }\nx?";
-    let error = Engine::new().type_check(source).err().unwrap();
-    for diagnostic in error.diagnostics() {
-        assert_eq!(
-            diagnostic.applicable_fix().unwrap().apply(source).unwrap(),
-            "x = 1\n[2].map { |x| x }\nx"
-        );
-    }
+    let Err(error) = Engine::new().type_check(source) else {
+        panic!("{source} checks");
+    };
+    let diagnostics = error.diagnostics();
+    assert_eq!(diagnostics.len(), 2, "{diagnostics:?}");
+    assert_eq!(
+        diagnostics[0]
+            .applicable_fix()
+            .unwrap()
+            .apply(source)
+            .unwrap(),
+        "x = 1\n[2].map { |x| x }\nx"
+    );
+    assert!(diagnostics[1].fixes.is_empty(), "{:?}", diagnostics[1]);
     assert_eq!(migrate(source), "x = 1\n[2].map { |x| x }\nx");
 }
 
