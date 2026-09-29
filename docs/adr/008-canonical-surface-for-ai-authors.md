@@ -348,7 +348,7 @@ the suffix remains part of the method name.
 
 Hash and keyword labels keep suffixes because they spell string keys, not
 bindings. A suffixed shorthand label calls the method with that name;
-an explicit value can read a local instead. Optional type, shape-field and block markers keep
-their existing meaning and do not become part of a name. This removes the
-whitespace-dependent accidental assignment in `a!=b` without changing method
-calls or string keys.
+an explicit value can read a local instead. Optional type, shape-field and
+block markers keep their existing meaning and do not become part of a name.
+This removes the whitespace-dependent accidental assignment in `a!=b`
+without changing method calls or string keys.

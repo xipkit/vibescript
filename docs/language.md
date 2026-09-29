@@ -77,9 +77,9 @@ and compares its result with `true`.
 Hash and keyword labels are string keys, so `{ ready?: true }` has the key
 `"ready?"`, and `f(ready?: true)` passes that key to `**options`. The shorthand
 `{ ready?: }` calls the method `ready?`; use `{ ready?: ready }` to read a
-local. In type syntax, `T?`, the optional
-shape field `ready?: bool`, and `&block?:` use `?` as an optional marker; it
-is not part of the type, field or block parameter name.
+local. In type syntax, `T?`, the optional shape field `ready?: bool`, and
+`&block?:` use `?` as an optional marker; it is not part of the type, field or
+block parameter name.
 
 ## Types
 
