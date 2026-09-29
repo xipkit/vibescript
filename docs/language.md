@@ -103,25 +103,26 @@ block parameter name. The marker keeps that meaning before `=`, so
 `def f(x: int?=nil)` declares an `int?` parameter whose default is `nil`.
 
 Host functions and callable capability members obey the same method spelling
-rule, including functions supplied through globals. Their published names
-are checked independently of host diagnostic labels such as `SMS.send`.
+rule, including functions supplied through globals. Their published names are
+checked independently of host diagnostic labels such as `SMS.send`.
 Registration keeps its infallible API: an invalid registered name fails
 compilation or type checking and is omitted from the prelude. Capability
 templates are checked when declared, and factory results and newly published
 methods are checked before scripts can access them. A factory root ending in
 `?` or `!` is declared as a callable with unknown argument and result types;
 binding rejects it if the factory returns data. Internal or repeated suffixes
-are rejected at declaration. Ordinary string data keys may contain punctuation.
-A required file's exported functions may include a setter such as `value=`,
-as a script's `def value=` is. A host method may not: no script can call a
-host setter, so a capability template, a factory's value, a global or a
-callback that publishes `value=` fails with a host error, as does a registered
-host function of that name.
-A global's or data capability's name is one a script can read: a letter or
-`_`, then letters, digits and `_`, and no keyword. A template's data keys that
-no script can read as a member, such as `"with space"`, are left out of the
-capability's declaration and the prelude, so the prelude always parses.
-An invalid host name is a host error (`ErrorKind::Argument`) that names the
+are rejected at declaration. A callable field of any hash or object a host
+supplies, as a global, a factory's value or a callback's result, must spell a
+method; ordinary string data keys may contain punctuation. A required file's
+exported functions may include a setter such as `value=`, as a script's
+`def value=` is. A host method may not: no script can call a host setter, so a
+capability template, a factory's value, a global or a callback that publishes
+`value=` fails with a host error, as does a registered host function of that
+name. A global's or data capability's name is one a script can read: a letter
+or `_`, then letters, digits and `_`, and no keyword. A template's data keys
+that no script can read as a member, such as `"with space"`, are left out of
+the capability's declaration and the prelude, so the prelude always parses. An
+invalid host name is a host error (`ErrorKind::Argument`) that names the
 registration, such as `invalid global name "ready?"`; it has no script
 position and no fix, since the script is not what needs changing.
 

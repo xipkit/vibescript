@@ -53,16 +53,19 @@ impl Frame {
         match self {
             Self::Array { out, .. } => Value::from_array(ctx, out),
             Self::Hash { source, out, .. } => {
-                if source.object {
-                    for (key, value) in &out.data {
-                        if matches!(value.0, Kind::Host(_) | Kind::Function(_)) {
-                            crate::capability::member_name(
-                                &crate::compilation::Meter(std::cell::RefCell::new(ctx)),
-                                crate::syntax::HostName::METHOD,
-                                key.require_bytes()?,
-                                value,
-                            )?;
-                        }
+                // Any hash exposes a stored callable to scripts by its key, as
+                // an object does, so the key must spell a method; data keys may
+                // hold anything.
+                for (key, value) in &out.data {
+                    if let (Kind::Host(_) | Kind::Function(_), Some(name)) =
+                        (&value.0, key.as_bytes())
+                    {
+                        crate::capability::member_name(
+                            &crate::compilation::Meter(std::cell::RefCell::new(ctx)),
+                            crate::syntax::HostName::METHOD,
+                            name,
+                            value,
+                        )?;
                     }
                 }
                 let mut hash = Hash::from_entries(ctx, out)?;

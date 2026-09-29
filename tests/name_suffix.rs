@@ -1468,3 +1468,65 @@ fn suffix_fixes_leave_a_valid_name_or_are_not_offered() {
         }
     }
 }
+
+#[test]
+fn ordinary_hashes_validate_their_callable_fields() {
+    // A hash exposes its fields as an object does, so a callable field must
+    // spell a method; its data keys may hold any punctuation.
+    let hash = |name: &str| {
+        Value::hash(vec![
+            (name.as_bytes().to_vec(), method().value()),
+            (b"data??".to_vec(), Value::int(1)),
+        ])
+    };
+    let mut exporting = Engine::new();
+    exporting
+        .set_module_sources([("m.vibe".into(), "def ok? -> bool; true; end".into())].into())
+        .unwrap();
+    let function = exporting
+        .compile("require('m')")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap()
+        .value
+        .as_hash()
+        .unwrap()[0]
+        .1
+        .clone();
+    let with_function =
+        |name: &str| Value::hash(vec![(name.as_bytes().to_vec(), function.clone())]);
+    for (name, valid) in [("ok?", true), ("bad??", false), ("bad?name", false)] {
+        for value in [hash(name), with_function(name)] {
+            for route in ["global", "factory", "host return"] {
+                let mut engine = Engine::new();
+                let mut options = CallOptions::default();
+                let value = value.clone();
+                match route {
+                    "global" => {
+                        engine.declare_global("cap", "").unwrap();
+                        options.globals.insert("cap".into(), value);
+                    }
+                    "factory" => {
+                        let cap = Capability::new("cap", move |_| Ok(value.clone()));
+                        engine.declare_capability(&cap).unwrap();
+                        options.capabilities.push(cap);
+                    }
+                    _ => engine.register_method(
+                        "cap",
+                        HostMethod::new("cap", move |_, _, _| Ok(value.clone())),
+                    ),
+                }
+                let result = engine.compile("cap\n1").unwrap().run(options);
+                if valid {
+                    // The import accepts the field; a script may still not
+                    // use a hash holding a method as a value.
+                    if let Err(error) = result {
+                        assert!(!error.message.starts_with("invalid"), "{route}: {error}");
+                    }
+                } else {
+                    host_name_error(&result.unwrap_err(), "method", name);
+                }
+            }
+        }
+    }
+}
