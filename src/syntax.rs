@@ -2613,12 +2613,6 @@ impl<'a> Parser<'a> {
         ))
     }
     fn bump(&mut self) -> Result<Token<'a>> {
-        if let Token::Word(name) = self.token() {
-            let offset = self.tokens[self.pos].offset;
-            if name.starts_with('@') {
-                self.binding_name(name, offset)?;
-            }
-        }
         self.work
             .bytes(self.tokens[self.pos].end - self.tokens[self.pos].offset)?;
         let t = self.token().copy(self.work)?;
@@ -2789,7 +2783,7 @@ impl<'a> Parser<'a> {
     }
     fn method_spelling(&self, name: &str, offset: usize) -> Result<()> {
         if let Some(suffix) = name_suffix_position(name)
-            && suffix + 1 < name.len()
+            && (suffix + 1 < name.len() || name.starts_with('@'))
         {
             return Err(self.name_suffix_error(offset + suffix));
         }

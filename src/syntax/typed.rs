@@ -380,6 +380,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             let Token::Word(word) = p.bump()? else {
                 unreachable!()
             };
+            p.binding_name(&word, offset)?;
             let name = &word[1..];
             if name.is_empty() {
                 return Err(Error::syntax(
@@ -428,6 +429,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             let Token::Word(word) = p.bump()? else {
                 unreachable!()
             };
+            p.binding_name(&word, offset)?;
             if word.len() == 2 {
                 return Err(Error::syntax(
                     work,

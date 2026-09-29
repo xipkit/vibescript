@@ -481,11 +481,12 @@ impl<'a, 'w> Lexer<'a, 'w> {
                     i += initial.len_utf8();
                     while let Some(c) = source[i..self.limit].chars().next() {
                         self.work.charge(1)?;
-                        if !self.name_character(i, c) {
+                        if !identifier(c) {
                             break;
                         }
                         i += c.len_utf8();
                     }
+                    i = self.name_end(i);
                     return Ok(Token::Word(Word(&source[start..i])));
                 }
                 if super::unicode::digit(initial) {
@@ -788,25 +789,27 @@ impl<'a, 'w> Lexer<'a, 'w> {
         }
         if let Some(c) = source[i..].chars().next() {
             i += c.len_utf8();
-            while let Some(c) = source[i..]
-                .chars()
-                .next()
-                .filter(|&c| self.name_character(i, c))
-            {
+            while let Some(c) = source[i..].chars().next().filter(|&c| identifier(c)) {
                 i += c.len_utf8();
             }
         }
+        i = self.name_end(i);
         self.pos = i;
         Token::Word(Word(&self.source[start..i]))
     }
 
-    // Keep malformed names intact for the parser's fix, but never hide `!=`.
-    fn name_character(&self, end: usize, c: char) -> bool {
+    // `=` ends the scan, so only its last character can hide `!=`. Keep other
+    // malformed names intact for the parser's fix.
+    fn name_end(&self, end: usize) -> usize {
         let bytes = &self.source.as_bytes()[..self.limit];
-        identifier(c)
-            && !(matches!(c, '?' | '!')
-                && bytes.get(end + 1) == Some(&b'=')
-                && !matches!(bytes.get(end + 2), Some(b'=' | b'~')))
+        if matches!(bytes.get(end.wrapping_sub(1)), Some(b'?' | b'!'))
+            && bytes.get(end) == Some(&b'=')
+            && !matches!(bytes.get(end + 1), Some(b'=' | b'~'))
+        {
+            end - 1
+        } else {
+            end
+        }
     }
 
     /// Reads a numeric literal with Go's rules.
@@ -1066,14 +1069,11 @@ impl<'a, 'w> Lexer<'a, 'w> {
             return Ok(Token::P(':'));
         }
         let mut end = start + 1;
-        while let Some(c) = source[end..]
-            .chars()
-            .next()
-            .filter(|&c| self.name_character(end, c))
-        {
+        while let Some(c) = source[end..].chars().next().filter(|&c| identifier(c)) {
             self.work.charge(1)?;
             end += c.len_utf8();
         }
+        end = self.name_end(end);
         if end > start + 1 {
             self.pos = end;
             return Ok(Token::Symbol(Word(&self.source[start + 1..end])));
