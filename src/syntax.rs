@@ -2575,7 +2575,17 @@ impl<'a> Parser<'a> {
     /// A lexer diagnostic that Go reports in place of any expectation at `index`.
     fn diagnostic(&self, index: usize) -> Option<Error> {
         let token = &self.tokens[index];
-        if token.token == Token::P('?') && self.source.as_bytes().get(token.end) == Some(&b'=') {
+        if token.token == Token::P('?')
+            && self.source.as_bytes().get(token.end) == Some(&b'=')
+            && index.checked_sub(1).is_some_and(|previous| {
+                let name = &self.tokens[previous];
+                name.end == token.offset
+                    && matches!(&name.token, Token::Word(word) if !keyword(word)
+                    || previous.checked_sub(1).is_some_and(|separator| {
+                        matches!(self.tokens[separator].token, Token::P('.') | Token::Op("&."))
+                    }))
+            })
+        {
             return Some(self.name_suffix_error(token.offset));
         }
         match &self.tokens[index].token {

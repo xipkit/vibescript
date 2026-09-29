@@ -135,6 +135,47 @@ fn bindings_reject_suffixes_with_applicable_fixes() {
 }
 
 #[test]
+fn question_equals_requires_an_adjacent_name_for_a_suffix_fix() {
+    for source in [
+        "1?=2",
+        "(a + b)?=c",
+        "'a'?=2",
+        "a[0]?=2",
+        "f()?=2",
+        "true?=2",
+        "a ?=2",
+        "?=2",
+    ] {
+        let error = Engine::new().compile(source).err().expect(source);
+        assert_eq!(error.kind, ErrorKind::Syntax, "{source}: {error}");
+        for diagnostic in error.diagnostics() {
+            assert_ne!(diagnostic.code, Code::NAME_SUFFIX, "{source}: {error}");
+            assert!(
+                diagnostic.applicable_fix().is_none(),
+                "{source}: {diagnostic:?}"
+            );
+        }
+    }
+    for source in [
+        "a?=2",
+        "é?=2",
+        "@a?=2",
+        "@@a?=2",
+        "obj.a?=2",
+        "obj.nil?=2",
+        "obj&.true?=2",
+    ] {
+        let error = Engine::new().compile(source).err().expect(source);
+        let diagnostic = &error.diagnostics()[0];
+        assert_eq!(diagnostic.code, Code::NAME_SUFFIX, "{source}: {error}");
+        assert_eq!(
+            diagnostic.applicable_fix().unwrap().apply(source).unwrap(),
+            source.replace('?', "")
+        );
+    }
+}
+
+#[test]
 fn host_global_names_have_no_suffix() {
     for name in ["ready?", "done!", "READY?"] {
         let error = Engine::new().declare_global(name, "bool").unwrap_err();
