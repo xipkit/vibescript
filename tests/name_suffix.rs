@@ -31,8 +31,10 @@ fn adjacent_inequality_compares_without_assigning() {
 fn method_suffixes_survive_call_forms_and_operators() {
     for source in [
         "def ok? -> bool; true; end; ok?==true",
+        "def ok? -> bool; true; end; ok?!=false",
         "def OK? -> bool; true; end; OK?==true",
         "def save! -> bool; true; end; save!==true",
+        "def save! -> bool; true; end; save!!=false",
         "def text? -> string; 'yes'; end; (text?=~/yes/) == 0",
         "def text! -> string; 'yes'; end; (text!=~/yes/) == 0",
         "def ok?(n: int) -> bool; n > 0; end; ok? 1",
