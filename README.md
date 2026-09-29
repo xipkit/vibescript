@@ -10,8 +10,8 @@
 Vibecoding will have a profound impact on personal computing. However,
 vibecoding still requires expertise. Generated code needs to be maintained, or
 it will rot and become vulnerable to attack. The future will consist of
-malleable software. A base software package that users can vibecode their
-customizations on top.
+malleable software, where users vibecode their customizations on top of a base
+package.
 
 Vibescript helps power this future with a small, statically typed scripting
 language for customizations on top of an existing app. The host decides which
