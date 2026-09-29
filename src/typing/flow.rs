@@ -6,6 +6,7 @@
 //! changes the branch made, not to the number of locals.
 
 use super::{
+    marks::Marks,
     meter::{Meter, map, table as map_of, vec},
     ty::{Ty, Types},
 };
@@ -42,6 +43,10 @@ pub(crate) struct Flow {
     pub live: bool,
     /// The check's account, which the flow's work is charged to.
     meter: Arc<Meter>,
+    /// The locals whose assignment [`Self::unassigned`] follows, from the
+    /// first of them, with the set of those not assigned yet, which copies
+    /// share rather than copy.
+    tracked: Option<(LocalId, Marks)>,
 }
 
 impl super::meter::Heap for Branch {
@@ -57,6 +62,35 @@ impl Flow {
             trail: Vec::new(),
             live: true,
             meter,
+            tracked: None,
+        }
+    }
+
+    /// Follows the assignment of the `count` locals from `first`, none of
+    /// which is assigned yet.
+    pub fn track(&mut self, first: LocalId, count: usize) {
+        self.tracked = Some((first, Marks::all(count)));
+    }
+
+    /// Stops following them.
+    pub fn untrack(&mut self) {
+        self.tracked = None;
+    }
+
+    /// Which of the followed locals are not assigned yet, by their place
+    /// after the first.
+    pub fn unassigned(&self) -> Option<&Marks> {
+        self.tracked.as_ref().map(|(_, marks)| marks)
+    }
+
+    /// Notes that local `id` went from assigned or not to `assigned`.
+    fn note(&mut self, id: LocalId, was: bool, assigned: bool) {
+        if was != assigned {
+            if let Some((first, marks)) = &mut self.tracked {
+                if let Some(index) = id.checked_sub(*first) {
+                    marks.set(index as usize, !assigned);
+                }
+            }
         }
     }
 
@@ -71,7 +105,9 @@ impl Flow {
 
     /// The bytes the states and the trail hold.
     pub fn bytes(&self) -> usize {
-        super::meter::vec(&self.vars) + super::meter::vec(&self.trail)
+        super::meter::vec(&self.vars)
+            + super::meter::vec(&self.trail)
+            + self.tracked.as_ref().map_or(0, |(_, marks)| marks.bytes())
     }
 
     pub fn get(&self, id: LocalId) -> VarState {
@@ -83,6 +119,7 @@ impl Flow {
         if old != state {
             self.trail.push((id, old));
             self.vars[id as usize] = state;
+            self.note(id, old.assigned, state.assigned);
         }
     }
 
@@ -101,10 +138,12 @@ impl Flow {
         while self.trail.len() > mark.trail {
             self.meter.charge(1);
             let (id, old) = self.trail.pop().unwrap();
+            let current = self.vars[id as usize];
             if seen.insert(id, ()).is_none() {
-                changes.push((id, self.vars[id as usize]));
+                changes.push((id, current));
             }
             self.vars[id as usize] = old;
+            self.note(id, current.assigned, old.assigned);
         }
         self.meter.scratch(map(&seen) + vec(&changes));
         self.live = mark.live;

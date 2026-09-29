@@ -386,15 +386,20 @@ impl<'a> Checker<'a> {
                     .insert(def.name.to_string(), id);
             }
         }
+        // Which instance variables have defaults, found by class and offset
+        // rather than by scanning every default for each variable.
+        let defaults: std::collections::HashSet<(u32, u32)> = parsed
+            .additions
+            .defaults
+            .iter()
+            .map(|(owner, stmt)| (*owner, stmt.offset))
+            .collect();
+        self.transient(super::meter::set(&defaults));
         for (class, ivar) in &parsed.additions.ivars {
             let Some(&ns) = self.program.by_offset.get(class) else {
                 continue;
             };
-            let default = parsed
-                .additions
-                .defaults
-                .iter()
-                .any(|(owner, stmt)| owner == class && stmt.offset == ivar.offset);
+            let default = defaults.contains(&(*class, ivar.offset));
             let ty = self.annotation(&ivar.ty, Some(ns), ivar.offset as usize);
             self.program.namespaces[ns as usize]
                 .ivars

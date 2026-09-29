@@ -33,6 +33,7 @@ mod construction;
 mod expr;
 mod flow;
 mod foreign;
+mod marks;
 mod meter;
 mod modules;
 mod program;

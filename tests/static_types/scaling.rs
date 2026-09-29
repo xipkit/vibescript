@@ -12,7 +12,7 @@ fn repeat(count: usize, item: impl Fn(usize) -> String) -> String {
 /// statement or expression.
 type Shape = (&'static str, usize, fn(usize) -> String);
 
-const SHAPES: [Shape; 21] = [
+const SHAPES: [Shape; 24] = [
     ("functions calling their predecessor", 200, |count| {
         "def f0(n: int) -> int\n  n\nend\n".to_owned()
             + &repeat(count, |i| {
@@ -160,6 +160,32 @@ end\n"
             "def f(x: int) -> int\n{}  while x > 0\n{}    x -= 1\n  end\n  0\nend\n",
             repeat(count, |i| format!("  v{i} = {i}\n")),
             repeat(count, |i| format!("    v{i} = x\n"))
+        )
+    }),
+    // Each use of `self` in `initialize` or a default records which
+    // variables are not assigned yet, which once took a copy of them all.
+    (
+        "an initialize reading each variable once assigned",
+        200,
+        |count| {
+            format!(
+                "class C\n{}  def initialize\n{}  end\nend\n",
+                repeat(count, |i| format!("  @v{i}: int\n")),
+                repeat(count, |i| format!("    @v{i} = {i}\n    x{i} = @v{i}\n"))
+            )
+        },
+    ),
+    ("defaults reading the variable before", 200, |count| {
+        format!(
+            "class C\n  @v0: int = 0\n{}end\n",
+            repeat(count, |i| format!("  @v{}: int = @v{i} + 1\n", i + 1))
+        )
+    }),
+    ("an initialize calling a method on self", 200, |count| {
+        format!(
+            "class C\n{}  def one -> int\n    1\n  end\n  def initialize\n{}  end\nend\n",
+            repeat(count, |i| format!("  @v{i}: int\n")),
+            repeat(count, |i| format!("    @v{i} = self.one\n"))
         )
     }),
 ];

@@ -121,12 +121,14 @@ pub(crate) struct Frame {
     pub block: Option<BlockSig>,
     /// A pseudo-local that is assigned where `block_given?` holds.
     pub block_given: Option<LocalId>,
-    /// In `initialize`: pseudo-locals for the instance variables it must assign.
-    pub initialize: Vec<(String, LocalId)>,
+    /// In `initialize`: the instance variables it must assign, in name
+    /// order, and the first of the pseudo-locals that follow each's
+    /// assignment in the same order.
+    pub initialize: Option<(super::construction::Roster, LocalId)>,
     /// The function being checked.
     pub function: Option<FnId>,
     /// In an instance variable's default: the variables not assigned yet.
-    pub building: Option<Vec<String>>,
+    pub building: Option<super::construction::Unassigned>,
     pub locals: Vec<Local>,
     pub names: HashMap<String, LocalId>,
     pub ambient: Vec<LocalId>,
@@ -161,7 +163,7 @@ impl Frame {
             name,
             block: None,
             block_given: None,
-            initialize: Vec::new(),
+            initialize: None,
             function: None,
             building: None,
             locals: Vec::new(),
@@ -187,8 +189,10 @@ impl Heap for Frame {
             + self.scopes.iter().map(vec).sum::<usize>()
             + self.flow.bytes()
             + vec(&self.contexts)
-            + self.initialize.heap()
-            + self.building.heap()
+            + self
+                .initialize
+                .as_ref()
+                .map_or(0, |(roster, _)| super::construction::roster_bytes(roster))
             + vec(&self.ambient)
             + vec(&self.shared)
             + self.name.heap()
@@ -433,14 +437,19 @@ impl<'a> Checker<'a> {
             }
         }
         unassigned.sort_unstable();
-        let held = self.hold(unassigned.heap());
+        let roster: super::construction::Roster = unassigned.into();
+        let held = self.hold(super::construction::roster_bytes(&roster));
+        // Each default sees the same set, less what the ones before it
+        // assign, shared with the uses of `self` in them rather than copied.
+        let mut building = super::construction::Unassigned::all(roster);
         for (stmt, assigned) in defaults.iter() {
-            self.frame.building = Some(unassigned.clone());
+            self.frame.building = Some(building.clone());
             self.stmt(stmt, Want::Discard);
             if let Some(name) = assigned {
-                unassigned.retain(|unassigned| unassigned.as_str() != *name);
+                self.grown += building.remove(name);
             }
         }
+        self.frame.building = None;
         self.release(held);
         self.leave_frame(body);
         self.leave_frame(previous);
@@ -590,31 +599,44 @@ impl<'a> Checker<'a> {
             .collect();
         self.transient(required.heap());
         required.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+        let mut roster = Vec::new();
+        let mut first = None;
         for (name, ty) in required {
             if self.types.assignable(Ty::NIL, ty) {
                 continue;
             }
             let id = self.pseudo_local();
-            self.frame.initialize.push((name, id));
+            first.get_or_insert(id);
+            roster.push(name);
+        }
+        // The pseudo-locals follow each other, in the roster's order.
+        if let Some(first) = first {
+            self.frame.flow.track(first, roster.len());
+            self.frame.initialize = Some((roster.into(), first));
         }
     }
 
     /// Reports the instance variables a path through `initialize` left unassigned.
     pub(super) fn finish_initialize(&mut self, span: Span) {
-        let missing: Vec<String> = self
-            .frame
-            .initialize
-            .iter()
-            .filter(|(_, id)| !self.frame.flow.get(*id).assigned)
-            .map(|(name, _)| format!("@{name}"))
-            .collect();
-        if missing.is_empty() {
+        let Some((roster, first)) = self.frame.initialize.clone() else {
+            return;
+        };
+        let Some(unassigned) = self.frame.flow.unassigned() else {
+            return;
+        };
+        if unassigned.is_empty() {
             return;
         }
+        let missing: Vec<String> = unassigned
+            .indices()
+            .into_iter()
+            .map(|place| format!("@{}", roster[place]))
+            .collect();
         // Report each variable once per function.
-        let ids: Vec<LocalId> = self.frame.initialize.iter().map(|(_, id)| *id).collect();
-        self.transient(super::meter::vec(&ids));
-        for id in ids {
+        self.frame.flow.untrack();
+        self.frame.initialize = None;
+        for place in 0..roster.len() {
+            let id = first + place as LocalId;
             let state = self.frame.flow.get(id);
             self.frame.flow.set(
                 id,
@@ -624,7 +646,6 @@ impl<'a> Checker<'a> {
                 },
             );
         }
-        self.frame.initialize.clear();
         self.report(Diagnostic::error(
             Code::UNINITIALIZED_IVAR,
             span,
@@ -2508,7 +2529,11 @@ impl<'a> Checker<'a> {
     }
 
     pub(super) fn mark_ivar_assigned(&mut self, name: &str) {
-        if let Some(&(_, id)) = self.frame.initialize.iter().find(|(ivar, _)| ivar == name) {
+        let Some((roster, first)) = &self.frame.initialize else {
+            return;
+        };
+        if let Ok(place) = roster.binary_search_by(|ivar| ivar.as_str().cmp(name)) {
+            let id = first + place as LocalId;
             let state = self.frame.flow.get(id);
             self.frame.flow.set(
                 id,

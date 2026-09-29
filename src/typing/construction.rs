@@ -16,6 +16,7 @@
 
 use super::{
     Checker,
+    marks::Marks,
     meter::{Heap, btree_entry},
     program::{FnId, NsId},
     ty::Ty,
@@ -24,7 +25,97 @@ use crate::{
     diagnostic::{Code, Diagnostic, Span},
     syntax::{Expr, Node},
 };
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::{
+    collections::{BTreeSet, HashMap, HashSet},
+    rc::Rc,
+};
+
+/// A class's required instance variables, in name order, which the sets of
+/// those not assigned yet index.
+pub(crate) type Roster = Rc<[String]>;
+
+/// What a roster holds.
+pub(crate) fn roster_bytes(roster: &Roster) -> usize {
+    std::mem::size_of_val(&**roster) + roster.iter().map(String::capacity).sum::<usize>()
+}
+
+/// The variables of an instance being built that are not assigned yet at
+/// some point: places in their roster, shared with the points before and
+/// after it rather than copied.
+#[derive(Clone)]
+pub(crate) struct Unassigned {
+    roster: Roster,
+    marks: Marks,
+}
+
+impl Unassigned {
+    /// Every variable of `roster`.
+    pub fn all(roster: Roster) -> Self {
+        let marks = Marks::all(roster.len());
+        Self { roster, marks }
+    }
+
+    pub fn len(&self) -> usize {
+        self.marks.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.marks.is_empty()
+    }
+
+    /// The place of variable `name` in the roster.
+    fn place(&self, name: &str) -> Option<usize> {
+        self.roster
+            .binary_search_by(|ivar| ivar.as_str().cmp(name))
+            .ok()
+    }
+
+    pub fn contains(&self, name: &str) -> bool {
+        self.place(name)
+            .is_some_and(|place| self.marks.contains(place))
+    }
+
+    /// Takes out variable `name`; returns the bytes this copied.
+    pub fn remove(&mut self, name: &str) -> usize {
+        match self.place(name) {
+            Some(place) => self.marks.set(place, false),
+            None => 0,
+        }
+    }
+
+    /// The variables, in name order.
+    fn names(&self) -> Vec<String> {
+        self.marks
+            .indices()
+            .into_iter()
+            .map(|place| self.roster[place].clone())
+            .collect()
+    }
+
+    /// Those of the variables `read` names, in name order, going through
+    /// whichever of the two is shorter; returns them with that length,
+    /// the work it took.
+    fn read(&self, read: &BTreeSet<String>) -> (Vec<String>, usize) {
+        if read.len() < self.len() {
+            let names = read
+                .iter()
+                .filter(|name| self.contains(name))
+                .cloned()
+                .collect();
+            (names, read.len())
+        } else {
+            let names = self
+                .marks
+                .indices()
+                .into_iter()
+                .map(|place| &self.roster[place])
+                .filter(|name| read.contains(*name))
+                .cloned()
+                .collect();
+            (names, self.len())
+        }
+    }
+}
 
 /// What the checker records about instance variable reads.
 #[derive(Default)]
@@ -58,7 +149,7 @@ struct Uses {
 struct Site {
     class: NsId,
     kind: SiteKind,
-    unassigned: Vec<String>,
+    unassigned: Unassigned,
     span: Span,
 }
 
@@ -79,20 +170,23 @@ impl Heap for SiteKind {
 
 impl<'a> Checker<'a> {
     /// The variables of the instance being built that are not assigned
-    /// yet where the code being checked runs, if it builds one.
-    fn unassigned(&self) -> Vec<String> {
+    /// yet where the code being checked runs, if it builds one and some
+    /// are. They are shared with the other points that ask, not copied.
+    fn unassigned(&self) -> Option<Unassigned> {
         if !self.frame.flow.live {
-            return Vec::new();
+            return None;
         }
-        if let Some(building) = &self.frame.building {
-            return building.clone();
-        }
-        self.frame
-            .initialize
-            .iter()
-            .filter(|(_, id)| !self.frame.flow.get(*id).assigned)
-            .map(|(name, _)| name.clone())
-            .collect()
+        let unassigned = match &self.frame.building {
+            Some(building) => building.clone(),
+            None => {
+                let (roster, _) = self.frame.initialize.as_ref()?;
+                Unassigned {
+                    roster: Rc::clone(roster),
+                    marks: self.frame.flow.unassigned()?.clone(),
+                }
+            }
+        };
+        (!unassigned.is_empty()).then_some(unassigned)
     }
 
     fn uses(&mut self) -> Option<&mut Uses> {
@@ -104,9 +198,8 @@ impl<'a> Checker<'a> {
         let Some(class) = self.frame.owner else {
             return;
         };
-        let unassigned = self.unassigned();
-        if !unassigned.is_empty() {
-            self.construction.held += unassigned.heap() + kind.heap();
+        if let Some(unassigned) = self.unassigned() {
+            self.construction.held += kind.heap();
             self.construction.sites.push(Site {
                 class,
                 kind,
@@ -156,10 +249,13 @@ impl<'a> Checker<'a> {
         let Some(class) = self.frame.owner else {
             return;
         };
-        let mut unassigned = self.unassigned();
-        unassigned.retain(|name| stored.as_ref() != Some(name));
+        let Some(mut unassigned) = self.unassigned() else {
+            return;
+        };
+        if let Some(stored) = &stored {
+            self.construction.held += unassigned.remove(stored);
+        }
         if !unassigned.is_empty() {
-            self.construction.held += unassigned.heap();
             self.construction.sites.push(Site {
                 class,
                 kind: SiteKind::Escape,
@@ -207,26 +303,29 @@ impl<'a> Checker<'a> {
             if self.over_budget() {
                 return;
             }
-            self.meter.charge(site.unassigned.len() as u64);
-            let observed: Vec<String> = match &site.kind {
-                SiteKind::Read(name) => site
-                    .unassigned
-                    .iter()
-                    .filter(|ivar| *ivar == name)
-                    .cloned()
-                    .collect(),
+            // Each site costs what it looks at: its read variable, the
+            // shorter of its callee's reads and its unassigned variables,
+            // or all of those for `self` used as a value.
+            let (observed, work) = match &site.kind {
+                SiteKind::Read(name) => {
+                    let found = site.unassigned.contains(name);
+                    (
+                        if found {
+                            vec![name.clone()]
+                        } else {
+                            Vec::new()
+                        },
+                        1,
+                    )
+                }
                 SiteKind::Call(callee) => match reads.get(callee) {
-                    Some(Some(read)) => site
-                        .unassigned
-                        .iter()
-                        .filter(|ivar| read.contains(*ivar))
-                        .cloned()
-                        .collect(),
-                    Some(None) => site.unassigned.clone(),
-                    None => Vec::new(),
+                    Some(Some(read)) => site.unassigned.read(read),
+                    Some(None) => (site.unassigned.names(), site.unassigned.len()),
+                    None => (Vec::new(), 1),
                 },
-                SiteKind::Escape => site.unassigned.clone(),
+                SiteKind::Escape => (site.unassigned.names(), site.unassigned.len()),
             };
+            self.meter.charge(work as u64);
             if !observed.is_empty() {
                 unproven.insert(site.class);
                 self.unassigned_read(&site, &observed);
