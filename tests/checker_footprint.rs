@@ -346,6 +346,20 @@ fn adversarial() -> Vec<(String, String)> {
             "end\n".repeat(depth)
         ),
     ));
+    // Each index on the union's first alternative records the types under
+    // it and sets aside the record of the index around it.
+    let (nesting, width) = if small { (20, 500) } else { (100, 2_000) };
+    let literal = format!("[{}].length", vec!["1"; width].join(", "));
+    let mut index = "0".to_owned();
+    for _ in 0..nesting {
+        index = format!("u[{literal} + g({index})]");
+    }
+    programs.push((
+        "union indexes nested 100 deep".to_owned(),
+        format!(
+            "def g(v: int | float | nil) -> int\n  0\nend\ndef f(u: array<int> | array<float>) -> int\n  x = {index}\n  0\nend\n"
+        ),
+    ));
     programs.push((
         "diagnostics for many wrong calls".to_owned(),
         format!(

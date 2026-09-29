@@ -576,3 +576,71 @@ fn a_union_past_its_bound_fails_before_it_is_related() {
         .collect();
     assert_eq!(codes, ["V0124"]);
 }
+
+/// Union indexes nested `depth` deep on a parameter of type `receiver`,
+/// each adding the length of a `width`-element literal before the next.
+/// Checking an index on a union's first alternative records the types of
+/// everything under it for the others to replay, and sets aside the record
+/// of the index around it while it does.
+fn nested_indexes(receiver: &str, depth: usize, width: usize) -> String {
+    let wide = format!("[{}].length", vec!["1"; width].join(", "));
+    let mut index = "0".to_owned();
+    for _ in 0..depth {
+        index = format!("u[{wide} + g({index})]");
+    }
+    format!(
+        "def g(v: int | float | nil) -> int\n  0\nend\ndef f(u: {receiver}) -> int\n  x = {index}\n  0\nend\n"
+    )
+}
+
+#[test]
+fn nested_union_indexes_count_the_records_they_set_aside() {
+    // WASI checks syntax at most 128 levels tall.
+    let (depth, width) = if cfg!(target_os = "wasi") {
+        (20, 500)
+    } else {
+        (50, 400)
+    };
+    let plain = nested_indexes("array<int>", depth, width);
+    let union = nested_indexes("array<int> | array<float>", depth, width);
+    let engine = Engine::new();
+    let peak = |source: &str| engine.type_check(source).unwrap().peak_bytes;
+    let (alone, nested) = (peak(&plain), peak(&union));
+    // The records set aside at the innermost index hold about as much as
+    // the literals' types in the plain check's tables.
+    assert!(nested > alone * 5 / 4, "{nested} nested, {alone} alone");
+    let compiles = |source: &str, quota: usize| {
+        let options = CallOptions {
+            limits: Limits {
+                steps: None,
+                memory_bytes: Some(quota),
+                ..Limits::default()
+            },
+            ..CallOptions::default()
+        };
+        engine
+            .compile_with_options(source, &options)
+            .map(|_| ())
+            .map_err(|error| error.kind)
+    };
+    // The least quota the plain source compiles under, to within a
+    // sixteenth of what its check holds.
+    let mut quota = alone;
+    while compiles(&plain, quota).is_err() {
+        quota *= 2;
+    }
+    let mut least = quota / 2;
+    while quota - least > alone / 16 {
+        let middle = least + (quota - least) / 2;
+        if compiles(&plain, middle).is_ok() {
+            quota = middle;
+        } else {
+            least = middle;
+        }
+    }
+    // A quota that leaves the plain source an eighth of its check to
+    // spare still stops the union's.
+    let quota = quota + alone / 8;
+    assert_eq!(compiles(&plain, quota), Ok(()));
+    assert_eq!(compiles(&union, quota), Err(ErrorKind::Memory));
+}
