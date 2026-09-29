@@ -238,9 +238,16 @@ impl Index {
 #[derive(Default)]
 pub(crate) struct Converter {
     cache: HashMap<(usize, usize), Rc<Sig>>,
+    /// What the cached signatures hold.
+    cached: usize,
 }
 
 impl Converter {
+    /// What the cache of converted signatures holds.
+    pub fn grown(&self) -> usize {
+        super::meter::map(&self.cache) + self.cached
+    }
+
     /// The signature of `function`, declared in `class` when it is a member
     /// of a value type, whose receiver pattern's variables come first.
     pub fn convert(
@@ -257,6 +264,7 @@ impl Converter {
             return sig.clone();
         }
         let sig = Rc::new(self.convert_owned(types, function, class));
+        self.cached += super::meter::Heap::heap(&sig);
         self.cache.insert(key, sig.clone());
         sig
     }

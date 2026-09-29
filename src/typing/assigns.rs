@@ -83,6 +83,9 @@ pub(super) struct Assigns<'a> {
     tries: HashMap<usize, TrySpans>,
     /// The `begin`s, by address, that a `retry` reruns.
     retried: std::collections::HashSet<usize>,
+    /// What the lists of positions and the trees hold, beyond the storage
+    /// of the tables that hold them.
+    held: usize,
 }
 
 impl<'a> Assigns<'a> {
@@ -125,18 +128,19 @@ impl<'a> Assigns<'a> {
             .collect()
     }
 
-    /// About the bytes the lists, trees and maps hold.
+    /// The bytes the lists, trees and maps hold.
     pub fn bytes(&self) -> usize {
-        let word = std::mem::size_of::<u32>();
-        (self.sites.len() * 3
-            + self
-                .roots
-                .iter()
-                .map(|root| root.lowest.len())
-                .sum::<usize>())
-            * word
-            + self.names.len() * 2 * std::mem::size_of::<(&str, u32, Vec<u32>)>()
-            + (self.bodies.len() + self.tries.len()) * std::mem::size_of::<(usize, TrySpans)>()
+        use super::meter::{map, set, vec};
+        vec(&self.names)
+            + map(&self.ids)
+            + vec(&self.sites)
+            + vec(&self.previous)
+            + vec(&self.positions)
+            + vec(&self.roots)
+            + map(&self.bodies)
+            + map(&self.tries)
+            + set(&self.retried)
+            + self.held
     }
 
     /// Whether some assignment in `span` writes `name`.
@@ -187,6 +191,7 @@ impl<'a> Assigns<'a> {
         for node in (1..width).rev() {
             lowest[node] = lowest[2 * node].min(lowest[2 * node + 1]);
         }
+        self.held += lowest.capacity() * std::mem::size_of::<u32>();
         self.roots.push(Root {
             start,
             width: width as u32,
@@ -236,7 +241,10 @@ impl<'a> Walk<'a, '_> {
             .map_or(0, |&last| last + 1);
         assigns.sites.push(id);
         assigns.previous.push(previous);
-        assigns.positions[id as usize].push(position);
+        let positions = &mut assigns.positions[id as usize];
+        let before = positions.capacity();
+        positions.push(position);
+        assigns.held += (positions.capacity() - before) * std::mem::size_of::<u32>();
     }
 
     /// Lists `body`'s assignments and records its span.

@@ -19,22 +19,28 @@ enum Trail<'e> {
 pub(crate) struct Spans<'a> {
     source: &'a str,
     tokens: std::borrow::Cow<'a, [Token]>,
-    /// Tokens and nodes visited, for [`super::Checked::steps`].
-    pub steps: std::cell::Cell<u64>,
+    /// The check's account, which tokens and nodes visited are charged to.
+    meter: std::sync::Arc<super::meter::Meter>,
     /// [`last_offset`] by node, so shared subtrees are walked once.
     lasts: std::cell::RefCell<std::collections::HashMap<usize, usize>>,
+    /// What the tokens hold when they are a merged copy of their own.
+    owned: usize,
 }
 
 impl<'a> Spans<'a> {
-    pub fn new(source: &'a str, tokens: &'a [Token], interpolations: &[(u32, u32)]) -> Self {
+    pub fn new(
+        source: &'a str,
+        tokens: &'a [Token],
+        interpolations: &[(u32, u32)],
+        meter: std::sync::Arc<super::meter::Meter>,
+    ) -> Self {
         let mut tokens = std::borrow::Cow::Borrowed(tokens);
-        let mut steps = 0;
         // The parser lists each interpolation separately from its outer string
         // token. Merge their tokens by source offset for member and edit spans.
         for &(start, end) in interpolations {
             let start = start as usize;
             let end = end as usize - 1;
-            steps += (end - start) as u64;
+            meter.charge((end - start) as u64);
             if let Ok(inner) = crate::tooling::tokens(&source[start..end]) {
                 tokens
                     .to_mut()
@@ -47,19 +53,27 @@ impl<'a> Spans<'a> {
                     }));
             }
         }
+        let mut owned = 0;
         if let std::borrow::Cow::Owned(tokens) = &mut tokens {
             tokens.sort_by_key(|token| token.span.start);
+            owned = super::meter::Heap::heap(tokens);
         }
         Self {
             source,
             tokens,
-            steps: std::cell::Cell::new(steps),
+            meter,
             lasts: std::cell::RefCell::default(),
+            owned,
         }
     }
 
+    /// What the spans' tables hold.
+    pub fn bytes(&self) -> usize {
+        self.owned + super::meter::map(&self.lasts.borrow())
+    }
+
     fn step(&self, count: usize) {
-        self.steps.set(self.steps.get() + count as u64);
+        self.meter.charge(count as u64);
     }
 
     /// The index of the token that starts at `offset`.

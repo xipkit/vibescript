@@ -22,9 +22,9 @@ mod syntax;
 mod tests;
 mod walk;
 
-pub(crate) use checker::add_to;
 #[cfg(test)]
 use checker::check;
+pub(crate) use checker::{add_to, footprint};
 
 use crate::diagnostic::Code;
 use syntax::Span;

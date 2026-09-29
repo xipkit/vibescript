@@ -531,6 +531,29 @@ fn type_operations_stop_at_the_compile_budget() {
 }
 
 #[test]
+fn the_checkers_memory_counts_every_table_it_keeps() {
+    // The checker's type table stays small here, but each wrong call keeps
+    // a diagnostic rendering the wide type, which the default memory quota
+    // must bound as it grows.
+    let arms = (0..1_000)
+        .map(|i| format!("{{a{i}: int}}"))
+        .collect::<Vec<_>>()
+        .join(" | ");
+    let calls = if cfg!(target_os = "wasi") { 500 } else { 2_000 };
+    let source = format!(
+        "type Wide = {arms}\ndef f(x: Wide) -> int\n  1\nend\n{}",
+        "f(1)\n".repeat(calls)
+    );
+    let engine = Engine::new();
+    assert!(engine.type_check(&source).unwrap().peak_bytes > 16 << 20);
+    let error = engine
+        .compile_with_options(&source, &CallOptions::default())
+        .err()
+        .unwrap();
+    assert_eq!(error.kind, ErrorKind::Memory);
+}
+
+#[test]
 fn a_union_past_its_bound_fails_before_it_is_related() {
     // The shape of Codex's witness: a 5,000-arm union of shapes, an
     // optional of it, and an ensure that narrows it.

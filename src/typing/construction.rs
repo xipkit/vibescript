@@ -16,6 +16,7 @@
 
 use super::{
     Checker,
+    meter::{Heap, btree_entry},
     program::{FnId, NsId},
     ty::Ty,
 };
@@ -32,6 +33,16 @@ pub(crate) struct Construction {
     methods: HashMap<FnId, Uses>,
     /// Uses of `self` while it has unassigned variables.
     sites: Vec<Site>,
+    /// What the methods' uses and the sites hold beyond the tables' own
+    /// storage, for the checker's memory account.
+    held: usize,
+}
+
+impl Construction {
+    /// What the records hold.
+    pub fn bytes(&self) -> usize {
+        super::meter::map(&self.methods) + super::meter::vec(&self.sites) + self.held
+    }
 }
 
 /// What a method does with `self`, directly or in its blocks.
@@ -55,6 +66,15 @@ enum SiteKind {
     Read(String),
     Call(FnId),
     Escape,
+}
+
+impl Heap for SiteKind {
+    fn heap(&self) -> usize {
+        match self {
+            SiteKind::Read(name) => name.heap(),
+            SiteKind::Call(_) | SiteKind::Escape => 0,
+        }
+    }
 }
 
 impl<'a> Checker<'a> {
@@ -86,6 +106,7 @@ impl<'a> Checker<'a> {
         };
         let unassigned = self.unassigned();
         if !unassigned.is_empty() {
+            self.construction.held += unassigned.heap() + kind.heap();
             self.construction.sites.push(Site {
                 class,
                 kind,
@@ -98,7 +119,10 @@ impl<'a> Checker<'a> {
     /// Records a read of instance variable `name` of `self` at `span`.
     pub(super) fn read_ivar(&mut self, name: &str, span: Span) {
         if let Some(uses) = self.uses() {
-            uses.reads.insert(name.to_owned());
+            let bytes = btree_entry(&uses.reads) + name.len();
+            if uses.reads.insert(name.to_owned()) {
+                self.construction.held += bytes;
+            }
         }
         self.site(SiteKind::Read(name.to_owned()), span);
     }
@@ -106,7 +130,10 @@ impl<'a> Checker<'a> {
     /// Records a call of method `callee` on `self` at `span`.
     pub(super) fn call_on_self(&mut self, callee: FnId, span: Span) {
         if let Some(uses) = self.uses() {
-            uses.calls.insert(callee);
+            let bytes = btree_entry(&uses.calls);
+            if uses.calls.insert(callee) {
+                self.construction.held += bytes;
+            }
         }
         self.site(SiteKind::Call(callee), span);
     }
@@ -132,6 +159,7 @@ impl<'a> Checker<'a> {
         let mut unassigned = self.unassigned();
         unassigned.retain(|name| stored.as_ref() != Some(name));
         if !unassigned.is_empty() {
+            self.construction.held += unassigned.heap();
             self.construction.sites.push(Site {
                 class,
                 kind: SiteKind::Escape,
@@ -175,7 +203,10 @@ impl<'a> Checker<'a> {
             .collect();
         let reads = self.method_reads();
         for site in std::mem::take(&mut self.construction.sites) {
-            self.steps += site.unassigned.len() as u64;
+            if self.over_budget() {
+                return;
+            }
+            self.meter.charge(site.unassigned.len() as u64);
             let observed: Vec<String> = match &site.kind {
                 SiteKind::Read(name) => site
                     .unassigned
@@ -276,12 +307,13 @@ impl<'a> Checker<'a> {
             .iter()
             .map(|(&id, uses)| (id, (!uses.escapes).then(|| uses.reads.clone())))
             .collect();
+        self.construction.held += reads.heap();
         let mut changed = true;
         while changed {
             changed = false;
             for (id, uses) in &self.construction.methods {
                 for callee in &uses.calls {
-                    self.steps += 1;
+                    self.meter.charge(1);
                     if callee == id {
                         continue;
                     }
@@ -295,7 +327,11 @@ impl<'a> Checker<'a> {
                         }
                         (Some(caller), Some(callee_reads)) => {
                             for ivar in callee_reads {
-                                changed |= caller.insert(ivar);
+                                let bytes = btree_entry(caller) + ivar.len();
+                                if caller.insert(ivar) {
+                                    changed = true;
+                                    self.construction.held += bytes;
+                                }
                             }
                         }
                     }

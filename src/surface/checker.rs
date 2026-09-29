@@ -40,6 +40,32 @@ fn walk(source: &str, tokens: &[tooling::Token], calls: &CallTypes) -> Option<Ve
     }
 }
 
+/// The most the rules' pass holds for each token of a source, measured
+/// over the corpora and the checker's adversarial programs: its copy of
+/// the token and its share of the syntax tree and of the walk's records.
+const PER_TOKEN: usize = 240;
+
+/// The copies the pass holds of each byte of the dotted names of nested
+/// classes and modules, which grow with the square of their depth.
+const NAME_COPIES: usize = 3;
+
+/// About the most memory [`add_to`] holds while it reads a source with
+/// `tokens`, whose classes and modules have qualified names of `names`
+/// bytes in all, which the checker's memory account adds to its own.
+pub(crate) fn footprint(tokens: &[tooling::Token], names: usize) -> usize {
+    let payloads: usize = tokens
+        .iter()
+        .map(|token| match &token.kind {
+            tooling::TokenKind::String(bytes) => bytes.len(),
+            tooling::TokenKind::Template(parts) => {
+                parts.len() * std::mem::size_of::<std::ops::Range<usize>>()
+            }
+            _ => 0,
+        })
+        .sum();
+    tokens.len() * PER_TOKEN + payloads + names * NAME_COPIES
+}
+
 /// Adds the removed spellings in `source` to a static check's diagnostics,
 /// in source order.
 ///

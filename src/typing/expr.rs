@@ -115,7 +115,7 @@ impl<'a> Checker<'a> {
     }
 
     pub(super) fn expr_want(&mut self, expr: &'a Expr, want: Want) -> Ty {
-        self.steps += 1;
+        self.meter.charge(1);
         if self.over_budget() {
             return Ty::ERROR;
         }

@@ -1,6 +1,7 @@
 //! Compile-time types: interned, so a type is a small copyable id and
 //! comparing two types compares ids.
 
+use super::meter::{self, Heap, Meter};
 use std::{collections::HashMap, sync::Arc};
 
 /// The most alternatives a union may have: a wider one is an error
@@ -187,6 +188,35 @@ pub(crate) enum Kind {
     Host(u32),
 }
 
+impl Heap for Kind {
+    fn heap(&self) -> usize {
+        match self {
+            Kind::Shape(fields, _) => fields.heap(),
+            Kind::Tuple(items) | Kind::Union(items) => items.heap(),
+            Kind::SymbolLit(name) => name.heap(),
+            _ => 0,
+        }
+    }
+}
+
+impl Heap for Field {
+    fn heap(&self) -> usize {
+        self.name.heap()
+    }
+}
+
+impl Heap for Names {
+    fn heap(&self) -> usize {
+        self.namespaces.heap() + self.enums.heap() + self.builtins.heap() + self.hosts.heap()
+    }
+}
+
+impl Heap for Head {
+    fn heap(&self) -> usize {
+        0
+    }
+}
+
 /// A field of a shape.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct Field {
@@ -207,25 +237,27 @@ pub(crate) struct Names {
 
 /// The type interner of one check.
 pub(crate) struct Types {
-    kinds: Vec<Kind>,
-    ids: HashMap<Kind, Ty>,
+    /// Each type's kind, which the interner's map shares rather than
+    /// copies.
+    kinds: Vec<Arc<Kind>>,
+    ids: HashMap<Arc<Kind>, Ty>,
+    /// What the interned kinds hold on the heap: their allocations and
+    /// what those own, such as a shape's fields and their names.
+    payload: usize,
     /// Pairs already decided, up to [`MEMO`] of them.
     assignable: HashMap<(Ty, Ty), bool>,
     /// Each indexed union's alternatives by [`Head`], up to [`INDEXED`]
     /// alternatives in all.
     index: HashMap<Ty, Arc<HashMap<Head, Vec<Ty>>>>,
     indexed: usize,
+    /// What the indexes hold.
+    index_bytes: usize,
     /// [`Self::plain`] of each type asked about.
     plain: HashMap<Ty, bool>,
     pub names: Names,
-    /// Work done, for [`super::Checked::steps`].
-    pub steps: u64,
-    /// What the check may spend, which type operations poll while they run.
-    budget: crate::compilation::Budget,
-    /// Whether an operation passed the budget; operations after it return
-    /// at once, and the check stops.
-    pub stopped: bool,
-    polls: u32,
+    /// The check's work and memory account, which type operations charge
+    /// and poll while they run.
+    meter: Arc<Meter>,
     /// A union or shape too large to build since the checker last looked:
     /// what it was and its size. It became unknown, and the checker
     /// reports it where it looks.
@@ -233,28 +265,36 @@ pub(crate) struct Types {
 }
 
 impl Types {
-    /// About the bytes the interned types and the caches hold.
+    /// The bytes the interned types and the caches hold; the names of
+    /// declarations are the checker's to count, since they change rarely.
     pub fn bytes(&self) -> usize {
-        let kind = std::mem::size_of::<Kind>() + std::mem::size_of::<Ty>();
-        self.kinds.len() * 2 * kind
-            + self.assignable.len() * std::mem::size_of::<((Ty, Ty), bool)>()
-            + self.indexed * std::mem::size_of::<(Head, Ty)>()
-            + self.plain.len() * std::mem::size_of::<(Ty, bool)>()
+        meter::vec(&self.kinds)
+            + meter::map(&self.ids)
+            + self.payload
+            + meter::map(&self.assignable)
+            + meter::map(&self.index)
+            + self.index_bytes
+            + meter::map(&self.plain)
     }
 
+    /// A type table with an account of its own.
     pub fn new() -> Self {
+        Self::metered(Meter::new(Default::default()))
+    }
+
+    /// A type table charging `meter`.
+    pub fn metered(meter: Arc<Meter>) -> Self {
         let mut types = Self {
             kinds: Vec::new(),
             ids: HashMap::new(),
+            payload: 0,
             assignable: HashMap::new(),
             index: HashMap::new(),
             indexed: 0,
+            index_bytes: 0,
             plain: HashMap::new(),
             names: Names::default(),
-            steps: 0,
-            budget: crate::compilation::Budget::default(),
-            stopped: false,
-            polls: 0,
+            meter,
             too_large: None,
         };
         for kind in [
@@ -285,37 +325,44 @@ impl Types {
         types
     }
 
-    /// Sets what the check may spend.
-    pub fn set_budget(&mut self, budget: crate::compilation::Budget) {
-        self.budget = budget;
+    /// Adds `steps` to the check's work.
+    pub fn charge(&self, steps: u64) {
+        self.meter.charge(steps);
     }
 
-    /// Checks the budget: the steps it leaves, which the types' work alone
-    /// may not pass, and every 1,024 polls the clock, the cancellation
-    /// token and the size of the tables, so one operation on large types
-    /// cannot run past it.
-    fn poll(&mut self) {
-        if self.stopped {
-            return;
-        }
-        if self.budget.steps.is_some_and(|left| self.steps > left) {
-            self.stopped = true;
-            return;
-        }
-        self.polls = self.polls.wrapping_add(1);
-        if self.polls % 1024 == 0 {
-            self.stopped = self.budget.interrupted()
-                || self.budget.memory.is_some_and(|left| self.bytes() > left);
+    /// Whether the check passed its budget; operations then return at once.
+    pub fn stopped(&self) -> bool {
+        self.meter.stopped()
+    }
+
+    /// Checks the account against the budget, the whole check's work and
+    /// memory, so one operation on large types cannot run past it.
+    fn poll(&self) {
+        self.meter.poll(|| self.meter.held(self.bytes()));
+    }
+
+    /// Records `bytes` an operation holds beside the table while it runs,
+    /// such as a large type it is building, which the budget bounds with
+    /// the rest; smaller ones stay within the account's margin.
+    fn transient(&self, bytes: usize) {
+        if bytes >= 4096 {
+            self.meter.transient(self.bytes(), bytes);
         }
     }
 
     pub fn intern(&mut self, kind: Kind) -> Ty {
+        // Hashing the kind walks it as far as measuring it does.
+        let heap = kind.heap();
+        self.transient(heap);
         if let Some(&ty) = self.ids.get(&kind) {
             return ty;
         }
         let ty = Ty(self.kinds.len() as u32);
-        self.kinds.push(kind.clone());
+        self.payload += 2 * std::mem::size_of::<usize>() + std::mem::size_of::<Kind>() + heap;
+        let kind = Arc::new(kind);
+        self.kinds.push(Arc::clone(&kind));
         self.ids.insert(kind, ty);
+        self.poll();
         ty
     }
 
@@ -343,7 +390,7 @@ impl Types {
     /// renamed, as `deep_transform_keys` renames them: each shape becomes a
     /// dictionary of its fields' types.
     pub fn rekeyed(&mut self, ty: Ty) -> Ty {
-        self.steps += 1;
+        self.charge(1);
         match self.kind(ty).clone() {
             Kind::Shape(fields, open) => {
                 let mut values: Vec<Ty> =
@@ -395,9 +442,9 @@ impl Types {
     /// The union of `types`: nested unions flatten, `never` drops out, and
     /// `any` or an unknown type absorbs the rest.
     pub fn union(&mut self, types: &[Ty]) -> Ty {
-        self.steps += types.len() as u64;
+        self.charge(types.len() as u64);
         self.poll();
-        if self.stopped {
+        if self.stopped() {
             return Ty::ERROR;
         }
         let mut members = Vec::with_capacity(types.len());
@@ -412,6 +459,10 @@ impl Types {
         if members.contains(&Ty::ANY) {
             return Ty::ANY;
         }
+        // The caller's types, and the members gathered from them.
+        self.transient(
+            std::mem::size_of_val(types) + members.capacity() * std::mem::size_of::<Ty>(),
+        );
         members.sort_unstable();
         members.dedup();
         if members.len() > MAX_ALTERNATIVES {
@@ -468,7 +519,7 @@ impl Types {
             || to == Ty::ERROR
             || from == Ty::NEVER
             || to == Ty::ANY
-            || self.stopped
+            || self.stopped()
         {
             return true;
         }
@@ -484,7 +535,7 @@ impl Types {
     }
 
     fn assignable_uncached(&mut self, from: Ty, to: Ty) -> bool {
-        self.steps += 1;
+        self.charge(1);
         self.poll();
         if let Kind::Union(members) = self.kind(from) {
             let count = members.len();
@@ -591,8 +642,10 @@ impl Types {
                 if self.indexed + count > INDEXED {
                     self.index.clear();
                     self.indexed = 0;
+                    self.index_bytes = 0;
                 }
                 self.indexed += count;
+                self.index_bytes += index.heap() + 2 * std::mem::size_of::<usize>();
                 let index = Arc::new(index);
                 self.index.insert(union, Arc::clone(&index));
                 index
@@ -664,7 +717,7 @@ impl Types {
     /// every 64, so small types cost nothing more.
     fn work(&mut self, units: usize) {
         if units >= 64 {
-            self.steps += (units / 64) as u64;
+            self.charge((units / 64) as u64);
             self.poll();
         }
     }

@@ -4,6 +4,7 @@
 
 use super::{
     Checker,
+    meter::{Heap, map, vec},
     sigs::{self, BlockSig, Param, ParamKind, Sig},
     ty::{Field, Kind, Ty},
 };
@@ -105,6 +106,38 @@ impl Enum {
     }
 }
 
+impl Heap for Enum {
+    fn heap(&self) -> usize {
+        self.name.heap()
+            + self.members.heap()
+            + self.symbols.heap()
+            + self.by_member.heap()
+            + self.by_symbol.heap()
+    }
+}
+
+impl Heap for FnDecl<'_> {
+    fn heap(&self) -> usize {
+        self.sig.heap()
+    }
+}
+
+impl Heap for Namespace<'_> {
+    fn heap(&self) -> usize {
+        self.name.heap()
+            + self.methods.heap()
+            + self.statics.heap()
+            + self.ivars.heap()
+            + self.children.heap()
+    }
+}
+
+impl Heap for Ivar {
+    fn heap(&self) -> usize {
+        0
+    }
+}
+
 /// Everything a program declares.
 #[derive(Default)]
 pub(crate) struct Program<'a> {
@@ -143,6 +176,33 @@ pub(crate) struct Program<'a> {
     pub host_modules: Vec<&'a crate::signatures::Module>,
 }
 
+impl Program<'_> {
+    /// What the declarations hold, but for the tables checking grows,
+    /// which [`Self::grown`] counts.
+    pub fn heap(&self) -> usize {
+        self.file_locals.heap()
+            + self.file_written.heap()
+            + self.fns.heap()
+            + self.functions.heap()
+            + self.namespaces.heap()
+            + self.roots.heap()
+            + self.enums.heap()
+            + self.enum_names.heap()
+            + self.aliases.heap()
+            + self.by_offset.heap()
+            + self.hosts.heap()
+            + self.declared_calls.heap()
+            + self.declared.heap()
+            + vec(&self.host_modules)
+    }
+
+    /// The storage of the tables checking grows, whose elements' payloads
+    /// the checker counts as it adds them.
+    pub fn grown(&self) -> usize {
+        map(&self.alias_types) + vec(&self.file_calls) + map(&self.file_uses)
+    }
+}
+
 impl<'a> Checker<'a> {
     /// Verifies the source contracts of explicitly retained script type values.
     pub(super) fn check_retained_declarations(
@@ -178,7 +238,7 @@ impl<'a> Checker<'a> {
                 let mut text = Vec::new();
                 crate::shapes::format(&alias.ty, &mut text)
                     .expect("formatting into a Vec cannot fail");
-                self.steps += text.len() as u64;
+                self.meter.charge(text.len() as u64);
                 aliases.insert(alias.name.as_str(), text);
             }
         }
@@ -191,10 +251,10 @@ impl<'a> Checker<'a> {
                     namespace.definition.name == *name
                         && retained.is_some_and(|retained| {
                             retained.aliases.iter().all(|(name, ty)| {
-                                self.steps += ty.len() as u64;
+                                self.meter.charge(ty.len() as u64);
                                 aliases.get(name.as_str()) == Some(ty)
                             }) && retained.declarations.iter().all(|(name, source)| {
-                                self.steps += source.len() as u64;
+                                self.meter.charge(source.len() as u64);
                                 let bound = !nominal.contains(name.as_str())
                                     || declared
                                         .get(name)
@@ -213,7 +273,8 @@ impl<'a> Checker<'a> {
                     .get(name.as_str())
                     .is_some_and(|&id| {
                         let found = &self.program.enums[id as usize];
-                        self.steps += enumeration.definition.members.len() as u64;
+                        self.meter
+                            .charge(enumeration.definition.members.len() as u64);
                         enumeration.definition.name == *name
                             && found.members.iter().eq(enumeration
                                 .definition
@@ -235,7 +296,7 @@ impl<'a> Checker<'a> {
     /// namespace of them, and a callable capability as a host function.
     pub(super) fn declare_hosts(&mut self, declared: &'a crate::declared::Declarations) {
         for (name, declaration) in declared {
-            self.steps += 1;
+            self.meter.charge(1);
             if declaration.retained().is_some() {
                 continue;
             }
@@ -615,13 +676,15 @@ impl<'a> Checker<'a> {
             }
             (None, _) => def.name.to_string(),
         };
+        let (breaks, scratch) = yields(&def.body);
+        self.transient(scratch);
         let sig = Rc::new(Sig {
             name,
             params,
             result,
             block: block_sig,
             vars: Vec::new(),
-            breaks: yields(&def.body),
+            breaks,
             converts: true,
             id: Some(self.program.fns.len()),
         });
@@ -882,6 +945,7 @@ impl<'a> Checker<'a> {
         }
         let ty = *self.program.aliases.get(&(scope, name))?;
         // A self-referential alias resolves to an unknown type once.
+        self.grown += key.1.capacity();
         self.program.alias_types.insert(key.clone(), Ty::ERROR);
         let resolved = self.annotation_depth(ty, scope, depth + 1);
         self.program.alias_types.insert(key, resolved);
@@ -922,13 +986,25 @@ fn literal_type(expr: &crate::syntax::Expr) -> Ty {
 /// Where a `break` out of the block a function body yields to goes: out
 /// of the function when every `yield` stands outside loops and blocks, and
 /// otherwise into the loop or call around a `yield`, or nowhere when the
-/// body never yields.
-fn yields(body: &[crate::syntax::Stmt]) -> sigs::Breaks {
+/// body never yields; with the bytes of the lists the walk kept.
+fn yields(body: &[crate::syntax::Stmt]) -> (sigs::Breaks, usize) {
+    let mut statements = Vec::new();
+    let mut expressions = Vec::new();
+    let breaks = yields_in(body, &mut statements, &mut expressions);
+    let scratch = statements.capacity() * std::mem::size_of::<(&crate::syntax::Stmt, bool)>()
+        + expressions.capacity() * std::mem::size_of::<(&crate::syntax::Expr, bool)>();
+    (breaks, scratch)
+}
+
+/// [`yields`], walking with the lists it is given.
+fn yields_in<'b>(
+    body: &'b [crate::syntax::Stmt],
+    statements: &mut Vec<(&'b crate::syntax::Stmt, bool)>,
+    expressions: &mut Vec<(&'b crate::syntax::Expr, bool)>,
+) -> sigs::Breaks {
     let mut found = false;
     use crate::syntax::{Node, Statement};
-    let mut statements: Vec<(&crate::syntax::Stmt, bool)> =
-        body.iter().map(|stmt| (stmt, false)).collect();
-    let mut expressions: Vec<(&crate::syntax::Expr, bool)> = Vec::new();
+    statements.extend(body.iter().map(|stmt| (stmt, false)));
     loop {
         if let Some((expr, inside)) = expressions.pop() {
             match &expr.node {

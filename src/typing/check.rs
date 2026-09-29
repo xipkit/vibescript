@@ -3,6 +3,7 @@
 use super::{
     Checker,
     flow::{Branch, Flow, LocalId, Mark, VarState},
+    meter::Heap,
     program::{FnId, NsId},
     sigs::BlockSig,
     ty::{Kind, Ty},
@@ -139,10 +140,19 @@ pub(crate) struct Frame {
     /// In a required file's function or method: the locals that are the
     /// file's top-level locals.
     pub shared: Vec<LocalId>,
+    /// What the locals' names take, in the locals, the map of them by name
+    /// and the scopes that record them.
+    pub name_bytes: usize,
 }
 
 impl Frame {
-    pub fn new(owner: Option<NsId>, instance: bool, result: Option<Ty>, name: String) -> Self {
+    pub fn new(
+        meter: &std::sync::Arc<super::meter::Meter>,
+        owner: Option<NsId>,
+        instance: bool,
+        result: Option<Ty>,
+        name: String,
+    ) -> Self {
         Self {
             owner,
             instance,
@@ -158,11 +168,45 @@ impl Frame {
             names: HashMap::new(),
             ambient: Vec::new(),
             scopes: Vec::new(),
-            flow: Flow::new(),
+            flow: Flow::new(std::sync::Arc::clone(meter)),
             contexts: Vec::new(),
             namespace_body: false,
             shared: Vec::new(),
+            name_bytes: 0,
         }
+    }
+}
+
+impl Heap for Frame {
+    fn heap(&self) -> usize {
+        use super::meter::{map, vec};
+        vec(&self.locals)
+            + map(&self.names)
+            + self.name_bytes
+            + vec(&self.scopes)
+            + self.scopes.iter().map(vec).sum::<usize>()
+            + self.flow.bytes()
+            + vec(&self.contexts)
+            + self.initialize.heap()
+            + self.building.heap()
+            + vec(&self.ambient)
+            + vec(&self.shared)
+            + self.name.heap()
+    }
+}
+
+impl Heap for Context {
+    fn heap(&self) -> usize {
+        match self {
+            Context::Loop { exits, .. } => exits.heap(),
+            Context::Block { exits, results, .. } => exits.heap() + super::meter::vec(results),
+        }
+    }
+}
+
+impl Heap for Exits {
+    fn heap(&self) -> usize {
+        self.breaks.heap() + self.nexts.heap() + super::meter::vec(&self.values)
     }
 }
 
@@ -199,6 +243,7 @@ impl<'a> Checker<'a> {
         if self.mute > 0 {
             return;
         }
+        self.keep(&diagnostic);
         self.diagnostics.push(diagnostic);
     }
 
@@ -299,7 +344,7 @@ impl<'a> Checker<'a> {
             return;
         };
         let name = self.program.namespaces[ns as usize].name.clone();
-        let mut frame = Frame::new(Some(ns), false, None, name);
+        let mut frame = Frame::new(&self.meter, Some(ns), false, None, name);
         frame.namespace_body = true;
         let previous = self.enter_frame(frame);
         // Only the enclosing locals the body names can matter to it, and
@@ -343,7 +388,7 @@ impl<'a> Checker<'a> {
             .map(|(_, stmt)| stmt)
             .collect();
         let name = self.frame.name.clone();
-        let body = self.enter_frame(Frame::new(Some(ns), true, None, name));
+        let body = self.enter_frame(Frame::new(&self.meter, Some(ns), true, None, name));
         // A default may read only the variables whose defaults precede it.
         let mut unassigned: Vec<String> = Vec::new();
         for (name, ivar) in &self.program.namespaces[ns as usize].ivars {
@@ -389,7 +434,7 @@ impl<'a> Checker<'a> {
         let instance = decl.instance;
         let main = decl.main;
         let accessor = def.accessor.is_some();
-        let mut frame = Frame::new(owner, instance, sig.result, sig.name.clone());
+        let mut frame = Frame::new(&self.meter, owner, instance, sig.result, sig.name.clone());
         frame.main = main;
         frame.function = Some(id);
         frame.block = sig.block.clone();
@@ -568,7 +613,7 @@ impl<'a> Checker<'a> {
         }
         let written: Vec<String> = self.program.file_written.iter().cloned().collect();
         for name in &written {
-            self.steps += 1;
+            self.meter.charge(1);
             if let Some(id) = self.local(name) {
                 let state = self.frame.flow.get(id);
                 let declared = self.frame.locals[id as usize].declared;
@@ -595,19 +640,18 @@ impl<'a> Checker<'a> {
                 .filter(|(_, id)| self.frame.flow.get(**id).assigned)
                 .map(|(name, _)| name.clone())
                 .collect();
-            self.steps += assigned.len() as u64;
+            self.meter.charge(assigned.len() as u64);
+            self.grown += assigned.heap();
             self.program.file_calls.push(FileCall {
                 callee,
                 span,
                 assigned,
             });
         } else if let Some(caller) = self.frame.function {
-            self.program
-                .file_uses
-                .entry(caller)
-                .or_default()
-                .1
-                .push(callee);
+            let callees = &mut self.program.file_uses.entry(caller).or_default().1;
+            let before = callees.capacity();
+            callees.push(callee);
+            self.grown += (callees.capacity() - before) * std::mem::size_of::<FnId>();
         }
     }
 
@@ -616,12 +660,11 @@ impl<'a> Checker<'a> {
     pub(super) fn shared_read(&mut self, id: LocalId, name: &str) {
         if self.frame.shared.contains(&id) {
             if let Some(function) = self.frame.function {
-                self.program
-                    .file_uses
-                    .entry(function)
-                    .or_default()
-                    .0
-                    .insert(name.to_owned());
+                let reads = &mut self.program.file_uses.entry(function).or_default().0;
+                let bytes = super::meter::btree_entry(reads) + name.len();
+                if reads.insert(name.to_owned()) {
+                    self.grown += bytes;
+                }
             }
         }
     }
@@ -635,21 +678,29 @@ impl<'a> Checker<'a> {
             .iter()
             .map(|(&id, (read, _))| (id, read.clone()))
             .collect();
+        self.grown += reads.heap();
         // Checking each call charged for the first pass over the calls.
         let mut again = false;
         let mut changed = true;
         while changed {
             changed = false;
             for (&caller, (_, callees)) in &uses {
+                if self.over_budget() {
+                    return;
+                }
                 for callee in callees {
-                    self.steps += u64::from(again);
+                    self.meter.charge(u64::from(again));
                     let Some(read) = reads.get(callee).cloned() else {
                         continue;
                     };
-                    self.steps += read.len() as u64;
+                    self.meter.charge(read.len() as u64);
                     let entry = reads.entry(caller).or_default();
                     for name in read {
-                        changed |= entry.insert(name);
+                        let bytes = super::meter::btree_entry(entry) + name.len();
+                        if entry.insert(name) {
+                            changed = true;
+                            self.grown += bytes;
+                        }
                     }
                 }
             }
@@ -659,7 +710,7 @@ impl<'a> Checker<'a> {
             let Some(read) = reads.get(&call.callee) else {
                 continue;
             };
-            self.steps += read.len() as u64;
+            self.meter.charge(read.len() as u64);
             let missing: Vec<&String> = read
                 .iter()
                 .filter(|name| !call.assigned.contains(name))
@@ -755,6 +806,8 @@ impl<'a> Checker<'a> {
             dictionary: None,
         });
         let previous = self.frame.names.insert(name.to_owned(), id);
+        // The local, its entry by name and its scope's record each copy it.
+        self.frame.name_bytes += 3 * name.len();
         if let Some(scope) = self.frame.scopes.last_mut() {
             scope.push((name.to_owned(), previous));
         }
@@ -857,7 +910,7 @@ impl<'a> Checker<'a> {
     /// since the body may run again after narrowing them.
     pub(super) fn widen_for_loop(&mut self, body: &'a [Stmt]) {
         let span = self.assigns.body(body);
-        self.steps += body.len() as u64;
+        self.meter.charge(body.len() as u64);
         self.widen(span);
     }
 
@@ -869,7 +922,7 @@ impl<'a> Checker<'a> {
             return;
         }
         let names = self.assigns.distinct(span);
-        self.steps += names.len() as u64;
+        self.meter.charge(names.len() as u64);
         for name in names {
             if let Some(id) = self.local(name) {
                 let state = self.frame.flow.get(id);
@@ -900,54 +953,17 @@ impl<'a> Checker<'a> {
         ty
     }
 
-    /// Makes `frame` current, keeping the work the replaced frame did.
+    /// Makes `frame` current, setting the replaced one aside.
     pub(super) fn enter_frame(&mut self, frame: Frame) -> Frame {
         let previous = std::mem::replace(&mut self.frame, frame);
-        self.steps += previous.flow.steps;
+        self.saved += previous.heap();
         previous
-    }
-
-    /// The work done so far, which [`super::Checked::steps`] reports.
-    pub(super) fn total_steps(&self) -> u64 {
-        self.steps + self.frame.flow.steps + self.types.steps + self.spans.steps.get()
-    }
-
-    /// Whether the check must stop: its work passed the steps its budget
-    /// leaves, the deadline passed, the host cancelled, or its largest
-    /// tables outgrew the memory left. Statements and expressions begun
-    /// after that are skipped, and compilation fails with the budget's
-    /// error. A check without a budget never stops.
-    pub(super) fn over_budget(&mut self) -> bool {
-        if self.stopped || self.types.stopped {
-            self.stopped = true;
-            return true;
-        }
-        if self
-            .budget
-            .steps
-            .is_some_and(|left| self.total_steps() > left)
-        {
-            self.stopped = true;
-            return true;
-        }
-        self.polls = self.polls.wrapping_add(1);
-        if self.polls % 1024 == 0 {
-            let footprint = self.assigns.bytes()
-                + self.frame.flow.bytes()
-                + self.frame.locals.len() * std::mem::size_of::<Local>()
-                + self.types.bytes();
-            self.stopped = self.budget.interrupted()
-                || self.budget.memory.is_some_and(|left| footprint > left);
-        }
-        self.stopped
     }
 
     /// Restores a frame [`Self::enter_frame`] replaced.
     pub(super) fn leave_frame(&mut self, previous: Frame) {
-        let finished = std::mem::replace(&mut self.frame, previous);
-        self.steps += finished.flow.steps;
-        // The restored frame's work was counted when it was replaced.
-        self.frame.flow.steps = 0;
+        self.saved = self.saved.saturating_sub(previous.heap());
+        self.frame = previous;
     }
 
     pub(super) fn stmt(&mut self, stmt: &'a Stmt, want: Want) -> Ty {
@@ -961,7 +977,7 @@ impl<'a> Checker<'a> {
     /// Checks a statement, `last` when it ends a body, where a loop gives
     /// another value than as an expression.
     fn statement(&mut self, stmt: &'a Stmt, want: Want, last: bool) -> Ty {
-        self.steps += 1;
+        self.meter.charge(1);
         if self.over_budget() {
             return Ty::ERROR;
         }
@@ -1609,7 +1625,7 @@ impl<'a> Checker<'a> {
         match op {
             "=" => self.assign(target, value),
             "||=" | "&&=" => {
-                let outer = self.memo.replace(super::Memo::default());
+                let outer = self.set_memo(Some(super::Memo::default()));
                 let current = self.target_read(target);
                 if current != Ty::ERROR && current != Ty::BOOL {
                     let span = self.target_span(target);
@@ -1635,7 +1651,7 @@ impl<'a> Checker<'a> {
                 let operator = &op[..op.len() - 1];
                 // The write reuses the types the read found for the target's
                 // receiver and selectors instead of checking them again.
-                let outer = self.memo.replace(super::Memo::default());
+                let outer = self.set_memo(Some(super::Memo::default()));
                 let current = self.target_read(target);
                 let right = self.expr(value, None);
                 let span = self.spans.stmt(stmt);
@@ -1947,6 +1963,7 @@ impl<'a> Checker<'a> {
                         })
                     } else {
                         let ty = self.expr(value, None);
+                        self.grown += key.1.len();
                         self.constants.insert(key, ty);
                         ty
                     }
@@ -2167,7 +2184,7 @@ impl<'a> Checker<'a> {
                     self.mark_write_chain(receiver);
                     // As a compound assignment does, the read checks the
                     // receiver and keys, and the write replays their types.
-                    let outer = self.memo.replace(super::Memo::default());
+                    let outer = self.set_memo(Some(super::Memo::default()));
                     self.expr(expr, None);
                     self.memo.as_mut().unwrap().replay = true;
                     self.index_write(expr, receiver, selectors, ty, expr, false);
@@ -2401,6 +2418,7 @@ impl<'a> Checker<'a> {
         self.report(diagnostic);
         // Later reads and writes check against the first value's type.
         let ty = if nameable { ty } else { Ty::ERROR };
+        self.grown += key.1.len();
         self.constants.insert(key, ty);
     }
 

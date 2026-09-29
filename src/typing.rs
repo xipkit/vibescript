@@ -33,6 +33,7 @@ mod construction;
 mod expr;
 mod flow;
 mod foreign;
+mod meter;
 mod modules;
 mod program;
 mod sigs;
@@ -112,6 +113,13 @@ pub struct Checked {
     /// Whether the check stopped at its budget before it finished, so its
     /// findings are incomplete and compilation fails with the budget's error.
     pub(crate) stopped: bool,
+    /// The most memory the checker held while checking, by its own account
+    /// of its tables, which a memory quota bounds.
+    pub peak_bytes: usize,
+    /// About the most memory the pass over the canonical surface held
+    /// beside the checker's tables, which the quota bounds with them; 0
+    /// when it did not run.
+    pub surface_bytes: usize,
 }
 
 /// What the checker proved about expressions and blocks, by syntax node, for
@@ -143,6 +151,9 @@ pub(crate) struct Facts {
     /// variable before it is assigned ([`construction`]). The compiler moves
     /// definitions, so their offset names them.
     results: std::collections::HashSet<u32>,
+    /// What the recorded class names hold, for the checker's memory
+    /// account.
+    names: usize,
 }
 
 /// A numeric type proved by the checker. Integers may use compact or big storage.
@@ -182,10 +193,10 @@ impl Facts {
     }
 
     fn record_class(&mut self, call: &crate::syntax::Expr, class: Option<String>) {
-        let recorded = self
-            .classes
-            .entry(key(call))
-            .or_insert_with(|| class.clone());
+        let recorded = self.classes.entry(key(call)).or_insert_with(|| {
+            self.names += class.as_ref().map_or(0, String::capacity);
+            class.clone()
+        });
         if *recorded != class {
             *recorded = None;
         }
@@ -227,6 +238,17 @@ impl Facts {
     /// Whether every parameter of `block` is plain.
     pub(crate) fn plain_block(&self, block: &crate::syntax::Block) -> bool {
         self.blocks.get(&key(block)).copied().unwrap_or(false)
+    }
+
+    /// What the facts' tables hold.
+    fn bytes(&self) -> usize {
+        use meter::{map, set};
+        map(&self.bases)
+            + map(&self.values)
+            + map(&self.blocks)
+            + map(&self.classes)
+            + set(&self.results)
+            + self.names
     }
 }
 
@@ -362,20 +384,25 @@ pub(crate) fn check(input: &Input<'_>) -> Checked {
 
 /// Checks a source `depth` requires deep.
 fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
+    let meter = meter::Meter::new(input.budget.clone());
     let mut checker = Checker {
         source: input.source,
         parsed: input.parsed,
-        spans: spans::Spans::new(input.source, input.tokens, &input.parsed.interpolations),
-        types: ty::Types::new(),
+        spans: spans::Spans::new(
+            input.source,
+            input.tokens,
+            &input.parsed.interpolations,
+            std::sync::Arc::clone(&meter),
+        ),
+        types: ty::Types::metered(std::sync::Arc::clone(&meter)),
         program: program::Program::default(),
         converter: sigs::Converter::default(),
         diagnostics: Vec::new(),
         calls: Vec::new(),
         constants: HashMap::new(),
-        frame: check::Frame::new(None, false, None, String::new()),
+        frame: check::Frame::new(&meter, None, false, None, String::new()),
         purposes: Vec::new(),
         mute: 0,
-        steps: 0,
         modules: modules::Required::new(input, depth),
         memo: None,
         write_chain: HashSet::new(),
@@ -388,11 +415,12 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         symbols_stay: None,
         storing_self: None,
         assigns: assigns::Assigns::default(),
-        budget: input.budget.clone(),
+        meter: std::sync::Arc::clone(&meter),
         stopped: false,
-        polls: 0,
+        grown: 0,
+        declared_bytes: 0,
+        saved: 0,
     };
-    checker.types.set_budget(input.budget.clone());
     for (name, host) in &input.hosts {
         let function = crate::signatures::host::function(name, host);
         let sig = checker
@@ -408,9 +436,11 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     checker.program.file = input.file;
     checker.declare_program(input.parsed);
     checker.check_retained_declarations(input.declared, input.parsed);
+    checker.declared();
     checker.check_all();
     let steps = checker.total_steps();
-    let stopped = checker.stopped;
+    checker.held();
+    let stopped = checker.stopped || meter.stopped();
     let exported = input.file.then(|| std::sync::Arc::new(checker.export()));
     let (mut locals, result) = match checker.session.take() {
         Some(session) => (
@@ -437,11 +467,32 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         result,
         facts: checker.facts,
         stopped,
+        peak_bytes: meter.peak(),
+        surface_bytes: 0,
     };
     // Removed spellings of the canonical surface are compile errors too,
     // unless the source is too tall to walk or the check stopped early.
     if !too_deep && !stopped {
-        crate::surface::add_to(&mut checked, input.source, input.tokens);
+        // The pass charges a step a token up front, and holds a tree of the
+        // tokens beside what the checker keeps.
+        let tokens = input.tokens.len() as u64;
+        let names = checker
+            .program
+            .namespaces
+            .iter()
+            .map(|ns| ns.name.len())
+            .sum();
+        let surface = crate::surface::footprint(input.tokens, names);
+        let held = meter.held(checker.types.bytes()) + surface;
+        if input.budget.steps.is_some_and(|left| steps + tokens > left) {
+            // Compilation fails charging them.
+            checked.steps += tokens;
+        } else if input.budget.memory.is_some_and(|left| held > left) {
+            checked.stopped = true;
+        } else {
+            checked.surface_bytes = surface;
+            crate::surface::add_to(&mut checked, input.source, input.tokens);
+        }
     }
     checked
 }
@@ -450,20 +501,25 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
 /// which it passes as strings: each positional parameter they bind must
 /// accept `string`, and a rest parameter `array<string>`.
 pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -> Vec<Diagnostic> {
+    let meter = meter::Meter::new(input.budget.clone());
     let mut checker = Checker {
         source: input.source,
         parsed: input.parsed,
-        spans: spans::Spans::new(input.source, input.tokens, &input.parsed.interpolations),
-        types: ty::Types::new(),
+        spans: spans::Spans::new(
+            input.source,
+            input.tokens,
+            &input.parsed.interpolations,
+            std::sync::Arc::clone(&meter),
+        ),
+        types: ty::Types::metered(std::sync::Arc::clone(&meter)),
         program: program::Program::default(),
         converter: sigs::Converter::default(),
         diagnostics: Vec::new(),
         calls: Vec::new(),
         constants: HashMap::new(),
-        frame: check::Frame::new(None, false, None, String::new()),
+        frame: check::Frame::new(&meter, None, false, None, String::new()),
         purposes: Vec::new(),
         mute: 0,
-        steps: 0,
         modules: modules::Required::new(input, 0),
         memo: None,
         write_chain: HashSet::new(),
@@ -476,11 +532,12 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
         symbols_stay: None,
         storing_self: None,
         assigns: assigns::Assigns::default(),
-        budget: input.budget.clone(),
+        meter: std::sync::Arc::clone(&meter),
         stopped: false,
-        polls: 0,
+        grown: 0,
+        declared_bytes: 0,
+        saved: 0,
     };
-    checker.types.set_budget(input.budget.clone());
     checker.declare_hosts(input.declared);
     checker.declare_program(input.parsed);
     checker.check_retained_declarations(input.declared, input.parsed);
@@ -507,8 +564,6 @@ pub(crate) struct Checker<'a> {
     /// While positive, diagnostics are dropped: a second look at code that
     /// was already checked.
     mute: u32,
-    /// Work done outside the types, spans and flow of the current function.
-    steps: u64,
     /// The modules the program requires, and the names they publish.
     modules: modules::Required<'a>,
     /// Expression types recorded while checking a call on one alternative
@@ -543,12 +598,18 @@ pub(crate) struct Checker<'a> {
     storing_self: Option<String>,
     /// The names each `begin`, loop and block body assigns.
     assigns: assigns::Assigns<'a>,
-    /// What the check may spend, and whether it stopped there.
-    budget: crate::compilation::Budget,
+    /// The check's work and memory account, and whether it stopped at its
+    /// budget.
+    meter: std::sync::Arc<meter::Meter>,
     stopped: bool,
-    /// Statements and expressions begun, which pace the clock and memory
-    /// checks of [`Self::over_budget`].
-    polls: u32,
+    /// What tables that grow an element at a time hold beyond their own
+    /// storage: diagnostics, member call types, constants' names and the
+    /// classes facts record.
+    grown: usize,
+    /// What the program's declarations hold, measured when they change.
+    declared_bytes: usize,
+    /// What the frames that enclosing checks set aside hold.
+    saved: usize,
 }
 
 /// Expression types by node, recorded or replayed.
@@ -556,6 +617,13 @@ pub(crate) struct Checker<'a> {
 pub(crate) struct Memo {
     types: HashMap<usize, ty::Ty>,
     replay: bool,
+}
+
+impl Memo {
+    /// What the recorded types take.
+    fn bytes(&self) -> usize {
+        meter::map(&self.types)
+    }
 }
 
 /// The name of a symbol literal's value.

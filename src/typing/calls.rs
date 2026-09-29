@@ -470,7 +470,7 @@ impl<'a> Checker<'a> {
         let addressed = crate::bytecode::mutating_member(name)
             && matches!(receiver.node, Node::Member(..) | Node::SafeMember(..))
             && !self.memo.as_ref().is_some_and(|memo| memo.replay);
-        let outer = addressed.then(|| self.memo.replace(super::Memo::default()));
+        let outer = addressed.then(|| self.set_memo(Some(super::Memo::default())));
         let ty = self.member_receiver(receiver, name);
         if let Some(outer) = outer {
             self.field_addresses(receiver, name);
@@ -520,6 +520,7 @@ impl<'a> Checker<'a> {
                         .contains_key(name),
                     _ => false,
                 });
+                self.grown += super::meter::Heap::heap(&receiver_type);
                 self.calls.push((span.start, receiver_type));
             }
         }
@@ -608,7 +609,7 @@ impl<'a> Checker<'a> {
                 self.mute -= 1;
                 ty
             });
-        let outer = self.memo.replace(super::Memo::default());
+        let outer = self.set_memo(Some(super::Memo::default()));
         let reported = self.diagnostics.len();
         let result = self.checked_member(call, receiver, ty, safe);
         let valid = self.diagnostics.len() == reported;
@@ -686,7 +687,7 @@ impl<'a> Checker<'a> {
             self.loose_args(call);
             return Ty::ERROR;
         };
-        let outer = self.memo.replace(super::Memo::default());
+        let outer = self.set_memo(Some(super::Memo::default()));
         let mark = self.frame.flow.mark();
         results.push(self.member(call, first));
         let mut branches = vec![self.frame.flow.rollback(mark)];
@@ -939,11 +940,9 @@ impl<'a> Checker<'a> {
                         .unwrap_or_else(|| {
                             let id = self.program.host_modules.len();
                             self.program.host_modules.push(module);
-                            self.types.names.hosts.push(format!(
-                                "{}.{}",
-                                self.types.display(ty),
-                                module.name
-                            ));
+                            let name = format!("{}.{}", self.types.display(ty), module.name);
+                            self.grown += name.capacity() + std::mem::size_of::<String>();
+                            self.types.names.hosts.push(name);
                             id
                         });
                     return self.types.intern(Kind::Host(id as u32));
@@ -1395,6 +1394,7 @@ impl<'a> Checker<'a> {
         let name_span = self.spans.member(receiver, name);
         if let (Some(span), false) = (name_span, ty == Ty::ERROR) {
             let receiver_type = ReceiverType::new(self.types.display(ty), self.types.bases(ty));
+            self.grown += super::meter::Heap::heap(&receiver_type);
             self.calls.push((span.start, receiver_type));
         }
         if let Kind::Host(index) = self.types.kind(ty).clone() {
@@ -1479,7 +1479,7 @@ impl<'a> Checker<'a> {
             }
             return value_ty;
         }
-        let outer = self.memo.replace(super::Memo::default());
+        let outer = self.set_memo(Some(super::Memo::default()));
         self.dispatch(&call, receiver, ty);
         // The assigned value was checked as the setter's argument.
         let assigned = self
@@ -1553,9 +1553,20 @@ impl<'a> Checker<'a> {
         self.report(diagnostic);
     }
 
+    /// Makes `memo` current and returns the one it replaces, which the
+    /// memory account counts while it is set aside.
+    pub(super) fn set_memo(&mut self, memo: Option<super::Memo>) -> Option<super::Memo> {
+        let aside = std::mem::replace(&mut self.memo, memo);
+        self.saved += aside.as_ref().map_or(0, super::Memo::bytes);
+        aside
+    }
+
     /// Restores an enclosing memo, keeping what the inner one recorded when
     /// the enclosing one records too.
     pub(super) fn restore_memo(&mut self, outer: Option<super::Memo>) {
+        self.saved = self
+            .saved
+            .saturating_sub(outer.as_ref().map_or(0, super::Memo::bytes));
         let inner = std::mem::replace(&mut self.memo, outer);
         if let (Some(inner), Some(outer)) = (inner, self.memo.as_mut()) {
             if !outer.replay {
@@ -2417,7 +2428,7 @@ impl<'a> Checker<'a> {
             .all(|&ty| self.types.plain(ty));
         self.facts.record_block(block, plain);
         // Union receivers supply different block parameter types on each pass.
-        let outer_memo = self.memo.take();
+        let outer_memo = self.set_memo(None);
         self.open_scope();
         // The widening below charges for listing these names.
         let span = self.assigns.body(&block.body);
@@ -2516,6 +2527,9 @@ impl<'a> Checker<'a> {
         }
         let breaks = self.finish_loop(before, context, true);
         self.close_scope();
+        self.saved = self
+            .saved
+            .saturating_sub(outer_memo.as_ref().map_or(0, super::Memo::bytes));
         self.memo = outer_memo;
         (self.types.union(&results), breaks)
     }

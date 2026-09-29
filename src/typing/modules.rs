@@ -3,6 +3,7 @@
 
 use super::{
     Checker, Input, Modules,
+    meter::Heap,
     program::{Enum, FnDecl, Namespace, NsId},
     sigs::{BlockSig, Param, Sig},
     ty::{Field, Kind, Ty, Types},
@@ -96,6 +97,33 @@ pub(crate) struct Required<'a> {
     pub published: HashMap<String, Rc<Sig>>,
 }
 
+impl Heap for Exports {
+    fn heap(&self) -> usize {
+        self.path.heap() + self.functions.heap() + self.enums.heap()
+    }
+}
+
+impl Heap for Required<'_> {
+    fn heap(&self) -> usize {
+        use super::meter::map;
+        let origins: usize = self
+            .by_origin
+            .keys()
+            .map(|origin| origin.name().len())
+            .sum();
+        // The published signatures are the loaded modules' own.
+        let published: usize = self.published.keys().map(Heap::heap).sum();
+        super::meter::vec(&self.hosts)
+            + self.loaded.heap()
+            + self.by_path.heap()
+            + map(&self.by_origin)
+            + origins
+            + self.aliases.heap()
+            + map(&self.published)
+            + published
+    }
+}
+
 impl<'a> Required<'a> {
     pub fn new(input: &Input<'a>, depth: usize) -> Self {
         Self {
@@ -139,7 +167,8 @@ impl<'a> Checker<'a> {
             pending.extend(module.modules.iter().chain(&module.inner));
         }
         for body in bodies {
-            requires(body, &mut requests);
+            let scratch = requires(body, &mut requests);
+            self.transient(scratch);
         }
         requests.sort_by_key(|request| request.2);
         for (path, alias, offset) in requests {
@@ -196,6 +225,11 @@ impl<'a> Checker<'a> {
             );
             error.to_string()
         })?;
+        // The file's check may spend what this one leaves.
+        let steps = self.total_steps();
+        let mut budget = self.meter.budget().less(steps);
+        let held = self.held();
+        budget.memory = budget.memory.map(|left| left.saturating_sub(held));
         let input = Input {
             source: &source,
             parsed: &parsed,
@@ -205,11 +239,18 @@ impl<'a> Checker<'a> {
             file: true,
             origin: Some(&origin),
             modules: self.modules.resolve,
-            budget: self.budget.less(self.total_steps()),
+            budget,
         };
         let checked = super::check_nested(&input, self.modules.depth + 1);
-        self.steps += checked.steps;
-        self.stopped |= checked.stopped;
+        self.meter.charge(checked.steps);
+        // What the file's check held beside this one's tables, and at most
+        // its surface pass's too.
+        self.meter
+            .reach(held + checked.peak_bytes + checked.surface_bytes);
+        if checked.stopped {
+            self.stopped = true;
+            self.meter.stop();
+        }
         let source: Arc<str> = source.into();
         for mut diagnostic in checked.diagnostics.into_iter().filter(Diagnostic::is_error) {
             if diagnostic.source.is_none() {
@@ -294,7 +335,7 @@ impl<'a> Checker<'a> {
         };
         let mut enums = HashMap::new();
         for declared in &exported.enums {
-            self.steps += 1;
+            self.meter.charge(1);
             let id = self.program.enums.len() as u32;
             self.program.enums.push(declared.clone());
             self.types.names.enums.push(declared.name.clone());
@@ -387,7 +428,7 @@ impl<'a> Checker<'a> {
     /// classes become the ones imported from it, and a type the file could
     /// not resolve, or one of a file it requires in turn, becomes `any`.
     fn import_ty(&mut self, from: &Types, ty: Ty, imports: &Imports) -> Ty {
-        self.steps += 1;
+        self.meter.charge(1);
         match from.kind(ty).clone() {
             Kind::Error | Kind::Namespace(_) | Kind::Exports(_) => Ty::ANY,
             Kind::Array(element) => {
@@ -483,8 +524,9 @@ impl<'a> Checker<'a> {
     }
 }
 
-/// The literal paths, and aliases, of the `require` calls in statements.
-fn requires(body: &[Stmt], out: &mut Vec<(String, Option<String>, usize)>) {
+/// The literal paths, and aliases, of the `require` calls in statements,
+/// and the bytes of the lists the walk kept.
+fn requires(body: &[Stmt], out: &mut Vec<(String, Option<String>, usize)>) -> usize {
     let mut statements: Vec<&Stmt> = body.iter().collect();
     let mut expressions: Vec<&Expr> = Vec::new();
     loop {
@@ -493,7 +535,7 @@ fn requires(body: &[Stmt], out: &mut Vec<(String, Option<String>, usize)>) {
             continue;
         }
         let Some(stmt) = statements.pop() else {
-            break;
+            return (statements.capacity() + expressions.capacity()) * std::mem::size_of::<usize>();
         };
         match &stmt.node {
             Statement::Expr(e) => expressions.push(e),

@@ -161,6 +161,9 @@ impl Code {
             // check stopped for memory, which it does not charge.
             return Err(work.allocation_error("memory quota exceeded while checking types"));
         }
+        // The checker's tables, by its own account, held this much at most
+        // while it ran, which counts toward the call's peak and its quota.
+        drop(work.reserve(checked.peak_bytes + checked.surface_bytes)?);
         if checked.diagnostics.iter().any(|d| d.is_error()) {
             let mut text = crate::source::Source::compile(source, work)?;
             text.filename = filename.clone();

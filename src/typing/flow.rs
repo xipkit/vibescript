@@ -5,8 +5,11 @@
 //! a branch and joining it with its siblings costs time proportional to the
 //! changes the branch made, not to the number of locals.
 
-use super::ty::{Ty, Types};
-use std::collections::HashMap;
+use super::{
+    meter::Meter,
+    ty::{Ty, Types},
+};
+use std::{collections::HashMap, sync::Arc};
 
 pub(crate) type LocalId = u32;
 
@@ -32,23 +35,28 @@ pub(crate) struct Branch {
     pub changes: Vec<(LocalId, VarState)>,
 }
 
-#[derive(Default)]
 pub(crate) struct Flow {
     pub vars: Vec<VarState>,
     trail: Vec<(LocalId, VarState)>,
     /// Whether control can reach the current point.
     pub live: bool,
-    /// Work done, for [`super::Checked::steps`].
-    pub steps: u64,
+    /// The check's account, which the flow's work is charged to.
+    meter: Arc<Meter>,
+}
+
+impl super::meter::Heap for Branch {
+    fn heap(&self) -> usize {
+        super::meter::vec(&self.changes)
+    }
 }
 
 impl Flow {
-    pub fn new() -> Self {
+    pub fn new(meter: Arc<Meter>) -> Self {
         Self {
             vars: Vec::new(),
             trail: Vec::new(),
             live: true,
-            steps: 0,
+            meter,
         }
     }
 
@@ -61,10 +69,9 @@ impl Flow {
         (self.vars.len() - 1) as LocalId
     }
 
-    /// About the bytes the states and the trail hold.
+    /// The bytes the states and the trail hold.
     pub fn bytes(&self) -> usize {
-        self.vars.len() * std::mem::size_of::<VarState>()
-            + self.trail.len() * std::mem::size_of::<(LocalId, VarState)>()
+        super::meter::vec(&self.vars) + super::meter::vec(&self.trail)
     }
 
     pub fn get(&self, id: LocalId) -> VarState {
@@ -92,7 +99,7 @@ impl Flow {
         let mut changes: Vec<(LocalId, VarState)> = Vec::new();
         let mut seen: HashMap<LocalId, ()> = HashMap::new();
         while self.trail.len() > mark.trail {
-            self.steps += 1;
+            self.meter.charge(1);
             let (id, old) = self.trail.pop().unwrap();
             if seen.insert(id, ()).is_none() {
                 changes.push((id, self.vars[id as usize]));
@@ -114,7 +121,7 @@ impl Flow {
                 changes.push((id, self.vars[id as usize]));
             }
         }
-        self.steps += steps;
+        self.meter.charge(steps);
         Branch {
             live: true,
             changes,
@@ -143,7 +150,7 @@ impl Flow {
         ids.sort_unstable();
         ids.dedup();
         for id in ids {
-            self.steps += live.len() as u64;
+            self.meter.charge(live.len() as u64);
             let base = self.vars[id as usize];
             let states: Vec<VarState> = finals
                 .iter()
