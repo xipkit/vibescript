@@ -2023,8 +2023,12 @@ impl<'a> Checker<'a> {
         self.stmts(ensure, Want::Discard);
         let ensured = self.frame.flow.live;
         let branch = self.frame.flow.rollback(mark);
+        // Taken from the flow, the ensure's changes are held until they
+        // apply.
+        let held = self.hold(super::meter::Heap::heap(&branch));
         self.join_explored(explored);
         if self.stopped {
+            self.release(held);
             return;
         }
         for (id, state) in branch.changes {
@@ -2039,6 +2043,7 @@ impl<'a> Checker<'a> {
                 self.frame.flow.set(id, VarState { ty, ..joined });
             }
         }
+        self.release(held);
         self.frame.flow.live = self.frame.flow.live && ensured;
     }
 
