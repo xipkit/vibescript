@@ -101,6 +101,8 @@ pub struct Surface<'a> {
     pub source: &'a str,
     /// Every token of the tree, interpolations' after the source's own.
     pub tokens: &'a [Token],
+    /// Where the tokens start.
+    pub starts: &'a Starts,
     /// The edits made so far.
     pub edits: Edits,
     /// The source's classes, functions and enums.
@@ -128,6 +130,7 @@ impl<'a> Surface<'a> {
         let mut surface = Self {
             source,
             tokens: &tree.tokens,
+            starts: &tree.starts,
             edits: Edits::default(),
             declared: Declared::default(),
             scopes: Vec::new(),
@@ -169,7 +172,7 @@ impl<'a> Surface<'a> {
 
     /// The token that starts at `offset`.
     pub fn token_at(&self, offset: usize) -> Tok {
-        parse::token_at(self.tokens, offset)
+        self.starts.find(self.tokens, offset)
     }
 
     /// Starts a rewrite of a removed spelling at `span`: edits made until

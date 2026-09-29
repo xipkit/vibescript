@@ -25,7 +25,58 @@ pub struct Token {
 #[derive(Debug)]
 pub struct Tree {
     pub tokens: Vec<Token>,
+    /// Where the tokens start.
+    pub starts: Starts,
     pub body: Vec<Stmt>,
+}
+
+/// Finds the token that starts at an offset. The source's tokens come
+/// first, sorted, up to their end of file, which a search finds; each
+/// interpolation's follow them, which a table finds by where they start.
+#[derive(Clone, Debug, Default)]
+pub struct Starts {
+    /// One past the source's own end of file.
+    end: usize,
+    /// The first interpolation token starting at each offset.
+    tail: std::collections::HashMap<usize, Tok>,
+}
+
+impl Starts {
+    pub fn new(tokens: &[Token]) -> Self {
+        let end = tokens
+            .iter()
+            .position(|token| token.kind == TokenKind::Eof)
+            .map_or(tokens.len(), |eof| eof + 1);
+        let mut starts = Self {
+            end,
+            tail: std::collections::HashMap::new(),
+        };
+        starts.extend(tokens, end);
+        starts
+    }
+
+    /// Adds the tokens from `from`, which an interpolation appended.
+    pub fn extend(&mut self, tokens: &[Token], from: usize) {
+        for (index, token) in tokens.iter().enumerate().skip(from) {
+            if token.kind != TokenKind::Eof {
+                self.tail.entry(token.start).or_insert(index);
+            }
+        }
+    }
+
+    /// The token of `tokens` that starts at `offset`, or the nearest one
+    /// after it among the source's own.
+    pub fn find(&self, tokens: &[Token], offset: usize) -> Tok {
+        let end = self.end.min(tokens.len());
+        let index = tokens[..end].partition_point(|token| token.start < offset);
+        if index < end && tokens[index].start == offset {
+            return index;
+        }
+        self.tail
+            .get(&offset)
+            .copied()
+            .unwrap_or(index.min(tokens.len() - 1))
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]

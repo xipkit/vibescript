@@ -28,11 +28,13 @@ pub fn parse(source: &str) -> Result<Tree> {
         offset: 0,
         message: error.to_string(),
     })?;
-    let mut parser = Parser::new(source, tokens);
+    let starts = Starts::new(&tokens);
+    let mut parser = Parser::new(source, tokens, starts);
     parser.declare_types();
     let body = parser.program()?;
     Ok(Tree {
         tokens: parser.tokens,
+        starts: parser.starts,
         body,
     })
 }
@@ -41,7 +43,9 @@ pub fn parse(source: &str) -> Result<Tree> {
 /// deeper than `limit` statements and expressions. The parser recurses once
 /// per level, so the limit bounds the stack it needs.
 pub fn parse_tokens(source: &str, tokens: &[tooling::Token], limit: usize) -> Result<Tree> {
-    let mut parser = Parser::new(source, convert(source, tokens, 0));
+    let tokens = convert(source, tokens, 0);
+    let starts = Starts::new(&tokens);
+    let mut parser = Parser::new(source, tokens, starts);
     parser.declare_types();
     parser.limit = limit;
     let body = parser.program();
@@ -56,6 +60,7 @@ pub fn parse_tokens(source: &str, tokens: &[tooling::Token], limit: usize) -> Re
     let body = body?;
     Ok(Tree {
         tokens: parser.tokens,
+        starts: parser.starts,
         body,
     })
 }
@@ -188,6 +193,8 @@ enum Place {
 struct Parser<'s> {
     source: &'s str,
     tokens: Vec<Token>,
+    /// Where the tokens start, found without a scan of them all.
+    starts: Starts,
     pos: usize,
     groups: usize,
     line_exprs: usize,
@@ -241,10 +248,11 @@ struct Saved {
 }
 
 impl<'s> Parser<'s> {
-    fn new(source: &'s str, tokens: Vec<Token>) -> Self {
+    fn new(source: &'s str, tokens: Vec<Token>, starts: Starts) -> Self {
         Self {
             source,
             tokens,
+            starts,
             pos: 0,
             groups: 0,
             line_exprs: 0,
@@ -2799,7 +2807,12 @@ impl<'s> Parser<'s> {
         let tokens = lex(text, span.start).ok()?;
         let base = self.tokens.len();
         self.tokens.extend(tokens);
-        let mut parser = Parser::new(self.source, std::mem::take(&mut self.tokens));
+        self.starts.extend(&self.tokens, base);
+        let mut parser = Parser::new(
+            self.source,
+            std::mem::take(&mut self.tokens),
+            std::mem::take(&mut self.starts),
+        );
         parser.pos = base;
         parser.floor = base;
         parser.depth = self.depth;
@@ -2816,6 +2829,7 @@ impl<'s> Parser<'s> {
         parser.undo_locals(0);
         self.locals = parser.locals;
         self.tokens = parser.tokens;
+        self.starts = parser.starts;
         expr.filter(|_| complete)
     }
 
@@ -3286,7 +3300,7 @@ impl<'s> Parser<'s> {
     }
 
     fn token_at(&self, offset: usize) -> Tok {
-        token_at(&self.tokens, offset)
+        self.starts.find(&self.tokens, offset)
     }
 
     fn command_arguments(&mut self) -> Result<Vec<Arg>> {
@@ -4048,23 +4062,6 @@ pub fn respelled_type(name: &str) -> bool {
 /// The token that starts at `offset`.
 fn start_token(parser: &Parser<'_>, offset: usize) -> Tok {
     parser.token_at(offset)
-}
-
-/// The token that starts at `offset`. The source's tokens are sorted, and
-/// each interpolation's follow them.
-pub fn token_at(tokens: &[Token], offset: usize) -> Tok {
-    let end = tokens
-        .iter()
-        .position(|token| token.kind == TokenKind::Eof)
-        .map_or(tokens.len(), |eof| eof + 1);
-    let index = tokens[..end].partition_point(|token| token.start < offset);
-    if index < end && tokens[index].start == offset {
-        return index;
-    }
-    tokens[end..]
-        .iter()
-        .position(|token| token.start == offset && token.kind != TokenKind::Eof)
-        .map_or(index.min(tokens.len() - 1), |found| end + found)
 }
 
 /// Whether a lowercase type name is one of the builtin types.
