@@ -32,7 +32,7 @@ pub(crate) struct Exported {
     /// Its public top-level functions.
     functions: Vec<(String, Sig)>,
     /// Its enums: name, members and each member's symbol.
-    enums: Vec<Enum>,
+    enums: Vec<Arc<Enum>>,
     /// Its classes, which are not exported by name, but whose instances
     /// are values its functions may return.
     classes: Vec<ExportedClass>,

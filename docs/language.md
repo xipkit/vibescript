@@ -195,7 +195,7 @@ amount: int | float = 1            # a union must be declared
 amount = 2.5
 ```
 
-Assignment never converts: an `int` local cannot hold a `float`. A union has at most 1,024 alternatives and a shape at most 16,384 fields, whether written or inferred, such as the union of an array literal's many differently shaped elements; a larger one is an error (V0124), so declare a dictionary or a smaller union instead. A local must be assigned on every path before it is read (V0202):
+Assignment never converts: an `int` local cannot hold a `float`. A union has at most 1,024 alternatives and a shape at most 16,384 fields, whether written or inferred, such as the union of an array literal's many differently shaped elements; a larger one is an error (V0124), so declare a dictionary or a smaller union instead. An enum has no such bound: its members are all written out rather than built by the checker, which finds each one by name. A local must be assigned on every path before it is read (V0202):
 
 ```vibe error=V0202
 if Time.now.hour < 12

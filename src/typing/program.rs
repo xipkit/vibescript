@@ -17,7 +17,7 @@ use crate::{
     },
     types::Scalar,
 };
-use std::{collections::HashMap, rc::Rc};
+use std::{collections::HashMap, rc::Rc, sync::Arc};
 
 pub(crate) type FnId = usize;
 pub(crate) type NsId = u32;
@@ -60,50 +60,54 @@ pub(crate) struct Namespace<'a> {
     pub children: HashMap<&'a str, NsId>,
 }
 
-/// A script enum.
-#[derive(Clone)]
+/// A script enum, which a required file's importers share.
 pub(crate) struct Enum {
     pub name: String,
     pub members: Vec<String>,
     /// Each member's symbol, as `:in_review` names `InReview`.
     pub symbols: Vec<String>,
-    /// The position of each member and each symbol, so naming one does not
-    /// scan them all.
-    by_member: HashMap<String, usize>,
-    by_symbol: HashMap<String, usize>,
+    /// The positions of the members in the order of their names, and of
+    /// the symbols in the order of the symbols, which naming one searches
+    /// rather than scanning them all.
+    by_member: Vec<u32>,
+    by_symbol: Vec<u32>,
 }
 
 impl Enum {
     pub fn new(name: String, members: Vec<String>) -> Self {
         let symbols: Vec<String> = members.iter().map(|m| crate::enums::symbol(m)).collect();
-        let by_member = members
-            .iter()
-            .enumerate()
-            .map(|(index, member)| (member.clone(), index))
-            .collect();
-        let by_symbol = symbols
-            .iter()
-            .enumerate()
-            .map(|(index, symbol)| (symbol.clone(), index))
-            .collect();
+        let sorted = |names: &[String]| {
+            let mut order: Vec<u32> = (0..names.len() as u32).collect();
+            order.sort_unstable_by(|&a, &b| names[a as usize].cmp(&names[b as usize]));
+            order
+        };
         Self {
             name,
+            by_member: sorted(&members),
+            by_symbol: sorted(&symbols),
             members,
             symbols,
-            by_member,
-            by_symbol,
         }
     }
 
     /// The position of the member named `name`.
     pub fn member(&self, name: &str) -> Option<usize> {
-        self.by_member.get(name).copied()
+        find(&self.members, &self.by_member, name)
     }
 
     /// The position of the member whose symbol is `symbol`.
     pub fn symbol(&self, symbol: &str) -> Option<usize> {
-        self.by_symbol.get(symbol).copied()
+        find(&self.symbols, &self.by_symbol, symbol)
     }
+}
+
+/// The position of `name` among `names`, which `order` sorts. Enum
+/// members are unique, and so are their symbols.
+fn find(names: &[String], order: &[u32], name: &str) -> Option<usize> {
+    let at = order
+        .binary_search_by(|&index| names[index as usize].as_str().cmp(name))
+        .ok()?;
+    Some(order[at] as usize)
 }
 
 impl Heap for Enum {
@@ -160,7 +164,7 @@ pub(crate) struct Program<'a> {
     pub namespaces: Vec<Namespace<'a>>,
     /// Top-level classes and modules by name.
     pub roots: HashMap<&'a str, NsId>,
-    pub enums: Vec<Enum>,
+    pub enums: Vec<Arc<Enum>>,
     pub enum_names: HashMap<String, u32>,
     /// Type aliases by declaring namespace (none at the top level) and name.
     pub aliases: HashMap<(Option<NsId>, &'a str), &'a compilation::Type>,
@@ -331,10 +335,10 @@ impl<'a> Checker<'a> {
             self.program
                 .enum_names
                 .insert(name.to_string(), index as u32);
-            self.program.enums.push(Enum::new(
+            self.program.enums.push(Arc::new(Enum::new(
                 name.to_string(),
                 members.iter().map(|m| m.to_string()).collect(),
-            ));
+            )));
             self.types.names.enums.push(name.to_string());
         }
         for module in &parsed.modules {
