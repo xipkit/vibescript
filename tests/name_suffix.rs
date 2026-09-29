@@ -1076,3 +1076,70 @@ fn exported_functions_share_method_spelling_validation() {
         }
     }
 }
+
+#[test]
+fn setters_are_method_names_wherever_values_carry_methods() {
+    let mut engine = Engine::new();
+    engine.register_method(
+        "echo",
+        HostMethod::new("echo", |_, args, _| Ok(args[0].clone())),
+    );
+    engine
+        .set_module_sources(
+            [(
+                "m.vibe".into(),
+                "def value=(v: int) -> int\n  v * 2\nend\ndef value -> int\n  1\nend\n".into(),
+            )]
+            .into(),
+        )
+        .unwrap();
+    for source in [
+        "echo(require('m'))",
+        "m = require('m'); m.value = 3; m.value",
+    ] {
+        engine
+            .compile(source)
+            .unwrap_or_else(|error| panic!("{source}: {error}"))
+            .run(CallOptions::default())
+            .unwrap_or_else(|error| panic!("{source}: {error}"));
+    }
+
+    // A host setter is a method too, though scripts cannot assign through a
+    // capability's methods.
+    let setter = HostMethod::new("cap.value=", |_, args, _| Ok(args[0].clone()));
+    let getter = HostMethod::new("cap.value", |_, _, _| Ok(Value::int(0)));
+    let cap = Capability::from_value(
+        "cap",
+        Value::object(vec![
+            (b"value=".to_vec(), setter.value()),
+            (b"value".to_vec(), getter.value()),
+        ]),
+    );
+    let mut engine = Engine::new();
+    engine.declare_capability(&cap).unwrap();
+    let result = engine
+        .compile("cap.value")
+        .unwrap()
+        .run(CallOptions {
+            capabilities: vec![cap],
+            ..CallOptions::default()
+        })
+        .unwrap();
+    assert_eq!(result.value.as_int(), Some(0));
+
+    for name in ["value=", "ok?="] {
+        let mut engine = Engine::new();
+        engine.register_method(name, method());
+        registration_error(&engine.compile("1").err().unwrap(), "host function", name);
+        let cap = Capability::from_value(
+            "cap",
+            Value::object(vec![(name.as_bytes().to_vec(), method().value())]),
+        );
+        let result = Engine::new().declare_capability(&cap);
+        if name == "ok?=" {
+            registration_error(&result.unwrap_err(), "method", name);
+        } else {
+            result.unwrap();
+        }
+    }
+}

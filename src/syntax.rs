@@ -230,8 +230,7 @@ impl MethodNameError {
     }
 }
 
-const HOST_METHOD_SPELLING: &str =
-    "a method name starts with a letter or `_` and continues with letters, digits and `_`";
+const HOST_METHOD_SPELLING: &str = "a method name starts with a letter or `_`, continues with letters, digits and `_`, and may end in one `?`, `!` or `=`";
 
 /// Validates callable spellings, including operator methods and setters.
 /// Lexer identifiers already satisfy the character rule; host names and decoded
@@ -269,10 +268,18 @@ pub(crate) fn host_function_name(work: &dyn Work, host: HostName<'_>, name: &str
     if keyword(name) {
         return Err(host.error(name.as_bytes(), "a keyword cannot name a host function"));
     }
+    if name.ends_with('=') {
+        return Err(host.error(
+            name.as_bytes(),
+            "a setter is called through a receiver, so it cannot be a host function",
+        ));
+    }
     Ok(())
 }
 
-/// Checks a host method's published name; its descriptor's diagnostic label is separate.
+/// Checks a host method's published name; its descriptor's diagnostic label
+/// is separate. Setters such as `value=` are methods too, as a module's or a
+/// class's `def value=` is.
 pub(crate) fn host_method_name(work: &dyn Work, host: HostName<'_>, key: &[u8]) -> Result<()> {
     work.checkpoint()?;
     work.bytes(key.len())?;
@@ -280,7 +287,7 @@ pub(crate) fn host_method_name(work: &dyn Work, host: HostName<'_>, key: &[u8]) 
         return Err(host.error(key, "method names must be UTF-8"));
     };
     method_spelling(name, false).map_err(|error| host.error(key, error.reason()))?;
-    if name.ends_with('=') || !name.starts_with(|c: char| c == '_' || unicode::letter(c)) {
+    if !name.starts_with(|c: char| c == '_' || unicode::letter(c)) {
         return Err(host.error(key, HOST_METHOD_SPELLING));
     }
     Ok(())
