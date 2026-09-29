@@ -318,7 +318,7 @@ impl<'a> Checker<'a> {
                         1,
                     )
                 }
-                SiteKind::Call(callee) => match reads.get(callee) {
+                SiteKind::Call(callee) => match reads.get(callee).map(|read| &**read) {
                     Some(Some(read)) => site.unassigned.read(read),
                     Some(None) => (site.unassigned.names(), site.unassigned.len()),
                     None => (Vec::new(), 1),
@@ -400,44 +400,129 @@ impl<'a> Checker<'a> {
     /// The instance variables each method reads, directly or through the
     /// methods it calls on `self`; `None` when `self` escapes, so it may
     /// read any.
-    fn method_reads(&mut self) -> HashMap<FnId, Option<BTreeSet<String>>> {
-        let mut reads: HashMap<FnId, Option<BTreeSet<String>>> = self
-            .construction
-            .methods
+    ///
+    /// Methods that call each other in a cycle read the same variables, so
+    /// each cycle is found once, and each is done after those it calls,
+    /// adding what they read once per call rather than again on every pass
+    /// until nothing changes. Each call, and each variable a method or a
+    /// call adds, is a step.
+    fn method_reads(&mut self) -> HashMap<FnId, Rc<Option<BTreeSet<String>>>> {
+        let mut ids: Vec<FnId> = self.construction.methods.keys().copied().collect();
+        ids.sort_unstable();
+        let place: HashMap<FnId, usize> =
+            ids.iter().enumerate().map(|(at, &id)| (id, at)).collect();
+        let calls: Vec<Vec<usize>> = ids
             .iter()
-            .map(|(&id, uses)| (id, (!uses.escapes).then(|| uses.reads.clone())))
+            .map(|id| {
+                self.construction.methods[id]
+                    .calls
+                    .iter()
+                    .filter_map(|callee| place.get(callee).copied())
+                    .collect()
+            })
             .collect();
-        self.construction.held += reads.heap();
-        let mut changed = true;
-        while changed {
-            changed = false;
-            for (id, uses) in &self.construction.methods {
-                for callee in &uses.calls {
-                    self.meter.charge(1);
-                    if callee == id {
+        self.transient(
+            super::meter::map(&place)
+                + super::meter::vec(&calls)
+                + calls.iter().map(super::meter::vec).sum::<usize>(),
+        );
+        let (cycles, cycle_of) = cycles(&calls);
+        let mut found: Vec<Rc<Option<BTreeSet<String>>>> = Vec::with_capacity(cycles.len());
+        for (cycle, members) in cycles.iter().enumerate() {
+            let mut escapes = false;
+            let mut read = BTreeSet::new();
+            for &member in members {
+                let uses = &self.construction.methods[&ids[member]];
+                self.meter
+                    .charge(uses.calls.len() as u64 + uses.reads.len() as u64);
+                escapes |= uses.escapes;
+                if !escapes {
+                    read.extend(uses.reads.iter().cloned());
+                }
+                for &callee in &calls[member] {
+                    let other = cycle_of[callee];
+                    if other == cycle {
                         continue;
                     }
-                    let callee_reads = reads.get(callee).cloned().unwrap_or(Some(BTreeSet::new()));
-                    let caller = reads.get_mut(id).unwrap();
-                    match (caller.as_mut(), callee_reads) {
-                        (None, _) => {}
-                        (Some(_), None) => {
-                            *caller = None;
-                            changed = true;
-                        }
-                        (Some(caller), Some(callee_reads)) => {
-                            for ivar in callee_reads {
-                                let bytes = btree_entry(caller) + ivar.len();
-                                if caller.insert(ivar) {
-                                    changed = true;
-                                    self.construction.held += bytes;
-                                }
+                    match &*found[other] {
+                        None => escapes = true,
+                        Some(called) => {
+                            self.meter.charge(called.len() as u64);
+                            if !escapes {
+                                read.extend(called.iter().cloned());
                             }
                         }
                     }
                 }
             }
+            let read = (!escapes).then_some(read);
+            self.construction.held += read.heap() + std::mem::size_of::<Option<BTreeSet<String>>>();
+            found.push(Rc::new(read));
         }
-        reads
+        ids.iter()
+            .enumerate()
+            .map(|(at, &id)| (id, Rc::clone(&found[cycle_of[at]])))
+            .collect()
     }
+}
+
+/// The cycles of the directed graph whose node `n` leads to each node in
+/// `edges[n]`, each a list of its nodes, in an order where every cycle
+/// comes after those its nodes lead to; with the cycle of each node.
+/// Tarjan's algorithm, keeping its place on the heap rather than the stack.
+fn cycles(edges: &[Vec<usize>]) -> (Vec<Vec<usize>>, Vec<usize>) {
+    const UNSEEN: usize = usize::MAX;
+    let count = edges.len();
+    let mut order = vec![UNSEEN; count];
+    let mut low = vec![0; count];
+    let mut on_stack = vec![false; count];
+    let mut stack = Vec::new();
+    let mut cycles: Vec<Vec<usize>> = Vec::new();
+    let mut cycle_of = vec![UNSEEN; count];
+    let mut next = 0;
+    for root in 0..count {
+        if order[root] != UNSEEN {
+            continue;
+        }
+        // Each frame is a node and how many of its edges it has followed.
+        let mut frames = vec![(root, 0)];
+        order[root] = next;
+        low[root] = next;
+        next += 1;
+        stack.push(root);
+        on_stack[root] = true;
+        while let Some(&mut (node, ref mut followed)) = frames.last_mut() {
+            if let Some(&to) = edges[node].get(*followed) {
+                *followed += 1;
+                if order[to] == UNSEEN {
+                    order[to] = next;
+                    low[to] = next;
+                    next += 1;
+                    stack.push(to);
+                    on_stack[to] = true;
+                    frames.push((to, 0));
+                } else if on_stack[to] {
+                    low[node] = low[node].min(order[to]);
+                }
+                continue;
+            }
+            frames.pop();
+            if let Some(&(parent, _)) = frames.last() {
+                low[parent] = low[parent].min(low[node]);
+            }
+            if low[node] == order[node] {
+                let mut members = Vec::new();
+                while let Some(member) = stack.pop() {
+                    on_stack[member] = false;
+                    cycle_of[member] = cycles.len();
+                    members.push(member);
+                    if member == node {
+                        break;
+                    }
+                }
+                cycles.push(members);
+            }
+        }
+    }
+    (cycles, cycle_of)
 }

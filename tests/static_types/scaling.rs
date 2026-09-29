@@ -12,7 +12,7 @@ fn repeat(count: usize, item: impl Fn(usize) -> String) -> String {
 /// statement or expression.
 type Shape = (&'static str, usize, fn(usize) -> String);
 
-const SHAPES: [Shape; 24] = [
+const SHAPES: [Shape; 25] = [
     ("functions calling their predecessor", 200, |count| {
         "def f0(n: int) -> int\n  n\nend\n".to_owned()
             + &repeat(count, |i| {
@@ -188,6 +188,23 @@ end\n"
             repeat(count, |i| format!("    @v{i} = self.one\n"))
         )
     }),
+    // Methods calling each other in a cycle read what all of them read,
+    // which a pass per step around the cycle once found.
+    (
+        "methods reading variables and calling each other in a cycle",
+        200,
+        |count| {
+            format!(
+                "class C\n{}  def initialize\n{}  end\n{}end\n",
+                repeat(count, |i| format!("  @v{i}: int\n")),
+                repeat(count, |i| format!("    @v{i} = {i}\n")),
+                repeat(count, |i| format!(
+                    "  def m{i} -> int\n    @v{i} + self.m{}\n  end\n",
+                    (i + 1) % count
+                ))
+            )
+        },
+    ),
 ];
 
 /// A union of `count` one-field shapes.
