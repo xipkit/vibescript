@@ -57,7 +57,16 @@ pub(crate) fn add_to(
         // rules report it. A source they cannot read must parse without
         // it, so that removed syntax never compiles.
         checked.steps += u64::try_from(tokens.len()).unwrap_or(u64::MAX);
-        if let Some(error) = crate::syntax::canonical_error(source, &()) {
+        let error = crate::syntax::canonical_error(source, &());
+        // A source both grammars accept that the rules cannot read skips
+        // every rule, so the rules' parser has fallen behind the compiler's.
+        #[cfg(not(target_os = "wasi"))]
+        debug_assert!(
+            error.is_some(),
+            "the rules' parser rejects a source the compiler accepts: {:?}",
+            source.chars().take(400).collect::<String>()
+        );
+        if let Some(error) = error {
             let at = error.offset.unwrap_or(0);
             checked.diagnostics.push(Diagnostic::error(
                 Code::SYNTAX,

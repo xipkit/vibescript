@@ -950,3 +950,17 @@ fn the_rules_parser_reads_called_groups_and_tuple_type_arguments() {
         checked.diagnostics
     );
 }
+
+/// The rules' parser must read every source the compiler accepts; a debug
+/// build fails where it cannot, instead of silently skipping every rule.
+#[test]
+#[cfg(all(debug_assertions, not(target_os = "wasi")))]
+#[should_panic(expected = "the rules' parser rejects a source the compiler accepts")]
+fn a_source_only_the_compiler_reads_fails_a_debug_build() {
+    let source = "x = 1\n";
+    let mut checked = crate::Engine::new().type_check(source).unwrap();
+    // Tokens the rules' parser cannot read, for a source that compiles.
+    let mut tokens = crate::tooling::tokens(source).unwrap();
+    tokens[1].kind = crate::tooling::TokenKind::Punct(')');
+    super::add_to(&mut checked, source, &tokens);
+}
