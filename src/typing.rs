@@ -392,6 +392,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         stopped: false,
         polls: 0,
     };
+    checker.types.set_budget(input.budget.clone());
     for (name, host) in &input.hosts {
         let function = crate::signatures::host::function(name, host);
         let sig = checker
@@ -479,6 +480,7 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
         stopped: false,
         polls: 0,
     };
+    checker.types.set_budget(input.budget.clone());
     checker.declare_hosts(input.declared);
     checker.declare_program(input.parsed);
     checker.check_retained_declarations(input.declared, input.parsed);

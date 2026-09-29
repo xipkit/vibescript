@@ -476,3 +476,56 @@ fn type_checking_stops_at_the_compile_budget() {
     assert_eq!(error.kind, ErrorKind::Cancelled, "{error}");
     assert!(started.elapsed() < full / 2);
 }
+
+/// Two unions of shapes with optional fields, which a value of one may fit
+/// in any alternative of the other, so relating them compares every pair.
+fn loose_unions(arms: usize) -> String {
+    let union = |prefix: &str, extra: &str| {
+        (0..arms)
+            .map(|i| format!("{{{prefix}{i}?: int{extra}}}"))
+            .collect::<Vec<_>>()
+            .join(" | ")
+    };
+    format!(
+        "type A = {}\ntype B = {}\ndef f(x: A, y: B?) -> B?\n  z: A? = x\n  y\nend\ndef g(x: A) -> B\n  x\nend\n",
+        union("a", ""),
+        union("b", ", x: int")
+    )
+}
+
+#[test]
+fn type_operations_stop_at_the_compile_budget() {
+    let source = loose_unions(1_000);
+    let engine = Engine::new();
+    let started = Instant::now();
+    let checked = engine.type_check(&source).unwrap();
+    let full = started.elapsed();
+    assert!(checked.steps > 2 * Limits::default().steps.unwrap());
+    // The step quota stops the comparison inside one assignment.
+    let started = Instant::now();
+    let error = engine
+        .compile_with_options(&source, &CallOptions::default())
+        .err()
+        .unwrap();
+    assert_eq!(error.kind, ErrorKind::Steps, "{error}");
+    assert!(
+        started.elapsed() < full,
+        "{:?} with a quota, {full:?} without",
+        started.elapsed()
+    );
+    let started = Instant::now();
+    let options = CallOptions {
+        limits: Limits {
+            steps: None,
+            ..Limits::default()
+        },
+        deadline: Some(started + full / 10),
+        ..CallOptions::default()
+    };
+    let error = engine
+        .compile_with_options(&source, &options)
+        .err()
+        .unwrap();
+    assert_eq!(error.kind, ErrorKind::Deadline, "{error}");
+    assert!(started.elapsed() < full);
+}

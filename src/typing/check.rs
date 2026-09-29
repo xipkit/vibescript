@@ -916,7 +916,8 @@ impl<'a> Checker<'a> {
     /// after that are skipped, and compilation fails with the budget's
     /// error. A check without a budget never stops.
     pub(super) fn over_budget(&mut self) -> bool {
-        if self.stopped {
+        if self.stopped || self.types.stopped {
+            self.stopped = true;
             return true;
         }
         if self

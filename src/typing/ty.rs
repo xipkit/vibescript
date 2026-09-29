@@ -210,6 +210,12 @@ pub(crate) struct Types {
     pub names: Names,
     /// Work done, for [`super::Checked::steps`].
     pub steps: u64,
+    /// What the check may spend, which type operations poll while they run.
+    budget: crate::compilation::Budget,
+    /// Whether an operation passed the budget; operations after it return
+    /// at once, and the check stops.
+    pub stopped: bool,
+    polls: u32,
 }
 
 impl Types {
@@ -232,6 +238,9 @@ impl Types {
             plain: HashMap::new(),
             names: Names::default(),
             steps: 0,
+            budget: crate::compilation::Budget::default(),
+            stopped: false,
+            polls: 0,
         };
         for kind in [
             Kind::Error,
@@ -259,6 +268,30 @@ impl Types {
         let number = types.intern(Kind::Union(Box::new([Ty::INT, Ty::FLOAT])));
         debug_assert_eq!(number, Ty::NUMBER);
         types
+    }
+
+    /// Sets what the check may spend.
+    pub fn set_budget(&mut self, budget: crate::compilation::Budget) {
+        self.budget = budget;
+    }
+
+    /// Checks the budget: the steps it leaves, which the types' work alone
+    /// may not pass, and every 1,024 polls the clock, the cancellation
+    /// token and the size of the tables, so one operation on large types
+    /// cannot run past it.
+    fn poll(&mut self) {
+        if self.stopped {
+            return;
+        }
+        if self.budget.steps.is_some_and(|left| self.steps > left) {
+            self.stopped = true;
+            return;
+        }
+        self.polls = self.polls.wrapping_add(1);
+        if self.polls % 1024 == 0 {
+            self.stopped = self.budget.interrupted()
+                || self.budget.memory.is_some_and(|left| self.bytes() > left);
+        }
     }
 
     pub fn intern(&mut self, kind: Kind) -> Ty {
@@ -343,6 +376,10 @@ impl Types {
     /// `any` or an unknown type absorbs the rest.
     pub fn union(&mut self, types: &[Ty]) -> Ty {
         self.steps += types.len() as u64;
+        self.poll();
+        if self.stopped {
+            return Ty::ERROR;
+        }
         let mut members = Vec::with_capacity(types.len());
         for &ty in types {
             match self.kind(ty) {
@@ -402,7 +439,12 @@ impl Types {
     /// elements. Otherwise the only relations are unions, `nil`, `any` and
     /// `never`.
     pub fn assignable(&mut self, from: Ty, to: Ty) -> bool {
-        if from == to || from == Ty::ERROR || to == Ty::ERROR || from == Ty::NEVER || to == Ty::ANY
+        if from == to
+            || from == Ty::ERROR
+            || to == Ty::ERROR
+            || from == Ty::NEVER
+            || to == Ty::ANY
+            || self.stopped
         {
             return true;
         }
@@ -419,6 +461,7 @@ impl Types {
 
     fn assignable_uncached(&mut self, from: Ty, to: Ty) -> bool {
         self.steps += 1;
+        self.poll();
         if let Kind::Union(members) = self.kind(from) {
             let count = members.len();
             for index in 0..count {
@@ -596,7 +639,10 @@ impl Types {
     /// Charges `units` of work that grows with a type's size, a step for
     /// every 64, so small types cost nothing more.
     fn work(&mut self, units: usize) {
-        self.steps += (units / 64) as u64;
+        if units >= 64 {
+            self.steps += (units / 64) as u64;
+            self.poll();
+        }
     }
 
     fn tuple_item(&self, tuple: Ty, index: usize) -> Ty {
