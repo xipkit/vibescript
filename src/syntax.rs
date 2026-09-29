@@ -1235,6 +1235,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
                     ));
                 }
                 (Some(_), Target::Value(expr)) => {
+                    p.assignment_member(expr)?;
                     if let Some(offset) = expr.safe_navigation() {
                         return Err(Error::syntax(
                             p.work,
@@ -1433,6 +1434,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
                 let lone = place == Place::Statement && parts.is_empty() && !rest;
                 let listed = p.tokens[p.significant(p.pos)].token == Token::P(',');
                 if !lone || listed {
+                    p.assignment_member(&expression)?;
                     if let Some(offset) = expression.safe_navigation() {
                         return Err(Error::syntax(
                             p.work,
@@ -2911,6 +2913,22 @@ impl<'a> Parser<'a> {
     }
     fn name_suffix_error(&self, offset: usize) -> Error {
         name_suffix_error(self.work, self.source, offset)
+    }
+    fn assignment_member(&self, expr: &Expr) -> Result<()> {
+        if matches!(&expr.node, Node::Member(_, name) | Node::SafeMember(_, name)
+            if name.ends_with(['?', '!']))
+        {
+            // Member offsets point to the receiver; its name is the last word
+            // before any closing parentheses around the target.
+            for index in (0..self.pos).rev() {
+                self.work.charge(1)?;
+                let token = &self.tokens[index];
+                if matches!(token.token, Token::Word(_)) {
+                    return Err(self.name_suffix_error(token.end - 1));
+                }
+            }
+        }
+        Ok(())
     }
     fn enter(&mut self) -> Result<()> {
         self.work.charge(1)?;

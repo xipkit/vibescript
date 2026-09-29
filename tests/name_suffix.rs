@@ -138,6 +138,107 @@ fn bindings_reject_suffixes_with_applicable_fixes() {
 }
 
 #[test]
+fn member_assignment_targets_reject_method_suffixes() {
+    for suffix in ['?', '!'] {
+        for op in [
+            "=", "+=", "-=", "*=", "/=", "//=", "%=", "**=", "||=", "&&=",
+        ] {
+            for target in [
+                format!("h.ready{suffix}"),
+                format!("((h.ready{suffix}))"),
+                format!("h&.ready{suffix}"),
+                format!("h&.inner.ready{suffix}"),
+                format!("h.inner&.ready{suffix}"),
+                format!("h.\n  réady{suffix}"),
+            ] {
+                let source = format!("def f(h: any); {target} {op} 1; end");
+                let at = source.rfind(suffix).unwrap();
+                let error = Engine::new().compile(&source).err().expect(&source);
+                assert_eq!(error.kind, ErrorKind::Syntax, "{source}: {error}");
+                let diagnostic = &error.diagnostics()[0];
+                assert_eq!(diagnostic.code, Code::NAME_SUFFIX, "{source}: {error}");
+                assert_eq!(
+                    diagnostic.span,
+                    vibescript::diagnostic::Span::new(at, at + 1)
+                );
+                let mut expected = source.clone();
+                expected.remove(at);
+                assert_eq!(
+                    diagnostic.applicable_fix().unwrap().apply(&source).unwrap(),
+                    expected
+                );
+            }
+        }
+        for targets in [
+            format!("h.ready{suffix}, other"),
+            format!("other, h.ready{suffix}"),
+            format!("other, (h.ready{suffix}, last)"),
+            format!("other, [h.ready{suffix}, last]"),
+            format!("other, *h.ready{suffix}"),
+            format!("other, h&.ready{suffix}"),
+            format!("h&.ready{suffix}, other"),
+        ] {
+            let source = format!("def f(h: any); {targets} = [1, 2]; end");
+            let at = source.rfind(suffix).unwrap();
+            let error = Engine::new().compile(&source).err().expect(&source);
+            let diagnostic = &error.diagnostics()[0];
+            assert_eq!(diagnostic.code, Code::NAME_SUFFIX, "{source}: {error}");
+            assert_eq!(
+                diagnostic.span,
+                vibescript::diagnostic::Span::new(at, at + 1)
+            );
+            let mut expected = source.clone();
+            expected.remove(at);
+            assert_eq!(
+                diagnostic.applicable_fix().unwrap().apply(&source).unwrap(),
+                expected
+            );
+        }
+    }
+}
+
+#[test]
+fn every_setter_declaration_rejects_method_suffixes() {
+    for suffix in ['?', '!'] {
+        for member in [
+            format!("def ready{suffix} = (value: int); end"),
+            format!("def self.ready{suffix} = (value: int); end"),
+            format!("property ready{suffix}: int"),
+            format!("setter ready{suffix}: int"),
+        ] {
+            let source = format!("class C; {member}; end");
+            let at = source.find(suffix).unwrap();
+            let error = Engine::new().compile(&source).err().expect(&source);
+            let diagnostic = &error.diagnostics()[0];
+            assert_eq!(diagnostic.code, Code::NAME_SUFFIX, "{source}: {error}");
+            assert_eq!(
+                diagnostic.span,
+                vibescript::diagnostic::Span::new(at, at + 1)
+            );
+            let mut fixed = source.clone();
+            fixed.remove(at);
+            assert_eq!(
+                diagnostic.applicable_fix().unwrap().apply(&source).unwrap(),
+                fixed
+            );
+            Engine::new().compile(&fixed).unwrap();
+        }
+    }
+}
+
+#[test]
+fn assignment_receivers_can_still_call_suffixed_methods() {
+    for source in [
+        "h = { ready?: 0 }; h['ready?'] = 2",
+        "class C; property value: int; end; def box? -> C; C.new; end; box?.value = 2",
+        "class C; def items! -> array<int>; [1]; end; end; C.new.items![0] = 2",
+        "class C; property value: int; end; c=C.new; c.value = 1; c.value += 1",
+    ] {
+        assert_eq!(run(source), "2", "{source}");
+    }
+}
+
+#[test]
 fn question_equals_requires_an_adjacent_name_for_a_suffix_fix() {
     for source in [
         "1?=2",
@@ -216,9 +317,9 @@ fn host_global_names_have_no_suffix() {
 
 #[test]
 fn recovers_and_preserves_utf8_suffix_fixes() {
-    let source = "é! = 3\nREADY? = 1\n@done? = true\n";
+    let source = "é! = 3\nREADY? = 1\n@done? = true\nh.réady? = 1\nh&.ready! += 2\n";
     let error = Engine::new().compile(source).err().unwrap();
-    assert_eq!(error.diagnostics().len(), 3);
+    assert_eq!(error.diagnostics().len(), 5);
     for diagnostic in error.diagnostics() {
         assert_eq!(diagnostic.code, Code::NAME_SUFFIX);
         assert!(diagnostic.applicable_fix().unwrap().apply(source).is_some());

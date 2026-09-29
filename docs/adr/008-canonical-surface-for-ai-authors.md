@@ -346,6 +346,11 @@ V0003 offers its removal. Immediately before a single `=`, neither character
 is a suffix: `a!=b` compares, and `x?=y` is rejected. Before `==` or `=~`,
 the suffix remains part of the method name.
 
+Member assignment targets have no suffix, including compound, destructuring
+and safe-navigation targets. They report V0003 at the suffix before constructing
+a setter spelling. Definitions and generated accessors enforce the same rule;
+a suffixed method may still be called to obtain the receiver being assigned to.
+
 Hash and keyword labels keep suffixes because they spell string keys, not
 bindings. A suffixed shorthand label calls the method with that name;
 an explicit value can read a local instead. Optional type, shape-field and

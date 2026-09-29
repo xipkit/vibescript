@@ -69,6 +69,13 @@ class variables and host data globals have no suffix. `READY? = 1`, `x! = 3`,
 `@done? = true` and `def f(ok?: bool)` report V0003 with a fix removing the
 suffix.
 
+Member assignment targets also have no suffix: `h.ready? = 1`, compound
+updates such as `h.ready! += 1`, and destructuring targets report V0003.
+Such targets would create the invalid setter name `ready?=` or `ready!=`.
+An earlier receiver may still call a suffixed method, as in
+`box.ready?.value = 1`; indexed string keys such as `h["ready?"] = 1` remain
+ordinary data keys.
+
 A suffix immediately followed by a single `=` is never part of a name:
 `a!=b` always compares `a` and `b`, and `x?=y` reports V0003. Before `==` or
 `=~`, the suffix remains part of the method name: `ok?==true` calls `ok?`
