@@ -7,17 +7,19 @@
 
 # Vibescript
 
-I built Vibescript for apps where people need room to write their own workflows,
-without handing them a blank canvas or the keys to the whole system. As AI makes
-custom code easier to generate, I think apps can offer a small set of useful,
-predictable building blocks instead. Think HyperCard: flexible, but within
-bounds.
+I think vibecoding will have a profound impact on personal computing. Software
+can become malleable: a solid base package that people shape around how they
+work, instead of waiting for every customization to be built into the product.
 
-Vibescript is a small, statically typed language for those workflows. It’s
-Ruby-inspired and easy to read, and the host app decides what scripts can access
-and how much work they can do. The Rust runtime checks types before a script runs
-and reports errors with fixes, which makes the language practical for people and
-AI to write.
+Vibecoding still needs expertise. Generated code must be understood and
+maintained, or it can rot and become vulnerable to attack. I built Vibescript to
+help power this future: a small, statically typed scripting language for
+customizations on top of an existing app. The host decides which capabilities
+scripts can access and how much work they can do.
+
+Vibescript’s Ruby-inspired syntax is easy to read. Its type checker catches
+mistakes before execution and offers fixes in its diagnostics, so people and AI
+can write custom behavior while the host app stays in control.
 
 ## The language
 
