@@ -1868,6 +1868,11 @@ fn every_form_that_names_something_is_fixed_whole_or_not_at_all() {
         ("enum", "enum S?; A; end; S?::A", true),
         ("enum member", "enum S; A?; end; S::A?", true),
         ("type alias", "type F! = bool; v: F! = true; v", true),
+        (
+            "lowercase type alias",
+            "type flag! = bool; v: flag! = true; v",
+            true,
+        ),
         ("type alias of a builtin name", "type int! = string", false),
         ("enum of a builtin name", "enum Time!; A; end", false),
         (
@@ -1955,6 +1960,10 @@ fn type_alias_names_are_renamed_with_every_type_that_reads_them() {
         (
             "module M; type F! = int; end; x: M::F! = 1; x",
             "module M; type F = int; end; x: M::F = 1; x",
+        ),
+        (
+            "type flag! = bool; value: flag! = true; value",
+            "type flag = bool; value: flag = true; value",
         ),
         // A final `?` is the nullable marker, so `Flag!?` reads `Flag!`.
         (

@@ -492,24 +492,23 @@ impl Parser<'_> {
                 uses.nullable.push(self.work, (question, read))?;
             }
         }
-        if path != 0 || written.starts_with(super::unicode::upper) {
-            let ambiguous = read.len() < written.len() && read.ends_with(['?', '!']);
-            for (name, safe) in [(read, true), (written, false)] {
-                if !safe && !ambiguous {
-                    break;
-                }
-                let Some(suffix) = suffix_at(self.source, name, at) else {
-                    continue;
-                };
-                let entry = Scoped {
-                    at: suffix,
-                    owner: self.namespace,
-                    path,
-                    name: Name::new(self.work, name)?,
-                    safe,
-                };
-                uses.type_read(self.work, entry)?;
+        // A name, lowercase too, may be an alias's, as `flag!` is.
+        let ambiguous = read.len() < written.len() && read.ends_with(['?', '!']);
+        for (name, safe) in [(read, true), (written, false)] {
+            if !safe && !ambiguous {
+                break;
             }
+            let Some(suffix) = suffix_at(self.source, name, at) else {
+                continue;
+            };
+            let entry = Scoped {
+                at: suffix,
+                owner: self.namespace,
+                path,
+                name: Name::new(self.work, name)?,
+                safe,
+            };
+            uses.type_read(self.work, entry)?;
         }
         if !continues {
             return Ok(0);
