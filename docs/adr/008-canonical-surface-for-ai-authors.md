@@ -378,7 +378,10 @@ rather than reason about scopes, one file-wide set of spelled names keeps a
 rename from merging two names, at the cost of withholding some renames that
 would have been safe.
 Nor does a fix leave a name its declaration's own rules reject, such as a
-builtin type's for a type alias or a prelude namespace's for a constant.
+builtin type's for a type alias or a prelude namespace's for a constant. A
+fix of one place, not a whole binding, waits until every place its spelling
+is written has one, since renaming a spelling everywhere is always safe and
+renaming it partly is not.
 
 Hash and keyword labels keep suffixes because they spell string keys, not
 bindings. A suffixed shorthand label calls the method with that name;

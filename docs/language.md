@@ -90,7 +90,10 @@ another spelling leaves, since applying it would make two names one:
 `x = 1; x? = 2; [x, x?]` reports V0003 without a fix, where renaming would read
 `x` twice. A method's name, or a variable's with a sigil, is fixed where it is
 spelled, each spelling on its own, so the fixes of `def ok??` and each call
-`ok??` all leave `ok?`, and `vibes fix` applies them together. Nor is there
+`ok??` all leave `ok?`, and `vibes fix` applies them together. Such a fix of
+one place is offered only while every place its spelling is written has one:
+`property done?` has none while a call `a.done?`, valid and so without a fix,
+would keep calling the old name. Nor is there
 one leaving a name its declaration cannot take: a builtin or prelude type's for
 a type alias or enum, a prelude namespace's, function's or global's for a
 constant, or one an enum member would share, once normalized to a symbol, with

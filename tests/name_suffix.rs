@@ -1670,6 +1670,28 @@ fn every_spelling_of_one_name_may_take_the_same_fix() {
 }
 
 #[test]
+fn a_fix_of_one_place_waits_for_every_place_its_spelling_is_written() {
+    // An accessor's calls are member calls, valid with the suffix and with
+    // no fix of their own, so renaming its declaration alone would leave
+    // them calling a method that no longer exists.
+    for source in [
+        "class A; property done?: bool; end; A.new.done?",
+        "class A; getter done?: bool; end; A.new.done?",
+    ] {
+        let Err(error) = Engine::new().type_check(source) else {
+            panic!("{source} checks");
+        };
+        let diagnostic = &error.diagnostics()[0];
+        assert_eq!(diagnostic.code, Code::NAME_SUFFIX, "{source}: {error}");
+        assert!(diagnostic.fixes.is_empty(), "{source}: {diagnostic:?}");
+    }
+    assert_eq!(
+        first_fix("class A; property done?: bool; end"),
+        "class A; property done: bool; end"
+    );
+}
+
+#[test]
 fn a_fix_never_leaves_a_name_its_declaration_cannot_take() {
     for source in [
         // A type alias or an enum cannot take a builtin type's name.

@@ -88,8 +88,9 @@ pub(super) struct Uses {
     /// Each suffixed symbol in the source, as [`symbol_key`] spells it.
     symbols: Table<()>,
     /// Every name the source spells, in code, symbols and interpolations,
-    /// or none when it does not lex.
-    spelled: Option<Table<()>>,
+    /// by the index of how often it does, or none when it does not lex.
+    spelled: Option<Table<u32>>,
+    spellings: Buffer<u32>,
     /// Each capitalized name a nullable type spells, as `Ready` in
     /// `Ready?`, by the offset of its `?`.
     nullable: Buffer<(u32, Name)>,
@@ -634,7 +635,9 @@ fn uses(source: &str, work: &dyn Work) -> Result<Uses> {
     for (question, name) in std::mem::take(&mut uses.nullable) {
         work.charge(1)?;
         if !values.contains(work, &question.to_string())? && !spelled.contains(work, &name)? {
-            spelled.insert(work, name, ())?;
+            let index = u32::try_from(uses.spellings.len()).unwrap_or(u32::MAX);
+            uses.spellings.push(work, 1)?;
+            spelled.insert(work, name, index)?;
         }
     }
     uses.spelled = Some(spelled);
@@ -648,12 +651,22 @@ fn spell<'t, 's: 't>(
     source: &str,
     lexemes: impl Iterator<Item = &'t super::lexer::Lexeme<'s>>,
     uses: &mut Uses,
-    spelled: &mut Table<()>,
+    spelled: &mut Table<u32>,
 ) -> Result<()> {
     use super::lexer::Part;
-    fn record(work: &dyn Work, spelled: &mut Table<()>, name: &str) -> Result<()> {
-        if !spelled.contains(work, name)? {
-            spelled.insert(work, Name::new(work, name)?, ())?;
+    fn record(
+        work: &dyn Work,
+        uses: &mut Uses,
+        spelled: &mut Table<u32>,
+        name: &str,
+    ) -> Result<()> {
+        match spelled.get(work, name)? {
+            Some(&index) => uses.spellings[index as usize] += 1,
+            None => {
+                let index = u32::try_from(uses.spellings.len()).unwrap_or(u32::MAX);
+                uses.spellings.push(work, 1)?;
+                spelled.insert(work, Name::new(work, name)?, index)?;
+            }
         }
         Ok(())
     }
@@ -682,9 +695,9 @@ fn spell<'t, 's: 't>(
                 let written = source.get(lexeme.offset..lexeme.end + run);
                 match written {
                     Some(written) if run > 0 && (setter || !operator) => {
-                        record(work, spelled, written)?
+                        record(work, uses, spelled, written)?
                     }
-                    _ => record(work, spelled, word)?,
+                    _ => record(work, uses, spelled, word)?,
                 }
             }
             Token::Symbol(_) | Token::QuotedSymbol(_) => {
@@ -698,7 +711,7 @@ fn spell<'t, 's: 't>(
                         let key = symbol_key(work, name)?;
                         uses.symbols.insert(work, key, ())?;
                     }
-                    record(work, spelled, name)?;
+                    record(work, uses, spelled, name)?;
                 }
             }
             Token::Template(_) | Token::Words(_) => {
@@ -712,7 +725,7 @@ fn spell<'t, 's: 't>(
                         match part {
                             Part::Text(text) if symbol => {
                                 if let Ok(text) = std::str::from_utf8(text) {
-                                    record(work, spelled, text)?;
+                                    record(work, uses, spelled, text)?;
                                 }
                             }
                             Part::Expr(inner, _) => {
@@ -991,7 +1004,10 @@ fn extended(
 /// it would make two names one, as `x = 1; x? = 2; [x, x?]` would read the
 /// same binding twice. Fixes of one spelling may all leave the same name,
 /// since renaming one spelling everywhere keeps apart what it kept apart:
-/// a method's `ok??` at its definition and each call all leave `ok?`. So is one whose name its declaration cannot take: a type alias's
+/// a method's `ok??` at its definition and each call all leave `ok?`. But
+/// a fix of one place, not a whole binding, is cleared while some place the
+/// spelling is written has no fix, as an accessor's call `a.done?` has
+/// none beside `property done?`. So is one whose name its declaration cannot take: a type alias's
 /// or an enum's that names a builtin type, or an enum member's that
 /// normalizes to the symbol of a name the source spells. Every fix is
 /// cleared when the source does not lex, since its names are then unknown.
@@ -1002,6 +1018,20 @@ fn withhold_collisions(
     diagnostics: &mut [Diagnostic],
 ) -> Result<()> {
     let spelled = uses.spelled.as_ref();
+    // How many of each spelling's places some fix renames.
+    let mut covered: Table<u32> = Table::new();
+    for diagnostic in diagnostics.iter() {
+        if diagnostic.code != Code::NAME_SUFFIX {
+            continue;
+        }
+        for edit in diagnostic.fixes.iter().flat_map(|fix| fix.edits.iter()) {
+            work.charge(1)?;
+            let (from, to) = word(source, edit);
+            let written = &source[from..to];
+            let count = covered.get(work, written)?.copied().unwrap_or(0);
+            covered.insert(work, Name::new(work, written)?, count.saturating_add(1))?;
+        }
+    }
     // The names the fixes kept so far leave, each with the index of the
     // spelling it renames.
     let mut taken: Table<u32> = Table::new();
@@ -1019,9 +1049,29 @@ fn withhold_collisions(
         };
         let mut left: Buffer<(Name, Name)> = Buffer::new();
         let mut collides = false;
+        // A fix that renames a binding the parse tracked reaches all of its
+        // uses; any other renames one place a spelling is written, which
+        // is safe only while fixes reach every place it is.
+        let binding = match diagnostic.fixes[0].edits.first() {
+            Some(edit) => {
+                let at = u32::try_from(edit.span.start).unwrap_or(u32::MAX);
+                uses.recorded.contains(work, &at_key(work, "b", at)?)?
+            }
+            None => false,
+        };
         for edit in diagnostic.fixes.iter().flat_map(|fix| fix.edits.iter()) {
             work.charge(1)?;
             let (name, written, _reserved) = destination(work, source, edit)?;
+            if !binding {
+                let places = match spelled.get(work, written)? {
+                    Some(&index) => uses.spellings[index as usize],
+                    None => 0,
+                };
+                if places > covered.get(work, written)?.copied().unwrap_or(0) {
+                    collides = true;
+                    break;
+                }
+            }
             if left.last().is_some_and(|(last, _)| **last == *name) {
                 continue;
             }
@@ -1060,7 +1110,7 @@ fn declarable(
     work: &dyn Work,
     source: &str,
     uses: &Uses,
-    spelled: &Table<()>,
+    spelled: &Table<u32>,
     symbols: &mut Option<Table<()>>,
     edit: &Edit,
     name: &str,
@@ -1097,7 +1147,7 @@ fn declarable(
     }
     if symbols.is_none() {
         let mut normalized = Table::new();
-        for (spelling, ()) in spelled.iter(work)? {
+        for (spelling, _) in spelled.iter(work)? {
             work.charge(1)?;
             let _reserved = work.reserve(spelling.len().saturating_mul(4))?;
             let symbol = crate::enums::symbol(spelling);
@@ -1126,25 +1176,15 @@ fn destination<'s>(
     edit: &Edit,
 ) -> Result<(String, &'s str, Option<crate::budget::Charge>)> {
     let (start, end) = (edit.span.start, edit.span.end);
+    let (from, to) = word(source, edit);
     if let Some(name) = edit
         .replacement
         .strip_prefix(":\"")
         .and_then(|name| name.strip_suffix('"'))
     {
-        let written = source[start..end]
-            .strip_prefix(":\"")
-            .and_then(|written| written.strip_suffix('"'))
-            .unwrap_or(&source[start..end]);
         let reserved = work.reserve(name.len())?;
-        return Ok((name.to_string(), written, reserved));
+        return Ok((name.to_string(), &source[from..to], reserved));
     }
-    let word = |c: char| c == '_' || c == '@' || super::unicode::letter_or_digit(c);
-    let from = source[..start].rfind(|c: char| !word(c)).map_or(0, |i| {
-        i + source[i..].chars().next().map_or(0, char::len_utf8)
-    });
-    let to = source[end..]
-        .find(|c: char| !word(c) && c != '?' && c != '!')
-        .map_or(source.len(), |i| end + i);
     let (before, after) = (&source[from..start], &source[end..to]);
     let length = before.len() + edit.replacement.len() + after.len();
     let reserved = work.reserve(length)?;
@@ -1153,6 +1193,27 @@ fn destination<'s>(
     name.push_str(&edit.replacement);
     name.push_str(after);
     Ok((name, &source[from..to], reserved))
+}
+
+/// Where the word an edit of a V0003 fix changes is spelled: the name
+/// around it, or a quoted symbol's name between its quotes.
+fn word(source: &str, edit: &Edit) -> (usize, usize) {
+    let (start, end) = (edit.span.start, edit.span.end);
+    if edit.replacement.starts_with(":\"") {
+        let quoted = &source[start..end];
+        if quoted.starts_with(":\"") && quoted.ends_with('"') && quoted.len() >= 3 {
+            return (start + 2, end - 1);
+        }
+        return (start, end);
+    }
+    let word = |c: char| c == '_' || c == '@' || super::unicode::letter_or_digit(c);
+    let from = source[..start].rfind(|c: char| !word(c)).map_or(0, |i| {
+        i + source[i..].chars().next().map_or(0, char::len_utf8)
+    });
+    let to = source[end..]
+        .find(|c: char| !word(c) && c != '?' && c != '!')
+        .map_or(source.len(), |i| end + i);
+    (from, to)
 }
 
 /// Whether the name whose suffix starts at `at` stands bare, where it may
