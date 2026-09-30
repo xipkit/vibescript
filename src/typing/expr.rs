@@ -227,8 +227,17 @@ impl<'a> Checker<'a> {
             ValueKind::Int(_) | ValueKind::Big(_) => Ty::INT,
             ValueKind::Float(_) => Ty::FLOAT,
             ValueKind::Bytes(_) => Ty::STRING,
+            ValueKind::Symbol(_) if hint.is_none() => Ty::SYMBOL,
             ValueKind::Symbol(symbol) => {
-                let name = String::from_utf8_lossy(&symbol.data).into_owned();
+                // A name that is not UTF-8 is copied with a replacement of
+                // up to three bytes for each byte, counted before it is.
+                if std::str::from_utf8(&symbol.data).is_err() {
+                    self.transient(3 * symbol.data.len());
+                    if self.halted() {
+                        return Ty::ERROR;
+                    }
+                }
+                let name = String::from_utf8_lossy(&symbol.data);
                 self.symbol_literal(expr, &name, hint)
             }
             _ => Ty::ANY,
