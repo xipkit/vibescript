@@ -514,29 +514,69 @@ impl Types {
     /// The union of `types`: nested unions flatten, `never` drops out, and
     /// `any` or an unknown type absorbs the rest.
     pub fn union(&mut self, types: &[Ty]) -> Ty {
-        // The caller's types are held beside the table while this runs.
-        if self.transient(std::mem::size_of_val(types))
-            || self.charge(types.len() as u64)
-            || self.poll()
-        {
+        // The caller's types, and a copy of them in order, are held beside
+        // the table while this runs.
+        let given = std::mem::size_of_val(types);
+        if self.transient(2 * given) || self.charge(types.len() as u64) || self.poll() {
             return Ty::ERROR;
         }
-        let mut members = Vec::with_capacity(types.len());
-        for &ty in types {
+        // Each distinct type once, so that many of one wide union flatten
+        // it once rather than once each.
+        let mut distinct = types.to_vec();
+        distinct.sort_unstable();
+        distinct.dedup();
+        let mut absorbed = false;
+        for &ty in &distinct {
             match self.kind(ty) {
                 Kind::Error => return Ty::ERROR,
-                Kind::Never => (),
-                Kind::Union(inner) => members.extend_from_slice(inner),
-                _ => members.push(ty),
+                _ if ty == Ty::ANY => absorbed = true,
+                _ => (),
             }
         }
-        if members.contains(&Ty::ANY) {
+        if absorbed {
             return Ty::ANY;
         }
-        // The caller's types, and the members gathered from them.
-        if self.transient(
-            std::mem::size_of_val(types) + members.capacity() * std::mem::size_of::<Ty>(),
-        ) {
+        // The members gathered so far are put in order and made distinct
+        // whenever they pass twice as many as the last time, so they never
+        // hold many more than the distinct members, which the table's own
+        // unions hold already.
+        let mut next = 2 * (MAX_ALTERNATIVES + 1);
+        let mut members = Vec::with_capacity(distinct.len().min(next));
+        for &ty in &distinct {
+            let count = match self.kind(ty) {
+                Kind::Never => continue,
+                Kind::Union(inner) => inner.len(),
+                _ => {
+                    members.push(ty);
+                    continue;
+                }
+            };
+            // Each member a union adds is work, which the budget bounds, and
+            // the list is counted before it grows to take them, while its
+            // old and new storage are both held.
+            if self.work(count) {
+                return Ty::ERROR;
+            }
+            if members.len() + count > members.capacity() {
+                let grown = (members.len() + count).max(2 * members.capacity());
+                let held = (members.capacity() + grown) * std::mem::size_of::<Ty>();
+                if self.transient(2 * given + held) {
+                    return Ty::ERROR;
+                }
+                members.reserve(count);
+            }
+            if let Kind::Union(inner) = self.kind(ty) {
+                members.extend_from_slice(inner);
+            }
+            if members.len() > next {
+                members.sort_unstable();
+                members.dedup();
+                next = next.max(2 * members.len());
+            }
+        }
+        // The caller's types, their copy, and the members gathered from
+        // them.
+        if self.transient(2 * given + members.capacity() * std::mem::size_of::<Ty>()) {
             return Ty::ERROR;
         }
         members.sort_unstable();

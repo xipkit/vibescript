@@ -725,6 +725,18 @@ fn shapes() -> Vec<Shape> {
                 format!("type U = {arms}\ndef f(x: U?) -> U?\n  x\nend\np(f(nil))\n"),
             )
         }),
+        ("a wide union times many elements", |n| {
+            // Each element has the same 1,024-arm type, whose union the
+            // array's element type is.
+            let arms = listed(1_024, |i| format!("{{a{i}: int}}"), " | ");
+            let items = listed(n, |_| "w".to_owned(), ", ");
+            (
+                Vec::new(),
+                format!(
+                    "type Wide = {arms}\ndef g(w: Wide) -> int\n  x = [{items}]\n  x.length\nend\np(1)\n"
+                ),
+            )
+        }),
         ("many wrong calls with a wide type", |n| {
             let arms = listed(1_000, |i| format!("{{a{i}: int}}"), " | ");
             let calls = "f(1)\n".repeat(n);
