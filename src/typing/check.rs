@@ -295,13 +295,25 @@ impl<'a> Checker<'a> {
         if let Some(main) = self.program.fns.iter().position(|decl| decl.main) {
             self.check_function(main);
         }
+        // A check past its budget checks no more namespaces or functions:
+        // setting up each would still take work, such as declaring a
+        // required file's locals in every function.
         for ns in 0..self.program.namespaces.len() {
+            if self.over_budget() {
+                return;
+            }
             self.check_namespace_body(ns as NsId);
         }
         for id in 0..self.program.fns.len() {
+            if self.over_budget() {
+                return;
+            }
             if !self.program.fns[id].main {
                 self.check_function(id);
             }
+        }
+        if self.over_budget() {
+            return;
         }
         self.check_file_calls();
         self.finish_construction();
