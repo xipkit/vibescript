@@ -1582,6 +1582,58 @@ fn suffix_fixes_leave_a_valid_name_or_are_not_offered() {
 }
 
 #[test]
+fn exported_functions_declare_callable_capability_members() {
+    let mut exporting = Engine::new();
+    exporting
+        .set_module_sources([("m.vibe".into(), "def ok? -> bool; true; end".into())].into())
+        .unwrap();
+    let function = exporting
+        .compile("require('m')")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap()
+        .value
+        .as_hash()
+        .unwrap()[0]
+        .1
+        .clone();
+    // An object whose only callable fields are exported functions is a
+    // namespace the checker calls, as the runtime does.
+    for fields in [
+        vec![(b"run?".to_vec(), function.clone())],
+        vec![(
+            b"inner".to_vec(),
+            Value::object(vec![(b"run?".to_vec(), function.clone())]),
+        )],
+    ] {
+        let nested = fields[0].0 == b"inner";
+        let cap = Capability::from_value("cap", Value::object(fields));
+        let script = if nested { "cap.inner.run?" } else { "cap.run?" };
+        let mut engine = Engine::new();
+        engine.declare_capability(&cap).unwrap();
+        let checked = engine.type_check(script).unwrap();
+        assert!(
+            checked.diagnostics.is_empty(),
+            "{script}: {:?}",
+            checked.diagnostics
+        );
+        let options = CallOptions {
+            capabilities: vec![cap],
+            ..CallOptions::default()
+        };
+        let value = engine.compile(script).unwrap().run(options).unwrap().value;
+        assert_eq!(value.to_string(), "true", "{script}");
+    }
+    // A root that is one binds as no value a script can use, so the checker
+    // does not declare it callable either.
+    let cap = Capability::from_value("ready?", function);
+    let mut engine = Engine::new();
+    engine.declare_capability(&cap).unwrap();
+    let error = engine.compile("ready?()").err().unwrap();
+    assert!(error.message.contains("not a function"), "{error}");
+}
+
+#[test]
 fn ordinary_hashes_validate_their_callable_fields() {
     // A hash exposes its fields as an object does, so a callable field must
     // spell a method; its data keys may hold any punctuation.
