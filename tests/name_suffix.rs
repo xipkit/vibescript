@@ -746,6 +746,44 @@ fn registered_methods_validate_their_published_spelling() {
 }
 
 #[test]
+fn receiverless_host_names_are_identifiers_not_operators() {
+    // Nothing calls a function or a capability root without a receiver by
+    // an operator, so each route that publishes one rejects the spelling.
+    for name in ["+", "[]", "[]=", "<<", "=~", "==", "<=>", "-@"] {
+        let mut engine = Engine::new();
+        engine.register_method(name, method());
+        registration_error(&engine.compile("1").err().unwrap(), "host function", name);
+        let template = Capability::from_value(name, method().value());
+        let error = Engine::new().declare_capability(&template).err().unwrap();
+        host_name_error(&error, "capability", name);
+        let factory = Capability::new(name, |_| Ok(method().value()));
+        let error = Engine::new().declare_capability(&factory).err().unwrap();
+        host_name_error(&error, "capability", name);
+        let mut options = CallOptions::default();
+        options.globals.insert(name.into(), method().value());
+        let error = Engine::new()
+            .compile("1")
+            .unwrap()
+            .run(options)
+            .err()
+            .unwrap();
+        assert_eq!(error.kind, ErrorKind::Argument, "{name}: {error}");
+        assert!(
+            error
+                .message
+                .starts_with(&format!("invalid global name \"{name}\"")),
+            "{name}: {error}"
+        );
+    }
+    // A script's class still answers operators with methods so named.
+    let source = "class V; getter n: int; def initialize(@n: int); end\n\
+                  def +(other: V) -> V; V.new(@n + other.n); end\n\
+                  def [](i: int) -> int; @n + i; end; end\n\
+                  (V.new(1) + V.new(2))[3]";
+    assert_eq!(run(source), "6");
+}
+
+#[test]
 fn capability_roots_and_members_share_method_spelling_validation() {
     let cap = Capability::from_value(
         "cap",
