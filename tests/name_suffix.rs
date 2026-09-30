@@ -1606,6 +1606,69 @@ fn ordinary_hashes_validate_their_callable_fields() {
     }
 }
 
+/// Applies every fix that edits no other's text, round by round, as
+/// `vibes fix` does.
+fn fix_all(source: &str) -> String {
+    let engine = Engine::new();
+    let mut text = source.to_owned();
+    for _ in 0..64 {
+        let diagnostics = match engine.type_check(&text) {
+            Ok(checked) => checked.diagnostics,
+            Err(error) => error.diagnostics().to_vec(),
+        };
+        let mut edits = Vec::new();
+        for fix in diagnostics.iter().filter_map(|d| d.applicable_fix()) {
+            let overlaps = fix.edits.iter().any(|edit| {
+                edits.iter().any(|other: &vibescript::diagnostic::Edit| {
+                    edit.span.start < other.span.end && other.span.start < edit.span.end
+                })
+            });
+            if !overlaps {
+                edits.extend(fix.edits.iter().cloned());
+            }
+        }
+        if edits.is_empty() {
+            return text;
+        }
+        edits.sort_by_key(|edit| std::cmp::Reverse(edit.span.start));
+        for edit in edits {
+            text.replace_range(edit.span.start..edit.span.end, &edit.replacement);
+        }
+    }
+    panic!("{source} keeps changing");
+}
+
+#[test]
+fn every_spelling_of_one_name_may_take_the_same_fix() {
+    // A method's name, and a variable's with a sigil, is fixed where it is
+    // spelled, each V0003 on its own, so the fixes may leave the same name.
+    for (source, fixed) in [
+        (
+            "def ok??; 1; end; def g; ok??; end; ok??",
+            "def ok?; 1; end; def g; ok?; end; ok?",
+        ),
+        (
+            "class C; def initialize(@d?: bool); end; def g -> bool; @d?; end; end",
+            "class C; def initialize(@d: bool); end; def g -> bool; @d; end; end",
+        ),
+        (
+            "class C; def v?=(x: int); end; end; C.new.v? = 1",
+            "class C; def v=(x: int); end; end; C.new.v = 1",
+        ),
+    ] {
+        let Err(error) = Engine::new().type_check(source) else {
+            panic!("{source} checks");
+        };
+        for diagnostic in error.diagnostics() {
+            assert!(
+                diagnostic.applicable_fix().is_some(),
+                "{source}: {diagnostic:?}"
+            );
+        }
+        assert_eq!(fix_all(source), fixed, "{source}");
+    }
+}
+
 #[test]
 fn a_fix_never_leaves_a_name_its_declaration_cannot_take() {
     for source in [

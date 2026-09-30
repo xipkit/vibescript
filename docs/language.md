@@ -85,9 +85,12 @@ reads as a nullable `Ready!`, a read through a scope that is no path of
 namespaces, such as `c::LIMIT!` with `c` a local, or code past a syntax error,
 there is no fix rather than one that renames only part of it. Nor is there one
 that would leave a name the file already spells anywhere, as a binding, method,
-namespace, member, label, symbol or nullable type, or that an earlier fix
-leaves, since applying it would make two names one: `x = 1; x? = 2; [x, x?]`
-reports V0003 without a fix, where renaming would read `x` twice. Nor is there
+namespace, member, label, symbol or nullable type, or that an earlier fix of
+another spelling leaves, since applying it would make two names one:
+`x = 1; x? = 2; [x, x?]` reports V0003 without a fix, where renaming would read
+`x` twice. A method's name, or a variable's with a sigil, is fixed where it is
+spelled, each spelling on its own, so the fixes of `def ok??` and each call
+`ok??` all leave `ok?`, and `vibes fix` applies them together. Nor is there
 one leaving a name its declaration cannot take: a builtin or prelude type's for
 a type alias or enum, a prelude namespace's, function's or global's for a
 constant, or one an enum member would share, once normalized to a symbol, with

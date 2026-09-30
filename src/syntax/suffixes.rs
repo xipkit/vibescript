@@ -987,9 +987,11 @@ fn extended(
 }
 
 /// Clears each V0003 fix that would leave a name the source already spells
-/// anywhere, or that an earlier fix leaves: applied, it would make two
-/// names one, as `x = 1; x? = 2; [x, x?]` would read the same binding
-/// twice. So is one whose name its declaration cannot take: a type alias's
+/// anywhere, or that an earlier fix leaves from another spelling: applied,
+/// it would make two names one, as `x = 1; x? = 2; [x, x?]` would read the
+/// same binding twice. Fixes of one spelling may all leave the same name,
+/// since renaming one spelling everywhere keeps apart what it kept apart:
+/// a method's `ok??` at its definition and each call all leave `ok?`. So is one whose name its declaration cannot take: a type alias's
 /// or an enum's that names a builtin type, or an enum member's that
 /// normalizes to the symbol of a name the source spells. Every fix is
 /// cleared when the source does not lex, since its names are then unknown.
@@ -1000,8 +1002,10 @@ fn withhold_collisions(
     diagnostics: &mut [Diagnostic],
 ) -> Result<()> {
     let spelled = uses.spelled.as_ref();
-    // The names the fixes kept so far leave.
-    let mut taken: Table<()> = Table::new();
+    // The names the fixes kept so far leave, each with the index of the
+    // spelling it renames.
+    let mut taken: Table<u32> = Table::new();
+    let mut renamed: Buffer<Name> = Buffer::new();
     // The symbols the spelled names normalize to, once a member needs them.
     let mut symbols: Option<Table<()>> = None;
     for diagnostic in diagnostics.iter_mut() {
@@ -1013,29 +1017,35 @@ fn withhold_collisions(
             diagnostic.fixes.clear();
             continue;
         };
-        let mut left: Buffer<Name> = Buffer::new();
+        let mut left: Buffer<(Name, Name)> = Buffer::new();
         let mut collides = false;
         for edit in diagnostic.fixes.iter().flat_map(|fix| fix.edits.iter()) {
             work.charge(1)?;
-            let (name, _reserved) = destination(work, source, edit)?;
-            if left.last().is_some_and(|last| **last == *name) {
+            let (name, written, _reserved) = destination(work, source, edit)?;
+            if left.last().is_some_and(|(last, _)| **last == *name) {
                 continue;
             }
-            if spelled.contains(work, &name)?
-                || taken.contains(work, &name)?
+            let other = match taken.get(work, &name)? {
+                Some(&index) => *renamed[index as usize] != *written,
+                None => false,
+            };
+            if other
+                || spelled.contains(work, &name)?
                 || !declarable(work, source, uses, spelled, &mut symbols, edit, &name)?
             {
                 collides = true;
                 break;
             }
-            left.push(work, Name::new(work, &name)?)?;
+            left.push(work, (Name::new(work, &name)?, Name::new(work, written)?))?;
         }
         if collides {
             diagnostic.fixes.clear();
             continue;
         }
-        for name in left {
-            taken.insert(work, name, ())?;
+        for (name, written) in left {
+            let index = u32::try_from(renamed.len()).unwrap_or(u32::MAX);
+            renamed.push(work, written)?;
+            taken.insert(work, name, index)?;
         }
     }
     Ok(())
@@ -1105,23 +1115,28 @@ fn declarable(
     }
 }
 
-/// The name an edit of a V0003 fix leaves: the word it edits as it reads
-/// once the edit applies, or the name a quoted symbol's replacement spells.
-/// A name may be nearly as long as the source, so its memory is reserved,
-/// for as long as the reservation returned with it lives, before it is built.
-fn destination(
+/// The name an edit of a V0003 fix leaves, the word it edits as the source
+/// spells it, and the reservation for the name: the word as it reads once
+/// the edit applies, or the name a quoted symbol's replacement spells. A
+/// name may be nearly as long as the source, so its memory is reserved, for
+/// as long as the reservation returned with it lives, before it is built.
+fn destination<'s>(
     work: &dyn Work,
-    source: &str,
+    source: &'s str,
     edit: &Edit,
-) -> Result<(String, Option<crate::budget::Charge>)> {
+) -> Result<(String, &'s str, Option<crate::budget::Charge>)> {
     let (start, end) = (edit.span.start, edit.span.end);
     if let Some(name) = edit
         .replacement
         .strip_prefix(":\"")
         .and_then(|name| name.strip_suffix('"'))
     {
+        let written = source[start..end]
+            .strip_prefix(":\"")
+            .and_then(|written| written.strip_suffix('"'))
+            .unwrap_or(&source[start..end]);
         let reserved = work.reserve(name.len())?;
-        return Ok((name.to_string(), reserved));
+        return Ok((name.to_string(), written, reserved));
     }
     let word = |c: char| c == '_' || c == '@' || super::unicode::letter_or_digit(c);
     let from = source[..start].rfind(|c: char| !word(c)).map_or(0, |i| {
@@ -1137,7 +1152,7 @@ fn destination(
     name.push_str(before);
     name.push_str(&edit.replacement);
     name.push_str(after);
-    Ok((name, reserved))
+    Ok((name, &source[from..to], reserved))
 }
 
 /// Whether the name whose suffix starts at `at` stands bare, where it may
@@ -1413,8 +1428,8 @@ mod tests {
         assert_eq!(error.kind, ErrorKind::Memory, "{error}");
         let error = symbol_key(&work, &source[..long + 1]).unwrap_err();
         assert_eq!(error.kind, ErrorKind::Memory, "{error}");
-        let (name, _) = destination(&(), &source, &edit).unwrap();
-        assert_eq!(name.len(), long);
+        let (name, written, _) = destination(&(), &source, &edit).unwrap();
+        assert_eq!((name.len(), written.len()), (long, long + 1));
     }
 
     #[test]
