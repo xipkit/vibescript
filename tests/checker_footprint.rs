@@ -1017,6 +1017,17 @@ fn shapes() -> Vec<Shape> {
             let aliases = lines(n / 10 + 1, |i| format!("type T{pad}{i} = int\n"));
             (Vec::new(), format!("{aliases}p(1)\n"))
         }),
+        ("a branch and a loop changing many locals", |n| {
+            // Each end of them collects what it changed, to join it.
+            let locals = lines(n, |i| format!("x{i}: int? = 1\n"));
+            let changes = lines(n, |i| format!("  x{i} = nil\n"));
+            (
+                Vec::new(),
+                format!(
+                    "{locals}if [1].length > 0\n{changes}end\nwhile [1].length > 0\n{changes}  break\nend\np(1)\n"
+                ),
+            )
+        }),
         ("a wide self-call graph", |n| {
             // Each method calls itself, a cycle of one for each of them in
             // the graph of the calls construction checks follow.

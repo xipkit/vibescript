@@ -55,6 +55,19 @@ impl super::meter::Heap for Branch {
     }
 }
 
+/// Whether the locals a branch changed, `seen`, and their states,
+/// `changes`, may take one more within the budget. When either is full,
+/// its storage as it is and as it will be once grown are both held for a
+/// moment, and are counted before it grows.
+fn room(meter: &Meter, seen: &HashMap<LocalId, ()>, changes: &Vec<(LocalId, VarState)>) -> bool {
+    if seen.len() < seen.capacity() && changes.len() < changes.capacity() {
+        return true;
+    }
+    let grown = map_of::<(LocalId, ())>((2 * seen.capacity()).max(4))
+        + (2 * changes.capacity()).max(4) * std::mem::size_of::<(LocalId, VarState)>();
+    !meter.scratch(map(seen) + vec(changes) + grown)
+}
+
 impl Flow {
     pub fn new(meter: Arc<Meter>) -> Self {
         Self {
@@ -152,7 +165,7 @@ impl Flow {
             // A check this stops still undoes every change, but collects no
             // more of them.
             if !stopped {
-                stopped = self.meter.charge(1);
+                stopped = self.meter.charge(1) || !room(&self.meter, &seen, &changes);
                 if !stopped && seen.insert(id, ()).is_none() {
                     changes.push((id, current));
                 }
@@ -179,12 +192,17 @@ impl Flow {
         let mut changes: Vec<(LocalId, VarState)> = Vec::new();
         let mut seen: HashMap<LocalId, ()> = HashMap::new();
         let steps = (self.trail.len() - mark.trail) as u64;
+        let mut stopped = false;
         for &(id, _) in &self.trail[mark.trail..] {
+            if !room(&self.meter, &seen, &changes) {
+                stopped = true;
+                break;
+            }
             if seen.insert(id, ()).is_none() {
                 changes.push((id, self.vars[id as usize]));
             }
         }
-        if self.meter.scratch(map(&seen) + vec(&changes)) || self.meter.charge(steps) {
+        if stopped || self.meter.scratch(map(&seen) + vec(&changes)) || self.meter.charge(steps) {
             changes = Vec::new();
         }
         Branch {
