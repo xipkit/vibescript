@@ -162,6 +162,16 @@ impl<T> CountedVec<T> {
         Ok(())
     }
 
+    /// Adds `value` however the budget stands, counting what the list
+    /// grows by, for a list whose entries have fixed places that must be
+    /// kept; the next measure reads a stop.
+    pub fn push_regardless(&mut self, ledger: Ledger<'_>, value: T) {
+        // A ledger that records regardless refuses nothing.
+        match self.reserve(ledger.regardless(), 1) {
+            Ok(()) | Err(Refused) => self.0.push(value),
+        }
+    }
+
     /// Adds `value` in room [`Self::reserve`] made for it, so that a
     /// caller that changes several tables can count them all before it
     /// changes any.
@@ -325,6 +335,18 @@ impl<K: Eq + Hash, V> CountedMap<K, V> {
         self.0.insert(key, value)
     }
 
+    /// Stores `value` under `key` however the budget stands, counting what
+    /// the map grows by, for a map whose entries must all be kept; the
+    /// next measure reads a stop.
+    pub fn insert_regardless(&mut self, ledger: Ledger<'_>, key: K, value: V) {
+        // A ledger that records regardless refuses nothing.
+        match self.reserve(ledger.regardless(), 1) {
+            Ok(()) | Err(Refused) => {
+                self.0.insert(key, value);
+            }
+        }
+    }
+
     /// The value under `key`, made by `make` first if the map has none.
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
     pub fn get_or_insert_with(
@@ -440,6 +462,16 @@ impl<T: Eq + Hash> CountedSet<T> {
         }
         self.reserve(ledger, 1)?;
         Ok(self.0.insert(value))
+    }
+
+    /// Adds `value` in room [`Self::reserve`] made for it; whether it is
+    /// new.
+    pub fn insert_within(&mut self, value: T) -> bool {
+        debug_assert!(
+            self.0.len() < self.0.capacity() || self.0.contains(&value),
+            "room is made first"
+        );
+        self.0.insert(value)
     }
 
     pub fn remove<Q>(&mut self, value: &Q) -> bool

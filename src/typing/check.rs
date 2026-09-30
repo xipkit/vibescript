@@ -309,14 +309,22 @@ impl<'a> Checker<'a> {
                 });
                 written.extend(names);
             }
-            // The names move into the program's set, counted before it is
-            // made.
-            if self.transient(
-                shared.heap() + written.heap() + super::meter::table::<String>(written.len()),
-            ) {
+            // The names move into the program's set, which, with them, is
+            // counted before it is made.
+            let declarations = self.meter.declarations();
+            let names: usize = written.iter().map(String::capacity).sum();
+            if declarations.keep(names).is_err()
+                || self
+                    .program
+                    .file_written
+                    .reserve(declarations, written.len())
+                    .is_err()
+            {
                 return;
             }
-            self.program.file_written = written.into_iter().collect();
+            for name in written {
+                self.program.file_written.insert_within(name);
+            }
             if self.declared() {
                 return;
             }
@@ -609,7 +617,7 @@ impl<'a> Checker<'a> {
                 self.leave_frame(previous);
                 return;
             }
-            let locals = self.program.file_locals.clone();
+            let locals = self.program.file_locals.clone().into_map();
             // Each function declares every one of the file's locals, a step
             // each.
             if self.meter.charge(locals.len() as u64) {
@@ -705,21 +713,22 @@ impl<'a> Checker<'a> {
             }
         }
         if main && self.program.file && !stopped {
-            // Counted before they are copied.
+            // Counted, with room for them, before they are copied.
             let (count, bytes) = self.assigned_size();
-            let locals = &self.program.file_locals;
-            stopped = self.transient(
-                locals.heap()
-                    + super::meter::table::<(String, (Ty, usize))>(locals.len() + count)
-                    + bytes,
-            );
+            let declarations = self.meter.declarations();
+            stopped = declarations.keep(bytes).is_err()
+                || self
+                    .program
+                    .file_locals
+                    .reserve(declarations, count)
+                    .is_err();
             if !stopped {
                 for (name, &id) in &self.frame.names {
                     if self.frame.flow.get(id).assigned {
                         let local = &self.frame.locals[id as usize];
                         self.program
                             .file_locals
-                            .insert(name.clone(), (local.declared, local.offset));
+                            .insert_within(name.clone(), (local.declared, local.offset));
                     }
                 }
                 stopped = self.declared();
@@ -920,24 +929,39 @@ impl<'a> Checker<'a> {
             if self.meter.charge(assigned.len() as u64) || self.grow(assigned.heap()) {
                 return;
             }
-            self.program.file_calls.push(FileCall {
+            let call = FileCall {
                 callee,
                 span,
                 assigned,
-            });
+            };
+            // A call the budget refuses room for is not recorded, and the
+            // check stops.
+            if self
+                .program
+                .file_calls
+                .push(self.meter.tables(), call)
+                .is_err()
+            {
+                self.stopped = true;
+            }
         } else if let Some(caller) = self.frame.function {
-            let callees = &self.program.file_uses.entry(caller).or_default().1;
-            // A list that is full doubles, counted before it does; a check
-            // that stops records no more calls.
-            if callees.len() == callees.capacity() {
-                let grown = callees.capacity().max(4) * std::mem::size_of::<FnId>();
-                if self.grow(grown) {
-                    return;
-                }
+            // The caller's entry, and room for the call, are counted before
+            // they are kept, and what its list grows by is kept with the
+            // checker's growth; a check that stops records no more calls.
+            let tables = self.meter.tables();
+            let Ok((_, callees)) =
+                self.program
+                    .file_uses
+                    .get_or_insert_with(tables, caller, Default::default)
+            else {
+                return;
+            };
+            let before = callees.capacity();
+            if callees.push(tables, callee).is_err() {
+                return;
             }
-            if let Some((_, callees)) = self.program.file_uses.get_mut(&caller) {
-                callees.push(callee);
-            }
+            let grown = (callees.capacity() - before) * std::mem::size_of::<FnId>();
+            self.grown += grown;
         }
     }
 
@@ -946,19 +970,30 @@ impl<'a> Checker<'a> {
     pub(super) fn shared_read(&mut self, id: LocalId, name: &str) {
         if self.frame.shared.contains(&id) {
             if let Some(function) = self.frame.function {
-                let reads = &self.program.file_uses.entry(function).or_default().0;
+                // The function's entry, and the name with its room in the
+                // set, are counted before they are kept, and kept with the
+                // checker's growth; a check that stops records no more
+                // reads.
+                let tables = self.meter.tables();
+                let Ok((reads, _)) =
+                    self.program
+                        .file_uses
+                        .get_or_insert_with(tables, function, Default::default)
+                else {
+                    return;
+                };
                 if reads.contains(name) {
                     return;
                 }
-                // Counted before it is kept; a check that stops records no
-                // more reads.
-                let bytes = super::meter::btree_entry(reads) + name.len();
-                if self.grow(bytes) {
+                let before = super::meter::btree_storage::<String>(reads.len());
+                if tables.keep(name.len()).is_err()
+                    || reads.insert(tables, name.to_owned()).is_err()
+                {
                     return;
                 }
-                if let Some((reads, _)) = self.program.file_uses.get_mut(&function) {
-                    reads.insert(name.to_owned());
-                }
+                let grown =
+                    super::meter::btree_storage::<String>(reads.len()) - before + name.len();
+                self.grown += grown;
             }
         }
     }
@@ -982,7 +1017,7 @@ impl<'a> Checker<'a> {
         }
         let mut reads: HashMap<FnId, std::collections::BTreeSet<String>> = uses
             .iter()
-            .map(|(&id, (read, _))| (id, read.clone()))
+            .map(|(&id, (read, _))| (id, (**read).clone()))
             .collect();
         if self.grow(reads.heap()) {
             self.release(taken);
@@ -1038,7 +1073,7 @@ impl<'a> Checker<'a> {
             again = true;
         }
         let calls = std::mem::take(&mut self.program.file_calls);
-        let Some(calls_held) = self.hold(super::meter::vec(&calls)) else {
+        let Some(calls_held) = self.hold(super::meter::vec(calls.as_vec())) else {
             self.release(taken);
             return;
         };

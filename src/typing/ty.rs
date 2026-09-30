@@ -235,11 +235,11 @@ pub(crate) struct Field {
 /// The names of script classes and enums, for rendering types.
 #[derive(Default)]
 pub(crate) struct Names {
-    pub namespaces: Vec<String>,
-    pub enums: Vec<String>,
-    pub builtins: Vec<String>,
+    pub namespaces: CountedVec<String>,
+    pub enums: CountedVec<String>,
+    pub builtins: CountedVec<String>,
     /// Declared host capabilities, by the index a `Kind::Host` holds.
-    pub hosts: Vec<String>,
+    pub hosts: CountedVec<String>,
 }
 
 /// The type interner of one check.

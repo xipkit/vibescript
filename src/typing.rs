@@ -559,14 +559,26 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     };
     for (name, host) in &input.hosts {
         let function = crate::signatures::host::function(name, host);
-        let sig = checker
-            .converter
-            .convert_owned(&mut checker.types, &function, None)
-            .host();
-        checker
-            .program
-            .hosts
-            .insert((*name).clone(), std::rc::Rc::new(sig));
+        let sig = std::rc::Rc::new(
+            checker
+                .converter
+                .convert_owned(&mut checker.types, &function, None)
+                .host(),
+        );
+        // Each is counted before it is kept, and a check it stops
+        // registers no more.
+        let declarations = meter.declarations();
+        if declarations
+            .keep(name.len() + meter::Heap::heap(&sig))
+            .is_err()
+            || checker
+                .program
+                .hosts
+                .insert(declarations, (*name).clone(), sig)
+                .is_err()
+        {
+            break;
+        }
     }
     checker.declare_hosts(input.declared);
     checker.program.file = input.file;

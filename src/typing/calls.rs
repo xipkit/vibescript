@@ -949,12 +949,16 @@ impl<'a> Checker<'a> {
                             // Counted before it is kept; a check that stops
                             // names no more modules.
                             let name = format!("{}.{}", self.types.display(ty), module.name);
-                            if self.grow(name.capacity() + std::mem::size_of::<String>()) {
+                            let declarations = self.meter.declarations();
+                            if declarations.keep(name.capacity()).is_err()
+                                || self.program.host_modules.reserve(declarations, 1).is_err()
+                                || self.types.names.hosts.reserve(declarations, 1).is_err()
+                            {
                                 return Ty::ERROR;
                             }
                             let id = self.program.host_modules.len();
-                            self.program.host_modules.push(module);
-                            self.types.names.hosts.push(name);
+                            self.program.host_modules.push_within(module);
+                            self.types.names.hosts.push_within(name);
                             id
                         }
                     };

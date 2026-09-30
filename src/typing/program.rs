@@ -4,6 +4,7 @@
 
 use super::{
     Checker,
+    counted::{CountedBTreeSet, CountedMap, CountedSet, CountedVec},
     meter::{Heap, map, vec},
     sigs::{self, BlockSig, Param, ParamKind, Sig},
     ty::{Field, Kind, Ty},
@@ -54,10 +55,10 @@ pub(crate) struct Namespace<'a> {
     pub name: String,
     pub parent: Option<NsId>,
     pub is_class: bool,
-    pub methods: HashMap<String, FnId>,
-    pub statics: HashMap<String, FnId>,
-    pub ivars: HashMap<String, Ivar>,
-    pub children: HashMap<&'a str, NsId>,
+    pub methods: CountedMap<String, FnId>,
+    pub statics: CountedMap<String, FnId>,
+    pub ivars: CountedMap<String, Ivar>,
+    pub children: CountedMap<&'a str, NsId>,
 }
 
 /// A script enum, which a required file's importers share.
@@ -148,36 +149,36 @@ pub(crate) struct Program<'a> {
     pub file: bool,
     /// A required file's top-level locals, which its functions and methods
     /// see: each one's type and where it is declared.
-    pub file_locals: HashMap<String, (Ty, usize)>,
+    pub file_locals: CountedMap<String, (Ty, usize)>,
     /// The names a required file's functions and methods assign, which a
     /// call of script code may change.
-    pub file_written: std::collections::HashSet<String>,
+    pub file_written: CountedSet<String>,
     /// Each call of the file's own code in its body, which may run before
     /// the file assigns the top-level locals that code reads.
-    pub file_calls: Vec<super::check::FileCall>,
+    pub file_calls: CountedVec<super::check::FileCall>,
     /// The file's top-level locals each of its functions and methods
     /// reads, and the others it calls.
-    pub file_uses: HashMap<FnId, (std::collections::BTreeSet<String>, Vec<FnId>)>,
-    pub fns: Vec<FnDecl<'a>>,
+    pub file_uses: CountedMap<FnId, (CountedBTreeSet<String>, CountedVec<FnId>)>,
+    pub fns: CountedVec<FnDecl<'a>>,
     /// Top-level functions by name.
-    pub functions: HashMap<&'a str, FnId>,
-    pub namespaces: Vec<Namespace<'a>>,
+    pub functions: CountedMap<&'a str, FnId>,
+    pub namespaces: CountedVec<Namespace<'a>>,
     /// Top-level classes and modules by name.
-    pub roots: HashMap<&'a str, NsId>,
-    pub enums: Vec<Arc<Enum>>,
-    pub enum_names: HashMap<String, u32>,
+    pub roots: CountedMap<&'a str, NsId>,
+    pub enums: CountedVec<Arc<Enum>>,
+    pub enum_names: CountedMap<String, u32>,
     /// Type aliases by declaring namespace (none at the top level) and name.
-    pub aliases: HashMap<(Option<NsId>, &'a str), &'a compilation::Type>,
-    alias_types: HashMap<(Option<NsId>, String), Ty>,
+    pub aliases: CountedMap<(Option<NsId>, &'a str), &'a compilation::Type>,
+    alias_types: CountedMap<(Option<NsId>, String), Ty>,
     /// Namespaces by the offset of their `class` or `module` keyword.
-    pub by_offset: HashMap<u32, NsId>,
+    pub by_offset: CountedMap<u32, NsId>,
     /// Host functions registered on the engine.
-    pub hosts: HashMap<String, Rc<Sig>>,
-    pub declared_calls: std::collections::HashSet<String>,
+    pub hosts: CountedMap<String, Rc<Sig>>,
+    pub declared_calls: CountedSet<String>,
     /// Globals and capabilities the host declares, as values, by name.
-    pub declared: HashMap<String, Ty>,
+    pub declared: CountedMap<String, Ty>,
     /// Capabilities the host declares with members, by `Kind::Host` index.
-    pub host_modules: Vec<&'a crate::signatures::Module>,
+    pub host_modules: CountedVec<&'a crate::signatures::Module>,
 }
 
 impl Program<'_> {
@@ -197,13 +198,13 @@ impl Program<'_> {
             + self.hosts.heap()
             + self.declared_calls.heap()
             + self.declared.heap()
-            + vec(&self.host_modules)
+            + vec(self.host_modules.as_vec())
     }
 
     /// The storage of the tables checking grows, whose elements' payloads
     /// the checker counts as it adds them.
     pub fn grown(&self) -> usize {
-        map(&self.alias_types) + vec(&self.file_calls) + map(&self.file_uses)
+        map(&self.alias_types) + vec(self.file_calls.as_vec()) + map(&self.file_uses)
     }
 }
 
@@ -333,25 +334,49 @@ impl<'a> Checker<'a> {
             if declaration.retained().is_some() {
                 continue;
             }
+            // Each declaration, its copies of the name and room for them
+            // in the tables they go in are counted before any changes; a
+            // check they stop declares no more.
+            let declarations = self.meter.declarations();
+            let program = &mut self.program;
             match &declaration.item {
                 crate::signatures::Item::Constant(constant) => {
                     let ty = sigs::table_type(&mut self.types, &constant.ty, &[]);
-                    self.program.declared.insert(name.clone(), ty);
+                    if declarations.keep(name.len()).is_err()
+                        || program.declared.reserve(declarations, 1).is_err()
+                    {
+                        return;
+                    }
+                    program.declared.insert_within(name.clone(), ty);
                 }
                 crate::signatures::Item::Module(module) => {
-                    let id = self.program.host_modules.len() as u32;
-                    self.program.host_modules.push(module);
-                    self.types.names.hosts.push(name.clone());
+                    if declarations.keep(2 * name.len()).is_err()
+                        || program.host_modules.reserve(declarations, 1).is_err()
+                        || self.types.names.hosts.reserve(declarations, 1).is_err()
+                        || program.declared.reserve(declarations, 1).is_err()
+                    {
+                        return;
+                    }
+                    let id = program.host_modules.len() as u32;
+                    program.host_modules.push_within(module);
+                    self.types.names.hosts.push_within(name.clone());
                     let ty = self.types.intern(Kind::Host(id));
-                    self.program.declared.insert(name.clone(), ty);
+                    self.program.declared.insert_within(name.clone(), ty);
                 }
                 crate::signatures::Item::Function(function) => {
-                    let sig = self
-                        .converter
-                        .convert_owned(&mut self.types, function, None)
-                        .host();
-                    self.program.declared_calls.insert(name.clone());
-                    self.program.hosts.insert(name.clone(), Rc::new(sig));
+                    let sig = Rc::new(
+                        self.converter
+                            .convert_owned(&mut self.types, function, None)
+                            .host(),
+                    );
+                    if declarations.keep(2 * name.len() + sig.heap()).is_err()
+                        || program.declared_calls.reserve(declarations, 1).is_err()
+                        || program.hosts.reserve(declarations, 1).is_err()
+                    {
+                        return;
+                    }
+                    program.declared_calls.insert_within(name.clone());
+                    program.hosts.insert_within(name.clone(), sig);
                 }
                 _ => (),
             }
@@ -359,8 +384,8 @@ impl<'a> Checker<'a> {
     }
 
     /// Whether an enum of `members` fits the budget: building it copies
-    /// each member, writes its symbol and sorts both, which is charged and
-    /// counted before it is built.
+    /// each member, writes its symbol and sorts both, which is charged, and
+    /// what it keeps counted, before it is built.
     fn enum_fits(&mut self, members: &[crate::compilation::Name]) -> bool {
         let count = members.len();
         let sorting = count * (usize::BITS - count.leading_zeros()) as usize;
@@ -369,7 +394,7 @@ impl<'a> Checker<'a> {
         }
         let bytes = members.iter().map(|member| 3 * member.len()).sum::<usize>()
             + count * (2 * std::mem::size_of::<String>() + 2 * std::mem::size_of::<u32>());
-        !self.transient(bytes) && !self.over_budget()
+        self.meter.declarations().keep(bytes).is_ok() && !self.over_budget()
     }
 
     /// Collects the declarations and resolves every signature.
@@ -379,9 +404,12 @@ impl<'a> Checker<'a> {
         // members.
         let mut stopped = self.halted();
         for (index, (name, members)) in parsed.enums.iter().enumerate() {
+            // Its places are kept however the budget stands, and counted.
+            let always = self.meter.declarations().regardless();
+            always.kept(3 * name.len() + std::mem::size_of::<Enum>() + 16);
             self.program
                 .enum_names
-                .insert(name.to_string(), index as u32);
+                .insert_regardless(always, name.to_string(), index as u32);
             // A check past its budget declares the enum without members,
             // which it never reads.
             let members = if !stopped && self.enum_fits(members) {
@@ -389,10 +417,14 @@ impl<'a> Checker<'a> {
             } else {
                 Vec::new()
             };
+            let always = self.meter.declarations().regardless();
             self.program
                 .enums
-                .push(Arc::new(Enum::new(name.to_string(), members)));
-            self.types.names.enums.push(name.to_string());
+                .push_regardless(always, Arc::new(Enum::new(name.to_string(), members)));
+            self.types
+                .names
+                .enums
+                .push_regardless(always, name.to_string());
             stopped = self.declaring();
         }
         // A check that runs out of its budget stops declaring.
@@ -403,13 +435,26 @@ impl<'a> Checker<'a> {
         }
         for (scope, alias) in &parsed.additions.aliases {
             let scope = scope.and_then(|offset| self.program.by_offset.get(&offset).copied());
-            self.program
+            let declarations = self.meter.declarations();
+            if self
+                .program
                 .aliases
-                .insert((scope, alias.name.as_str()), &alias.ty);
+                .insert(declarations, (scope, alias.name.as_str()), &alias.ty)
+                .is_err()
+            {
+                return;
+            }
         }
+        // The builtin namespaces' names have their places, which are kept
+        // however the budget stands.
         for (index, (name, _)) in sigs::index().modules.iter().enumerate() {
             debug_assert_eq!(self.types.names.builtins.len(), index);
-            self.types.names.builtins.push((*name).to_owned());
+            let always = self.meter.declarations().regardless();
+            always.kept(name.len());
+            self.types
+                .names
+                .builtins
+                .push_regardless(always, (*name).to_owned());
         }
         // Required files' enums are types in annotations too.
         self.require_modules(parsed);
@@ -450,8 +495,16 @@ impl<'a> Checker<'a> {
                 self.release(blocks_held);
                 return;
             };
-            if !main {
-                self.program.functions.insert(def.name.as_str(), id);
+            let declarations = self.meter.declarations();
+            if !main
+                && self
+                    .program
+                    .functions
+                    .insert(declarations, def.name.as_str(), id)
+                    .is_err()
+            {
+                self.release(blocks_held);
+                return;
             }
         }
         // The methods declared so far, whose walks for yields charge a
@@ -476,9 +529,10 @@ impl<'a> Checker<'a> {
                     self.release(blocks_held);
                     return;
                 };
-                self.program.namespaces[ns]
-                    .methods
-                    .insert(def.name.to_string(), id);
+                if !self.declare_method(ns, def.name.as_str(), id, false) {
+                    self.release(blocks_held);
+                    return;
+                }
             }
             for (def, visibility) in &module.methods {
                 methods += 1;
@@ -492,9 +546,10 @@ impl<'a> Checker<'a> {
                     self.release(blocks_held);
                     return;
                 };
-                self.program.namespaces[ns]
-                    .statics
-                    .insert(def.name.to_string(), id);
+                if !self.declare_method(ns, def.name.as_str(), id, true) {
+                    self.release(blocks_held);
+                    return;
+                }
             }
         }
         self.release(blocks_held);
@@ -520,9 +575,9 @@ impl<'a> Checker<'a> {
             };
             let default = defaults.contains(&(*class, ivar.offset));
             let ty = self.annotation(&ivar.ty, Some(ns), ivar.offset as usize);
-            self.program.namespaces[ns as usize]
-                .ivars
-                .insert(ivar.name.to_string(), Ivar { ty, default });
+            if !self.declare_ivar(ns as usize, &ivar.name, Ivar { ty, default }, true) {
+                return;
+            }
         }
         // Declared class variables have their types before any body reads them.
         for (namespace, declared) in &parsed.additions.class_vars {
@@ -605,13 +660,48 @@ impl<'a> Checker<'a> {
                         );
                     }
                 }
-                self.program.namespaces[ns]
-                    .ivars
-                    .entry(name.to_string())
-                    .or_insert(Ivar { ty, default: false });
+                if !self.declare_ivar(ns, name, Ivar { ty, default: false }, false) {
+                    return;
+                }
             }
         }
         self.check_names(parsed);
+    }
+
+    /// Declares method `name` of namespace `ns`, a static one when
+    /// `statics`, with a copy of its name, counted before it is made.
+    /// Returns whether it did: a check the budget stops declares no more.
+    fn declare_method(&mut self, ns: usize, name: &str, id: FnId, statics: bool) -> bool {
+        let declarations = self.meter.declarations();
+        let namespace = &mut self.program.namespaces[ns];
+        let table = if statics {
+            &mut namespace.statics
+        } else {
+            &mut namespace.methods
+        };
+        if let Some(entry) = table.get_mut(name) {
+            *entry = id;
+            return true;
+        }
+        declarations.keep(name.len()).is_ok()
+            && table.insert(declarations, name.to_owned(), id).is_ok()
+    }
+
+    /// Declares instance variable `name` of namespace `ns`, with a copy of
+    /// its name, counted before it is made; one declared already is
+    /// replaced when `replace`, and kept otherwise. Returns whether it did:
+    /// a check the budget stops declares no more.
+    fn declare_ivar(&mut self, ns: usize, name: &str, ivar: Ivar, replace: bool) -> bool {
+        let declarations = self.meter.declarations();
+        let ivars = &mut self.program.namespaces[ns].ivars;
+        if let Some(entry) = ivars.get_mut(name) {
+            if replace {
+                *entry = ivar;
+            }
+            return true;
+        }
+        declarations.keep(name.len()).is_ok()
+            && ivars.insert(declarations, name.to_owned(), ivar).is_ok()
     }
 
     /// Reports a class alias that takes the name of a method the class
@@ -685,7 +775,9 @@ impl<'a> Checker<'a> {
     /// stopped.
     #[must_use = "the budget may have stopped the check, which must then do no more work"]
     fn namespace(&mut self, module: &'a Module, parent: Option<NsId>) -> bool {
-        let first = self.declare_namespace(module, parent);
+        let Some(first) = self.declare_namespace(module, parent) else {
+            return true;
+        };
         if self.declaring() {
             return true;
         }
@@ -704,7 +796,9 @@ impl<'a> Checker<'a> {
                     break;
                 }
             }
-            let id = self.declare_namespace(module, Some(parent));
+            let Some(id) = self.declare_namespace(module, Some(parent)) else {
+                break;
+            };
             unpaced += 1;
             if self.declaring() {
                 break;
@@ -714,40 +808,57 @@ impl<'a> Checker<'a> {
         self.meter.charge(unpaced) || self.halted()
     }
 
-    fn declare_namespace(&mut self, module: &'a Module, parent: Option<NsId>) -> NsId {
-        let id = self.program.namespaces.len() as NsId;
-        let name = match parent {
-            Some(parent) => format!(
-                "{}::{}",
-                self.program.namespaces[parent as usize].name, module.name
-            ),
-            None => module.name.to_string(),
-        };
-        self.types.names.namespaces.push(name.clone());
-        self.program.namespaces.push(Namespace {
+    /// Declares `module` in `parent`, or at the top level. Its two copies
+    /// of its qualified name, and room for it in every table it goes in,
+    /// are counted before any changes; `None` when the budget refuses them,
+    /// which stops the check and declares nothing.
+    fn declare_namespace(&mut self, module: &'a Module, parent: Option<NsId>) -> Option<NsId> {
+        let declarations = self.meter.declarations();
+        let program = &mut self.program;
+        let outer = parent.map(|parent| program.namespaces[parent as usize].name.as_str());
+        let length = outer.map_or(0, |outer| outer.len() + 2) + module.name.len();
+        declarations.keep(2 * length).ok()?;
+        program.namespaces.reserve(declarations, 1).ok()?;
+        self.types.names.namespaces.reserve(declarations, 1).ok()?;
+        program.by_offset.reserve(declarations, 1).ok()?;
+        match parent {
+            Some(parent) => program.namespaces[parent as usize]
+                .children
+                .reserve(declarations, 1)
+                .ok()?,
+            None => program.roots.reserve(declarations, 1).ok()?,
+        }
+        let mut name = String::with_capacity(length);
+        if let Some(parent) = parent {
+            name.push_str(&program.namespaces[parent as usize].name);
+            name.push_str("::");
+        }
+        name.push_str(&module.name);
+        let id = program.namespaces.len() as NsId;
+        self.types.names.namespaces.push_within(name.clone());
+        program.namespaces.push_within(Namespace {
             checked: false,
             module: Some(module),
             name,
             parent,
             is_class: module.is_class,
-            methods: HashMap::new(),
-            statics: HashMap::new(),
-            ivars: HashMap::new(),
-            children: HashMap::new(),
+            methods: CountedMap::new(),
+            statics: CountedMap::new(),
+            ivars: CountedMap::new(),
+            children: CountedMap::new(),
         });
-        self.program.by_offset.insert(module.offset, id);
+        program.by_offset.insert_within(module.offset, id);
         match parent {
             Some(parent) => {
-                self.program.namespaces[parent as usize]
+                program.namespaces[parent as usize]
                     .children
-                    .insert(module.name.as_str(), id);
+                    .insert_within(module.name.as_str(), id);
             }
             None => {
-                self.program.roots.insert(module.name.as_str(), id);
+                program.roots.insert_within(module.name.as_str(), id);
             }
         }
-        // Measured, and checked against the budget, by the caller.
-        id
+        Some(id)
     }
 
     fn function(
@@ -759,9 +870,11 @@ impl<'a> Checker<'a> {
         main: bool,
         visibility: Visibility,
     ) -> Option<FnId> {
-        // The parameters, each with a copy of its name, and the block's,
-        // counted before they are listed; a check that stops declares no
-        // more functions.
+        // The parameters, each with a copy of its name, the block's, and
+        // the function's qualified name, counted before they are listed; a
+        // check that stops declares no more functions.
+        let qualified = owner.map_or(0, |ns| self.program.namespaces[ns as usize].name.len() + 1)
+            + def.name.len();
         let held = self.hold(
             def.params.len() * std::mem::size_of::<Param>()
                 + def
@@ -769,7 +882,8 @@ impl<'a> Checker<'a> {
                     .iter()
                     .map(|param| param.name.len())
                     .sum::<usize>()
-                + block.map_or(0, |block| block.params.len()) * std::mem::size_of::<Ty>(),
+                + block.map_or(0, |block| block.params.len()) * std::mem::size_of::<Ty>()
+                + qualified,
         )?;
         let mut params = Vec::with_capacity(def.params.len());
         for param in &def.params {
@@ -841,15 +955,12 @@ impl<'a> Checker<'a> {
                 .map(|ty| self.annotation(ty, owner, block.offset as usize)),
             optional: block_optional(self.source, block),
         });
-        let name = match (owner, instance) {
-            (Some(ns), true) => {
-                format!("{}#{}", self.program.namespaces[ns as usize].name, def.name)
-            }
-            (Some(ns), false) => {
-                format!("{}.{}", self.program.namespaces[ns as usize].name, def.name)
-            }
-            (None, _) => def.name.to_string(),
-        };
+        let mut name = String::with_capacity(qualified);
+        if let Some(ns) = owner {
+            name.push_str(&self.program.namespaces[ns as usize].name);
+            name.push(if instance { '#' } else { '.' });
+        }
+        name.push_str(&def.name);
         let (breaks, scratch) = yields(&self.meter, &def.body);
         if self.transient(scratch) {
             self.release(held);
@@ -865,9 +976,16 @@ impl<'a> Checker<'a> {
             converts: true,
             id: Some(self.program.fns.len()),
         });
-        // The program counts them from here.
+        // The program counts them from here, and room for the function,
+        // before they are let go.
+        let declarations = self.meter.declarations();
+        let kept = declarations.keep(sig.heap()).is_ok()
+            && self.program.fns.reserve(declarations, 1).is_ok();
         self.release(held);
-        self.program.fns.push(FnDecl {
+        if !kept {
+            return None;
+        }
+        self.program.fns.push_within(FnDecl {
             def: Some(def),
             owner,
             instance,
@@ -1154,13 +1272,22 @@ impl<'a> Checker<'a> {
             return Some(ty);
         }
         let ty = *self.program.aliases.get(&(scope, name))?;
-        // A self-referential alias resolves to an unknown type once.
-        if self.grow(key.1.capacity()) {
+        // A self-referential alias resolves to an unknown type once. Its
+        // name is counted with the checker's growth, and room for it in the
+        // table, before either is kept.
+        if self.grow(key.1.capacity())
+            || self
+                .program
+                .alias_types
+                .insert(self.meter.tables(), key.clone(), Ty::ERROR)
+                .is_err()
+        {
             return Some(Ty::ERROR);
         }
-        self.program.alias_types.insert(key.clone(), Ty::ERROR);
         let resolved = self.annotation_depth(ty, scope, depth + 1);
-        self.program.alias_types.insert(key, resolved);
+        if let Some(entry) = self.program.alias_types.get_mut(&key) {
+            *entry = resolved;
+        }
         Some(resolved)
     }
 

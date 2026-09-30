@@ -3,6 +3,7 @@
 
 use super::{
     Checker, Input, Modules,
+    counted::CountedMap,
     meter::Heap,
     program::{Enum, FnDecl, Namespace, NsId},
     sigs::{BlockSig, Param, Sig},
@@ -613,53 +614,91 @@ impl<'a> Checker<'a> {
             if self.meter.charge(1) {
                 break;
             }
-            let id = self.program.enums.len() as u32;
-            self.program.enums.push(declared.clone());
-            self.types.names.enums.push(declared.name.clone());
-            let free = !self.program.enum_names.contains_key(&declared.name)
-                && !self.program.roots.contains_key(declared.name.as_str());
+            // The enum, its copies of its name and room for it in every
+            // table it goes in are counted before any changes.
+            let declarations = self.meter.declarations();
+            let program = &mut self.program;
+            let free = !program.enum_names.contains_key(&declared.name)
+                && !program.roots.contains_key(declared.name.as_str());
+            if declarations.keep(2 * declared.name.len()).is_err()
+                || program.enums.reserve(declarations, 1).is_err()
+                || self.types.names.enums.reserve(declarations, 1).is_err()
+                || (free && program.enum_names.reserve(declarations, 1).is_err())
+            {
+                break;
+            }
+            let id = program.enums.len() as u32;
+            program.enums.push_within(declared.clone());
+            self.types.names.enums.push_within(declared.name.clone());
             if free {
-                self.program.enum_names.insert(declared.name.clone(), id);
+                program.enum_names.insert_within(declared.name.clone(), id);
             }
             enums.insert(declared.name.clone(), id);
             imports.enums.push(id);
         }
         for class in &exported.classes {
+            // The class, its two copies of its name and room for it in both
+            // tables are counted before either changes.
+            let declarations = self.meter.declarations();
+            if declarations.keep(2 * class.name.len()).is_err()
+                || self.program.namespaces.reserve(declarations, 1).is_err()
+                || self
+                    .types
+                    .names
+                    .namespaces
+                    .reserve(declarations, 1)
+                    .is_err()
+            {
+                break;
+            }
             let id = self.program.namespaces.len() as NsId;
-            self.types.names.namespaces.push(class.name.clone());
-            self.program.namespaces.push(Namespace {
+            self.types.names.namespaces.push_within(class.name.clone());
+            self.program.namespaces.push_within(Namespace {
                 checked: false,
                 module: None,
                 name: class.name.clone(),
                 parent: None,
                 is_class: true,
-                methods: HashMap::new(),
-                statics: HashMap::new(),
-                ivars: HashMap::new(),
-                children: HashMap::new(),
+                methods: CountedMap::new(),
+                statics: CountedMap::new(),
+                ivars: CountedMap::new(),
+                children: CountedMap::new(),
             });
             imports.classes.insert(class.id, id);
         }
         for class in &exported.classes {
-            let owner = imports.classes[&class.id];
+            // A class the budget refused to import has no methods either.
+            let Some(&owner) = imports.classes.get(&class.id) else {
+                break;
+            };
             for (name, sig, visibility) in &class.methods {
                 // A check that importing stops imports no more.
                 if self.halted() {
                     break;
                 }
-                let sig = self.import_sig(&exported.types, sig, &imports);
+                let sig = Rc::new(self.import_sig(&exported.types, sig, &imports));
+                // The method, its name and room for it in both tables are
+                // counted before either changes.
+                let declarations = self.meter.declarations();
+                let methods = &mut self.program.namespaces[owner as usize].methods;
+                if declarations.keep(name.len() + sig.heap()).is_err()
+                    || methods.reserve(declarations, 1).is_err()
+                    || self.program.fns.reserve(declarations, 1).is_err()
+                {
+                    break;
+                }
                 let id = self.program.fns.len();
-                self.program.fns.push(FnDecl {
+                self.program.fns.push_within(FnDecl {
                     def: None,
                     owner: Some(owner),
                     instance: true,
-                    sig: Rc::new(sig),
+                    sig,
                     main: false,
                     visibility: *visibility,
                 });
                 self.program.namespaces[owner as usize]
                     .methods
-                    .insert(name.clone(), id);
+                    .insert_within(name.clone(), id);
             }
         }
         let mut functions = HashMap::with_capacity(exported.functions.len());
