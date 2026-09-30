@@ -778,22 +778,18 @@ impl<'a> super::Checker<'a> {
         self.grow(diagnostic.heap())
     }
 
-    /// Measures the tables at once when one of them has grown by `bytes`,
-    /// if that is enough to pass the account's margin, as a long name does.
-    /// Returns whether the check has stopped.
-    #[must_use = "the budget may have stopped the check, which must then do no more work"]
-    pub(super) fn grew(&self, bytes: usize) -> bool {
-        (bytes >= SCRATCH && self.check_memory(0)) || self.halted()
-    }
-
-    /// Counts `bytes` more of what the checker keeps, checking them against
-    /// the memory left at once when they are many, rather than at the next
-    /// poll that measures, which may be many statements away. Returns
-    /// whether the check has stopped.
+    /// Counts `bytes` more of what the checker keeps, before it keeps
+    /// them, which the budget admits beside what the check holds, rather
+    /// than at the next poll that measures, which may be many statements
+    /// away. A check they stop keeps none of them. Returns whether the
+    /// check has stopped.
     #[must_use = "the budget may have stopped the check, which must then do no more work"]
     pub(super) fn grow(&mut self, bytes: usize) -> bool {
+        if self.meter.tables().keep(bytes).is_err() {
+            return true;
+        }
         self.grown += bytes;
-        (bytes >= SCRATCH && self.check_memory(0)) || self.halted()
+        self.halted()
     }
 }
 

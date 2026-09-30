@@ -444,7 +444,13 @@ impl<'a> Checker<'a> {
         let Some(module) = self.program.namespaces[ns as usize].module else {
             return;
         };
-        let name = self.program.namespaces[ns as usize].name.clone();
+        // The frame keeps a copy of the namespace's name, counted before it
+        // is made.
+        let name = &self.program.namespaces[ns as usize].name;
+        if self.meter.tables().keep(name.len()).is_err() {
+            return;
+        }
+        let name = name.clone();
         let mut frame = Frame::new(&self.meter, Some(ns), false, None, name);
         frame.namespace_body = true;
         let previous = self.enter_frame(frame);
@@ -515,6 +521,10 @@ impl<'a> Checker<'a> {
         }));
         // Instance-variable defaults run for each instance.
         let defaults = self.defaults_of(module.offset);
+        if self.meter.tables().keep(self.frame.name.len()).is_err() {
+            self.leave_frame(previous);
+            return;
+        }
         let name = self.frame.name.clone();
         let body = self.enter_frame(Frame::new(&self.meter, Some(ns), true, None, name));
         // A default may read only the variables whose defaults precede it:
@@ -583,16 +593,16 @@ impl<'a> Checker<'a> {
         let instance = decl.instance;
         let main = decl.main;
         let accessor = def.accessor.is_some();
+        // The frame keeps a copy of the function's name, counted before it
+        // is made.
+        if self.meter.tables().keep(sig.name.len()).is_err() {
+            return;
+        }
         let mut frame = Frame::new(&self.meter, owner, instance, sig.result, sig.name.clone());
         frame.main = main;
         frame.function = Some(id);
         frame.block = sig.block.clone();
         let previous = self.enter_frame(frame);
-        // The frame keeps a copy of the function's name.
-        if self.grew(sig.name.len()) {
-            self.leave_frame(previous);
-            return;
-        }
         if self.program.file && !main {
             // The file's locals are copied, and counted before they are.
             if self.transient(self.program.file_locals.heap()) {
