@@ -155,6 +155,10 @@ pub struct Checked {
     /// beside the checker's tables, which the quota bounds with them; 0
     /// when it did not run.
     pub surface_bytes: usize,
+    /// What the sources and file names the diagnostics of required files
+    /// keep hold, each counted once however many keep it, which last as
+    /// long as the diagnostics do.
+    pub(crate) retained: usize,
 }
 
 /// What the checker proved about expressions and blocks, by syntax node, for
@@ -330,7 +334,8 @@ fn key<T>(node: &T) -> usize {
 
 impl Checked {
     /// What the check's findings hold, which last while the compiler reads
-    /// them: the facts, the diagnostics, the call types and the locals.
+    /// them: the facts, the diagnostics with the sources and file names
+    /// they keep, the call types and the locals.
     pub(crate) fn bytes(&self) -> usize {
         use meter::Heap;
         let calls = self.calls.entries.capacity() * size_of::<(usize, ReceiverType)>()
@@ -340,7 +345,7 @@ impl Checked {
                 .iter()
                 .map(|(_, call)| call.heap())
                 .sum::<usize>();
-        self.facts.bytes() + self.diagnostics.heap() + calls + self.locals.heap()
+        self.facts.bytes() + self.diagnostics.heap() + calls + self.locals.heap() + self.retained
     }
 }
 
@@ -644,6 +649,8 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         stopped,
         peak_bytes: meter.peak(),
         surface_bytes: 0,
+        // A check that stopped keeps no diagnostics.
+        retained: if stopped { 0 } else { checker.modules.kept },
     };
     // Removed spellings of the canonical surface are compile errors too,
     // unless the source is too tall to walk or the check stopped early.

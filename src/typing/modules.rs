@@ -131,6 +131,8 @@ pub(crate) struct Required<'a> {
     /// The sources and file names that the diagnostics of required files
     /// keep, by address, so each is counted once however many keep it.
     retained: CountedSet<usize>,
+    /// What they hold.
+    pub kept: usize,
 }
 
 impl Heap for Exports {
@@ -176,6 +178,7 @@ impl<'a> Required<'a> {
             aliases: CountedMap::new(),
             published: CountedMap::new(),
             retained: CountedSet::new(),
+            kept: 0,
         }
     }
 
@@ -316,6 +319,7 @@ impl<'a> Checker<'a> {
                 Err(_) => return true,
             }
         }
+        self.modules.kept += bytes;
         self.grow(bytes)
     }
 
