@@ -274,8 +274,17 @@ the baseline and candidate; it is not caused by recovery. Raw audits are under
 Eighth PR #1319 review: a name after `::` is spelled as one after `.` is, so
 a repeated or inner suffix there, as in `Status::Draft??`, reports V0003 again,
 as at the pre-review head. Against that head the parse sweep's first errors
-now change in 40 cases, 8 fewer; the 41,372 cases apply 1,403 fixes, 6 more,
-all passing their checks. No golden observation or counter changes.
+now change in 40 cases, 8 fewer; its suffix cases apply 1,403 fixes, 6 more,
+all passing their checks. The rules' parser now reads a grouped receiver or
+callee, such as `(JSON).parse_as("[]", [string, array<int>])`, as the
+compiler's does, and the sweep wraps three call receivers of each program in
+parentheses, and three more twice, 1,068 more cases, 42,440 in all: with debug
+assertions none trips the check that the rules' parser reads every source the
+compiler accepts, and their first errors are unchanged. A grouped callee now
+reads as the call it is too, so the 18 `*_wrapped` introspection rejections,
+`(C.is_a?)(7)`, re-record the message for a call with arguments, and replay
+`call42614`, `(Time.utc(2024, 1, 1).to_s)()`, now reports V0412 as `.to_s()`
+does, losing its counters. No other golden observation or counter changes.
 
 Seventh PR #1319 review: every V0003 fix now waits until the fixes of its
 spelling reach every place a name token spells it, and lowercase alias types

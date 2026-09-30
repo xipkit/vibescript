@@ -951,6 +951,30 @@ fn the_rules_parser_reads_called_groups_and_tuple_type_arguments() {
     );
 }
 
+/// The compiler's parser keeps no node for parentheses, so a grouped
+/// receiver or callee decides as a bare one does in the rules' parser too:
+/// the rules read these sources, as their `size` diagnostics show.
+#[test]
+fn grouped_receivers_and_callees_read_as_bare_ones() {
+    for source in [
+        "(JSON).parse_as(\"[]\", [string, array<int>])\nn = [1].size\n",
+        "((JSON)).parse_as(\"[]\", [string, array<int>])\nn = [1].size\n",
+        "def f(x: int) -> int\n  x\nend\n(f)([1].size)\n",
+        "def f(x: int) -> int\n  x\nend\n((f)) [1].size\n",
+        "def f -> int\n  yield\nend\n(f) { [1].size }\n",
+        "module M\n  X = 1\nend\nn = [(M)::X].size\n",
+        "class C\n  def f -> int\n    (self).g\n  end\n  def g -> int\n    [1].size\n  end\nend\n",
+    ] {
+        assert_eq!(
+            with_code(source, Code::REMOVED_NAME).len(),
+            1,
+            "{source:?}: {:?}",
+            diagnostics(source)
+        );
+        crate::Engine::new().type_check(source).unwrap();
+    }
+}
+
 /// The rules' parser must read every source the compiler accepts; a debug
 /// build fails where it cannot, instead of silently skipping every rule.
 #[test]

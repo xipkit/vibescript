@@ -88,6 +88,25 @@ pub fn keyword(w: &str) -> bool {
     KEYWORDS.binary_search(&w).is_ok()
 }
 
+/// `expr` without the parentheses around it, which the compiler's parser
+/// keeps no node for, so that a receiver or callee decides as it does there.
+fn ungrouped(expr: &Expr) -> &Expr {
+    let mut expr = expr;
+    while let ExprKind::Group(_, inner, _) = &expr.kind {
+        expr = inner;
+    }
+    expr
+}
+
+/// [`ungrouped`], taking the expression.
+fn ungroup(expr: Expr) -> Expr {
+    let mut expr = expr;
+    while let ExprKind::Group(_, inner, _) = expr.kind {
+        expr = *inner;
+    }
+    expr
+}
+
 fn reserved(w: &str) -> bool {
     matches!(
         w,
@@ -844,7 +863,7 @@ impl<'s> Parser<'s> {
                 .next()
                 .is_some_and(crate::syntax::unicode::upper)
         };
-        match &lhs.kind {
+        match &ungrouped(lhs).kind {
             ExprKind::Name(name) => lowercase(name) && !self.locals.contains(name),
             ExprKind::Call(call) => {
                 !call.scoped(&self.tokens) || call.args.is_some() || lowercase(&call.name)
@@ -858,6 +877,7 @@ impl<'s> Parser<'s> {
         if self.line_exprs == 0 || min > 14 {
             return false;
         }
+        let lhs = ungrouped(lhs);
         let local = match &lhs.kind {
             ExprKind::Name(name) => self.locals.contains(name),
             // A scoped function takes arguments too, as in `Math::sqrt 9`.
@@ -3069,11 +3089,7 @@ impl<'s> Parser<'s> {
     fn begin_call(&self, lhs: &Expr) -> bool {
         // The compiler's parser keeps no node for parentheses, so a
         // parenthesized `begin` calls as the bare one does.
-        let mut lhs = lhs;
-        while let ExprKind::Group(_, inner, _) = &lhs.kind {
-            lhs = inner;
-        }
-        self.at_p('(') && matches!(lhs.kind, ExprKind::Begin(_))
+        self.at_p('(') && matches!(ungrouped(lhs).kind, ExprKind::Begin(_))
     }
 
     fn expression_suffix(&mut self, lhs: &Expr, min: u8, line: Option<usize>) -> Option<Suffix> {
@@ -3149,6 +3165,7 @@ impl<'s> Parser<'s> {
             start: lhs.span.start,
             end: self.last_end(),
         };
+        let lhs = ungroup(lhs);
         let call = match lhs.kind {
             ExprKind::Name(name) => {
                 let name_tok = self.token_at(lhs.span.start);
@@ -3391,6 +3408,7 @@ impl<'s> Parser<'s> {
             start: lhs.span.start,
             end: self.last_end(),
         };
+        let lhs = ungroup(lhs);
         let kind = match lhs.kind {
             ExprKind::Name(name) => {
                 let name_tok = self.token_at(lhs.span.start);
@@ -3424,6 +3442,7 @@ impl<'s> Parser<'s> {
             start: lhs.span.start,
             end: self.tokens[block.close].end,
         };
+        let lhs = ungroup(lhs);
         let kind = match lhs.kind {
             ExprKind::Name(name) => {
                 let name_tok = self.token_at(lhs.span.start);
@@ -3498,7 +3517,8 @@ impl<'s> Parser<'s> {
         let args = if let Some(open) = self.take_p('(') {
             // As in the compiler, `as` and `JSON.parse_as` take types.
             let types = name == "as"
-                || (name == "parse_as" && matches!(&lhs.kind, ExprKind::Name(r) if r == "JSON"));
+                || (name == "parse_as"
+                    && matches!(&ungrouped(&lhs).kind, ExprKind::Name(r) if r == "JSON"));
             let items = self.call_arguments(types)?;
             Some(Args {
                 parens: Some((open, self.pos - 1)),

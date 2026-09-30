@@ -17,20 +17,23 @@ import re
 from pathlib import Path
 
 import golden
-from mutations import TOKEN, recovery_mutations, suffix_mutations
+from mutations import TOKEN, group_mutations, recovery_mutations, suffix_mutations
 
 
 def cases():
     result = golden.parse_cases()
     rng = random.Random(0x700)
-    # A separate generator keeps the other mutations as they were.
+    # Separate generators keep the other mutations as they were.
     suffixes = random.Random(0x3003)
+    groups = random.Random(0x9709)
     for path in sorted(p for root in golden.PARSE_SOURCES
                        for p in (golden.ROOT / root).rglob("*.vibe")):
         text = golden.read_source(path)
         for kind, source in recovery_mutations(text, rng):
             result.append({"id": f"{path.relative_to(golden.ROOT)}:{kind}", "source": source})
         for kind, source in suffix_mutations(text, suffixes):
+            result.append({"id": f"{path.relative_to(golden.ROOT)}:{kind}", "source": source})
+        for kind, source in group_mutations(text, groups):
             result.append({"id": f"{path.relative_to(golden.ROOT)}:{kind}", "source": source})
     for name, source in {
         "closers": ")] }\n" * 10000,

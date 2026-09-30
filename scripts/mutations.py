@@ -97,3 +97,24 @@ def suffix_mutations(source, rng, per_run=3):
                     _, end = words[index]
                     text = text[:end] + run + text[end:]
                 yield f"suffix {kind} {name}{run}", text
+
+
+def group_mutations(source, rng, per_kind=3):
+    """Wraps a few call receivers in parentheses, once and twice, as in
+    `(JSON).parse_as(...)`, which the compiler's parser reads as the bare
+    receiver, so the rules' parser must read them alike."""
+    spans = [(m.start(), m.end(), m.lastgroup, m.group()) for m in TOKEN.finditer(source)
+             if m.lastgroup not in ("ws", "nl", "comment")]
+    receivers = []
+    for index in range(len(spans) - 2):
+        start, end, kind, text = spans[index]
+        previous = spans[index - 1][3] if index else ""
+        if kind == "word" and spans[index + 1][3] in (".", "&.") \
+                and spans[index + 1][0] == end and spans[index + 2][2] == "word" \
+                and previous not in (".", "&.", "::", "def"):
+            receivers.append((start, end))
+    for depth in (1, 2):
+        for index in sorted(rng.sample(range(len(receivers)), min(per_kind, len(receivers)))):
+            start, end = receivers[index]
+            text = "(" * depth + source[start:end] + ")" * depth
+            yield f"group {depth}:{index}", source[:start] + text + source[end:]
