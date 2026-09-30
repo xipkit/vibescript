@@ -3199,8 +3199,8 @@ impl<'a> Parser<'a> {
         }
     }
     /// Checks a name just read, bare or after a receiver, which names no
-    /// method when it is assigned, listed among destructuring targets or a
-    /// `for` loop's variable.
+    /// method when it is assigned, listed first among destructuring targets
+    /// or a `for` loop's variable.
     fn read_spelling(&self, name: &str, offset: usize) -> Result<()> {
         self.work.checkpoint()?;
         self.work.bytes(name.len())?;
@@ -3208,7 +3208,9 @@ impl<'a> Parser<'a> {
             return Ok(());
         }
         let binding = match &self.tokens[self.pos].token {
-            Token::P(',') => true,
+            // A comma after a name that does not start a statement separates
+            // an element or argument, as in `{ a: s.empty??, b: 1 }`.
+            Token::P(',') => self.assignment_starts(self.pos - 1),
             Token::Op(op) => assignment(op),
             // A `for` loop's variable.
             Token::Word(word) => word == "in",

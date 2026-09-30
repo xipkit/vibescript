@@ -46,6 +46,21 @@ fn adjacent_negated_match_never_ends_a_name() {
 }
 
 #[test]
+fn a_method_read_before_a_comma_keeps_one_suffix() {
+    // Only a name that starts a statement can be a destructuring target.
+    for (source, fixed) in [
+        ("p([1].first??, 2)", "p([1].first?, 2)"),
+        (
+            "h = { a: \"\".empty!?, b: 1 }",
+            "h = { a: \"\".empty?, b: 1 }",
+        ),
+        ("x??, y = [1, 2]", "x, y = [1, 2]"),
+    ] {
+        assert_eq!(first_fix(source), fixed, "{source}");
+    }
+}
+
+#[test]
 fn method_suffixes_survive_call_forms_and_operators() {
     for source in [
         "def ok? -> bool; true; end; ok?==true",
