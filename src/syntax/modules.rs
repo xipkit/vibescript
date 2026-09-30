@@ -859,8 +859,15 @@ pub(super) fn directive_collisions(
     functions: &Table<()>,
     work: &dyn crate::compilation::Work,
 ) -> Result<()> {
-    let mut stack = vec![module];
-    while let Some(module) = stack.pop() {
+    // What is left of each level's nested namespaces, rather than every one
+    // at once, and each visited is a step.
+    let mut levels = vec![std::slice::from_ref(module).iter().chain([].iter())];
+    while let Some(level) = levels.last_mut() {
+        let Some(module) = level.next() else {
+            levels.pop();
+            continue;
+        };
+        work.charge(1)?;
         let kind = if module.is_class { "class" } else { "module" };
         for level in &module.directives {
             work.charge(1)?;
@@ -874,7 +881,7 @@ pub(super) fn directive_collisions(
                 ));
             }
         }
-        stack.extend(module.modules.iter().chain(&module.inner).rev());
+        levels.push(module.modules.iter().chain(module.inner.iter()));
     }
     Ok(())
 }
