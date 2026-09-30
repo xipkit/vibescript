@@ -1619,9 +1619,9 @@ impl<'a> Checker<'a> {
         if breaks.is_empty() {
             return result;
         }
-        let mut all = breaks.to_vec();
-        all.push(result);
-        self.types.union(&all)
+        // The values join first, rather than a copy of them with the result.
+        let breaks = self.types.union(breaks);
+        self.types.union(&[breaks, result])
     }
 
     /// [`Self::call_sigs`], with the signature's result and the types of
