@@ -648,6 +648,31 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
                     }
                     within
                 },
+                // The compiler's parse of a source the rules cannot read,
+                // charged in advance with the pass, runs within the steps
+                // and memory the budget leaves, and stops the check if it
+                // runs out of them.
+                &|source, steps| {
+                    let mut context = crate::CallContext::new(crate::CallOptions {
+                        limits: crate::Limits {
+                            steps: budget.steps.map(|left| left.saturating_sub(steps)),
+                            memory_bytes: budget.memory.map(|left| left.saturating_sub(held)),
+                            ..crate::Limits::default()
+                        },
+                        cancellation: budget.cancellation.clone().unwrap_or_default(),
+                        deadline: budget.deadline,
+                        ..crate::CallOptions::default()
+                    });
+                    let error = crate::syntax::canonical_error(
+                        source,
+                        &crate::compilation::Meter(std::cell::RefCell::new(&mut context)),
+                    );
+                    if context.exhausted() {
+                        meter.stop();
+                        return None;
+                    }
+                    Some(error)
+                },
             );
         }
     }

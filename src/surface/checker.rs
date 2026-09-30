@@ -130,12 +130,16 @@ pub(crate) fn footprint(
 /// budget. Otherwise the check stops, and compilation fails charging them.
 /// A parse also asks `within` now and then whether the budget has run out
 /// since, as a deadline or a cancellation does, and gives up if it has.
+/// The compiler's own parse of a source the rules cannot read runs through
+/// `canonical`, given the steps charged so far, which gives its first
+/// syntax error, if any, or `None` once the budget stops it.
 pub(crate) fn add_to(
     checked: &mut crate::typing::Checked,
     source: &str,
     tokens: &[tooling::Token],
     interpolated: usize,
     within: &(dyn Fn(u64) -> bool + Sync),
+    canonical: &dyn Fn(&str, u64) -> Option<Option<crate::Error>>,
 ) {
     let read = u64::try_from(tokens.len() + interpolated).unwrap_or(u64::MAX);
     checked.steps += read;
@@ -157,7 +161,10 @@ pub(crate) fn add_to(
             checked.stopped = true;
             return;
         }
-        let error = crate::syntax::canonical_error(source, &());
+        let Some(error) = canonical(source, steps) else {
+            checked.stopped = true;
+            return;
+        };
         // A source both grammars accept that the rules cannot read skips
         // every rule, so the rules' parser has fallen behind the compiler's.
         #[cfg(not(target_os = "wasi"))]

@@ -1005,5 +1005,7 @@ fn a_source_only_the_compiler_reads_fails_a_debug_build() {
     // Tokens the rules' parser cannot read, for a source that compiles.
     let mut tokens = crate::tooling::tokens(source).unwrap();
     tokens[1].kind = crate::tooling::TokenKind::Punct(')');
-    super::add_to(&mut checked, source, &tokens, 0, &|_| true);
+    super::add_to(&mut checked, source, &tokens, 0, &|_| true, &|source, _| {
+        Some(crate::syntax::canonical_error(source, &()))
+    });
 }

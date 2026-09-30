@@ -824,6 +824,126 @@ mod tests {
             found.join("\n")
         );
     }
+
+    /// Work that meters nothing, handed on in the checker or the surface
+    /// pass, each with why it may be: what matches it, by file.
+    const UNMETERED: &[(&str, &str)] = &[
+        // Lexing an interpolation again, whose steps the pass charged in
+        // advance and whose tokens its estimate counts, asking now and
+        // then whether the compilation has stopped.
+        (
+            "surface/parse.rs",
+            "impl crate::compilation::Work for Stopping<'_> {",
+        ),
+        // A required file's syntax error, reported without its budget.
+        (
+            "typing/modules.rs",
+            "crate::syntax::canonical_syntax(&source, &(), error),",
+        ),
+        ("typing/modules.rs", "&(),"),
+    ];
+
+    /// The functions of the parser, the sources and the loader that the
+    /// checker and the surface pass call, each given the caller's work.
+    const ENTERED: &[(&str, &str)] = &[
+        ("syntax/record.rs", "fn tokens_within("),
+        ("syntax/record.rs", "fn parse_with_tokens("),
+        ("syntax.rs", "fn canonical_error("),
+        ("syntax.rs", "fn canonical_syntax("),
+        ("source.rs", "fn parse_error("),
+        ("loading.rs", "pub fn source("),
+    ];
+
+    /// The lines of the function of `text` whose signature starts with
+    /// `signature`, through its closing brace.
+    fn body<'t>(text: &'t str, signature: &str) -> Vec<(usize, &'t str)> {
+        let lines: Vec<&str> = text.lines().collect();
+        let start = lines
+            .iter()
+            .position(|line| line.contains(signature))
+            .unwrap_or_else(|| panic!("no `{signature}`"));
+        let mut depth = 0;
+        let mut opened = false;
+        let mut found = Vec::new();
+        for (number, line) in lines.iter().enumerate().skip(start) {
+            found.push((number, *line));
+            for byte in line.bytes() {
+                match byte {
+                    b'{' => {
+                        depth += 1;
+                        opened = true;
+                    }
+                    b'}' => depth -= 1,
+                    _ => (),
+                }
+            }
+            if opened && depth == 0 {
+                break;
+            }
+        }
+        found
+    }
+
+    #[test]
+    fn the_checker_hands_on_only_metered_work() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut sources = Vec::new();
+        for module in ["typing", "surface"] {
+            sources.push(root.join(format!("{module}.rs")));
+            for entry in std::fs::read_dir(root.join(module)).unwrap() {
+                let path = entry.unwrap().path();
+                if path.file_name().is_some_and(|name| name != "tests.rs") {
+                    sources.push(path);
+                }
+            }
+        }
+        let relative = |path: &std::path::Path| {
+            path.strip_prefix(&root)
+                .unwrap()
+                .to_string_lossy()
+                .replace('\\', "/")
+        };
+        let allowed = |file: &str, line: &str| {
+            UNMETERED
+                .iter()
+                .any(|(allowed, text)| file == *allowed && line.starts_with(text))
+        };
+        let unmetered = |line: &str| {
+            let code = line.split("//").next().unwrap_or("");
+            code.contains("&()") || (code.contains("Work for ") && code.starts_with("impl"))
+        };
+        let mut found = Vec::new();
+        for path in sources {
+            let file = relative(&path);
+            let text = std::fs::read_to_string(&path).unwrap();
+            let lines: Vec<&str> = text.lines().collect();
+            for (number, line) in lines.iter().enumerate() {
+                let line = line.trim();
+                // The unit tests at the end of a file build what they need.
+                let next = lines.get(number + 1).map_or("", |next| next.trim());
+                if line == "#[cfg(test)]" && next.starts_with("mod ") {
+                    break;
+                }
+                if unmetered(line) && !allowed(&file, line) {
+                    found.push(format!("{file}:{}: {line}", number + 1));
+                }
+            }
+        }
+        for (file, signature) in ENTERED {
+            let text = std::fs::read_to_string(root.join(file)).unwrap();
+            for (number, line) in body(&text, signature) {
+                let line = line.trim();
+                if unmetered(line) && !allowed(file, line) {
+                    found.push(format!("{file}:{}: {line}", number + 1));
+                }
+            }
+        }
+        assert!(
+            found.is_empty(),
+            "hand the caller's metered work on, or say here why nothing needs metering:\n{}",
+            found.join("\n")
+        );
+    }
 }
 
 #[cfg(test)]
