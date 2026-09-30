@@ -2397,10 +2397,12 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
             if !p.ident(p.pos) && !matches!(p.token(), Token::Word(w) if w == "enum") {
                 return p.expected(Label::Text("identifier"));
             }
+            let at = p.tokens[p.pos].offset;
             let Token::Word(name) = p.bump()? else {
                 unreachable!()
             };
-            p.scoped_suffix_read(&lhs, &name)?;
+            let continues = p.tokens[p.significant(p.pos)].token == Token::Op("::");
+            p.scoped_read(&lhs, &name, at, continues)?;
             (Name::new(work, &name)?, p.take_p('('))
         };
         let args = if parenthesized {

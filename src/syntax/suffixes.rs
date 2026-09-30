@@ -36,25 +36,24 @@ pub(super) fn lenient() -> bool {
 
 /// A read of a capitalized name that no local binds, such as `Ready?` in
 /// `Ready?.new`, or of a scoped name, such as `Outer::Inner::NAME?`: where its
-/// suffix is, the namespace it is read in, its scope as written (empty for a
+/// suffix is, the namespace it is read in, the [`Path`] of its scope (0 for a
 /// bare name) and its name. A read is not `safe` once it is called.
 struct Scoped {
     at: u32,
     owner: Option<u32>,
-    scope: Name,
+    path: u32,
     name: Name,
     safe: bool,
 }
 
-impl Scoped {
-    /// The name the checker looks up first: the scope's first, or the name.
-    fn head(&self) -> &str {
-        if self.scope.is_empty() {
-            &self.name
-        } else {
-            self.scope.split("::").next().unwrap_or_default()
-        }
-    }
+/// A path of names a scope spells, such as `Outer::Inner`: the path before
+/// its last name (0 for none), that name, and the namespace its first name
+/// is read in. A path's id is one more than its index, so a path follows
+/// the one it extends.
+struct Path {
+    parent: u32,
+    name: Name,
+    owner: Option<u32>,
 }
 
 /// The uses of suffixed bindings a lenient parse records, each at the
@@ -63,10 +62,9 @@ impl Scoped {
 #[derive(Default)]
 pub(super) struct Uses {
     bindings: u32,
-    /// Each constant binding by its namespace and name, as `3:NAME?`, with
-    /// the next binding of that key, since a reopened class binds again.
+    /// Each constant binding by its namespace and name, as `3:NAME?`; a
+    /// reopened class binds it again as the same binding.
     constants: Table<u32>,
-    next: Buffer<u32>,
     /// Where each binding is bound, with its id.
     sites: Buffer<(u32, u32)>,
     /// Where each binding is read, with its id.
@@ -95,6 +93,17 @@ pub(super) struct Uses {
     opaque: Table<()>,
     /// Where the lenient parse failed, after which no use is known.
     failed_at: Option<usize>,
+    paths: Buffer<Path>,
+    /// Each path by the offset of its last name.
+    path_at: Table<u32>,
+    /// By the offset a scoped expression starts at, the path the latest one
+    /// there spells, and one more than the index of the latest read there,
+    /// or 0, which a call may turn out to call.
+    scopes: Table<u32>,
+    calls: Table<u32>,
+    /// Each use recorded, by its kind and offset, so a lookahead that parses
+    /// a name again records it once, with the read's index.
+    recorded: Table<u32>,
 }
 
 /// The spelling a symbol and a name compare by: lowercase, without `_`.
@@ -112,6 +121,23 @@ fn key(work: &dyn Work, parent: u32, name: &str) -> Result<Name> {
     Name::join(work, &[&parent.to_string(), ":", name])
 }
 
+/// The key of an offset in the tables that record by one.
+fn at_key(work: &dyn Work, kind: &str, at: u32) -> Result<Name> {
+    let mut digits = [0u8; 11];
+    let mut start = digits.len();
+    let mut at = at;
+    loop {
+        start -= 1;
+        digits[start] = b'0' + (at % 10) as u8;
+        at /= 10;
+        if at == 0 {
+            break;
+        }
+    }
+    let digits = std::str::from_utf8(&digits[start..]).unwrap_or_default();
+    Name::join(work, &[kind, digits])
+}
+
 impl Uses {
     fn binding(
         &mut self,
@@ -120,17 +146,102 @@ impl Uses {
         namespace: Option<u32>,
         at: u32,
     ) -> Result<u32> {
+        let key = match namespace {
+            Some(namespace) => {
+                let key = key(work, namespace, name)?;
+                if let Some(&id) = self.constants.get(work, &key)? {
+                    self.site(work, at, id)?;
+                    return Ok(id);
+                }
+                Some(key)
+            }
+            None => None,
+        };
         self.bindings = self.bindings.saturating_add(1);
         let id = self.bindings;
-        self.sites.push(work, (at, id))?;
-        let mut next = 0;
-        if let Some(namespace) = namespace {
-            let key = key(work, namespace, name)?;
-            next = self.constants.get(work, &key)?.copied().unwrap_or(0);
+        self.site(work, at, id)?;
+        if let Some(key) = key {
             self.constants.insert(work, key, id)?;
             self.members.push(work, (id, Name::new(work, name)?))?;
         }
-        self.next.push(work, next)?;
+        Ok(id)
+    }
+
+    /// Records a place `id` is bound, once.
+    fn site(&mut self, work: &dyn Work, at: u32, id: u32) -> Result<()> {
+        if self
+            .recorded
+            .insert(work, at_key(work, "b", at)?, 0)?
+            .is_none()
+        {
+            self.sites.push(work, (at, id))?;
+        }
+        Ok(())
+    }
+
+    /// Records a read of the local `id`, once.
+    fn local_read(&mut self, work: &dyn Work, at: u32, id: u32) -> Result<()> {
+        if self
+            .recorded
+            .insert(work, at_key(work, "l", at)?, 0)?
+            .is_none()
+        {
+            self.reads.push(work, (at, id))?;
+        }
+        Ok(())
+    }
+
+    /// Records a read of a value, once, returning one more than its index.
+    fn value_read(&mut self, work: &dyn Work, read: Scoped) -> Result<u32> {
+        let key = at_key(work, "s", read.at)?;
+        if let Some(&index) = self.recorded.get(work, &key)? {
+            return Ok(index);
+        }
+        self.scoped.push(work, read)?;
+        let index = u32::try_from(self.scoped.len()).unwrap_or(u32::MAX);
+        self.recorded.insert(work, key, index)?;
+        Ok(index)
+    }
+
+    /// Records a read of a type's name, once for each of its readings.
+    fn type_read(&mut self, work: &dyn Work, read: Scoped) -> Result<()> {
+        let kind = if read.safe { "t" } else { "u" };
+        if self
+            .recorded
+            .insert(work, at_key(work, kind, read.at)?, 0)?
+            .is_none()
+        {
+            self.types.push(work, read)?;
+        }
+        Ok(())
+    }
+
+    /// The path `name`, spelled at `at` after the path `parent` (0 for
+    /// none), makes: one for each place, however often it is parsed.
+    fn path(
+        &mut self,
+        work: &dyn Work,
+        parent: u32,
+        name: &str,
+        owner: Option<u32>,
+        at: u32,
+    ) -> Result<u32> {
+        let key = at_key(work, "", at)?;
+        if let Some(&id) = self.path_at.get(work, &key)? {
+            return Ok(id);
+        }
+        let owner = owner.filter(|_| parent == 0);
+        let name = Name::new(work, name)?;
+        self.paths.push(
+            work,
+            Path {
+                parent,
+                name,
+                owner,
+            },
+        )?;
+        let id = u32::try_from(self.paths.len()).unwrap_or(u32::MAX);
+        self.path_at.insert(work, key, id)?;
         Ok(id)
     }
 
@@ -167,7 +278,7 @@ impl Parser<'_> {
         let mut uses = self.suffixed.borrow_mut();
         match self.locals.get(self.work, name)? {
             Some(&id) if id != 0 => {
-                uses.sites.push(self.work, (suffix, id))?;
+                uses.site(self.work, suffix, id)?;
                 Ok(id)
             }
             _ => {
@@ -211,7 +322,7 @@ impl Parser<'_> {
         if let Some(&id) = uses.namespace_ids.get(self.work, &key)? {
             let binding = uses.namespace_bindings[id as usize - 1];
             if let (Some(suffix), true) = (suffix, binding != 0) {
-                uses.sites.push(self.work, (suffix, binding))?;
+                uses.site(self.work, suffix, binding)?;
             }
             return Ok(Some(id));
         }
@@ -246,10 +357,10 @@ impl Parser<'_> {
         let Some(suffix) = suffix_at(self.source, name, at) else {
             return Ok(());
         };
+        let mut uses = self.suffixed.borrow_mut();
         if let Some(&id) = self.locals.get(self.work, name)? {
             if id != 0 {
-                let mut uses = self.suffixed.borrow_mut();
-                uses.reads.push(self.work, (suffix, id))?;
+                uses.local_read(self.work, suffix, id)?;
             }
             return Ok(());
         }
@@ -258,71 +369,108 @@ impl Parser<'_> {
             let entry = Scoped {
                 at: suffix,
                 owner: self.namespace,
-                scope: Name::default(),
+                path: 0,
                 name: Name::new(self.work, name)?,
                 safe: true,
             };
-            self.suffixed.borrow_mut().scoped.push(self.work, entry)?;
+            uses.value_read(self.work, entry)?;
         }
         Ok(())
     }
 
-    /// Records the scoped read of `name`, just consumed, through `scope`
-    /// when that is a path of names, such as `Outer::Inner`.
-    pub(super) fn scoped_suffix_read(&self, scope: &Expr, name: &str) -> Result<()> {
+    /// Records the read of `name`, spelled at `at` through `scope`, and,
+    /// when a scope `continues` them, the path the two spell if `scope` is
+    /// one, such as `Outer::Inner`.
+    pub(super) fn scoped_read(
+        &self,
+        scope: &Expr,
+        name: &str,
+        at: usize,
+        continues: bool,
+    ) -> Result<()> {
         if !lenient() {
             return Ok(());
         }
-        let at = self.tokens[self.pos - 1].offset;
-        let Some(suffix) = suffix_at(self.source, name, at) else {
+        let work = self.work;
+        let suffix = suffix_at(self.source, name, at);
+        if suffix.is_none() && !continues {
             return Ok(());
+        }
+        let start = at_key(work, "", scope.offset)?;
+        let mut uses = self.suffixed.borrow_mut();
+        let path = match &scope.node {
+            Node::Var(head) => uses.path(work, 0, head, self.namespace, scope.offset)?,
+            Node::Scope(_, _, None) => uses.scopes.get(work, &start)?.copied().unwrap_or(0),
+            _ => 0,
         };
-        let Some(scope) = self.scope_path(scope)? else {
-            let name = Name::new(self.work, name)?;
-            self.suffixed
-                .borrow_mut()
-                .opaque
-                .insert(self.work, name, ())?;
-            return Ok(());
-        };
-        let entry = Scoped {
-            at: suffix,
-            owner: self.namespace,
-            scope,
-            name: Name::new(self.work, name)?,
-            safe: true,
-        };
-        self.suffixed.borrow_mut().scoped.push(self.work, entry)?;
+        let mut index = 0;
+        if let Some(suffix) = suffix {
+            if path == 0 {
+                uses.opaque.insert(work, Name::new(work, name)?, ())?;
+            } else {
+                let entry = Scoped {
+                    at: suffix,
+                    owner: self.namespace,
+                    path,
+                    name: Name::new(work, name)?,
+                    safe: true,
+                };
+                index = uses.value_read(work, entry)?;
+            }
+        }
+        uses.calls.insert(work, start.clone(), index)?;
+        if continues {
+            let at = u32::try_from(at).unwrap_or(u32::MAX);
+            let spelled = match path {
+                0 => 0,
+                path => uses.path(work, path, name, None, at)?,
+            };
+            uses.scopes.insert(work, start, spelled)?;
+        }
         Ok(())
     }
 
-    /// Records a name a type spells at `at` as `written`, through the path
-    /// `scope` (empty for its first name). The type reads a final `?` as
-    /// nullable, so `Ready!?` names `Ready!`; a binding spelled `Ready!?`
-    /// it may have meant instead is not safe to rename.
-    pub(super) fn type_read(&self, scope: &str, written: &str, at: usize) -> Result<()> {
-        if !lenient() || (scope.is_empty() && !written.starts_with(super::unicode::upper)) {
-            return Ok(());
+    /// Records a name a type spells at `at` as `written`, after the path
+    /// `path` (0 for its first name), returning the path they make when a
+    /// name `continues` it. The type reads a final `?` as nullable, so
+    /// `Ready!?` names `Ready!`; a binding spelled `Ready!?` it may have
+    /// meant instead is not safe to rename.
+    pub(super) fn type_read(
+        &self,
+        path: u32,
+        written: &str,
+        at: usize,
+        continues: bool,
+    ) -> Result<u32> {
+        if !lenient() {
+            return Ok(0);
         }
         let read = written.strip_suffix('?').unwrap_or(written);
-        let ambiguous = read.len() < written.len() && read.ends_with(['?', '!']);
-        for (name, safe) in [(read, true), (written, false)] {
-            if !safe && !ambiguous {
-                break;
+        let mut uses = self.suffixed.borrow_mut();
+        if path != 0 || written.starts_with(super::unicode::upper) {
+            let ambiguous = read.len() < written.len() && read.ends_with(['?', '!']);
+            for (name, safe) in [(read, true), (written, false)] {
+                if !safe && !ambiguous {
+                    break;
+                }
+                let Some(suffix) = suffix_at(self.source, name, at) else {
+                    continue;
+                };
+                let entry = Scoped {
+                    at: suffix,
+                    owner: self.namespace,
+                    path,
+                    name: Name::new(self.work, name)?,
+                    safe,
+                };
+                uses.type_read(self.work, entry)?;
             }
-            let Some(suffix) = suffix_at(self.source, name, at) else {
-                continue;
-            };
-            let entry = Scoped {
-                at: suffix,
-                owner: self.namespace,
-                scope: Name::new(self.work, scope)?,
-                name: Name::new(self.work, name)?,
-                safe,
-            };
-            self.suffixed.borrow_mut().types.push(self.work, entry)?;
         }
-        Ok(())
+        if !continues {
+            return Ok(0);
+        }
+        let at = u32::try_from(at).unwrap_or(u32::MAX);
+        uses.path(self.work, path, read, self.namespace, at)
     }
 
     /// Marks the read `callee` names as unsafe to rename once it turns out
@@ -336,23 +484,25 @@ impl Parser<'_> {
         if !name.ends_with(['?', '!']) {
             return Ok(());
         }
-        // The callee's own read is the earliest one from where it starts;
-        // its arguments' reads follow it.
-        let start = callee.offset;
+        // A bare callee's read is the one at its suffix; a scoped one's, the
+        // latest where it starts.
+        let key = match &callee.node {
+            Node::Var(_) => match suffix_at(self.source, name, callee.offset as usize) {
+                Some(at) => at_key(self.work, "s", at)?,
+                None => return Ok(()),
+            },
+            _ => at_key(self.work, "", callee.offset)?,
+        };
         let mut uses = self.suffixed.borrow_mut();
-        let mut earliest = None;
-        for index in (0..uses.scoped.len()).rev() {
-            self.work.charge(1)?;
-            let read = &uses.scoped[index];
-            if read.at < start {
-                break;
-            }
-            if read.name == **name {
-                earliest = Some(index);
-            }
-        }
-        if let Some(index) = earliest {
-            uses.scoped[index].safe = false;
+        let index = match &callee.node {
+            Node::Var(_) => uses.recorded.get(self.work, &key)?,
+            _ => uses.calls.get(self.work, &key)?,
+        };
+        if let Some(&index) = index
+            && index != 0
+            && uses.scoped[index as usize - 1].name == **name
+        {
+            uses.scoped[index as usize - 1].safe = false;
         }
         Ok(())
     }
@@ -361,7 +511,7 @@ impl Parser<'_> {
     /// suffixed names as scoped reads.
     pub(super) fn inherited(&mut self) -> Result<()> {
         self.bump()?;
-        let mut path = Name::default();
+        let mut path = 0;
         loop {
             self.pos = self.significant(self.pos);
             if !self.ident(self.pos) {
@@ -371,54 +521,25 @@ impl Parser<'_> {
             let Token::Word(word) = self.bump()? else {
                 unreachable!()
             };
+            let mut uses = self.suffixed.borrow_mut();
             if let Some(suffix) = suffix_at(self.source, &word, at) {
                 let entry = Scoped {
                     at: suffix,
                     owner: self.namespace,
-                    scope: path.clone(),
+                    path,
                     name: Name::new(self.work, &word)?,
                     safe: true,
                 };
-                self.suffixed.borrow_mut().scoped.push(self.work, entry)?;
+                uses.value_read(self.work, entry)?;
             }
-            path = if path.is_empty() {
-                Name::new(self.work, &word)?
-            } else {
-                Name::join(self.work, &[&path, "::", &word])?
-            };
+            let at = u32::try_from(at).unwrap_or(u32::MAX);
+            path = uses.path(self.work, path, &word, self.namespace, at)?;
+            drop(uses);
             if self.token() != &Token::Op("::") {
                 return Ok(());
             }
             self.bump()?;
         }
-    }
-
-    /// The path `expr` names, such as `Outer::Inner`, or none.
-    fn scope_path(&self, expr: &Expr) -> Result<Option<Name>> {
-        let mut names: Buffer<&str> = Buffer::new();
-        let mut expr = expr;
-        loop {
-            self.work.charge(1)?;
-            match &expr.node {
-                Node::Var(name) => {
-                    names.push(self.work, name)?;
-                    break;
-                }
-                Node::Scope(inner, name, None) => {
-                    names.push(self.work, name)?;
-                    expr = inner;
-                }
-                _ => return Ok(None),
-            }
-        }
-        let mut pieces: Buffer<&str> = Buffer::new();
-        for (index, name) in names.iter().rev().enumerate() {
-            if index > 0 {
-                pieces.push(self.work, "::")?;
-            }
-            pieces.push(self.work, name)?;
-        }
-        Name::join(self.work, &pieces).map(Some)
     }
 }
 
@@ -562,12 +683,12 @@ fn extended(
     for (read, &namespace) in uses.scoped.iter().zip(resolved.iter()) {
         work.charge(1)?;
         if namespace == 0 {
-            if !read.scope.is_empty() {
+            if read.path != 0 {
                 opaque.insert(work, read.name.clone(), ())?;
             }
             continue;
         }
-        if read.scope.is_empty() {
+        if read.path == 0 {
             // A bare read names the namespace itself.
             let id = uses.namespace_bindings[namespace as usize - 1];
             if id != 0 && read.safe {
@@ -587,20 +708,16 @@ fn extended(
                 unsafe_reads.push(work, (read.at, id))?;
             }
         }
-        let mut id = uses
+        let constant = uses
             .constants
-            .get(work, &key(work, namespace, &read.name)?)?
-            .copied()
-            .unwrap_or(0);
-        while id != 0 {
-            work.charge(1)?;
+            .get(work, &key(work, namespace, &read.name)?)?;
+        if let Some(&id) = constant {
             if read.safe {
                 scoped.push(work, (read.at, id))?;
             } else {
                 unsafe_ids[id as usize] = true;
                 unsafe_reads.push(work, (read.at, id))?;
             }
-            id = uses.next[id as usize - 1];
         }
     }
     for (id, name) in uses.members.iter() {
@@ -808,24 +925,73 @@ fn radix_sort(work: &dyn Work, values: &mut [u32]) -> Result<()> {
     Ok(())
 }
 
-/// The namespace each scoped read's scope names, or 0 when the source
-/// declares none, resolved as the checker resolves a capitalized name: in
-/// the namespace it is read in, then at the top level, then in the nearest
-/// namespace enclosing that, and from there through the rest of the path.
+/// The namespace each read names, when bare, or reads through, or 0 where
+/// none does: each path once, from the namespace its first name resolves
+/// to, as the checker resolves them.
 fn resolve(work: &dyn Work, uses: &Uses) -> Result<Buffer<u32>> {
-    let mut found = Buffer::with_capacity(work, uses.scoped.len())?;
-    // Reads left to the enclosing namespaces, by the one they start from.
+    // The first names to look up: each path's, then each bare read's.
+    let mut heads: Buffer<(&str, Option<u32>)> = Buffer::new();
+    for path in uses.paths.iter() {
+        if path.parent == 0 {
+            heads.push(work, (&path.name, path.owner))?;
+        }
+    }
+    let roots = heads.len();
+    for read in uses.scoped.iter() {
+        if read.path == 0 {
+            heads.push(work, (&read.name, read.owner))?;
+        }
+    }
+    let found = lookup(work, uses, &heads)?;
+    let mut namespaces = Buffer::with_capacity(work, uses.paths.len())?;
+    let mut root = 0;
+    for path in uses.paths.iter() {
+        work.charge(1)?;
+        let namespace = match path.parent {
+            0 => {
+                root += 1;
+                found[root - 1]
+            }
+            parent => match namespaces[parent as usize - 1] {
+                0 => 0,
+                parent => uses.child(work, parent, &path.name)?.unwrap_or(0),
+            },
+        };
+        namespaces.push(work, namespace)?;
+    }
+    let mut resolved = Buffer::with_capacity(work, uses.scoped.len())?;
+    let mut bare = roots;
+    for read in uses.scoped.iter() {
+        work.charge(1)?;
+        let namespace = match read.path {
+            0 => {
+                bare += 1;
+                found[bare - 1]
+            }
+            path => namespaces[path as usize - 1],
+        };
+        resolved.push(work, namespace)?;
+    }
+    Ok(resolved)
+}
+
+/// The namespace each first name `(name, owner)` resolves to, or 0: first in
+/// the namespace it is read in, then at the top level, then in each
+/// enclosing namespace.
+fn lookup(work: &dyn Work, uses: &Uses, heads: &[(&str, Option<u32>)]) -> Result<Buffer<u32>> {
+    let mut found = Buffer::with_capacity(work, heads.len())?;
+    // Names left to the enclosing namespaces, by the one they start from.
     let mut pending = Buffer::new();
-    for (index, read) in uses.scoped.iter().enumerate() {
-        let head = read.head();
+    for (index, &(head, owner)) in heads.iter().enumerate() {
+        work.charge(1)?;
         let mut namespace = None;
-        if let Some(owner) = read.owner {
+        if let Some(owner) = owner {
             namespace = uses.child(work, owner, head)?;
         }
         if namespace.is_none() {
             namespace = uses.child(work, 0, head)?;
         }
-        if let (None, Some(owner)) = (namespace, read.owner) {
+        if let (None, Some(owner)) = (namespace, owner) {
             let parent = uses.parents[owner as usize - 1];
             if parent != 0 {
                 pending.push(work, (parent, u32::try_from(index).unwrap_or(u32::MAX)))?;
@@ -834,27 +1000,20 @@ fn resolve(work: &dyn Work, uses: &Uses) -> Result<Buffer<u32>> {
         found.push(work, namespace.unwrap_or(0))?;
     }
     if !pending.is_empty() {
-        enclosing(work, uses, &pending, &mut found)?;
-    }
-    for (read, namespace) in uses.scoped.iter().zip(found.iter_mut()) {
-        for segment in read.scope.split("::").skip(1) {
-            if *namespace == 0 {
-                break;
-            }
-            *namespace = uses.child(work, *namespace, segment)?.unwrap_or(0);
-        }
+        enclosing(work, uses, heads, &pending, &mut found)?;
     }
     Ok(found)
 }
 
-/// Resolves each `pending` read's first scope name in the nearest of the
-/// namespace it names, `(start, read)`, and those enclosing it, other than
-/// the top level. One walk of the namespaces keeps, for every name, a stack
-/// of the enclosing namespaces that have a member of that name, so each read
-/// costs one lookup however deep it is.
+/// Resolves each `pending` first name, `(start, head)`, in the nearest of
+/// the namespace it starts from and those enclosing it, other than the top
+/// level. One walk of the namespaces keeps, for every name, a stack of the
+/// enclosing namespaces that have a member of that name, so each name costs
+/// one lookup however deep it is.
 fn enclosing(
     work: &dyn Work,
     uses: &Uses,
+    heads: &[(&str, Option<u32>)],
     pending: &[(u32, u32)],
     found: &mut [u32],
 ) -> Result<()> {
@@ -915,7 +1074,7 @@ fn enclosing(
         }
         for &index in &reads[read_starts[namespace as usize]..read_starts[namespace as usize + 1]] {
             let (_, read) = pending[index as usize];
-            let head = uses.scoped[read as usize].head();
+            let (head, _) = heads[read as usize];
             if let Some(&top) = tops.get(work, head)?
                 && top != 0
             {
@@ -1054,8 +1213,110 @@ mod tests {
         source
     }
 
+    /// The steps of the whole fix pass on `source`: its lenient parse, and
+    /// the fixes it extends.
+    fn pass_steps(source: &str) -> u64 {
+        let mut error = super::super::canonical_error_mode(source, &(), true).unwrap();
+        let mut diagnostics = error.take_diagnostics();
+        let mut context = CallContext::new(unlimited());
+        {
+            let work = Meter(RefCell::new(&mut context));
+            let uses = uses(source, &work).unwrap();
+            assert_eq!(uses.failed_at, None, "{source}");
+            extended(&work, source, &uses, &mut diagnostics).unwrap();
+        }
+        context.stats().steps
+    }
+
+    /// A binding that starts the fix pass, then `open` `depth` times around
+    /// `width` suffixed reads and `close` as often, inside `before` and
+    /// `after`.
+    fn nest(shape: [&str; 6], depth: usize, width: usize) -> String {
+        let [before, open, item, separator, close, after] = shape;
+        let mut source = String::from("x? = 1\n");
+        source.push_str(before);
+        source.push_str(&open.repeat(depth));
+        source.push_str(&vec![item; width].join(separator));
+        source.push_str(&close.repeat(depth));
+        source.push_str(after);
+        source + "\n"
+    }
+
+    /// Each way the parser nests, with the deepest nesting it allows.
+    const SHAPES: [([&str; 6], usize); 9] = [
+        (["", "F?(", "A?", ", ", ")", ""], 1000),
+        (["", "f do\n", "A?", "\n", "\nend", ""], 300),
+        (["", "p({ b: [", "{ a: A! }", ", ", "] })", ""], 300),
+        (["", "p([", "A!", ", ", "])", ""], 300),
+        (["", "begin\n", "A?", "\n", "\nrescue\nA?\nend", ""], 1000),
+        (["", "module M?\n", "M?", "\n", "\nend", ""], 1000),
+        (["p(", "\"#{[", "A?", ", ", "]}\"", ")"], 6),
+        (["def f(y: ", "array<", "A!", " | ", ">", ")\nend"], 60),
+        (
+            ["", "class C\nX! = 1\nend\n", "C::X!", "\n", "", ""],
+            usize::MAX,
+        ),
+    ];
+
+    /// A class whose parent is spelled `depth` suffixed names deep, a read
+    /// through as deep a path, and `width` reads through a short one.
+    fn paths(depth: usize, width: usize) -> String {
+        let path: Vec<String> = (0..depth).map(|i| format!("M{i}?")).collect();
+        let path = path.join("::");
+        format!("x? = 1\nclass Z < {path}\nend\n{path}\n") + &"M0?::M1?::M2?\n".repeat(width)
+    }
+
+    type Source<'a> = Box<dyn Fn(usize) -> String + 'a>;
+
+    /// However the source nests, doubling it at most doubles the fix pass.
+    fn nesting_leaves_the_fix_pass_linear() {
+        // The review's witness, 900 calls deep around 300,000 reads, at a
+        // hundredth of its size.
+        let witness = |n: usize| nest(SHAPES[0].0, 9 * n / 3000, n);
+        let steps = |source: &dyn Fn(usize) -> String| {
+            (pass_steps(&source(3000)), pass_steps(&source(6000)))
+        };
+        let (small, large) = steps(&witness);
+        assert!(
+            large * 100 <= small * 205,
+            "witness: {small} steps, then {large}"
+        );
+        for (index, &(shape, deepest)) in SHAPES.iter().enumerate() {
+            // A shape that nests only a few levels keeps its depth.
+            let depth = |n: usize| match deepest {
+                ..10 => deepest,
+                _ => (n / 10).min(deepest.saturating_mul(n) / 6000),
+            };
+            let variants: [(&str, Source); 3] = [
+                ("deep and wide", Box::new(|n| nest(shape, depth(n), n))),
+                ("deep", Box::new(|n| nest(shape, depth(n), 3))),
+                ("wide", Box::new(|n| nest(shape, 2.min(deepest), n))),
+            ];
+            for (variant, source) in &variants {
+                let (small, large) = steps(source);
+                assert!(
+                    large * 100 <= small * 205,
+                    "shape {index}, {variant}: {small} steps, then {large}"
+                );
+            }
+        }
+        let variants: [(&str, Source); 3] = [
+            ("deep", Box::new(|n| paths(n / 10, 3))),
+            ("wide", Box::new(|n| paths(3, n))),
+            ("deep and wide", Box::new(|n| paths(n / 10, n))),
+        ];
+        for (variant, source) in &variants {
+            let (small, large) = steps(source);
+            assert!(
+                large * 100 <= small * 205,
+                "paths, {variant}: {small} steps, then {large}"
+            );
+        }
+    }
+
     #[test]
     fn the_fix_pass_grows_linearly() {
+        nesting_leaves_the_fix_pass_linear();
         let (error, _, _) = check(&nested(4), unlimited());
         assert_eq!(error.diagnostics()[0].fixes[0].edits.len(), 5, "{error}");
         let (error, _, _) = check(&namespaces(4), unlimited());

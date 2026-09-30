@@ -1377,6 +1377,11 @@ fn constant_fixes_rename_scoped_reads_of_their_namespace() {
         first_fix(source),
         "class C; LIMIT = 3; end\nclass D; def self.LIMIT! -> int; 4; end; end\n[C::LIMIT, D.LIMIT!]"
     );
+    // A reopened class binds the same constant, renamed in every body.
+    assert_eq!(
+        first_fix("class C; X! = 1; end; class C; X! = 2; end; C::X!"),
+        "class C; X = 1; end; class C; X = 2; end; C::X"
+    );
     // A scope the parse cannot resolve, such as a local holding the class,
     // may reach the member, so there is no fix rather than a partial one.
     for source in [

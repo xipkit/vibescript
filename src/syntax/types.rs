@@ -374,7 +374,8 @@ impl Parser<'_> {
             unreachable!()
         };
         let written = written.as_str();
-        self.type_read("", written, self.tokens[index].offset)?;
+        let continues = |p: &Self| p.tokens[p.significant(p.pos)].token == Token::Op("::");
+        let mut path = self.type_read(0, written, self.tokens[index].offset, continues(self))?;
         let name = written.strip_suffix('?').unwrap_or(written);
         if name.ends_with('?') {
             self.pos = index;
@@ -408,7 +409,7 @@ impl Parser<'_> {
                 unreachable!()
             };
             let member = member.as_str();
-            self.type_read(&ty.name, member, self.tokens[index].offset)?;
+            path = self.type_read(path, member, self.tokens[index].offset, continues(self))?;
             ty.nullable = member.ends_with('?');
             let member = member.strip_suffix('?').unwrap_or(member);
             ty.name = Name::join(self.work, &[&ty.name, "::", member])?;
