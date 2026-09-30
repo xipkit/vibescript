@@ -76,6 +76,41 @@ impl Marks {
         }
     }
 
+    /// The bytes [`Self::set`] would copy to add `index` or take it out:
+    /// those of the nodes on its path from the first another set shares,
+    /// whose children copying it shares in turn.
+    pub fn cost(&self, index: usize, present: bool) -> usize {
+        if index >= self.count || self.contains(index) == present {
+            return 0;
+        }
+        let (mut node, mut index, mut span) = (&self.root, index, self.span);
+        let (mut shared, mut copied) = (false, 0);
+        loop {
+            shared = shared || Rc::strong_count(node) > 1;
+            if shared {
+                copied += node_bytes(node);
+            }
+            match &**node {
+                Node::Leaf(_) => return copied,
+                Node::Inner(children) => {
+                    span /= FAN;
+                    node = &children[index / span];
+                    index %= span;
+                }
+            }
+        }
+    }
+
+    /// The bytes [`Self::all`] of `count` allocates, found as it builds
+    /// the set, without building it.
+    pub fn most(count: usize) -> usize {
+        let mut span = BITS;
+        while span < count {
+            span *= FAN;
+        }
+        full_bytes(span, count)
+    }
+
     /// Adds `index`, or takes it out; returns the bytes of the nodes that
     /// had to be copied, since another set shared them.
     pub fn set(&mut self, index: usize, present: bool) -> usize {
@@ -177,6 +212,19 @@ fn full(span: usize, count: usize) -> (Rc<Node>, usize) {
     (Rc::new(node), bytes)
 }
 
+/// The bytes [`full`] of `span` and `count` allocates.
+fn full_bytes(span: usize, count: usize) -> usize {
+    if span == BITS {
+        return node_bytes(&Node::Leaf(0));
+    }
+    let child = span / FAN;
+    let partial = (count % child != 0 && count < span).then(|| full_bytes(child, count % child));
+    full_bytes(child, child)
+        + full_bytes(child, 0)
+        + partial.unwrap_or(0)
+        + node_bytes(&Node::Inner(Vec::new()))
+}
+
 fn collect(node: &Node, start: usize, span: usize, found: &mut Vec<usize>) {
     match node {
         Node::Leaf(bits) => {
@@ -208,6 +256,21 @@ fn node_bytes(node: &Node) -> usize {
 #[cfg(test)]
 mod tests {
     use super::Marks;
+
+    #[test]
+    fn a_change_costs_what_it_copies() {
+        for count in [1, 64, 1_000, 20_000] {
+            let mut marks = Marks::all(count);
+            assert_eq!(marks.bytes(), Marks::most(count));
+            let shared = marks.clone();
+            for index in [0, count / 2, count - 1] {
+                let cost = marks.cost(index, false);
+                assert_eq!(marks.set(index, false), cost);
+                assert_eq!(marks.cost(index, false), 0);
+            }
+            drop(shared);
+        }
+    }
 
     #[test]
     fn copies_keep_what_they_held() {

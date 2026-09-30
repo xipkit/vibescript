@@ -75,6 +75,12 @@ impl Unassigned {
             .is_some_and(|place| self.marks.contains(place))
     }
 
+    /// The bytes [`Self::remove`] of `name` would copy.
+    pub fn cost(&self, name: &str) -> usize {
+        self.place(name)
+            .map_or(0, |place| self.marks.cost(place, false))
+    }
+
     /// Takes out variable `name`; returns the bytes this copied.
     pub fn remove(&mut self, name: &str) -> usize {
         match self.place(name) {

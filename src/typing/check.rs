@@ -517,20 +517,32 @@ impl<'a> Checker<'a> {
         let defaults = self.defaults_of(module.offset);
         let name = self.frame.name.clone();
         let body = self.enter_frame(Frame::new(&self.meter, Some(ns), true, None, name));
-        // A default may read only the variables whose defaults precede it.
-        let mut unassigned: Vec<String> = Vec::new();
+        // A default may read only the variables whose defaults precede it:
+        // those that must be assigned, whose roster, and the list it is
+        // made from, are held before the names are copied.
+        let ivars = &self.program.namespaces[ns as usize].ivars;
+        let (mut count, mut bytes) = (0, 0);
+        for (name, ivar) in ivars {
+            if !self.types.assignable(Ty::NIL, ivar.ty) {
+                count += 1;
+                bytes += name.len();
+            }
+        }
+        let Some(held) = self.hold(2 * count * std::mem::size_of::<String>() + bytes) else {
+            self.leave_frame(body);
+            self.leave_frame(previous);
+            return;
+        };
+        let mut unassigned: Vec<String> = Vec::with_capacity(count);
         for (name, ivar) in &self.program.namespaces[ns as usize].ivars {
+            // A check that stops takes every type as assignable, so lists
+            // no more of them than it counted.
             if !self.types.assignable(Ty::NIL, ivar.ty) {
                 unassigned.push(name.clone());
             }
         }
         unassigned.sort_unstable();
         let roster: super::construction::Roster = unassigned.into();
-        let Some(held) = self.hold(super::construction::roster_bytes(&roster)) else {
-            self.leave_frame(body);
-            self.leave_frame(previous);
-            return;
-        };
         // Each default sees the same set, less what the ones before it
         // assign, shared with the uses of `self` in them rather than copied.
         let mut building = super::construction::Unassigned::all(roster);
@@ -538,9 +550,12 @@ impl<'a> Checker<'a> {
             self.frame.building = Some(building.clone());
             self.stmt(stmt, Want::Discard);
             if let Some(name) = assigned {
-                if self.grow(building.remove(name)) {
+                // What taking it out copies is counted first, and kept with
+                // the checker's other growth.
+                if self.meter.tables().keep(building.cost(name)).is_err() {
                     break;
                 }
+                self.grown += building.remove(name);
             }
         }
         self.frame.building = None;
@@ -732,8 +747,9 @@ impl<'a> Checker<'a> {
         let Some(ns) = owner else {
             return;
         };
-        // The variables without defaults, with a copy of each name,
-        // counted before they are copied.
+        // The variables without defaults, with a copy of each name, and the
+        // roster of those each path must assign, which takes the copies,
+        // are held while they are listed.
         let ivars = &self.program.namespaces[ns as usize].ivars;
         let (count, bytes) = ivars
             .iter()
@@ -741,9 +757,10 @@ impl<'a> Checker<'a> {
             .fold((0, 0), |(count, bytes), (name, _)| {
                 (count + 1, bytes + name.len())
             });
-        if self.transient(count * std::mem::size_of::<(String, Ty)>() + bytes) {
+        let entries = std::mem::size_of::<(String, Ty)>() + 2 * std::mem::size_of::<String>();
+        let Some(held) = self.hold(count * entries + bytes) else {
             return;
-        }
+        };
         let mut required: Vec<(String, Ty)> = Vec::with_capacity(count);
         required.extend(
             self.program.namespaces[ns as usize]
@@ -753,7 +770,7 @@ impl<'a> Checker<'a> {
                 .map(|(name, ivar)| (name.clone(), ivar.ty)),
         );
         required.sort_unstable_by(|a, b| a.0.cmp(&b.0));
-        let mut roster = Vec::new();
+        let mut roster = Vec::with_capacity(count);
         let mut first = None;
         for (name, ty) in required {
             if self.types.assignable(Ty::NIL, ty) {
@@ -761,15 +778,25 @@ impl<'a> Checker<'a> {
             }
             // A check the budget stops tracks none of them.
             let Some(id) = self.pseudo_local() else {
+                self.release(held);
                 return;
             };
             first.get_or_insert(id);
             roster.push(name);
         }
+        // The roster the frame keeps is counted as the frame's before the
+        // copies held for it are let go.
+        let roster: super::construction::Roster = roster.into();
+        let kept = self
+            .meter
+            .tables()
+            .keep(super::construction::roster_bytes(&roster))
+            .is_ok();
+        self.release(held);
         // The pseudo-locals follow each other, in the roster's order.
-        if let Some(first) = first {
+        if let (Some(first), true) = (first, kept) {
             self.frame.flow.track(first, roster.len());
-            self.frame.initialize = Some((roster.into(), first));
+            self.frame.initialize = Some((roster, first));
         }
     }
 

@@ -68,9 +68,12 @@ impl Flow {
     }
 
     /// Follows the assignment of the `count` locals from `first`, none of
-    /// which is assigned yet.
+    /// which is assigned yet, once the set of them is counted; a set the
+    /// budget refuses is not followed.
     pub fn track(&mut self, first: LocalId, count: usize) {
-        self.tracked = Some((first, Marks::all(count)));
+        if self.meter.tables().keep(Marks::most(count)).is_ok() {
+            self.tracked = Some((first, Marks::all(count)));
+        }
     }
 
     /// Stops following them.
@@ -85,13 +88,25 @@ impl Flow {
     }
 
     /// Notes that local `id` went from assigned or not to `assigned`.
-    fn note(&mut self, id: LocalId, was: bool, assigned: bool) {
+    /// Returns the bytes of the nodes the followed locals' set copied.
+    fn note(&mut self, id: LocalId, was: bool, assigned: bool) -> usize {
         if was != assigned {
             if let Some((first, marks)) = &mut self.tracked {
                 if let Some(index) = id.checked_sub(*first) {
-                    marks.set(index as usize, !assigned);
+                    return marks.set(index as usize, !assigned);
                 }
             }
+        }
+        0
+    }
+
+    /// The bytes [`Self::note`] would copy.
+    fn cost(&self, id: LocalId, was: bool, assigned: bool) -> usize {
+        match &self.tracked {
+            Some((first, marks)) if was != assigned => id
+                .checked_sub(*first)
+                .map_or(0, |index| marks.cost(index as usize, !assigned)),
+            _ => 0,
         }
     }
 
@@ -121,15 +136,19 @@ impl Flow {
         self.vars[id as usize]
     }
 
-    /// Changes local `id`'s state, recording the change to undo. A change
-    /// the budget refuses room to record is not made: the check has
-    /// stopped, and reads no more.
+    /// Changes local `id`'s state, recording the change to undo. The
+    /// change and what following it copies are counted first, and a change
+    /// the budget refuses is not made: the check has stopped, and reads no
+    /// more.
     pub fn set(&mut self, id: LocalId, state: VarState) {
         let old = self.vars[id as usize];
         if old != state {
-            if self.trail.push(self.meter.tables(), (id, old)).is_err() {
+            let tables = self.meter.tables();
+            let copies = self.cost(id, old.assigned, state.assigned);
+            if self.trail.reserve(tables, 1).is_err() || tables.keep(copies).is_err() {
                 return;
             }
+            self.trail.push_within((id, old));
             self.vars[id as usize] = state;
             self.note(id, old.assigned, state.assigned);
         }
@@ -174,7 +193,8 @@ impl Flow {
                     };
             }
             self.vars[id as usize] = old;
-            self.note(id, current.assigned, old.assigned);
+            let copied = self.note(id, current.assigned, old.assigned);
+            self.meter.tables().kept(copied);
         }
         self.live = mark.live;
         Branch {
