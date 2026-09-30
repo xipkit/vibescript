@@ -533,7 +533,8 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     let steps = checker.total_steps();
     checker.held();
     let stopped = checker.stopped || meter.stopped();
-    let exported = input.file.then(|| std::sync::Arc::new(checker.export()));
+    // A check past its budget exports nothing: its caller stops too.
+    let exported = (input.file && !stopped).then(|| std::sync::Arc::new(checker.export()));
     let (mut locals, result) = match checker.session.take().filter(|_| input.annotate) {
         Some(session) => {
             // Locals of one type share its annotation, written once.

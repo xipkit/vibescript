@@ -201,7 +201,14 @@ impl<'a> Checker<'a> {
         }
         requests.sort_unstable_by_key(|request| request.2);
         for (path, alias, offset) in requests {
+            // A check past its budget loads no more files.
+            if self.over_budget() {
+                return;
+            }
             let id = self.load_module(&path);
+            if self.halted() {
+                return;
+            }
             if let Err(reason) = &id {
                 self.report(Diagnostic::error(
                     Code::UNDEFINED_NAME,
@@ -342,8 +349,11 @@ impl<'a> Checker<'a> {
         // its surface pass's too.
         self.observed(held + checked.peak_bytes + checked.surface_bytes);
         if checked.stopped {
+            // The file's check stopped at the budget this one shares, so
+            // this one stops too, without its findings or exports.
             self.stopped = true;
             self.meter.stop();
+            return Err("the check ran out of its budget".into());
         }
         let source: Arc<str> = source.into();
         for mut diagnostic in checked.diagnostics.into_iter().filter(Diagnostic::is_error) {
