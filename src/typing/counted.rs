@@ -10,9 +10,6 @@
 //! takes back into its own count. A table the budget refuses to grow keeps
 //! what it had and stores nothing, and its caller stops.
 
-// The checker's tables move onto these one at a time.
-#![allow(dead_code)]
-
 use super::meter::{Heap, Meter, Side, btree_storage, map, set, table};
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
@@ -283,26 +280,6 @@ impl<T> CountedVec<T> {
     }
 
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
-    pub fn insert(&mut self, ledger: Ledger<'_>, index: usize, value: T) -> Result<(), Refused> {
-        self.reserve(ledger, 1)?;
-        self.0.insert(index, value);
-        Ok(())
-    }
-
-    /// Adds every element of `values`, making room for all of them first.
-    #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
-    pub fn extend<I>(&mut self, ledger: Ledger<'_>, values: I) -> Result<(), Refused>
-    where
-        I: IntoIterator<Item = T>,
-        I::IntoIter: ExactSizeIterator,
-    {
-        let values = values.into_iter();
-        self.reserve(ledger, values.len())?;
-        self.0.extend(values);
-        Ok(())
-    }
-
-    #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
     pub fn extend_from_slice(&mut self, ledger: Ledger<'_>, values: &[T]) -> Result<(), Refused>
     where
         T: Clone,
@@ -324,23 +301,11 @@ impl<T> CountedVec<T> {
         self.0.clear();
     }
 
-    pub fn remove(&mut self, index: usize) -> T {
-        self.0.remove(index)
-    }
-
-    pub fn retain(&mut self, keep: impl FnMut(&T) -> bool) {
-        self.0.retain(keep);
-    }
-
     pub fn dedup(&mut self)
     where
         T: PartialEq,
     {
         self.0.dedup();
-    }
-
-    pub fn drain(&mut self, range: impl std::ops::RangeBounds<usize>) -> std::vec::Drain<'_, T> {
-        self.0.drain(range)
     }
 }
 
@@ -480,20 +445,12 @@ impl<K: Eq + Hash, V> CountedMap<K, V> {
         self.0.remove(key)
     }
 
-    pub fn retain(&mut self, keep: impl FnMut(&K, &mut V) -> bool) {
-        self.0.retain(keep);
-    }
-
     pub fn clear(&mut self) {
         self.0.clear();
     }
 
     pub fn values_mut(&mut self) -> std::collections::hash_map::ValuesMut<'_, K, V> {
         self.0.values_mut()
-    }
-
-    pub fn iter_mut(&mut self) -> std::collections::hash_map::IterMut<'_, K, V> {
-        self.0.iter_mut()
     }
 
     pub fn into_map(self) -> HashMap<K, V> {
@@ -576,22 +533,6 @@ impl<T: Eq + Hash> CountedSet<T> {
         );
         self.0.insert(value)
     }
-
-    pub fn remove<Q>(&mut self, value: &Q) -> bool
-    where
-        T: std::borrow::Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
-    {
-        self.0.remove(value)
-    }
-
-    pub fn clear(&mut self) {
-        self.0.clear();
-    }
-
-    pub fn into_set(self) -> HashSet<T> {
-        self.0
-    }
 }
 
 impl<T> Deref for CountedSet<T> {
@@ -649,14 +590,6 @@ impl<T: Ord> CountedBTreeSet<T> {
         Ok(added)
     }
 
-    pub fn remove<Q>(&mut self, value: &Q) -> bool
-    where
-        T: std::borrow::Borrow<Q>,
-        Q: Ord + ?Sized,
-    {
-        self.0.remove(value)
-    }
-
     pub fn into_set(self) -> BTreeSet<T> {
         self.0
     }
@@ -704,7 +637,8 @@ mod tests {
         // Measuring the tables takes their growth back into the measure.
         meter.outside(super::super::meter::vec(list.as_vec()));
         assert_eq!(meter.unmeasured(), 0);
-        list.extend(ledger, 0..5_000u32).unwrap();
+        list.extend_from_slice(ledger, &(0..5_000u32).collect::<Vec<_>>())
+            .unwrap();
         assert_eq!(
             meter.unmeasured() + 4 * 1_024,
             super::super::meter::vec(list.as_vec())
@@ -731,7 +665,10 @@ mod tests {
         // what fits.
         assert_eq!(list.push(ledger, 0).is_err(), length == capacity);
         list.truncate(length);
-        assert_eq!(list.extend(ledger, 0..capacity as u32), Err(Refused));
+        assert_eq!(
+            list.extend_from_slice(ledger, &(0..capacity as u32).collect::<Vec<_>>()),
+            Err(Refused)
+        );
         assert_eq!((list.len(), list.capacity()), (length, capacity));
         assert!(list.iter().copied().eq(0..length as u32));
     }
