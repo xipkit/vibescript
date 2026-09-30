@@ -133,16 +133,27 @@ fn documented(item: Item, doc: &str) -> Item {
 /// A bound value as a declaration: a host method becomes a function, an
 /// object holding host methods a namespace, and any other value a constant.
 pub(crate) fn binding(name: &str, value: &Value) -> Item {
+    binding_in(name, value, &Methods::of(value), 0)
+}
+
+/// How deep objects of host methods nest as namespaces; one nested deeper
+/// declares as `any`, as data deeper than [`value_type`] looks does, so the
+/// declaration, the shape a grant must match and every later walk of them
+/// stay shallow however deep a template nests.
+pub(crate) const NAMESPACE_DEPTH: usize = 64;
+
+/// [`binding`] of a value `depth` objects deep in its template.
+fn binding_in(name: &str, value: &Value, methods: &Methods, depth: usize) -> Item {
     match &value.0 {
         Kind::Host(bound) => Item::Function(method_function(name, bound)),
-        Kind::Hash(hash) if contains_methods(value) => {
+        Kind::Hash(hash) if methods.holds(value) && depth < NAMESPACE_DEPTH => {
             let members = hash
                 .buffer
                 .data
                 .iter()
                 .filter_map(|(key, field)| {
                     let key = member_key(key.as_bytes()?)?;
-                    Some(match binding(key, field) {
+                    Some(match binding_in(key, field, methods, depth + 1) {
                         Item::Function(function) => Member::Function(function),
                         Item::Module(module) => Member::Module(module),
                         Item::Constant(constant) => Member::Constant(constant),
@@ -159,7 +170,10 @@ pub(crate) fn binding(name: &str, value: &Value) -> Item {
         _ => Item::Constant(Constant {
             doc: Vec::new(),
             name: name.to_owned(),
-            ty: value_type(value, 0),
+            ty: match methods.holds(value) {
+                true => Type::name("any"),
+                false => value_type(value, 0),
+            },
         }),
     }
 }
@@ -172,16 +186,45 @@ pub(crate) fn member_key(key: &[u8]) -> Option<&str> {
     crate::syntax::identifier(stem).then_some(key)
 }
 
-/// Whether `value` is a host method, or an object holding one at any depth.
-pub(crate) fn contains_methods(value: &Value) -> bool {
-    match &value.0 {
-        Kind::Host(_) => true,
-        Kind::Hash(hash) => hash
-            .buffer
-            .data
-            .iter()
-            .any(|(_, value)| contains_methods(value)),
-        _ => false,
+/// The objects in a template that hold a host method at any depth, found
+/// in one walk that visits each object once, without recursion.
+pub(crate) struct Methods(std::collections::HashSet<usize>);
+
+impl Methods {
+    pub(crate) fn of(value: &Value) -> Self {
+        let address = |hash: &std::sync::Arc<_>| std::sync::Arc::as_ptr(hash) as usize;
+        let mut holding = std::collections::HashSet::new();
+        let mut seen = std::collections::HashSet::new();
+        // Each object is decided after its fields, which it pushes above it.
+        let mut pending = vec![(value, false)];
+        while let Some((value, fields_done)) = pending.pop() {
+            let Kind::Hash(hash) = &value.0 else {
+                continue;
+            };
+            if fields_done {
+                let holds = hash.buffer.data.iter().any(|(_, field)| match &field.0 {
+                    Kind::Host(_) => true,
+                    Kind::Hash(inner) => holding.contains(&address(inner)),
+                    _ => false,
+                });
+                if holds {
+                    holding.insert(address(hash));
+                }
+            } else if seen.insert(address(hash)) {
+                pending.push((value, true));
+                pending.extend(hash.buffer.data.iter().map(|(_, field)| (field, false)));
+            }
+        }
+        Self(holding)
+    }
+
+    /// Whether `value` is a host method or an object holding one.
+    pub(crate) fn holds(&self, value: &Value) -> bool {
+        match &value.0 {
+            Kind::Host(_) => true,
+            Kind::Hash(hash) => self.0.contains(&(std::sync::Arc::as_ptr(hash) as usize)),
+            _ => false,
+        }
     }
 }
 

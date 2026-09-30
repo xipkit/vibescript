@@ -98,7 +98,7 @@ impl Declaration {
         Ok(Self {
             item: signatures::host::binding(name, template),
             capability: true,
-            shape: shape(template, true)?,
+            shape: shape(template, &signatures::host::Methods::of(template), 0)?,
         })
     }
 
@@ -140,7 +140,8 @@ fn named(ty: &Type) -> Option<&str> {
 
 /// What a template requires of each call's value, matching the item
 /// [`signatures::host::binding`] renders for it.
-fn shape(value: &Value, top: bool) -> Result<Shape> {
+fn shape(value: &Value, methods: &signatures::host::Methods, depth: usize) -> Result<Shape> {
+    let top = depth == 0;
     Ok(match &value.0 {
         Kind::Namespace(namespace) if top => {
             let owner = namespace
@@ -230,14 +231,18 @@ fn shape(value: &Value, top: bool) -> Result<Shape> {
             Shape::Method(method.signature().map(|signature| signature.source.clone()))
         }
         // An object holding a host method at any depth is a namespace, as
-        // its declaration is, of exactly the members it declares.
-        Kind::Hash(hash) if signatures::host::contains_methods(value) => {
+        // its declaration is, of exactly the members it declares, down to
+        // the depth past which it declares as `any`.
+        Kind::Hash(hash) if methods.holds(value) => {
+            if depth >= signatures::host::NAMESPACE_DEPTH {
+                return Ok(Shape::Value(None));
+            }
             let mut members = Vec::new();
             for (key, field) in &hash.buffer.data {
                 let Some(key) = key.as_bytes().and_then(signatures::host::member_key) else {
                     continue;
                 };
-                members.push((key.to_owned(), shape(field, false)?));
+                members.push((key.to_owned(), shape(field, methods, depth + 1)?));
             }
             Shape::Object(members)
         }

@@ -1702,6 +1702,41 @@ fn a_grant_of_the_declared_template_is_accepted() {
 }
 
 #[test]
+fn a_template_nested_near_the_value_limit_declares_without_deep_recursion() {
+    // Objects of host methods nested as deep as a value may be: rendering
+    // the declaration and its shape visits each object once and nests the
+    // namespaces only so deep, past which they declare as `any`.
+    let mut template = Value::object(vec![(b"run".to_vec(), method().value())]);
+    for _ in 0..9_990 {
+        template = Value::object(vec![
+            (b"inner".to_vec(), template),
+            (b"run".to_vec(), method().value()),
+        ]);
+    }
+    let started = std::time::Instant::now();
+    let mut engine = Engine::new();
+    engine
+        .declare_capability(&Capability::from_value("cap", template.clone()))
+        .unwrap();
+    let script = "cap.inner.inner.run";
+    let checked = engine.type_check(script).unwrap();
+    assert!(checked.diagnostics.is_empty(), "{:?}", checked.diagnostics);
+    let shallow = format!("cap{}.run", ".inner".repeat(63));
+    assert!(engine.type_check(&shallow).unwrap().diagnostics.is_empty());
+    let deep = format!("cap{}.run", ".inner".repeat(64));
+    assert!(!engine.type_check(&deep).unwrap().diagnostics.is_empty());
+    // Granting it imports and checks every level, beyond the default quota.
+    let mut options = CallOptions {
+        capabilities: vec![Capability::from_value("cap", template)],
+        ..CallOptions::default()
+    };
+    options.limits.steps = None;
+    let value = engine.compile(script).unwrap().run(options).unwrap().value;
+    assert_eq!(value.to_string(), "true");
+    assert!(started.elapsed() < std::time::Duration::from_secs(10));
+}
+
+#[test]
 fn a_grant_keeps_nested_host_methods_callable() {
     // An object nested in a template that holds a host method is declared,
     // and checked, as a namespace, so a grant must keep the method callable.
