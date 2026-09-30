@@ -954,6 +954,12 @@ fn shapes() -> Vec<Shape> {
             source.push_str(&format!("x: T{depth} = 1\n"));
             (Vec::new(), source)
         }),
+        ("a wide self-call graph", |n| {
+            // Each method calls itself, a cycle of one for each of them in
+            // the graph of the calls construction checks follow.
+            let methods = lines(n, |i| format!("  def m{i} -> int\n    m{i}\n  end\n"));
+            (Vec::new(), format!("class C\n{methods}end\np(1)\n"))
+        }),
         // Suffixed bindings fail with V0003, whose fix pass parses the
         // source again to find every place the fix renames.
         ("many suffixed locals, each read", |n| {

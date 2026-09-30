@@ -342,10 +342,11 @@ impl<'a> Checker<'a> {
             .filter(|&ns| !self.initializes(ns))
             .collect();
         self.transient(super::meter::set(&unproven));
-        let reads = self.method_reads();
+        let (reads, reads_held) = self.method_reads();
         let sites = std::mem::take(&mut self.construction.sites);
-        // Taken from the records, the sites are held while they are read.
-        let taken = self.hold(super::meter::vec(&sites));
+        // Taken from the records, the sites are held while they are read,
+        // as the methods' reads are.
+        let taken = reads_held + self.hold(super::meter::vec(&sites));
         for site in sites {
             if self.over_budget() {
                 self.release(taken);
@@ -461,8 +462,11 @@ impl<'a> Checker<'a> {
     /// each cycle is found once, and each is done after those it calls,
     /// adding what they read once per call rather than again on every pass
     /// until nothing changes. Each call, and each variable a method or a
-    /// call adds, is a step.
-    fn method_reads(&mut self) -> HashMap<FnId, Rc<Option<BTreeSet<String>>>> {
+    /// call adds, is a step, as is each method and call the search for
+    /// cycles visits. Returns the reads with the scratch that stays held
+    /// for them, for the caller to release; a check the budget stops finds
+    /// none.
+    fn method_reads(&mut self) -> (Reads, usize) {
         // The methods, their places and the calls between them, counted
         // before they are listed: at most every call each method makes.
         let methods = self.construction.methods.len();
@@ -479,7 +483,7 @@ impl<'a> Checker<'a> {
                 + calls * std::mem::size_of::<usize>(),
         );
         if self.halted() {
-            return HashMap::new();
+            return (HashMap::new(), 0);
         }
         let mut ids: Vec<FnId> = self.construction.methods.keys().copied().collect();
         ids.sort_unstable();
@@ -495,14 +499,35 @@ impl<'a> Checker<'a> {
                     .collect()
             })
             .collect();
-        self.transient(
-            super::meter::map(&place)
-                + super::meter::vec(&calls)
-                + calls.iter().map(super::meter::vec).sum::<usize>(),
+        // The graph is held while its cycles are found and their reads
+        // gathered, with what that builds, counted before it is built: the
+        // search's scratch, and at most a cycle for each method, each with
+        // its list of methods and its shared reads, and the reads by method.
+        let graph = super::meter::map(&place)
+            + super::meter::vec(&calls)
+            + calls.iter().map(super::meter::vec).sum::<usize>();
+        // A cycle's reads themselves are counted as they are kept.
+        let reads = std::mem::size_of::<Rc<Option<BTreeSet<String>>>>() + RC_COUNTS;
+        let held = self.hold(
+            graph
+                + methods * (SEARCH_SCRATCH + CYCLE + reads)
+                + super::meter::table::<(FnId, Rc<Option<BTreeSet<String>>>)>(methods),
         );
-        let (cycles, cycle_of) = cycles(&calls);
+        if self.halted() {
+            self.release(held);
+            return (HashMap::new(), 0);
+        }
+        let Some((cycles, cycle_of)) = cycles(&calls, &self.meter) else {
+            self.release(held);
+            return (HashMap::new(), 0);
+        };
         let mut found: Vec<Rc<Option<BTreeSet<String>>>> = Vec::with_capacity(cycles.len());
         for (cycle, members) in cycles.iter().enumerate() {
+            // The reads it gathers are counted as each cycle's are kept.
+            if self.over_budget() {
+                self.release(held);
+                return (HashMap::new(), 0);
+            }
             let mut escapes = false;
             let mut read = BTreeSet::new();
             for &member in members {
@@ -533,18 +558,47 @@ impl<'a> Checker<'a> {
             self.construction.held += read.heap() + std::mem::size_of::<Option<BTreeSet<String>>>();
             found.push(Rc::new(read));
         }
-        ids.iter()
+        let reads = ids
+            .iter()
             .enumerate()
             .map(|(at, &id)| (id, Rc::clone(&found[cycle_of[at]])))
-            .collect()
+            .collect();
+        (reads, held)
     }
 }
+
+/// What each instance method reads of `self`, shared by the methods of a
+/// cycle; `None` for those that let it escape.
+type Reads = HashMap<FnId, Rc<Option<BTreeSet<String>>>>;
+
+/// What finding the cycles of a graph holds for each of its nodes at most:
+/// the search's order, low link, stack flag and cycle, its stack of nodes
+/// and of frames, each of which can double as it grows.
+const SEARCH_SCRATCH: usize = 3 * std::mem::size_of::<usize>()
+    + std::mem::size_of::<bool>()
+    + 2 * std::mem::size_of::<usize>()
+    + 2 * std::mem::size_of::<(usize, usize)>();
+
+/// What a cycle of one node holds at most: its place in the list of
+/// cycles, which can double as it grows, and its list of nodes, which
+/// starts with room for four.
+const CYCLE: usize = 2 * std::mem::size_of::<Vec<usize>>() + 4 * std::mem::size_of::<usize>();
+
+/// The counts beside an [`Rc`]'s value.
+const RC_COUNTS: usize = 2 * std::mem::size_of::<usize>();
 
 /// The cycles of the directed graph whose node `n` leads to each node in
 /// `edges[n]`, each a list of its nodes, in an order where every cycle
 /// comes after those its nodes lead to; with the cycle of each node.
 /// Tarjan's algorithm, keeping its place on the heap rather than the stack.
-fn cycles(edges: &[Vec<usize>]) -> (Vec<Vec<usize>>, Vec<usize>) {
+/// Each node and edge it visits is a step of `meter`, which it asks every
+/// [`PACE`](super::walk::PACE) of them whether the check has stopped, and
+/// gives up, with `None`, if it has.
+fn cycles(
+    edges: &[Vec<usize>],
+    meter: &super::meter::Meter,
+) -> Option<(Vec<Vec<usize>>, Vec<usize>)> {
+    use super::walk::PACE;
     const UNSEEN: usize = usize::MAX;
     let count = edges.len();
     let mut order = vec![UNSEEN; count];
@@ -554,7 +608,20 @@ fn cycles(edges: &[Vec<usize>]) -> (Vec<Vec<usize>>, Vec<usize>) {
     let mut cycles: Vec<Vec<usize>> = Vec::new();
     let mut cycle_of = vec![UNSEEN; count];
     let mut next = 0;
+    let mut visited = 0;
+    let pace = |visited: &mut u64| {
+        *visited += 1;
+        if *visited == PACE {
+            *visited = 0;
+            meter.pace(PACE, 0)
+        } else {
+            false
+        }
+    };
     for root in 0..count {
+        if pace(&mut visited) {
+            return None;
+        }
         if order[root] != UNSEEN {
             continue;
         }
@@ -568,6 +635,9 @@ fn cycles(edges: &[Vec<usize>]) -> (Vec<Vec<usize>>, Vec<usize>) {
         while let Some(&mut (node, ref mut followed)) = frames.last_mut() {
             if let Some(&to) = edges[node].get(*followed) {
                 *followed += 1;
+                if pace(&mut visited) {
+                    return None;
+                }
                 if order[to] == UNSEEN {
                     order[to] = next;
                     low[to] = next;
@@ -598,5 +668,6 @@ fn cycles(edges: &[Vec<usize>]) -> (Vec<Vec<usize>>, Vec<usize>) {
             }
         }
     }
-    (cycles, cycle_of)
+    meter.charge(visited);
+    Some((cycles, cycle_of))
 }
