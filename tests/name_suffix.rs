@@ -1729,6 +1729,122 @@ fn a_fix_of_one_place_waits_for_every_place_its_spelling_is_written() {
 }
 
 #[test]
+fn every_form_that_names_something_is_fixed_whole_or_not_at_all() {
+    // Each form that introduces a name: `true` where `vibes fix` renames it
+    // everywhere, `false` where its V0003 keeps no fix.
+    for (form, source, renamed) in [
+        ("local", "x? = 1; x?", true),
+        ("destructuring", "x?, y = [1, 2]; x?", true),
+        (
+            "nested destructuring",
+            "a, [x??, y] = [1, [2, 3]]; x??",
+            true,
+        ),
+        ("rest target", "a, *r? = [1, 2]; r?", true),
+        ("compound", "x? = 1; x? += 1; x?", true),
+        ("typed local", "x?: int = 1; x?", true),
+        ("parameter", "def f(a?: int) -> int; a?; end; f(1)", true),
+        ("default", "def f(a?: int = 1) -> int; a?; end; f", true),
+        (
+            "keyword parameter",
+            "def f(*, k?: int = 1) -> int; k?; end; f(k?: 2)",
+            false,
+        ),
+        (
+            "rest parameter",
+            "def f(*r?: array<int>) -> int; r?.length; end; f(1)",
+            true,
+        ),
+        (
+            "keyword rest",
+            "def f(**o?: hash<string, int>) -> int; o?.length; end; f",
+            true,
+        ),
+        ("block parameter", "[1].map { |x?| x? }", true),
+        ("block destructuring", "[[1, 2]].map { |(a?, b)| a? }", true),
+        ("for", "for x? in [1]; p(x?); end", true),
+        (
+            "for destructuring",
+            "for a??, b in [[1, 2]]; p(a??); end",
+            true,
+        ),
+        ("rescue", "begin; 1; rescue => e?; e?; end", true),
+        ("method", "def ok??; 1; end; def g; ok??; end; ok??", true),
+        (
+            "setter",
+            "class C; def v?=(x: int); end; end; C.new.v? = 1",
+            true,
+        ),
+        (
+            "alias",
+            "class C; def ok; end; alias ok?? ok; end; C.new.ok??",
+            true,
+        ),
+        (
+            "property",
+            "class A; property done?: bool; end; A.new.done?",
+            false,
+        ),
+        (
+            "getter",
+            "class A; getter done?: bool; end; A.new.done?",
+            false,
+        ),
+        (
+            "instance variable",
+            "class C; @d?: int = 1; def g -> int; @d?; end; end",
+            true,
+        ),
+        (
+            "parameter's instance variable",
+            "class C; @d?: bool; def initialize(@d?: bool); end; def g -> bool; @d?; end; end",
+            true,
+        ),
+        (
+            "class variable",
+            "class C; @@d?: int = 1; def self.g -> int; @@d?; end; end",
+            true,
+        ),
+        ("constant", "X? = 1; X?", true),
+        ("namespace constant", "module M; X? = 1; end; M::X?", true),
+        ("class", "class R?; end; R?.new", true),
+        ("module", "module R!; end; R!", true),
+        ("enum", "enum S?; A; end; S?::A", true),
+        ("enum member", "enum S; A?; end; S::A?", true),
+        ("type alias", "type F! = bool; v: F! = true; v", true),
+        ("type alias of a builtin name", "type int! = string", false),
+        ("enum of a builtin name", "enum Time!; A; end", false),
+        (
+            "member of another's symbol",
+            "enum S; Ready; READY?; end",
+            false,
+        ),
+        ("constant of a prelude name", "Math! = 1; Math!", false),
+    ] {
+        let fixed = fix_all(source);
+        if renamed {
+            match Engine::new().type_check(&fixed) {
+                Ok(checked) => {
+                    assert!(
+                        checked.diagnostics.is_empty(),
+                        "{form}: {fixed}: {checked:?}"
+                    )
+                }
+                Err(error) => panic!("{form}: {fixed}: {error}"),
+            }
+        } else {
+            assert_eq!(fixed, source, "{form}");
+            let Err(error) = Engine::new().type_check(source) else {
+                panic!("{form} checks");
+            };
+            for diagnostic in error.diagnostics() {
+                assert!(diagnostic.fixes.is_empty(), "{form}: {diagnostic:?}");
+            }
+        }
+    }
+}
+
+#[test]
 fn a_keyword_parameter_keeps_its_name() {
     // Calls name a keyword parameter with labels, strings that a rename of
     // the parameter would leave behind, and a host may call the function too.
