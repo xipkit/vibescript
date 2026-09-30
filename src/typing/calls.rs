@@ -1740,8 +1740,14 @@ impl<'a> Checker<'a> {
         let stay = (!sig.converts).then_some(super::check::BUILTIN_SYMBOL);
         self.symbols(stay, |this| {
             this.check_positional(call, sig, &mut bindings);
-            this.check_keywords(call, sig, &mut bindings);
+            if !this.halted() {
+                this.check_keywords(call, sig, &mut bindings);
+            }
         });
+        // A check past its budget checks nothing more of the call.
+        if self.halted() {
+            return (Ty::ERROR, Vec::new());
+        }
         let mut breaks = Vec::new();
         match (&sig.block, call.block) {
             (Some(block_sig), Some(block)) => {

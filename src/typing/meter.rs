@@ -599,6 +599,10 @@ impl<'a> super::Checker<'a> {
         let Some(mut inner) = self.put_back_memo(outer) else {
             return;
         };
+        // A check past its budget keeps nothing more the inner one found.
+        if self.halted() {
+            return;
+        }
         let Some(outer) = self.memo.0.as_mut().filter(|outer| !outer.replay) else {
             return;
         };

@@ -670,6 +670,11 @@ impl<'a> Checker<'a> {
                 let mut present = vec![false; fields.len()];
                 let mut types = Vec::with_capacity(entries.len());
                 for (key, entry) in entries {
+                    // A check past its budget names no more fields.
+                    if self.halted() {
+                        self.release(held);
+                        return Ty::ERROR;
+                    }
                     let key = String::from_utf8_lossy(key).into_owned();
                     match fields.binary_search_by(|field| field.name.as_bytes().cmp(key.as_bytes()))
                     {
@@ -744,6 +749,10 @@ impl<'a> Checker<'a> {
         let held = self.hold(fields_bytes(entries));
         let mut fields = Vec::with_capacity(entries.len());
         for (key, entry) in entries {
+            if self.halted() {
+                self.release(held);
+                return Ty::ERROR;
+            }
             let ty = self.expr(entry, None);
             fields.push(Field {
                 name: String::from_utf8_lossy(key).into(),
@@ -1441,6 +1450,11 @@ impl<'a> Checker<'a> {
                 let alternatives = self.types.members(ty);
                 let outer = self.set_memo(Some(super::Memo::default()));
                 let result = self.index_type(expr, receiver, alternatives[0], selectors);
+                // A check past its budget indexes no other alternative.
+                if self.halted() {
+                    self.restore_memo(outer);
+                    return Ty::ERROR;
+                }
                 let mut results = vec![result];
                 // The other alternatives reuse the selectors' types.
                 self.memo.get_mut().unwrap().replay = true;
@@ -1719,6 +1733,12 @@ impl<'a> Checker<'a> {
             let mark = self.frame.flow.mark();
             self.apply(&narrow.then);
             let ty = self.branch_value(value, want);
+            // A check past its budget unwinds without the work of the
+            // branches it nests in.
+            if self.halted() {
+                self.frame.flow.rollback(entry);
+                return Ty::ERROR;
+            }
             if self.frame.flow.live {
                 results.push(ty);
             }
@@ -1784,6 +1804,11 @@ impl<'a> Checker<'a> {
             }
             let mark = self.frame.flow.mark();
             let ty = self.branch_value(&when.result, want);
+            if self.halted() {
+                self.release(held);
+                self.frame.flow.rollback(entry);
+                return Ty::ERROR;
+            }
             if self.frame.flow.live {
                 results.push(ty);
             }

@@ -687,7 +687,9 @@ impl<'a> Checker<'a> {
     /// file's body it may read them before the body assigns them, which
     /// [`Self::check_file_calls`] reports once every function is checked.
     pub(super) fn script_called(&mut self, callee: Option<FnId>, span: Span) {
-        if !self.program.file {
+        // A check past its budget records no more calls, each of which
+        // lists the locals assigned so far.
+        if !self.program.file || self.halted() {
             return;
         }
         let written: Vec<String> = self.program.file_written.iter().cloned().collect();
@@ -1210,6 +1212,12 @@ impl<'a> Checker<'a> {
             let mark = self.frame.flow.mark();
             self.apply(&narrow.then);
             let ty = self.stmts(body, want);
+            // A check past its budget unwinds without the work of the
+            // branches it nests in.
+            if self.halted() {
+                self.frame.flow.rollback(entry);
+                return Ty::ERROR;
+            }
             if self.frame.flow.live {
                 results.push(ty);
             }
