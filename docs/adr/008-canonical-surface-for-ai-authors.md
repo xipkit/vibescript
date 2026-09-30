@@ -362,7 +362,11 @@ binding. `M::ok?` remains a scoped call (V0416). A binding's V0003 fix renames
 every place that binds it and every read of it the parser's scopes attribute to
 it, and for a constant or enum member, the scoped reads whose full path
 resolves to its namespace as the checker resolves them, found by a second parse
-that accepts suffixed bindings as the grammar did before this addendum. The
+that accepts suffixed bindings as the grammar did before this addendum. A
+class, module or enum name is a binding as well, renamed at each declaration,
+reopening, bare or scoped read, parent and type that names it. A binding with a
+use that parse cannot attribute, such as a matching symbol, a call, a type whose
+final `?` may be nullable or code past a syntax error, gets no fix. The
 rename is one fix, on the binding's first V0003 only, so a person applying it
 alone gets consistent code, its edits are built once, with work linear in the
 recorded uses, and charged to the caller's quotas, and nothing is guessed from

@@ -326,7 +326,11 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         {
             return Err(error);
         }
-        compile_checks(&order, &modules, &enums, work)?;
+        // A lenient parse finds uses only, and one class declared twice
+        // is two sites of its name.
+        if !super::suffixes::lenient() {
+            compile_checks(&order, &modules, &enums, work)?;
+        }
         defs.insert(
             work,
             0,
@@ -665,9 +669,10 @@ impl Parser<'_> {
         if !self.ident(self.pos) {
             return self.expected(Label::Text("identifier"));
         }
+        let at = self.tokens[self.pos].offset;
         let name = self.name()?;
         // Enums are declared at the top level only.
-        let namespace = self.namespace_entered(&name)?;
+        let namespace = self.namespace_entered(&name, at)?;
         let mut members = Buffer::new();
         let mut member_offsets = Vec::new();
         let mut seen = Table::new();

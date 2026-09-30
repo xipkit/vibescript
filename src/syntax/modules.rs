@@ -268,12 +268,14 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             // `ok!=` reads as `ok` and `!=`, but after a definition's name it
             // can only be a setter spelled with a suffix, as `ok?=` is.
             let next = &p.tokens[p.pos];
-            if !operator
-                && next.token == Token::Op("!=")
-                && next.offset == p.tokens[p.pos - 1].end
-                && !super::suffixes::lenient()
+            if !operator && next.token == Token::Op("!=") && next.offset == p.tokens[p.pos - 1].end
             {
-                return Err(p.name_suffix_error(next.offset));
+                if !super::suffixes::lenient() {
+                    return Err(p.name_suffix_error(next.offset));
+                }
+                // A lenient parse reads the setter as it was spelled.
+                p.bump()?;
+                name = Name::join(work, &[&name, "!="])?;
             }
             p.line_breaks()?;
             if p.token() == &Token::Op("=") && (!operator || name == "[]") {
@@ -426,6 +428,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             if !p.ident(p.pos) {
                 return p.expected(Label::Text("identifier"));
             }
+            let at = p.tokens[p.pos].offset;
             let name = p.name()?;
             if module && !name.as_bytes().first().is_some_and(u8::is_ascii_uppercase) {
                 p.pos -= 1;
@@ -434,13 +437,17 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             let next = p.significant(p.pos);
             if !module && p.tokens[next].token == Token::Op("<") {
                 p.pos = next;
-                return p.err(format_args!(
-                    "class inheritance is not supported; modules are namespaces: {NAMESPACES}"
-                ));
+                if !super::suffixes::lenient() {
+                    return p.err(format_args!(
+                        "class inheritance is not supported; modules are namespaces: {NAMESPACES}"
+                    ));
+                }
+                // A lenient parse reads the parent only for the uses it records.
+                p.inherited()?;
             }
             p.enter()?;
             let outer_locals = std::mem::take(&mut p.locals);
-            let inner = p.namespace_entered(&name)?;
+            let inner = p.namespace_entered(&name, at)?;
             let outer_namespace = (
                 std::mem::replace(&mut p.namespace, inner),
                 std::mem::replace(&mut p.namespace_body, true),

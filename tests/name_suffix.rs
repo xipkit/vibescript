@@ -496,8 +496,27 @@ fn recovers_and_preserves_utf8_suffix_fixes() {
     assert_eq!(error.diagnostics().len(), 5);
     for diagnostic in error.diagnostics() {
         assert_eq!(diagnostic.code, Code::NAME_SUFFIX);
-        assert!(diagnostic.applicable_fix().unwrap().apply(source).is_some());
+        if let Some(fix) = diagnostic.applicable_fix() {
+            assert!(fix.apply(source).is_some());
+        }
     }
+    // The last line is no assignment target even with suffixes allowed, so
+    // the reads of `é!` and `READY?` after it are unknown and their bindings
+    // get no fix; the instance variable and the members still do.
+    let fixed: Vec<bool> = error
+        .diagnostics()
+        .iter()
+        .map(|d| d.applicable_fix().is_some())
+        .collect();
+    assert_eq!(fixed, [false, false, true, true, true]);
+    let source = "é! = 3\nREADY? = 1\n@done? = true\nh.réady? = 1\nh.ready! += 2\n";
+    let error = Engine::new().compile(source).err().unwrap();
+    assert!(
+        error
+            .diagnostics()
+            .iter()
+            .all(|d| d.applicable_fix().is_some())
+    );
 }
 
 fn method() -> HostMethod {
@@ -1529,4 +1548,101 @@ fn ordinary_hashes_validate_their_callable_fields() {
             }
         }
     }
+}
+
+#[test]
+fn class_module_and_enum_names_are_renamed_wherever_they_are_used() {
+    for (source, fixed) in [
+        (
+            "class Ready?; end; Ready?.new; 1",
+            "class Ready; end; Ready.new; 1",
+        ),
+        (
+            "class Ready?; end; x = Ready?; x.new; 1",
+            "class Ready; end; x = Ready; x.new; 1",
+        ),
+        (
+            "module Ready?; X = 1; def self.f -> int; X; end; end; [Ready?::X, Ready?.f]",
+            "module Ready; X = 1; def self.f -> int; X; end; end; [Ready::X, Ready.f]",
+        ),
+        (
+            "module A; module Ready?; X = 1; end; end; A::Ready?::X",
+            "module A; module Ready; X = 1; end; end; A::Ready::X",
+        ),
+        (
+            "module M; module Ready?; X = 1; end; def self.f -> int; Ready?::X; end; end; M.f",
+            "module M; module Ready; X = 1; end; def self.f -> int; Ready::X; end; end; M.f",
+        ),
+        (
+            "enum State?; A; end; State?::A == State?::A",
+            "enum State; A; end; State::A == State::A",
+        ),
+        // A type names the class too; its final `?` is nullable.
+        (
+            "class Node!; end; def f(n: Node!, m: Node!?) -> array<Node!>; [n]; end; f(Node!.new, nil).length",
+            "class Node; end; def f(n: Node, m: Node?) -> array<Node>; [n]; end; f(Node.new, nil).length",
+        ),
+        (
+            "enum State!; A; end; def f(s: State!) -> State!; s; end; f(State!::A) == State!::A",
+            "enum State; A; end; def f(s: State) -> State; s; end; f(State::A) == State::A",
+        ),
+    ] {
+        assert_eq!(first_fix(source), fixed, "{source}");
+        assert_eq!(migrate(source), fixed, "{source}");
+        run(fixed);
+    }
+    // A type reaches a nested class through its path.
+    let source = "class A; class Node!; end; def g(n: Node!) -> A::Node!; n; end; end\n\
+                  def f(n: A::Node!) -> A::Node!?; n; end";
+    let fixed = "class A; class Node; end; def g(n: Node) -> A::Node; n; end; end\n\
+                 def f(n: A::Node) -> A::Node?; n; end";
+    assert_eq!(first_fix(source), fixed);
+    Engine::new().type_check(fixed).unwrap();
+    // A second declaration and a parent are renamed with the name, though
+    // neither is valid: the fix leaves no reference to `Ready?` behind.
+    for (source, fixed) in [
+        (
+            "class Ready?; end; class Ready?; end",
+            "class Ready; end; class Ready; end",
+        ),
+        (
+            "class Ready?; end; class B < Ready?; end",
+            "class Ready; end; class B < Ready; end",
+        ),
+    ] {
+        assert_eq!(first_fix(source), fixed, "{source}");
+    }
+    // Where some use of the name cannot be told apart from another name, or
+    // may lie past a syntax error, no fix is offered rather than a partial one.
+    for source in [
+        "class Ready?; end; p(:Ready?)",
+        "class Ready?; end; p(Ready?(1))",
+        "enum State; Done?; end; State::Done? == :done?",
+        "class Ready?; end; Ready?.new; x = )",
+        // `Node!?` is a nullable `Node!` to the type, though it may mean the class.
+        "class Node!?; end; def f(n: Node!?); n; end; f(Node!?.new)",
+        "class Ready!?; end; Ready!?.new; x = )",
+    ] {
+        let Err(error) = Engine::new().type_check(source) else {
+            panic!("{source} checks");
+        };
+        assert_eq!(
+            error.diagnostics()[0].code,
+            Code::NAME_SUFFIX,
+            "{source}: {error}"
+        );
+        // Nor does a read the parser reports on its own keep a fix.
+        for diagnostic in error.diagnostics() {
+            if diagnostic.code == Code::NAME_SUFFIX {
+                assert!(diagnostic.fixes.is_empty(), "{source}: {diagnostic:?}");
+            }
+        }
+    }
+    let source = "class Ready!?; end; Ready!?.new; p(Ready!?)";
+    let Err(error) = Engine::new().type_check(source) else {
+        panic!("{source} checks");
+    };
+    let fixes: Vec<_> = error.diagnostics().iter().map(|d| d.fixes.len()).collect();
+    assert_eq!(fixes, [1, 0, 0], "{error}");
+    assert_eq!(first_fix(source), "class Ready; end; Ready.new; p(Ready)");
 }

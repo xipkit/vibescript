@@ -95,7 +95,7 @@ fn suffix_repair(source: &str, offset: usize, method: bool) -> Repair {
     // A method keeps one suffix; a setter and every binding keep none.
     if method && end - run > 1 && bytes.get(end) != Some(&b'=') {
         let span = crate::diagnostic::Span::new(run, end - 1);
-        return Repair::Edit("remove the repeated name suffix", span, "");
+        return Repair::Edit(suffixes::REPEATED, span, "");
     }
     let span = crate::diagnostic::Span::new(run, end);
     if keyword(stem) && !keyword_allowed(&source[..start]) {
@@ -2262,6 +2262,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
         p.command_depth -= 1;
         let depth = 1 + call_depth(&lhs).max(args.iter().map(|a| a.value.depth).max().unwrap_or(0));
         let offset = lhs.offset;
+        p.suffix_call(&lhs)?;
         let node = match lhs.into_node() {
             Node::Var(name) => Node::Call(name, args, CallForm::Bare),
             Node::Member(receiver, name) => Node::Method(receiver, name, args, CallForm::Bare),
@@ -2297,6 +2298,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
         let body = block.body.iter().map(|s| s.depth).max().unwrap_or(0);
         let depth = 1 + lhs.depth.max(1 + body.max(params));
         let p = self.p();
+        p.suffix_call(&lhs)?;
         p.make_at(
             Node::BlockCall(Boxed::new(p.work, lhs)?, block),
             depth,
@@ -3774,6 +3776,7 @@ impl<'a> Parser<'a> {
             let node = Node::ComputedCall(Boxed::new(self.work, lhs)?, args);
             return self.make_at(node, d, origin);
         }
+        self.suffix_call(&lhs)?;
         let node = match lhs.into_node() {
             Node::Var(name) => Node::Call(name, args, CallForm::Parenthesized),
             Node::Member(receiver, name) => {

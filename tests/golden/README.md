@@ -271,6 +271,20 @@ the baseline and candidate; it is not caused by recovery. Raw audits are under
 
 ## Method name suffixes, 2026-09-28
 
+Fourth PR #1319 review: class, module and enum names are bindings for V0003's
+rename, and `scripts/parse-sweep.py` suffixes each such name with each run,
+once at its declarations alone and once at every use, 350 more cases. All
+175 declaration cases and 150 of the use cases carry a fix that renames the
+name whole; the other 25 have none, since a type spells the name `Name!?` or
+`Name??`, read as nullable, where the rename could not tell which name is
+meant. The added cases change no first error against the pre-review head.
+Two goldens change fixes only. In `enums_names_21` the lenient parse no longer
+stops at the enum's suffixed name, so the fix for the function's local `State?`
+also renames its read in `State?::Draft`, which the checker resolves to the
+local. In the parse mutation `determine_if_a_string_is_squeezable.vibe:insert
+end:a27996d37c94`, the recovered binding `string?` lies past the syntax error
+where the lenient parse stops, so it loses its fix. No counter changes.
+
 Third PR #1319 review: `scripts/parse-sweep.py` also appends each run of `?`
 and `!` (`?`, `!`, `??`, `?!`, `!?`) to three sampled names of every program,
 3,765 more cases, and applies every machine-applicable V0003 fix it meets, 1,843

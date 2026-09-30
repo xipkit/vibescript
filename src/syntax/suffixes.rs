@@ -6,14 +6,17 @@
 //! scope says the name is that binding, and a scoped read only where its
 //! scope resolves to the constant's namespace as the checker resolves it, so
 //! a suffixed method that merely shares the name, such as a host's `ready?`,
-//! is never renamed.
+//! is never renamed. A class, module or enum name is a binding too, bound at
+//! each declaration and read bare, scoped, as a parent and in types. A
+//! binding with a use that cannot be attributed, such as `:Ready?` or a call
+//! `Ready?(1)`, gets no fix rather than a partial one.
 //!
 //! The uses come from a second, lenient parse that accepts suffixed
 //! bindings, as the grammar did before ADR-008, and tracks each binding
 //! through the parser's own scopes. Every table and every edit of a fix is
 //! charged to the caller's work.
 
-use super::{Error, Expr, Name, Node, Parser, Result, Work, name_suffix_position};
+use super::{Error, Expr, Name, Node, Parser, Result, Token, Work, name_suffix_position};
 use crate::{
     compilation::{Buffer, Table},
     diagnostic::{Code, Diagnostic, Edit, Fix, Span},
@@ -31,13 +34,27 @@ pub(super) fn lenient() -> bool {
     LENIENT.with(Cell::get)
 }
 
-/// A scoped read, `Scope::NAME?`: where its suffix is, the namespace it is
-/// read in, its scope as written, such as `Outer::Inner`, and its name.
+/// A read of a capitalized name that no local binds, such as `Ready?` in
+/// `Ready?.new`, or of a scoped name, such as `Outer::Inner::NAME?`: where its
+/// suffix is, the namespace it is read in, its scope as written (empty for a
+/// bare name) and its name. A read is not `safe` once it is called.
 struct Scoped {
     at: u32,
     owner: Option<u32>,
     scope: Name,
     name: Name,
+    safe: bool,
+}
+
+impl Scoped {
+    /// The name the checker looks up first: the scope's first, or the name.
+    fn head(&self) -> &str {
+        if self.scope.is_empty() {
+            &self.name
+        } else {
+            self.scope.split("::").next().unwrap_or_default()
+        }
+    }
 }
 
 /// The uses of suffixed bindings a lenient parse records, each at the
@@ -55,11 +72,33 @@ pub(super) struct Uses {
     /// Where each binding is read, with its id.
     reads: Buffer<(u32, u32)>,
     scoped: Buffer<Scoped>,
+    /// The names types spell, read as [`Scoped`] ones; a lookahead may
+    /// read as a type what the parser then reads as a value.
+    types: Buffer<Scoped>,
     /// Each class, module and enum by its parent's id (0 at the top level)
     /// and name, as `3:Inner`; a reopened one keeps its id.
     namespace_ids: Table<u32>,
     parents: Buffer<u32>,
     names: Buffer<Name>,
+    /// The binding each namespace's suffixed name is, or 0.
+    namespace_bindings: Buffer<u32>,
+    /// The bindings a symbol may name, as `:Ready?` names a class for
+    /// `is_type?` and `:draft?` an enum member, with their names.
+    nameable: Buffer<(u32, Name)>,
+    /// Each suffixed symbol in the source, as [`symbol_key`] spells it.
+    symbols: Table<()>,
+    /// Where the lenient parse failed, after which no use is known.
+    failed_at: Option<usize>,
+}
+
+/// The spelling a symbol and a name compare by: lowercase, without `_`.
+fn symbol_key(work: &dyn Work, name: &str) -> Result<Name> {
+    let folded: String = name
+        .chars()
+        .filter(|&c| c != '_')
+        .flat_map(char::to_lowercase)
+        .collect();
+    Name::new(work, &folded)
 }
 
 /// The key of `name` within the namespace `parent`, 0 at the top level.
@@ -144,27 +183,45 @@ impl Parser<'_> {
     ) -> Result<()> {
         if let (Some(namespace), Some(suffix)) = (namespace, suffix_at(self.source, name, at)) {
             let mut uses = self.suffixed.borrow_mut();
-            uses.binding(self.work, name, Some(namespace), suffix)?;
+            let id = uses.binding(self.work, name, Some(namespace), suffix)?;
+            uses.nameable
+                .push(self.work, (id, Name::new(self.work, name)?))?;
         }
         Ok(())
     }
 
-    /// In a lenient parse, the id of the class, module or enum `name`
-    /// declared in the current namespace, the same when it is reopened.
-    pub(super) fn namespace_entered(&self, name: &str) -> Result<Option<u32>> {
+    /// In a lenient parse, the id of the class, module or enum `name`,
+    /// spelled at `at`, declared in the current namespace; a reopened one
+    /// keeps its id, and a suffixed name is a binding declared again.
+    pub(super) fn namespace_entered(&self, name: &str, at: usize) -> Result<Option<u32>> {
         if !lenient() {
             return Ok(None);
         }
         let parent = self.namespace.unwrap_or(0);
+        let suffix = suffix_at(self.source, name, at);
         let mut uses = self.suffixed.borrow_mut();
         let key = key(self.work, parent, name)?;
         if let Some(&id) = uses.namespace_ids.get(self.work, &key)? {
+            let binding = uses.namespace_bindings[id as usize - 1];
+            if let (Some(suffix), true) = (suffix, binding != 0) {
+                uses.sites.push(self.work, (suffix, binding))?;
+            }
             return Ok(Some(id));
         }
         uses.parents.push(self.work, parent)?;
         uses.names.push(self.work, Name::new(self.work, name)?)?;
         let id = u32::try_from(uses.parents.len()).unwrap_or(u32::MAX);
         uses.namespace_ids.insert(self.work, key, id)?;
+        let binding = match suffix {
+            Some(suffix) => {
+                let binding = uses.binding(self.work, name, None, suffix)?;
+                uses.nameable
+                    .push(self.work, (binding, Name::new(self.work, name)?))?;
+                binding
+            }
+            None => 0,
+        };
+        uses.namespace_bindings.push(self.work, binding)?;
         Ok(Some(id))
     }
 
@@ -178,13 +235,23 @@ impl Parser<'_> {
         let Some(suffix) = suffix_at(self.source, name, at) else {
             return Ok(());
         };
-        if let Some(&id) = self.locals.get(self.work, name)?
-            && id != 0
-        {
-            self.suffixed
-                .borrow_mut()
-                .reads
-                .push(self.work, (suffix, id))?;
+        if let Some(&id) = self.locals.get(self.work, name)? {
+            if id != 0 {
+                let mut uses = self.suffixed.borrow_mut();
+                uses.reads.push(self.work, (suffix, id))?;
+            }
+            return Ok(());
+        }
+        // A capitalized name no local binds may name a class, module or enum.
+        if name.starts_with(super::unicode::upper) {
+            let entry = Scoped {
+                at: suffix,
+                owner: self.namespace,
+                scope: Name::default(),
+                name: Name::new(self.work, name)?,
+                safe: true,
+            };
+            self.suffixed.borrow_mut().scoped.push(self.work, entry)?;
         }
         Ok(())
     }
@@ -207,9 +274,107 @@ impl Parser<'_> {
             owner: self.namespace,
             scope,
             name: Name::new(self.work, name)?,
+            safe: true,
         };
         self.suffixed.borrow_mut().scoped.push(self.work, entry)?;
         Ok(())
+    }
+
+    /// Records a name a type spells at `at` as `written`, through the path
+    /// `scope` (empty for its first name). The type reads a final `?` as
+    /// nullable, so `Ready!?` names `Ready!`; a binding spelled `Ready!?`
+    /// it may have meant instead is not safe to rename.
+    pub(super) fn type_read(&self, scope: &str, written: &str, at: usize) -> Result<()> {
+        if !lenient() || (scope.is_empty() && !written.starts_with(super::unicode::upper)) {
+            return Ok(());
+        }
+        let read = written.strip_suffix('?').unwrap_or(written);
+        let ambiguous = read.len() < written.len() && read.ends_with(['?', '!']);
+        for (name, safe) in [(read, true), (written, false)] {
+            if !safe && !ambiguous {
+                break;
+            }
+            let Some(suffix) = suffix_at(self.source, name, at) else {
+                continue;
+            };
+            let entry = Scoped {
+                at: suffix,
+                owner: self.namespace,
+                scope: Name::new(self.work, scope)?,
+                name: Name::new(self.work, name)?,
+                safe,
+            };
+            self.suffixed.borrow_mut().types.push(self.work, entry)?;
+        }
+        Ok(())
+    }
+
+    /// Marks the read `callee` names as unsafe to rename once it turns out
+    /// to be called, since a class, module or enum takes no arguments: the
+    /// call is of a method that merely shares the name.
+    pub(super) fn suffix_call(&self, callee: &Expr) -> Result<()> {
+        let name = match &callee.node {
+            Node::Var(name) | Node::Scope(_, name, None) if lenient() => name,
+            _ => return Ok(()),
+        };
+        if !name.ends_with(['?', '!']) {
+            return Ok(());
+        }
+        // The callee's own read is the earliest one from where it starts;
+        // its arguments' reads follow it.
+        let start = callee.offset;
+        let mut uses = self.suffixed.borrow_mut();
+        let mut earliest = None;
+        for index in (0..uses.scoped.len()).rev() {
+            self.work.charge(1)?;
+            let read = &uses.scoped[index];
+            if read.at < start {
+                break;
+            }
+            if read.name == **name {
+                earliest = Some(index);
+            }
+        }
+        if let Some(index) = earliest {
+            uses.scoped[index].safe = false;
+        }
+        Ok(())
+    }
+
+    /// Reads a class's parent, `< Outer::Name`, from its `<`, recording its
+    /// suffixed names as scoped reads.
+    pub(super) fn inherited(&mut self) -> Result<()> {
+        self.bump()?;
+        let mut path = Name::default();
+        loop {
+            self.pos = self.significant(self.pos);
+            if !self.ident(self.pos) {
+                return self.expected(super::Label::Text("identifier"));
+            }
+            let at = self.tokens[self.pos].offset;
+            let Token::Word(word) = self.bump()? else {
+                unreachable!()
+            };
+            if let Some(suffix) = suffix_at(self.source, &word, at) {
+                let entry = Scoped {
+                    at: suffix,
+                    owner: self.namespace,
+                    scope: path.clone(),
+                    name: Name::new(self.work, &word)?,
+                    safe: true,
+                };
+                self.suffixed.borrow_mut().scoped.push(self.work, entry)?;
+            }
+            path = if path.is_empty() {
+                Name::new(self.work, &word)?
+            } else {
+                Name::join(self.work, &[&path, "::", &word])?
+            };
+            if self.token() != &Token::Op("::") {
+                return Ok(());
+            }
+            self.bump()?;
+        }
     }
 
     /// The path `expr` names, such as `Outer::Inner`, or none.
@@ -241,9 +406,9 @@ impl Parser<'_> {
     }
 }
 
-/// Parses `source` accepting suffixed bindings, returning their uses, or
-/// none when it does not parse that way either.
-fn uses(source: &str, work: &dyn Work) -> Result<Option<Uses>> {
+/// Parses `source` accepting suffixed bindings, returning their uses, as far
+/// as it parses that way.
+fn uses(source: &str, work: &dyn Work) -> Result<Uses> {
     struct Restore(bool, bool);
     impl Drop for Restore {
         fn drop(&mut self) {
@@ -257,15 +422,63 @@ fn uses(source: &str, work: &dyn Work) -> Result<Option<Uses>> {
     );
     let parser = match super::parser(source, work) {
         Ok(parser) => parser,
-        Err(error) if error.kind == crate::ErrorKind::Syntax => return Ok(None),
+        Err(error) if error.kind == crate::ErrorKind::Syntax => {
+            return Ok(Uses {
+                failed_at: Some(0),
+                ..Uses::default()
+            });
+        }
         Err(error) => return Err(error),
     };
     let parsing = super::Parsing::<super::recovery::FailFast>::new(parser);
-    match parsing.run(super::Call::Program) {
-        Ok(_) => Ok(Some(parsing.parser.into_inner().suffixed.into_inner())),
-        Err(error) if error.kind == crate::ErrorKind::Syntax => Ok(None),
-        Err(error) => Err(error),
+    let failed_at = match parsing.run(super::Call::Program) {
+        Ok(_) => None,
+        Err(error) if error.kind == crate::ErrorKind::Syntax => Some(error.offset.unwrap_or(0)),
+        Err(error) => return Err(error),
+    };
+    let parser = parsing.parser.into_inner();
+    let mut uses = parser.suffixed.into_inner();
+    uses.failed_at = failed_at;
+    // A capitalized name read before the parser saw it assigned is bound
+    // there, not read.
+    let mut bound = Table::new();
+    for &(at, _) in uses.sites.iter() {
+        bound.insert(work, Name::new(work, &at.to_string())?, ())?;
     }
+    let mut reads = Buffer::with_capacity(work, uses.scoped.len())?;
+    for read in std::mem::take(&mut uses.scoped) {
+        if !bound.contains(work, &read.at.to_string())? {
+            reads.push(work, read)?;
+        }
+    }
+    uses.scoped = reads;
+    // A type's name where a value's is read was only a lookahead.
+    let mut values = Table::new();
+    let positions = uses.reads.iter().map(|&(at, _)| at);
+    for at in positions.chain(uses.scoped.iter().map(|read| read.at)) {
+        values.insert(work, Name::new(work, &at.to_string())?, ())?;
+    }
+    for read in std::mem::take(&mut uses.types) {
+        if !values.contains(work, &read.at.to_string())? {
+            uses.scoped.push(work, read)?;
+        }
+    }
+    for lexeme in parser.tokens.range(0..parser.tokens.len()) {
+        work.charge(1)?;
+        let name = match &lexeme.token {
+            Token::Symbol(name) => name.as_bytes(),
+            Token::QuotedSymbol(name) => name.as_ref(),
+            _ => continue,
+        };
+        if let (true, Ok(name)) = (
+            name.ends_with(b"?") || name.ends_with(b"!"),
+            std::str::from_utf8(name),
+        ) {
+            let key = symbol_key(work, name)?;
+            uses.symbols.insert(work, key, ())?;
+        }
+    }
+    Ok(uses)
 }
 
 /// Whether a V0003 diagnostic's fix removes or replaces one suffix, which
@@ -286,12 +499,11 @@ pub(super) fn extend_fixes(source: &str, work: &dyn Work, mut error: Error) -> E
         return error;
     }
     let uses = match uses(source, work) {
-        Ok(Some(uses)) => uses,
-        Ok(None) => return error,
+        Ok(uses) => uses,
         Err(failure) => return failure,
     };
     let mut diagnostics = error.take_diagnostics();
-    let charge = match extended(work, &uses, &mut diagnostics) {
+    let charge = match extended(work, source, &uses, &mut diagnostics) {
         Ok(charge) => charge,
         Err(failure) => return failure,
     };
@@ -307,16 +519,51 @@ pub(super) fn extend_fixes(source: &str, work: &dyn Work, mut error: Error) -> E
 /// linearly with the uses.
 fn extended(
     work: &dyn Work,
+    source: &str,
     uses: &Uses,
     diagnostics: &mut [Diagnostic],
 ) -> Result<Option<crate::budget::Charge>> {
-    // Each scoped read that resolves to a constant, with its bindings.
+    let bindings = uses.bindings as usize;
+    // Bindings whose uses cannot all be found, which get no fix at all.
+    let mut unsafe_ids = Buffer::with_capacity(work, bindings + 1)?;
+    for _ in 0..=bindings {
+        unsafe_ids.push(work, false)?;
+    }
+    for (id, name) in uses.nameable.iter() {
+        if uses.symbols.contains(work, &symbol_key(work, name)?)? {
+            unsafe_ids[*id as usize] = true;
+        }
+    }
+    // Each read that resolves to a class, module, enum or constant, with
+    // its bindings.
     let resolved = resolve(work, uses)?;
     let mut scoped = Buffer::new();
+    // The reads that make their bindings unsafe.
+    let mut unsafe_reads = Buffer::new();
     for (read, &namespace) in uses.scoped.iter().zip(resolved.iter()) {
         work.charge(1)?;
         if namespace == 0 {
             continue;
+        }
+        if read.scope.is_empty() {
+            // A bare read names the namespace itself.
+            let id = uses.namespace_bindings[namespace as usize - 1];
+            if id != 0 && read.safe {
+                scoped.push(work, (read.at, id))?;
+            } else if id != 0 {
+                unsafe_ids[id as usize] = true;
+                unsafe_reads.push(work, (read.at, id))?;
+            }
+            continue;
+        }
+        if let Some(child) = uses.child(work, namespace, &read.name)? {
+            let id = uses.namespace_bindings[child as usize - 1];
+            if id != 0 && read.safe {
+                scoped.push(work, (read.at, id))?;
+            } else if id != 0 {
+                unsafe_ids[id as usize] = true;
+                unsafe_reads.push(work, (read.at, id))?;
+            }
         }
         let mut id = uses
             .constants
@@ -325,12 +572,16 @@ fn extended(
             .unwrap_or(0);
         while id != 0 {
             work.charge(1)?;
-            scoped.push(work, (read.at, id))?;
+            if read.safe {
+                scoped.push(work, (read.at, id))?;
+            } else {
+                unsafe_ids[id as usize] = true;
+                unsafe_reads.push(work, (read.at, id))?;
+            }
             id = uses.next[id as usize - 1];
         }
     }
     // Group every use by its binding: count, then place.
-    let bindings = uses.bindings as usize;
     let all = || {
         uses.sites
             .iter()
@@ -366,6 +617,7 @@ fn extended(
             sites.insert(work, at, id)?;
         }
     }
+    // Bindings whose fix renames them whole, or that have none.
     let mut fixed = Buffer::with_capacity(work, bindings + 1)?;
     for _ in 0..=bindings {
         fixed.push(work, false)?;
@@ -378,9 +630,30 @@ fn extended(
         }
         let edit = &diagnostic.fixes[0].edits[0];
         let at = Name::new(work, &edit.span.start.to_string())?;
-        let Some(&id) = sites.get(work, &at)? else {
+        let site = sites.get(work, &at)?.copied();
+        if let Some(failed_at) = uses.failed_at {
+            // Past where the lenient parse failed, no use is known, and a
+            // binding bound before it may be read after it: renaming only
+            // what was seen could leave a read behind.
+            let method = diagnostic.fixes[0].message == REPEATED;
+            if bare(source, edit.span.start)
+                && !method
+                && (site.is_some() || edit.span.start >= failed_at)
+            {
+                diagnostic.fixes.clear();
+                if let Some(id) = site {
+                    fixed[id as usize] = true;
+                }
+            }
+            continue;
+        }
+        let Some(id) = site else {
             continue;
         };
+        if unsafe_ids[id as usize] {
+            diagnostic.fixes.clear();
+            continue;
+        }
         let slice = &mut positions[starts[id as usize]..starts[id as usize + 1]];
         if slice.len() <= 1 {
             continue;
@@ -420,8 +693,64 @@ fn extended(
             diagnostic.fixes[0] = Fix::edits(message, edits);
         }
     }
+    // A read the parser reports on its own, as it does `Ready!?` in
+    // `Ready!?.new`, is renamed with its binding or not at all; its own fix
+    // would rename only it.
+    let mut read = Table::new();
+    for &(at, id) in uses
+        .reads
+        .iter()
+        .chain(scoped.iter())
+        .chain(unsafe_reads.iter())
+    {
+        let at = Name::new(work, &at.to_string())?;
+        if read.get(work, &at)?.is_none() {
+            read.insert(work, at, id)?;
+        }
+    }
+    for diagnostic in diagnostics.iter_mut() {
+        work.charge(1)?;
+        if !renames(diagnostic) {
+            continue;
+        }
+        let at = Name::new(work, &diagnostic.fixes[0].edits[0].span.start.to_string())?;
+        if sites.get(work, &at)?.is_some() {
+            continue;
+        }
+        if let Some(&id) = read.get(work, &at)? {
+            if fixed[id as usize] || unsafe_ids[id as usize] {
+                diagnostic.fixes.clear();
+            }
+        }
+    }
     Ok(charge)
 }
+
+/// Whether the name whose suffix starts at `at` stands bare, where it may
+/// name a binding read elsewhere, rather than after a receiver, a sigil, a
+/// `:` or `&`, or a keyword that declares a method or accessor.
+fn bare(source: &str, at: usize) -> bool {
+    let start = source[..at]
+        .rfind(|c: char| c != '_' && !super::unicode::letter_or_digit(c))
+        .map_or(0, |i| {
+            i + source[i..].chars().next().map_or(0, char::len_utf8)
+        });
+    let before = source[..start].trim_end();
+    if before.ends_with(['.', '@', ':', '&']) {
+        return false;
+    }
+    let word = before
+        .rsplit(|c: char| c != '_' && !super::unicode::letter_or_digit(c))
+        .next()
+        .unwrap_or_default();
+    !matches!(
+        word,
+        "def" | "alias" | "alias_method" | "property" | "getter" | "setter"
+    )
+}
+
+/// The label of a method's repeated suffix fix, which renames no binding.
+pub(super) const REPEATED: &str = "remove the repeated name suffix";
 
 /// Sorts source offsets in linear time, a byte at a time.
 fn radix_sort(work: &dyn Work, values: &mut [u32]) -> Result<()> {
@@ -460,7 +789,7 @@ fn resolve(work: &dyn Work, uses: &Uses) -> Result<Buffer<u32>> {
     // Reads left to the enclosing namespaces, by the one they start from.
     let mut pending = Buffer::new();
     for (index, read) in uses.scoped.iter().enumerate() {
-        let head = read.scope.split("::").next().unwrap_or_default();
+        let head = read.head();
         let mut namespace = None;
         if let Some(owner) = read.owner {
             namespace = uses.child(work, owner, head)?;
@@ -558,8 +887,7 @@ fn enclosing(
         }
         for &index in &reads[read_starts[namespace as usize]..read_starts[namespace as usize + 1]] {
             let (_, read) = pending[index as usize];
-            let scope = &uses.scoped[read as usize].scope;
-            let head = scope.split("::").next().unwrap_or_default();
+            let head = uses.scoped[read as usize].head();
             if let Some(&top) = tops.get(work, head)?
                 && top != 0
             {
@@ -670,21 +998,45 @@ mod tests {
     /// The steps of the fix pass alone on `source`, after its parses.
     fn fix_steps(source: &str) -> u64 {
         let mut error = super::super::canonical_error_mode(source, &(), true).unwrap();
-        let uses = uses(source, &()).unwrap().unwrap();
+        let uses = uses(source, &()).unwrap();
         let mut diagnostics = error.take_diagnostics();
         let mut context = CallContext::new(unlimited());
-        extended(&Meter(RefCell::new(&mut context)), &uses, &mut diagnostics).unwrap();
+        extended(
+            &Meter(RefCell::new(&mut context)),
+            source,
+            &uses,
+            &mut diagnostics,
+        )
+        .unwrap();
         context.stats().steps
+    }
+
+    /// Classes and modules with suffixed names, one read many times and
+    /// many read once each, through a scope, bare and in types.
+    fn namespaces(n: usize) -> String {
+        let mut source = String::from("module Many?\nX = 1\nend\n");
+        for i in 0..n {
+            source.push_str(&format!("class C{i}!\nend\n"));
+        }
+        for i in 0..n {
+            source.push_str(&format!(
+                "def f{i}(c: C{i}!) -> int\nMany?::X\nend\nf{i}(C{i}!.new)\n"
+            ));
+        }
+        source
     }
 
     #[test]
     fn the_fix_pass_grows_linearly() {
         let (error, _, _) = check(&nested(4), unlimited());
         assert_eq!(error.diagnostics()[0].fixes[0].edits.len(), 5, "{error}");
+        let (error, _, _) = check(&namespaces(4), unlimited());
+        assert_eq!(error.diagnostics()[0].fixes[0].edits.len(), 5, "{error}");
         for source in [
             constants as fn(usize) -> String,
             |n| repeated(1, n),
             |n| nested(n / 10),
+            namespaces,
         ] {
             let (small, large) = (fix_steps(&source(2000)), fix_steps(&source(4000)));
             // Doubling the uses at most doubles the work.
@@ -694,7 +1046,11 @@ mod tests {
             );
         }
         // Across the whole compilation too, where the parser is linear.
-        for source in [constants as fn(usize) -> String, |n| repeated(1, n)] {
+        for source in [
+            constants as fn(usize) -> String,
+            |n| repeated(1, n),
+            namespaces,
+        ] {
             let steps = |n| check(&source(n), unlimited()).1.steps;
             let (small, large) = (steps(2000), steps(4000));
             assert!(

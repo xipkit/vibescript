@@ -76,8 +76,14 @@ else. A scoped call such as `M::ok?` keeps its V0416 fix, `M.ok?`. The fix for
 a binding renames it wherever it is used: every place that binds it and every
 read of it in scope, and for a class's, module's or enum's constant also its
 scoped reads in the file, such as `C::LIMIT!`, so one fix, or one `vibes fix`
-run, migrates it whole. A suffixed name that no suffixed binding owns, such as
-a call of a host's `ready?`, is never renamed.
+run, migrates it whole. A class, module or enum name is such a binding too: its
+fix renames every declaration of it, including reopenings, and every read of it,
+bare, scoped as in `A::Ready?`, as a parent after `<` or in a type, where a
+final `?` stays the nullable marker. Where some use cannot be told from another
+name, as the symbol `:Ready?`, the call `Ready?(1)`, a type `Ready!?` that
+reads as a nullable `Ready!`, or code past a syntax error, there is no fix
+rather than one that renames only part of it. A suffixed name that no suffixed
+binding owns, such as a call of a host's `ready?`, is never renamed.
 
 Member assignment targets also have no suffix: `h.ready? = 1`, compound
 updates such as `h.ready! += 1`, and destructuring targets report V0003.
