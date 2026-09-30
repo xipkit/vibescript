@@ -829,6 +829,8 @@ mod tests {
     const ENTERED: &[(&str, &str)] = &[
         ("syntax/record.rs", "fn tokens_within("),
         ("syntax/record.rs", "fn parse_with_tokens("),
+        ("syntax/record.rs", "fn token_list("),
+        ("syntax/record.rs", "fn interpolated("),
         ("syntax.rs", "fn canonical_error("),
         ("syntax.rs", "fn canonical_syntax("),
         ("source.rs", "fn parse_error("),

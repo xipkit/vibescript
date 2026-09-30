@@ -205,12 +205,50 @@ pub(crate) fn parse_with_tokens(
     };
     let parser = parsing.parser.into_inner();
     let (tokens, held) = token_list(source, &parser, work)?;
-    declarations.interpolated = interpolated(&parser);
+    declarations.interpolated = interpolated(&parser, work)?;
     Ok((declarations, tokens, held))
 }
 
-/// What the interpolations of the parser's tokens hold, at every depth.
-fn interpolated(parser: &super::Parser<'_>) -> super::Interpolated {
+/// Charges `work` for a pass over tokens as it reads them: a step for
+/// every [`PACED`] of them, so a pass over many stops with the budget, the
+/// deadline or the cancellation within a few thousand tokens.
+struct Pace<'w> {
+    work: &'w dyn crate::compilation::Work,
+    read: usize,
+}
+
+/// The tokens a pass reads for each step it charges.
+const PACED: usize = 64;
+
+impl<'w> Pace<'w> {
+    fn new(work: &'w dyn crate::compilation::Work) -> Self {
+        Self { work, read: 0 }
+    }
+
+    /// Counts a token read, charging the step it completes.
+    fn read(&mut self) -> Result<()> {
+        self.read += 1;
+        if self.read % PACED == 0 {
+            self.work.charge(1)?;
+        }
+        Ok(())
+    }
+
+    /// Charges the step the tokens read since the last one began.
+    fn finish(self) -> Result<()> {
+        if self.read % PACED != 0 {
+            self.work.charge(1)?;
+        }
+        Ok(())
+    }
+}
+
+/// What the interpolations of the parser's tokens hold, at every depth,
+/// charging the pass over them to `work`.
+fn interpolated(
+    parser: &super::Parser<'_>,
+    work: &dyn crate::compilation::Work,
+) -> Result<super::Interpolated> {
     use super::lexer::{Part, Token};
     /// What is left to read of a string's parts, and whether the string is
     /// in another's interpolation, or of an interpolation's tokens.
@@ -219,14 +257,17 @@ fn interpolated(parser: &super::Parser<'_>) -> super::Interpolated {
         Tokens(std::slice::Iter<'p, super::lexer::Lexeme<'a>>),
     }
     let mut found = super::Interpolated::default();
+    let mut pace = Pace::new(work);
     // One entry for each level of nesting, which the lexer bounds, so a
     // string of many interpolations is read one at a time.
     let mut levels = Vec::new();
     for lexeme in parser.tokens.range(0..parser.tokens.len()) {
+        pace.read()?;
         if let Token::Template(parts) = &lexeme.token {
             levels.push(Level::Parts(parts.iter(), false));
         }
         while let Some(level) = levels.last_mut() {
+            pace.read()?;
             match level {
                 Level::Parts(parts, nested) => {
                     let nested = *nested;
@@ -256,7 +297,8 @@ fn interpolated(parser: &super::Parser<'_>) -> super::Interpolated {
             }
         }
     }
-    found
+    pace.finish()?;
+    Ok(found)
 }
 
 /// The tokens the parser finally read, as the tooling lists them, with
@@ -268,31 +310,36 @@ fn token_list(
 ) -> Result<(Vec<crate::tooling::Token>, Option<crate::budget::Charge>)> {
     use super::lexer::{Part, Token};
     use crate::tooling::TokenKind;
-    let payloads: usize = parser
-        .tokens
-        .range(0..parser.tokens.len())
-        .map(|lexeme| match &lexeme.token {
+    // What the tokens' payloads hold, counted in a pass charged as it
+    // goes, before any of them is built.
+    let mut pace = Pace::new(work);
+    let mut payloads = 0;
+    for lexeme in parser.tokens.range(0..parser.tokens.len()) {
+        pace.read()?;
+        payloads += match &lexeme.token {
             Token::Symbol(name) => name.len(),
             Token::QuotedSymbol(name) => name.len(),
             Token::Bytes(bytes) => bytes.len(),
             Token::Template(parts) => parts.len() * std::mem::size_of::<std::ops::Range<usize>>(),
-            Token::Words(words) => words
-                .entries
-                .iter()
-                .map(|entry| {
-                    std::mem::size_of::<Option<Vec<u8>>>()
+            Token::Words(words) => {
+                let mut held = 0;
+                for entry in words.entries.iter() {
+                    pace.read()?;
+                    held += std::mem::size_of::<Option<Vec<u8>>>()
                         + entry
                             .iter()
                             .map(|part| match part {
                                 Part::Text(bytes) => bytes.len(),
                                 Part::Expr(..) => 0,
                             })
-                            .sum::<usize>()
-                })
-                .sum(),
+                            .sum::<usize>();
+                }
+                held
+            }
             _ => 0,
-        })
-        .sum();
+        };
+    }
+    pace.finish()?;
     let held = work
         .reserve(parser.tokens.len() * std::mem::size_of::<crate::tooling::Token>() + payloads)?;
     // An entry's text, built in place rather than from a copy of each
@@ -314,7 +361,10 @@ fn token_list(
         Some(text)
     };
     let mut tokens = Vec::with_capacity(parser.tokens.len());
+    // Building them is a pass of its own, charged as it goes.
+    let mut pace = Pace::new(work);
     for lexeme in parser.tokens.range(0..parser.tokens.len()) {
+        pace.read()?;
         let kind = match &lexeme.token {
             Token::Word(_) => TokenKind::Word,
             Token::Symbol(name) => TokenKind::Symbol {
@@ -357,5 +407,6 @@ fn token_list(
             line: lexeme.line,
         });
     }
+    pace.finish()?;
     Ok((tokens, held))
 }

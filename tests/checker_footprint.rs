@@ -1036,6 +1036,12 @@ fn shapes() -> Vec<Shape> {
                 format!("type T = [{items}]\ndef f(x: T) -> int\n  1\nend\np(1)\n"),
             )
         }),
+        ("many string literals", |n| {
+            // The parser's tokens are listed with their payloads, in
+            // passes over them before the checker starts.
+            let strings = listed(32, |_| "\"s\"".to_owned(), ", ");
+            (Vec::new(), lines(n, |i| format!("x{i} = [{strings}]\n")))
+        }),
         ("a wide self-call graph", |n| {
             // Each method calls itself, a cycle of one for each of them in
             // the graph of the calls construction checks follow.
