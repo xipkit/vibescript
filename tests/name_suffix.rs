@@ -1377,6 +1377,20 @@ fn constant_fixes_rename_scoped_reads_of_their_namespace() {
         first_fix(source),
         "class C; LIMIT = 3; end\nclass D; def self.LIMIT! -> int; 4; end; end\n[C::LIMIT, D.LIMIT!]"
     );
+    // A scope the parse cannot resolve, such as a local holding the class,
+    // may reach the member, so there is no fix rather than a partial one.
+    for source in [
+        "class C; LIMIT! = 3; end; c = C; [c::LIMIT!, C::LIMIT!]",
+        "class C; LIMIT! = 3; end; [[C][0]::LIMIT!, C::LIMIT!]",
+        "class A; class B!; end; end; a = A; [a::B!.new, A::B!.new].length",
+    ] {
+        let Err(error) = Engine::new().type_check(source) else {
+            panic!("{source} checks");
+        };
+        let diagnostic = &error.diagnostics()[0];
+        assert_eq!(diagnostic.code, Code::NAME_SUFFIX, "{source}: {error}");
+        assert!(diagnostic.fixes.is_empty(), "{source}: {diagnostic:?}");
+    }
 }
 
 #[test]

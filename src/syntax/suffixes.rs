@@ -87,6 +87,12 @@ pub(super) struct Uses {
     nameable: Buffer<(u32, Name)>,
     /// Each suffixed symbol in the source, as [`symbol_key`] spells it.
     symbols: Table<()>,
+    /// Each binding a scoped read may reach, a constant, an enum member or
+    /// a nested class or module, with its name.
+    members: Buffer<(u32, Name)>,
+    /// The names read through a scope that is no path of names, such as
+    /// `LIMIT!` in `list.first::LIMIT!`.
+    opaque: Table<()>,
     /// Where the lenient parse failed, after which no use is known.
     failed_at: Option<usize>,
 }
@@ -122,6 +128,7 @@ impl Uses {
             let key = key(work, namespace, name)?;
             next = self.constants.get(work, &key)?.copied().unwrap_or(0);
             self.constants.insert(work, key, id)?;
+            self.members.push(work, (id, Name::new(work, name)?))?;
         }
         self.next.push(work, next)?;
         Ok(id)
@@ -217,6 +224,10 @@ impl Parser<'_> {
                 let binding = uses.binding(self.work, name, None, suffix)?;
                 uses.nameable
                     .push(self.work, (binding, Name::new(self.work, name)?))?;
+                if parent != 0 {
+                    uses.members
+                        .push(self.work, (binding, Name::new(self.work, name)?))?;
+                }
                 binding
             }
             None => 0,
@@ -267,6 +278,11 @@ impl Parser<'_> {
             return Ok(());
         };
         let Some(scope) = self.scope_path(scope)? else {
+            let name = Name::new(self.work, name)?;
+            self.suffixed
+                .borrow_mut()
+                .opaque
+                .insert(self.work, name, ())?;
             return Ok(());
         };
         let entry = Scoped {
@@ -540,9 +556,15 @@ fn extended(
     let mut scoped = Buffer::new();
     // The reads that make their bindings unsafe.
     let mut unsafe_reads = Buffer::new();
+    // A scope the parse cannot resolve, such as a local that holds a class
+    // in `a::LIMIT!`, may reach any member of that name.
+    let mut opaque = Table::new();
     for (read, &namespace) in uses.scoped.iter().zip(resolved.iter()) {
         work.charge(1)?;
         if namespace == 0 {
+            if !read.scope.is_empty() {
+                opaque.insert(work, read.name.clone(), ())?;
+            }
             continue;
         }
         if read.scope.is_empty() {
@@ -579,6 +601,12 @@ fn extended(
                 unsafe_reads.push(work, (read.at, id))?;
             }
             id = uses.next[id as usize - 1];
+        }
+    }
+    for (id, name) in uses.members.iter() {
+        work.charge(1)?;
+        if opaque.contains(work, name)? || uses.opaque.contains(work, name)? {
+            unsafe_ids[*id as usize] = true;
         }
     }
     // Group every use by its binding: count, then place.
