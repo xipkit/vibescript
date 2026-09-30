@@ -194,11 +194,13 @@ impl<'a> Checker<'a> {
             bodies.extend(module.instance_methods.iter().map(|(def, _)| &def.body[..]));
             pending.extend(module.modules.iter().chain(&module.inner));
         }
-        self.transient(super::meter::vec(&bodies) + super::meter::vec(&pending));
+        // The bodies stay listed while each is walked.
+        let held = self.hold(super::meter::vec(&bodies) + super::meter::vec(&pending));
         for body in bodies {
             let scratch = requires(body, &mut requests);
             self.transient(scratch);
         }
+        self.release(held);
         requests.sort_unstable_by_key(|request| request.2);
         for (path, alias, offset) in requests {
             // A check past its budget loads no more files.
