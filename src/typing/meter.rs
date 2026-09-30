@@ -50,8 +50,8 @@ pub(crate) struct Meter {
     peak: AtomicUsize,
     stopped: AtomicBool,
     polls: AtomicU64,
-    /// The steps charged when a poll last checked the deadline and the
-    /// cancellation token.
+    /// The steps charged when a poll or a charge last checked the deadline
+    /// and the cancellation token.
     asked: AtomicU64,
     /// Told of every measure, by a test comparing the account with what
     /// the check really holds.
@@ -67,9 +67,22 @@ impl Meter {
         })
     }
 
-    /// Adds `steps` of work to the total.
-    pub fn charge(&self, steps: u64) {
-        self.steps.fetch_add(steps, Relaxed);
+    /// Adds `steps` of work to the total, and stops the check once the
+    /// total passes the steps its budget leaves. Every [`INTERRUPTIBLE`]
+    /// steps it also asks the deadline and the cancellation token, so work
+    /// that charges without polling still stops for them. Returns whether
+    /// the check has stopped.
+    pub fn charge(&self, steps: u64) -> bool {
+        let total = self.steps.fetch_add(steps, Relaxed).saturating_add(steps);
+        if self.budget.steps.is_some_and(|left| total > left) {
+            self.stop();
+        } else if total.saturating_sub(self.asked.load(Relaxed)) >= INTERRUPTIBLE {
+            self.asked.store(total, Relaxed);
+            if self.budget.interrupted() {
+                self.stop();
+            }
+        }
+        self.stopped()
     }
 
     /// The work charged so far.
@@ -205,7 +218,8 @@ pub(crate) trait Heap {
 }
 
 /// The most steps of work a check does between checks of its deadline and
-/// its cancellation token, when its polls are far apart.
+/// its cancellation token, which its charges make when its polls are far
+/// apart.
 const INTERRUPTIBLE: u64 = 1 << 12;
 
 /// Scratch smaller than this is left to the account's margin rather than

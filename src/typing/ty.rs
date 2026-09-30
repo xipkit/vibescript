@@ -977,8 +977,12 @@ impl Types {
         self.spell(ty).0
     }
 
-    /// [`Self::display`], and whether it was cut short.
+    /// [`Self::display`], and whether it was cut short. A stopped check,
+    /// whose findings are dropped, spells nothing.
     fn spell(&self, ty: Ty) -> (String, bool) {
+        if self.stopped() {
+            return (String::new(), false);
+        }
         let mut out = String::new();
         self.write(ty, &mut out);
         if out.len() <= SPELLED {

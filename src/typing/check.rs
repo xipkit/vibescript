@@ -3165,7 +3165,8 @@ impl<'a> Checker<'a> {
 
     /// Reports that a value of type `found` is not assignable to `expected`.
     pub(super) fn mismatch(&mut self, span: Span, expected: Ty, found: Ty, purpose: &Purpose) {
-        if expected == Ty::ERROR || found == Ty::ERROR {
+        // A stopped check builds no more findings, which it would drop.
+        if expected == Ty::ERROR || found == Ty::ERROR || self.halted() {
             return;
         }
         let expected_text = self.types.display(expected);
