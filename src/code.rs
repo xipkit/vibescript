@@ -155,6 +155,7 @@ impl Code {
             modules: loader.is_some().then_some(&resolve),
             budget: work.budget(),
             observe: None,
+            annotate: false,
         });
         work.charge(usize::try_from(checked.steps).unwrap_or(usize::MAX))?;
         work.checkpoint()?;

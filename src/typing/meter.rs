@@ -687,6 +687,7 @@ mod budget_tests {
             modules: None,
             budget,
             observe: None,
+            annotate: false,
         })
     }
 

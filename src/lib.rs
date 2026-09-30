@@ -193,6 +193,7 @@ impl Engine {
             modules: Some(&resolve),
             budget: Default::default(),
             observe: Some(observe),
+            annotate: true,
         };
         observe(typing::Observed::Checking);
         let checked = typing::check(&input);
@@ -243,6 +244,7 @@ impl Engine {
                 modules: None,
                 budget: Default::default(),
                 observe: None,
+                annotate: false,
             },
             function,
             count,

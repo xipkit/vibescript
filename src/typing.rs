@@ -62,6 +62,10 @@ pub(crate) struct Input<'a> {
     /// Told what the check does as it goes, by a test measuring its
     /// memory.
     pub observe: Option<fn(Observed)>,
+    /// Whether to write out the types of a host script's top-level locals
+    /// and of its result, which a session continuing it declares and a
+    /// compilation never reads.
+    pub annotate: bool,
 }
 
 /// What a check tells a test observing it.
@@ -508,15 +512,22 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     checker.held();
     let stopped = checker.stopped || meter.stopped();
     let exported = input.file.then(|| std::sync::Arc::new(checker.export()));
-    let (mut locals, result) = match checker.session.take() {
-        Some(session) => (
-            session
+    let (mut locals, result) = match checker.session.take().filter(|_| input.annotate) {
+        Some(session) => {
+            // Locals of one type share its annotation, written once.
+            let mut written: HashMap<ty::Ty, String> = HashMap::new();
+            let locals = session
                 .locals
                 .into_iter()
-                .map(|(name, ty)| (name, checker.types.annotation(ty)))
-                .collect(),
-            Some(checker.types.annotation(session.result)),
-        ),
+                .map(|(name, ty)| {
+                    let text = written
+                        .entry(ty)
+                        .or_insert_with(|| checker.types.annotation(ty));
+                    (name, text.clone())
+                })
+                .collect();
+            (locals, Some(checker.types.annotation(session.result)))
+        }
         None => (Vec::new(), None),
     };
     // The locals' annotations are written out after the last measure.

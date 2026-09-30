@@ -311,6 +311,7 @@ impl<'a> Checker<'a> {
             modules: self.modules.resolve,
             budget,
             observe: None,
+            annotate: false,
         };
         let checked = super::check_nested(&input, self.modules.depth + 1);
         self.meter.charge(checked.steps);
