@@ -409,10 +409,11 @@ impl Parser<'_> {
         Ok(())
     }
 
-    /// Records the read of `name`, spelled at `at` through `scope`, and,
-    /// when a scope `continues` them, the path the two spell if `scope` is
-    /// one, such as `Outer::Inner`. A read `called` with arguments, as in
-    /// `A::B!(1)`, is of a method that merely shares a name, so not safe.
+    /// Records the read of `name`, spelled at `at` through `scope` with `::`
+    /// or `.`, and, when a scope `continues` them, the path the two spell if
+    /// `scope` is one, such as `Outer::Inner`. A read `called` with
+    /// arguments, as in `A::B!(1)`, is of a method that merely shares a
+    /// name, so not safe.
     pub(super) fn scoped_read(
         &self,
         scope: &Expr,
@@ -522,7 +523,14 @@ impl Parser<'_> {
     /// call is of a method that merely shares the name.
     pub(super) fn suffix_call(&self, callee: &Expr) -> Result<()> {
         let name = match &callee.node {
-            Node::Var(name) | Node::Scope(_, name, None) if lenient() => name,
+            Node::Var(name)
+            | Node::Scope(_, name, None)
+            | Node::Member(_, name)
+            | Node::SafeMember(_, name)
+                if lenient() =>
+            {
+                name
+            }
             _ => return Ok(()),
         };
         if !name.ends_with(['?', '!']) {

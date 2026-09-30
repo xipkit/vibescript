@@ -2412,7 +2412,10 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
             let Token::Word(name) = p.bump()? else {
                 unreachable!()
             };
-            let continues = p.tokens[p.significant(p.pos)].token == Token::Op("::");
+            let continues = matches!(
+                p.tokens[p.significant(p.pos)].token,
+                Token::Op("::") | Token::P('.')
+            );
             let called = p.token() == &Token::P('(');
             p.scoped_read(&lhs, &name, at, continues, called)?;
             (Name::new(work, &name)?, p.take_p('('))
@@ -2448,6 +2451,10 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
             p.line_breaks()?;
             let name = p.member_name()?;
             p.note(|record| record.member(&name, &lhs));
+            // `M.X?` reads a namespace's member as `M::X?` does.
+            let at = p.tokens[p.pos - 1].offset;
+            let called = p.token() == &Token::P('(');
+            p.scoped_read(&lhs, &name, at, false, called)?;
             (name, p.take_p('('))
         };
         if parenthesized {

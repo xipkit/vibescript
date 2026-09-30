@@ -1863,6 +1863,16 @@ fn every_form_that_names_something_is_fixed_whole_or_not_at_all() {
         ),
         ("constant", "X? = 1; X?", true),
         ("namespace constant", "module M; X? = 1; end; M::X?", true),
+        (
+            "dotted namespace read",
+            "module A; module M; X? = 1; end; end; [A::M.X?, A::M::X?]",
+            true,
+        ),
+        (
+            "dotted read through a value",
+            "module M; X? = 1; end; m = M; m.X?",
+            false,
+        ),
         ("class", "class R?; end; R?.new", true),
         ("module", "module R!; end; R!", true),
         ("enum", "enum S?; A; end; S?::A", true),

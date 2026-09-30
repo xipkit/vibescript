@@ -75,8 +75,8 @@ suffix: V0003 reports it without a fix, since removing it could name something
 else. A scoped call such as `M::ok?` keeps its V0416 fix, `M.ok?`. The fix for
 a binding renames it wherever it is used: every place that binds it and every
 read of it in scope, and for a class's, module's or enum's constant also its
-scoped reads in the file, such as `C::LIMIT!`, so one fix, or one `vibes fix`
-run, migrates it whole. A class, module, enum or type alias name is such a
+scoped reads in the file, such as `C::LIMIT!` or `C.LIMIT!`, so one fix, or one
+`vibes fix` run, migrates it whole. A class, module, enum or type alias name is such a
 binding too: its fix renames every declaration of it, including reopenings, and
 every read of it, bare, scoped as in `A::Ready?`, as a parent after `<` or in a
 type, where a final `?` stays the nullable marker. Where some use cannot be told from another
