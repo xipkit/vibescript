@@ -408,7 +408,7 @@ impl<'a> Checker<'a> {
         // copying every one into each of many namespaces would take their
         // number times the namespaces.
         let mut mentioned = std::collections::HashSet::new();
-        let scratch = mentions(&module.body, &mut mentioned);
+        let scratch = mentions(&self.meter, &module.body, &mut mentioned);
         self.transient(scratch + super::meter::set(&mentioned));
         let ambient: Vec<_> = mentioned
             .into_iter()
@@ -2927,130 +2927,27 @@ fn target_expr(target: &Target) -> Option<&Expr> {
 
 /// Adds the names `body` mentions as variables, assignment targets or bare
 /// calls, which are the enclosing locals a namespace body can read or
-/// update, however deep in its expressions.
-/// Returns the bytes of the lists the walk kept.
-fn mentions<'s>(body: &'s [Stmt], names: &mut std::collections::HashSet<&'s str>) -> usize {
-    let mut pending: Vec<&'s Expr> = Vec::new();
-    let mut statements: Vec<&'s Stmt> = body.iter().collect();
-    let target = |target: &'s Target, pending: &mut Vec<&'s Expr>| {
-        let mut targets = vec![target];
-        while let Some(target) = targets.pop() {
-            match target {
-                Target::Value(expr) => pending.push(expr),
-                Target::Typed(inner, _) => targets.push(inner),
-                Target::Tuple(parts) => {
-                    targets.extend(parts.iter().filter_map(|(t, _)| t.as_ref()))
-                }
-            }
+/// update, however deep in its expressions, charging the walk to `meter`.
+/// Returns the bytes of the stack the walk kept.
+fn mentions<'s>(
+    meter: &super::meter::Meter,
+    body: &'s [Stmt],
+    names: &mut std::collections::HashSet<&'s str>,
+) -> usize {
+    use super::walk::{Item, Walk};
+    let mut walk = Walk::new(meter);
+    walk.stmts(body, ());
+    while let Some((item, ())) = walk.next(super::meter::set(names)) {
+        if let Item::Expr(Expr {
+            node: Node::Var(name) | Node::Call(name, _, _),
+            ..
+        }) = item
+        {
+            names.insert(name);
         }
-    };
-    loop {
-        if let Some(stmt) = statements.pop() {
-            match &stmt.node {
-                Statement::Assign(to, _, value) => {
-                    target(to, &mut pending);
-                    pending.push(value);
-                }
-                Statement::If(branches, alternate, _) => {
-                    for (condition, body) in branches.iter() {
-                        pending.push(condition);
-                        statements.extend(body.iter());
-                    }
-                    statements.extend(alternate.iter());
-                }
-                Statement::While(condition, body, _) => {
-                    pending.push(condition);
-                    statements.extend(body.iter());
-                }
-                Statement::For(to, iterable, body) => {
-                    target(to, &mut pending);
-                    pending.push(iterable);
-                    statements.extend(body.iter());
-                }
-                Statement::Expr(expr)
-                | Statement::Return(Some(expr))
-                | Statement::Break(Some(expr))
-                | Statement::Next(Some(expr)) => pending.push(expr),
-                Statement::Raise(value, message) => {
-                    pending.extend(value.iter().chain(message).map(|value| &**value));
-                }
-                _ => (),
-            }
-            continue;
-        }
-        let Some(expr) = pending.pop() else {
-            return (statements.capacity() + pending.capacity()) * std::mem::size_of::<usize>();
-        };
-        match &expr.node {
-            Node::Var(name) | Node::Call(name, _, _) => {
-                names.insert(name);
-            }
-            _ => (),
-        }
-        match &expr.node {
-            Node::Try(attempt) => {
-                statements.extend(attempt.body.iter());
-                statements.extend(attempt.alternate.iter());
-                statements.extend(attempt.ensure.iter());
-                for rescue in attempt.rescues.iter() {
-                    statements.extend(rescue.body.iter());
-                }
-            }
-            Node::Compound(stmt) => statements.push(stmt),
-            Node::BlockCall(call, block) => {
-                pending.push(call);
-                statements.extend(block.body.iter());
-            }
-            Node::Shape(_, Some(fallback), _) => pending.push(fallback),
-            Node::Template(values, _) | Node::Array(values) | Node::Yield(values) => {
-                pending.extend(values.iter());
-            }
-            Node::Hash(entries) => pending.extend(entries.iter().map(|(_, v)| v)),
-            Node::Unary(_, v) => pending.push(v),
-            Node::Binary(_, l, r) => {
-                pending.push(l);
-                pending.push(r);
-            }
-            Node::Range(start, end, _) => {
-                pending.extend(start.as_deref());
-                pending.extend(end.as_deref());
-            }
-            Node::Conditional(branches, alternate) => {
-                for (c, v) in branches.iter() {
-                    pending.push(c);
-                    pending.push(v);
-                }
-                pending.push(alternate);
-            }
-            Node::Case(subject, whens, alternate) => {
-                pending.extend(subject.as_deref());
-                for when in whens.iter() {
-                    pending.extend(when.values.iter().map(|(value, _)| value));
-                    pending.push(&when.result);
-                }
-                pending.extend(alternate.as_deref());
-            }
-            Node::Call(_, args, _) => pending.extend(args.iter().map(|a| &a.value)),
-            Node::ComputedCall(callee, args) => {
-                pending.push(callee);
-                pending.extend(args.iter().map(|a| &a.value));
-            }
-            Node::Member(recv, _) | Node::SafeMember(recv, _) => pending.push(recv),
-            Node::Scope(recv, _, args) => {
-                pending.push(recv);
-                pending.extend(args.iter().flat_map(|args| args.iter().map(|a| &a.value)));
-            }
-            Node::Method(recv, _, args, _) | Node::SafeMethod(recv, _, args, _) => {
-                pending.push(recv);
-                pending.extend(args.iter().map(|a| &a.value));
-            }
-            Node::Index(recv, selectors) => {
-                pending.push(recv);
-                pending.extend(selectors.iter());
-            }
-            _ => (),
-        }
+        walk.children(item, ());
     }
+    walk.bytes()
 }
 
 /// The names of the locals a body may assign, including in nested blocks,

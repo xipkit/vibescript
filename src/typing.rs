@@ -41,6 +41,7 @@ mod program;
 mod sigs;
 mod spans;
 mod ty;
+mod walk;
 
 /// What the checker reads: one source, parsed, with the host functions and
 /// capabilities its engine registers.
