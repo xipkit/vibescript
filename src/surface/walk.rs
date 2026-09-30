@@ -28,6 +28,9 @@ impl<'a> Checker<'a> {
 
     /// Walks one statement.
     pub(super) fn stmt(&mut self, stmt: &'a Stmt) {
+        if self.halt() {
+            return;
+        }
         match &stmt.kind {
             StmtKind::Expr(expr) => self.expr(expr, Place::Statement),
             StmtKind::Assign(assign) => self.assign(assign),
@@ -177,6 +180,9 @@ impl<'a> Checker<'a> {
     /// Walks a function: its parameters' annotations and defaults, then
     /// its body.
     pub(super) fn def(&mut self, def: &'a Def, class: Option<&'a Class>) {
+        if self.halt() {
+            return;
+        }
         let mut scope = Scope {
             def: Some(def),
             class,
@@ -231,6 +237,9 @@ impl<'a> Checker<'a> {
             format!("{prefix}.{}", class.name)
         };
         for member in &class.members {
+            if self.halt() {
+                return;
+            }
             match member {
                 Member::Def(def) => self.def(def, Some(class)),
                 Member::Property(property) => {
@@ -262,6 +271,9 @@ impl<'a> Checker<'a> {
 
     /// Walks an expression standing at `place`.
     pub(super) fn expr(&mut self, expr: &'a Expr, place: Place) {
+        if self.halt() {
+            return;
+        }
         match &expr.kind {
             ExprKind::Nil
             | ExprKind::True

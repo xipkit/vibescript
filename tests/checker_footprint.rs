@@ -918,6 +918,10 @@ fn shapes() -> Vec<Shape> {
             let keywords = listed(n, |i| format!("k{i}: {i}"), ", ");
             (Vec::new(), format!("x = [1, 2].first({keywords})\np(x)\n"))
         }),
+        ("many removed spellings", |n| {
+            // Each a rewrite the pass over the canonical surface reports.
+            (Vec::new(), lines(n, |i| format!("x{i} = %w[a b]\n")))
+        }),
         ("many classes with one default each", |n| {
             let classes = lines(n, |i| format!("class C{i}\n  @v: int = {i}\nend\n"));
             (Vec::new(), format!("{classes}p(1)\n"))

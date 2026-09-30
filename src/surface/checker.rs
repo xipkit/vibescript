@@ -41,8 +41,9 @@ pub fn check(source: &str) -> crate::Result<Vec<Diagnostic>> {
 /// gives the static checker's receiver types, which decide the rename of a
 /// member whose replacement depends on its receiver. A source nested past
 /// [`NESTING`] is parsed again without the limit only if `afford`, which
-/// charges that parse, allows it. A parse gives up, and the walk reads
-/// nothing, once `stop` says the compilation has stopped.
+/// charges that parse, allows it. A parse, and the walk that finds the
+/// removed spellings, give up, and the walk reads nothing, once `stop`
+/// says the compilation has stopped.
 fn walk<'s>(
     source: &'s str,
     tokens: &[tooling::Token],
@@ -51,7 +52,7 @@ fn walk<'s>(
     stop: parse::Stop<'s>,
 ) -> Option<Vec<Diagnostic>> {
     match parse::parse_tokens(source, tokens, NESTING, stop) {
-        Ok(tree) => Some(diagnostics(source, &tree, calls)),
+        Ok(tree) => diagnostics(source, &tree, calls, stop),
         // A parse that never reached the limit fails the same way without it.
         Err(fail) if fail.too_deep && afford() => deep(source, tokens, calls, stop),
         Err(_) => None,
@@ -203,7 +204,7 @@ fn deep<'s>(
             .spawn_scoped(scope, || {
                 parse::parse_tokens(source, tokens, usize::MAX, stop)
                     .ok()
-                    .map(|tree| diagnostics(source, &tree, calls))
+                    .and_then(|tree| diagnostics(source, &tree, calls, stop))
             })
             .ok()
             .and_then(|thread| thread.join().ok())
@@ -223,15 +224,32 @@ fn deep(
     None
 }
 
-fn diagnostics(source: &str, tree: &syntax::Tree, calls: &CallTypes) -> Vec<Diagnostic> {
+/// The removed spellings in `tree` as diagnostics, or `None` once `stop`,
+/// which the walk and the loops after it ask every [`POLL`] statements,
+/// expressions or diagnostics, says the compilation has stopped.
+fn diagnostics<'s>(
+    source: &'s str,
+    tree: &syntax::Tree,
+    calls: &CallTypes,
+    stop: parse::Stop<'s>,
+) -> Option<Vec<Diagnostic>> {
     let mut checker = Checker {
         surface: Surface::new(source, tree),
         calls,
         findings: Vec::new(),
+        stop,
+        visits: 0,
+        stopped: false,
     };
     checker.program(&tree.body);
+    if checker.stopped {
+        return None;
+    }
     let mut diagnostics = Vec::new();
     for (group, rewrite) in checker.surface.rewrites.iter().enumerate() {
+        if group % POLL == 0 && stop() {
+            return None;
+        }
         let code = rewrite.rule.code();
         let edits: Vec<Edit> = checker
             .surface
@@ -258,7 +276,10 @@ fn diagnostics(source: &str, tree: &syntax::Tree, calls: &CallTypes) -> Vec<Diag
         }
         diagnostics.push(diagnostic);
     }
-    for finding in &checker.findings {
+    for (index, finding) in checker.findings.iter().enumerate() {
+        if index % POLL == 0 && stop() {
+            return None;
+        }
         let code = finding.rule.code();
         let message = format!("`{}` was removed; {}", finding.removed, finding.advice);
         let mut diagnostic = Diagnostic::error(code, span(finding.span), message);
@@ -278,10 +299,17 @@ fn diagnostics(source: &str, tree: &syntax::Tree, calls: &CallTypes) -> Vec<Diag
         }
         diagnostics.push(diagnostic);
     }
+    if checker.stopped || stop() {
+        return None;
+    }
     diagnostics
         .sort_by_key(|diagnostic| (diagnostic.span.start, diagnostic.span.end, diagnostic.code));
-    diagnostics
+    Some(diagnostics)
 }
+
+/// How many statements, expressions or diagnostics the walk for removed
+/// spellings takes between asking whether the compilation has stopped.
+const POLL: usize = 256;
 
 fn span(span: syntax::Span) -> Span {
     Span::new(span.start, span.end)
@@ -292,6 +320,27 @@ pub(super) struct Checker<'a> {
     surface: Surface<'a>,
     calls: &'a CallTypes,
     findings: Vec<Finding>,
+    /// Whether the compilation has stopped, which the walk asks every
+    /// [`POLL`] statements and expressions.
+    stop: parse::Stop<'a>,
+    visits: usize,
+    /// Whether the walk gave up because the compilation stopped.
+    stopped: bool,
+}
+
+impl Checker<'_> {
+    /// Counts a statement or an expression the walk visits, asking every
+    /// [`POLL`] of them whether the compilation has stopped. Returns
+    /// whether the walk should give up.
+    pub(super) fn halt(&mut self) -> bool {
+        if !self.stopped {
+            self.visits += 1;
+            if self.visits % POLL == 0 {
+                self.stopped = (self.stop)();
+            }
+        }
+        self.stopped
+    }
 }
 
 impl<'a> Deref for Checker<'a> {
