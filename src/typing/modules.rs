@@ -369,9 +369,12 @@ impl<'a> Checker<'a> {
         // What the file's check held beside this one's tables, and at most
         // its surface pass's too.
         self.observed(held + checked.peak_bytes + checked.surface_bytes);
-        if checked.stopped {
-            // The file's check stopped at the budget this one shares, so
-            // this one stops too, without its findings or exports.
+        // A charge asks nothing of the budget, so the steps are checked
+        // against it before the exports are imported.
+        if checked.stopped || self.over_budget() {
+            // The file's check stopped at the budget this one shares, or
+            // its steps took this one past it, so this one stops too,
+            // without its findings or exports.
             self.stopped = true;
             self.meter.stop();
             return Err("the check ran out of its budget".into());

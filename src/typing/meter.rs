@@ -866,6 +866,58 @@ mod budget_tests {
     }
 
     #[test]
+    fn a_required_files_surface_charge_past_the_budget_stops_the_check() {
+        // A file of 500 exported functions whose check ends within what
+        // the quota leaves it, but not with its surface pass, a step a
+        // token, charged: the check stops there, keeping the charge.
+        let file: String = (0..500)
+            .map(|i| format!("def f{i}(x: int) -> int\n  x\nend\n"))
+            .collect();
+        let tokens = crate::tooling::tokens(&file).unwrap().len() as u64;
+        let alone = checked_as(&file, Budget::default(), true);
+        assert!(!alone.stopped);
+        let short = |quota| Budget {
+            steps: Some(quota),
+            ..Budget::default()
+        };
+        let quota = alone.steps - tokens / 2;
+        let stopped = checked_as(&file, short(quota), true);
+        assert!(
+            stopped.stopped,
+            "{} steps for a quota of {quota}",
+            stopped.steps
+        );
+        assert_eq!(stopped.steps, alone.steps);
+        // Required, and so charged last but for importing its exports and
+        // the few tokens of the check that requires it, it stops that
+        // check too, before it imports the 500 exports, a step or more
+        // each.
+        let mut engine = crate::Engine::new();
+        engine
+            .set_module_sources(std::collections::BTreeMap::from([(
+                "b.vibe".to_owned(),
+                file,
+            )]))
+            .unwrap();
+        let resolve = |path: &str,
+                       origin: Option<&crate::loading::Origin>,
+                       context: &mut crate::CallContext| {
+            engine.loader.source(path, origin, context)
+        };
+        let source = "require(\"b\")\n";
+        let full = checked_with(source, Budget::default(), false, Some(&resolve));
+        assert!(!full.stopped);
+        let quota = full.steps - tokens / 2;
+        let stopped = checked_with(source, short(quota), false, Some(&resolve));
+        assert!(
+            stopped.stopped && stopped.steps + 500 <= full.steps,
+            "{} steps for a quota of {quota}, of {}",
+            stopped.steps,
+            full.steps
+        );
+    }
+
+    #[test]
     fn interpolations_parse_again_within_the_step_quota() {
         // Fifty strings, each interpolating a 2,000-element literal, which
         // the spans parse again before the check starts.

@@ -624,8 +624,11 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
             crate::surface::footprint(input.tokens, interpolated, names) + checker.spans.parsing();
         let held = meter.held(checker.types.bytes()) + surface;
         if input.budget.steps.is_some_and(|left| steps + tokens > left) {
-            // Compilation fails charging them.
+            // Compilation fails charging them, and a check that requires
+            // this file stops with it rather than import what it exports.
             checked.steps += tokens;
+            meter.stop();
+            checked.stopped = true;
         } else if input.budget.memory.is_some_and(|left| held > left) {
             meter.stop();
             checked.stopped = true;
