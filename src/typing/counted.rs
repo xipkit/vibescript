@@ -32,18 +32,35 @@ pub(crate) struct Refused;
 pub(crate) struct Ledger<'m> {
     meter: &'m Meter,
     side: Side,
+    /// Whether it records growth without refusing it.
+    regardless: bool,
 }
 
 impl<'m> Ledger<'m> {
     pub fn new(meter: &'m Meter, side: Side) -> Self {
-        Self { meter, side }
+        Self {
+            meter,
+            side,
+            regardless: false,
+        }
+    }
+
+    /// This ledger, recording growth without refusing it, for a table
+    /// whose entries have fixed places it must keep however the budget
+    /// stands, such as the type table's own types. The next measure of
+    /// its side reads a stop.
+    pub fn regardless(self) -> Self {
+        Self {
+            regardless: true,
+            ..self
+        }
     }
 
     /// Admits a table's growth: `moment` bytes held at once while it
     /// grows, of which `grown` stay. Refused when the check could not hold
     /// them beside what it holds, which stops it.
     fn grow(self, moment: usize, grown: usize) -> Result<(), Refused> {
-        if self.meter.admit(moment) {
+        if !self.regardless && self.meter.admit(moment) {
             return Err(Refused);
         }
         self.meter.record(self.side, grown);
@@ -196,6 +213,13 @@ impl<T> CountedVec<T> {
 
     pub fn retain(&mut self, keep: impl FnMut(&T) -> bool) {
         self.0.retain(keep);
+    }
+
+    pub fn dedup(&mut self)
+    where
+        T: PartialEq,
+    {
+        self.0.dedup();
     }
 
     pub fn drain(&mut self, range: impl std::ops::RangeBounds<usize>) -> std::vec::Drain<'_, T> {

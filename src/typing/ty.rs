@@ -1,7 +1,10 @@
 //! Compile-time types: interned, so a type is a small copyable id and
 //! comparing two types compares ids.
 
-use super::meter::{self, Heap, Meter};
+use super::{
+    counted::{CountedMap, CountedVec},
+    meter::{self, Heap, Meter},
+};
 use std::{collections::HashMap, sync::Arc};
 
 /// The most alternatives a union may have: a wider one is an error
@@ -243,21 +246,21 @@ pub(crate) struct Names {
 pub(crate) struct Types {
     /// Each type's kind, which the interner's map shares rather than
     /// copies.
-    kinds: Vec<Arc<Kind>>,
-    ids: HashMap<Arc<Kind>, Ty>,
+    kinds: CountedVec<Arc<Kind>>,
+    ids: CountedMap<Arc<Kind>, Ty>,
     /// What the interned kinds hold on the heap: their allocations and
     /// what those own, such as a shape's fields and their names.
     payload: usize,
     /// Pairs already decided, up to [`MEMO`] of them.
-    assignable: HashMap<(Ty, Ty), bool>,
+    assignable: CountedMap<(Ty, Ty), bool>,
     /// Each indexed union's alternatives by [`Head`], up to [`INDEXED`]
     /// alternatives in all.
-    index: HashMap<Ty, Arc<HashMap<Head, Vec<Ty>>>>,
+    index: CountedMap<Ty, Arc<HashMap<Head, Vec<Ty>>>>,
     indexed: usize,
     /// What the indexes hold.
     index_bytes: usize,
     /// [`Self::plain`] of each type asked about.
-    plain: HashMap<Ty, bool>,
+    plain: CountedMap<Ty, bool>,
     pub names: Names,
     /// The check's work and memory account, which type operations charge
     /// and poll while they run.
@@ -281,7 +284,7 @@ impl Types {
             meter::map(&self.plain),
         ];
         let largest = tables.iter().copied().max().unwrap_or(0);
-        meter::vec(&self.kinds)
+        meter::vec(self.kinds.as_vec())
             + tables.iter().sum::<usize>()
             + self.payload
             + self.index_bytes
@@ -297,14 +300,14 @@ impl Types {
     /// A type table charging `meter`.
     pub fn metered(meter: Arc<Meter>) -> Self {
         let mut types = Self {
-            kinds: Vec::new(),
-            ids: HashMap::new(),
+            kinds: CountedVec::new(),
+            ids: CountedMap::new(),
             payload: 0,
-            assignable: HashMap::new(),
-            index: HashMap::new(),
+            assignable: CountedMap::new(),
+            index: CountedMap::new(),
             indexed: 0,
             index_bytes: 0,
-            plain: HashMap::new(),
+            plain: CountedMap::new(),
             names: Names::default(),
             meter,
             too_large: None,
@@ -402,7 +405,9 @@ impl Types {
         if self.transient(heap) {
             return Ty::ERROR;
         }
-        let ty = self.insert(kind, heap);
+        let Some(ty) = self.insert(kind, heap, false) else {
+            return Ty::ERROR;
+        };
         if self.poll() {
             return Ty::ERROR;
         }
@@ -414,23 +419,35 @@ impl Types {
     /// a stop.
     fn add(&mut self, kind: Kind) -> Ty {
         let heap = kind.heap();
-        let ty = self.insert(kind, heap);
+        let ty = self.insert(kind, heap, true).unwrap_or(Ty::ERROR);
         let _ = self.poll();
         ty
     }
 
     /// Interns `kind`, whose kinds hold `heap` bytes, unless the table has
-    /// it already.
-    fn insert(&mut self, kind: Kind, heap: usize) -> Ty {
+    /// it already. The kind and room for it in both tables are counted
+    /// before either changes; `None` when the budget refuses them, which
+    /// stops the check and interns nothing, unless the table holds it
+    /// `regardless`.
+    fn insert(&mut self, kind: Kind, heap: usize, regardless: bool) -> Option<Ty> {
         if let Some(&ty) = self.ids.get(&kind) {
-            return ty;
+            return Some(ty);
         }
+        let ledger = if regardless {
+            self.meter.types().regardless()
+        } else {
+            self.meter.types()
+        };
+        let payload = 2 * std::mem::size_of::<usize>() + std::mem::size_of::<Kind>() + heap;
+        ledger.keep(payload).ok()?;
+        self.kinds.reserve(ledger, 1).ok()?;
+        self.ids.reserve(ledger, 1).ok()?;
         let ty = Ty(self.kinds.len() as u32);
-        self.payload += 2 * std::mem::size_of::<usize>() + std::mem::size_of::<Kind>() + heap;
+        self.payload += payload;
         let kind = Arc::new(kind);
-        self.kinds.push(Arc::clone(&kind));
-        self.ids.insert(kind, ty);
-        ty
+        self.kinds.push_within(Arc::clone(&kind));
+        self.ids.insert_within(kind, ty);
+        Some(ty)
     }
 
     pub fn kind(&self, ty: Ty) -> &Kind {
@@ -531,10 +548,19 @@ impl Types {
     pub fn union(&mut self, types: &[Ty]) -> Ty {
         // The caller's types, and a copy of them in order, are held beside
         // the table while this runs.
-        let given = std::mem::size_of_val(types);
-        if self.transient(2 * given) || self.charge(types.len() as u64) || self.poll() {
+        if self.charge(types.len() as u64) || self.poll() {
             return Ty::ERROR;
         }
+        let Some(held) = self.hold(2 * std::mem::size_of_val(types)) else {
+            return Ty::ERROR;
+        };
+        let ty = self.union_held(types);
+        self.release(held);
+        ty
+    }
+
+    /// [`Self::union`], once `types` and a copy of them are held.
+    fn union_held(&mut self, types: &[Ty]) -> Ty {
         // Each distinct type once, so that many of one wide union flatten
         // it once rather than once each.
         let mut distinct = types.to_vec();
@@ -554,45 +580,45 @@ impl Types {
         // The members gathered so far are put in order and made distinct
         // whenever they pass twice as many as the last time, so they never
         // hold many more than the distinct members, which the table's own
-        // unions hold already.
+        // unions hold already. The list is counted before it grows, while
+        // its old and new storage are both held.
         let mut next = 2 * (MAX_ALTERNATIVES + 1);
-        let mut members = Vec::with_capacity(distinct.len().min(next));
+        let mut members = CountedVec::new();
+        if members
+            .reserve(self.meter.types(), distinct.len().min(next))
+            .is_err()
+        {
+            return Ty::ERROR;
+        }
         for &ty in &distinct {
             let count = match self.kind(ty) {
                 Kind::Never => continue,
                 Kind::Union(inner) => inner.len(),
                 _ => {
-                    members.push(ty);
+                    if members.push(self.meter.types(), ty).is_err() {
+                        return Ty::ERROR;
+                    }
                     continue;
                 }
             };
-            // Each member a union adds is work, which the budget bounds, and
-            // the list is counted before it grows to take them, while its
-            // old and new storage are both held.
+            // Each member a union adds is work, which the budget bounds.
             if self.work(count) {
                 return Ty::ERROR;
             }
-            if members.len() + count > members.capacity() {
-                let grown = (members.len() + count).max(2 * members.capacity());
-                let held = (members.capacity() + grown) * std::mem::size_of::<Ty>();
-                if self.transient(2 * given + held) {
-                    return Ty::ERROR;
-                }
-                members.reserve(count);
-            }
-            if let Kind::Union(inner) = self.kind(ty) {
-                members.extend_from_slice(inner);
+            let Kind::Union(inner) = self.kind(ty) else {
+                unreachable!("a union stays one");
+            };
+            if members
+                .extend_from_slice(self.meter.types(), inner)
+                .is_err()
+            {
+                return Ty::ERROR;
             }
             if members.len() > next {
                 members.sort_unstable();
                 members.dedup();
                 next = next.max(2 * members.len());
             }
-        }
-        // The caller's types, their copy, and the members gathered from
-        // them.
-        if self.transient(2 * given + members.capacity() * std::mem::size_of::<Ty>()) {
-            return Ty::ERROR;
         }
         members.sort_unstable();
         members.dedup();
@@ -603,7 +629,7 @@ impl Types {
         match members.len() {
             0 => Ty::NEVER,
             1 => members[0],
-            _ => self.intern(Kind::Union(members.into())),
+            _ => self.intern(Kind::Union(members.into_vec().into())),
         }
     }
 
@@ -661,7 +687,14 @@ impl Types {
         if self.assignable.len() >= MEMO {
             self.assignable.clear();
         }
-        self.assignable.insert((from, to), result);
+        // A pair the budget refuses room for is decided again if asked.
+        if self
+            .assignable
+            .insert(self.meter.types(), (from, to), result)
+            .is_err()
+        {
+            return true;
+        }
         result
     }
 
@@ -775,6 +808,23 @@ impl Types {
                 if self.work(count) {
                     return Vec::new();
                 }
+                if self.indexed + count > INDEXED {
+                    self.index.clear();
+                    self.indexed = 0;
+                    self.index_bytes = 0;
+                }
+                // The most the index can take is counted before it is
+                // built, with room for it in the table of indexes: a
+                // table with a head for each alternative at most, and
+                // lists of each head's alternatives, each at most twice
+                // as long as it is or four long.
+                let ledger = self.meter.types();
+                let most = meter::table::<(Head, Vec<Ty>)>(2 * count + 1)
+                    + 6 * count * std::mem::size_of::<Ty>()
+                    + 2 * std::mem::size_of::<usize>();
+                if ledger.keep(most).is_err() || self.index.reserve(ledger, 1).is_err() {
+                    return Vec::new();
+                }
                 let Kind::Union(alternatives) = self.kind(union) else {
                     return Vec::new();
                 };
@@ -785,15 +835,10 @@ impl Types {
                         .or_default()
                         .push(alternative);
                 }
-                if self.indexed + count > INDEXED {
-                    self.index.clear();
-                    self.indexed = 0;
-                    self.index_bytes = 0;
-                }
                 self.indexed += count;
                 self.index_bytes += index.heap() + 2 * std::mem::size_of::<usize>();
                 let index = Arc::new(index);
-                self.index.insert(union, Arc::clone(&index));
+                self.index.insert_within(union, Arc::clone(&index));
                 index
             }
         };
@@ -1267,7 +1312,10 @@ impl Types {
             Kind::Tuple(items) | Kind::Union(items) => items.iter().all(|&item| self.plain(item)),
             _ => true,
         };
-        self.plain.insert(ty, plain);
+        // A type the budget refuses room for is looked at again if asked.
+        if self.plain.insert(self.meter.types(), ty, plain).is_err() {
+            return true;
+        }
         plain
     }
 
