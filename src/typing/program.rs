@@ -870,7 +870,10 @@ impl<'a> Checker<'a> {
             TypeKind::Named => self.named_type(&ty.name, scope, offset),
         };
         if ty.nullable {
-            self.types.optional(base)
+            // `nil` can take a union of the most alternatives past them.
+            let optional = self.types.optional(base);
+            self.too_large(offset);
+            optional
         } else {
             base
         }

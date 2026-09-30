@@ -334,6 +334,17 @@ fn unions_and_shapes_past_their_bounds_are_reported_where_they_are_written() {
         found[0].message
     );
     assert_eq!(found[0].span.start, 0);
+    // `nil` takes a union of the most alternatives past them, reported
+    // where it is added, even with nothing else to check.
+    let source = format!("type Wide = {}\ndef f(x: Wide?)\nend\n", arms(1024));
+    let found = errors(&source);
+    assert_eq!(codes_of(&found), ["V0124"], "{:?}", found.first());
+    assert!(
+        found[0].message.contains("1025 alternatives"),
+        "{}",
+        found[0].message
+    );
+    assert_eq!(found[0].span.start, source.find("def f").unwrap());
     // An inferred one is reported at its statement.
     let items = (0..1100)
         .map(|i| format!("{{ a{i}: {i} }}"))
