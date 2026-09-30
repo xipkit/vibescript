@@ -56,6 +56,22 @@ pub(crate) struct Meter {
     /// Told of every measure, by a test comparing the account with what
     /// the check really holds.
     observe: Option<fn(super::Observed)>,
+    /// What the tables each measure counts grew since it last measured
+    /// them, by [`Side`], which a table's growth checks with the rest.
+    grown: [AtomicUsize; 3],
+}
+
+/// Which of the checker's measures counts a table, which takes back into
+/// its own count what the table grew by since it last measured it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Side {
+    /// The type table's, which it measures itself.
+    Types,
+    /// The checker's tables other than the type table, measured together
+    /// whenever the checker measures what it holds.
+    Tables,
+    /// The declarations, measured again only when they change.
+    Declarations,
 }
 
 impl Meter {
@@ -111,9 +127,49 @@ impl Meter {
         &self.budget
     }
 
-    /// Records the checker's tables other than the type table.
+    /// Records the checker's tables other than the type table, which
+    /// takes back what they grew by since they were last measured.
     pub fn outside(&self, bytes: usize) {
         self.outside.store(bytes, Relaxed);
+        self.measured(Side::Tables);
+    }
+
+    /// Notes that the tables `side` counts were measured again, whose
+    /// growth the measure then counts.
+    pub fn measured(&self, side: Side) {
+        self.grown[side as usize].store(0, Relaxed);
+    }
+
+    /// What the tables grew by since they were last measured.
+    pub fn unmeasured(&self) -> usize {
+        self.grown.iter().map(|grown| grown.load(Relaxed)).sum()
+    }
+
+    /// Records that the tables `side` counts grew by `bytes`.
+    pub fn record(&self, side: Side, bytes: usize) {
+        self.grown[side as usize].fetch_add(bytes, Relaxed);
+    }
+
+    /// Whether the check can hold `moment` bytes more, which a table holds
+    /// at once while it grows, beside what it held when last measured and
+    /// what its tables grew by since: records them as a peak, and stops
+    /// the check when it cannot, as it does once it has stopped. Returns
+    /// whether the check has stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    pub fn admit(&self, moment: usize) -> bool {
+        if self.stopped() {
+            return true;
+        }
+        let held = self
+            .last
+            .load(Relaxed)
+            .saturating_add(self.unmeasured())
+            .saturating_add(moment);
+        self.reach(held);
+        if self.budget.memory.is_some_and(|left| held > left) {
+            self.stop();
+        }
+        self.stopped()
     }
 
     /// Records the type table's `bytes`, with the rest the checker last
@@ -125,11 +181,13 @@ impl Meter {
     }
 
     /// The type table's `bytes` with the rest the checker last reported,
-    /// kept as what the check held when last measured.
+    /// kept as what the check held when last measured, and what the
+    /// tables measured longer ago grew by since.
     fn account(&self, types: usize) -> usize {
+        self.measured(Side::Types);
         let held = types + self.outside.load(Relaxed);
         self.last.store(held, Relaxed);
-        held
+        held + self.unmeasured()
     }
 
     /// Records `extra` bytes of scratch an operation holds for a moment
@@ -139,7 +197,7 @@ impl Meter {
     #[must_use = "the budget may have stopped the check, which must then do no more work"]
     pub fn scratch(&self, extra: usize) -> bool {
         if extra >= SCRATCH {
-            let held = self.last.load(Relaxed) + extra;
+            let held = self.last.load(Relaxed) + self.unmeasured() + extra;
             self.reach(held);
             if self.budget.memory.is_some_and(|left| held > left) {
                 self.stop();
@@ -359,15 +417,19 @@ fn btree_node<T>() -> usize {
     11 * size_of::<T>() + 12 * size_of::<usize>() + 16
 }
 
+/// The nodes a B-tree of `length` elements of `T` takes: every node but
+/// the root is at least half full.
+pub(crate) fn btree_storage<T>(length: usize) -> usize {
+    if length == 0 {
+        0
+    } else {
+        (1 + length / 5) * btree_node::<T>()
+    }
+}
+
 impl<T: Heap> Heap for BTreeSet<T> {
     fn heap(&self) -> usize {
-        // Every node but the root is at least half full.
-        let nodes = if self.is_empty() {
-            0
-        } else {
-            1 + self.len() / 5
-        };
-        nodes * btree_node::<T>() + self.iter().map(Heap::heap).sum::<usize>()
+        btree_storage::<T>(self.len()) + self.iter().map(Heap::heap).sum::<usize>()
     }
 }
 
@@ -530,6 +592,7 @@ impl<'a> super::Checker<'a> {
     #[must_use = "the budget may have stopped the check, which must then do no more work"]
     pub(super) fn declared(&mut self) -> bool {
         self.declared_bytes = self.program.heap() + self.types.names.heap() + self.modules.heap();
+        self.meter.measured(super::meter::Side::Declarations);
         // Declarations with nothing to check can grow the program to any
         // size between the checker's polls, so each measure of them is
         // checked against the budget.

@@ -30,6 +30,7 @@ mod assigns;
 mod calls;
 mod check;
 mod construction;
+mod counted;
 mod expr;
 mod flow;
 mod foreign;
