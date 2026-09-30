@@ -67,6 +67,13 @@ const PER_TOKEN: usize = 240;
 /// classes and modules, which grow with the square of their depth.
 const NAME_COPIES: usize = 3;
 
+/// The copies the pass holds at once of each byte of an identifier, for
+/// each time the source names it: its syntax tree's node and, for a name
+/// it declares, its entries in the parser's locals and their journal and
+/// in the walk's scope, measured over long names of locals, parameters and
+/// methods.
+const WORD_COPIES: usize = 4;
+
 /// The copies the pass holds at once of each byte of a percent literal's
 /// entries, which it always rewrites as an array literal, beyond its copy
 /// of the token: the entries quoted, the array literal, and the edits and
@@ -94,8 +101,15 @@ pub(crate) fn footprint(
             _ => 0,
         })
         .sum();
+    // The identifiers, which the pass copies from the source.
+    let words: usize = tokens
+        .iter()
+        .filter(|token| token.kind == tooling::TokenKind::Word)
+        .map(|token| token.span.len())
+        .sum();
     (tokens.len() + interpolated.tokens) * PER_TOKEN
         + payloads
+        + (words + interpolated.words) * WORD_COPIES
         + rewritten * REWRITE_COPIES
         + interpolated.bytes
         + names * NAME_COPIES

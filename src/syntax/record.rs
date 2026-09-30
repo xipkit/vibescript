@@ -246,6 +246,7 @@ fn interpolated(parser: &super::Parser<'_>) -> super::Interpolated {
                 }
                 Level::Tokens(tokens) => match tokens.next().map(|lexeme| &lexeme.token) {
                     Some(Token::Bytes(bytes)) => found.bytes += bytes.len(),
+                    Some(Token::Word(word)) => found.words += word.len(),
                     Some(Token::Template(parts)) => levels.push(Level::Parts(parts.iter(), true)),
                     Some(_) => (),
                     None => {

@@ -790,6 +790,8 @@ pub(crate) struct Interpolated {
     /// The bytes of the strings among those tokens, and of the spans of
     /// the interpolations nested in them.
     pub bytes: usize,
+    /// The bytes of the identifiers among those tokens.
+    pub words: usize,
 }
 
 /// A top-level declaration's kind, name and source byte range, in source order.
