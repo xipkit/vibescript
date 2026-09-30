@@ -620,6 +620,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
             // Compilation fails charging them.
             checked.steps += tokens;
         } else if input.budget.memory.is_some_and(|left| held > left) {
+            meter.stop();
             checked.stopped = true;
         } else {
             if let Some(observe) = input.observe {

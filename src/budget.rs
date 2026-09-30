@@ -500,6 +500,7 @@ impl CallContext {
     }
 
     pub(crate) fn fail<T>(&mut self, kind: ErrorKind, message: impl Into<String>) -> Result<T> {
+        let first = self.exhausted.is_none();
         let err = Error::new(kind, message);
         if matches!(
             kind,
@@ -514,6 +515,9 @@ impl CallContext {
             self.exhausted = Some(err.clone());
             #[cfg(feature = "tokio")]
             self.memory.interrupted.store(true, Ordering::Release);
+        }
+        if first && self.exhausted.is_some() {
+            tripped();
         }
         Err(self.exhausted.clone().unwrap_or(err))
     }
@@ -1216,5 +1220,31 @@ mod limit_tests {
             Some(7)
         );
         assert_eq!(foreign.checkpoint().unwrap_err(), original);
+    }
+}
+
+/// What the engine calls the first time each budget stops the work it
+/// bounds; see [`set_budget_hook`].
+static HOOK: std::sync::RwLock<Option<fn()>> = std::sync::RwLock::new(None);
+
+/// Sets a function the engine calls, on the thread doing the work, the
+/// first time any call's or compilation's budget stops it: its steps, its
+/// memory, its deadline or its cancellation. A test measures with it what
+/// the work does after it should stop.
+#[doc(hidden)]
+pub fn set_budget_hook(hook: Option<fn()>) {
+    *HOOK
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = hook;
+}
+
+/// Tells the hook [`set_budget_hook`] set, if any, that a budget stopped its
+/// work.
+pub(crate) fn tripped() {
+    let hook = *HOOK
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(hook) = hook {
+        hook();
     }
 }

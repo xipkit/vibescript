@@ -77,6 +77,8 @@ pub mod typing;
 mod value;
 mod vm;
 
+#[doc(hidden)]
+pub use budget::set_budget_hook;
 pub use budget::{CallContext, CallOptions, CancellationToken, Limits, Stats};
 pub use capability::{Capability, HostMethod};
 pub use error::{Diagnostic, Error, ErrorClass, ErrorKind, Position, Result, StackFrame};

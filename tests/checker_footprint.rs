@@ -12,9 +12,18 @@
 //! A second test compiles wide and deep programs under small memory quotas
 //! and requires the real heap never to pass the quota by more than a small
 //! allowance before the compilation reports it, so memory that any part of
-//! compiling allocates before its account sees it fails there. The tests
-//! have a target of their own, since the allocator is global, and run one
-//! at a time.
+//! compiling allocates before its account sees it fails there.
+//!
+//! A third test stops each of those compilations partway, with a step or
+//! memory quota at a fraction of what it needs, a cancellation at a
+//! fraction of its allocations, a cancelled token or a deadline already
+//! past, and requires it to allocate at most a few dozen times, and half a
+//! megabyte, from the moment any budget first stops it until it returns,
+//! and when cancelled partway, at most 65,536 times and 16 MiB from the
+//! cancellation, so work that goes on after it should stop fails there,
+//! and so does work that never asks whether it should. The tests have a
+//! target of their own, since the allocator is global, and run one at a
+//! time.
 
 use std::{
     alloc::{GlobalAlloc, Layout, System},
@@ -45,9 +54,26 @@ static LAST: AtomicUsize = AtomicUsize::new(0);
 /// account.
 static INTERVAL: Mutex<(usize, usize)> = Mutex::new((0, 0));
 
+/// How many allocations the process has made, and how many bytes they
+/// took in all.
+static ALLOCATIONS: AtomicUsize = AtomicUsize::new(0);
+static ALLOCATED: AtomicUsize = AtomicUsize::new(0);
+
 fn added(bytes: usize) {
     let live = LIVE.fetch_add(bytes, Relaxed) + bytes;
     PEAK.fetch_max(live, Relaxed);
+    let count = ALLOCATIONS.fetch_add(1, Relaxed);
+    ALLOCATED.fetch_add(bytes, Relaxed);
+    if count == CANCEL_AT.load(Relaxed) {
+        // Cancelling stores a flag and allocates nothing.
+        if let Ok(token) = CANCEL.try_lock() {
+            if let Some(token) = &*token {
+                token.cancel();
+                CANCELLED_ALLOCATIONS.store(count, Relaxed);
+                CANCELLED_ALLOCATED.store(ALLOCATED.load(Relaxed), Relaxed);
+            }
+        }
+    }
 }
 
 // SAFETY: Every operation delegates to System with the original layout and
@@ -888,6 +914,197 @@ fn a_metered_compilation_stays_within_its_memory_quota() {
     assert!(
         failures.is_empty(),
         "{} compilations passed their quota:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
+/// [`ALLOCATIONS`] and [`ALLOCATED`] when a budget first stopped the
+/// compilation being measured, or `usize::MAX` before one does.
+static TRIPPED_ALLOCATIONS: AtomicUsize = AtomicUsize::new(usize::MAX);
+static TRIPPED_ALLOCATED: AtomicUsize = AtomicUsize::new(usize::MAX);
+
+/// The allocation at which the allocator cancels [`CANCEL`], so that a
+/// compilation is cancelled partway through, or `usize::MAX` for none.
+static CANCEL_AT: AtomicUsize = AtomicUsize::new(usize::MAX);
+static CANCEL: Mutex<Option<vibescript::CancellationToken>> = Mutex::new(None);
+/// [`ALLOCATIONS`] and [`ALLOCATED`] when the allocator cancelled
+/// [`CANCEL`].
+static CANCELLED_ALLOCATIONS: AtomicUsize = AtomicUsize::new(usize::MAX);
+static CANCELLED_ALLOCATED: AtomicUsize = AtomicUsize::new(0);
+
+/// The most allocations, and bytes, a compilation may make after any of
+/// its budgets first stops it, before it returns: unwinding checks nothing
+/// more, and frees what it built, which takes at most a stack as deep as
+/// the syntax to tear down.
+const AFTER_TRIP_ALLOCATIONS: usize = 64;
+const AFTER_TRIP_BYTES: usize = 512 << 10;
+
+/// The most allocations, and bytes, a compilation may make after it is
+/// cancelled, before it returns: it notices within a few polls of the
+/// checker, a few thousand steps of its work or a checkpoint of the parser,
+/// and then stops as promptly as it does for any budget.
+const AFTER_CANCEL_ALLOCATIONS: usize = 1 << 16;
+const AFTER_CANCEL_BYTES: usize = 16 << 20;
+
+/// Marks the first moment a budget stops the work.
+fn tripped() {
+    if TRIPPED_ALLOCATIONS
+        .compare_exchange(usize::MAX, ALLOCATIONS.load(Relaxed), Relaxed, Relaxed)
+        .is_ok()
+    {
+        TRIPPED_ALLOCATED.store(ALLOCATED.load(Relaxed), Relaxed);
+    }
+}
+
+/// What compiling `source` under `options` allocated after a budget first
+/// stopped it, in allocations and bytes, or `None` when none did, and what
+/// the compilation gave.
+fn after_trip(
+    engine: &Engine,
+    source: &str,
+    options: &vibescript::CallOptions,
+) -> (Option<(usize, usize)>, Result<(), vibescript::ErrorKind>) {
+    TRIPPED_ALLOCATIONS.store(usize::MAX, Relaxed);
+    vibescript::set_budget_hook(Some(tripped));
+    let result = engine
+        .compile_with_options(source, options)
+        .map(drop)
+        .map_err(|error| error.kind);
+    vibescript::set_budget_hook(None);
+    let at = TRIPPED_ALLOCATIONS.load(Relaxed);
+    let after = (at != usize::MAX).then(|| {
+        (
+            ALLOCATIONS.load(Relaxed) - at,
+            ALLOCATED.load(Relaxed) - TRIPPED_ALLOCATED.load(Relaxed),
+        )
+    });
+    (after, result)
+}
+
+/// Options with a step quota, a memory quota, or neither.
+fn limited(steps: Option<u64>, memory: Option<usize>) -> vibescript::CallOptions {
+    vibescript::CallOptions {
+        limits: vibescript::Limits {
+            steps,
+            memory_bytes: memory,
+            ..vibescript::Limits::default()
+        },
+        ..vibescript::CallOptions::default()
+    }
+}
+
+#[test]
+fn a_stopped_compilation_stops_promptly() {
+    let _serial = SERIAL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    // Unoptimized builds, and WASI, check smaller programs, in time.
+    let n = if cfg!(any(debug_assertions, target_os = "wasi")) {
+        1_000
+    } else {
+        4_000
+    };
+    let mut failures = Vec::new();
+    let mut trips = 0;
+    for (name, shape) in shapes() {
+        let (modules, source) = shape(n);
+        let Some(engine) = engine_with(modules) else {
+            continue;
+        };
+        // What the process loads once loads before any compilation is
+        // measured; this one also gives the compilation's allocations and
+        // real peak.
+        let _ = engine.compile_with_options(&source, &limited(None, None));
+        let before = ALLOCATIONS.load(Relaxed);
+        let (peak, _) = compiled_peak(&engine, &source, &limited(None, None));
+        let allocations = ALLOCATIONS.load(Relaxed) - before;
+        // Its cost in steps, to within a factor of four.
+        let mut cost = 1u64 << 12;
+        while cost < 1 << 40 {
+            let (_, result) = after_trip(&engine, &source, &limited(Some(cost), None));
+            if result != Err(vibescript::ErrorKind::Steps) {
+                break;
+            }
+            cost *= 4;
+        }
+        let mut budgets: Vec<(String, vibescript::CallOptions, Option<usize>)> = Vec::new();
+        for divisor in [2u64, 4, 8, 16, 32, 64, 256] {
+            let quota = cost / divisor;
+            budgets.push((format!("{quota} steps"), limited(Some(quota), None), None));
+        }
+        for divisor in [2usize, 4, 16, 64] {
+            let quota = peak / divisor;
+            budgets.push((format!("{quota} bytes"), limited(None, Some(quota)), None));
+        }
+        let cancelled = vibescript::CancellationToken::new();
+        cancelled.cancel();
+        budgets.push((
+            "a cancelled token".to_owned(),
+            vibescript::CallOptions {
+                cancellation: cancelled,
+                ..limited(None, None)
+            },
+            None,
+        ));
+        budgets.push((
+            "an expired deadline".to_owned(),
+            vibescript::CallOptions {
+                deadline: Some(std::time::Instant::now()),
+                ..limited(None, None)
+            },
+            None,
+        ));
+        // Cancellations early on, and at each eighth of the way, in every
+        // stage of compiling.
+        let eighths = (1..8).map(|eighths| allocations * eighths / 8);
+        for at in [allocations / 64, allocations / 16]
+            .into_iter()
+            .chain(eighths)
+        {
+            budgets.push((
+                format!("a cancellation at allocation {at}"),
+                limited(None, None),
+                Some(at),
+            ));
+        }
+        for (budget, mut options, cancel_at) in budgets {
+            if let Some(at) = cancel_at {
+                let token = vibescript::CancellationToken::new();
+                options.cancellation = token.clone();
+                *CANCEL.lock().unwrap() = Some(token);
+                CANCEL_AT.store(ALLOCATIONS.load(Relaxed) + at, Relaxed);
+            }
+            CANCELLED_ALLOCATIONS.store(usize::MAX, Relaxed);
+            let (after, result) = after_trip(&engine, &source, &options);
+            let cancelled = CANCELLED_ALLOCATIONS.load(Relaxed);
+            if cancel_at.is_some() && cancelled != usize::MAX {
+                let allocations = ALLOCATIONS.load(Relaxed) - cancelled;
+                let bytes = ALLOCATED.load(Relaxed) - CANCELLED_ALLOCATED.load(Relaxed);
+                if allocations > AFTER_CANCEL_ALLOCATIONS || bytes > AFTER_CANCEL_BYTES {
+                    failures.push(format!(
+                        "{name} under {budget}: {allocations} allocations of {bytes} bytes after it was cancelled ({result:?})"
+                    ));
+                }
+            }
+            CANCEL_AT.store(usize::MAX, Relaxed);
+            *CANCEL.lock().unwrap() = None;
+            let Some((allocations, bytes)) = after else {
+                continue;
+            };
+            trips += 1;
+            if allocations > AFTER_TRIP_ALLOCATIONS || bytes > AFTER_TRIP_BYTES {
+                failures.push(format!(
+                    "{name} under {budget}: {allocations} allocations of {bytes} bytes after it stopped ({result:?})"
+                ));
+            }
+        }
+    }
+    // Most budgets stop the compilation they bound.
+    assert!(trips > shapes().len() * 8, "only {trips} budgets stopped");
+    assert!(
+        failures.is_empty(),
+        "{} compilations went on after they stopped:\n{}",
         failures.len(),
         failures.join("\n")
     );

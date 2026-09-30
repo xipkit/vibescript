@@ -87,7 +87,9 @@ impl Meter {
     }
 
     pub fn stop(&self) {
-        self.stopped.store(true, Relaxed);
+        if !self.stopped.swap(true, Relaxed) {
+            crate::budget::tripped();
+        }
     }
 
     /// What the check may spend.
