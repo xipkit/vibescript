@@ -1,7 +1,7 @@
 use crate::{
     Result, Value,
     builtin::{Builtin, Global},
-    compilation::{Buffer, Name, Table, Task, Tasks},
+    compilation::{Buffer, Name, Table, Task, Tasks, framed},
     syntax::{
         self, Argument, ArgumentKind, Block, CallForm, Expr, Node, ParamKind, Statement, Stmt,
         Target,
@@ -1847,6 +1847,8 @@ enum Call<'x> {
 /// Generates one function over shared compiler state, so syntax nesting grows
 /// a heap task stack instead of the native one.
 struct Compiling<'a, 'x> {
+    /// The compiler's work, which the boxed steps of its tasks charge.
+    work: &'a dyn crate::compilation::Work,
     compiler: std::cell::RefCell<Compiler<'a>>,
     tasks: Tasks<Call<'x>, ()>,
     params: std::cell::RefCell<Vec<Parameter>>,
@@ -1857,6 +1859,7 @@ struct Compiling<'a, 'x> {
 impl<'a, 'x> Compiling<'a, 'x> {
     fn new(compiler: Compiler<'a>) -> Self {
         Self {
+            work: compiler.work,
             compiler: std::cell::RefCell::new(compiler),
             tasks: Tasks::new(),
             params: std::cell::RefCell::new(Vec::new()),
@@ -1869,7 +1872,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
     }
 
     fn run(&self, call: Call<'x>) -> Result<()> {
-        self.tasks.run(call, |call| self.start(call))
+        self.tasks.run(call, |call| self.start(call), self.work)
     }
 
     fn start(&self, call: Call<'x>) -> Task<'_, ()> {
@@ -2146,7 +2149,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
         self.c().work.charge(1)?;
         match &stmt.node {
             Statement::Raise(value, message) => {
-                Box::pin(self.raise(value.as_deref(), message.as_deref())).await?
+                framed(self.work, self.raise(value.as_deref(), message.as_deref()))?.await?
             }
             Statement::Retry => {
                 self.c().emit(Op::Retry);
@@ -2620,9 +2623,13 @@ impl<'a, 'x> Compiling<'a, 'x> {
         }
         self.c().work.charge(1)?;
         match &e.node {
-            Node::Try(attempt) => Box::pin(self.attempt(attempt, None)).await?,
+            Node::Try(attempt) => framed(self.work, self.attempt(attempt, None))?.await?,
             Node::Shape(ty, fallback, names) => {
-                return Box::pin(self.shape_expression(ty, fallback.as_deref(), names)).await;
+                return framed(
+                    self.work,
+                    self.shape_expression(ty, fallback.as_deref(), names),
+                )?
+                .await;
             }
             Node::Unary("-", value) if matches!(value.node, Node::Integer(n) if n == i64::MAX as u64 + 1) =>
             {
@@ -2688,17 +2695,16 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     c.patch(done, end);
                 }
             }
-            Node::Compound(stmt) => Box::pin(self.stmt(stmt, true)).await?,
+            Node::Compound(stmt) => framed(self.work, self.stmt(stmt, true))?.await?,
             Node::Case(target, clauses, alternate) => {
-                return Box::pin(self.case_expression(
-                    target.as_deref(),
-                    clauses,
-                    alternate.as_deref(),
-                ))
+                return framed(
+                    self.work,
+                    self.case_expression(target.as_deref(), clauses, alternate.as_deref()),
+                )?
                 .await;
             }
             Node::Binary("<<", a, b) => {
-                Box::pin(self.address(a)).await?;
+                framed(self.work, self.address(a))?.await?;
                 self.expr(b).await?;
                 let mut c = self.c();
                 let site = c.call_site("push", false);
@@ -2753,9 +2759,11 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     None => (),
                 }
             }
-            Node::BlockCall(call, block) => Box::pin(self.block_call(e, call, block)).await?,
+            Node::BlockCall(call, block) => {
+                framed(self.work, self.block_call(e, call, block))?.await?
+            }
             Node::ComputedCall(call, args) => {
-                Box::pin(self.computed_call(call, args, None)).await?
+                framed(self.work, self.computed_call(call, args, None))?.await?
             }
             Node::Call(name, args, _) => self.named_call(e, name, args).await?,
             Node::Member(recv, name) | Node::SafeMember(recv, name) => {
@@ -2773,7 +2781,11 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 .await?;
             }
             Node::Scope(recv, name, args) => {
-                Box::pin(self.scoped_call(recv, name, args.as_deref(), None)).await?
+                framed(
+                    self.work,
+                    self.scoped_call(recv, name, args.as_deref(), None),
+                )?
+                .await?
             }
             Node::Method(recv, name, args, form) | Node::SafeMethod(recv, name, args, form) => {
                 let direct = self.c().facts.base(e);

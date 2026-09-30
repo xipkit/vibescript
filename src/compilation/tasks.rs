@@ -1,4 +1,4 @@
-use crate::Result;
+use crate::{Result, budget::Charge};
 use std::{
     cell::{Cell, RefCell},
     future::{Future, poll_fn},
@@ -16,9 +16,11 @@ pub(crate) type Task<'a, T> = Pin<Box<dyn Future<Output = Result<T>> + 'a>>;
 /// an async task. A task that needs nested work names it with [`Tasks::call`]
 /// and suspends; [`Tasks::run`] then starts the nested task on top of its
 /// stack and resumes the caller with the result. Only the innermost task is
-/// ever polled, so native stack use does not grow with nesting. Like the
-/// native stack it replaces, the task stack is bounded by the syntax depth
-/// limit and is not charged to compilation budgets.
+/// ever polled, so native stack use does not grow with nesting. The task
+/// stack is bounded by the syntax depth limit, but each suspended task holds
+/// a frame of up to a kilobyte or more, so a deeply nested source keeps
+/// megabytes of them: each frame is charged to the compilation's memory
+/// before its task starts, for as long as it runs.
 pub(crate) struct Tasks<C, T> {
     call: Cell<Option<C>>,
     result: RefCell<Option<Result<T>>>,
@@ -32,12 +34,22 @@ impl<C, T> Tasks<C, T> {
         }
     }
 
-    /// Runs `call`, starting it and every nested call with `start`.
-    pub fn run<'a>(&self, call: C, start: impl Fn(C) -> Task<'a, T>) -> Result<T> {
-        let mut stack = vec![start(call)];
+    /// Runs `call`, starting it and every nested call with `start`, and
+    /// charging each task's frame to `work` while it runs.
+    pub fn run<'a>(
+        &self,
+        call: C,
+        start: impl Fn(C) -> Task<'a, T>,
+        work: &dyn super::Work,
+    ) -> Result<T> {
+        let frame = |task: Task<'a, T>| -> Result<(Task<'a, T>, Option<Charge>)> {
+            let held = work.reserve(std::mem::size_of_val(&*task))?;
+            Ok((task, held))
+        };
+        let mut stack = vec![frame(start(call))?];
         let mut context = Context::from_waker(Waker::noop());
         loop {
-            let task = stack.last_mut().unwrap();
+            let (task, _) = stack.last_mut().unwrap();
             match task.as_mut().poll(&mut context) {
                 Poll::Ready(result) => {
                     stack.pop();
@@ -48,7 +60,8 @@ impl<C, T> Tasks<C, T> {
                 }
                 Poll::Pending => {
                     let call = self.call.take();
-                    stack.push(start(call.expect("a suspended task names its nested work")));
+                    let task = start(call.expect("a suspended task names its nested work"));
+                    stack.push(frame(task)?);
                 }
             }
         }
@@ -71,4 +84,32 @@ impl<C, T> Tasks<C, T> {
             .take()
             .expect("nested work finishes before its caller resumes")
     }
+}
+
+/// A step a task awaits in a box of its own, since its frame is too large to
+/// hold in the task's, with the reservation of that box while it runs.
+pub(crate) struct Framed<'a, T> {
+    future: Task<'a, T>,
+    _held: Option<Charge>,
+}
+
+impl<T> Future for Framed<'_, T> {
+    type Output = Result<T>;
+
+    fn poll(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Result<T>> {
+        self.get_mut().future.as_mut().poll(context)
+    }
+}
+
+/// Boxes `future`, a step a task awaits, charging its frame to `work`
+/// before it is made.
+pub(crate) fn framed<'a, T, F: Future<Output = Result<T>> + 'a>(
+    work: &dyn super::Work,
+    future: F,
+) -> Result<Framed<'a, T>> {
+    let held = work.reserve(std::mem::size_of::<F>())?;
+    Ok(Framed {
+        future: Box::pin(future),
+        _held: held,
+    })
 }

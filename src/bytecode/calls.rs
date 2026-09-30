@@ -106,7 +106,7 @@ impl<'x> Compiling<'_, 'x> {
     async fn call_target_at(&self, expr: &'x Expr, arguments: usize) -> Result<()> {
         match &expr.node {
             Node::Try(attempt) if attempt.modifier => {
-                Box::pin(self.attempt(attempt, Some(arguments))).await?;
+                framed(self.work, self.attempt(attempt, Some(arguments)))?.await?;
                 self.c().emit(Op::Pop);
             }
             Node::Var(name)
@@ -164,7 +164,7 @@ impl<'x> Compiling<'_, 'x> {
                     done
                 };
                 // A shape's fallback is a bare name, so this recursion stays shallow.
-                Box::pin(self.call_target(fallback, arguments)).await?;
+                framed(self.work, self.call_target(fallback, arguments))?.await?;
                 let mut c = self.c();
                 let end = c.code.len();
                 c.patch(done, end);

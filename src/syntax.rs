@@ -1,6 +1,6 @@
 use crate::{
     Error, Result, Value,
-    compilation::{Boxed, Buffer, Bytes, Name, Table, Task, Tasks, Text, Work},
+    compilation::{Boxed, Buffer, Bytes, Name, Table, Task, Tasks, Text, Work, framed},
 };
 use std::cell::{RefCell, RefMut};
 
@@ -1069,14 +1069,18 @@ struct Parsing<'a, M: recovery::Mode = recovery::FailFast> {
     parser: RefCell<Parser<'a>>,
     tasks: Tasks<Call, Parsed>,
     recovery: RefCell<M::State>,
+    /// The parser's work, which the boxed steps of its tasks charge.
+    work: &'a dyn Work,
 }
 
 impl<'a, M: recovery::Mode> Parsing<'a, M> {
     fn new(parser: Parser<'a>) -> Self {
+        let work = parser.work;
         Self {
             parser: RefCell::new(parser),
             tasks: Tasks::new(),
             recovery: RefCell::new(M::State::default()),
+            work,
         }
     }
 
@@ -1085,7 +1089,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
     }
 
     fn run(&self, call: Call) -> Result<Parsed> {
-        self.tasks.run(call, |call| self.start(call))
+        self.tasks.run(call, |call| self.start(call), self.work)
     }
 
     fn start(&self, call: Call) -> Task<'_, Parsed> {
@@ -1146,7 +1150,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
         let Some(brace) = brace else {
             return Ok(expr);
         };
-        Box::pin(self.block_expression(expr, brace)).await
+        framed(self.work, self.block_expression(expr, brace))?.await
     }
 
     /// Parses a line expression that may take a `do` block from a later line.
@@ -1256,7 +1260,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
         self.p().work.charge(1)?;
         let starts_begin = matches!(self.p().token(), Token::Word(word) if word == "begin");
         let mut stmt = if starts_begin {
-            Box::pin(self.begin_statement()).await?
+            framed(self.work, self.begin_statement())?.await?
         } else {
             self.plain_statement().await?
         };
@@ -1264,7 +1268,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
             stmt,
             Statement::If(..) | Statement::While(..) | Statement::For(..)
         ) {
-            stmt = Box::pin(self.continued_statement(stmt, offset)).await?;
+            stmt = framed(self.work, self.continued_statement(stmt, offset))?.await?;
         }
         let modifier = match self.p().token() {
             Token::Word(w) if matches!(w.as_str(), "if" | "while") => *w,
@@ -1285,7 +1289,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
                     | Statement::Next(_)
             )
         {
-            Box::pin(self.reject_modifier()).await?;
+            framed(self.work, self.reject_modifier())?.await?;
             return Ok(stmt);
         }
         let keyword = {
@@ -2010,12 +2014,14 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
             (offset, p.bump()?)
         };
         match token {
-            Token::Word(w) => Box::pin(self.word_expression(w.as_str(), offset)).await,
+            Token::Word(w) => framed(self.work, self.word_expression(w.as_str(), offset))?.await,
             Token::P('(') => self.group_expression().await,
             Token::P('[') => self.array_expression().await,
-            Token::P('{') => Box::pin(self.hash_expr()).await,
-            Token::Op(op @ (".." | "...")) => Box::pin(self.open_range_expression(op)).await,
-            Token::Op(op @ ("-" | "+" | "!")) => Box::pin(self.unary_prefix(op)).await,
+            Token::P('{') => framed(self.work, self.hash_expr())?.await,
+            Token::Op(op @ (".." | "...")) => {
+                framed(self.work, self.open_range_expression(op))?.await
+            }
+            Token::Op(op @ ("-" | "+" | "!")) => framed(self.work, self.unary_prefix(op))?.await,
             token => self.p().leaf(token),
         }
     }
@@ -2191,17 +2197,19 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
                 return Ok(lhs);
             };
             lhs = match suffix {
-                Suffix::Rescue => Box::pin(self.rescue_modifier(lhs)).await,
+                Suffix::Rescue => framed(self.work, self.rescue_modifier(lhs))?.await,
                 Suffix::Command => self.command_expression(lhs).await,
-                Suffix::Block(brace) => Box::pin(self.block_expression(lhs, brace)).await,
+                Suffix::Block(brace) => framed(self.work, self.block_expression(lhs, brace))?.await,
                 Suffix::Call => {
                     let args = self.call_arguments().await?;
                     self.p().parenthesized_call(lhs, args)
                 }
-                Suffix::Scope => Box::pin(self.scoped_expression(lhs)).await,
+                Suffix::Scope => framed(self.work, self.scoped_expression(lhs))?.await,
                 Suffix::Member(safe) => self.member_expression(lhs, safe).await,
                 Suffix::Index(offset) => self.index_expression(lhs, offset).await,
-                Suffix::Ternary(offset) => Box::pin(self.ternary_expression(lhs, offset)).await,
+                Suffix::Ternary(offset) => {
+                    framed(self.work, self.ternary_expression(lhs, offset))?.await
+                }
                 Suffix::Binary(op, right, offset) => {
                     self.binary_expression(lhs, op, right, offset).await
                 }
@@ -2336,7 +2344,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
     async fn block_expression(&self, mut lhs: Expr, brace: bool) -> Result<Expr> {
         self.p().work.charge(1)?;
         if brace {
-            Box::pin(self.hash_block(&lhs)).await?;
+            framed(self.work, self.hash_block(&lhs))?.await?;
         }
         let offset = lhs.offset;
         let block = self.attached_block(brace).await?;

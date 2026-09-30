@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{
     Result,
-    compilation::{Boxed, Buffer, Name, Task, Tasks, Work},
+    compilation::{Boxed, Buffer, Name, Task, Tasks, Work, framed},
 };
 
 // Alias declarations own separate syntax containers while sharing immutable literals.
@@ -15,7 +15,7 @@ pub(super) fn definition(work: &dyn Work, value: &Definition) -> Result<Definiti
     };
     match copying
         .tasks
-        .run(Call::Definition(value), |call| copying.start(call))?
+        .run(Call::Definition(value), |call| copying.start(call), work)?
     {
         Copied::Definition(definition) => Ok(definition),
         _ => unreachable!(),
@@ -306,9 +306,10 @@ impl<'x> Copying<'_, 'x> {
                 self.optional_box(fallback).await?,
                 names.copy_with(work, |n| self.name(n))?,
             ),
-            Node::Try(attempt) => {
-                Node::Try(Boxed::new(work, Box::pin(self.attempt(attempt)).await?)?)
-            }
+            Node::Try(attempt) => Node::Try(Boxed::new(
+                work,
+                framed(self.work, self.attempt(attempt))?.await?,
+            )?),
             Node::Template(values, symbol) => Node::Template(self.exprs(values).await?, *symbol),
             Node::Array(values) => Node::Array(self.exprs(values).await?),
             Node::Yield(values) => Node::Yield(self.exprs(values).await?),
@@ -363,7 +364,7 @@ impl<'x> Copying<'_, 'x> {
             }
             Node::BlockCall(receiver, value) => Node::BlockCall(
                 self.boxed(receiver).await?,
-                Box::pin(self.block(value)).await?,
+                framed(self.work, self.block(value))?.await?,
             ),
             Node::Member(receiver, name) => {
                 Node::Member(self.boxed(receiver).await?, self.name(name)?)
@@ -416,22 +417,46 @@ mod tests {
         parsed.modules.remove(0).instance_methods.remove(0).0
     }
 
+    /// The least memory beyond the original's that copying it needs: what
+    /// the copy keeps and, while it is made, the frames of the tasks that
+    /// make it.
+    fn needed() -> usize {
+        let copies = |budget: usize| {
+            let mut context = CallContext::new(CallOptions::default());
+            let original = original(&mut context);
+            let before = context.stats().retained_memory_bytes;
+            context.options.limits.memory_bytes = Some(before + budget);
+            definition(&Meter(RefCell::new(&mut context)), &original).is_ok()
+        };
+        let (mut low, mut high) = (0, 1 << 20);
+        while low < high {
+            let middle = (low + high) / 2;
+            if copies(middle) {
+                high = middle;
+            } else {
+                low = middle + 1;
+            }
+        }
+        low
+    }
+
     #[test]
     fn alias_copies_obey_compilation_memory_limits_and_release_partial_work() {
+        let needed = needed();
         for fraction in [0, 1, 2, 3] {
             let mut context = CallContext::new(CallOptions::default());
             let original = original(&mut context);
             let before = context.stats().retained_memory_bytes;
             let copy = definition(&Meter(RefCell::new(&mut context)), &original).unwrap();
             let additional = context.stats().retained_memory_bytes - before;
-            assert!(additional > 0);
+            assert!(additional > 0 && additional <= needed);
             drop(copy);
             assert_eq!(context.stats().retained_memory_bytes, before);
             let budget = match fraction {
                 0 => 1,
-                1 => additional / 2,
-                2 => additional - 1,
-                _ => additional,
+                1 => needed / 2,
+                2 => needed - 1,
+                _ => needed,
             };
             context.options.limits.memory_bytes = Some(before + budget);
             let result = definition(&Meter(RefCell::new(&mut context)), &original);
