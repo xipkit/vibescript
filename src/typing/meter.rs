@@ -384,8 +384,9 @@ impl Heap for crate::tooling::Token {
     fn heap(&self) -> usize {
         use crate::tooling::TokenKind;
         match &self.kind {
-            TokenKind::String(bytes) => bytes.capacity(),
+            TokenKind::String(bytes) | TokenKind::Symbol { name: bytes, .. } => bytes.capacity(),
             TokenKind::Template(parts) => parts.capacity() * size_of::<std::ops::Range<usize>>(),
+            TokenKind::Words { entries, .. } => entries.heap(),
             _ => 0,
         }
     }

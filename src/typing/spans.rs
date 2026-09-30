@@ -42,7 +42,21 @@ impl<'a> Spans<'a> {
         // Each is parsed again for its tokens, which holds its syntax for a
         // moment, within the steps and memory the check may spend, and its
         // steps are the check's; one that runs out of them stops the check.
+        let size = std::mem::size_of::<Token>();
+        // Holds `bytes` in the account until the checker measures its own
+        // tables, stopping the check if they pass the memory left, before
+        // what they count is made.
+        let hold = |bytes: usize| {
+            meter.outside(bytes);
+            let held = meter.held(0);
+            if meter.budget().memory.is_some_and(|left| held > left) {
+                meter.stop();
+            }
+        };
         let mut parsing = 0;
+        // What the merged copy's tokens hold beyond the list, once it is
+        // made.
+        let mut payloads = 0;
         for &(start, end) in interpolations {
             if meter.stopped() {
                 break;
@@ -50,10 +64,14 @@ impl<'a> Spans<'a> {
             let start = start as usize;
             let end = end as usize - 1;
             let budget = meter.budget();
+            let merged = match &tokens {
+                std::borrow::Cow::Borrowed(_) => 0,
+                std::borrow::Cow::Owned(list) => list.capacity() * size + payloads,
+            };
             let mut context = crate::CallContext::new(crate::CallOptions {
                 limits: crate::Limits {
                     steps: budget.steps.map(|left| left.saturating_sub(meter.steps())),
-                    memory_bytes: budget.memory,
+                    memory_bytes: budget.memory.map(|left| left.saturating_sub(merged)),
                     ..crate::Limits::default()
                 },
                 cancellation: budget.cancellation.clone().unwrap_or_default(),
@@ -67,8 +85,26 @@ impl<'a> Spans<'a> {
             let used = context.stats();
             meter.charge(used.steps);
             parsing = parsing.max(used.peak_memory_bytes);
+            meter.scratch(merged + used.peak_memory_bytes);
             match inner {
                 Ok(inner) => {
+                    // Appending copies the parser's tokens the first time,
+                    // and growing the copy holds its old buffer beside the
+                    // new one for a moment: both are counted before they
+                    // are made.
+                    let (length, before, copied) = match &tokens {
+                        std::borrow::Cow::Borrowed(list) => {
+                            (list.len(), 0, super::meter::Heap::heap(*list))
+                        }
+                        std::borrow::Cow::Owned(list) => (list.len(), list.capacity(), payloads),
+                    };
+                    let added = super::meter::Heap::heap(inner.as_slice());
+                    let grown = 2 * (length + inner.len());
+                    hold((before + grown) * size + copied + added);
+                    if meter.stopped() {
+                        break;
+                    }
+                    payloads = copied + added;
                     tokens
                         .to_mut()
                         .extend(inner.into_iter().filter_map(|mut token| {
@@ -95,11 +131,13 @@ impl<'a> Spans<'a> {
         }
         let mut owned = 0;
         if let std::borrow::Cow::Owned(tokens) = &mut tokens {
-            tokens.sort_by_key(|token| token.span.start);
             owned = super::meter::Heap::heap(tokens);
-            // Sorting them in order kept a copy of them for a moment, and
-            // the largest parse held its syntax for one before.
-            meter.scratch(owned + tokens.len() * std::mem::size_of::<Token>() + parsing);
+            // Sorting them in order keeps a copy of them for a moment, which
+            // is counted first; a check that it stops never reads them.
+            hold(owned + tokens.len() * size);
+            if !meter.stopped() {
+                tokens.sort_by_key(|token| token.span.start);
+            }
         }
         Self {
             source,
