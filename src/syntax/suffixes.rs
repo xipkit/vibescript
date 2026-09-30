@@ -6,8 +6,9 @@
 //! scope says the name is that binding, and a scoped read only where its
 //! scope resolves to the constant's namespace as the checker resolves it, so
 //! a suffixed method that merely shares the name, such as a host's `ready?`,
-//! is never renamed. A class, module or enum name is a binding too, bound at
-//! each declaration and read bare, scoped, as a parent and in types. A
+//! is never renamed. A class, module, enum or type alias name is a binding
+//! too, bound at each declaration and read bare, scoped, as a parent and in
+//! types. A
 //! binding with a use that cannot be attributed, such as `:Ready?` or a call
 //! `Ready?(1)`, gets no fix rather than a partial one, as does one whose new
 //! name the source already spells, which the rename would merge with it.
@@ -315,9 +316,9 @@ impl Parser<'_> {
         Ok(())
     }
 
-    /// In a lenient parse, the id of the class, module or enum `name`,
-    /// spelled at `at`, declared in the current namespace; a reopened one
-    /// keeps its id, and a suffixed name is a binding declared again.
+    /// In a lenient parse, the id of the class, module, enum or type alias
+    /// `name`, spelled at `at`, declared in the current namespace; a reopened
+    /// one keeps its id, and a suffixed name is a binding declared again.
     pub(super) fn namespace_entered(&self, name: &str, at: usize) -> Result<Option<u32>> {
         if !lenient() {
             return Ok(None);

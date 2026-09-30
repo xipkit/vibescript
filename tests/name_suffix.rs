@@ -1581,6 +1581,40 @@ fn ordinary_hashes_validate_their_callable_fields() {
 }
 
 #[test]
+fn type_alias_names_are_renamed_with_every_type_that_reads_them() {
+    for (source, fixed) in [
+        (
+            "type Flag! = bool; value: Flag! = true; def f(x: Flag!) -> Flag!; x; end; f(value)",
+            "type Flag = bool; value: Flag = true; def f(x: Flag) -> Flag; x; end; f(value)",
+        ),
+        (
+            "module M; type F! = int; end; x: M::F! = 1; x",
+            "module M; type F = int; end; x: M::F = 1; x",
+        ),
+        // A final `?` is the nullable marker, so `Flag!?` reads `Flag!`.
+        (
+            "type Flag! = bool; def f(x: Flag!?) -> int; 1; end; f(nil)",
+            "type Flag = bool; def f(x: Flag?) -> int; 1; end; f(nil)",
+        ),
+    ] {
+        assert_eq!(first_fix(source), fixed, "{source}");
+        assert_eq!(migrate(source), fixed, "{source}");
+        run(fixed);
+    }
+    // `Flag!?` may also mean an alias spelled so, and a symbol may name one.
+    for source in [
+        "type Flag!? = bool; def f(x: Flag!?) -> int; 1; end",
+        "type Flag! = bool; p(:Flag!)",
+    ] {
+        let Err(error) = Engine::new().type_check(source) else {
+            panic!("{source} checks");
+        };
+        assert_eq!(error.diagnostics()[0].code, Code::NAME_SUFFIX, "{error}");
+        assert!(error.diagnostics()[0].fixes.is_empty(), "{error:?}");
+    }
+}
+
+#[test]
 fn class_module_and_enum_names_are_renamed_wherever_they_are_used() {
     for (source, fixed) in [
         (

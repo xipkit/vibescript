@@ -172,6 +172,9 @@ impl Parser<'_> {
         self.bump()?;
         let offset = self.tokens[self.pos].offset as u32;
         let name = self.name()?;
+        // An alias's name is bound where it is declared, like a class's, and
+        // read in types.
+        self.namespace_entered(&name, offset as usize)?;
         if crate::types::builtin_name(&name).is_some() {
             return Err(Error::syntax(
                 self.work,
