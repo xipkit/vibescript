@@ -4,7 +4,7 @@
 
 use super::{
     Checker,
-    counted::{CountedBTreeSet, CountedMap, CountedSet, CountedVec},
+    counted::{CountedBTreeSet, CountedMap, CountedSet, CountedVec, ScratchVec},
     meter::{Heap, map, vec},
     sigs::{self, BlockSig, Param, ParamKind, Sig},
     ty::{Field, Kind, Ty},
@@ -208,6 +208,25 @@ impl Program<'_> {
     }
 }
 
+/// A retained alias's text as it is written, a step a byte, in a list
+/// counted before it grows and while it lives.
+struct AliasText<'m> {
+    text: ScratchVec<u8>,
+    meter: &'m super::meter::Meter,
+}
+
+impl crate::shapes::TypeWriter for AliasText<'_> {
+    fn write(&mut self, bytes: &[u8]) -> crate::Result<()> {
+        if self.meter.charge(bytes.len() as u64) || self.text.extend_from_slice(bytes).is_err() {
+            return Err(crate::Error::new(
+                crate::ErrorKind::Steps,
+                "the check ran out of its budget",
+            ));
+        }
+        Ok(())
+    }
+}
+
 impl<'a> Checker<'a> {
     /// Verifies the source contracts of explicitly retained script type values.
     pub(super) fn check_retained_declarations(
@@ -245,26 +264,27 @@ impl<'a> Checker<'a> {
             .filter(|declaration| declaration.kind != crate::DeclarationKind::Function)
             .map(|declaration| declaration.name.as_str())
             .collect();
+        // Each alias's text is written a step a byte into a list counted
+        // before it grows and while it lives, which stops once the check
+        // does.
         let mut aliases = std::collections::HashMap::new();
-        let mut texts = 0;
         for (scope, alias) in &parsed.additions.aliases {
             if scope.is_none() {
-                let mut text = Vec::new();
-                crate::shapes::format(&alias.ty, &mut text)
-                    .expect("formatting into a Vec cannot fail");
-                if self.meter.charge(text.len() as u64) {
+                let mut text = AliasText {
+                    text: ScratchVec::new(&self.meter),
+                    meter: &self.meter,
+                };
+                if crate::shapes::format(&alias.ty, &mut text).is_err()
+                    || self.transient(
+                        tables + super::meter::table::<(&str, ScratchVec<u8>)>(aliases.len() + 1),
+                    )
+                {
                     return;
                 }
-                texts += text.capacity();
-                if self.transient(
-                    tables + super::meter::table::<(&str, Vec<u8>)>(aliases.len() + 1) + texts,
-                ) {
-                    return;
-                }
-                aliases.insert(alias.name.as_str(), text);
+                aliases.insert(alias.name.as_str(), text.text);
             }
         }
-        if self.transient(map(&carried) + nominal.heap() + aliases.heap()) {
+        if self.transient(map(&carried) + nominal.heap() + map(&aliases)) {
             return;
         }
         for (name, declaration) in declared {
@@ -281,7 +301,9 @@ impl<'a> Checker<'a> {
                         && retained.is_some_and(|retained| {
                             retained.aliases.iter().all(|(name, ty)| {
                                 !self.meter.charge(ty.len() as u64)
-                                    && aliases.get(name.as_str()) == Some(ty)
+                                    && aliases
+                                        .get(name.as_str())
+                                        .is_some_and(|text| **text == ty[..])
                             }) && retained.declarations.iter().all(|(name, source)| {
                                 if self.meter.charge(source.len() as u64) {
                                     return false;
