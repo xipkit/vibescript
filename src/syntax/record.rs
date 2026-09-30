@@ -211,41 +211,51 @@ pub(crate) fn parse_with_tokens(
 
 /// What the interpolations of the parser's tokens hold, at every depth.
 fn interpolated(parser: &super::Parser<'_>) -> super::Interpolated {
-    let mut found = super::Interpolated::default();
-    let mut pending = Vec::new();
-    for lexeme in parser.tokens.range(0..parser.tokens.len()) {
-        open(&lexeme.token, false, &mut found, &mut pending);
+    use super::lexer::{Part, Token};
+    /// What is left to read of a string's parts, and whether the string is
+    /// in another's interpolation, or of an interpolation's tokens.
+    enum Level<'p, 'a> {
+        Parts(std::slice::Iter<'p, Part<'a>>, bool),
+        Tokens(std::slice::Iter<'p, super::lexer::Lexeme<'a>>),
     }
-    while let Some(lexeme) = pending.pop() {
-        if let super::lexer::Token::Bytes(bytes) = &lexeme.token {
-            found.bytes += bytes.len();
+    let mut found = super::Interpolated::default();
+    // One entry for each level of nesting, which the lexer bounds, so a
+    // string of many interpolations is read one at a time.
+    let mut levels = Vec::new();
+    for lexeme in parser.tokens.range(0..parser.tokens.len()) {
+        if let Token::Template(parts) = &lexeme.token {
+            levels.push(Level::Parts(parts.iter(), false));
         }
-        open(&lexeme.token, true, &mut found, &mut pending);
+        while let Some(level) = levels.last_mut() {
+            match level {
+                Level::Parts(parts, nested) => {
+                    let nested = *nested;
+                    match parts.next() {
+                        Some(Part::Expr(tokens, _)) => {
+                            found.tokens += tokens.len();
+                            if nested {
+                                found.bytes += std::mem::size_of::<std::ops::Range<usize>>();
+                            }
+                            levels.push(Level::Tokens(tokens.iter()));
+                        }
+                        Some(Part::Text(_)) => (),
+                        None => {
+                            levels.pop();
+                        }
+                    }
+                }
+                Level::Tokens(tokens) => match tokens.next().map(|lexeme| &lexeme.token) {
+                    Some(Token::Bytes(bytes)) => found.bytes += bytes.len(),
+                    Some(Token::Template(parts)) => levels.push(Level::Parts(parts.iter(), true)),
+                    Some(_) => (),
+                    None => {
+                        levels.pop();
+                    }
+                },
+            }
+        }
     }
     found
-}
-
-/// Adds the tokens inside `token`'s interpolations, if it has any, to
-/// `found` and to `pending`, and the spans of them when it is `nested` in
-/// another's.
-fn open<'p, 'a>(
-    token: &'p super::lexer::Token<'a>,
-    nested: bool,
-    found: &mut super::Interpolated,
-    pending: &mut Vec<&'p super::lexer::Lexeme<'a>>,
-) {
-    let super::lexer::Token::Template(parts) = token else {
-        return;
-    };
-    for part in parts.iter() {
-        if let super::lexer::Part::Expr(tokens, _) = part {
-            found.tokens += tokens.len();
-            if nested {
-                found.bytes += std::mem::size_of::<std::ops::Range<usize>>();
-            }
-            pending.extend(tokens.iter());
-        }
-    }
 }
 
 /// The tokens the parser finally read, as the tooling lists them, with
