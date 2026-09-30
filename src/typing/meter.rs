@@ -50,6 +50,9 @@ pub(crate) struct Meter {
     peak: AtomicUsize,
     stopped: AtomicBool,
     polls: AtomicU64,
+    /// The steps charged when a poll last checked the deadline and the
+    /// cancellation token.
+    asked: AtomicU64,
     /// Told of every measure, by a test comparing the account with what
     /// the check really holds.
     observe: Option<fn(super::Observed)>,
@@ -165,19 +168,28 @@ impl Meter {
 
     /// Checks the totals against the budget: the steps on every poll, and
     /// on every 64th the memory `measure` reports, the deadline and the
-    /// cancellation token, whose checks cost more. Once past any of them
-    /// the check stays stopped.
+    /// cancellation token, whose checks cost more. The deadline and the
+    /// cancellation token are also checked once [`INTERRUPTIBLE`] steps of
+    /// work have passed since they last were, however few polls that took.
+    /// Once past any of them the check stays stopped.
     pub fn poll(&self, measure: impl FnOnce() -> usize) -> bool {
         if self.stopped() {
             return true;
         }
-        if self.budget.steps.is_some_and(|left| self.steps() > left) {
+        let steps = self.steps();
+        if self.budget.steps.is_some_and(|left| steps > left) {
             self.stop();
             return true;
         }
         if self.polls.fetch_add(1, Relaxed) % 64 == 0 {
+            self.asked.store(steps, Relaxed);
             let held = measure();
             if self.budget.interrupted() || self.budget.memory.is_some_and(|left| held > left) {
+                self.stop();
+            }
+        } else if steps.saturating_sub(self.asked.load(Relaxed)) >= INTERRUPTIBLE {
+            self.asked.store(steps, Relaxed);
+            if self.budget.interrupted() {
                 self.stop();
             }
         }
@@ -189,6 +201,10 @@ impl Meter {
 pub(crate) trait Heap {
     fn heap(&self) -> usize;
 }
+
+/// The most steps of work a check does between checks of its deadline and
+/// its cancellation token, when its polls are far apart.
+const INTERRUPTIBLE: u64 = 1 << 12;
 
 /// Scratch smaller than this is left to the account's margin rather than
 /// checked against the memory left as soon as it is taken.
