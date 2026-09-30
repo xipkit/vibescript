@@ -53,6 +53,13 @@ struct ExportedClass {
 }
 
 impl Exported {
+    /// What importing them lists beside them: the ids its enums and
+    /// classes take in the importer, at the lengths they take.
+    fn imports(&self) -> usize {
+        self.enums.len() * std::mem::size_of::<u32>()
+            + super::meter::table::<(NsId, NsId)>(self.classes.len())
+    }
+
     /// What the file's exports hold while an importer reads them.
     fn bytes(&self) -> usize {
         let classes: usize = self
@@ -516,7 +523,7 @@ impl<'a> Checker<'a> {
             Some(exported) => {
                 // A check that holding the exports stops imports none of
                 // them.
-                let Some(held) = self.hold(exported.bytes()) else {
+                let Some(held) = self.hold(exported.bytes() + exported.imports()) else {
                     self.release(tree);
                     return Err("the check ran out of its budget".into());
                 };
@@ -674,9 +681,10 @@ impl<'a> Checker<'a> {
         &mut self,
         exported: &Exported,
     ) -> (CountedMap<String, Rc<Sig>>, CountedMap<String, u32>) {
+        // Held by the caller, at the lengths they take.
         let mut imports = Imports {
-            enums: Vec::new(),
-            classes: HashMap::new(),
+            enums: Vec::with_capacity(exported.enums.len()),
+            classes: HashMap::with_capacity(exported.classes.len()),
         };
         let mut enums = CountedMap::new();
         for declared in &exported.enums {
