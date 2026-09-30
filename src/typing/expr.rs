@@ -1967,7 +1967,7 @@ impl<'a> Checker<'a> {
         // what the body assigns may have its value or its earlier one; the
         // ensure, or a `retry` running the body again, may also follow any
         // part of a rescue, and the ensure any part of the `else`.
-        let spans = self.assigns.attempt(attempt);
+        let spans = self.assigns.attempt(&self.meter, attempt);
         if spans.retry {
             self.widen(spans.retried());
         }

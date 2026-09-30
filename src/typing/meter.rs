@@ -127,6 +127,19 @@ impl Meter {
         }
     }
 
+    /// Charges `steps` of a walk over the syntax that holds `extra` bytes
+    /// beside what the check held when last measured, and checks the
+    /// steps, the deadline, the cancellation token and the memory against
+    /// the budget. Returns whether the check has stopped.
+    pub fn pace(&self, steps: u64, extra: usize) -> bool {
+        self.charge(steps);
+        if self.budget.steps.is_some_and(|left| self.steps() > left) || self.budget.interrupted() {
+            self.stop();
+        }
+        self.scratch(extra);
+        self.stopped()
+    }
+
     /// Records that the check held `bytes` at some point, as while a
     /// required file was checked.
     pub fn reach(&self, bytes: usize) {

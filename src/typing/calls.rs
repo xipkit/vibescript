@@ -2426,7 +2426,7 @@ impl<'a> Checker<'a> {
         let outer_memo = self.set_memo(None);
         self.open_scope();
         // The widening below charges for listing these names.
-        let span = self.assigns.body(&block.body);
+        let span = self.assigns.body(&self.meter, &block.body);
         for name in self.assigns.distinct(span) {
             if let Some(id) = self.local(name) {
                 if self.frame.ambient.contains(&id)

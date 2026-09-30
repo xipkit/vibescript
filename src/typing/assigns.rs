@@ -7,9 +7,13 @@
 //! of a span are listed in time proportional to their number, so checking
 //! bodies nested `n` deep never walks a descendant `n` times, and a name
 //! written many times is listed once.
+//!
+//! A walk charges each statement and expression it visits to the check's
+//! meter, and stops with the check.
 
-use crate::syntax::{Expr, Node, Statement, Stmt, Target, Try};
-use std::collections::HashMap;
+use super::meter::Meter;
+use crate::syntax::{Argument, Expr, Node, Statement, Stmt, Target, Try, When};
+use std::{collections::HashMap, iter::Rev, slice::Iter};
 
 /// A span of the assignments one walk listed.
 #[derive(Clone, Copy, Debug)]
@@ -89,25 +93,33 @@ pub(super) struct Assigns<'a> {
 }
 
 impl<'a> Assigns<'a> {
-    /// The span of `body`'s assignments.
-    pub fn body(&mut self, body: &'a [Stmt]) -> Span {
+    /// The span of `body`'s assignments, charging the walk that lists them
+    /// to `meter`. A walk the check stopped lists none.
+    pub fn body(&mut self, meter: &Meter, body: &'a [Stmt]) -> Span {
         if let Some(&span) = self.bodies.get(&key(body)) {
             return span;
         }
-        self.walk(|walk| {
+        self.walk(meter, |walk| {
             walk.stmts(body);
         });
-        self.bodies[&key(body)]
+        self.bodies.get(&key(body)).copied().unwrap_or(Span::EMPTY)
     }
 
-    /// The spans of `attempt`'s parts.
-    pub fn attempt(&mut self, attempt: &'a Try) -> TrySpans {
+    /// The spans of `attempt`'s parts, charging the walk that lists them to
+    /// `meter`. A walk the check stopped lists none.
+    pub fn attempt(&mut self, meter: &Meter, attempt: &'a Try) -> TrySpans {
         let address = attempt as *const Try as usize;
         if let Some(&spans) = self.tries.get(&address) {
             return spans;
         }
-        self.walk(|walk| walk.attempt(attempt));
-        self.tries[&address]
+        self.walk(meter, |walk| walk.attempt(attempt));
+        self.tries.get(&address).copied().unwrap_or(TrySpans {
+            body: Span::EMPTY,
+            rescues: Span::EMPTY,
+            alternate: Span::EMPTY,
+            ensure: Span::EMPTY,
+            retry: false,
+        })
     }
 
     /// The distinct names `span`'s assignments write, in the order of their
@@ -184,15 +196,31 @@ impl<'a> Assigns<'a> {
     }
 
     /// Walks a body no earlier walk covered, as a new root.
-    fn walk(&mut self, visit: impl FnOnce(&mut Walk<'a, '_>)) {
+    fn walk(&mut self, meter: &Meter, visit: impl FnOnce(&mut Walk<'a, '_>)) {
         let start = self.sites.len() as u32;
         let root = self.roots.len() as u32;
         let mut walk = Walk {
+            before: self.bytes(),
             assigns: self,
             root,
             target: None,
+            pending: Pending::default(),
+            meter,
+            visited: 0,
+            stopped: meter.stopped(),
         };
         visit(&mut walk);
+        let stopped = walk.finish();
+        if stopped {
+            // The spans the stopped walk recorded cover no positions of its
+            // empty tree, so they find no assignments.
+            self.roots.push(Root {
+                start,
+                width: 0,
+                lowest: Vec::new(),
+            });
+            return;
+        }
         let count = self.sites.len() - start as usize;
         let width = count.next_power_of_two().max(1);
         let mut lowest = vec![u32::MAX; 2 * width];
@@ -209,9 +237,22 @@ impl<'a> Assigns<'a> {
     }
 }
 
+impl Span {
+    /// A span with no assignments.
+    const EMPTY: Self = Self {
+        root: 0,
+        start: 0,
+        end: 0,
+    };
+}
+
 fn key(body: &[Stmt]) -> (usize, usize) {
     (body.as_ptr() as usize, body.len())
 }
+
+/// A walk charges the meter and checks the budget once per this many
+/// statements and expressions.
+const PACE: u64 = 64;
 
 /// One walk, which lists the assignments of every statement a body
 /// contains, however deep in its expressions.
@@ -222,9 +263,39 @@ struct Walk<'a, 'w> {
     /// whose rescue the walk is in, as the runtime finds the innermost
     /// handler that is rescuing.
     target: Option<usize>,
+    /// The expressions the walk has yet to visit.
+    pending: Pending<'a>,
+    meter: &'w Meter,
+    /// What the lists and tables held before the walk.
+    before: usize,
+    /// The statements and expressions visited since the meter was last
+    /// charged.
+    visited: u64,
+    /// Whether the check has stopped, so the walk lists no more.
+    stopped: bool,
 }
 
 impl<'a> Walk<'a, '_> {
+    /// Counts a statement or an expression, charging the meter for each
+    /// [`PACE`] of them. Returns whether the walk should stop.
+    fn visit(&mut self) -> bool {
+        self.visited += 1;
+        if self.visited == PACE {
+            self.visited = 0;
+            let held = self.assigns.bytes().saturating_sub(self.before) + self.pending.bytes();
+            self.stopped = self.meter.pace(PACE, held);
+        }
+        self.stopped
+    }
+
+    /// Charges the statements and expressions visited since the meter was
+    /// last charged. Returns whether the check has stopped.
+    fn finish(&mut self) -> bool {
+        let held = self.assigns.bytes().saturating_sub(self.before) + self.pending.bytes();
+        self.stopped = self.meter.pace(std::mem::take(&mut self.visited), held);
+        self.stopped
+    }
+
     fn here(&self) -> u32 {
         self.assigns.sites.len() as u32
     }
@@ -256,10 +327,14 @@ impl<'a> Walk<'a, '_> {
         assigns.held += (positions.capacity() - before) * std::mem::size_of::<u32>();
     }
 
-    /// Lists `body`'s assignments and records its span.
+    /// Lists `body`'s assignments and records its span, unless the check
+    /// stops first.
     fn stmts(&mut self, body: &'a [Stmt]) -> Span {
         let start = self.here();
         for stmt in body {
+            if self.visit() {
+                return self.span(start);
+            }
             match &stmt.node {
                 Statement::Assign(target, _, value) => {
                     self.target(target);
@@ -299,7 +374,9 @@ impl<'a> Walk<'a, '_> {
             }
         }
         let span = self.span(start);
-        self.assigns.bodies.insert(key(body), span);
+        if !self.stopped {
+            self.assigns.bodies.insert(key(body), span);
+        }
         span
     }
 
@@ -317,6 +394,9 @@ impl<'a> Walk<'a, '_> {
         let rescues = self.span(start);
         let alternate = self.stmts(&attempt.alternate);
         let ensure = self.stmts(&attempt.ensure);
+        if self.stopped {
+            return;
+        }
         let spans = TrySpans {
             body,
             rescues,
@@ -350,74 +430,191 @@ impl<'a> Walk<'a, '_> {
     /// Lists the assignments in every statement `expr` contains: blocks,
     /// `begin`s and compound statements anywhere inside it.
     fn expr(&mut self, expr: &'a Expr) {
-        let mut pending = vec![expr];
-        while let Some(expr) = pending.pop() {
+        let base = self.pending.len();
+        self.pending.push(expr);
+        while let Some(expr) = self.pending.pop(base) {
+            if self.visit() {
+                self.pending.truncate(base);
+                return;
+            }
+            self.pending.children(expr);
             match &expr.node {
                 Node::Compound(stmt) => {
                     self.stmts(std::slice::from_ref(&**stmt));
                 }
                 Node::Try(attempt) => self.attempt(attempt),
-                Node::BlockCall(call, block) => {
-                    pending.push(call);
+                Node::BlockCall(_, block) => {
                     // A block is a call, which a `retry` cannot leave.
                     let outer = self.target.take();
                     self.stmts(&block.body);
                     self.target = outer;
                 }
-                Node::Shape(_, Some(fallback), _) => pending.push(fallback),
-                Node::Template(values, _) | Node::Array(values) | Node::Yield(values) => {
-                    pending.extend(values.iter());
-                }
-                Node::Hash(entries) => pending.extend(entries.iter().map(|(_, v)| v)),
-                Node::Unary(_, v) => pending.push(v),
-                Node::Binary(_, l, r) => {
-                    pending.push(l);
-                    pending.push(r);
-                }
-                Node::Range(start, end, _) => {
-                    pending.extend(start.as_deref());
-                    pending.extend(end.as_deref());
-                }
-                Node::Conditional(branches, alternate) => {
-                    for (c, v) in branches.iter() {
-                        pending.push(c);
-                        pending.push(v);
-                    }
-                    pending.push(alternate);
-                }
-                Node::Case(subject, whens, alternate) => {
-                    pending.extend(subject.as_deref());
-                    for when in whens.iter() {
-                        pending.extend(when.values.iter().map(|(value, _)| value));
-                        pending.push(&when.result);
-                    }
-                    pending.extend(alternate.as_deref());
-                }
-                Node::Call(_, args, _) => pending.extend(args.iter().map(|a| &a.value)),
-                Node::ComputedCall(callee, args) => {
-                    pending.push(callee);
-                    pending.extend(args.iter().map(|a| &a.value));
-                }
-                Node::Member(recv, _) | Node::SafeMember(recv, _) => pending.push(recv),
-                Node::Scope(recv, _, args) => {
-                    pending.push(recv);
-                    pending.extend(args.iter().flat_map(|args| args.iter().map(|a| &a.value)));
-                }
-                Node::Method(recv, _, args, _) | Node::SafeMethod(recv, _, args, _) => {
-                    pending.push(recv);
-                    pending.extend(args.iter().map(|a| &a.value));
-                }
-                Node::Index(recv, selectors) => {
-                    pending.push(recv);
-                    pending.extend(selectors.iter());
-                }
-                Node::Regex(..)
-                | Node::Shape(_, None, _)
-                | Node::Integer(_)
-                | Node::BigInteger(..)
-                | Node::Literal(_)
-                | Node::Var(_) => (),
+                _ => (),
             }
+        }
+    }
+}
+
+/// The expressions a walk over the syntax has yet to visit: single ones,
+/// and what is left of lists, which it takes one at a time, so a wide list
+/// is never copied. A walk visits an expression before its children, and
+/// the children last to first, finishing each before the next.
+#[derive(Default)]
+struct Pending<'a> {
+    stack: Vec<Next<'a>>,
+}
+
+enum Next<'a> {
+    Expr(&'a Expr),
+    Exprs(Rev<Iter<'a, Expr>>),
+    Arguments(Rev<Iter<'a, Argument>>),
+    Pairs(Rev<Iter<'a, (crate::compilation::Bytes, Expr)>>),
+    /// A conditional's conditions and results, each result before its
+    /// condition.
+    Branches(Rev<Iter<'a, (Expr, Expr)>>),
+    /// A `case`'s `when`s, each result before its values.
+    Whens(Rev<Iter<'a, When>>),
+    Values(Rev<Iter<'a, (Expr, bool)>>),
+}
+
+impl<'a> Pending<'a> {
+    /// The number of entries, which [`Self::pop`] takes as a floor.
+    fn len(&self) -> usize {
+        self.stack.len()
+    }
+
+    /// The bytes the entries take.
+    fn bytes(&self) -> usize {
+        self.stack.capacity() * std::mem::size_of::<Next<'_>>()
+    }
+
+    /// Drops the entries above the first `len`.
+    fn truncate(&mut self, len: usize) {
+        self.stack.truncate(len);
+    }
+
+    fn push(&mut self, expr: &'a Expr) {
+        self.stack.push(Next::Expr(expr));
+    }
+
+    /// Adds `expr`'s children other than the statements it holds: those of
+    /// a `begin`, a block or a compound statement, which the walk visits
+    /// itself.
+    fn children(&mut self, expr: &'a Expr) {
+        let stack = &mut self.stack;
+        let mut list = |next: Next<'a>, empty: bool| {
+            if !empty {
+                stack.push(next);
+            }
+        };
+        match &expr.node {
+            Node::BlockCall(call, _) => list(Next::Expr(call), false),
+            Node::Shape(_, Some(fallback), _) => list(Next::Expr(fallback), false),
+            Node::Template(values, _) | Node::Array(values) | Node::Yield(values) => {
+                list(Next::Exprs(values.iter().rev()), values.is_empty());
+            }
+            Node::Hash(entries) => list(Next::Pairs(entries.iter().rev()), entries.is_empty()),
+            Node::Unary(_, value) => list(Next::Expr(value), false),
+            Node::Binary(_, left, right) => {
+                list(Next::Expr(left), false);
+                list(Next::Expr(right), false);
+            }
+            Node::Range(start, end, _) => {
+                if let Some(start) = start {
+                    list(Next::Expr(start), false);
+                }
+                if let Some(end) = end {
+                    list(Next::Expr(end), false);
+                }
+            }
+            Node::Conditional(branches, alternate) => {
+                list(Next::Branches(branches.iter().rev()), branches.is_empty());
+                list(Next::Expr(alternate), false);
+            }
+            Node::Case(subject, whens, alternate) => {
+                if let Some(subject) = subject {
+                    list(Next::Expr(subject), false);
+                }
+                list(Next::Whens(whens.iter().rev()), whens.is_empty());
+                if let Some(alternate) = alternate {
+                    list(Next::Expr(alternate), false);
+                }
+            }
+            Node::Call(_, args, _) => list(Next::Arguments(args.iter().rev()), args.is_empty()),
+            Node::ComputedCall(receiver, args)
+            | Node::Method(receiver, _, args, _)
+            | Node::SafeMethod(receiver, _, args, _) => {
+                list(Next::Expr(receiver), false);
+                list(Next::Arguments(args.iter().rev()), args.is_empty());
+            }
+            Node::Scope(receiver, _, args) => {
+                list(Next::Expr(receiver), false);
+                if let Some(args) = args {
+                    list(Next::Arguments(args.iter().rev()), args.is_empty());
+                }
+            }
+            Node::Member(receiver, _) | Node::SafeMember(receiver, _) => {
+                list(Next::Expr(receiver), false);
+            }
+            Node::Index(receiver, selectors) => {
+                list(Next::Expr(receiver), false);
+                list(Next::Exprs(selectors.iter().rev()), selectors.is_empty());
+            }
+            Node::Try(_)
+            | Node::Compound(_)
+            | Node::Regex(..)
+            | Node::Shape(_, None, _)
+            | Node::Integer(_)
+            | Node::BigInteger(..)
+            | Node::Literal(_)
+            | Node::Var(_) => (),
+        }
+    }
+
+    /// Takes the next expression to visit, while more than `floor` entries
+    /// remain.
+    fn pop(&mut self, floor: usize) -> Option<&'a Expr> {
+        if self.stack.len() <= floor {
+            return None;
+        }
+        let top = self.stack.last_mut()?;
+        let (found, then) = match top {
+            Next::Expr(expr) => (*expr, None),
+            Next::Exprs(items) => (items.next()?, None),
+            Next::Arguments(items) => (&items.next()?.value, None),
+            Next::Pairs(items) => (&items.next()?.1, None),
+            Next::Values(items) => (&items.next()?.0, None),
+            Next::Branches(items) => {
+                let (condition, result) = items.next()?;
+                (result, Some(Next::Expr(condition)))
+            }
+            Next::Whens(items) => {
+                let when = items.next()?;
+                let values =
+                    (!when.values.is_empty()).then(|| Next::Values(when.values.iter().rev()));
+                (&when.result, values)
+            }
+        };
+        if top.exhausted() {
+            self.stack.pop();
+        }
+        self.stack.extend(then);
+        Some(found)
+    }
+}
+
+impl Next<'_> {
+    /// Whether nothing is left to take.
+    fn exhausted(&self) -> bool {
+        match self {
+            // A single expression is taken whole.
+            Next::Expr(_) => true,
+            Next::Exprs(items) => items.len() == 0,
+            Next::Arguments(items) => items.len() == 0,
+            Next::Pairs(items) => items.len() == 0,
+            Next::Branches(items) => items.len() == 0,
+            Next::Whens(items) => items.len() == 0,
+            Next::Values(items) => items.len() == 0,
         }
     }
 }

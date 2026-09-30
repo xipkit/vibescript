@@ -272,23 +272,31 @@ impl<'a> Checker<'a> {
             let mut shared = Vec::new();
             for decl in self.program.fns.iter().filter(|decl| decl.main) {
                 if let Some(def) = decl.def {
-                    let scratch = assigned_names(&def.body, &mut shared);
+                    let scratch = assigned_names(&self.meter, &def.body, &mut shared);
                     self.transient(scratch + shared.heap());
                 }
+            }
+            if self.halted() {
+                return;
             }
             let shared: std::collections::HashSet<String> = shared.into_iter().collect();
             let mut written = Vec::new();
             for decl in self.program.fns.iter().filter(|decl| !decl.main) {
+                if self.halted() {
+                    return;
+                }
                 let Some(def) = decl.def else { continue };
                 let mut names = Vec::new();
-                let scratch = assigned_names(&def.body, &mut names);
+                let scratch = assigned_names(&self.meter, &def.body, &mut names);
                 self.transient(scratch + names.heap() + shared.heap() + written.heap());
                 names.retain(|name| {
                     shared.contains(name) && !def.params.iter().any(|param| param.name == *name)
                 });
                 written.extend(names);
             }
-            // Checking the bodies charges for these walks over them.
+            if self.halted() {
+                return;
+            }
             self.program.file_written = written.into_iter().collect();
             self.declared();
         }
@@ -1023,7 +1031,7 @@ impl<'a> Checker<'a> {
     /// Widens the locals a loop body assigns back to their declared types,
     /// since the body may run again after narrowing them.
     pub(super) fn widen_for_loop(&mut self, body: &'a [Stmt]) {
-        let span = self.assigns.body(body);
+        let span = self.assigns.body(&self.meter, body);
         self.meter.charge(body.len() as u64);
         self.widen(span);
     }
@@ -3034,11 +3042,16 @@ fn mentions<'s>(body: &'s [Stmt], names: &mut std::collections::HashSet<&'s str>
     }
 }
 
-/// The names of the locals a body may assign, including in nested blocks.
+/// The names of the locals a body may assign, including in nested blocks,
+/// charging the walk that finds them to `meter`.
 /// Returns the bytes of the index it built to find them.
-pub(super) fn assigned_names(body: &[Stmt], names: &mut Vec<String>) -> usize {
+pub(super) fn assigned_names(
+    meter: &super::meter::Meter,
+    body: &[Stmt],
+    names: &mut Vec<String>,
+) -> usize {
     let mut assigns = super::assigns::Assigns::default();
-    let span = assigns.body(body);
+    let span = assigns.body(meter, body);
     names.extend(assigns.distinct(span).into_iter().map(str::to_owned));
     assigns.bytes()
 }
