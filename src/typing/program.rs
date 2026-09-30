@@ -330,16 +330,35 @@ impl<'a> Checker<'a> {
         }
     }
 
+    /// Whether an enum of `members` fits the budget: building it copies
+    /// each member, writes its symbol and sorts both, which is charged and
+    /// counted before it is built.
+    fn enum_fits(&mut self, members: &[crate::compilation::Name]) -> bool {
+        let count = members.len();
+        let sorting = count * (usize::BITS - count.leading_zeros()) as usize;
+        self.types.work(count + 2 * sorting);
+        let bytes = members.iter().map(|member| 3 * member.len()).sum::<usize>()
+            + count * (2 * std::mem::size_of::<String>() + 2 * std::mem::size_of::<u32>());
+        self.transient(bytes);
+        !self.over_budget()
+    }
+
     /// Collects the declarations and resolves every signature.
     pub(super) fn declare_program(&mut self, parsed: &'a Declarations) {
         for (index, (name, members)) in parsed.enums.iter().enumerate() {
             self.program
                 .enum_names
                 .insert(name.to_string(), index as u32);
-            self.program.enums.push(Arc::new(Enum::new(
-                name.to_string(),
-                members.iter().map(|m| m.to_string()).collect(),
-            )));
+            // A check past its budget declares the enum without members,
+            // which it never reads.
+            let members = if self.enum_fits(members) {
+                members.iter().map(|m| m.to_string()).collect()
+            } else {
+                Vec::new()
+            };
+            self.program
+                .enums
+                .push(Arc::new(Enum::new(name.to_string(), members)));
             self.types.names.enums.push(name.to_string());
             self.declaring();
         }
