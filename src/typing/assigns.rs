@@ -11,9 +11,12 @@
 //! A walk charges each statement and expression it visits to the check's
 //! meter, and stops with the check.
 
-use super::meter::Meter;
+use super::{
+    counted::{CountedMap, CountedSet, CountedVec},
+    meter::Meter,
+};
 use crate::syntax::{Argument, Expr, Node, Statement, Stmt, Target, Try, When};
-use std::{collections::HashMap, iter::Rev, slice::Iter};
+use std::{iter::Rev, slice::Iter};
 
 /// A span of the assignments one walk listed.
 #[derive(Clone, Copy, Debug)]
@@ -66,21 +69,21 @@ struct Root {
 #[derive(Default)]
 pub(super) struct Assigns<'a> {
     /// Each distinct name, by id.
-    names: Vec<&'a str>,
-    ids: HashMap<&'a str, u32>,
+    names: CountedVec<&'a str>,
+    ids: CountedMap<&'a str, u32>,
     /// The name each assignment writes, in the order the walks met them.
-    sites: Vec<u32>,
+    sites: CountedVec<u32>,
     /// For each assignment, one more than the position of the previous one
     /// of its name, or 0 for the first.
-    previous: Vec<u32>,
+    previous: CountedVec<u32>,
     /// Each name's assignments, in order.
-    positions: Vec<Vec<u32>>,
-    roots: Vec<Root>,
+    positions: CountedVec<CountedVec<u32>>,
+    roots: CountedVec<Root>,
     /// The span of each walked statement list, by its address and length.
-    bodies: HashMap<(usize, usize), Span>,
-    tries: HashMap<usize, TrySpans>,
+    bodies: CountedMap<(usize, usize), Span>,
+    tries: CountedMap<usize, TrySpans>,
     /// The `begin`s, by address, that a `retry` reruns.
-    retried: std::collections::HashSet<usize>,
+    retried: CountedSet<usize>,
     /// What the lists of positions and the trees hold, beyond the storage
     /// of the tables that hold them.
     held: usize,
@@ -144,12 +147,12 @@ impl<'a> Assigns<'a> {
     /// The bytes the lists, trees and maps hold.
     pub fn bytes(&self) -> usize {
         use super::meter::{map, set, vec};
-        vec(&self.names)
+        vec(self.names.as_vec())
             + map(&self.ids)
-            + vec(&self.sites)
-            + vec(&self.previous)
-            + vec(&self.positions)
-            + vec(&self.roots)
+            + vec(self.sites.as_vec())
+            + vec(self.previous.as_vec())
+            + vec(self.positions.as_vec())
+            + vec(self.roots.as_vec())
             + map(&self.bodies)
             + map(&self.tries)
             + set(&self.retried)
@@ -203,13 +206,17 @@ impl<'a> Assigns<'a> {
         self.first(root, span, 2 * node + 1, middle, right, found);
     }
 
-    /// Walks a body no earlier walk covered, as a new root.
+    /// Walks a body no earlier walk covered, as a new root. A walk the
+    /// budget refuses room for its root lists nothing.
     fn walk(&mut self, meter: &Meter, visit: impl FnOnce(&mut Walk<'a, '_>)) {
+        // The spans the walk records name its root, which is counted
+        // before they are.
+        if self.roots.reserve(meter.tables(), 1).is_err() {
+            return;
+        }
         let start = self.sites.len() as u32;
         let root = self.roots.len() as u32;
-        let before = self.bytes();
         let mut walk = Walk {
-            before,
             assigns: self,
             root,
             target: None,
@@ -223,13 +230,12 @@ impl<'a> Assigns<'a> {
         let count = self.sites.len() - start as usize;
         let width = count.next_power_of_two().max(1);
         // The tree, twice as wide as the assignments rounded up to a power
-        // of two, is counted with what the walk added, and checked against
-        // the budget, before it is built.
+        // of two, is counted before it is built.
         let tree = 2 * width * std::mem::size_of::<u32>();
-        if stopped || meter.pace(0, self.bytes().saturating_sub(before) + tree) {
+        if stopped || meter.tables().keep(tree).is_err() {
             // The spans the stopped walk recorded cover no positions of its
             // empty tree, so they find no assignments.
-            self.roots.push(Root {
+            self.roots.push_within(Root {
                 start,
                 width: 0,
                 lowest: Vec::new(),
@@ -242,7 +248,7 @@ impl<'a> Assigns<'a> {
             lowest[node] = lowest[2 * node].min(lowest[2 * node + 1]);
         }
         self.held += lowest.capacity() * std::mem::size_of::<u32>();
-        self.roots.push(Root {
+        self.roots.push_within(Root {
             start,
             width: width as u32,
             lowest,
@@ -279,8 +285,6 @@ struct Walk<'a, 'w> {
     /// The expressions the walk has yet to visit.
     pending: Pending<'a>,
     meter: &'w Meter,
-    /// What the lists and tables held before the walk.
-    before: usize,
     /// The statements and expressions visited since the meter was last
     /// charged.
     visited: u64,
@@ -295,8 +299,8 @@ impl<'a> Walk<'a, '_> {
         self.visited += 1;
         if self.visited == PACE {
             self.visited = 0;
-            let held = self.assigns.bytes().saturating_sub(self.before) + self.pending.bytes();
-            self.stopped = self.meter.pace(PACE, held);
+            // What the tables grew by is counted as they grow.
+            self.stopped = self.meter.pace(PACE, self.pending.bytes()) || self.stopped;
         }
         self.stopped
     }
@@ -304,8 +308,8 @@ impl<'a> Walk<'a, '_> {
     /// Charges the statements and expressions visited since the meter was
     /// last charged. Returns whether the check has stopped.
     fn finish(&mut self) -> bool {
-        let held = self.assigns.bytes().saturating_sub(self.before) + self.pending.bytes();
-        self.stopped = self.meter.pace(std::mem::take(&mut self.visited), held);
+        let visited = std::mem::take(&mut self.visited);
+        self.stopped = self.meter.pace(visited, self.pending.bytes()) || self.stopped;
         self.stopped
     }
 
@@ -321,23 +325,44 @@ impl<'a> Walk<'a, '_> {
         }
     }
 
+    /// Lists an assignment to `name`. It, and a new name's entries, are
+    /// counted in every list they go in before any changes; a refusal
+    /// lists nothing, and the walk stops.
     fn site(&mut self, name: &'a str) {
+        let tables = self.meter.tables();
         let assigns = &mut *self.assigns;
-        let id = *assigns.ids.entry(name).or_insert_with(|| {
-            assigns.names.push(name);
-            assigns.positions.push(Vec::new());
-            (assigns.names.len() - 1) as u32
+        let known = assigns.ids.get(name).copied();
+        let mut fresh = CountedVec::new();
+        let before = known.map_or(0, |id| assigns.positions[id as usize].capacity());
+        let room = assigns.sites.reserve(tables, 1).is_ok()
+            && assigns.previous.reserve(tables, 1).is_ok()
+            && match known {
+                Some(id) => assigns.positions[id as usize].reserve(tables, 1).is_ok(),
+                None => {
+                    fresh.reserve(tables, 1).is_ok()
+                        && assigns.names.reserve(tables, 1).is_ok()
+                        && assigns.positions.reserve(tables, 1).is_ok()
+                        && assigns.ids.reserve(tables, 1).is_ok()
+                }
+            };
+        if !room {
+            self.stopped = true;
+            return;
+        }
+        let id = known.unwrap_or_else(|| {
+            let id = assigns.names.len() as u32;
+            assigns.names.push_within(name);
+            assigns.positions.push_within(fresh);
+            assigns.ids.insert_within(name, id);
+            id
         });
         let position = assigns.sites.len() as u32;
-        let previous = assigns.positions[id as usize]
-            .last()
-            .map_or(0, |&last| last + 1);
-        assigns.sites.push(id);
-        assigns.previous.push(previous);
         let positions = &mut assigns.positions[id as usize];
-        let before = positions.capacity();
-        positions.push(position);
+        let previous = positions.last().map_or(0, |&last| last + 1);
+        positions.push_within(position);
         assigns.held += (positions.capacity() - before) * std::mem::size_of::<u32>();
+        assigns.sites.push_within(id);
+        assigns.previous.push_within(previous);
     }
 
     /// Lists `body`'s assignments and records its span, unless the check
@@ -380,7 +405,10 @@ impl<'a> Walk<'a, '_> {
                 }
                 Statement::Retry => {
                     if let Some(target) = self.target {
-                        self.assigns.retried.insert(target);
+                        let tables = self.meter.tables();
+                        if self.assigns.retried.insert(tables, target).is_err() {
+                            self.stopped = true;
+                        }
                     }
                 }
                 _ => (),
@@ -388,7 +416,10 @@ impl<'a> Walk<'a, '_> {
         }
         let span = self.span(start);
         if !self.stopped {
-            self.assigns.bodies.insert(key(body), span);
+            let tables = self.meter.tables();
+            if self.assigns.bodies.insert(tables, key(body), span).is_err() {
+                self.stopped = true;
+            }
         }
         span
     }
@@ -417,7 +448,10 @@ impl<'a> Walk<'a, '_> {
             ensure,
             retry: self.assigns.retried.contains(&address),
         };
-        self.assigns.tries.insert(address, spans);
+        let tables = self.meter.tables();
+        if self.assigns.tries.insert(tables, address, spans).is_err() {
+            self.stopped = true;
+        }
     }
 
     fn target(&mut self, target: &'a Target) {
