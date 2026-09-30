@@ -56,28 +56,36 @@ impl<'m> Ledger<'m> {
         }
     }
 
-    /// Admits a table's growth: `moment` bytes held at once while it
-    /// grows, of which `grown` stay. Refused when the check could not hold
-    /// them beside what it holds, which stops it.
-    fn grow(self, moment: usize, grown: usize) -> Result<(), Refused> {
-        if !self.regardless && self.meter.admit(moment) {
-            return Err(Refused);
+    /// Admits a table's growth, which holds `moment` bytes at once while
+    /// it grows: returns what the check would hold then, for
+    /// [`Self::grew`]. Refused when the check could not hold them beside
+    /// what it holds, which stops it.
+    fn admit(self, moment: usize) -> Result<usize, Refused> {
+        if self.regardless {
+            return Ok(0);
         }
-        self.meter.record(self.side, grown);
-        Ok(())
+        self.meter.admit(moment).ok_or(Refused)
     }
 
-    /// Records what a table grew by once it has, beyond what [`Self::grow`]
-    /// admitted for it.
-    fn grew(self, bytes: usize) {
-        self.meter.record(self.side, bytes);
+    /// Records what a table grew by once it has, in a growth
+    /// [`Self::admit`] found would hold `peak` bytes at once.
+    fn grew(self, bytes: usize, peak: usize) {
+        self.meter.settle(self.side, bytes, peak);
+    }
+
+    /// Records `bytes` a table kept however the budget stands, such as
+    /// the nodes undoing a change copies, which must be undone.
+    pub fn kept(self, bytes: usize) {
+        self.grew(bytes, 0);
     }
 
     /// Counts `bytes` a table will keep beside its own storage, such as a
     /// name it copies, before they are made.
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
     pub fn keep(self, bytes: usize) -> Result<(), Refused> {
-        self.grow(bytes, bytes)
+        let peak = self.admit(bytes)?;
+        self.grew(bytes, peak);
+        Ok(())
     }
 }
 
@@ -139,14 +147,11 @@ impl<T> CountedVec<T> {
         }
         let target = needed.max(2 * capacity).max(4);
         let size = size_of::<T>();
-        ledger.grow(
-            (capacity + target).saturating_mul(size),
-            (target - capacity).saturating_mul(size),
-        )?;
+        let peak = ledger.admit((capacity + target).saturating_mul(size))?;
         self.0.reserve_exact(target - self.0.len());
         // The allocator is asked for exactly this much; anything more it
         // gives is counted too.
-        ledger.grew((self.0.capacity() - target) * size);
+        ledger.grew((self.0.capacity() - capacity) * size, peak);
         Ok(())
     }
 
@@ -294,9 +299,9 @@ impl<K: Eq + Hash, V> CountedMap<K, V> {
         }
         let before = map(&self.0);
         let most = table::<(K, V)>(needed.max(2 * capacity + 1));
-        ledger.grow(before.saturating_add(most), 0)?;
+        let peak = ledger.admit(before.saturating_add(most))?;
         self.0.reserve(additional);
-        ledger.grew(map(&self.0).saturating_sub(before));
+        ledger.grew(map(&self.0).saturating_sub(before), peak);
         Ok(())
     }
 
@@ -421,9 +426,9 @@ impl<T: Eq + Hash> CountedSet<T> {
         }
         let before = set(&self.0);
         let most = table::<T>(needed.max(2 * capacity + 1));
-        ledger.grow(before.saturating_add(most), 0)?;
+        let peak = ledger.admit(before.saturating_add(most))?;
         self.0.reserve(additional);
-        ledger.grew(set(&self.0).saturating_sub(before));
+        ledger.grew(set(&self.0).saturating_sub(before), peak);
         Ok(())
     }
 
@@ -503,8 +508,10 @@ impl<T: Ord> CountedBTreeSet<T> {
         }
         let length = self.0.len();
         let grown = btree_storage::<T>(length + 1) - btree_storage::<T>(length);
-        ledger.grow(grown, grown)?;
-        Ok(self.0.insert(value))
+        let peak = ledger.admit(grown)?;
+        let added = self.0.insert(value);
+        ledger.grew(grown, peak);
+        Ok(added)
     }
 
     pub fn remove<Q>(&mut self, value: &Q) -> bool

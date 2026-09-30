@@ -481,7 +481,10 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         &input.parsed.interpolations,
         std::sync::Arc::clone(&meter),
     );
+    // What the check holds from the start, which the tables' growth is
+    // then counted beside.
     meter.outside(spans.bytes());
+    meter.held(0);
     // Parsing the interpolations again can use up the budget, and then
     // nothing else is checked.
     if meter.stopped() {

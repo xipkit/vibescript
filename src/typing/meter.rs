@@ -152,24 +152,37 @@ impl Meter {
 
     /// Whether the check can hold `moment` bytes more, which a table holds
     /// at once while it grows, beside what it held when last measured and
-    /// what its tables grew by since: records them as a peak, and stops
-    /// the check when it cannot, as it does once it has stopped. Returns
-    /// whether the check has stopped.
+    /// what its tables grew by since: returns what it would hold then,
+    /// which [`Self::settle`] reports once the table has grown, or `None`
+    /// when it cannot, which stops the check, as once it has stopped.
     #[must_use = "the budget may have stopped the check, which must then do no more work"]
-    pub fn admit(&self, moment: usize) -> bool {
+    pub fn admit(&self, moment: usize) -> Option<usize> {
         if self.stopped() {
-            return true;
+            return None;
         }
         let held = self
             .last
             .load(Relaxed)
             .saturating_add(self.unmeasured())
             .saturating_add(moment);
-        self.reach(held);
+        self.peak.fetch_max(held, Relaxed);
         if self.budget.memory.is_some_and(|left| held > left) {
             self.stop();
+            return None;
         }
-        self.stopped()
+        Some(held)
+    }
+
+    /// Records that the tables `side` counts grew by `bytes` in a growth
+    /// [`Self::admit`] found would hold `peak` bytes at once, and reports
+    /// both, with what the check holds now: what it held when last
+    /// measured and what its tables grew by since.
+    pub fn settle(&self, side: Side, bytes: usize, peak: usize) {
+        self.record(side, bytes);
+        if self.observe.is_some() {
+            let held = self.last.load(Relaxed).saturating_add(self.unmeasured());
+            self.report(held, peak.max(held));
+        }
     }
 
     /// Records the type table's `bytes`, with the rest the checker last
@@ -198,7 +211,8 @@ impl Meter {
     pub fn scratch(&self, extra: usize) -> bool {
         if extra >= SCRATCH {
             let held = self.last.load(Relaxed) + self.unmeasured() + extra;
-            self.reach(held);
+            // The scratch stays while the operation that holds it runs on.
+            self.report(held, held);
             if self.budget.memory.is_some_and(|left| held > left) {
                 self.stop();
             }
@@ -222,13 +236,15 @@ impl Meter {
     /// Records that the check held `bytes` at some point, as while a
     /// required file was checked.
     pub fn reach(&self, bytes: usize) {
-        self.peak.fetch_max(bytes, Relaxed);
+        self.report(self.last.load(Relaxed).min(bytes), bytes);
+    }
+
+    /// Records `peak` bytes as the check's peak, and reports it with what
+    /// the check goes on holding, `held`.
+    fn report(&self, held: usize, peak: usize) {
+        self.peak.fetch_max(peak, Relaxed);
         if let Some(observe) = self.observe {
-            let held = self.last.load(Relaxed);
-            observe(super::Observed::Measured {
-                held: held.min(bytes),
-                peak: bytes,
-            });
+            observe(super::Observed::Measured { held, peak });
         }
     }
 
