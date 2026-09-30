@@ -133,6 +133,16 @@ impl Flow {
     /// Undoes every change since `mark`, returning the branch that made them.
     pub fn rollback(&mut self, mark: Mark) -> Branch {
         let live = self.live;
+        // A check past its budget unwinds without collecting the changes,
+        // which nothing reads after it stops.
+        if self.meter.stopped() {
+            self.trail.truncate(mark.trail);
+            self.live = mark.live;
+            return Branch {
+                live,
+                changes: Vec::new(),
+            };
+        }
         let mut changes: Vec<(LocalId, VarState)> = Vec::new();
         let mut seen: HashMap<LocalId, ()> = HashMap::new();
         while self.trail.len() > mark.trail {
@@ -153,6 +163,12 @@ impl Flow {
     /// The changes since `mark`, without undoing them: the state at an early
     /// exit such as `break`, which the enclosing loop joins.
     pub fn peek(&mut self, mark: Mark) -> Branch {
+        if self.meter.stopped() {
+            return Branch {
+                live: true,
+                changes: Vec::new(),
+            };
+        }
         let mut changes: Vec<(LocalId, VarState)> = Vec::new();
         let mut seen: HashMap<LocalId, ()> = HashMap::new();
         let steps = (self.trail.len() - mark.trail) as u64;
@@ -205,6 +221,10 @@ impl Flow {
         ids.sort_unstable();
         ids.dedup();
         for id in ids {
+            // A union below can stop the check, which then reads no more.
+            if self.meter.stopped() {
+                break;
+            }
             self.meter.charge(live.len() as u64);
             let base = self.vars[id as usize];
             let states: Vec<VarState> = finals

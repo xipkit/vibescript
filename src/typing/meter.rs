@@ -440,6 +440,13 @@ impl<'a> super::Checker<'a> {
         self.stopped
     }
 
+    /// Whether the check has stopped at its budget, as its own flag says or
+    /// as the meter does, which a type operation or a measure can stop
+    /// between the checker's polls.
+    pub(super) fn halted(&self) -> bool {
+        self.stopped || self.meter.stopped()
+    }
+
     /// The memory the checker holds: its tables other than the type table,
     /// which the meter keeps for the type table's own polls, and the type
     /// table.

@@ -1979,6 +1979,12 @@ impl<'a> Checker<'a> {
         };
         let mut results = Vec::new();
         let body = self.stmts(&attempt.body, body_want);
+        // A check past its budget skips the rescues and the ensure, and
+        // the work of joining them.
+        if self.halted() {
+            self.frame.flow.rollback(entry);
+            return Ty::ERROR;
+        }
         if !attempt.alternate.is_empty() {
             let alternate = self.stmts(&attempt.alternate, want);
             if self.frame.flow.live {
@@ -2032,7 +2038,7 @@ impl<'a> Checker<'a> {
         // apply.
         let held = self.hold(super::meter::Heap::heap(&branch));
         self.join_explored(explored);
-        if self.stopped {
+        if self.halted() {
             self.release(held);
             return;
         }

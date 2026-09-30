@@ -979,6 +979,11 @@ impl<'a> Checker<'a> {
     /// until [`Self::join_explored`] joins them, counting it with the
     /// tables meanwhile.
     pub(super) fn explore(&mut self, explored: &mut Vec<Branch>, branch: Branch) {
+        // A check past its budget unwinds without keeping branches, which
+        // its joins would not read.
+        if self.halted() {
+            return;
+        }
         self.hold(std::mem::size_of::<Branch>() + branch.heap());
         explored.push(branch);
     }
@@ -995,7 +1000,7 @@ impl<'a> Checker<'a> {
 
     pub(super) fn join(&mut self, branches: Vec<Branch>) {
         // A stopped check unwinds without the work its budget ran out of.
-        if self.stopped {
+        if self.halted() {
             return;
         }
         // The branches, taken from wherever they were kept, and a table of
@@ -1025,7 +1030,7 @@ impl<'a> Checker<'a> {
     /// declared type, which forgets its narrowing but not whether it is
     /// assigned.
     pub(super) fn widen(&mut self, span: super::assigns::Span) {
-        if self.stopped {
+        if self.halted() {
             return;
         }
         let names = self.assigns.distinct(span);
