@@ -17,6 +17,10 @@ use std::collections::HashSet;
 pub struct Fail {
     pub offset: usize,
     pub message: String,
+    /// Whether the source was nested past the parse's limit, without which
+    /// it may parse; a parse that never reached the limit fails the same
+    /// way without it.
+    pub too_deep: bool,
 }
 
 type Result<T> = std::result::Result<T, Fail>;
@@ -27,6 +31,7 @@ pub fn parse(source: &str) -> Result<Tree> {
     let tokens = lex(source, 0).map_err(|error| Fail {
         offset: 0,
         message: error.to_string(),
+        too_deep: false,
     })?;
     let starts = Starts::new(&tokens);
     let mut parser = Parser::new(source, tokens, starts);
@@ -55,6 +60,7 @@ pub fn parse_tokens(source: &str, tokens: &[tooling::Token], limit: usize) -> Re
         return Err(Fail {
             offset,
             message: "nesting too deep".to_owned(),
+            too_deep: true,
         });
     }
     let body = body?;
@@ -417,6 +423,7 @@ impl<'s> Parser<'s> {
         Err(Fail {
             offset: self.tokens[self.pos.min(self.tokens.len() - 1)].start,
             message: message.to_owned(),
+            too_deep: false,
         })
     }
 

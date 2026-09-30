@@ -26,17 +26,26 @@ const DEEP_STACK: usize = 256 << 20;
 #[cfg(test)]
 pub fn check(source: &str) -> crate::Result<Vec<Diagnostic>> {
     let tokens = tooling::tokens(source)?;
-    Ok(walk(source, &tokens, &CallTypes::default()).unwrap_or_default())
+    Ok(walk(source, &tokens, &CallTypes::default(), &mut || true).unwrap_or_default())
 }
 
 /// The removed spellings in `source`, whose tokens the compiler read, in
 /// source order, or `None` when the rules' parser cannot read it. `calls`
 /// gives the static checker's receiver types, which decide the rename of a
-/// member whose replacement depends on its receiver.
-fn walk(source: &str, tokens: &[tooling::Token], calls: &CallTypes) -> Option<Vec<Diagnostic>> {
+/// member whose replacement depends on its receiver. A source nested past
+/// [`NESTING`] is parsed again without the limit only if `afford`, which
+/// charges that parse, allows it.
+fn walk(
+    source: &str,
+    tokens: &[tooling::Token],
+    calls: &CallTypes,
+    afford: &mut dyn FnMut() -> bool,
+) -> Option<Vec<Diagnostic>> {
     match parse::parse_tokens(source, tokens, NESTING) {
         Ok(tree) => Some(diagnostics(source, &tree, calls)),
-        Err(_) => deep(source, tokens, calls),
+        // A parse that never reached the limit fails the same way without it.
+        Err(fail) if fail.too_deep && afford() => deep(source, tokens, calls),
+        Err(_) => None,
     }
 }
 
@@ -74,19 +83,36 @@ pub(crate) fn footprint(
 /// A static checker's diagnostic inside a removed spelling, such as the
 /// unknown member `nil?` or the missing block of `reduce(:+)`, is left
 /// out: the spelling's own diagnostic says what replaces it.
+///
+/// Each parse after the first, of a source nested too deeply for the first
+/// or one the rules cannot read, is charged the same steps, and taken only
+/// if `within` says the steps it brings the check to are within its
+/// budget. Otherwise the check stops, and compilation fails charging them.
 pub(crate) fn add_to(
     checked: &mut crate::typing::Checked,
     source: &str,
     tokens: &[tooling::Token],
     interpolated: usize,
+    within: &dyn Fn(u64) -> bool,
 ) {
     let read = u64::try_from(tokens.len() + interpolated).unwrap_or(u64::MAX);
     checked.steps += read;
-    let Some(surface) = walk(source, tokens, &checked.calls) else {
+    let mut steps = checked.steps;
+    let mut afford = || {
+        steps = steps.saturating_add(read);
+        within(steps)
+    };
+    let walked = walk(source, tokens, &checked.calls, &mut afford);
+    let Some(surface) = walked else {
         // The compiler's grammar reads the removed syntax only so that these
         // rules report it. A source they cannot read must parse without
         // it, so that removed syntax never compiles.
-        checked.steps += read;
+        let affordable = afford();
+        checked.steps = steps;
+        if !affordable {
+            checked.stopped = true;
+            return;
+        }
         let error = crate::syntax::canonical_error(source, &());
         // A source both grammars accept that the rules cannot read skips
         // every rule, so the rules' parser has fallen behind the compiler's.
@@ -106,6 +132,7 @@ pub(crate) fn add_to(
         }
         return;
     };
+    checked.steps = steps;
     if surface.is_empty() {
         return;
     }

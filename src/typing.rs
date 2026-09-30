@@ -617,11 +617,20 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
                 observe(Observed::Surfacing);
             }
             checked.surface_bytes = surface;
+            let budget = &input.budget;
             crate::surface::add_to(
                 &mut checked,
                 input.source,
                 input.tokens,
                 interpolated.tokens,
+                &|steps| {
+                    let within =
+                        !(budget.steps.is_some_and(|left| steps > left) || budget.interrupted());
+                    if !within {
+                        meter.stop();
+                    }
+                    within
+                },
             );
         }
     }
