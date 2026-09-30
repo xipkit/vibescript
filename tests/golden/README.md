@@ -8,7 +8,7 @@ python3 scripts/golden.py --corpus replay,cli      # check some corpora; --list 
 python3 scripts/golden.py --record --corpus parse  # accept a deliberate change
 ```
 
-It builds `examples/golden.rs`, the engine harness, and the `vibes` binary with the `gate` profile (release optimizations with parallel code generation); `--harness`, `--bin` and `--no-build` check other builds. A full check takes about a minute on ten cores after the build. `./scripts/check` runs it, and `scripts/compare.py --validate-only` runs the engine corpora against its portable and SIMD builds.
+It builds `examples/golden.rs`, the engine harness, and the `vibes` binary with the `gate` profile (release optimizations with parallel code generation); `--harness`, `--bin` and `--no-build` check other builds. With `CARGO_PROFILE_GATE_DEBUG_ASSERTIONS=true` in the environment, the builds also check debug assertions, such as the one that the removed-spelling rules' parser reads every source the compiler accepts; `scripts/parse-sweep.py --harness` takes such a build too. A full check takes about a minute on ten cores after the build. `./scripts/check` runs it, and `scripts/compare.py --validate-only` runs the engine corpora against its portable and SIMD builds.
 
 To check or re-record only affected cases, pass `--cases FILE`, where the JSON file maps corpus names to lists of exact case ids, for example `{"conformance": ["case_id"]}`. Use it with `--record --corpus conformance` to preserve every unselected observation and counter. Selected recordings still run twice, validate independent fixture expectations, and preserve the contents of unselected LSP replies when their shared table is renumbered.
 
@@ -168,6 +168,16 @@ is in `.cache/language-1/followup/rebased-f1c777b8/`.
 
 ## Counter log
 
+- Callable-name scan accounting (2026-09-29): validation now checks cancellation
+  and charges one step per started 64 key bytes before UTF-8 and spelling scans,
+  through execution or compilation work as appropriate. This intentionally adds
+  1–17 steps to 540 conformance and 40 compatibility cases, including ordinary
+  short names. For example, `glue_orders_cap/metered` changes from 31,272 to
+  31,279 steps. Peak and retained bytes do not change. The paired 197,906-case
+  audit finds no stable observation changes or other counter changes. Only these
+  step deltas were applied to existing records, preserving unrelated path and
+  quota drift; evidence is under `.cache/name-suffix/name-work/`.
+
 Each re-recording of the counters, and why. Observations stay as recorded, including the `replay` outcomes that follow accounting drift into or out of a quota error. Cases that load required files charge work for the paths of their scratch files, so about 150 `conformance` and `compatibility` cases drift by a few steps and bytes in a checkout at another path; these counters were recorded in a checkout at `/private/tmp/vibescript-typed-vm`.
 
 - Typed JSON mismatches now expose `TypeError` (nine bytes) instead of
@@ -258,3 +268,143 @@ runs of all 233,865 engine/parser cases preserve every first outcome, step count
 peak byte count and retained byte count. Existing quota drift is identical in
 the baseline and candidate; it is not caused by recovery. Raw audits are under
 `.cache/parse-recovery/` on the external volume.
+
+## Method name suffixes, 2026-09-28
+
+Eighth PR #1319 review: a name after `::` is spelled as one after `.` is, so
+a repeated or inner suffix there, as in `Status::Draft??`, reports V0003 again,
+as at the pre-review head. Against that head the parse sweep's first errors
+now change in 40 cases, 8 fewer; its suffix cases apply 1,403 fixes, 6 more,
+all passing their checks. The rules' parser now reads a grouped receiver or
+callee, such as `(JSON).parse_as("[]", [string, array<int>])`, as the
+compiler's does, and the sweep wraps three call receivers of each program in
+parentheses, and three more twice, 1,068 more cases, 42,440 in all: with debug
+assertions none trips the check that the rules' parser reads every source the
+compiler accepts, and their first errors are unchanged. A grouped callee now
+reads as the call it is too, so the 18 `*_wrapped` introspection rejections,
+`(C.is_a?)(7)`, re-record the message for a call with arguments, and replay
+`call42614`, `(Time.utc(2024, 1, 1).to_s)()`, now reports V0412 as `.to_s()`
+does, losing its counters. No other golden observation or counter changes.
+
+Seventh PR #1319 review: every V0003 fix now waits until the fixes of its
+spelling reach every place a name token spells it, and lowercase alias types
+and dotted namespace reads such as `M.X?` are renamed with their bindings.
+The 41,372-case parse sweep applies the same 1,397 fixes, each passing its
+checks: none of its cases leaves a place of a renamed spelling unreached
+without also spelling the new name, which withheld the fix already. First
+errors change as before, 48 against the pre-review head. No golden
+observation or counter changes.
+
+Sixth PR #1319 review: fixes of one spelling may leave the same name, since
+renaming a spelling everywhere keeps apart what it kept apart, so
+`enums_names_21` returns to its golden from the fourth review: the enum
+`State?` and the function's local `State?` both get fixes to `State`. The
+parse sweep's declaration mutations also suffix type alias names, 30 more
+cases, 41,372 in all. Of them 1,397 carry a fix, and every fix passes the
+destination and result checks; the 98 that restore a program that runs give
+back its source exactly. First errors change as before, 48 against the
+pre-review head. No counter changes.
+
+Fifth PR #1319 review: a V0003 fix is withheld when a name it leaves is one the
+file already spells, or one an earlier fix leaves. The parse sweep also checks
+that no applied fix leaves a name the mutated source spells, and runs each
+unmutated program: where one runs and a fix only removes whole suffix runs, the
+fixed program must give its result. Of 41,342 cases, 1,395 fixes apply (2,171
+at the previous head), all pass, and the 92 restoring fixes on programs that run
+each give back the unmutated source exactly. First errors change as before, 48
+against the pre-review head. `enums_names_21` alone changes: its enum `State?`
+and the function's local `State?` both become `State`, so only the first,
+the enum's, keeps its fix. No counter changes.
+
+Fourth PR #1319 review: class, module and enum names are bindings for V0003's
+rename, and `scripts/parse-sweep.py` suffixes each such name with each run,
+once at its declarations alone and once at every use, 350 more cases. All
+175 declaration cases and 150 of the use cases carry a fix that renames the
+name whole; the other 25 have none, since a type spells the name `Name!?` or
+`Name??`, read as nullable, where the rename could not tell which name is
+meant. The added cases change no first error against the pre-review head.
+Two goldens change fixes only. In `enums_names_21` the lenient parse no longer
+stops at the enum's suffixed name, so the fix for the function's local `State?`
+also renames its read in `State?::Draft`, which the checker resolves to the
+local. In the parse mutation `determine_if_a_string_is_squeezable.vibe:insert
+end:a27996d37c94`, the recovered binding `string?` lies past the syntax error
+where the lenient parse stops, so it loses its fix. No counter changes.
+
+Third PR #1319 review: `scripts/parse-sweep.py` also appends each run of `?`
+and `!` (`?`, `!`, `??`, `?!`, `!?`) to three sampled names of every program,
+3,765 more cases, and applies every machine-applicable V0003 fix it meets, 1,843
+of them. Each fixed source must drop that V0003 and add no syntax error where
+the fix edits. Against the pre-review head, the added cases change 18 first
+errors, all scoped reads of an enum member such as `Status::Draft?`, which the
+parser now leaves to the checker (V0203 or V0416). No golden observation or
+counter changes.
+
+Second PR #1319 review: a `?` or `!` followed by more of the name, as in
+`id!false` or `can?x`, is no suffix, so V0003 reports it as
+"`?` and `!` may only end a method name" without a fix. This re-records 30
+parse mutations and the rejections `command_identifier_embedded_bang` and
+`command_identifier_embedded_question`, whose first error keeps its code and
+position. Scoped names such as `State::Ready?` are left to the checker, which
+keeps V0416 for suffixed scoped calls, so `enums_symbols_30` through
+`enums_symbols_35` lose the additional V0003 recorded for those reads. Nothing
+else changes, and no counters were re-recorded: the pre-review head shows the
+same `call2881` and required-file counter drift. Against that head, the
+37,227-case parse sweep changes only these 30 first errors, with no change in
+acceptance and no crash, hang, duplicate diagnostic or invalid span; its raw
+inputs and outcomes are under `.cache/review-1319/fix/parse-sweep/`.
+
+A `!` immediately before `~` no longer ends a name, as a `!` before a single
+`=` does not: `a!~/a/` is `a !~ /a/`. The syntax rejection
+`regex_value_syntax_19` therefore compiles and moves to `tests/language.json`,
+returning nil since its function declares no result; its rejection golden is
+removed and its language counters are recorded.
+
+PR #1319 review follow-up: the parse mutation
+`tests/site/upstream/capabilities/context_access.vibe:insert =:8347c9e3190d`
+inserts `=` into `def coach? -> bool`. It now reports V0003 at 8:10 instead
+of publishing the uncallable setter `coach?=`. This is the only additional
+first-error or acceptance change in the 37,227-case parse sweep against the
+pre-review head. Host publication and symbolic alias regressions are covered
+by `tests/name_suffix.rs`. No counters were re-recorded for these review fixes;
+the existing `call2881` and required-file drift also occurs at the pre-review
+head and is unchanged.
+
+ADR-008 now reserves `?` and `!` for method names. V0003 rejects suffixes on
+bindings, nominal declarations and enum members, with a machine-applicable
+removal (or an underscore when removal would leave a keyword). Host globals
+follow the same rule. Hash and keyword labels retain their string keys;
+suffixed shorthand labels call methods. Optional type and block markers keep
+their meaning. Adjacent `!=` always compares, including after variable sigils.
+
+Rewrote 140 successful language sources and six rejection sources to remove
+suffixed bindings while preserving their observations. Shorthand-key fixtures
+use explicit values so their `"name?"` and `"name!"` keys stay unchanged.
+Fifteen tests specifically exercising forbidden names move from `language`
+to static rejections. Of the old syntax rejections containing adjacent `!=`,
+88 now compile and return nil (their functions declare no result), and 37
+now reach their independent type errors. Twelve remaining syntax fixtures
+record the new first diagnostic. Only 82 selected rejection records (including
+the 15 new records) and 44 selected parse observations were recorded.
+
+The 37,227-case mutation sweep changes 44 first errors: 43 report V0003, and
+one inserted `=` turns `.sub!(...)` into a `!=` comparison whose comma is
+invalid. Every other first error and acceptance is unchanged. The sweep's
+unfiltered exit is 1 because it intentionally flags these changes; the audit
+finds zero unexpected changes, panics, hangs, duplicate diagnostics or invalid
+spans. Raw inputs, outcomes and the audit are under `.cache/name-suffix/`.
+
+Counter log addendum: recorded five intentional reductions from the source
+rewrites. Renaming a `string?` local to `string_` removes the type-literal
+fallback: `shapes_shadow_60` drops from 42 to 35 steps, `shapes_shadow_63`
+from 57 to 52, and `shapes_scopes_native_1` from 57 to 50. Removing variable
+suffix bytes reduces `class_initial_25` peak bytes from 5,203 to 5,200 and
+`predicate_instance_and_class_variable_names` from 5,688 to 5,686. All their
+other counters stay unchanged. Preserved-baseline runs with the original
+sources confirm these reductions; no increase was accepted.
+
+Removed the 15 newly rejected language cases' counters and added counters for
+the 88 newly accepted comparisons. Paired runs of 127,420 successful cases
+using the rewritten sources preserve all stable counters; replay `call10334`
+reads the clock and retains its original record. Existing path and quota drift
+also occurs in the baseline. See `.cache/name-suffix/counter-rewrite-audit.json`
+and `counter-audit.json`.

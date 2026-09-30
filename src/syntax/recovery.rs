@@ -160,7 +160,7 @@ pub(super) struct Checkpoint {
 
 pub(super) struct Scope<'p, 'a> {
     parser: &'p RefCell<Parser<'a>>,
-    locals: Option<Table<()>>,
+    locals: Option<Table<u32>>,
     declared_it: bool,
     block_name: Option<Name>,
     inside_class: bool,

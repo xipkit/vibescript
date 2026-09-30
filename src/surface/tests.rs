@@ -902,3 +902,89 @@ fn removed_spellings_are_reported_however_they_are_written() {
         assert!(diagnostics.is_empty(), "{source:?}: {diagnostics:?}");
     }
 }
+
+#[test]
+fn the_rules_parser_reads_tuples_of_shapes_and_tuples() {
+    for source in [
+        "def run(input: any) -> [{}?, {}?]\n[{},{}].minmax\nend\n",
+        "def run(input: any) -> [{ a: array<int> }, int]\n[{a: [1]}, 2]\nend\n",
+        "enum Status\nDraft\nend\nrows: array<[[Status], int]> = [[[:draft], 2]]\nrows.map { |((state: Status), n: int)| state }\n",
+    ] {
+        let tokens = crate::tooling::tokens(source).unwrap();
+        super::parse::parse_tokens(source, &tokens, usize::MAX)
+            .unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+    let checked = crate::Engine::new()
+        .type_check("def run(input: any) -> [{}?, int]\n[nil, [1].size]\nend\n")
+        .unwrap();
+    assert!(
+        checked
+            .diagnostics
+            .iter()
+            .any(|d| d.code == Code::REMOVED_NAME),
+        "{:?}",
+        checked.diagnostics
+    );
+}
+
+#[test]
+fn the_rules_parser_reads_called_groups_and_tuple_type_arguments() {
+    for source in [
+        "def f(x: int) -> int\nx\nend\n(begin\nf\nend)()",
+        "x = [\"lo\", {}].as([string, hash<string, int>])",
+        "x = JSON.parse_as(\"[]\", [string, array<int>])",
+    ] {
+        let tokens = crate::tooling::tokens(source).unwrap();
+        super::parse::parse_tokens(source, &tokens, usize::MAX)
+            .unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+    let checked = crate::Engine::new()
+        .type_check("x = [\"lo\", {}].as([string, hash<string, int>])\ny = [1].size\n")
+        .unwrap();
+    assert!(
+        checked
+            .diagnostics
+            .iter()
+            .any(|d| d.code == Code::REMOVED_NAME),
+        "{:?}",
+        checked.diagnostics
+    );
+}
+
+/// The compiler's parser keeps no node for parentheses, so a grouped
+/// receiver or callee decides as a bare one does in the rules' parser too:
+/// the rules read these sources, as their `size` diagnostics show.
+#[test]
+fn grouped_receivers_and_callees_read_as_bare_ones() {
+    for source in [
+        "(JSON).parse_as(\"[]\", [string, array<int>])\nn = [1].size\n",
+        "((JSON)).parse_as(\"[]\", [string, array<int>])\nn = [1].size\n",
+        "def f(x: int) -> int\n  x\nend\n(f)([1].size)\n",
+        "def f(x: int) -> int\n  x\nend\n((f)) [1].size\n",
+        "def f -> int\n  yield\nend\n(f) { [1].size }\n",
+        "module M\n  X = 1\nend\nn = [(M)::X].size\n",
+        "class C\n  def f -> int\n    (self).g\n  end\n  def g -> int\n    [1].size\n  end\nend\n",
+    ] {
+        assert_eq!(
+            with_code(source, Code::REMOVED_NAME).len(),
+            1,
+            "{source:?}: {:?}",
+            diagnostics(source)
+        );
+        crate::Engine::new().type_check(source).unwrap();
+    }
+}
+
+/// The rules' parser must read every source the compiler accepts; a debug
+/// build fails where it cannot, instead of silently skipping every rule.
+#[test]
+#[cfg(all(debug_assertions, not(target_os = "wasi")))]
+#[should_panic(expected = "the rules' parser rejects a source the compiler accepts")]
+fn a_source_only_the_compiler_reads_fails_a_debug_build() {
+    let source = "x = 1\n";
+    let mut checked = crate::Engine::new().type_check(source).unwrap();
+    // Tokens the rules' parser cannot read, for a source that compiles.
+    let mut tokens = crate::tooling::tokens(source).unwrap();
+    tokens[1].kind = crate::tooling::TokenKind::Punct(')');
+    super::add_to(&mut checked, source, &tokens);
+}

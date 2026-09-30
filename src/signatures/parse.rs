@@ -77,9 +77,7 @@ fn lex(source: &str) -> Result<Vec<Lexed<'_>>> {
                     })?;
                     (Token::Literal(&rest[..end]), &rest[end..])
                 }
-                Some(':')
-                    if rest[1..].starts_with(|c: char| c.is_ascii_alphabetic() || c == '_') =>
-                {
+                Some(':') if rest[1..].starts_with(name_start) => {
                     let end = 1 + word_end(&rest[1..]);
                     (Token::Symbol(&rest[1..end]), &rest[end..])
                 }
@@ -92,7 +90,7 @@ fn lex(source: &str) -> Result<Vec<Lexed<'_>>> {
                         .unwrap_or(rest.len() - 1);
                     (Token::Literal(&rest[..end]), &rest[end..])
                 }
-                Some(c) if c.is_ascii_alphabetic() || c == '_' => {
+                Some(c) if name_start(c) => {
                     let end = word_end(rest);
                     let word = &rest[..end];
                     let token = if matches!(word, "nil" | "true" | "false") {
@@ -134,11 +132,17 @@ fn lex(source: &str) -> Result<Vec<Lexed<'_>>> {
     Ok(tokens)
 }
 
+/// Whether `c` starts an identifier, which, as in scripts, may be any
+/// Unicode letter.
+fn name_start(c: char) -> bool {
+    c == '_' || crate::syntax::unicode::letter(c)
+}
+
 /// The length of an identifier at the start of `text`, including a directly
 /// attached `?` or `!`.
 fn word_end(text: &str) -> usize {
     let end = text
-        .find(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+        .find(|c: char| c != '_' && !crate::syntax::unicode::letter_or_digit(c))
         .unwrap_or(text.len());
     if text[end..].starts_with(['?', '!']) {
         end + 1
@@ -278,6 +282,27 @@ impl<'a> Parser<'a> {
             }
             _ => self.fail(format!("expected {what}")),
         }
+    }
+
+    /// A member's or function's name, which may be any word, including
+    /// `nil`, `true`, `false` or a keyword such as `end`.
+    fn member_name(&mut self, what: &str) -> Result<String> {
+        match self.peek() {
+            Token::Literal(word @ ("nil" | "true" | "false")) => {
+                let word = (*word).to_owned();
+                self.pos += 1;
+                Ok(word)
+            }
+            _ => self.word(what),
+        }
+    }
+
+    /// Whether a module member at the current token is a constant, `name:`.
+    fn constant_ahead(&self) -> bool {
+        matches!(
+            self.peek(),
+            Token::Word(_) | Token::Literal("nil" | "true" | "false")
+        ) && self.tokens[(self.pos + 1).min(self.tokens.len() - 1)].token == Token::Punct(":")
     }
 
     /// Requires the end of a declaration's line; comments go on their own line.
@@ -430,6 +455,7 @@ impl<'a> Parser<'a> {
             let doc = self.doc()?;
             let start = self.pos;
             let member = match *self.peek() {
+                _ if !class && self.constant_ahead() => Member::Constant(self.constant(doc)?),
                 Token::Word("end") if doc.is_empty() => {
                     self.pos += 1;
                     return Ok(members);
@@ -476,7 +502,7 @@ impl<'a> Parser<'a> {
     }
 
     fn constant(&mut self, doc: Vec<String>) -> Result<Constant> {
-        let name = self.word("a name")?;
+        let name = self.member_name("a name")?;
         self.expect(":")?;
         let ty = self.ty()?;
         Ok(Constant { doc, name, ty })
@@ -492,7 +518,7 @@ impl<'a> Parser<'a> {
 
     fn function(&mut self, doc: Vec<String>) -> Result<Function> {
         self.keyword("def")?;
-        let name = self.word("a function name")?;
+        let name = self.member_name("a function name")?;
         let scope = self.vars.len();
         let mut type_params = Vec::new();
         if self.eat("<") {

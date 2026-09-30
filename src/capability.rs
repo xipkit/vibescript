@@ -1,5 +1,12 @@
-use crate::{CallContext, Error, ErrorKind, Result, Value, budget::Charge, value::Kind};
+use crate::{
+    CallContext, Error, ErrorKind, Result, Value,
+    budget::Charge,
+    compilation::{Meter, Work},
+    syntax::HostName,
+    value::Kind,
+};
 use std::{
+    cell::RefCell,
     fmt,
     sync::{Arc, Weak},
 };
@@ -84,6 +91,8 @@ impl Capability {
     /// The factory is opaque to static checking: reports for calls granted a
     /// factory remain incomplete, because inspecting its binding would require
     /// running host code. Use it when each invocation needs fresh callback state.
+    /// A name ending in `?` or `!` requires the factory to return a callable;
+    /// declaration accepts the name and binding checks the returned value.
     pub fn new(
         name: impl Into<String>,
         bind: impl Fn(&mut CallContext) -> Result<Value> + Send + Sync + 'static,
@@ -143,8 +152,89 @@ impl Capability {
             Binding::Value(value) => Ok(value.clone()),
         };
         ctx.checkpoint()?;
-        ctx.import(&value?)
+        let value = value?;
+        binding_name(
+            &Meter(RefCell::new(ctx)),
+            HostName::CAPABILITY,
+            &self.name,
+            &value,
+        )?;
+        ctx.import(&value)
     }
+}
+
+/// Validates a published root as either a method or a data binding. A
+/// function a script exports is callable only through its module, so as a
+/// root it is refused.
+pub(crate) fn binding_name(
+    work: &dyn Work,
+    host: HostName<'_>,
+    name: &str,
+    value: &Value,
+) -> Result<()> {
+    if matches!(value.0, Kind::Function(_)) {
+        return Err(host.exported_root(name));
+    }
+    if matches!(value.0, Kind::Host(_)) {
+        crate::syntax::host_function_name(work, host, name)
+    } else {
+        crate::syntax::binding_name(work, host.bound(), name)
+    }
+}
+
+/// Checks callable fields without constraining ordinary string keys.
+pub(crate) fn member_name(
+    work: &dyn Work,
+    host: HostName<'_>,
+    key: &[u8],
+    value: &Value,
+) -> Result<()> {
+    match value.0 {
+        Kind::Host(_) => crate::syntax::host_method_name(work, host, key, false),
+        Kind::Function(_) => crate::syntax::host_method_name(work, host, key, true),
+        _ => Ok(()),
+    }
+}
+
+/// Validates immutable host templates before the checker or prelude publishes
+/// them; `host` names the methods the template holds. A template may not hold
+/// a function a script exports, at any depth.
+pub(crate) fn template_names(work: &dyn Work, host: HostName<'_>, value: &Value) -> Result<()> {
+    if value.depth() > crate::budget::MAX_VALUE_DEPTH {
+        return Err(Error::new(ErrorKind::Recursion, "value nesting too deep"));
+    }
+    let mut pending = vec![value];
+    let mut seen = std::collections::BTreeSet::new();
+    while let Some(value) = pending.pop() {
+        match &value.0 {
+            Kind::Hash(hash) if seen.insert(Arc::as_ptr(hash) as usize) => {
+                for (key, field) in &hash.buffer.data {
+                    // A script calls an exported function only through its
+                    // module, so a template may not hold one.
+                    if matches!(field.0, Kind::Function(_)) {
+                        return Err(host.exported_member(key.as_bytes().unwrap_or_default()));
+                    }
+                    if let Some(key) = key.as_bytes() {
+                        member_name(work, host, key, field)?;
+                    }
+                    pending.push(field);
+                }
+            }
+            Kind::Array(array) if seen.insert(Arc::as_ptr(array) as usize) => {
+                if array
+                    .buffer
+                    .data
+                    .iter()
+                    .any(|item| matches!(item.0, Kind::Function(_)))
+                {
+                    return Err(host.exported_member(b"[]"));
+                }
+                pending.extend(&array.buffer.data);
+            }
+            _ => (),
+        }
+    }
+    Ok(())
 }
 
 impl fmt::Debug for Capability {
@@ -599,4 +689,51 @@ fn retain(
     })();
     ctx.host_roots = roots;
     result
+}
+
+#[cfg(test)]
+mod name_work_tests {
+    use super::*;
+    use crate::CallOptions;
+
+    #[test]
+    fn callable_names_check_limits_and_cancellation_before_scanning() {
+        let method = HostMethod::new("method", |_, _, _| Ok(Value::nil())).value();
+        for key in [vec![b'x'; 65], vec![0xff; 65]] {
+            for cancelled in [false, true] {
+                let mut options = CallOptions::default();
+                options.limits.steps = Some(1);
+                if cancelled {
+                    options.cancellation.cancel();
+                }
+                let mut ctx = CallContext::new(options);
+                let error = member_name(
+                    &Meter(RefCell::new(&mut ctx)),
+                    HostName::METHOD,
+                    &key,
+                    &method,
+                )
+                .unwrap_err();
+                assert_eq!(
+                    error.kind,
+                    if cancelled {
+                        ErrorKind::Cancelled
+                    } else {
+                        ErrorKind::Steps
+                    }
+                );
+            }
+            let mut options = CallOptions::default();
+            options.limits.steps = Some(0);
+            let mut ctx = CallContext::new(options);
+            member_name(
+                &Meter(RefCell::new(&mut ctx)),
+                HostName::METHOD,
+                &key,
+                &Value::int(1),
+            )
+            .unwrap();
+            assert_eq!(ctx.stats().steps, 0);
+        }
+    }
 }

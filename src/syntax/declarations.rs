@@ -326,7 +326,11 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         {
             return Err(error);
         }
-        compile_checks(&order, &modules, &enums, work)?;
+        // A lenient parse finds uses only, and one class declared twice
+        // is two sites of its name.
+        if !super::suffixes::lenient() {
+            compile_checks(&order, &modules, &enums, work)?;
+        }
         defs.insert(
             work,
             0,
@@ -444,7 +448,11 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 ParamKind::KeywordRest => keyword_rest = true,
                 ParamKind::Positional => (),
             }
-            p.locals.insert(work, param.name.clone(), ())?;
+            let id = p.local_id(&param.name, offset)?;
+            if param.kind == ParamKind::Keyword {
+                p.labelled(id)?;
+            }
+            p.locals.insert(work, param.name.clone(), id)?;
             p.declared_it |= param.name == "it";
             params.push(work, param)?;
             let comma = p.significant(p.pos);
@@ -501,6 +509,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             let Token::Word(word) = p.bump()? else {
                 unreachable!()
             };
+            p.binding_name(&word, offset)?;
             let name = Name::new(work, word.strip_prefix('@').unwrap_or(&word))?;
             (kind, name, instance, offset)
         };
@@ -663,7 +672,10 @@ impl Parser<'_> {
         if !self.ident(self.pos) {
             return self.expected(Label::Text("identifier"));
         }
+        let at = self.tokens[self.pos].offset;
         let name = self.name()?;
+        // Enums are declared at the top level only.
+        let namespace = self.namespace_entered(&name, at)?;
         let mut members = Buffer::new();
         let mut member_offsets = Vec::new();
         let mut seen = Table::new();
@@ -684,6 +696,8 @@ impl Parser<'_> {
             let Token::Word(member) = self.bump()? else {
                 unreachable!()
             };
+            self.binding_name(&member, member_offset)?;
+            self.member_binding(&member, member_offset, namespace)?;
             let member = Name::new(work, &member)?;
             if seen.insert(work, member.clone(), ())?.is_some() {
                 return Err(Error::syntax(

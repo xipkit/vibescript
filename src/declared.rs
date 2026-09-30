@@ -6,6 +6,7 @@
 use crate::{
     CallContext, Capability, Error, ErrorKind, Result, Value,
     signatures::{self, Item},
+    syntax::HostName,
     types::{Type, TypeKind},
     value::Kind,
 };
@@ -48,6 +49,7 @@ pub(crate) struct RetainedSource {
 impl Declaration {
     /// A global of the annotation `ty`, or of any type when `ty` is empty.
     pub fn global(name: &str, ty: &str) -> Result<Self> {
+        crate::syntax::binding_name(&(), HostName::GLOBAL, name)?;
         if ty.trim().is_empty() {
             return Ok(Self {
                 item: constant(name, signatures::Type::name("any")),
@@ -80,20 +82,23 @@ impl Declaration {
     /// function, an object holding host methods a namespace of its methods
     /// and data, and other data a value of the type its contents show. A
     /// factory capability, whose value is known only when a call starts, is
-    /// declared as `any`.
+    /// declared as `any`, or as an unsigned function when its suffix requires
+    /// a callable binding.
     pub fn capability(capability: &Capability) -> Result<Self> {
         let name = capability.name.as_str();
         let Some(template) = capability.template() else {
             return Ok(Self {
-                item: constant(name, signatures::Type::name("any")),
+                item: signatures::host::factory(name)?,
                 capability: true,
                 shape: Shape::Value(None),
             });
         };
+        crate::capability::binding_name(&(), HostName::CAPABILITY, name, template)?;
+        crate::capability::template_names(&(), HostName::CAPABILITY.member_of(name), template)?;
         Ok(Self {
             item: signatures::host::binding(name, template),
             capability: true,
-            shape: shape(template, true)?,
+            shape: shape(template, &signatures::host::Methods::of(template), 0)?,
         })
     }
 
@@ -135,7 +140,8 @@ fn named(ty: &Type) -> Option<&str> {
 
 /// What a template requires of each call's value, matching the item
 /// [`signatures::host::binding`] renders for it.
-fn shape(value: &Value, top: bool) -> Result<Shape> {
+fn shape(value: &Value, methods: &signatures::host::Methods, depth: usize) -> Result<Shape> {
+    let top = depth == 0;
     Ok(match &value.0 {
         Kind::Namespace(namespace) if top => {
             let owner = namespace
@@ -224,23 +230,19 @@ fn shape(value: &Value, top: bool) -> Result<Shape> {
         Kind::Host(method) => {
             Shape::Method(method.signature().map(|signature| signature.source.clone()))
         }
-        Kind::Hash(hash)
-            if top
-                && hash
-                    .buffer
-                    .data
-                    .iter()
-                    .any(|(_, field)| matches!(field.0, Kind::Host(_))) =>
-        {
+        // An object holding a host method at any depth is a namespace, as
+        // its declaration is, of exactly the members it declares, down to
+        // the depth past which it declares as `any`.
+        Kind::Hash(hash) if methods.holds(value) => {
+            if depth >= signatures::host::NAMESPACE_DEPTH {
+                return Ok(Shape::Value(None));
+            }
             let mut members = Vec::new();
             for (key, field) in &hash.buffer.data {
-                let Some(key) = key.as_bytes() else {
+                let Some(key) = key.as_bytes().and_then(signatures::host::member_key) else {
                     continue;
                 };
-                members.push((
-                    String::from_utf8_lossy(key).into_owned(),
-                    shape(field, false)?,
-                ));
+                members.push((key.to_owned(), shape(field, methods, depth + 1)?));
             }
             Shape::Object(members)
         }
@@ -334,8 +336,13 @@ pub(crate) fn check_globals(ctx: &mut CallContext, declared: &Declarations) -> R
     let globals = std::mem::take(&mut ctx.options.globals);
     let capabilities = std::mem::take(&mut ctx.options.capabilities);
     let result = (|| {
-        for name in globals.keys() {
-            ctx.work_bytes(name.len())?;
+        for (name, value) in &globals {
+            crate::capability::binding_name(
+                &crate::compilation::Meter(std::cell::RefCell::new(ctx)),
+                HostName::GLOBAL,
+                name,
+                value,
+            )?;
             if !declared.contains_key(name) {
                 return Err(Error::new(
                     ErrorKind::Argument,

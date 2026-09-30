@@ -486,6 +486,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
                         }
                         i += c.len_utf8();
                     }
+                    i = self.name_end(i);
                     return Ok(Token::Word(Word(&source[start..i])));
                 }
                 if super::unicode::digit(initial) {
@@ -792,8 +793,27 @@ impl<'a, 'w> Lexer<'a, 'w> {
                 i += c.len_utf8();
             }
         }
+        i = self.name_end(i);
         self.pos = i;
         Token::Word(Word(&self.source[start..i]))
+    }
+
+    // `=` and `~` end the scan, so only its last character can hide `!=`,
+    // `?=` or `!~`. Keep other malformed names intact for the parser's fix.
+    fn name_end(&self, end: usize) -> usize {
+        let bytes = &self.source.as_bytes()[..self.limit];
+        let last = bytes.get(end.wrapping_sub(1));
+        // A lenient parse reads `x?=1` as it did before suffixes were
+        // reserved, as an assignment to `x?`.
+        let assigns = matches!(last, Some(b'?' | b'!'))
+            && bytes.get(end) == Some(&b'=')
+            && !matches!(bytes.get(end + 1), Some(b'=' | b'~'))
+            && (last == Some(&b'!') || !super::suffixes::lenient());
+        if assigns || (last == Some(&b'!') && bytes.get(end) == Some(&b'~')) {
+            end - 1
+        } else {
+            end
+        }
     }
 
     /// Reads a numeric literal with Go's rules.
@@ -1057,6 +1077,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
             self.work.charge(1)?;
             end += c.len_utf8();
         }
+        end = self.name_end(end);
         if end > start + 1 {
             self.pos = end;
             return Ok(Token::Symbol(Word(&self.source[start + 1..end])));

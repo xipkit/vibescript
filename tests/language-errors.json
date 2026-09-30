@@ -1654,13 +1654,13 @@
     "name": "command_identifier_embedded_bang",
     "source": "def pack(*args: array<any>,**kw: hash<string, any>) -> any\n[args,kw]\nend\ndef id(x: any) -> any\nx\nend\ndef n() -> int\n10\nend\ndef run(input: any) -> any\nid!false\nend\n",
     "go_error": "undefined variable id!false",
-    "static_error": {"code": "V0201", "at": [11, 1]}
+    "static_error": {"code": "V0003", "at": [11, 3]}
   },
   {
     "name": "command_identifier_embedded_question",
     "source": "def pack(*args: array<any>,**kw: hash<string, any>) -> any\n[args,kw]\nend\ndef id(x: any) -> any\nx\nend\ndef n() -> int\n10\nend\ndef run(input: any) -> any\nid?false\nend\n",
     "go_error": "undefined variable id?false",
-    "static_error": {"code": "V0201", "at": [11, 1]}
+    "static_error": {"code": "V0003", "at": [11, 3]}
   },
   {
     "name": "block_explicit_no_inference",
@@ -90767,17 +90767,17 @@
   },
   {
     "name": "shapes_shadow_80",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nstring?=7;render(identity({x:money}))\nend\n",
+    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nstring_=7;render(identity({x:money}))\nend\n",
     "go_error": "money is a method and cannot be used as a value; call it with money(...)"
   },
   {
     "name": "shapes_shadow_81",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nif false;string?=7;end;render(identity({x:money}))\nend\n",
+    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nif false;string_=7;end;render(identity({x:money}))\nend\n",
     "go_error": "money is a method and cannot be used as a value; call it with money(...)"
   },
   {
     "name": "shapes_shadow_83",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> array<string>\n[7].map{|string?|render(identity({x:money}))}\nend\n",
+    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> array<string>\n[7].map{|string_|render(identity({x:money}))}\nend\n",
     "go_error": "money is a method and cannot be used as a value; call it with money(...)"
   },
   {
@@ -91647,19 +91647,19 @@
     "name": "shapes_structural_39",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nrender({x:int??})\nend\n",
     "go_error": "undefined variable int??",
-    "static_error": {"code": "V0201", "at": [9, 11]}
+    "static_error": {"code": "V0003", "at": [9, 14]}
   },
   {
     "name": "shapes_structural_40",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nint=7;render({x:int??})\nend\n",
     "go_error": "undefined variable int?? (did you mean \"int\"?)",
-    "static_error": {"code": "V0201", "at": [9, 17]}
+    "static_error": {"code": "V0003", "at": [9, 20]}
   },
   {
     "name": "shapes_structural_41",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nif false;int=7;end;render({x:int??})\nend\n",
     "go_error": "undefined variable int?? (did you mean \"int\"?)",
-    "static_error": {"code": "V0201", "at": [9, 30]}
+    "static_error": {"code": "V0003", "at": [9, 33]}
   },
   {
     "name": "shapes_boundaries_extra_2",
@@ -122067,25 +122067,25 @@
     "name": "module_shadow_30",
     "source": "module M\nend\ndef run(input: any) -> any\nM.eql?=3;M.eql?\nend\n",
     "go_error": "eql? is a method and cannot be used as a value; call it with eql?(...)",
-    "static_error": {"code": "V0203", "at": [4, 3]}
+    "static_error": {"code": "V0003", "at": [4, 6]}
   },
   {
     "name": "module_shadow_33",
     "source": "module M\nend\ndef run(input: any) -> any\nM.eql?=Regex.new(\"a\");M.eql?\nend\n",
     "go_error": "eql? is a method and cannot be used as a value; call it with eql?(...)",
-    "static_error": {"code": "V0203", "at": [4, 3]}
+    "static_error": {"code": "V0003", "at": [4, 6]}
   },
   {
     "name": "module_shadow_36",
     "source": "module M\nend\ndef run(input: any) -> any\nM.equal?=3;M.equal?\nend\n",
     "go_error": "equal? is a method and cannot be used as a value; call it with equal?(...)",
-    "static_error": {"code": "V0203", "at": [4, 3]}
+    "static_error": {"code": "V0003", "at": [4, 8]}
   },
   {
     "name": "module_shadow_39",
     "source": "module M\nend\ndef run(input: any) -> any\nM.equal?=Regex.new(\"a\");M.equal?\nend\n",
     "go_error": "equal? is a method and cannot be used as a value; call it with equal?(...)",
-    "static_error": {"code": "V0203", "at": [4, 3]}
+    "static_error": {"code": "V0003", "at": [4, 8]}
   },
   {
     "name": "module_initializers_3",
@@ -139852,13 +139852,7 @@
   {
     "name": "enums_names_19",
     "source": "enum State!\nDraft\nend\ndef run(input: any) -> State!\nif false;State!=1;end;State!::Draft\nend\n",
-    "static_error": {
-      "code": "V0102",
-      "at": [
-        5,
-        10
-      ]
-    }
+    "static_error": {"code": "V0003", "at": [1, 11]}
   },
   {
     "name": "enums_names_71",
@@ -139898,7 +139892,7 @@
   },
   {
     "name": "shapes_shadow_61",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: int?)\nx\nend\n\ndef run(input: any) -> string\nif false;string?=7;end;render(identity(string?))\nend\n",
+    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: int?)\nx\nend\n\ndef run(input: any) -> string\nif false;string_=7;end;render(identity(string_))\nend\n",
     "static_error": {"code": "V0202", "at": [9, 40]}
   },
   {
@@ -142817,17 +142811,17 @@
   {
     "name": "module_shadow_0",
     "source": "module M\nend\ndef run(input: any) -> bool\nM.nil?=3;M == nil\nend\n",
-    "static_error": {"code": "V0203", "at": [4, 3]}
+    "static_error": {"code": "V0003", "at": [4, 6]}
   },
   {
     "name": "module_shadow_2",
     "source": "module M\nend\ndef run(input: any) -> int\nM.nil?=3;M::nil?\nend\n",
-    "static_error": {"code": "V0203", "at": [4, 3]}
+    "static_error": {"code": "V0003", "at": [4, 6]}
   },
   {
     "name": "module_shadow_3",
     "source": "module M\nend\ndef run(input: any) -> bool\nM.nil?=Regex.new(\"a\");M == nil\nend\n",
-    "static_error": {"code": "V0203", "at": [4, 3]}
+    "static_error": {"code": "V0003", "at": [4, 6]}
   },
   {
     "name": "module_shadow_8",
@@ -142868,17 +142862,17 @@
   {
     "name": "module_shadow_32",
     "source": "module M\nend\ndef run(input: any) -> int\nM.eql?=3;M::eql?\nend\n",
-    "static_error": {"code": "V0203", "at": [4, 3]}
+    "static_error": {"code": "V0003", "at": [4, 6]}
   },
   {
     "name": "module_shadow_38",
     "source": "module M\nend\ndef run(input: any) -> int\nM.equal?=3;M::equal?\nend\n",
-    "static_error": {"code": "V0203", "at": [4, 3]}
+    "static_error": {"code": "V0003", "at": [4, 8]}
   },
   {
     "name": "module_shadow_44",
     "source": "module M\nend\ndef run(input: any) -> int\nM.respond_to?=3;M::respond_to?\nend\n",
-    "static_error": {"code": "V0203", "at": [4, 3]}
+    "static_error": {"code": "V0003", "at": [4, 13]}
   },
   {
     "name": "module_initializers_1",
@@ -167711,13 +167705,7 @@
   {
     "name": "block_predicate_local_shadow",
     "source": "def zero(&block: () -> int) -> int\nyield\nend\ndef one(x: int, &block: int -> int) -> int\nyield x\nend\ndef two(x: int,y: int, &block: (int, int) -> int) -> int\nyield x,y\nend\ndef twice(x: int, &block: int -> int) -> array<int>\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present() -> bool\nblock_given?\nend\ndef k(*, a: any, &block: any -> any) -> any\nyield a\nend\ndef d(a: any =yield) -> any\na\nend\ndef run(input: any) -> bool | int\nblock_given?=7;block_given?\nend\n",
-    "static_error": {
-      "code": "V0308",
-      "at": [
-        21,
-        15
-      ]
-    }
+    "static_error": {"code": "V0003", "at": [25, 12]}
   },
   {
     "name": "block_predicate_nested_function",
@@ -168832,7 +168820,7 @@
   },
   {
     "name": "shapes_shadow_144",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nInt=7;render(identity(string?))\nend\n",
+    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nInt=7;render(identity(string_))\nend\n",
     "static_error": {
       "code": "V0102",
       "at": [
@@ -168843,7 +168831,7 @@
   },
   {
     "name": "shapes_shadow_145",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nif false;Int=7;end;render(identity(string?))\nend\n",
+    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nif false;Int=7;end;render(identity(string_))\nend\n",
     "static_error": {
       "code": "V0102",
       "at": [
@@ -179100,5 +179088,629 @@
     "source": "def run(input: any) -> number\n(-1) ** (-1180591620717411303424)\nend\n",
     "error": "negative integer exponent; use a float base, for example 2.0 ** -1",
     "go_error": "negative integer exponent; use a float base, for example 2.0 ** -1"
+  },
+  {
+    "name": "enums_names_18",
+    "source": "enum State!\nDraft\nend\ndef run(input: any) -> string\nState!.name\nend\n",
+    "go_error": "method suffix on a non-method name",
+    "static_error": {
+      "code": "V0003",
+      "at": [
+        1,
+        11
+      ]
+    }
+  },
+  {
+    "name": "enums_symbols_30",
+    "source": "enum State\nReady?\nend\ndef run(input: any) -> array<string | symbol>\n[State::Ready?.name,State::Ready?.symbol,State::Ready?.to_s]\nend\n",
+    "go_error": "method suffix on a non-method name",
+    "static_error": {
+      "code": "V0003",
+      "at": [
+        2,
+        6
+      ]
+    }
+  },
+  {
+    "name": "enums_symbols_31",
+    "source": "enum _state\nReady?\nend\ndef run(input: any) -> array<string | symbol>\n[_state::Ready?.name,_state::Ready?.symbol,_state::Ready?.to_s]\nend\n",
+    "go_error": "method suffix on a non-method name",
+    "static_error": {
+      "code": "V0003",
+      "at": [
+        2,
+        6
+      ]
+    }
+  },
+  {
+    "name": "enums_symbols_32",
+    "source": "enum État\nReady?\nend\ndef run(input: any) -> array<string | symbol>\n[État::Ready?.name,État::Ready?.symbol,État::Ready?.to_s]\nend\n",
+    "go_error": "method suffix on a non-method name",
+    "static_error": {
+      "code": "V0003",
+      "at": [
+        2,
+        6
+      ]
+    }
+  },
+  {
+    "name": "enums_symbols_33",
+    "source": "enum State\nReady!\nend\ndef run(input: any) -> array<string | symbol>\n[State::Ready!.name,State::Ready!.symbol,State::Ready!.to_s]\nend\n",
+    "go_error": "method suffix on a non-method name",
+    "static_error": {
+      "code": "V0003",
+      "at": [
+        2,
+        6
+      ]
+    }
+  },
+  {
+    "name": "enums_symbols_34",
+    "source": "enum _state\nReady!\nend\ndef run(input: any) -> array<string | symbol>\n[_state::Ready!.name,_state::Ready!.symbol,_state::Ready!.to_s]\nend\n",
+    "go_error": "method suffix on a non-method name",
+    "static_error": {
+      "code": "V0003",
+      "at": [
+        2,
+        6
+      ]
+    }
+  },
+  {
+    "name": "enums_symbols_35",
+    "source": "enum État\nReady!\nend\ndef run(input: any) -> array<string | symbol>\n[État::Ready!.name,État::Ready!.symbol,État::Ready!.to_s]\nend\n",
+    "go_error": "method suffix on a non-method name",
+    "static_error": {
+      "code": "V0003",
+      "at": [
+        2,
+        6
+      ]
+    }
+  },
+  {
+    "name": "enums_syntax_26",
+    "source": "enum State\nA?\nend\ndef run(input: any) -> int\n7\nend\n",
+    "go_error": "method suffix on a non-method name",
+    "static_error": {
+      "code": "V0003",
+      "at": [
+        2,
+        2
+      ]
+    }
+  },
+  {
+    "name": "enums_syntax_28",
+    "source": "enum State\nA!\nend\ndef run(input: any) -> int\n7\nend\n",
+    "go_error": "method suffix on a non-method name",
+    "static_error": {
+      "code": "V0003",
+      "at": [
+        2,
+        2
+      ]
+    }
+  },
+  {
+    "name": "enums_identifiers_15",
+    "source": "def run(input: any) -> int\ns?=7;s?\nend\n",
+    "go_error": "method suffix on a non-method name",
+    "static_error": {
+      "code": "V0003",
+      "at": [
+        2,
+        2
+      ]
+    }
+  },
+  {
+    "name": "enums_identifiers_17",
+    "source": "def run(input: any) -> array<int>\n[3].map{|s?|s?}\nend\n",
+    "go_error": "method suffix on a non-method name",
+    "static_error": {
+      "code": "V0003",
+      "at": [
+        2,
+        11
+      ]
+    }
+  },
+  {
+    "name": "enums_identifiers_18",
+    "source": "def run(input: any) -> int\ns!=7;s!\nend\n",
+    "go_error": "method suffix on a non-method name",
+    "static_error": {
+      "code": "V0201",
+      "at": [
+        2,
+        1
+      ]
+    }
+  },
+  {
+    "name": "enums_identifiers_20",
+    "source": "def run(input: any) -> array<int>\n[3].map{|s!|s!}\nend\n",
+    "go_error": "method suffix on a non-method name",
+    "static_error": {
+      "code": "V0003",
+      "at": [
+        2,
+        11
+      ]
+    }
+  },
+  {
+    "name": "module_name_6",
+    "source": "module M?\nend\ndef run(input: any) -> int\n1\nend\n",
+    "go_error": "method suffix on a non-method name",
+    "static_error": {
+      "code": "V0003",
+      "at": [
+        1,
+        9
+      ]
+    }
+  },
+  {
+    "name": "module_name_7",
+    "source": "module M!\nend\ndef run(input: any) -> int\n1\nend\n",
+    "go_error": "method suffix on a non-method name",
+    "static_error": {
+      "code": "V0003",
+      "at": [
+        1,
+        9
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_3",
+    "source": "def run(input: any)\na=/a/;b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:33: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        2,
+        16
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_5",
+    "source": "def run(input: any)\na=/a/;b=nil;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:21: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        7
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_9",
+    "source": "def run(input: any)\na=/a/i;b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:34: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        2,
+        17
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_11",
+    "source": "def run(input: any)\na=/a/i;b=nil;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:22: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        8
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_15",
+    "source": "def run(input: any)\na=/a/m;b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:34: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        2,
+        17
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_17",
+    "source": "def run(input: any)\na=/a/m;b=nil;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:22: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        8
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_21",
+    "source": "def run(input: any)\na=/a/mi;b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:35: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        2,
+        18
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_23",
+    "source": "def run(input: any)\na=/a/mi;b=nil;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:23: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        9
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_27",
+    "source": "def run(input: any)\na=/b/;b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:33: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        2,
+        16
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_29",
+    "source": "def run(input: any)\na=/b/;b=nil;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:21: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        7
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_30",
+    "source": "def run(input: any)\na=Regexp.new(\"a\");b=/a/;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:33: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        2,
+        10
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_31",
+    "source": "def run(input: any)\na=Regexp.new(\"a\");b=/a/i;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:34: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        2,
+        10
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_32",
+    "source": "def run(input: any)\na=Regexp.new(\"a\");b=/a/im;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:35: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        2,
+        10
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_33",
+    "source": "def run(input: any)\na=Regexp.new(\"a\");b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:45: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        2,
+        10
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_34",
+    "source": "def run(input: any)\na=Regexp.new(\"a\");b=\"a\";[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:33: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        2,
+        10
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_35",
+    "source": "def run(input: any)\na=Regexp.new(\"a\");b=nil;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:33: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        2,
+        10
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_39",
+    "source": "def run(input: any)\na=\"a\";b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:33: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        2,
+        16
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_41",
+    "source": "def run(input: any)\na=\"a\";b=nil;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:21: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        7
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_42",
+    "source": "def run(input: any)\na=nil;b=/a/;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:21: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        1
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_43",
+    "source": "def run(input: any)\na=nil;b=/a/i;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:22: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        1
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_44",
+    "source": "def run(input: any)\na=nil;b=/a/im;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:23: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        1
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_45",
+    "source": "def run(input: any)\na=nil;b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:33: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        1
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_46",
+    "source": "def run(input: any)\na=nil;b=\"a\";[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:21: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        1
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_47",
+    "source": "def run(input: any)\na=nil;b=nil;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:21: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        1
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_48",
+    "source": "def run(input: any)\na={};b=/a/;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:20: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        1
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_49",
+    "source": "def run(input: any)\na={};b=/a/i;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:21: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        1
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_50",
+    "source": "def run(input: any)\na={};b=/a/im;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:22: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        1
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_51",
+    "source": "def run(input: any)\na={};b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:32: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        1
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_52",
+    "source": "def run(input: any)\na={};b=\"a\";[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:20: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        1
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_53",
+    "source": "def run(input: any)\na={};b=nil;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:20: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        1
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_54",
+    "source": "def run(input: any)\na=[];b=/a/;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:20: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        1
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_55",
+    "source": "def run(input: any)\na=[];b=/a/i;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:21: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        1
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_56",
+    "source": "def run(input: any)\na=[];b=/a/im;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:22: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        1
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_57",
+    "source": "def run(input: any)\na=[];b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:32: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        1
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_58",
+    "source": "def run(input: any)\na=[];b=\"a\";[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:20: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        1
+      ]
+    }
+  },
+  {
+    "name": "regex_value_equality_59",
+    "source": "def run(input: any)\na=[];b=nil;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:20: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0103",
+      "at": [
+        2,
+        1
+      ]
+    }
+  },
+  {
+    "name": "class_surface_20",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x: any\n def initialize(@x: int =4);end\n def f(n: int =5) -> any;n+@x;end\n def self.f(n: int =6) -> int;n+@@n;end\nend\ndef run(input: any)\na=C.new;[a==a,a!=a,a==C.new,a!=C.new]\nend",
+    "go_error": "parse error at 11:17: expected \"]\", got \"=\"",
+    "static_error": {
+      "code": "V0204",
+      "at": [
+        4,
+        2
+      ]
+    }
   }
 ]

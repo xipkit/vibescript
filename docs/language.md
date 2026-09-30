@@ -58,6 +58,108 @@ pattern = /id-([0-9]+)/i      # regex
 
 Strings are immutable byte strings, usually UTF-8, and character positions count Unicode code points. Integers never overflow; they grow as needed. Floats that are whole numbers print without a fractional part, so `p 3.0` prints `3`.
 
+## Names
+
+Names begin with a Unicode letter or `_` and continue with letters, digits or
+underscores. Only method names may end in one `?` or `!`: definitions such as
+`def ok?` and `def save!`, calls such as `ok?`, `user.valid?` and
+`list&.empty?`, and symbols such as `:ok?`. Calls with arguments may omit
+parentheses: `valid? user`. Locals, parameters, constants, instance variables,
+class variables and host data globals have no suffix. `READY? = 1`, `x! = 3`,
+`@done? = true` and `def f(ok?: bool)` report V0003 with a fix removing the
+suffix, the whole run of `?` and `!` in `x?! = 1`, while a method such as
+`def bad??` keeps one. Where removal would leave a keyword, as in `nil? = 1`,
+the fix writes `nil_` instead, and where no name would be left, as in
+`@? = 1`, there is no fix. A `?` or `!` inside a name, as in `x?1`, is not a
+suffix: V0003 reports it without a fix, since removing it could name something
+else. A name after `::` is spelled as one after `.` is, so `M::bad??` reports
+V0003 as `M.bad??` does, while a scoped call such as `M::ok?` keeps its V0416
+fix, `M.ok?`. The fix for a binding renames it wherever it is used: every
+place that binds it and every
+read of it in scope, and for a class's, module's or enum's constant also its
+scoped reads in the file, such as `C::LIMIT!` or `C.LIMIT!`, so one fix, or one
+`vibes fix` run, migrates it whole. A class, module, enum or type alias name is such a
+binding too: its fix renames every declaration of it, including reopenings, and
+every read of it, bare, scoped as in `A::Ready?`, as a parent after `<` or in a
+type, where a final `?` stays the nullable marker. Where some use cannot be told from another
+name, as the symbol `:Ready?`, the call `Ready?(1)`, a type `Ready!?` that
+reads as a nullable `Ready!`, a read through a scope that is no path of
+namespaces, such as `c::LIMIT!` with `c` a local or `M.X?` with a parameter `M`
+shadowing the module, or code past a syntax error, there is no fix rather than
+one that renames only part of it. Nor is there one
+that would leave a name the file already spells anywhere, as a binding, method,
+namespace, member, label, symbol or nullable type, or that an earlier fix of
+another spelling leaves, since applying it would make two names one:
+`x = 1; x? = 2; [x, x?]` reports V0003 without a fix, where renaming would read
+`x` twice. A method's name, or a variable's with a sigil, is fixed where it is
+spelled, each spelling on its own, so the fixes of `def ok??` and each call
+`ok??` all leave `ok?`, and `vibes fix` applies them together. Whatever a fix
+renames, it is offered only while the fixes of its spelling reach every place a
+name token spells it, whether a name, a type, a member after `.` or `::` or a
+method's name; labels, symbols, strings and comments do not count. So
+`property done?` has no fix while a call `a.done?`, valid and so without a fix,
+would keep calling the old name, and neither has `x? = 1` beside a call
+`obj.x?`. A keyword parameter keeps its name, which
+calls, and a host, pass as a label. Nor is there
+one leaving a name its declaration cannot take: a builtin or prelude type's for
+a type alias or enum, a prelude namespace's, function's or global's for a
+constant, or one an enum member would share, once normalized to a symbol, with
+another name. A required file's public functions bind in the requiring script
+only where their names are free, so a rename there cannot capture one. A
+suffixed name that no suffixed binding owns, such as a call of a host's
+`ready?`, is never renamed.
+
+Member assignment targets also have no suffix: `h.ready? = 1`, compound
+updates such as `h.ready! += 1`, and destructuring targets report V0003.
+Such targets would create the invalid setter name `ready?=` or `ready!=`.
+An earlier receiver may still call a suffixed method, as in
+`box.ready?.value = 1`; indexed string keys such as `h["ready?"] = 1` remain
+ordinary data keys.
+
+A suffix immediately followed by a single `=` is never part of a name: `a!=b`
+always compares `a` and `b`, and `x?=y` reports V0003, as do the setter
+definitions `def ok?=(value: T)` and `def ok!=(value: T)`; the fix for `x?=y`
+is offered only where the assignment it leaves can stand. Likewise a `!`
+immediately followed by `~` is never a suffix, so `a!~b` is `a !~ b`, and
+`ok?!~/x/` calls `ok?`. Before `==` or `=~`, the suffix remains part of the
+method name: `ok?==true` calls `ok?` and compares its result with `true`.
+
+Hash and keyword labels are string keys, so `{ ready?: true }` has the key
+`"ready?"`, and `f(ready?: true)` passes that key to `**options`. The shorthand
+`{ ready?: }` calls the method `ready?`; use `{ ready?: ready }` to read a
+local. In type syntax, `T?`, the optional shape field `ready?: bool`, and
+`&block?:` use `?` as an optional marker; it is not part of the type, field or
+block parameter name. The marker keeps that meaning before `=`, so
+`def f(x: int?=nil)` declares an `int?` parameter whose default is `nil`.
+
+Host functions and callable capability members obey the same method spelling
+rule, including functions supplied through globals. Their published names are
+checked independently of host diagnostic labels such as `SMS.send`.
+Registration keeps its infallible API: an invalid registered name fails
+compilation or type checking and is omitted from the prelude. Capability
+templates are checked when declared, and factory results and newly published
+methods are checked before scripts can access them. A factory root ending in
+`?` or `!` is declared as a callable with unknown argument and result types;
+binding rejects it if the factory returns data. Internal or repeated suffixes
+are rejected at declaration. A callable field of any hash or object a host
+supplies, as a global, a factory's value or a callback's result, must spell a
+method; ordinary string data keys may contain punctuation. A capability
+template cannot hold a function a script exports, at its root or any depth,
+nor can a global's root be one: a script calls such a function only through
+its module, so either is a host error. A required file's exported functions
+may include a setter such as `value=`, as a script's `def value=` is. A host
+method may not: no script can call a host setter, so a capability template, a
+factory's value, a global or a callback that publishes
+`value=` fails with a host error, as does a registered host function of that
+name. A global's or data capability's name is one a script can read: a letter
+or `_`, then letters, digits and `_`, and no keyword. A template's data keys
+that no script can read as a member, such as `"with space"` or one not UTF-8,
+are left out of the capability's declaration and the prelude, so the prelude
+always parses, and out of the members a call's grant must match. An
+invalid host name is a host error (`ErrorKind::Argument`) that names the
+registration, such as `invalid global name "ready?"`; it has no script
+position and no fix, since the script is not what needs changing.
+
 ## Types
 
 | Type | Meaning |

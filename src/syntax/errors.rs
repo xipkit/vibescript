@@ -52,7 +52,10 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 };
                 let declared_it = p.declared_it;
                 if let Some(name) = &binding {
-                    p.locals.insert(work, name.clone(), ())?;
+                    // The binding is the word before the clause's end.
+                    let at = p.tokens[p.pos - 1].offset;
+                    let id = p.local_id(name, at)?;
+                    p.locals.insert(work, name.clone(), id)?;
                     p.declared_it |= name == "it";
                 }
                 (offset, classes, binding, existed, declared_it)

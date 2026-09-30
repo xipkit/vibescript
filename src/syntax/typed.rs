@@ -172,6 +172,9 @@ impl Parser<'_> {
         self.bump()?;
         let offset = self.tokens[self.pos].offset as u32;
         let name = self.name()?;
+        // An alias's name is bound where it is declared, like a class's, and
+        // read in types.
+        self.namespace_entered(&name, offset as usize)?;
         if crate::types::builtin_name(&name).is_some() {
             return Err(Error::syntax(
                 self.work,
@@ -208,6 +211,7 @@ impl Parser<'_> {
             unreachable!()
         };
         let written = word.strip_suffix('?').unwrap_or(&word);
+        self.binding_name(written, at)?;
         if written.is_empty() || super::keyword(written) || written.ends_with(['?', '!']) {
             return Err(Error::syntax(work, at, "expected block parameter name"));
         }
@@ -379,6 +383,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             let Token::Word(word) = p.bump()? else {
                 unreachable!()
             };
+            p.binding_name(&word, offset)?;
             let name = &word[1..];
             if name.is_empty() {
                 return Err(Error::syntax(
@@ -427,6 +432,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             let Token::Word(word) = p.bump()? else {
                 unreachable!()
             };
+            p.binding_name(&word, offset)?;
             if word.len() == 2 {
                 return Err(Error::syntax(
                     work,

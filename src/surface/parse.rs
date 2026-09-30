@@ -88,6 +88,25 @@ pub fn keyword(w: &str) -> bool {
     KEYWORDS.binary_search(&w).is_ok()
 }
 
+/// `expr` without the parentheses around it, which the compiler's parser
+/// keeps no node for, so that a receiver or callee decides as it does there.
+fn ungrouped(expr: &Expr) -> &Expr {
+    let mut expr = expr;
+    while let ExprKind::Group(_, inner, _) = &expr.kind {
+        expr = inner;
+    }
+    expr
+}
+
+/// [`ungrouped`], taking the expression.
+fn ungroup(expr: Expr) -> Expr {
+    let mut expr = expr;
+    while let ExprKind::Group(_, inner, _) = expr.kind {
+        expr = *inner;
+    }
+    expr
+}
+
 fn reserved(w: &str) -> bool {
     matches!(
         w,
@@ -844,7 +863,7 @@ impl<'s> Parser<'s> {
                 .next()
                 .is_some_and(crate::syntax::unicode::upper)
         };
-        match &lhs.kind {
+        match &ungrouped(lhs).kind {
             ExprKind::Name(name) => lowercase(name) && !self.locals.contains(name),
             ExprKind::Call(call) => {
                 !call.scoped(&self.tokens) || call.args.is_some() || lowercase(&call.name)
@@ -858,6 +877,7 @@ impl<'s> Parser<'s> {
         if self.line_exprs == 0 || min > 14 {
             return false;
         }
+        let lhs = ungrouped(lhs);
         let local = match &lhs.kind {
             ExprKind::Name(name) => self.locals.contains(name),
             // A scoped function takes arguments too, as in `Math::sqrt 9`.
@@ -2103,7 +2123,12 @@ impl<'s> Parser<'s> {
 
     fn name_starts_default(&self, peek: usize, parenthesized: bool) -> bool {
         let name = self.text(peek);
-        let next = self.significant(peek + 1);
+        let mut next = self.significant(peek + 1);
+        // The compiler's lexer splits `int?=nil` so that `?=` never ends a
+        // name; the adjacent `?` is still the type's optional marker.
+        if self.is_p(next, '?') && self.tokens[next].start == self.tokens[peek].end {
+            next = self.significant(next + 1);
+        }
         match self.kind_at(next) {
             TokenKind::Punct(',' | ')' | ':' | '|') | TokenKind::Operator("=") => false,
             TokenKind::Operator("<") => {
@@ -3017,7 +3042,7 @@ impl<'s> Parser<'s> {
                 Suffix::Block(brace) => self.block_expression(lhs, brace)?,
                 Suffix::Call => {
                     let open = self.pos - 1;
-                    let items = self.call_arguments()?;
+                    let items = self.call_arguments(false)?;
                     let close = self.pos - 1;
                     self.parenthesized_call(
                         lhs,
@@ -3062,7 +3087,9 @@ impl<'s> Parser<'s> {
     }
 
     fn begin_call(&self, lhs: &Expr) -> bool {
-        self.at_p('(') && matches!(lhs.kind, ExprKind::Begin(_))
+        // The compiler's parser keeps no node for parentheses, so a
+        // parenthesized `begin` calls as the bare one does.
+        self.at_p('(') && matches!(ungrouped(lhs).kind, ExprKind::Begin(_))
     }
 
     fn expression_suffix(&mut self, lhs: &Expr, min: u8, line: Option<usize>) -> Option<Suffix> {
@@ -3138,6 +3165,7 @@ impl<'s> Parser<'s> {
             start: lhs.span.start,
             end: self.last_end(),
         };
+        let lhs = ungroup(lhs);
         let call = match lhs.kind {
             ExprKind::Name(name) => {
                 let name_tok = self.token_at(lhs.span.start);
@@ -3169,7 +3197,7 @@ impl<'s> Parser<'s> {
     fn command_arguments(&mut self) -> Result<Vec<Arg>> {
         let mut items = Vec::new();
         loop {
-            items.push(self.call_argument(false)?);
+            items.push(self.call_argument(false, false)?);
             let last = self.previous().line;
             if !self.at_p(',')
                 || self.tokens[self.pos].line != last
@@ -3210,7 +3238,7 @@ impl<'s> Parser<'s> {
         Ok(items)
     }
 
-    fn call_arguments(&mut self) -> Result<Vec<Arg>> {
+    fn call_arguments(&mut self, types: bool) -> Result<Vec<Arg>> {
         let mut items = Vec::new();
         self.groups += 1;
         self.line_breaks();
@@ -3219,7 +3247,7 @@ impl<'s> Parser<'s> {
             return Ok(items);
         }
         loop {
-            items.push(self.call_argument(true)?);
+            items.push(self.call_argument(true, types)?);
             self.line_breaks();
             if self.take_p(')').is_some() {
                 break;
@@ -3238,7 +3266,7 @@ impl<'s> Parser<'s> {
         Ok(items)
     }
 
-    fn call_argument(&mut self, parenthesized: bool) -> Result<Arg> {
+    fn call_argument(&mut self, parenthesized: bool, types: bool) -> Result<Arg> {
         let start = self.start();
         if self.at_op("&") {
             return self.fail("block arguments are not supported");
@@ -3290,7 +3318,7 @@ impl<'s> Parser<'s> {
             }
         } else if parenthesized
             && kind == ArgKind::Positional
-            && let Some(value) = self.argument_type_literal()
+            && let Some(value) = self.argument_type_literal(types)
         {
             return Ok(Arg {
                 kind,
@@ -3311,8 +3339,12 @@ impl<'s> Parser<'s> {
 
     /// Reads a builtin type literal passed as a parenthesized argument, such
     /// as the `array<int>` of `JSON.parse_as(text, array<int>)`.
-    fn argument_type_literal(&mut self) -> Option<Expr> {
-        self.word_at(self.pos)?;
+    /// In a call that takes types, as `as` and `JSON.parse_as` do, a tuple
+    /// type such as `[string, hash<string, int>]` is one too.
+    fn argument_type_literal(&mut self, types: bool) -> Option<Expr> {
+        if self.word_at(self.pos).is_none() && !(types && self.at_p('[')) {
+            return None;
+        }
         let start = self.pos;
         let saved = self.save();
         let candidate = self.type_expr(1, false);
@@ -3376,6 +3408,7 @@ impl<'s> Parser<'s> {
             start: lhs.span.start,
             end: self.last_end(),
         };
+        let lhs = ungroup(lhs);
         let kind = match lhs.kind {
             ExprKind::Name(name) => {
                 let name_tok = self.token_at(lhs.span.start);
@@ -3409,6 +3442,7 @@ impl<'s> Parser<'s> {
             start: lhs.span.start,
             end: self.tokens[block.close].end,
         };
+        let lhs = ungroup(lhs);
         let kind = match lhs.kind {
             ExprKind::Name(name) => {
                 let name_tok = self.token_at(lhs.span.start);
@@ -3447,7 +3481,7 @@ impl<'s> Parser<'s> {
         let name_tok = self.bump();
         let name = self.text(name_tok).to_owned();
         let args = if let Some(open) = self.take_p('(') {
-            let items = self.call_arguments()?;
+            let items = self.call_arguments(false)?;
             Some(Args {
                 parens: Some((open, self.pos - 1)),
                 items,
@@ -3481,7 +3515,11 @@ impl<'s> Parser<'s> {
         };
         let name = self.text(name_tok).to_owned();
         let args = if let Some(open) = self.take_p('(') {
-            let items = self.call_arguments()?;
+            // As in the compiler, `as` and `JSON.parse_as` take types.
+            let types = name == "as"
+                || (name == "parse_as"
+                    && matches!(&ungrouped(&lhs).kind, ExprKind::Name(r) if r == "JSON"));
+            let items = self.call_arguments(types)?;
             Some(Args {
                 parens: Some((open, self.pos - 1)),
                 items,
@@ -3718,14 +3756,11 @@ impl<'s> Parser<'s> {
 
     fn type_atom(&mut self, depth: usize) -> Result<TypeExpr> {
         let start = self.start();
+        // As in the compiler's parser, a bracket in a type is always a
+        // tuple, whose elements may be shapes or tuples themselves.
         let mut ty = if self.take_p('{').is_some() {
             self.type_shape(depth, start)?
-        } else if self.at_p('[')
-            && self.word_at(self.pos + 1).is_some_and(|w| {
-                builtin_type(w.trim_end_matches('?'))
-                    || w.chars().next().is_some_and(char::is_uppercase)
-            })
-        {
+        } else if self.at_p('[') {
             self.bump();
             let mut elements = Vec::new();
             loop {

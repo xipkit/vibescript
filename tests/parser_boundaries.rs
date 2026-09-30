@@ -209,8 +209,8 @@ fn an_implicit_it_still_calls_a_function_with_a_percent_array() {
 }
 
 #[test]
-fn instance_and_class_variable_names_may_end_like_predicates() {
-    let source = "class Record\n  @done!: int\n  @respond_to?: int\n  def initialize\n    @respond_to? = 1\n    @done! = 2\n  end\n  def state -> array<int>\n    [@respond_to?, @done!]\n  end\nend\nclass Widget\n  @@respond_to?: int = 3\n  def self.build -> int\n    @@respond_to?\n  end\nend\ndef run -> array<int | array<int>>\n  [Record.new.state, Widget.build]\nend";
+fn instance_and_class_variable_names_do_not_need_method_suffixes() {
+    let source = "class Record\n  @done: int\n  @respond_to: int\n  def initialize\n    @respond_to = 1\n    @done = 2\n  end\n  def state -> array<int>\n    [@respond_to, @done]\n  end\nend\nclass Widget\n  @@respond_to: int = 3\n  def self.build -> int\n    @@respond_to\n  end\nend\ndef run -> array<int | array<int>>\n  [Record.new.state, Widget.build]\nend";
     assert_eq!(result(source), serde_json::json!([[1, 2], 3]));
 }
 

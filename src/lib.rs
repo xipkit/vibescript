@@ -158,6 +158,9 @@ impl Engine {
     /// # Ok::<(), vibescript::Error>(())
     /// ```
     pub fn type_check(&self, source: &str) -> Result<typing::Checked> {
+        for name in self.hosts.keys() {
+            syntax::host_function_name(&(), syntax::HostName::FUNCTION, name)?;
+        }
         let (parsed, tokens) = syntax::parse_with_tokens(source, &()).map_err(|error| {
             source::parse_error(
                 source,
@@ -199,6 +202,9 @@ impl Engine {
         function: &str,
         count: usize,
     ) -> Result<Vec<diagnostic::Diagnostic>> {
+        for name in self.hosts.keys() {
+            syntax::host_function_name(&(), syntax::HostName::FUNCTION, name)?;
+        }
         let (parsed, tokens) = syntax::parse_with_tokens(source, &()).map_err(|error| {
             source::parse_error(
                 source,
@@ -282,6 +288,9 @@ impl Engine {
         self.random_source = Some(Arc::new(reader));
     }
     /// Registers a synchronous host function for subsequently compiled scripts.
+    /// An invalid method name makes compilation fail with an
+    /// [`ErrorKind::Argument`] error naming the function, and is omitted from
+    /// the prelude.
     pub fn register(
         &mut self,
         name: impl Into<String>,
@@ -300,6 +309,9 @@ impl Engine {
         self.keywordless.insert(name);
     }
     /// Registers a synchronous callback that accepts positional and keyword arguments.
+    /// An invalid method name makes compilation fail with an
+    /// [`ErrorKind::Argument`] error naming the function, and is omitted from
+    /// the prelude.
     ///
     /// Keyword keys are byte-string values. Both argument collections are accounted to
     /// the current call; the callback validates its own names, types, and required values.
@@ -321,6 +333,9 @@ impl Engine {
     }
 
     /// Registers a host method, including its signature, contracts and block driver.
+    /// An invalid method name makes compilation fail with an
+    /// [`ErrorKind::Argument`] error naming the function, and is omitted from
+    /// the prelude.
     ///
     /// Registration affects subsequently compiled scripts and their required files.
     /// Each invocation receives a fresh grant. Script declarations and explicit
@@ -345,7 +360,9 @@ impl Engine {
     /// type, or the call fails before any script code runs, as an argument
     /// of the wrong type would. A later declaration of the name replaces an
     /// earlier one. Host values cannot be script classes or enums, so the
-    /// type uses builtin types only.
+    /// type uses builtin types only. A name no script can read, such as a
+    /// keyword or one ending in `?` or `!`, which only methods have, is an
+    /// [`ErrorKind::Argument`] error.
     ///
     /// ```
     /// use vibescript::{CallOptions, Engine, ErrorKind, Value};
@@ -385,7 +402,9 @@ impl Engine {
     /// supply a global, of the name whose value has the declared members:
     /// host methods with the declared signatures, and data of the declared
     /// types. Otherwise the call fails before any script code runs. A later
-    /// declaration of the name replaces an earlier one.
+    /// declaration of the name replaces an earlier one. A name or method
+    /// name that scripts could not spell is an [`ErrorKind::Argument`] error
+    /// naming it.
     ///
     /// ```
     /// use vibescript::{CallOptions, Capability, Engine, HostMethod, Signature, SignatureParam, Value};

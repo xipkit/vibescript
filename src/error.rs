@@ -257,6 +257,44 @@ impl Error {
         self
     }
 
+    /// Removes and returns the diagnostics, to edit and attach again.
+    pub(crate) fn take_diagnostics(&mut self) -> Vec<crate::diagnostic::Diagnostic> {
+        match self.extra.take().map(Arc::try_unwrap) {
+            Some(Ok(Extra::Diagnostics(diagnostics))) => diagnostics.into_vec(),
+            Some(Ok(extra)) => {
+                self.extra = Some(Arc::new(extra));
+                Vec::new()
+            }
+            Some(Err(shared)) => {
+                let diagnostics = match &*shared {
+                    Extra::Diagnostics(diagnostics) => diagnostics.to_vec(),
+                    Extra::Raw(_) => Vec::new(),
+                };
+                self.extra = Some(shared);
+                diagnostics
+            }
+            None => Vec::new(),
+        }
+    }
+
+    /// Keeps `charge` for as long as the error lives, with what it already
+    /// holds. A charge the error shares is reserved again, as the error
+    /// takes its own copy.
+    pub(crate) fn retain(
+        &mut self,
+        work: &dyn crate::compilation::Work,
+        charge: Option<crate::budget::Charge>,
+    ) -> Result<()> {
+        let mut held = match self.retained_charge.take().map(Arc::try_unwrap) {
+            Some(Ok(held)) => Some(held),
+            Some(Err(shared)) => work.reserve(shared.bytes())?,
+            None => None,
+        };
+        crate::budget::Charge::merge(&mut held, charge);
+        self.retained_charge = held.map(Arc::new);
+        Ok(())
+    }
+
     /// Attaches syntax diagnostics without changing the original first error.
     pub(crate) fn with_diagnostics(
         mut self,

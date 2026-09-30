@@ -288,3 +288,134 @@ fn the_prelude_lists_declared_names() {
     );
     assert!(Table::parse(&prelude).is_ok());
 }
+
+/// Every host feature at once, with every spelling a host may publish; the
+/// prelude must parse whatever the host declares or grants.
+#[test]
+fn the_prelude_parses_with_every_host_feature() {
+    let plain = || HostMethod::new("host.plain", |_, _, _| Ok(Value::nil()));
+    let block = || HostMethod::new_with_block("host.block", |_, _, _| Ok(Value::nil()));
+    let object = |extra: Vec<(Vec<u8>, Value)>| {
+        let mut members = vec![
+            (b"send".to_vec(), signed("host.send", "string").value()),
+            (b"plain".to_vec(), plain().value()),
+            (b"each".to_vec(), block().value()),
+            (b"ok?".to_vec(), plain().value()),
+            (b"save!".to_vec(), plain().value()),
+            (b"nil".to_vec(), plain().value()),
+            (b"end".to_vec(), plain().value()),
+            (b"region".to_vec(), Value::bytes("eu")),
+            (b"true".to_vec(), Value::int(1)),
+            (b"def".to_vec(), Value::int(1)),
+            (b"module".to_vec(), Value::int(1)),
+            (b"end_at".to_vec(), Value::int(1)),
+            (b"with space".to_vec(), Value::int(1)),
+            (b"with-dash".to_vec(), Value::float(1.5)),
+            (b"ready?".to_vec(), Value::boolean(true)),
+            (b"".to_vec(), Value::nil()),
+            ("é".as_bytes().to_vec(), Value::array(vec![Value::int(1)])),
+            (
+                b"nested".to_vec(),
+                Value::object(vec![
+                    (b"inner".to_vec(), plain().value()),
+                    (
+                        b"data".to_vec(),
+                        Value::hash(vec![(b"k".to_vec(), Value::int(1))]),
+                    ),
+                ]),
+            ),
+        ];
+        members.extend(extra);
+        Value::object(members)
+    };
+    let mut engine = Engine::new();
+    engine.register("callback", |_, _| Ok(Value::nil()));
+    engine.register_with_keywords("keywords", |_, _, _| Ok(Value::nil()));
+    engine.register_method("signed", signed("signed", "int"));
+    engine.register_method("block", block());
+    engine.register_method("ready?", plain());
+    engine.register_method("é?", plain());
+    engine.register_method("bad??", plain());
+    engine.register_method("setter=", plain());
+    for (name, ty) in [
+        ("g_int", "int"),
+        ("g_any", ""),
+        (
+            "g_shape",
+            "{ items: array<int>, name: string?, \"odd key\": bool }",
+        ),
+        ("g_tuple", "[int, string]"),
+        ("g_union", "int | string | nil"),
+        ("g_hash", "hash<string, array<int>>"),
+        ("é", "int"),
+    ] {
+        engine.declare_global(name, ty).unwrap();
+    }
+    // Names no script could read are refused, so they never reach the prelude.
+    for name in ["with space", "", "3d", "end", "nil"] {
+        let error = Engine::new().declare_global(name, "int").unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Argument, "{name}: {error}");
+    }
+    engine
+        .declare_capability(&Capability::from_value("Host", object(Vec::new())))
+        .unwrap();
+    engine
+        .declare_capability(&Capability::from_value("ok?", plain().value()))
+        .unwrap();
+    engine
+        .declare_capability(&Capability::from_value("DATA", Value::int(1)))
+        .unwrap();
+    engine
+        .declare_capability(&Capability::new("factory", |_| Ok(Value::nil())))
+        .unwrap();
+    engine
+        .declare_capability(&Capability::new("made?", |_| Ok(Value::nil())))
+        .unwrap();
+    // Grants no declaration names, which the prelude renders from their
+    // values, including ones it must leave out.
+    let options = CallOptions {
+        capabilities: vec![
+            Capability::from_value("Granted", object(Vec::new())),
+            Capability::from_value("granted?", plain().value()),
+            Capability::from_value(
+                "BadMember",
+                object(vec![(b"bad??".to_vec(), plain().value())]),
+            ),
+            Capability::new("granted_factory", |_| Ok(Value::nil())),
+            Capability::new("bad??", |_| Ok(Value::nil())),
+        ],
+        globals: [
+            ("data".to_owned(), object(Vec::new())),
+            ("number".to_owned(), Value::int(1)),
+            ("callable?".to_owned(), plain().value()),
+            ("data?".to_owned(), Value::int(1)),
+            ("bad??".to_owned(), plain().value()),
+        ]
+        .into(),
+        ..CallOptions::default()
+    };
+    for options in [CallOptions::default(), options] {
+        let prelude = engine.prelude(&options);
+        let host = prelude
+            .strip_prefix(&vibescript::signatures::prelude())
+            .unwrap_or(&prelude);
+        if let Err(error) = Table::parse(&prelude) {
+            panic!("{error:?}\n{host}");
+        }
+        for line in [
+            "def é?(",
+            "é: int",
+            "  def nil(",
+            "  def end(",
+            "  true: int",
+            "  def: int",
+            "  module: int",
+            "  ready?: bool",
+        ] {
+            assert!(host.contains(line), "{line}\n{host}");
+        }
+        for name in ["with space", "with-dash", "bad??", "setter="] {
+            assert!(!host.contains(name), "{name}\n{host}");
+        }
+    }
+}

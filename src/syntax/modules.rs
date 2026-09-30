@@ -211,19 +211,17 @@ impl Parser<'_> {
             if !self.ident(self.pos) {
                 return self.expected(Label::Text("identifier"));
             }
-            return Ok((self.name()?, true, false));
+            return Ok((self.method_name()?, true, false));
         }
         let operator = match self.token() {
-            Token::Op(
-                op @ ("+" | "-" | "*" | "/" | "%" | "**" | "<<" | "&" | "==" | "!=" | "<" | "<="
-                | ">" | ">=" | "<=>"),
-            ) => Some(*op),
+            Token::Op(op) if super::def_operator(op) => Some(*op),
             Token::P('[') if self.tokens[self.significant(self.pos + 1)].token == Token::P(']') => {
                 Some("[]")
             }
             _ => None,
         };
         if let Some(op) = operator {
+            self.method_spelling(op, self.tokens[self.pos].offset)?;
             if !self.inside_class {
                 return Err(crate::Error::syntax(
                     self.work,
@@ -241,7 +239,7 @@ impl Parser<'_> {
         if !self.ident(self.pos) {
             return self.expected(Label::Text("function name"));
         }
-        Ok((self.name()?, false, false))
+        Ok((self.method_name()?, false, false))
     }
 }
 
@@ -258,7 +256,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
     pub(super) async fn function(&self, constants: bool) -> Result<Function> {
         let _scope = self.recovery_scope()?;
         let work = self.p().work;
-        let (offset, def_line, name, class_method, outer_locals, outer_it) = {
+        let (offset, def_line, name, class_method, outer_locals, outer_it, outer_body) = {
             let mut p = self.p();
             work.charge(1)?;
             let offset = p.tokens[p.pos].offset as u32;
@@ -266,22 +264,46 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             p.bump()?;
             p.line_breaks()?;
             let (mut name, class_method, operator) = p.function_name(offset)?;
+            let name_offset = p.tokens[p.pos - 1].offset;
+            // `ok!=` reads as `ok` and `!=`, but after a definition's name it
+            // can only be a setter spelled with a suffix, as `ok?=` is.
+            let next = &p.tokens[p.pos];
+            if !operator && next.token == Token::Op("!=") && next.offset == p.tokens[p.pos - 1].end
+            {
+                if !super::suffixes::lenient() {
+                    return Err(p.name_suffix_error(next.offset));
+                }
+                // A lenient parse reads the setter as it was spelled.
+                p.bump()?;
+                name = Name::join(work, &[&name, "!="])?;
+            }
             p.line_breaks()?;
             if p.token() == &Token::Op("=") && (!operator || name == "[]") {
                 p.bump()?;
                 p.line_breaks()?;
                 name = Name::join(work, &[&name, "="])?;
+                p.method_spelling(&name, name_offset)?;
             }
             let outer_locals = std::mem::take(&mut p.locals);
             if constants {
-                for (name, _) in outer_locals.iter(work)? {
+                for (name, &id) in outer_locals.iter(work)? {
                     if name.chars().next().is_some_and(super::unicode::upper) {
-                        p.locals.insert(work, name.clone(), ())?;
+                        p.locals.insert(work, name.clone(), id)?;
                     }
                 }
             }
             let outer_it = std::mem::replace(&mut p.declared_it, false);
-            (offset, def_line, name, class_method, outer_locals, outer_it)
+            // A function's locals are no namespace's constants.
+            let outer_body = std::mem::replace(&mut p.namespace_body, false);
+            (
+                offset,
+                def_line,
+                name,
+                class_method,
+                outer_locals,
+                outer_it,
+                outer_body,
+            )
         };
         let (parenthesized, bare) = {
             let p = self.p();
@@ -370,6 +392,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let mut p = self.p();
         p.note(super::record::Record::leave_function);
         p.locals = outer_locals;
+        p.namespace_body = outer_body;
         p.declared_it = outer_it;
         p.block_name = outer_block;
         Ok(Function {
@@ -391,7 +414,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
     pub(super) async fn class_like(&self, module: bool) -> Result<Module> {
         let _scope = self.recovery_scope()?;
         let work = self.p().work;
-        let (mut class, outer_locals, outer_it, outer_class) = {
+        let (mut class, outer_locals, outer_it, outer_class, outer_namespace) = {
             let mut p = self.p();
             work.charge(1)?;
             let offset = p.tokens[p.pos].offset as u32;
@@ -405,6 +428,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             if !p.ident(p.pos) {
                 return p.expected(Label::Text("identifier"));
             }
+            let at = p.tokens[p.pos].offset;
             let name = p.name()?;
             if module && !name.as_bytes().first().is_some_and(u8::is_ascii_uppercase) {
                 p.pos -= 1;
@@ -413,12 +437,21 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             let next = p.significant(p.pos);
             if !module && p.tokens[next].token == Token::Op("<") {
                 p.pos = next;
-                return p.err(format_args!(
-                    "class inheritance is not supported; modules are namespaces: {NAMESPACES}"
-                ));
+                if !super::suffixes::lenient() {
+                    return p.err(format_args!(
+                        "class inheritance is not supported; modules are namespaces: {NAMESPACES}"
+                    ));
+                }
+                // A lenient parse reads the parent only for the uses it records.
+                p.inherited()?;
             }
             p.enter()?;
             let outer_locals = std::mem::take(&mut p.locals);
+            let inner = p.namespace_entered(&name, at)?;
+            let outer_namespace = (
+                std::mem::replace(&mut p.namespace, inner),
+                std::mem::replace(&mut p.namespace_body, true),
+            );
             let outer_it = std::mem::replace(&mut p.declared_it, false);
             let outer_class = std::mem::replace(&mut p.inside_class, true);
             p.nesting += 1;
@@ -436,7 +469,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 aliases: Buffer::new(),
                 depth: 1,
             };
-            (class, outer_locals, outer_it, outer_class)
+            (class, outer_locals, outer_it, outer_class, outer_namespace)
         };
         let mut section = Visibility::Public;
         let mut pending = None;
@@ -648,6 +681,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         p.expect_word("end")?;
         p.check_depth(class.depth, class.offset)?;
         p.locals = outer_locals;
+        (p.namespace, p.namespace_body) = outer_namespace;
         p.declared_it = outer_it;
         p.depth -= 1;
         Ok(class)

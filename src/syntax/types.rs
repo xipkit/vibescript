@@ -374,6 +374,8 @@ impl Parser<'_> {
             unreachable!()
         };
         let written = written.as_str();
+        let continues = |p: &Self| p.tokens[p.significant(p.pos)].token == Token::Op("::");
+        let mut path = self.type_read(0, written, self.tokens[index].offset, continues(self))?;
         let name = written.strip_suffix('?').unwrap_or(written);
         if name.ends_with('?') {
             self.pos = index;
@@ -407,6 +409,7 @@ impl Parser<'_> {
                 unreachable!()
             };
             let member = member.as_str();
+            path = self.type_read(path, member, self.tokens[index].offset, continues(self))?;
             ty.nullable = member.ends_with('?');
             let member = member.strip_suffix('?').unwrap_or(member);
             ty.name = Name::join(self.work, &[&ty.name, "::", member])?;
@@ -698,7 +701,14 @@ impl Parser<'_> {
         let Token::Word(name) = &self.tokens[peek].token else {
             unreachable!()
         };
-        let next = self.significant(peek + 1);
+        let mut next = self.significant(peek + 1);
+        // The lexer splits `int?=nil` so that `?=` never ends a name; the
+        // adjacent `?` is still the type's optional marker.
+        if self.tokens[next].token == Token::P('?')
+            && self.tokens[next].offset == self.tokens[peek].end
+        {
+            next = self.significant(next + 1);
+        }
         Ok(match &self.tokens[next].token {
             Token::P(',' | ')' | ':' | '|') | Token::Op("=") => false,
             Token::Op("<") => {

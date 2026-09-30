@@ -36,6 +36,7 @@ tokio = ["dep:tokio"]
 
 [dependencies]
 getrandom = "0.4"
+memchr = "2.8"
 tokio = { version = "1", features = ["rt", "sync", "time", "macros"], optional = true }
 
 [target.'cfg(not(target_os = "wasi"))'.dependencies]

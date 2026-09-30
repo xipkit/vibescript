@@ -1079,7 +1079,8 @@
   {
     "name": "hash_shorthand_boundaries_31",
     "source": "def run(input: any)\na=1;b=2;{\"\na\":}\nend",
-    "go_error": "parse error at 3:4: missing value for hash key "
+    "go_error": "parse error at 3:4: missing value for hash key ",
+    "error": "parse error at 3:4: missing value for hash key \na"
   },
   {
     "name": "hash_shorthand_boundaries_32",
@@ -1089,7 +1090,8 @@
   {
     "name": "hash_shorthand_boundaries_33",
     "source": "def run(input: any)\na=1;b=2;{\"a\n\":}\nend",
-    "go_error": "parse error at 3:3: missing value for hash key a"
+    "go_error": "parse error at 3:3: missing value for hash key a",
+    "error": "parse error at 3:3: missing value for hash key a\n"
   },
   {
     "name": "hash_shorthand_boundaries_34",
@@ -1269,12 +1271,14 @@
   {
     "name": "enums_names_20",
     "source": "enum State?\nDraft\nend\ndef run(input: any)\nState?.name\nend",
-    "go_error": "enum name State? must not end with '?'"
+    "go_error": "enum name State? must not end with '?'",
+    "error": "parse error at 1:11: only method names may end in `?` or `!`; remove the suffix from this name"
   },
   {
     "name": "enums_names_21",
     "source": "enum State?\nDraft\nend\ndef run(input: any)\nif false;State?=1;end;State?::Draft\nend",
-    "go_error": "enum name State? must not end with '?'"
+    "go_error": "enum name State? must not end with '?'",
+    "error": "parse error at 1:11: only method names may end in `?` or `!`; remove the suffix from this name"
   },
   {
     "name": "enums_names_22",
@@ -1719,7 +1723,8 @@
   {
     "name": "enums_collision_7",
     "source": "enum State\nDone!\ndone!\nend\ndef run(input: any)\n7\nend",
-    "go_error": "enum State member done! conflicts with Done! after symbol normalization"
+    "go_error": "enum State member done! conflicts with Done! after symbol normalization",
+    "error": "parse error at 2:5: only method names may end in `?` or `!`; remove the suffix from this name"
   },
   {
     "name": "enums_collision_8",
@@ -8926,326 +8931,6 @@
     "go_error": "parse error at 9:31: unexpected token \")\""
   },
   {
-    "name": "shapes_equality_0",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:int};b={x:int};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:29: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_1",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:int};b={x:INT};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:29: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_2",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:int};b={x:int | string};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:38: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_3",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:int};b={x:string | int};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:38: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_4",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:int};b={x:object};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:32: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_5",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:int};b={x:hash};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:30: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_6",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:int};b={x?:bool};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:31: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_7",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:int};b={\"x?\":bool};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:33: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_8",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:INT};b={x:int};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:29: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_9",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:INT};b={x:INT};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:29: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_10",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:INT};b={x:int | string};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:38: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_11",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:INT};b={x:string | int};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:38: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_12",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:INT};b={x:object};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:32: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_13",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:INT};b={x:hash};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:30: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_14",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:INT};b={x?:bool};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:31: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_15",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:INT};b={\"x?\":bool};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:33: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_16",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:int | string};b={x:int};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:38: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_17",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:int | string};b={x:INT};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:38: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_18",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:int | string};b={x:int | string};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:47: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_19",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:int | string};b={x:string | int};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:47: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_20",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:int | string};b={x:object};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:41: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_21",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:int | string};b={x:hash};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:39: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_22",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:int | string};b={x?:bool};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:40: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_23",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:int | string};b={\"x?\":bool};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:42: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_24",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:string | int};b={x:int};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:38: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_25",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:string | int};b={x:INT};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:38: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_26",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:string | int};b={x:int | string};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:47: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_27",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:string | int};b={x:string | int};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:47: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_28",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:string | int};b={x:object};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:41: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_29",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:string | int};b={x:hash};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:39: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_30",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:string | int};b={x?:bool};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:40: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_31",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:string | int};b={\"x?\":bool};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:42: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_32",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:object};b={x:int};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:32: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_33",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:object};b={x:INT};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:32: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_34",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:object};b={x:int | string};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:41: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_35",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:object};b={x:string | int};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:41: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_36",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:object};b={x:object};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:35: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_37",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:object};b={x:hash};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:33: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_38",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:object};b={x?:bool};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:34: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_39",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:object};b={\"x?\":bool};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:36: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_40",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:hash};b={x:int};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:30: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_41",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:hash};b={x:INT};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:30: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_42",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:hash};b={x:int | string};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:39: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_43",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:hash};b={x:string | int};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:39: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_44",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:hash};b={x:object};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:33: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_45",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:hash};b={x:hash};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:31: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_46",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:hash};b={x?:bool};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:32: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_47",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x:hash};b={\"x?\":bool};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:34: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_48",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x?:bool};b={x:int};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:31: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_49",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x?:bool};b={x:INT};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:31: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_50",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x?:bool};b={x:int | string};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:40: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_51",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x?:bool};b={x:string | int};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:40: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_52",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x?:bool};b={x:object};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:34: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_53",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x?:bool};b={x:hash};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:32: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_54",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x?:bool};b={x?:bool};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:33: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_55",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={x?:bool};b={\"x?\":bool};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:35: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_56",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={\"x?\":bool};b={x:int};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:33: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_57",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={\"x?\":bool};b={x:INT};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:33: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_58",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={\"x?\":bool};b={x:int | string};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:42: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_59",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={\"x?\":bool};b={x:string | int};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:42: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_60",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={\"x?\":bool};b={x:object};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:36: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_61",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={\"x?\":bool};b={x:hash};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:34: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_62",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={\"x?\":bool};b={x?:bool};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:35: expected \"]\", got \"=\""
-  },
-  {
-    "name": "shapes_equality_63",
-    "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\na={\"x?\":bool};b={\"x?\":bool};[a==b,a!=b,[a,b].uniq.length]\nend",
-    "go_error": "parse error at 9:37: expected \"]\", got \"=\""
-  },
-  {
     "name": "shapes_shadow_2",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\n[int=7].map{|unused|render(identity(int))}\nend",
     "go_error": "parse error at 9:5: expected \"]\", got \"=\""
@@ -9318,37 +9003,44 @@
   {
     "name": "shapes_shadow_58",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\n[string?=7].map{|unused|render(identity(int))}\nend",
-    "go_error": "parse error at 9:9: expected \"]\", got \"=\""
+    "go_error": "parse error at 9:9: expected \"]\", got \"=\"",
+    "error": "parse error at 9:8: only method names may end in `?` or `!`; remove the suffix from this name"
   },
   {
     "name": "shapes_shadow_62",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\n[string?=7].map{|unused|render(identity(string?))}\nend",
-    "go_error": "parse error at 9:9: expected \"]\", got \"=\""
+    "go_error": "parse error at 9:9: expected \"]\", got \"=\"",
+    "error": "parse error at 9:8: only method names may end in `?` or `!`; remove the suffix from this name"
   },
   {
     "name": "shapes_shadow_66",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\n[string?=7].map{|unused|render(identity(array<int>))}\nend",
-    "go_error": "parse error at 9:9: expected \"]\", got \"=\""
+    "go_error": "parse error at 9:9: expected \"]\", got \"=\"",
+    "error": "parse error at 9:8: only method names may end in `?` or `!`; remove the suffix from this name"
   },
   {
     "name": "shapes_shadow_70",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\n[string?=7].map{|unused|render(identity({x:int}))}\nend",
-    "go_error": "parse error at 9:9: expected \"]\", got \"=\""
+    "go_error": "parse error at 9:9: expected \"]\", got \"=\"",
+    "error": "parse error at 9:8: only method names may end in `?` or `!`; remove the suffix from this name"
   },
   {
     "name": "shapes_shadow_74",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\n[string?=7].map{|unused|render(identity({x:string?}))}\nend",
-    "go_error": "parse error at 9:9: expected \"]\", got \"=\""
+    "go_error": "parse error at 9:9: expected \"]\", got \"=\"",
+    "error": "parse error at 9:8: only method names may end in `?` or `!`; remove the suffix from this name"
   },
   {
     "name": "shapes_shadow_78",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\n[string?=7].map{|unused|render(identity({x:array<int>}))}\nend",
-    "go_error": "parse error at 9:9: expected \"]\", got \"=\""
+    "go_error": "parse error at 9:9: expected \"]\", got \"=\"",
+    "error": "parse error at 9:8: only method names may end in `?` or `!`; remove the suffix from this name"
   },
   {
     "name": "shapes_shadow_82",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\n[string?=7].map{|unused|render(identity({x:money}))}\nend",
-    "go_error": "parse error at 9:9: expected \"]\", got \"=\""
+    "go_error": "parse error at 9:9: expected \"]\", got \"=\"",
+    "error": "parse error at 9:8: only method names may end in `?` or `!`; remove the suffix from this name"
   },
   {
     "name": "shapes_shadow_86",
@@ -10103,314 +9795,9 @@
     "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
   },
   {
-    "name": "regex_value_equality_0",
-    "source": "def run(input: any)\na=/a/;b=/a/;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_1",
-    "source": "def run(input: any)\na=/a/;b=/a/i;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_2",
-    "source": "def run(input: any)\na=/a/;b=/a/im;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:23: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_3",
-    "source": "def run(input: any)\na=/a/;b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:33: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_4",
-    "source": "def run(input: any)\na=/a/;b=\"a\";[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_5",
-    "source": "def run(input: any)\na=/a/;b=nil;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_6",
-    "source": "def run(input: any)\na=/a/i;b=/a/;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_7",
-    "source": "def run(input: any)\na=/a/i;b=/a/i;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:23: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_8",
-    "source": "def run(input: any)\na=/a/i;b=/a/im;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:24: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_9",
-    "source": "def run(input: any)\na=/a/i;b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:34: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_10",
-    "source": "def run(input: any)\na=/a/i;b=\"a\";[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_11",
-    "source": "def run(input: any)\na=/a/i;b=nil;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_12",
-    "source": "def run(input: any)\na=/a/m;b=/a/;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_13",
-    "source": "def run(input: any)\na=/a/m;b=/a/i;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:23: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_14",
-    "source": "def run(input: any)\na=/a/m;b=/a/im;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:24: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_15",
-    "source": "def run(input: any)\na=/a/m;b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:34: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_16",
-    "source": "def run(input: any)\na=/a/m;b=\"a\";[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_17",
-    "source": "def run(input: any)\na=/a/m;b=nil;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_18",
-    "source": "def run(input: any)\na=/a/mi;b=/a/;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:23: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_19",
-    "source": "def run(input: any)\na=/a/mi;b=/a/i;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:24: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_20",
-    "source": "def run(input: any)\na=/a/mi;b=/a/im;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:25: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_21",
-    "source": "def run(input: any)\na=/a/mi;b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:35: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_22",
-    "source": "def run(input: any)\na=/a/mi;b=\"a\";[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:23: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_23",
-    "source": "def run(input: any)\na=/a/mi;b=nil;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:23: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_24",
-    "source": "def run(input: any)\na=/b/;b=/a/;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_25",
-    "source": "def run(input: any)\na=/b/;b=/a/i;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_26",
-    "source": "def run(input: any)\na=/b/;b=/a/im;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:23: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_27",
-    "source": "def run(input: any)\na=/b/;b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:33: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_28",
-    "source": "def run(input: any)\na=/b/;b=\"a\";[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_29",
-    "source": "def run(input: any)\na=/b/;b=nil;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_30",
-    "source": "def run(input: any)\na=Regexp.new(\"a\");b=/a/;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:33: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_31",
-    "source": "def run(input: any)\na=Regexp.new(\"a\");b=/a/i;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:34: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_32",
-    "source": "def run(input: any)\na=Regexp.new(\"a\");b=/a/im;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:35: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_33",
-    "source": "def run(input: any)\na=Regexp.new(\"a\");b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:45: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_34",
-    "source": "def run(input: any)\na=Regexp.new(\"a\");b=\"a\";[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:33: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_35",
-    "source": "def run(input: any)\na=Regexp.new(\"a\");b=nil;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:33: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_36",
-    "source": "def run(input: any)\na=\"a\";b=/a/;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_37",
-    "source": "def run(input: any)\na=\"a\";b=/a/i;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_38",
-    "source": "def run(input: any)\na=\"a\";b=/a/im;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:23: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_39",
-    "source": "def run(input: any)\na=\"a\";b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:33: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_40",
-    "source": "def run(input: any)\na=\"a\";b=\"a\";[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_41",
-    "source": "def run(input: any)\na=\"a\";b=nil;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_42",
-    "source": "def run(input: any)\na=nil;b=/a/;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_43",
-    "source": "def run(input: any)\na=nil;b=/a/i;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_44",
-    "source": "def run(input: any)\na=nil;b=/a/im;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:23: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_45",
-    "source": "def run(input: any)\na=nil;b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:33: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_46",
-    "source": "def run(input: any)\na=nil;b=\"a\";[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_47",
-    "source": "def run(input: any)\na=nil;b=nil;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_48",
-    "source": "def run(input: any)\na={};b=/a/;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:20: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_49",
-    "source": "def run(input: any)\na={};b=/a/i;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_50",
-    "source": "def run(input: any)\na={};b=/a/im;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_51",
-    "source": "def run(input: any)\na={};b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:32: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_52",
-    "source": "def run(input: any)\na={};b=\"a\";[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:20: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_53",
-    "source": "def run(input: any)\na={};b=nil;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:20: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_54",
-    "source": "def run(input: any)\na=[];b=/a/;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:20: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_55",
-    "source": "def run(input: any)\na=[];b=/a/i;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_56",
-    "source": "def run(input: any)\na=[];b=/a/im;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_57",
-    "source": "def run(input: any)\na=[];b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:32: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_58",
-    "source": "def run(input: any)\na=[];b=\"a\";[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:20: expected \"]\", got \"=\""
-  },
-  {
-    "name": "regex_value_equality_59",
-    "source": "def run(input: any)\na=[];b=nil;[a==b,a!=b,a===b]\nend",
-    "go_error": "parse error at 2:20: expected \"]\", got \"=\""
-  },
-  {
     "name": "regex_value_syntax_7",
     "source": "def take(x: any) -> any;x.source;end\ndef run(input: any)\ntake /unterminated\nend",
     "go_error": "parse error at 3:6: unterminated regex literal"
-  },
-  {
-    "name": "regex_value_syntax_19",
-    "source": "def run(input: any)\na=\"éa\";a!~/a/\nend",
-    "go_error": "parse error at 2:10: unexpected token invalid token"
   },
   {
     "name": "regex_value_syntax_21",
@@ -10884,11 +10271,6 @@
     "name": "module_ivar_parameter_7",
     "source": "module M\n def self.f(*@xs);xs;end\nend\ndef run(input: any) -> any\nM.f(1,2)\nend",
     "go_error": "parse error at 2:14: expected rest parameter name, got instance variable"
-  },
-  {
-    "name": "class_surface_20",
-    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x: any\n def initialize(@x: int =4);end\n def f(n: int =5) -> any;n+@x;end\n def self.f(n: int =6) -> int;n+@@n;end\nend\ndef run(input: any)\na=C.new;[a==a,a!=a,a==C.new,a!=C.new]\nend",
-    "go_error": "parse error at 11:17: expected \"]\", got \"=\""
   },
   {
     "name": "class_accessors_2",

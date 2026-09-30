@@ -336,3 +336,86 @@ from other files, cannot replace the function the checker resolved. The rule
 is independent of call syntax, visibility and nesting. Historical
 `same_name_call_*` golden observations intentionally change where they
 recorded lookup in the requiring script or an undefined-name error.
+
+## Addendum: method name suffixes (2026-09-28)
+
+Only method names may end in one `?` or `!`: definitions, calls (including
+safe navigation and parenless calls), aliases and symbols naming methods.
+Bindings, constants, nominal declarations and variables never take a suffix;
+V0003 offers its removal. Immediately before a single `=`, neither character
+is a suffix: `a!=b` compares, and `x?=y` is rejected. Nor is a `!` immediately
+before `~`: `a!~b` is `a !~ b`. Before `==` or `=~`, the suffix remains part
+of the method name.
+
+Member assignment targets have no suffix, including compound, destructuring
+and safe-navigation targets. They report V0003 at the suffix before constructing
+a setter spelling. Definitions and generated accessors enforce the same rule;
+a suffixed method may still be called to obtain the receiver being assigned to.
+
+A repair must leave a valid name: a binding loses its whole run of `?` and `!`,
+a method keeps one, and nothing is offered when no name would remain, as in
+`@?`, or when `x?=y` would leave an assignment where none can stand. Where
+removing the suffix would leave a keyword that cannot stand there, as in
+`nil? = 1`, V0003 offers `nil_`. A `?` or `!` followed by more of the name, as
+in `x?1`, is no suffix and has no repair, since removing it could name another
+binding. `M::ok?` remains a scoped call (V0416). A binding's V0003 fix renames
+every place that binds it and every read of it the parser's scopes attribute to
+it, and for a constant or enum member, the scoped reads whose full path
+resolves to its namespace as the checker resolves them, found by a second parse
+that accepts suffixed bindings as the grammar did before this addendum. A
+class, module, enum or type alias name is a binding as well, renamed at each
+declaration, reopening, bare or scoped read, parent and type that names it. A
+binding with a use that parse cannot attribute, such as a matching symbol, a
+call, a type whose final `?` may be nullable, a scoped read through a value
+rather than a path of namespaces, or code past a syntax error, gets no fix. The
+rename is one fix, on the binding's first V0003 only, so a person applying it
+alone gets consistent code, its edits are built once, with work linear in the
+recorded uses, and charged to the caller's quotas, and nothing is guessed from
+undefined names: a suffixed read that no binding owns, such as a host function
+the check cannot see, keeps its V0201 without a fix. No fix leaves a name the
+file already spells anywhere, or one an earlier fix of another spelling leaves:
+rather than reason about scopes, one file-wide set of spelled names keeps a
+rename from merging two names, at the cost of withholding some renames that
+would have been safe.
+Nor does a fix leave a name its declaration's own rules reject, such as a
+builtin type's for a type alias or a prelude namespace's for a constant. A
+fix, whole binding or one place, waits until the fixes of its spelling reach
+every place a name token spells it, since renaming a spelling everywhere is
+always safe and renaming it partly is not; a use the parse does not track then
+means no fix instead of a wrong one. A keyword parameter keeps its name, part
+of its function's interface through the labels calls pass.
+
+Hash and keyword labels keep suffixes because they spell string keys, not
+bindings. A suffixed shorthand label calls the method with that name;
+an explicit value can read a local instead. Optional type, shape-field and
+block markers keep their existing meaning and do not become part of a name.
+This removes the whitespace-dependent accidental assignment in `a!=b`
+without changing method calls or string keys.
+
+Callable publication uses the parser's shared method-spelling validator: host
+registrations, capability templates and factory results, callable globals, and
+methods added by host callbacks follow the same rule, as does every callable
+field of a hash a host supplies, object or not, since either exposes its fields
+to scripts. Infallible host constructors remain infallible; validation happens
+at declaration, compilation or import, before the name reaches scripts or the
+generated prelude. Qualified host diagnostic labels are separate from published
+names. Opaque factory roots may declare one terminal suffix because they can
+return a callable descriptor; binding validates the name against the actual
+result and rejects data under a suffixed root. Such roots have an unsigned
+function declaration until binding. Setter names are method names only for
+script functions, such as a module's `def value=`; scripts cannot call a host
+setter, so host values never publish one. These are host configuration errors,
+`ErrorKind::Argument` naming the registration, never V0003: a host name has no
+position in the script being compiled, so a fix could only edit unrelated
+source.
+
+Bare aliases and both quoted and unquoted symbol aliases validate the new name
+and target before lookup. Operators and ordinary setters remain valid;
+constructing a setter may not turn a suffixed method into `ok?=`. One list of
+operator methods serves `def` and aliases: an alias may name every operator an
+instance dispatches to a method, including `//`, `===`, `=~` and `!~`, which
+`def` cannot spell. `!`, `&&`, `||` and `|` never dispatch to a method, so
+aliases naming them are rejected. Exported module functions use the same
+definition parser. There is no dynamic `define_method` API. Quoted-symbol
+repairs replace the whole literal so decoded escapes cannot produce an edit at
+the wrong source byte.

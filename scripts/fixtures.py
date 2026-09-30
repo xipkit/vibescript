@@ -33,6 +33,10 @@ def parse_benchmark_cases():
     largest = max(language, key=lambda case: len(case.get("source", "")))
     out.append({"name": "parse/large_literal", "source": largest["source"]})
     out.append({"name": "parse/pathological", "source": "value = )\n" * 10000, "syntax_error": True})
+    out.append({"name": "parse/method_names", "source": "\n".join(
+        f"def ready_{i}? -> bool; true; end\ndef save_{i}! -> bool; true; end\n"
+        f"ready_{i}?==save_{i}!; {{ ready?: ready_{i}?, save!: save_{i}! }}"
+        for i in range(500))})
     return [{**case, "parse": True, "expected": True} for case in out]
 
 
