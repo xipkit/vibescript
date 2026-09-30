@@ -1,7 +1,10 @@
 //! Source spans of syntax nodes, which record only where they start: the
 //! parser's tokens give each node's end.
 
-use super::walk::{Item, Next, Walk};
+use super::{
+    counted::{CountedMap, Refused},
+    walk::{Item, Next, Walk},
+};
 use crate::{
     diagnostic::Span,
     syntax::{CallForm, Expr, Node, Statement, Stmt},
@@ -24,10 +27,10 @@ pub(crate) struct Spans<'a> {
     meter: std::sync::Arc<super::meter::Meter>,
     /// Where each expression's last token starts, by node, so shared
     /// subtrees are walked once.
-    lasts: std::cell::RefCell<std::collections::HashMap<usize, usize>>,
+    lasts: std::cell::RefCell<CountedMap<usize, usize>>,
     /// [`Self::furthest`] of each statement measured, by node, so a
     /// statement nested in many that are measured is walked once.
-    furthest: std::cell::RefCell<std::collections::HashMap<usize, usize>>,
+    furthest: std::cell::RefCell<CountedMap<usize, usize>>,
     /// What the tokens hold when they are a merged copy of their own.
     owned: usize,
     /// The most that parsing one interpolation again held.
@@ -464,15 +467,32 @@ impl<'a> Spans<'a> {
             current = next;
         };
         let key = std::ptr::from_ref(current) as usize;
-        self.lasts.borrow_mut().insert(key, position);
+        self.remember(&self.lasts, key, position);
         for (node, trail) in path.into_iter().rev() {
             if let Trail::Member(name, parenthesized) = trail {
                 position = self.name_after(position, name, parenthesized);
             }
             let key = std::ptr::from_ref(node) as usize;
-            self.lasts.borrow_mut().insert(key, position);
+            self.remember(&self.lasts, key, position);
         }
         position
+    }
+
+    /// Remembers `position` for node `key` in `table`, with its room
+    /// counted before it is kept. One the budget refuses room for is not
+    /// remembered: the check has stopped, and finds it again if asked.
+    fn remember(
+        &self,
+        table: &std::cell::RefCell<CountedMap<usize, usize>>,
+        key: usize,
+        position: usize,
+    ) {
+        match table
+            .borrow_mut()
+            .insert(self.meter.tables(), key, position)
+        {
+            Ok(_) | Err(Refused) => (),
+        }
     }
 
     /// The greatest start of a statement, expression, rescue or block in
@@ -541,7 +561,7 @@ impl<'a> Spans<'a> {
             return known;
         }
         let furthest = self.furthest(Item::Stmt(stmt), false);
-        self.furthest.borrow_mut().insert(key, furthest);
+        self.remember(&self.furthest, key, furthest);
         furthest
     }
 

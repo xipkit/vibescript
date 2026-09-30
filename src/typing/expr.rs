@@ -146,9 +146,12 @@ impl<'a> Checker<'a> {
             }
         }
         let ty = self.expr_uncached(expr, want);
+        let tables = self.meter.tables();
         if let Some(memo) = self.memo.get_mut() {
-            if !memo.replay {
-                memo.types.insert(key, ty);
+            // A type the budget refuses room for is not recorded: the
+            // check has stopped, and replays nothing more.
+            if !memo.replay && memo.types.insert(tables, key, ty).is_err() {
+                self.stopped = true;
             }
         }
         // A discarded compound form reports no value, although it has one.

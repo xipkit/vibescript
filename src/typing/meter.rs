@@ -761,15 +761,18 @@ impl<'a> super::Checker<'a> {
         if self.meter.charge(inner.types.len() as u64) || self.transient(inner.bytes()) {
             return;
         }
+        let tables = self.meter.tables();
         let Some(outer) = self.memo.0.as_mut() else {
             return;
         };
-        if swapped {
-            for (key, ty) in inner.types {
-                outer.types.entry(key).or_insert(ty);
+        // Room for them is counted before any moves.
+        if outer.types.reserve(tables, inner.types.len()).is_err() {
+            return;
+        }
+        for (key, ty) in inner.types.into_map() {
+            if !swapped || !outer.types.contains_key(&key) {
+                outer.types.insert_within(key, ty);
             }
-        } else {
-            outer.types.extend(inner.types);
         }
     }
 

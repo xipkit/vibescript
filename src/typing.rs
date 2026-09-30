@@ -871,7 +871,7 @@ type Defaults<'a> = (
 /// Expression types by node, recorded or replayed.
 #[derive(Default)]
 pub(crate) struct Memo {
-    types: HashMap<usize, ty::Ty>,
+    types: CountedMap<usize, ty::Ty>,
     replay: bool,
 }
 
