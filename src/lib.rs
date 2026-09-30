@@ -180,8 +180,9 @@ impl Engine {
                 &(),
             )
         })?;
-        let resolve =
-            |path: &str, origin: Option<&loading::Origin>| self.loader.source(path, origin);
+        let resolve = |path: &str, origin: Option<&loading::Origin>, memory| {
+            self.loader.source(path, origin, memory)
+        };
         let input = typing::Input {
             source,
             parsed: &parsed,

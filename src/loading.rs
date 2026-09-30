@@ -111,8 +111,22 @@ impl Loader {
     }
 
     /// The source text and origin a `require` would load for the static checker.
-    pub fn source(&self, request: &str, caller: Option<&Origin>) -> Result<(String, Origin)> {
-        let mut ctx = CallContext::new(crate::CallOptions::default());
+    pub fn source(
+        &self,
+        request: &str,
+        caller: Option<&Origin>,
+        memory: Option<usize>,
+    ) -> Result<(String, Origin)> {
+        let mut options = crate::CallOptions::default();
+        if let Some(memory) = memory {
+            options.limits.memory_bytes = Some(
+                options
+                    .limits
+                    .memory_bytes
+                    .map_or(memory, |limit| limit.min(memory)),
+            );
+        }
+        let mut ctx = CallContext::new(options);
         let mut candidates = self
             .resolver
             .candidates(&mut ctx, request.as_bytes(), caller)?;
@@ -122,6 +136,8 @@ impl Loader {
                 let text = std::str::from_utf8(bytes).map_err(|_| {
                     Error::new(ErrorKind::Syntax, "required module source is not UTF-8")
                 })?;
+                // The copy returned is made beside the one read.
+                let _copy = ctx.reserve(text.len())?;
                 return Ok((text.to_owned(), candidate.origin()));
             }
         }

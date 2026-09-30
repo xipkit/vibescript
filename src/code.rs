@@ -141,8 +141,8 @@ impl Code {
                     crate::syntax::host_syntax(source, work, error)
                 })
             })?;
-        let resolve = |path: &str, origin: Option<&crate::loading::Origin>| {
-            loader.unwrap().source(path, origin)
+        let resolve = |path: &str, origin: Option<&crate::loading::Origin>, memory| {
+            loader.unwrap().source(path, origin, memory)
         };
         let mut checked = crate::typing::check(&crate::typing::Input {
             source,

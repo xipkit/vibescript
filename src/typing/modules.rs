@@ -240,7 +240,30 @@ impl<'a> Checker<'a> {
             .modules
             .resolve
             .ok_or("no module resolver is configured")?;
-        let (source, origin) = resolve(path, self.modules.origin).map_err(|error| error.message)?;
+        // Reading the file takes memory before it is counted, so the read
+        // gets what the check leaves, and running out stops the check.
+        let left = self
+            .meter
+            .budget()
+            .memory
+            .map(|left| left.saturating_sub(self.held()));
+        let (source, origin) = match resolve(path, self.modules.origin, left) {
+            Ok(resolved) => resolved,
+            Err(error)
+                if matches!(
+                    error.kind,
+                    crate::ErrorKind::Steps
+                        | crate::ErrorKind::Memory
+                        | crate::ErrorKind::Deadline
+                        | crate::ErrorKind::Cancelled
+                ) && left.is_some() =>
+            {
+                self.stopped = true;
+                self.meter.stop();
+                return Err(error.to_string());
+            }
+            Err(error) => return Err(error.message),
+        };
         if let Some(&id) = self.modules.by_origin.get(&origin) {
             return Ok(id);
         }
