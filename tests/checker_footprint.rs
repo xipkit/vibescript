@@ -329,6 +329,13 @@ fn adversarial() -> Vec<(String, String)> {
         "a 20,000-part destructuring".to_owned(),
         format!("{} = []\n", join(scale(20_000), &|i| format!("a{i}"), ", ")),
     ));
+    let long = "n".repeat(scale(256_000));
+    programs.push((
+        "a 256,000-byte name for a local, a parameter and a method".to_owned(),
+        format!(
+            "def m{long}(p{long}: int) -> int\n  l{long} = p{long} + 1\n  l{long} + p{long}\nend\nx = m{long}(1)\np(x)\n"
+        ),
+    ));
     let entry = "w".repeat(scale(256_000));
     programs.push((
         "percent literals of long entries".to_owned(),
@@ -859,6 +866,35 @@ fn shapes() -> Vec<Shape> {
             let items = listed(n * 4, |_| "1".to_owned(), ", ");
             (Vec::new(), format!("x = [1]\nx += [{items}]\np(x)\n"))
         }),
+        ("a long name for a local, a parameter and a method", |n| {
+            let long = "n".repeat(n * 64);
+            (
+                Vec::new(),
+                format!(
+                    "def m{long}(p{long}: int) -> int\n  l{long} = p{long} + 1\n  l{long} + p{long}\nend\nx = m{long}(1)\np(x)\n"
+                ),
+            )
+        }),
+        (
+            "a required file of many public functions and methods",
+            |n| {
+                // Long names, which a signature and its export each copy.
+                let long = "e".repeat(256);
+                let functions = lines(n / 8 + 1, |i| {
+                    format!("def f{i}{long}(a: int) -> int\n  a\nend\n")
+                });
+                let methods = lines(n / 8 + 1, |i| {
+                    format!("  def m{i}{long}(a: int) -> int\n    a\n  end\n")
+                });
+                (
+                    vec![(
+                        "big.vibe".to_owned(),
+                        format!("{functions}class C\n{methods}end\n"),
+                    )],
+                    "require(\"big\")\np(1)\n".to_owned(),
+                )
+            },
+        ),
         ("a very wide interpolation", |n| {
             let literal = listed(n * 4, |_| "1".to_owned(), ",");
             (Vec::new(), format!("x = \"#{{[{literal}]}}\"\np(x)\n"))
