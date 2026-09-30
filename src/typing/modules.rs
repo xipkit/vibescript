@@ -343,12 +343,24 @@ impl<'a> Checker<'a> {
                 return Err(error.to_string());
             }
             Err(error) => {
-                let error = crate::source::parse_error(
-                    &source,
-                    Some(&filename),
-                    crate::syntax::canonical_syntax(&source, &(), error),
-                    &(),
-                );
+                // The error is recovered and located within what the parse
+                // left of the budget, in the parse's context, as a host's
+                // syntax error is, and its steps are this check's too.
+                let error = {
+                    let work = crate::compilation::Meter(std::cell::RefCell::new(&mut context));
+                    let error = crate::syntax::host_syntax(&source, &work, error);
+                    crate::source::parse_error(&source, Some(&filename), error, &work)
+                };
+                let reporting = context.stats();
+                let charged = self
+                    .meter
+                    .charge(reporting.steps.saturating_sub(parsing.steps));
+                self.observed(held + reporting.peak_memory_bytes);
+                if charged || context.exhausted() {
+                    self.stopped = true;
+                    self.meter.stop();
+                    return Err("the check ran out of its budget".into());
+                }
                 return Err(error.to_string());
             }
         };

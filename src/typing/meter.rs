@@ -835,12 +835,6 @@ mod tests {
             "surface/parse.rs",
             "impl crate::compilation::Work for Stopping<'_> {",
         ),
-        // A required file's syntax error, reported without its budget.
-        (
-            "typing/modules.rs",
-            "crate::syntax::canonical_syntax(&source, &(), error),",
-        ),
-        ("typing/modules.rs", "&(),"),
     ];
 
     /// The functions of the parser, the sources and the loader that the

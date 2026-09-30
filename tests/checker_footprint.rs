@@ -954,6 +954,15 @@ fn shapes() -> Vec<Shape> {
             source.push_str(&format!("x: T{depth} = 1\n"));
             (Vec::new(), source)
         }),
+        ("a required file with a syntax error first", |n| {
+            // Its first line fails the metered parse at once, and the rest
+            // is parsed again to report every error the file has.
+            let rest = lines(n, |i| format!("y{i} = [{i}, {i}]\n"));
+            (
+                vec![("big.vibe".to_owned(), format!("x = )\n{rest}"))],
+                "require(\"big\")\np(1)\n".to_owned(),
+            )
+        }),
         ("a wide self-call graph", |n| {
             // Each method calls itself, a cycle of one for each of them in
             // the graph of the calls construction checks follow.
