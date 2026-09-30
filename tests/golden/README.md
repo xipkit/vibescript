@@ -274,7 +274,12 @@ the baseline and candidate; it is not caused by recovery. Raw audits are under
 Sixth PR #1319 review: fixes of one spelling may leave the same name, since
 renaming a spelling everywhere keeps apart what it kept apart, so
 `enums_names_21` returns to its golden from the fourth review: the enum
-`State?` and the function's local `State?` both get fixes to `State`.
+`State?` and the function's local `State?` both get fixes to `State`. The
+parse sweep's declaration mutations also suffix type alias names, 30 more
+cases, 41,372 in all. Of them 1,397 carry a fix, and every fix passes the
+destination and result checks; the 98 that restore a program that runs give
+back its source exactly. First errors change as before, 48 against the
+pre-review head. No counter changes.
 
 Fifth PR #1319 review: a V0003 fix is withheld when a name it leaves is one the
 file already spells, or one an earlier fix leaves. The parse sweep also checks
