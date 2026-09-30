@@ -548,7 +548,9 @@ impl<'a> Checker<'a> {
         };
         let body = &def.body;
         let result = self.stmts(body, want);
-        if main && !self.program.file {
+        // A check past its budget keeps neither what a session declares
+        // nor a required file's locals.
+        if main && !self.program.file && self.annotate && !self.halted() {
             self.session = Some(super::Session {
                 locals: self
                     .frame
@@ -565,7 +567,7 @@ impl<'a> Checker<'a> {
                 .map_or(0, |session| session.locals.heap());
             self.grow(locals);
         }
-        if main && self.program.file {
+        if main && self.program.file && !self.halted() {
             for (name, &id) in &self.frame.names {
                 if self.frame.flow.get(id).assigned {
                     let local = &self.frame.locals[id as usize];

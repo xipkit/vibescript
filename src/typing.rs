@@ -496,6 +496,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         write_chain: HashSet::new(),
         fetch_receivers: HashMap::new(),
         session: None,
+        annotate: input.annotate,
         too_deep: false,
         facts: Facts::default(),
         construction: construction::Construction::default(),
@@ -642,6 +643,7 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
         write_chain: HashSet::new(),
         fetch_receivers: HashMap::new(),
         session: None,
+        annotate: false,
         too_deep: false,
         facts: Facts::default(),
         construction: construction::Construction::default(),
@@ -700,6 +702,8 @@ pub(crate) struct Checker<'a> {
     fetch_receivers: HashMap<usize, Option<ty::Ty>>,
     /// The top-level statements' locals and result, once checked.
     session: Option<Session>,
+    /// Whether to keep what a session continuing a host script declares.
+    annotate: bool,
     /// Whether some syntax was too tall to check ([`HEIGHT`]).
     too_deep: bool,
     /// What the checker proved for the compiler.
