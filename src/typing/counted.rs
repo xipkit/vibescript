@@ -81,6 +81,9 @@ impl<'m> Ledger<'m> {
     /// name it copies, before they are made.
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
     pub fn keep(self, bytes: usize) -> Result<(), Refused> {
+        if bytes == 0 {
+            return Ok(());
+        }
         let peak = self.admit(bytes)?;
         self.grew(bytes, peak);
         Ok(())
@@ -386,10 +389,13 @@ impl<K: Eq + Hash, V> CountedMap<K, V> {
     /// Stores `value` under `key`, giving back the value it replaces.
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
     pub fn insert(&mut self, ledger: Ledger<'_>, key: K, value: V) -> Result<Option<V>, Refused> {
-        if let Some(slot) = self.0.get_mut(&key) {
-            return Ok(Some(std::mem::replace(slot, value)));
+        // A table with room takes it, new or not, without growing.
+        if self.0.len() >= self.0.capacity() {
+            if let Some(slot) = self.0.get_mut(&key) {
+                return Ok(Some(std::mem::replace(slot, value)));
+            }
+            self.reserve(ledger, 1)?;
         }
-        self.reserve(ledger, 1)?;
         Ok(self.0.insert(key, value))
     }
 
@@ -423,7 +429,7 @@ impl<K: Eq + Hash, V> CountedMap<K, V> {
         key: K,
         make: impl FnOnce() -> V,
     ) -> Result<&mut V, Refused> {
-        if !self.0.contains_key(&key) {
+        if self.0.len() >= self.0.capacity() && !self.0.contains_key(&key) {
             self.reserve(ledger, 1)?;
         }
         Ok(self.0.entry(key).or_insert_with(make))
@@ -517,10 +523,13 @@ impl<T: Eq + Hash> CountedSet<T> {
     /// Adds `value`; whether it is new.
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
     pub fn insert(&mut self, ledger: Ledger<'_>, value: T) -> Result<bool, Refused> {
-        if self.0.contains(&value) {
-            return Ok(false);
+        // A set with room takes it, new or not, without growing.
+        if self.0.len() >= self.0.capacity() {
+            if self.0.contains(&value) {
+                return Ok(false);
+            }
+            self.reserve(ledger, 1)?;
         }
-        self.reserve(ledger, 1)?;
         Ok(self.0.insert(value))
     }
 
@@ -579,11 +588,15 @@ impl<T: Ord> CountedBTreeSet<T> {
     /// nodes is counted first; its payload is its caller's to count.
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
     pub fn insert(&mut self, ledger: Ledger<'_>, value: T) -> Result<bool, Refused> {
+        let length = self.0.len();
+        let grown = btree_storage::<T>(length + 1) - btree_storage::<T>(length);
+        // One that takes no more nodes is added, new or not, as it is.
+        if grown == 0 {
+            return Ok(self.0.insert(value));
+        }
         if self.0.contains(&value) {
             return Ok(false);
         }
-        let length = self.0.len();
-        let grown = btree_storage::<T>(length + 1) - btree_storage::<T>(length);
         let peak = ledger.admit(grown)?;
         let added = self.0.insert(value);
         ledger.grew(grown, peak);
