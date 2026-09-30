@@ -254,11 +254,16 @@ impl<'a> Checker<'a> {
         if self.mute > 0 {
             return;
         }
-        // A check its budget stops keeps no more findings.
-        if self.keep(&diagnostic) {
-            return;
+        // A check its budget stops keeps no more findings, nor one it
+        // refuses room for.
+        if self.keep(&diagnostic)
+            || self
+                .diagnostics
+                .push(self.meter.tables(), diagnostic)
+                .is_err()
+        {
+            self.stopped = true;
         }
-        self.diagnostics.push(diagnostic);
     }
 
     /// Refuses syntax taller than [`super::HEIGHT`], which the checker does
@@ -2093,8 +2098,15 @@ impl<'a> Checker<'a> {
     pub(super) fn mark_write_chain(&mut self, receiver: &Expr) {
         let mut current = receiver;
         loop {
-            self.write_chain
-                .insert(std::ptr::from_ref(current) as usize);
+            // A check the budget stops marks no more.
+            let tables = self.meter.tables();
+            if self
+                .write_chain
+                .insert(tables, std::ptr::from_ref(current) as usize)
+                .is_err()
+            {
+                return;
+            }
             current = match &current.node {
                 Node::Index(inner, _) | Node::Member(inner, _) | Node::Method(inner, ..) => inner,
                 _ => return,
@@ -2370,8 +2382,9 @@ impl<'a> Checker<'a> {
                     this.expr_against(value, declared, &Purpose::Local(name.to_string()))
                 });
                 if self.frame.namespace_body && is_constant(name) {
-                    self.constants
-                        .insert((self.frame.owner, name.to_string()), declared);
+                    if self.keep_constant((self.frame.owner, name.to_string()), declared) {
+                        return Ty::ERROR;
+                    }
                     return ty;
                 }
                 let id = match self.local(name) {
@@ -2455,12 +2468,9 @@ impl<'a> Checker<'a> {
                         })
                     } else {
                         let ty = self.expr(value, None);
-                        // A check that counting the constant's name stops
-                        // keeps no more constants.
-                        if self.grow(key.1.len()) {
+                        if self.keep_constant(key, ty) {
                             return Ty::ERROR;
                         }
-                        self.constants.insert(key, ty);
                         ty
                     }
                 }
@@ -2932,12 +2942,21 @@ impl<'a> Checker<'a> {
         self.report(diagnostic);
         // Later reads and writes check against the first value's type.
         let ty = if nameable { ty } else { Ty::ERROR };
-        // A check that counting the constant's name stops keeps no more
-        // constants.
-        if self.grow(key.1.len()) {
-            return;
+        if self.keep_constant(key, ty) {
+            self.stopped = true;
         }
-        self.constants.insert(key, ty);
+    }
+
+    /// Records constant `key` of type `ty`. A new one's name, and its room
+    /// in the table, are counted before it is kept, and a check they stop
+    /// keeps no more constants. Returns whether the check has stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    pub(super) fn keep_constant(&mut self, key: (Option<NsId>, String), ty: Ty) -> bool {
+        if let Some(entry) = self.constants.get_mut(&key) {
+            *entry = ty;
+            return self.halted();
+        }
+        self.grow(key.1.len()) || self.constants.insert(self.meter.tables(), key, ty).is_err()
     }
 
     /// Whether `target` is the target of a plain assignment that stands

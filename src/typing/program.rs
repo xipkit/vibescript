@@ -585,8 +585,9 @@ impl<'a> Checker<'a> {
                 continue;
             };
             let ty = self.annotation(&declared.ty, Some(ns), declared.offset as usize);
-            self.constants
-                .insert((Some(ns), declared.name.to_string()), ty);
+            if self.keep_constant((Some(ns), declared.name.to_string()), ty) {
+                return;
+            }
         }
         // Properties declare their instance variables and their types.
         for ns in 0..self.program.namespaces.len() {

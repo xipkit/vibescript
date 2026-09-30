@@ -633,8 +633,8 @@ impl<'a> super::Checker<'a> {
         .max()
         .unwrap_or(0);
         growth(largest)
-            + vec(&self.diagnostics)
-            + vec(&self.calls)
+            + vec(self.diagnostics.as_vec())
+            + vec(self.calls.as_vec())
             + map(&self.constants)
             + self.grown
             + self.declared_bytes

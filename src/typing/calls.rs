@@ -522,8 +522,13 @@ impl<'a> Checker<'a> {
                     _ => false,
                 });
                 // A check that counting it stops keeps no more receivers.
-                if !self.grow(super::meter::Heap::heap(&receiver_type)) {
-                    self.calls.push((span.start, receiver_type));
+                if !self.grow(super::meter::Heap::heap(&receiver_type))
+                    && self
+                        .calls
+                        .push(self.meter.tables(), (span.start, receiver_type))
+                        .is_err()
+                {
+                    return Ty::ERROR;
                 }
             }
         }
@@ -1412,8 +1417,13 @@ impl<'a> Checker<'a> {
         if let (Some(span), false) = (name_span, ty == Ty::ERROR) {
             let receiver_type = ReceiverType::new(self.types.display(ty), self.types.bases(ty));
             // A check that counting it stops keeps no more receivers.
-            if !self.grow(super::meter::Heap::heap(&receiver_type)) {
-                self.calls.push((span.start, receiver_type));
+            if !self.grow(super::meter::Heap::heap(&receiver_type))
+                && self
+                    .calls
+                    .push(self.meter.tables(), (span.start, receiver_type))
+                    .is_err()
+            {
+                return Ty::ERROR;
             }
         }
         if let Kind::Host(index) = *self.types.kind(ty) {
@@ -2602,9 +2612,19 @@ impl<'a> Checker<'a> {
             }
         }
         self.widen_for_loop(&block.body);
-        self.purposes.push(Purpose::BlockResult);
-        let tail = self.stmts(&block.body, want);
-        self.purposes.pop();
+        // Room for the purpose is counted before it is kept; a block the
+        // budget refuses it is not checked.
+        let tail = if self
+            .purposes
+            .push(self.meter.tables(), Purpose::BlockResult)
+            .is_ok()
+        {
+            let tail = self.stmts(&block.body, want);
+            self.purposes.pop();
+            tail
+        } else {
+            Ty::ERROR
+        };
         if let (Want::Check(expected), true) = (want, block.body.is_empty()) {
             if !self.types.assignable(Ty::NIL, expected) {
                 let span = self.spans.token(block.offset as usize);

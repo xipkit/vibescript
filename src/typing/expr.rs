@@ -29,7 +29,14 @@ impl<'a> Checker<'a> {
     pub(super) fn expr_against(&mut self, expr: &'a Expr, expected: Ty, purpose: &Purpose) -> Ty {
         match &expr.node {
             Node::Conditional(..) | Node::Case(..) | Node::Try(_) | Node::Compound(_) => {
-                self.purposes.push(purpose.clone());
+                // The purpose, and its room on the stack, are counted before
+                // it is kept; a check the budget stops checks no more.
+                let tables = self.meter.tables();
+                if tables.keep(super::meter::Heap::heap(purpose)).is_err()
+                    || self.purposes.push(tables, purpose.clone()).is_err()
+                {
+                    return Ty::ERROR;
+                }
                 let ty = self.expr_want(expr, Want::Check(expected));
                 self.purposes.pop();
                 ty
@@ -59,7 +66,14 @@ impl<'a> Checker<'a> {
         self.mismatch(span, expected, found, purpose);
         if self.diagnostics.len() > before {
             if let Some(fix) = self.fetch_fix(expr, found, expected) {
-                self.diagnostics.last_mut().unwrap().fixes.push(fix);
+                // The fix, with one more place in its diagnostic's list,
+                // is counted with the checker's growth before it is kept.
+                if self.grow(std::mem::size_of::<Fix>() + super::meter::Heap::heap(&fix)) {
+                    return;
+                }
+                let fixes = &mut self.diagnostics.last_mut().unwrap().fixes;
+                fixes.reserve_exact(1);
+                fixes.push(fix);
             }
         }
     }
@@ -1282,12 +1296,14 @@ impl<'a> Checker<'a> {
         let ty = self.member_receiver(receiver, "[]");
         let read = self.index_type(expr, receiver, ty, selectors);
         if self.types.has_nil(read) {
-            let recorded = self
-                .fetch_receivers
-                .entry(super::key(expr))
-                .or_insert(Some(ty));
-            if *recorded != Some(ty) {
-                *recorded = None;
+            let tables = self.meter.tables();
+            if let Ok(recorded) =
+                self.fetch_receivers
+                    .get_or_insert_with(tables, super::key(expr), || Some(ty))
+            {
+                if *recorded != Some(ty) {
+                    *recorded = None;
+                }
             }
         }
         if !self.in_write_chain(expr) {
@@ -1331,7 +1347,15 @@ impl<'a> Checker<'a> {
             (Kind::Array(element), [selector]) => {
                 let key = self.expr(selector, Some(Ty::INT));
                 if key == Ty::RANGE {
-                    self.fetch_receivers.insert(super::key(expr), None);
+                    // A receiver the budget refuses room for offers no fix.
+                    let tables = self.meter.tables();
+                    if self
+                        .fetch_receivers
+                        .insert(tables, super::key(expr), None)
+                        .is_err()
+                    {
+                        return Ty::ERROR;
+                    }
                     return self.types.optional(ty);
                 }
                 self.selector(selector, key, Ty::INT);

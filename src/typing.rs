@@ -21,11 +21,8 @@
 //! tree's start offsets into exact spans from the parser's tokens.
 
 use crate::{capability::Registered, diagnostic::Diagnostic, syntax::Declarations};
-use counted::{CountedMap, CountedSet, Ledger};
-use std::{
-    collections::{HashMap, HashSet},
-    fmt,
-};
+use counted::{CountedMap, CountedSet, CountedVec, Ledger};
+use std::{collections::HashMap, fmt};
 
 mod assigns;
 mod calls;
@@ -534,16 +531,16 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         types: ty::Types::metered(std::sync::Arc::clone(&meter)),
         program: program::Program::default(),
         converter: sigs::Converter::default(),
-        diagnostics: Vec::new(),
-        calls: Vec::new(),
-        constants: HashMap::new(),
+        diagnostics: CountedVec::new(),
+        calls: CountedVec::new(),
+        constants: CountedMap::new(),
         frame: check::Frame::new(&meter, None, false, None, String::new()),
-        purposes: Vec::new(),
+        purposes: CountedVec::new(),
         mute: 0,
         modules: modules::Required::new(input, depth),
         memo: meter::MemoSlot::default(),
-        write_chain: HashSet::new(),
-        fetch_receivers: HashMap::new(),
+        write_chain: CountedSet::new(),
+        fetch_receivers: CountedMap::new(),
         session: None,
         annotate: input.annotate,
         too_deep: false,
@@ -625,8 +622,8 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     let stopped = stopped || meter.scratch(meter::Heap::heap(&locals));
     locals.sort_unstable();
     let too_deep = checker.too_deep;
-    let mut diagnostics = checker.diagnostics;
-    let mut calls = checker.calls;
+    let mut diagnostics = checker.diagnostics.into_vec();
+    let mut calls = checker.calls.into_vec();
     // Sorting the diagnostics and the calls in order keeps a copy of each.
     let stopped = stopped || meter.scratch(meter::vec(&diagnostics) + meter::vec(&calls));
     if stopped {
@@ -749,16 +746,16 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
         types: ty::Types::metered(std::sync::Arc::clone(&meter)),
         program: program::Program::default(),
         converter: sigs::Converter::default(),
-        diagnostics: Vec::new(),
-        calls: Vec::new(),
-        constants: HashMap::new(),
+        diagnostics: CountedVec::new(),
+        calls: CountedVec::new(),
+        constants: CountedMap::new(),
         frame: check::Frame::new(&meter, None, false, None, String::new()),
-        purposes: Vec::new(),
+        purposes: CountedVec::new(),
         mute: 0,
         modules: modules::Required::new(input, 0),
         memo: meter::MemoSlot::default(),
-        write_chain: HashSet::new(),
-        fetch_receivers: HashMap::new(),
+        write_chain: CountedSet::new(),
+        fetch_receivers: CountedMap::new(),
         session: None,
         annotate: false,
         too_deep: false,
@@ -782,7 +779,7 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
     checker.check_retained_declarations(input.declared, input.parsed);
     checker.diagnostics.clear();
     checker.entry_arguments(function, count);
-    checker.diagnostics
+    checker.diagnostics.into_vec()
 }
 
 /// The state of one check.
@@ -793,13 +790,13 @@ pub(crate) struct Checker<'a> {
     types: ty::Types,
     program: program::Program<'a>,
     converter: sigs::Converter,
-    diagnostics: Vec<Diagnostic>,
-    calls: Vec<(usize, ReceiverType)>,
+    diagnostics: CountedVec<Diagnostic>,
+    calls: CountedVec<(usize, ReceiverType)>,
     /// Constants of class and module bodies, by namespace and name.
-    constants: HashMap<(Option<program::NsId>, String), ty::Ty>,
+    constants: CountedMap<(Option<program::NsId>, String), ty::Ty>,
     frame: check::Frame,
     /// Why the value being checked against a type is checked, innermost last.
-    purposes: Vec<check::Purpose>,
+    purposes: CountedVec<check::Purpose>,
     /// While positive, diagnostics are dropped: a second look at code that
     /// was already checked.
     mute: u32,
@@ -813,10 +810,10 @@ pub(crate) struct Checker<'a> {
     /// root. An index among them reads its element as present, since the
     /// runtime raises when it is missing, and no fix rewrites one, since a
     /// write through a rewritten read would reach a copy.
-    write_chain: HashSet<usize>,
+    write_chain: CountedSet<usize>,
     /// Receiver types of optional indexed reads, for diagnostic fixes only.
     /// None when repeated checks disagree about the receiver.
-    fetch_receivers: HashMap<usize, Option<ty::Ty>>,
+    fetch_receivers: CountedMap<usize, Option<ty::Ty>>,
     /// The top-level statements' locals and result, once checked.
     session: Option<Session>,
     /// Whether to keep what a session continuing a host script declares.
