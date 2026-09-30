@@ -579,17 +579,34 @@ impl<'a> Checker<'a> {
 
     /// Declares `module` and the namespaces nested in it, each before its
     /// children, and returns its id. The walk keeps its place on the heap,
-    /// since namespaces nest as deep as the parser allows.
+    /// since namespaces nest as deep as the parser allows: what is left of
+    /// each level's namespaces, whichever many a level holds. It charges a
+    /// step for each namespace, and stops with the check.
     fn namespace(&mut self, module: &'a Module, parent: Option<NsId>) -> NsId {
-        let first = self.program.namespaces.len() as NsId;
-        let mut pending = vec![(module, parent)];
-        while let Some((module, parent)) = pending.pop() {
-            let id = self.declare_namespace(module, parent);
-            // Pushed in reverse, so declared in source order.
-            for nested in module.modules.iter().chain(&module.inner).rev() {
-                pending.push((nested, Some(id)));
+        let first = self.declare_namespace(module, parent);
+        let mut levels = vec![(module.modules.iter().chain(module.inner.iter()), first)];
+        // The namespaces declared since the meter was last charged.
+        let mut unpaced = 1;
+        while let Some((level, parent)) = levels.last_mut() {
+            let parent = *parent;
+            let Some(module) = level.next() else {
+                levels.pop();
+                continue;
+            };
+            if unpaced == 64 {
+                unpaced = 0;
+                if self.meter.pace(64, super::meter::vec(&levels)) {
+                    break;
+                }
             }
+            let id = self.declare_namespace(module, Some(parent));
+            unpaced += 1;
+            if self.halted() {
+                break;
+            }
+            levels.push((module.modules.iter().chain(module.inner.iter()), id));
         }
+        self.meter.charge(unpaced);
         first
     }
 
