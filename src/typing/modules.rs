@@ -3,7 +3,7 @@
 
 use super::{
     Checker, Input, Modules,
-    counted::CountedMap,
+    counted::{CountedMap, CountedSet, CountedVec},
     meter::Heap,
     program::{Enum, FnDecl, Namespace, NsId},
     sigs::{BlockSig, Param, Sig},
@@ -20,11 +20,14 @@ use std::{collections::HashMap, fmt, rc::Rc, sync::Arc};
 /// Files `require` may nest before the checker stops following them.
 const DEPTH: usize = 16;
 
+/// Why a file's own require of itself, while it loads, does not load.
+const CIRCULAR: &str = "circular require";
+
 /// The functions and enums a required file exports.
 pub(crate) struct Exports {
     pub path: String,
-    pub functions: HashMap<String, Rc<Sig>>,
-    pub enums: HashMap<String, u32>,
+    pub functions: CountedMap<String, Rc<Sig>>,
+    pub enums: CountedMap<String, u32>,
 }
 
 /// What a required file exports, typed by its declarations in the file's
@@ -118,16 +121,16 @@ pub(crate) struct Required<'a> {
     hosts: Vec<(&'a String, &'a Registered)>,
     declared: &'a crate::declared::Declarations,
     depth: usize,
-    pub loaded: Vec<Exports>,
-    by_path: HashMap<String, Result<u32, String>>,
-    by_origin: HashMap<crate::loading::Origin, u32>,
+    pub loaded: CountedVec<Exports>,
+    by_path: CountedMap<String, Result<u32, String>>,
+    by_origin: CountedMap<crate::loading::Origin, u32>,
     /// Aliases `require(..., as:)` binds, to the exports they name.
-    pub aliases: HashMap<String, u32>,
+    pub aliases: CountedMap<String, u32>,
     /// Exported functions, which `require` also publishes by name.
-    pub published: HashMap<String, Rc<Sig>>,
+    pub published: CountedMap<String, Rc<Sig>>,
     /// The sources and file names that the diagnostics of required files
     /// keep, by address, so each is counted once however many keep it.
-    retained: std::collections::HashSet<usize>,
+    retained: CountedSet<usize>,
 }
 
 impl Heap for Exports {
@@ -167,12 +170,12 @@ impl<'a> Required<'a> {
             hosts: input.hosts.clone(),
             declared: input.declared,
             depth,
-            loaded: Vec::new(),
-            by_path: HashMap::new(),
-            by_origin: HashMap::new(),
-            aliases: HashMap::new(),
-            published: HashMap::new(),
-            retained: std::collections::HashSet::new(),
+            loaded: CountedVec::new(),
+            by_path: CountedMap::new(),
+            by_origin: CountedMap::new(),
+            aliases: CountedMap::new(),
+            published: CountedMap::new(),
+            retained: CountedSet::new(),
         }
     }
 
@@ -247,10 +250,21 @@ impl<'a> Checker<'a> {
                 ));
             }
             if let (Ok(id), Some(alias)) = (id, alias) {
-                self.modules
-                    .aliases
-                    .entry(alias.trim().to_owned())
-                    .or_insert(id);
+                // A new alias's copy of its name, and its room in the
+                // table, are counted before it is kept; a check that stops
+                // loads no more files.
+                let alias = alias.trim();
+                if !self.modules.aliases.contains_key(alias)
+                    && (self.grow(alias.len())
+                        || self
+                            .modules
+                            .aliases
+                            .insert(self.meter.declarations(), alias.to_owned(), id)
+                            .is_err())
+                {
+                    self.release(held);
+                    return;
+                }
             }
         }
         self.release(held);
@@ -281,22 +295,25 @@ impl<'a> Checker<'a> {
     #[must_use = "the budget may have stopped the check, which must then do no more work"]
     fn retain(&mut self, diagnostic: &Diagnostic) -> bool {
         let mut bytes = 0;
-        if let Some(source) = &diagnostic.source {
-            if self
-                .modules
-                .retained
-                .insert(Arc::as_ptr(source).cast::<u8>() as usize)
-            {
-                bytes += source.len();
-            }
-        }
-        if let Some(file) = &diagnostic.file {
-            if self
-                .modules
-                .retained
-                .insert(Arc::as_ptr(file).cast::<u8>() as usize)
-            {
-                bytes += file.len();
+        let declarations = self.meter.declarations();
+        let retained = &mut self.modules.retained;
+        for (address, length) in [
+            diagnostic
+                .source
+                .as_ref()
+                .map(|source| (Arc::as_ptr(source).cast::<u8>() as usize, source.len())),
+            diagnostic
+                .file
+                .as_ref()
+                .map(|file| (Arc::as_ptr(file).cast::<u8>() as usize, file.len())),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            match retained.insert(declarations, address) {
+                Ok(true) => bytes += length,
+                Ok(false) => (),
+                Err(_) => return true,
             }
         }
         self.grow(bytes)
@@ -307,20 +324,30 @@ impl<'a> Checker<'a> {
             return known.clone();
         }
         // The table keeps a copy of the path, and of the reason a file did
-        // not load, each counted before it is kept.
-        if self.grow(path.len()) {
+        // not load, each counted, with the path's room in the table, before
+        // it is kept.
+        if self.grow(path.len() + CIRCULAR.len())
+            || self
+                .modules
+                .by_path
+                .insert(
+                    self.meter.declarations(),
+                    path.to_owned(),
+                    Err(CIRCULAR.into()),
+                )
+                .is_err()
+        {
             return Err("the check ran out of its budget".into());
         }
-        self.modules
-            .by_path
-            .insert(path.to_owned(), Err("circular require".into()));
         let result = self.load_module_uncached(path);
         if let Err(reason) = &result {
             if self.grow(reason.len()) {
                 return Err("the check ran out of its budget".into());
             }
         }
-        self.modules.by_path.insert(path.to_owned(), result.clone());
+        if let Some(entry) = self.modules.by_path.get_mut(path) {
+            *entry = result.clone();
+        }
         result
     }
 
@@ -498,21 +525,42 @@ impl<'a> Checker<'a> {
                 }
                 imported
             }
-            None => (HashMap::new(), HashMap::new()),
+            None => (CountedMap::new(), CountedMap::new()),
         };
+        // Each function published by a new name, the file's exports and
+        // its origin, with their copies of their names and room for them
+        // in the tables, are counted before they are kept.
         for (name, sig) in &functions {
-            self.modules
-                .published
-                .entry(name.clone())
-                .or_insert_with(|| sig.clone());
+            if self.modules.published.contains_key(name) {
+                continue;
+            }
+            let declarations = self.meter.declarations();
+            if declarations.keep(name.len()).is_err()
+                || self
+                    .modules
+                    .published
+                    .insert(declarations, name.clone(), Rc::clone(sig))
+                    .is_err()
+            {
+                self.release(tree);
+                return Err("the check ran out of its budget".into());
+            }
+        }
+        let declarations = self.meter.declarations();
+        if declarations.keep(path.len() + origin.name().len()).is_err()
+            || self.modules.loaded.reserve(declarations, 1).is_err()
+            || self.modules.by_origin.reserve(declarations, 1).is_err()
+        {
+            self.release(tree);
+            return Err("the check ran out of its budget".into());
         }
         let id = self.modules.loaded.len() as u32;
-        self.modules.loaded.push(Exports {
+        self.modules.loaded.push_within(Exports {
             path: path.to_owned(),
             functions,
             enums,
         });
-        self.modules.by_origin.insert(origin, id);
+        self.modules.by_origin.insert_within(origin, id);
         self.release(tree);
         Ok(id)
     }
@@ -602,12 +650,15 @@ impl<'a> Checker<'a> {
     /// where the name is free, as the runtime binds them; its classes,
     /// whose instances its functions may return but whose names stay
     /// private to it; and its functions, typed in this check's types.
-    fn import(&mut self, exported: &Exported) -> (HashMap<String, Rc<Sig>>, HashMap<String, u32>) {
+    fn import(
+        &mut self,
+        exported: &Exported,
+    ) -> (CountedMap<String, Rc<Sig>>, CountedMap<String, u32>) {
         let mut imports = Imports {
             enums: Vec::new(),
             classes: HashMap::new(),
         };
-        let mut enums = HashMap::new();
+        let mut enums = CountedMap::new();
         for declared in &exported.enums {
             // A check this stops imports no more, and its caller none of
             // what it imported.
@@ -620,10 +671,11 @@ impl<'a> Checker<'a> {
             let program = &mut self.program;
             let free = !program.enum_names.contains_key(&declared.name)
                 && !program.roots.contains_key(declared.name.as_str());
-            if declarations.keep(2 * declared.name.len()).is_err()
+            if declarations.keep(3 * declared.name.len()).is_err()
                 || program.enums.reserve(declarations, 1).is_err()
                 || self.types.names.enums.reserve(declarations, 1).is_err()
                 || (free && program.enum_names.reserve(declarations, 1).is_err())
+                || enums.reserve(declarations, 1).is_err()
             {
                 break;
             }
@@ -633,7 +685,7 @@ impl<'a> Checker<'a> {
             if free {
                 program.enum_names.insert_within(declared.name.clone(), id);
             }
-            enums.insert(declared.name.clone(), id);
+            enums.insert_within(declared.name.clone(), id);
             imports.enums.push(id);
         }
         for class in &exported.classes {
@@ -701,16 +753,23 @@ impl<'a> Checker<'a> {
                     .insert_within(name.clone(), id);
             }
         }
-        let mut functions = HashMap::with_capacity(exported.functions.len());
+        let mut functions = CountedMap::new();
         for (name, sig) in &exported.functions {
             if self.halted() {
                 break;
             }
-            let sig = self.import_sig(&exported.types, sig, &imports);
-            functions.insert(name.clone(), Rc::new(sig));
+            let sig = Rc::new(self.import_sig(&exported.types, sig, &imports));
+            // Its name and signature, with its room in the table, are
+            // counted before they are kept.
+            let declarations = self.meter.declarations();
+            if declarations.keep(name.len() + sig.heap()).is_err()
+                || functions.insert(declarations, name.clone(), sig).is_err()
+            {
+                break;
+            }
         }
         if self.declaring() {
-            return (HashMap::new(), HashMap::new());
+            return (CountedMap::new(), CountedMap::new());
         }
         (functions, enums)
     }
