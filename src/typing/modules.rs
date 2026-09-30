@@ -243,6 +243,25 @@ impl<'a> Checker<'a> {
         }
     }
 
+    /// A context for work the check does through the compiler, such as
+    /// finding and parsing a required file, which what the check leaves of
+    /// its budget bounds, beside the `held` bytes: the steps, the memory, the
+    /// deadline and the cancellation.
+    fn context(&self, held: usize) -> crate::CallContext {
+        let budget = self.meter.budget();
+        let steps = self.total_steps();
+        crate::CallContext::new(crate::CallOptions {
+            limits: crate::Limits {
+                steps: budget.steps.map(|left| left.saturating_sub(steps)),
+                memory_bytes: budget.memory.map(|left| left.saturating_sub(held)),
+                ..crate::Limits::default()
+            },
+            cancellation: budget.cancellation.clone().unwrap_or_default(),
+            deadline: budget.deadline,
+            ..crate::CallOptions::default()
+        })
+    }
+
     fn load_module(&mut self, path: &str) -> Result<u32, String> {
         if let Some(known) = self.modules.by_path.get(path) {
             return known.clone();
@@ -265,24 +284,19 @@ impl<'a> Checker<'a> {
             .modules
             .resolve
             .ok_or("no module resolver is configured")?;
-        // Reading the file takes memory before it is counted, so the read
-        // gets what the check leaves, and running out stops the check.
-        let left = self
-            .meter
-            .budget()
-            .memory
-            .map(|left| left.saturating_sub(self.held()));
-        let (source, origin) = match resolve(path, self.modules.origin, left) {
+        // Finding the file and reading it take work and memory before they
+        // are counted, so they charge a context of their own, which what
+        // the check leaves of its budget bounds, as the file's parse does,
+        // and running out stops the check.
+        let held = self.held();
+        let mut context = self.context(held);
+        let resolved = resolve(path, self.modules.origin, &mut context);
+        let resolving = context.stats();
+        self.meter.charge(resolving.steps);
+        self.observed(held + resolving.peak_memory_bytes);
+        let (source, origin) = match resolved {
             Ok(resolved) => resolved,
-            Err(error)
-                if matches!(
-                    error.kind,
-                    crate::ErrorKind::Steps
-                        | crate::ErrorKind::Memory
-                        | crate::ErrorKind::Deadline
-                        | crate::ErrorKind::Cancelled
-                ) && left.is_some() =>
-            {
+            Err(error) if context.exhausted() => {
                 self.stopped = true;
                 self.meter.stop();
                 return Err(error.to_string());
@@ -298,18 +312,7 @@ impl<'a> Checker<'a> {
         // as a compilation does, which the steps and memory left bound,
         // and its steps are this check's.
         let held = self.held() + source.len();
-        let budget = self.meter.budget();
-        let steps = self.total_steps();
-        let mut context = crate::CallContext::new(crate::CallOptions {
-            limits: crate::Limits {
-                steps: budget.steps.map(|left| left.saturating_sub(steps)),
-                memory_bytes: budget.memory.map(|left| left.saturating_sub(held)),
-                ..crate::Limits::default()
-            },
-            cancellation: budget.cancellation.clone().unwrap_or_default(),
-            deadline: budget.deadline,
-            ..crate::CallOptions::default()
-        });
+        let mut context = self.context(held);
         let parse = crate::syntax::parse_with_tokens(
             &source,
             &crate::compilation::Meter(std::cell::RefCell::new(&mut context)),

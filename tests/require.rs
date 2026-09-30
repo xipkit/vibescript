@@ -2272,3 +2272,49 @@ fn writes_through_module_function_names_update_their_results() {
         assert_eq!(json(&value), expected, "{source}");
     }
 }
+
+#[test]
+fn finding_a_required_file_counts_toward_the_compilations_budget() {
+    // The file is in the last of many roots, in each of which the search
+    // looks first, and the compilation's static check finds it.
+    let roots: Vec<Files> = (0..100).map(|_| Files::new()).collect();
+    roots
+        .last()
+        .unwrap()
+        .write("answer.vibe", "def value -> int\n  42\nend\n");
+    let script = "x = require(\"answer\").value\n";
+    let engine = |roots: &[Files]| {
+        let mut engine = Engine::new();
+        engine
+            .set_module_config(ModuleConfig {
+                paths: roots.iter().map(|root| root.0.clone()).collect(),
+                ..ModuleConfig::default()
+            })
+            .unwrap();
+        engine
+    };
+    // The least step quota the script compiles under.
+    let least = |engine: &Engine| {
+        let (mut low, mut high) = (0, 1 << 24);
+        while high - low > 1 {
+            let quota = low + (high - low) / 2;
+            let mut options = CallOptions::default();
+            options.limits.steps = Some(quota);
+            match engine.compile_with_options(script, &options) {
+                Ok(_) => high = quota,
+                Err(error) if error.kind == ErrorKind::Steps => low = quota,
+                Err(error) => panic!("{error}"),
+            }
+        }
+        high
+    };
+    let one = least(&engine(&roots[roots.len() - 1..]));
+    let many = least(&engine(&roots));
+    // Each root the search looks in is a step for each byte of the path it
+    // tries, and one more.
+    assert!(
+        many >= one + 99 * 10,
+        "{one} steps with the file's root alone, {many} with {} roots",
+        roots.len()
+    );
+}

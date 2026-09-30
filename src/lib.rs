@@ -182,8 +182,8 @@ impl Engine {
                 &(),
             )
         })?;
-        let resolve = |path: &str, origin: Option<&loading::Origin>, memory| {
-            self.loader.source(path, origin, memory)
+        let resolve = |path: &str, origin: Option<&loading::Origin>, ctx: &mut _| {
+            self.loader.source(path, origin, ctx)
         };
         let input = typing::Input {
             source,

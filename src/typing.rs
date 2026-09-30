@@ -86,12 +86,13 @@ pub enum Observed {
     Checked,
 }
 
-/// Resolves a required module's name to its source and filename, reading
-/// at most the memory given, when there is a limit.
+/// Resolves a required module's name to its source and filename, charging
+/// the search and the read to the context given, which the check's budget
+/// bounds.
 pub(crate) type Modules<'a> = dyn Fn(
         &str,
         Option<&crate::loading::Origin>,
-        Option<usize>,
+        &mut crate::CallContext,
     ) -> crate::Result<(String, crate::loading::Origin)>
     + Sync
     + 'a;

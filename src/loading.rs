@@ -110,28 +110,17 @@ impl Loader {
         self.cache.clear();
     }
 
-    /// The source text and origin a `require` would load for the static checker.
+    /// The source text and origin a `require` would load for the static
+    /// checker, charging the search for it and its read to `ctx`.
     pub fn source(
         &self,
         request: &str,
         caller: Option<&Origin>,
-        memory: Option<usize>,
+        ctx: &mut CallContext,
     ) -> Result<(String, Origin)> {
-        let mut options = crate::CallOptions::default();
-        if let Some(memory) = memory {
-            options.limits.memory_bytes = Some(
-                options
-                    .limits
-                    .memory_bytes
-                    .map_or(memory, |limit| limit.min(memory)),
-            );
-        }
-        let mut ctx = CallContext::new(options);
-        let mut candidates = self
-            .resolver
-            .candidates(&mut ctx, request.as_bytes(), caller)?;
-        while let Some(candidate) = candidates.next(&mut ctx)? {
-            if let Some(source) = self.resolver.read(&mut ctx, &candidate)? {
+        let mut candidates = self.resolver.candidates(ctx, request.as_bytes(), caller)?;
+        while let Some(candidate) = candidates.next(ctx)? {
+            if let Some(source) = self.resolver.read(ctx, &candidate)? {
                 let bytes = source.contents.as_bytes().unwrap();
                 let text = std::str::from_utf8(bytes).map_err(|_| {
                     Error::new(ErrorKind::Syntax, "required module source is not UTF-8")
