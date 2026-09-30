@@ -6,7 +6,7 @@
 //! changes the branch made, not to the number of locals.
 
 use super::{
-    counted::{CountedSet, CountedVec, Refused},
+    counted::{CountedVec, Refused, ScratchSet, ScratchVec},
     marks::Marks,
     meter::{Meter, table as map_of},
     ty::{Ty, Types},
@@ -174,9 +174,9 @@ impl Flow {
                 changes: Vec::new(),
             };
         }
-        // The changes are collected in tables that count their growth.
-        let mut changes = CountedVec::new();
-        let mut seen = CountedSet::new();
+        // The changes are collected in lists counted while they live.
+        let mut changes = ScratchVec::new(&self.meter);
+        let mut seen = ScratchSet::new(&self.meter);
         let mut stopped = false;
         while self.trail.len() > mark.trail {
             let (id, old) = self.trail.pop().unwrap();
@@ -184,10 +184,9 @@ impl Flow {
             // A check this stops still undoes every change, but collects no
             // more of them.
             if !stopped {
-                let tables = self.meter.tables();
                 stopped = self.meter.charge(1)
-                    || match seen.insert(tables, id) {
-                        Ok(true) => changes.push(tables, (id, current)).is_err(),
+                    || match seen.insert(id) {
+                        Ok(true) => changes.push((id, current)).is_err(),
                         Ok(false) => false,
                         Err(Refused) => true,
                     };
@@ -216,17 +215,16 @@ impl Flow {
                 changes: Vec::new(),
             };
         }
-        let mut changes = CountedVec::new();
-        let mut seen = CountedSet::new();
+        let mut changes = ScratchVec::new(&self.meter);
+        let mut seen = ScratchSet::new(&self.meter);
         let steps = (self.trail.len() - mark.trail) as u64;
-        let tables = self.meter.tables();
         let mut stopped = self.meter.charge(steps);
         for &(id, _) in &self.trail[mark.trail..] {
             if stopped {
                 break;
             }
-            stopped = match seen.insert(tables, id) {
-                Ok(true) => changes.push(tables, (id, self.vars[id as usize])).is_err(),
+            stopped = match seen.insert(id) {
+                Ok(true) => changes.push((id, self.vars[id as usize])).is_err(),
                 Ok(false) => false,
                 Err(Refused) => true,
             };

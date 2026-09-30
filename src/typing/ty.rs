@@ -2,7 +2,7 @@
 //! comparing two types compares ids.
 
 use super::{
-    counted::{CountedMap, CountedVec},
+    counted::{CountedMap, CountedVec, ScratchVec},
     meter::{self, Heap, Meter},
 };
 use std::{collections::HashMap, sync::Arc};
@@ -581,13 +581,10 @@ impl Types {
         // whenever they pass twice as many as the last time, so they never
         // hold many more than the distinct members, which the table's own
         // unions hold already. The list is counted before it grows, while
-        // its old and new storage are both held.
+        // its old and new storage are both held, and while it lives.
         let mut next = 2 * (MAX_ALTERNATIVES + 1);
-        let mut members = CountedVec::new();
-        if members
-            .reserve(self.meter.types(), distinct.len().min(next))
-            .is_err()
-        {
+        let mut members = ScratchVec::new(&self.meter);
+        if members.reserve(distinct.len().min(next)).is_err() {
             return Ty::ERROR;
         }
         for &ty in &distinct {
@@ -595,7 +592,7 @@ impl Types {
                 Kind::Never => continue,
                 Kind::Union(inner) => inner.len(),
                 _ => {
-                    if members.push(self.meter.types(), ty).is_err() {
+                    if members.push(ty).is_err() {
                         return Ty::ERROR;
                     }
                     continue;
@@ -608,10 +605,7 @@ impl Types {
             let Kind::Union(inner) = self.kind(ty) else {
                 unreachable!("a union stays one");
             };
-            if members
-                .extend_from_slice(self.meter.types(), inner)
-                .is_err()
-            {
+            if members.extend_from_slice(inner).is_err() {
                 return Ty::ERROR;
             }
             if members.len() > next {

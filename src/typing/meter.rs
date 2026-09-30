@@ -57,8 +57,9 @@ pub(crate) struct Meter {
     /// the check really holds.
     observe: Option<fn(super::Observed)>,
     /// What the tables each measure counts grew since it last measured
-    /// them, by [`Side`], which a table's growth checks with the rest.
-    grown: [AtomicUsize; 3],
+    /// them, by [`Side`], which a table's growth checks with the rest, and
+    /// what the lists operations build hold while they live.
+    grown: [AtomicUsize; 4],
 }
 
 /// Which of the checker's measures counts a table, which takes back into
@@ -72,6 +73,10 @@ pub(crate) enum Side {
     Tables,
     /// The declarations, measured again only when they change.
     Declarations,
+    /// The lists an operation builds and drops, which no measure counts:
+    /// what they hold is counted while they live, and taken back when
+    /// they are dropped.
+    Scratch,
 }
 
 impl Meter {
@@ -148,6 +153,12 @@ impl Meter {
     /// Records that the tables `side` counts grew by `bytes`.
     pub fn record(&self, side: Side, bytes: usize) {
         self.grown[side as usize].fetch_add(bytes, Relaxed);
+    }
+
+    /// Takes back `bytes` a list [`Side::Scratch`] counts held, once it is
+    /// dropped.
+    pub fn dropped(&self, bytes: usize) {
+        self.grown[Side::Scratch as usize].fetch_sub(bytes, Relaxed);
     }
 
     /// Whether the check can hold `moment` bytes more, which a table holds

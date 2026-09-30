@@ -19,6 +19,7 @@ use std::{
     hash::Hash,
     mem::size_of,
     ops::Deref,
+    sync::Arc,
 };
 
 /// What a table the budget refused to grow gives back: nothing changed,
@@ -103,6 +104,107 @@ impl Meter {
     /// The ledger of the declarations.
     pub fn declarations(&self) -> Ledger<'_> {
         Ledger::new(self, Side::Declarations)
+    }
+
+    /// The ledger of the lists an operation builds and drops.
+    pub fn scratch_lists(&self) -> Ledger<'_> {
+        Ledger::new(self, Side::Scratch)
+    }
+}
+
+/// A list an operation builds and drops, whose storage is counted before
+/// it grows, as a table's is, and while it lives, since no measure counts
+/// it: what it grew by is taken back when it is dropped.
+pub(crate) struct ScratchVec<T> {
+    list: CountedVec<T>,
+    meter: Arc<Meter>,
+}
+
+impl<T> ScratchVec<T> {
+    pub fn new(meter: &Arc<Meter>) -> Self {
+        Self {
+            list: CountedVec::new(),
+            meter: Arc::clone(meter),
+        }
+    }
+
+    #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
+    pub fn reserve(&mut self, additional: usize) -> Result<(), Refused> {
+        self.list.reserve(self.meter.scratch_lists(), additional)
+    }
+
+    #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
+    pub fn push(&mut self, value: T) -> Result<(), Refused> {
+        self.list.push(self.meter.scratch_lists(), value)
+    }
+
+    #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
+    pub fn extend_from_slice(&mut self, values: &[T]) -> Result<(), Refused>
+    where
+        T: Clone,
+    {
+        self.list
+            .extend_from_slice(self.meter.scratch_lists(), values)
+    }
+
+    pub fn dedup(&mut self)
+    where
+        T: PartialEq,
+    {
+        self.list.dedup();
+    }
+
+    /// The list, no longer counted here: whoever keeps it counts it.
+    pub fn into_vec(mut self) -> Vec<T> {
+        self.meter.dropped(self.list.capacity() * size_of::<T>());
+        std::mem::take(&mut self.list).into_vec()
+    }
+}
+
+impl<T> Deref for ScratchVec<T> {
+    type Target = [T];
+
+    fn deref(&self) -> &[T] {
+        &self.list
+    }
+}
+
+impl<T> std::ops::DerefMut for ScratchVec<T> {
+    fn deref_mut(&mut self) -> &mut [T] {
+        &mut self.list
+    }
+}
+
+impl<T> Drop for ScratchVec<T> {
+    fn drop(&mut self) {
+        self.meter.dropped(self.list.capacity() * size_of::<T>());
+    }
+}
+
+/// A set an operation builds and drops, counted as [`ScratchVec`] is.
+pub(crate) struct ScratchSet<T> {
+    set: CountedSet<T>,
+    meter: Arc<Meter>,
+}
+
+impl<T: Eq + Hash> ScratchSet<T> {
+    pub fn new(meter: &Arc<Meter>) -> Self {
+        Self {
+            set: CountedSet::new(),
+            meter: Arc::clone(meter),
+        }
+    }
+
+    /// Adds `value`; whether it is new.
+    #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
+    pub fn insert(&mut self, value: T) -> Result<bool, Refused> {
+        self.set.insert(self.meter.scratch_lists(), value)
+    }
+}
+
+impl<T> Drop for ScratchSet<T> {
+    fn drop(&mut self) {
+        self.meter.dropped(set(&self.set.0));
     }
 }
 
