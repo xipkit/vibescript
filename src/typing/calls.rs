@@ -1859,7 +1859,27 @@ impl<'a> Checker<'a> {
         let rest_element = rest.map(|ty| self.types.element(ty).unwrap_or(Ty::ANY));
         let mut index = 0;
         let mut splatted = false;
-        let mut arguments: Vec<(&'a Expr, bool)> = Vec::new();
+        // The arguments, a literal splat's elements each, are counted and
+        // held before they are listed, at the length they take.
+        let count = call
+            .args
+            .iter()
+            .map(|arg| match (&arg.kind, &arg.value.node) {
+                (ArgumentKind::Positional, _) => 1,
+                (ArgumentKind::Splat, Node::Array(items)) => items.len(),
+                (ArgumentKind::Splat, _) => 1,
+                _ => 0,
+            })
+            .sum::<usize>()
+            + call.selectors.len()
+            + usize::from(call.extra.is_some());
+        let Some(held) = self.hold(
+            positional_params.capacity() * std::mem::size_of::<&sigs::Param>()
+                + count * std::mem::size_of::<(&Expr, bool)>(),
+        ) else {
+            return;
+        };
+        let mut arguments: Vec<(&'a Expr, bool)> = Vec::with_capacity(count);
         for arg in call.args {
             match &arg.kind {
                 ArgumentKind::Positional => arguments.push((&arg.value, false)),
@@ -1876,12 +1896,6 @@ impl<'a> Checker<'a> {
         if let Some(extra) = call.extra {
             arguments.push((extra, false));
         }
-        let Some(held) = self.hold(
-            positional_params.capacity() * std::mem::size_of::<&sigs::Param>()
-                + arguments.capacity() * std::mem::size_of::<(&Expr, bool)>(),
-        ) else {
-            return;
-        };
         for (value, splat) in arguments {
             if splat {
                 splatted = true;
