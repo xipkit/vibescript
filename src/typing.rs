@@ -600,26 +600,10 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     let stopped = checker.halted() || (input.file && meter.scratch(checker.export_bytes()));
     // A check past its budget exports nothing: its caller stops too.
     let exported = (input.file && !stopped).then(|| std::sync::Arc::new(checker.export()));
-    let (mut locals, result) = match checker.session.take().filter(|_| input.annotate) {
-        Some(session) => {
-            // Locals of one type share its annotation, written once.
-            let mut written: HashMap<ty::Ty, String> = HashMap::new();
-            let locals = session
-                .locals
-                .into_iter()
-                .map(|(name, ty)| {
-                    let text = written
-                        .entry(ty)
-                        .or_insert_with(|| checker.types.annotation(ty));
-                    (name, text.clone())
-                })
-                .collect();
-            (locals, Some(checker.types.annotation(session.result)))
-        }
-        None => (Vec::new(), None),
+    let (mut locals, result, stopped) = match checker.session.take().filter(|_| input.annotate) {
+        Some(session) if !stopped => annotated(&mut checker.types, &meter, session),
+        _ => (Vec::new(), None, stopped),
     };
-    // The locals' annotations are written out after the last measure.
-    let stopped = stopped || meter.scratch(meter::Heap::heap(&locals));
     locals.sort_unstable();
     let too_deep = checker.too_deep;
     let mut diagnostics = checker.diagnostics.into_vec();
@@ -780,6 +764,50 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
     checker.diagnostics.clear();
     checker.entry_arguments(function, count);
     checker.diagnostics.into_vec()
+}
+
+/// The session's locals with their annotations, and the annotation of its
+/// result, written out after the last measure: each type's annotation is
+/// written once, and counted with those before it as it is, and the
+/// locals' copies of them are counted before they are made. Returns
+/// whether the check has stopped, which keeps none of them.
+fn annotated(
+    types: &mut ty::Types,
+    meter: &meter::Meter,
+    session: Session,
+) -> (Vec<(String, String)>, Option<String>, bool) {
+    let stopped = (Vec::new(), None, true);
+    let mut written: HashMap<ty::Ty, String> = HashMap::new();
+    let mut bytes = 0;
+    for &(_, ty) in &session.locals {
+        if written.contains_key(&ty) {
+            continue;
+        }
+        let text = types.annotation(ty);
+        bytes += meter::table::<(ty::Ty, String)>(written.len() + 1) + text.capacity();
+        if meter.scratch(bytes) {
+            return stopped;
+        }
+        written.insert(ty, text);
+    }
+    let copies = session.locals.len() * size_of::<(String, String)>()
+        + session
+            .locals
+            .iter()
+            .map(|(name, ty)| name.capacity() + written[ty].len())
+            .sum::<usize>();
+    if meter.scratch(bytes + copies) {
+        return stopped;
+    }
+    let result = types.annotation(session.result);
+    let mut locals = Vec::with_capacity(session.locals.len());
+    locals.extend(
+        session
+            .locals
+            .into_iter()
+            .map(|(name, ty)| (name, written[&ty].clone())),
+    );
+    (locals, Some(result), false)
 }
 
 /// The state of one check.
