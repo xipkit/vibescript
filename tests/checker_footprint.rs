@@ -971,6 +971,14 @@ fn shapes() -> Vec<Shape> {
                 lines(n, |i| format!("x{i}: string = 1\nn{i} = [1].size\n")),
             )
         }),
+        ("many typed block parameters", |n| {
+            // Each function's typed block parameter is indexed by its
+            // `def` before any is declared.
+            let functions = lines(n, |i| {
+                format!("def f{i}(&block: (int) -> int) -> int\n  yield(1)\nend\n")
+            });
+            (Vec::new(), format!("{functions}p(1)\n"))
+        }),
         ("a wide self-call graph", |n| {
             // Each method calls itself, a cycle of one for each of them in
             // the graph of the calls construction checks follow.

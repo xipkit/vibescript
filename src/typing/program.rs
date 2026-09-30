@@ -423,13 +423,20 @@ impl<'a> Checker<'a> {
         else {
             return;
         };
-        if self.meter.charge(recorded.len() as u64) {
+        let mut blocks: HashMap<u32, &BlockParam> = HashMap::with_capacity(recorded.len());
+        // Each entry is a step, and the budget is checked as a walk checks
+        // it, while the index is filled.
+        let pace = super::walk::PACE as usize;
+        for (index, (owner, block)) in recorded.iter().enumerate() {
+            if index % pace == pace - 1 && self.meter.pace(pace as u64, 0) {
+                self.release(blocks_held);
+                return;
+            }
+            blocks.entry(*owner).or_insert(block);
+        }
+        if self.meter.charge((recorded.len() % pace) as u64) {
             self.release(blocks_held);
             return;
-        }
-        let mut blocks: HashMap<u32, &BlockParam> = HashMap::with_capacity(recorded.len());
-        for (owner, block) in recorded.iter() {
-            blocks.entry(*owner).or_insert(block);
         }
         let block_param = |offset: u32| blocks.get(&offset).copied();
         // Signatures after every name is known, so annotations resolve.
