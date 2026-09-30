@@ -520,7 +520,7 @@ impl<'a> Checker<'a> {
                         .contains_key(name),
                     _ => false,
                 });
-                self.grown += super::meter::Heap::heap(&receiver_type);
+                self.grow(super::meter::Heap::heap(&receiver_type));
                 self.calls.push((span.start, receiver_type));
             }
         }
@@ -944,7 +944,7 @@ impl<'a> Checker<'a> {
                             let id = self.program.host_modules.len();
                             self.program.host_modules.push(module);
                             let name = format!("{}.{}", self.types.display(ty), module.name);
-                            self.grown += name.capacity() + std::mem::size_of::<String>();
+                            self.grow(name.capacity() + std::mem::size_of::<String>());
                             self.types.names.hosts.push(name);
                             id
                         });
@@ -1397,7 +1397,7 @@ impl<'a> Checker<'a> {
         let name_span = self.spans.member(receiver, name);
         if let (Some(span), false) = (name_span, ty == Ty::ERROR) {
             let receiver_type = ReceiverType::new(self.types.display(ty), self.types.bases(ty));
-            self.grown += super::meter::Heap::heap(&receiver_type);
+            self.grow(super::meter::Heap::heap(&receiver_type));
             self.calls.push((span.start, receiver_type));
         }
         if let Kind::Host(index) = *self.types.kind(ty) {

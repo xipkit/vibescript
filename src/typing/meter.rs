@@ -612,7 +612,17 @@ impl<'a> super::Checker<'a> {
 
     /// Counts a diagnostic the checker keeps.
     pub(super) fn keep(&mut self, diagnostic: &crate::diagnostic::Diagnostic) {
-        self.grown += diagnostic.heap();
+        self.grow(diagnostic.heap());
+    }
+
+    /// Counts `bytes` more of what the checker keeps, checking them against
+    /// the memory left at once when they are many, rather than at the next
+    /// poll that measures, which may be many statements away.
+    pub(super) fn grow(&mut self, bytes: usize) {
+        self.grown += bytes;
+        if bytes >= SCRATCH {
+            self.check_memory(0);
+        }
     }
 }
 

@@ -446,7 +446,7 @@ impl<'a> Checker<'a> {
             self.frame.building = Some(building.clone());
             self.stmt(stmt, Want::Discard);
             if let Some(name) = assigned {
-                self.grown += building.remove(name);
+                self.grow(building.remove(name));
             }
         }
         self.frame.building = None;
@@ -547,10 +547,11 @@ impl<'a> Checker<'a> {
                     .collect(),
                 result,
             });
-            self.grown += self
+            let locals = self
                 .session
                 .as_ref()
                 .map_or(0, |session| session.locals.heap());
+            self.grow(locals);
         }
         if main && self.program.file {
             for (name, &id) in &self.frame.names {
@@ -700,7 +701,7 @@ impl<'a> Checker<'a> {
             // Sorted, so each name the callee reads is found by search.
             assigned.sort_unstable();
             self.meter.charge(assigned.len() as u64);
-            self.grown += assigned.heap();
+            self.grow(assigned.heap());
             self.program.file_calls.push(FileCall {
                 callee,
                 span,
@@ -710,7 +711,8 @@ impl<'a> Checker<'a> {
             let callees = &mut self.program.file_uses.entry(caller).or_default().1;
             let before = callees.capacity();
             callees.push(callee);
-            self.grown += (callees.capacity() - before) * std::mem::size_of::<FnId>();
+            let grown = (callees.capacity() - before) * std::mem::size_of::<FnId>();
+            self.grow(grown);
         }
     }
 
@@ -722,7 +724,7 @@ impl<'a> Checker<'a> {
                 let reads = &mut self.program.file_uses.entry(function).or_default().0;
                 let bytes = super::meter::btree_entry(reads) + name.len();
                 if reads.insert(name.to_owned()) {
-                    self.grown += bytes;
+                    self.grow(bytes);
                 }
             }
         }
@@ -739,7 +741,7 @@ impl<'a> Checker<'a> {
             .iter()
             .map(|(&id, (read, _))| (id, read.clone()))
             .collect();
-        self.grown += reads.heap();
+        self.grow(reads.heap());
         // Checking each call charged for the first pass over the calls.
         let mut again = false;
         let mut changed = true;
@@ -761,7 +763,7 @@ impl<'a> Checker<'a> {
                         let bytes = super::meter::btree_entry(entry) + name.len();
                         if entry.insert(name) {
                             changed = true;
-                            self.grown += bytes;
+                            self.grow(bytes);
                         }
                     }
                 }
@@ -2045,7 +2047,7 @@ impl<'a> Checker<'a> {
                         })
                     } else {
                         let ty = self.expr(value, None);
-                        self.grown += key.1.len();
+                        self.grow(key.1.len());
                         self.constants.insert(key, ty);
                         ty
                     }
@@ -2503,7 +2505,7 @@ impl<'a> Checker<'a> {
         self.report(diagnostic);
         // Later reads and writes check against the first value's type.
         let ty = if nameable { ty } else { Ty::ERROR };
-        self.grown += key.1.len();
+        self.grow(key.1.len());
         self.constants.insert(key, ty);
     }
 

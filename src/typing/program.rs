@@ -977,7 +977,7 @@ impl<'a> Checker<'a> {
         }
         let ty = *self.program.aliases.get(&(scope, name))?;
         // A self-referential alias resolves to an unknown type once.
-        self.grown += key.1.capacity();
+        self.grow(key.1.capacity());
         self.program.alias_types.insert(key.clone(), Ty::ERROR);
         let resolved = self.annotation_depth(ty, scope, depth + 1);
         self.program.alias_types.insert(key, resolved);
