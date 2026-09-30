@@ -147,7 +147,8 @@ impl Heap for Required<'_> {
         let published: usize = self.published.keys().map(Heap::heap).sum();
         super::meter::vec(&self.hosts)
             + self.loaded.heap()
-            + self.by_path.heap()
+            // The paths and reasons it keeps are counted as they are kept.
+            + map(&self.by_path)
             + map(&self.by_origin)
             + origins
             + self.aliases.heap()
@@ -217,18 +218,24 @@ impl<'a> Checker<'a> {
         }
         let scratch = walk.bytes() + super::meter::vec(&levels);
         drop(walk);
-        // A check past its budget loads no files.
+        // A check past its budget loads no files. The requests, with the
+        // paths and aliases they copy, are held while the files load.
         if self.transient(scratch + super::meter::vec(&requests) + found) {
             return;
         }
+        let Some(held) = self.hold(super::meter::vec(&requests) + found) else {
+            return;
+        };
         requests.sort_unstable_by_key(|request| request.2);
         for (path, alias, offset) in requests {
             // A check past its budget loads no more files.
             if self.over_budget() {
+                self.release(held);
                 return;
             }
             let id = self.load_module(&path);
             if self.halted() {
+                self.release(held);
                 return;
             }
             if let Err(reason) = &id {
@@ -245,6 +252,7 @@ impl<'a> Checker<'a> {
                     .or_insert(id);
             }
         }
+        self.release(held);
     }
 
     /// A context for work the check does through the compiler, such as
@@ -297,10 +305,20 @@ impl<'a> Checker<'a> {
         if let Some(known) = self.modules.by_path.get(path) {
             return known.clone();
         }
+        // The table keeps a copy of the path, and of the reason a file did
+        // not load, each counted before it is kept.
+        if self.grow(path.len()) {
+            return Err("the check ran out of its budget".into());
+        }
         self.modules
             .by_path
             .insert(path.to_owned(), Err("circular require".into()));
         let result = self.load_module_uncached(path);
+        if let Err(reason) = &result {
+            if self.grow(reason.len()) {
+                return Err("the check ran out of its budget".into());
+            }
+        }
         self.modules.by_path.insert(path.to_owned(), result.clone());
         result
     }

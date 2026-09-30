@@ -1051,6 +1051,16 @@ fn shapes() -> Vec<Shape> {
                 "require(\"big\")\np(1)\n".to_owned(),
             )
         }),
+        ("many long require paths", |n| {
+            // Each path is copied into the requests the check loads, and
+            // into its table of the files it tried, with why one failed.
+            let pad = "a".repeat(500);
+            let requires = lines(n / 4 + 1, |i| format!("require(\"{pad}{i}\")\n"));
+            (
+                vec![("x.vibe".to_owned(), "y = 1\n".to_owned())],
+                format!("{requires}p(1)\n"),
+            )
+        }),
         ("a wide self-call graph", |n| {
             // Each method calls itself, a cycle of one for each of them in
             // the graph of the calls construction checks follow.
@@ -1258,6 +1268,42 @@ fn a_file_required_at_run_time_keeps_to_the_quota() {
     for percent in [60, 80, 100, 120] {
         let quota = full * percent / 100;
         let (peak, result) = run(Some(quota));
+        let allowed = quota + quota / 8 + OVERSHOOT;
+        if peak > allowed {
+            failures.push(format!(
+                "{peak} bytes at the peak under {quota}, {allowed} allowed ({result:?})"
+            ));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[test]
+fn require_paths_count_toward_the_quota() {
+    let _serial = SERIAL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    // Long literal paths that no file answers, each copied into the check's
+    // requests and its table of the files it tried, under quotas at and
+    // below half of what the whole compilation takes, where those copies
+    // decide whether it keeps to its quota.
+    let n = if cfg!(any(debug_assertions, target_os = "wasi")) {
+        4_000
+    } else {
+        16_000
+    };
+    let (modules, source) = shapes()
+        .into_iter()
+        .find(|(name, _)| *name == "many long require paths")
+        .map(|(_, shape)| shape(n))
+        .unwrap();
+    let engine = engine_with(modules).unwrap();
+    let _ = engine.compile_with_options(&source, &limited(None, None));
+    let (full, _) = compiled_peak(&engine, &source, &limited(None, None));
+    let mut failures = Vec::new();
+    for percent in (40..=60).step_by(5) {
+        let quota = full * percent / 100;
+        let (peak, result) = compiled_peak(&engine, &source, &limited(None, Some(quota)));
         let allowed = quota + quota / 8 + OVERSHOOT;
         if peak > allowed {
             failures.push(format!(
