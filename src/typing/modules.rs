@@ -387,8 +387,18 @@ impl<'a> Checker<'a> {
         let (functions, enums) = match &checked.exported {
             Some(exported) => {
                 let held = self.hold(exported.bytes());
+                // A check that holding the exports stops imports none of
+                // them.
+                if self.halted() {
+                    self.release(held);
+                    return Err("the check ran out of its budget".into());
+                }
                 let imported = self.import(exported);
                 self.release(held);
+                // A check that importing them stops publishes none of them.
+                if self.halted() {
+                    return Err("the check ran out of its budget".into());
+                }
                 imported
             }
             None => (HashMap::new(), HashMap::new()),
@@ -412,6 +422,45 @@ impl<'a> Checker<'a> {
 
     /// What this check's file exports: its public functions, its enums and
     /// its classes, with its type table, which the check gives up.
+    /// What [`Self::export`] copies beside the declarations it copies them
+    /// from: its public functions' names and signatures, the list of its
+    /// enums, and its classes' names and their methods' names and
+    /// signatures. The type table moves rather than being copied.
+    pub(super) fn export_bytes(&self) -> usize {
+        use std::mem::size_of;
+        let functions: usize = self
+            .program
+            .functions
+            .iter()
+            .filter(|(_, id)| self.program.fns[**id].def.is_some_and(|def| !def.private))
+            .map(|(name, id)| {
+                size_of::<(String, Sig)>() + name.len() + self.program.fns[*id].sig.heap()
+            })
+            .sum();
+        let enums = self.parsed.enums.len() * size_of::<Arc<Enum>>();
+        let classes: usize = self
+            .program
+            .namespaces
+            .iter()
+            .filter(|namespace| namespace.module.is_some() && namespace.is_class)
+            .map(|namespace| {
+                size_of::<ExportedClass>()
+                    + namespace.name.len()
+                    + namespace
+                        .methods
+                        .iter()
+                        .filter(|(name, _)| name.as_str() != "initialize")
+                        .map(|(name, &id)| {
+                            size_of::<(String, Sig, Visibility)>()
+                                + name.len()
+                                + self.program.fns[id].sig.heap()
+                        })
+                        .sum::<usize>()
+            })
+            .sum();
+        functions + enums + classes
+    }
+
     pub(super) fn export(&mut self) -> Exported {
         let mut functions: Vec<(String, Sig)> = self
             .program
@@ -494,6 +543,10 @@ impl<'a> Checker<'a> {
         for class in &exported.classes {
             let owner = imports.classes[&class.id];
             for (name, sig, visibility) in &class.methods {
+                // A check that importing stops imports no more.
+                if self.halted() {
+                    break;
+                }
                 let sig = self.import_sig(&exported.types, sig, &imports);
                 let id = self.program.fns.len();
                 self.program.fns.push(FnDecl {
@@ -509,14 +562,14 @@ impl<'a> Checker<'a> {
                     .insert(name.clone(), id);
             }
         }
-        let functions = exported
-            .functions
-            .iter()
-            .map(|(name, sig)| {
-                let sig = self.import_sig(&exported.types, sig, &imports);
-                (name.clone(), Rc::new(sig))
-            })
-            .collect();
+        let mut functions = HashMap::with_capacity(exported.functions.len());
+        for (name, sig) in &exported.functions {
+            if self.halted() {
+                break;
+            }
+            let sig = self.import_sig(&exported.types, sig, &imports);
+            functions.insert(name.clone(), Rc::new(sig));
+        }
         self.declaring();
         (functions, enums)
     }

@@ -739,6 +739,11 @@ mod budget_tests {
 
     /// Checks `source` within `budget`.
     fn checked(source: &str, budget: Budget) -> super::super::Checked {
+        checked_as(source, budget, false)
+    }
+
+    /// Checks `source` within `budget`, as a required file if `file`.
+    fn checked_as(source: &str, budget: Budget, file: bool) -> super::super::Checked {
         let (parsed, tokens, _) = crate::syntax::parse_with_tokens(source, &()).unwrap();
         let declared = crate::declared::Declarations::new();
         super::super::check(&super::super::Input {
@@ -747,7 +752,7 @@ mod budget_tests {
             tokens: &tokens,
             hosts: Vec::new(),
             declared: &declared,
-            file: false,
+            file,
             origin: None,
             modules: None,
             budget,
@@ -783,6 +788,40 @@ mod budget_tests {
             union("a", ""),
             union("b", ", x: int")
         )
+    }
+
+    #[test]
+    fn a_required_files_check_counts_the_exports_it_copies() {
+        // Public functions are exported, copying their names and
+        // signatures; private ones are not.
+        let long = "e".repeat(1_000);
+        let file = |private: &str| -> String {
+            (0..200)
+                .map(|i| format!("{private}def f{i}{long}(a: int) -> int\n  a\nend\n"))
+                .collect()
+        };
+        let public = checked_as(&file(""), Budget::default(), true);
+        let private = checked_as(&file("private "), Budget::default(), true);
+        assert!(public.exported.is_some() && private.exported.is_some());
+        // Each export holds a copy of its name and one in its signature.
+        let copies = 200 * 2 * long.len();
+        assert!(
+            public.peak_bytes >= private.peak_bytes + copies,
+            "{} bytes at the peak with public functions, {} with private ones",
+            public.peak_bytes,
+            private.peak_bytes
+        );
+        // A budget the copies would pass stops the check before it makes
+        // them, which then exports nothing.
+        let stopped = checked_as(
+            &file(""),
+            Budget {
+                memory: Some(public.peak_bytes - copies / 2),
+                ..Budget::default()
+            },
+            true,
+        );
+        assert!(stopped.stopped && stopped.exported.is_none());
     }
 
     #[test]

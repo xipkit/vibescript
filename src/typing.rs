@@ -548,6 +548,11 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     }
     let steps = checker.total_steps();
     checker.held();
+    // A required file's exports copy its public declarations beside them,
+    // which the budget bounds with the rest before they are made.
+    if input.file && !checker.halted() {
+        meter.scratch(checker.export_bytes());
+    }
     let stopped = checker.stopped || meter.stopped();
     // A check past its budget exports nothing: its caller stops too.
     let exported = (input.file && !stopped).then(|| std::sync::Arc::new(checker.export()));
