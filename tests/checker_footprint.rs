@@ -1111,6 +1111,37 @@ fn a_metered_compilation_stays_within_its_memory_quota() {
     );
 }
 
+#[test]
+fn the_sources_required_files_keep_count_toward_the_quota() {
+    let _serial = SERIAL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    // A host's files, each small enough to check within the quota and each
+    // with a type error, whose diagnostic keeps the file's source after its
+    // check: many more of them than the quota holds.
+    let (files, quota) = if cfg!(any(debug_assertions, target_os = "wasi")) {
+        (250, 4 << 20)
+    } else {
+        (1_000, 16 << 20)
+    };
+    let body = lines(2_000, |i| format!("x{i} = {i}\n"));
+    let modules = (0..files)
+        .map(|k| (format!("m{k}.vibe"), format!("{body}y: string = 1\n")))
+        .collect();
+    let mut source: String = (0..files).map(|k| format!("require(\"m{k}\")\n")).collect();
+    source.push_str("p(1)\n");
+    let engine = engine_with(modules).unwrap();
+    // What the process loads once loads before the compilation is
+    // measured.
+    let _ = engine.compile_with_options("p(1)\n", &limited(None, None));
+    let (peak, result) = compiled_peak(&engine, &source, &limited(None, Some(quota)));
+    let allowed = quota + quota / 8 + OVERSHOOT;
+    assert!(
+        peak <= allowed,
+        "{peak} bytes at the peak, {allowed} allowed ({result:?})"
+    );
+}
+
 /// [`ALLOCATIONS`] and [`ALLOCATED`] when a budget first stopped the
 /// compilation being measured, or `usize::MAX` before one does.
 static TRIPPED_ALLOCATIONS: AtomicUsize = AtomicUsize::new(usize::MAX);

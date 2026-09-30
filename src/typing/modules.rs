@@ -124,6 +124,9 @@ pub(crate) struct Required<'a> {
     pub aliases: HashMap<String, u32>,
     /// Exported functions, which `require` also publishes by name.
     pub published: HashMap<String, Rc<Sig>>,
+    /// The sources and file names that the diagnostics of required files
+    /// keep, by address, so each is counted once however many keep it.
+    retained: std::collections::HashSet<usize>,
 }
 
 impl Heap for Exports {
@@ -150,6 +153,7 @@ impl Heap for Required<'_> {
             + self.aliases.heap()
             + map(&self.published)
             + published
+            + super::meter::set(&self.retained)
     }
 }
 
@@ -166,6 +170,7 @@ impl<'a> Required<'a> {
             by_origin: HashMap::new(),
             aliases: HashMap::new(),
             published: HashMap::new(),
+            retained: std::collections::HashSet::new(),
         }
     }
 
@@ -259,6 +264,33 @@ impl<'a> Checker<'a> {
             deadline: budget.deadline,
             ..crate::CallOptions::default()
         })
+    }
+
+    /// Counts the source and the file name `diagnostic` keeps, each once
+    /// however many diagnostics keep it. Returns whether the check has
+    /// stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    fn retain(&mut self, diagnostic: &Diagnostic) -> bool {
+        let mut bytes = 0;
+        if let Some(source) = &diagnostic.source {
+            if self
+                .modules
+                .retained
+                .insert(Arc::as_ptr(source).cast::<u8>() as usize)
+            {
+                bytes += source.len();
+            }
+        }
+        if let Some(file) = &diagnostic.file {
+            if self
+                .modules
+                .retained
+                .insert(Arc::as_ptr(file).cast::<u8>() as usize)
+            {
+                bytes += file.len();
+            }
+        }
+        self.grow(bytes)
     }
 
     fn load_module(&mut self, path: &str) -> Result<u32, String> {
@@ -411,7 +443,14 @@ impl<'a> Checker<'a> {
                 .file
                 .clone()
                 .or_else(|| Some(Arc::clone(&filename)));
-            self.report(diagnostic.in_file(file));
+            let diagnostic = diagnostic.in_file(file);
+            // The source and the file name it keeps outlive the file's
+            // check, and its reservation of them.
+            if self.retain(&diagnostic) {
+                self.release(tree);
+                return Err("the check ran out of its budget".into());
+            }
+            self.report(diagnostic);
         }
         let (functions, enums) = match &checked.exported {
             Some(exported) => {
