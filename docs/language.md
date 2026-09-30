@@ -83,9 +83,14 @@ final `?` stays the nullable marker. Where some use cannot be told from another
 name, as the symbol `:Ready?`, the call `Ready?(1)`, a type `Ready!?` that
 reads as a nullable `Ready!`, a read through a scope that is no path of
 namespaces, such as `c::LIMIT!` with `c` a local, or code past a syntax error,
-there is no fix rather than one that renames only part of it. A suffixed name
-that no suffixed binding owns, such as a call of a host's `ready?`, is never
-renamed.
+there is no fix rather than one that renames only part of it. Nor is there one
+that would leave a name the file already spells anywhere, as a binding, method,
+namespace, member, label, symbol or nullable type, or that an earlier fix
+leaves, since applying it would make two names one: `x = 1; x? = 2; [x, x?]`
+reports V0003 without a fix, where renaming would read `x` twice. A required
+file's public functions bind in the requiring script only where their names are
+free, so a rename there cannot capture one. A suffixed name that no suffixed
+binding owns, such as a call of a host's `ready?`, is never renamed.
 
 Member assignment targets also have no suffix: `h.ready? = 1`, compound
 updates such as `h.ready! += 1`, and destructuring targets report V0003.

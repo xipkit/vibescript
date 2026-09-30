@@ -188,7 +188,7 @@ fn bindings_reject_suffixes_with_applicable_fixes() {
         ("x! += 3", "x += 3"),
         ("x!, y = [1, 2]", "x, y = [1, 2]"),
         ("for x! in [1]; end", "for x in [1]; end"),
-        ("[1].each { |x!| x }", "[1].each { |x| x }"),
+        ("[1].each { |x!| x! }", "[1].each { |x| x }"),
         ("def f(ok?: bool); end", "def f(ok: bool); end"),
         (
             "def f(*ok!: array<int>); end",
@@ -1441,13 +1441,13 @@ fn scoped_reads_resolve_the_whole_namespace_path() {
     ] {
         assert_eq!(first_fix(source), fixed, "{source}");
     }
-    // The inner `A::M` is renamed by its own fix, with the read inside `A`.
+    // Once the top-level `M`'s constant is `X`, renaming the inner one's
+    // would spell a name the file already spells, so it keeps no fix.
     let source = "module M; X! = 2; end\nmodule A; module M; X! = 1; end; def self.f -> int; M::X!; end; end\n[M::X!, A.f]";
     assert_eq!(
         migrate(source),
-        "module M; X = 2; end\nmodule A; module M; X = 1; end; def self.f -> int; M::X; end; end\n[M::X, A.f]"
+        "module M; X = 2; end\nmodule A; module M; X! = 1; end; def self.f -> int; M::X!; end; end\n[M::X, A.f]"
     );
-    assert_eq!(run(&migrate(source)), "[2,1]");
 }
 
 #[test]
@@ -1502,10 +1502,6 @@ fn suffix_fixes_leave_a_valid_name_or_are_not_offered() {
         ("def bad??; end", "def bad?; end"),
         ("def bad?!; end", "def bad!; end"),
         ("def bad!?!; end", "def bad!; end"),
-        (
-            "def ok? -> bool; true; end; ok??",
-            "def ok? -> bool; true; end; ok?",
-        ),
         (
             "class C; def ok -> bool; true; end; alias :bad?? :ok; end",
             "class C; def ok -> bool; true; end; alias :bad? :ok; end",
@@ -1679,4 +1675,59 @@ fn class_module_and_enum_names_are_renamed_wherever_they_are_used() {
     let fixes: Vec<_> = error.diagnostics().iter().map(|d| d.fixes.len()).collect();
     assert_eq!(fixes, [1, 0, 0], "{error}");
     assert_eq!(first_fix(source), "class Ready; end; Ready.new; p(Ready)");
+}
+
+#[test]
+fn a_fix_never_leaves_a_name_the_file_already_spells() {
+    // Each rename would make two names one: `[x, x?]` would read one
+    // binding twice, so V0003 is reported without a fix.
+    for source in [
+        "x = 1; x? = 2; [x, x?]",
+        "def f(x: int, x?: int) -> int; x; end",
+        "[1].each { |x| x? = x; p(x?) }",
+        "def x -> int; 1; end; x? = 2; [x, x?]",
+        "def x? -> int; 1; end; def x?? -> int; 2; end; [x?, x??]",
+        "class Ready; end; class Ready?; end; [Ready, Ready?]",
+        "module M; X = 1; X? = 2; end; M::X",
+        "enum State; Ready; Ready?; end",
+        "nil_ = 1; nil? = 2; [nil_, nil?]",
+        "x? = 1; [x?, :x]",
+        "x? = 1; [x?, %i[x]]",
+        "x = 1; x? = 2; \"#{x}\"",
+        "[1].each { |x!| x }",
+        "def ok? -> bool; true; end; ok??",
+        // A nullable type names `Node`.
+        "class Node!; end; def f(a: Node?) -> int; 1; end",
+    ] {
+        let Err(error) = Engine::new().type_check(source) else {
+            panic!("{source} checks");
+        };
+        let suffixes: Vec<_> = error
+            .diagnostics()
+            .iter()
+            .filter(|diagnostic| diagnostic.code == Code::NAME_SUFFIX)
+            .collect();
+        assert!(!suffixes.is_empty(), "{source}: {error}");
+        for diagnostic in suffixes {
+            assert!(diagnostic.fixes.is_empty(), "{source}: {diagnostic:?}");
+        }
+        assert_eq!(migrate(source), source);
+    }
+    // Of two fixes that each leave `x`, which applying both would merge,
+    // only the first is offered; once it applies, `x` is spelled.
+    let source = "x? = 1; x! = 2; [x?, x!]";
+    let Err(error) = Engine::new().type_check(source) else {
+        panic!("{source} checks");
+    };
+    let fixes: Vec<_> = error.diagnostics().iter().map(|d| d.fixes.len()).collect();
+    assert_eq!(fixes, [1, 0], "{error}");
+    assert_eq!(migrate(source), "x = 1; x! = 2; [x, x!]");
+    // A name the file spells nowhere else is still left.
+    for (source, fixed) in [
+        ("x? = 1; [x?, :y, \"x\"]", "x = 1; [x, :y, \"x\"]"),
+        ("nil? = 1; nil?", "nil_ = 1; nil_"),
+        ("def x?? -> int; 2; end; x??", "def x? -> int; 2; end; x??"),
+    ] {
+        assert_eq!(first_fix(source), fixed, "{source}");
+    }
 }

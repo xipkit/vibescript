@@ -372,7 +372,10 @@ rename is one fix, on the binding's first V0003 only, so a person applying it
 alone gets consistent code, its edits are built once, with work linear in the
 recorded uses, and charged to the caller's quotas, and nothing is guessed from
 undefined names: a suffixed read that no binding owns, such as a host function
-the check cannot see, keeps its V0201 without a fix.
+the check cannot see, keeps its V0201 without a fix. No fix leaves a name the
+file already spells anywhere, or one an earlier fix leaves: rather than reason
+about scopes, one file-wide set of spelled names keeps a rename from merging
+two names, at the cost of withholding some renames that would have been safe.
 
 Hash and keyword labels keep suffixes because they spell string keys, not
 bindings. A suffixed shorthand label calls the method with that name;

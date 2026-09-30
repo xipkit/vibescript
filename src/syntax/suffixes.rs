@@ -9,7 +9,8 @@
 //! is never renamed. A class, module or enum name is a binding too, bound at
 //! each declaration and read bare, scoped, as a parent and in types. A
 //! binding with a use that cannot be attributed, such as `:Ready?` or a call
-//! `Ready?(1)`, gets no fix rather than a partial one.
+//! `Ready?(1)`, gets no fix rather than a partial one, as does one whose new
+//! name the source already spells, which the rename would merge with it.
 //!
 //! The uses come from a second, lenient parse that accepts suffixed
 //! bindings, as the grammar did before ADR-008, and tracks each binding
@@ -85,6 +86,12 @@ pub(super) struct Uses {
     nameable: Buffer<(u32, Name)>,
     /// Each suffixed symbol in the source, as [`symbol_key`] spells it.
     symbols: Table<()>,
+    /// Every name the source spells, in code, symbols and interpolations,
+    /// or none when it does not lex.
+    spelled: Option<Table<()>>,
+    /// Each capitalized name a nullable type spells, as `Ready` in
+    /// `Ready?`, by the offset of its `?`.
+    nullable: Buffer<(u32, Name)>,
     /// Each binding a scoped read may reach, a constant, an enum member or
     /// a nested class or module, with its name.
     members: Buffer<(u32, Name)>,
@@ -447,6 +454,14 @@ impl Parser<'_> {
         }
         let read = written.strip_suffix('?').unwrap_or(written);
         let mut uses = self.suffixed.borrow_mut();
+        if read.len() < written.len() && read.starts_with(super::unicode::upper) {
+            let question = u32::try_from(at + read.len()).unwrap_or(u32::MAX);
+            let key = at_key(self.work, "n", question)?;
+            if uses.recorded.insert(self.work, key, 0)?.is_none() {
+                let read = Name::new(self.work, read)?;
+                uses.nullable.push(self.work, (question, read))?;
+            }
+        }
         if path != 0 || written.starts_with(super::unicode::upper) {
             let ambiguous = read.len() < written.len() && read.ends_with(['?', '!']);
             for (name, safe) in [(read, true), (written, false)] {
@@ -600,22 +615,108 @@ fn uses(source: &str, work: &dyn Work) -> Result<Uses> {
             uses.scoped.push(work, read)?;
         }
     }
-    for lexeme in parser.tokens.range(0..parser.tokens.len()) {
+    let mut spelled = Table::new();
+    let lexemes = parser.tokens.range(0..parser.tokens.len());
+    spell(work, source, lexemes, &mut uses, &mut spelled)?;
+    // A nullable type names its class without the `?`, unless it was a
+    // lookahead at a value.
+    for (question, name) in std::mem::take(&mut uses.nullable) {
         work.charge(1)?;
-        let name = match &lexeme.token {
-            Token::Symbol(name) => name.as_bytes(),
-            Token::QuotedSymbol(name) => name.as_ref(),
-            _ => continue,
-        };
-        if let (true, Ok(name)) = (
-            name.ends_with(b"?") || name.ends_with(b"!"),
-            std::str::from_utf8(name),
-        ) {
-            let key = symbol_key(work, name)?;
-            uses.symbols.insert(work, key, ())?;
+        if !values.contains(work, &question.to_string())? && !spelled.contains(work, &name)? {
+            spelled.insert(work, name, ())?;
         }
     }
+    uses.spelled = Some(spelled);
     Ok(uses)
+}
+
+/// Records every name `lexemes` spell, within interpolations too, with
+/// each suffixed symbol's [`symbol_key`].
+fn spell<'t, 's: 't>(
+    work: &dyn Work,
+    source: &str,
+    lexemes: impl Iterator<Item = &'t super::lexer::Lexeme<'s>>,
+    uses: &mut Uses,
+    spelled: &mut Table<()>,
+) -> Result<()> {
+    use super::lexer::Part;
+    fn record(work: &dyn Work, spelled: &mut Table<()>, name: &str) -> Result<()> {
+        if !spelled.contains(work, name)? {
+            spelled.insert(work, Name::new(work, name)?, ())?;
+        }
+        Ok(())
+    }
+    // The tokens before the current one, the latest first.
+    let mut recent: [Option<&Token<'_>>; 3] = [None; 3];
+    for lexeme in lexemes {
+        work.charge(1)?;
+        let token = &lexeme.token;
+        match token {
+            Token::Word(word) => {
+                // The lexer ends a name before a `?` or `!` it splits off, as
+                // in `x?=1`, where the name is spelled with it. `a!=b` still
+                // compares `a`, except as a setter's name after `def`.
+                let rest = source.get(lexeme.end..).unwrap_or_default();
+                let run = rest.len() - rest.trim_start_matches(['?', '!']).len();
+                let setter = match recent {
+                    [Some(Token::Word(def)), ..] => **def == *"def",
+                    [
+                        Some(Token::P('.')),
+                        Some(Token::Word(receiver)),
+                        Some(Token::Word(def)),
+                    ] => **receiver == *"self" && **def == *"def",
+                    _ => false,
+                };
+                let operator = rest.starts_with("!=") || rest.starts_with("!~");
+                let written = source.get(lexeme.offset..lexeme.end + run);
+                match written {
+                    Some(written) if run > 0 && (setter || !operator) => {
+                        record(work, spelled, written)?
+                    }
+                    _ => record(work, spelled, word)?,
+                }
+            }
+            Token::Symbol(_) | Token::QuotedSymbol(_) => {
+                let name = match token {
+                    Token::Symbol(name) => name.as_bytes(),
+                    Token::QuotedSymbol(name) => name.as_ref(),
+                    _ => unreachable!(),
+                };
+                if let Ok(name) = std::str::from_utf8(name) {
+                    if name.ends_with(['?', '!']) {
+                        let key = symbol_key(work, name)?;
+                        uses.symbols.insert(work, key, ())?;
+                    }
+                    record(work, spelled, name)?;
+                }
+            }
+            Token::Template(_) | Token::Words(_) => {
+                let (entries, symbol): (&[Buffer<Part<'_>>], bool) = match token {
+                    Token::Template(parts) => (std::slice::from_ref(parts), false),
+                    Token::Words(words) => (&words.entries, words.symbol),
+                    _ => unreachable!(),
+                };
+                for entry in entries {
+                    for part in entry.iter() {
+                        match part {
+                            Part::Text(text) if symbol => {
+                                if let Ok(text) = std::str::from_utf8(text) {
+                                    record(work, spelled, text)?;
+                                }
+                            }
+                            Part::Expr(inner, _) => {
+                                spell(work, source, inner.iter(), uses, spelled)?;
+                            }
+                            Part::Text(_) => (),
+                        }
+                    }
+                }
+            }
+            _ => (),
+        }
+        recent = [Some(token), recent[0], recent[1]];
+    }
+    Ok(())
 }
 
 /// Whether a V0003 diagnostic's fix removes or replaces one suffix, which
@@ -644,6 +745,9 @@ pub(super) fn extend_fixes(source: &str, work: &dyn Work, mut error: Error) -> E
         Ok(charge) => charge,
         Err(failure) => return failure,
     };
+    if let Err(failure) = withhold_collisions(work, source, &uses, &mut diagnostics) {
+        return failure;
+    }
     let mut error = error.with_diagnostics(diagnostics);
     match error.retain(work, charge) {
         Ok(()) => error,
@@ -869,6 +973,80 @@ fn extended(
         }
     }
     Ok(charge)
+}
+
+/// Clears each V0003 fix that would leave a name the source already spells
+/// anywhere, or that an earlier fix leaves: applied, it would make two
+/// names one, as `x = 1; x? = 2; [x, x?]` would read the same binding
+/// twice. Every fix is cleared when the source does not lex, since its
+/// names are then unknown.
+fn withhold_collisions(
+    work: &dyn Work,
+    source: &str,
+    uses: &Uses,
+    diagnostics: &mut [Diagnostic],
+) -> Result<()> {
+    let spelled = uses.spelled.as_ref();
+    // The names the fixes kept so far leave.
+    let mut taken: Table<()> = Table::new();
+    for diagnostic in diagnostics.iter_mut() {
+        work.charge(1)?;
+        if diagnostic.code != Code::NAME_SUFFIX || diagnostic.fixes.is_empty() {
+            continue;
+        }
+        let Some(spelled) = spelled else {
+            diagnostic.fixes.clear();
+            continue;
+        };
+        let mut left: Buffer<Name> = Buffer::new();
+        let mut collides = false;
+        for edit in diagnostic.fixes.iter().flat_map(|fix| fix.edits.iter()) {
+            work.charge(1)?;
+            let name = destination(source, edit);
+            if left.last().is_some_and(|last| **last == *name) {
+                continue;
+            }
+            if spelled.contains(work, &name)? || taken.contains(work, &name)? {
+                collides = true;
+                break;
+            }
+            left.push(work, Name::new(work, &name)?)?;
+        }
+        if collides {
+            diagnostic.fixes.clear();
+            continue;
+        }
+        for name in left {
+            taken.insert(work, name, ())?;
+        }
+    }
+    Ok(())
+}
+
+/// The name an edit of a V0003 fix leaves: the word it edits as it reads
+/// once the edit applies, or the name a quoted symbol's replacement spells.
+fn destination(source: &str, edit: &Edit) -> String {
+    let (start, end) = (edit.span.start, edit.span.end);
+    if let Some(name) = edit
+        .replacement
+        .strip_prefix(":\"")
+        .and_then(|name| name.strip_suffix('"'))
+    {
+        return name.to_string();
+    }
+    let word = |c: char| c == '_' || c == '@' || super::unicode::letter_or_digit(c);
+    let from = source[..start].rfind(|c: char| !word(c)).map_or(0, |i| {
+        i + source[i..].chars().next().map_or(0, char::len_utf8)
+    });
+    let to = source[end..]
+        .find(|c: char| !word(c) && c != '?' && c != '!')
+        .map_or(source.len(), |i| end + i);
+    format!(
+        "{}{}{}",
+        &source[from..start],
+        edit.replacement,
+        &source[end..to]
+    )
 }
 
 /// Whether the name whose suffix starts at `at` stands bare, where it may

@@ -271,6 +271,17 @@ the baseline and candidate; it is not caused by recovery. Raw audits are under
 
 ## Method name suffixes, 2026-09-28
 
+Fifth PR #1319 review: a V0003 fix is withheld when a name it leaves is one the
+file already spells, or one an earlier fix leaves. The parse sweep also checks
+that no applied fix leaves a name the mutated source spells, and runs each
+unmutated program: where one runs and a fix only removes whole suffix runs, the
+fixed program must give its result. Of 41,342 cases, 1,395 fixes apply (2,171
+at the previous head), all pass, and the 92 restoring fixes on programs that run
+each give back the unmutated source exactly. First errors change as before, 48
+against the pre-review head. `enums_names_21` alone changes: its enum `State?`
+and the function's local `State?` both become `State`, so only the first,
+the enum's, keeps its fix. No counter changes.
+
 Fourth PR #1319 review: class, module and enum names are bindings for V0003's
 rename, and `scripts/parse-sweep.py` suffixes each such name with each run,
 once at its declarations alone and once at every use, 350 more cases. All

@@ -5,16 +5,19 @@ Every corpus mutation keeps its acceptance and its complete first diagnostic.
 Crashes, per-case timeouts, duplicate diagnostics and unbounded output fail the
 sweep. Every machine-applicable V0003 fix is also applied and checked: the
 fixed source must no longer report that V0003, nor a syntax error at the fix
-that the mutation did not already have. Raw cases and observations go only to
---out.
+that the mutation did not already have, and no name the fix leaves may be one
+the source already spells. Where a fix only removes suffixes from a program
+whose original runs, the fixed program must give the original's result. Raw
+cases and observations go only to --out.
 """
 import argparse
 import json
 import random
+import re
 from pathlib import Path
 
 import golden
-from mutations import recovery_mutations, suffix_mutations
+from mutations import TOKEN, recovery_mutations, suffix_mutations
 
 
 def cases():
@@ -82,8 +85,47 @@ def suffix_fixes(inputs, after):
                     "source": apply(case["source"], edits),
                     "parse": True,
                     "_origin": (case["id"], diagnostic, edits),
+                    "_mutated": case["source"],
                 })
     return fixed
+
+
+NAME = re.compile(r"@{0,2}[A-Za-z_\u0080-\uffff][\w\u0080-\uffff]*[?!]*")
+WORD = re.compile(r"[\w\u0080-\uffff@]")
+
+
+def spelled(source):
+    """The names a source spells in code and symbols, outside strings and
+    comments; unlike the compiler, not within interpolations."""
+    names = set()
+    previous = None
+    for match in TOKEN.finditer(source):
+        kind = match.lastgroup
+        if kind == "word":
+            name = NAME.match(source, match.start())
+            names.add(name.group() if name else match.group())
+        elif kind == "str" and previous == ":":
+            names.add(match.group()[1:-1])
+        if kind not in ("ws", "nl", "comment"):
+            previous = match.group()
+    return names
+
+
+def destination(source, edit):
+    """The name an edit of a V0003 fix leaves in `source`."""
+    (start, end), replacement = edit
+    data = source.encode()
+    if replacement.startswith(':"') and replacement.endswith('"'):
+        return replacement[2:-1]
+    text_before = data[:start].decode(errors="replace")
+    text_after = data[end:].decode(errors="replace")
+    head = len(text_before)
+    while head > 0 and WORD.match(text_before[head - 1]):
+        head -= 1
+    tail = 0
+    while tail < len(text_after) and (WORD.match(text_after[tail]) or text_after[tail] in "?!"):
+        tail += 1
+    return text_before[head:] + replacement + text_after[:tail]
 
 
 def fix_failures(fixed, unfixed, results):
@@ -112,7 +154,53 @@ def fix_failures(fixed, unfixed, results):
                 failures.append((case["id"], f"the fix adds V0001: {new['message']}"))
         if results[case["id"]].get("phase") in ("panic", "crash", "hang"):
             failures.append((case["id"], results[case["id"]]))
+        names = spelled(case["_mutated"])
+        for edit in edits:
+            name = destination(case["_mutated"], edit)
+            if name in names:
+                failures.append((case["id"], f"the fix leaves {name!r}, which the source spells"))
+                break
     return failures
+
+
+def restoring(case):
+    """Whether a fix only removes whole runs of `?` and `!`, so that it can
+    give back the program the mutation suffixed."""
+    _, _, edits = case["_origin"]
+    return all(edit[1] == "" and not destination(case["_mutated"], edit).endswith(("?", "!"))
+               for edit in edits)
+
+
+def outcome(record):
+    """What a run of a program observably did, without its accounting."""
+    return {key: record.get(key) for key in ("phase", "value", "error", "stdout")}
+
+
+def result_failures(fixed, harness, jobs):
+    """The restoring fixes whose programs give another result than the
+    unmutated program, where that ran."""
+    originals = {}
+    for path in sorted(p for root in golden.PARSE_SOURCES for p in (golden.ROOT / root).rglob("*.vibe")):
+        originals[str(path.relative_to(golden.ROOT))] = golden.read_source(path)
+    runs = [{"id": f"{name}:run", "source": text, "function": "run", "args": []}
+            for name, text in originals.items()]
+    ran = golden.run_engine(harness, runs, jobs, "originals")
+    compared, restored, failures = [], 0, []
+    for case in fixed:
+        origin, _, _ = case["_origin"]
+        name = origin.split(":suffix", 1)[0]
+        if ":suffix" not in origin or ran[f"{name}:run"].get("phase") != "ok" or not restoring(case):
+            continue
+        if case["source"] == originals[name]:
+            restored += 1
+            continue
+        compared.append({"id": f"{case['id']}:run", "source": case["source"], "function": "run",
+                         "args": [], "_original": name})
+    results = golden.run_engine(harness, compared, jobs, "fixed programs") if compared else {}
+    for case in compared:
+        if outcome(results[case["id"]]) != outcome(ran[f"{case['_original']}:run"]):
+            failures.append((case["id"], "the fixed program's result differs from the original's"))
+    return restored, len(compared), failures
 
 
 def first(record):
@@ -168,8 +256,12 @@ def main():
     fixes = golden.run_engine(args.harness.resolve(), fixed, args.jobs, "fixes") if fixed else {}
     failures.extend(fix_failures(fixed, after, fixes))
     print(f"fixes: {len(fixed)} applied", flush=True)
+    restored, compared, different = result_failures(fixed, args.harness.resolve(), args.jobs)
+    failures.extend(different)
+    print(f"results: {restored} restored the original, {compared} compared with it", flush=True)
     summary = {"cases": len(inputs), "recovered": recovered,
-               "maximum_errors": maximum, "suffix_fixes": len(fixed), "failures": failures}
+               "maximum_errors": maximum, "suffix_fixes": len(fixed), "restored": restored,
+               "compared": compared, "failures": failures}
     (args.out / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps({k: v for k, v in summary.items() if k != "failures"}), flush=True)
     if failures:
