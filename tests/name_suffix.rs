@@ -1449,12 +1449,13 @@ fn constant_fixes_rename_scoped_reads_of_their_namespace() {
         assert_eq!(migrate(source), fixed, "{source}");
         assert_eq!(run(fixed), value, "{fixed}");
     }
-    // Only the declaring namespace's scoped reads are renamed.
+    // Another class's method spelled the same is a place no fix reaches,
+    // so nothing spelled `LIMIT!` is renamed.
     let source = "class C; LIMIT! = 3; end\nclass D; def self.LIMIT! -> int; 4; end; end\n[C::LIMIT!, D.LIMIT!]";
-    assert_eq!(
-        first_fix(source),
-        "class C; LIMIT = 3; end\nclass D; def self.LIMIT! -> int; 4; end; end\n[C::LIMIT, D.LIMIT!]"
-    );
+    let Err(error) = Engine::new().type_check(source) else {
+        panic!("{source} checks");
+    };
+    assert!(error.diagnostics()[0].fixes.is_empty(), "{error:?}");
     // A reopened class binds the same constant, renamed in every body.
     assert_eq!(
         first_fix("class C; X! = 1; end; class C; X! = 2; end; C::X!"),
@@ -1480,10 +1481,10 @@ fn constant_fixes_rename_scoped_reads_of_their_namespace() {
 fn scoped_reads_resolve_the_whole_namespace_path() {
     for (source, fixed) in [
         // Same-named namespaces in different parents: only `A::M`'s
-        // constant is renamed, not `B::M`'s method of the same name.
+        // constant is renamed, not `B::M`'s of the same name.
         (
-            "module A; module M; READY? = 1; end; end\nmodule B; module M; def self.READY? -> int; 2; end; end; end\n[A::M::READY?, B::M::READY?]",
-            "module A; module M; READY = 1; end; end\nmodule B; module M; def self.READY? -> int; 2; end; end; end\n[A::M::READY, B::M::READY?]",
+            "module A; module M; READY? = 1; end; end\nmodule B; module M; X = 2; end; end\n[A::M::READY?, B::M::X]",
+            "module A; module M; READY = 1; end; end\nmodule B; module M; X = 2; end; end\n[A::M::READY, B::M::X]",
         ),
         // Nested modules, read through the full path and from the parent.
         (
@@ -1759,13 +1760,16 @@ fn every_spelling_of_one_name_may_take_the_same_fix() {
 }
 
 #[test]
-fn a_fix_of_one_place_waits_for_every_place_its_spelling_is_written() {
+fn a_fix_waits_for_every_place_its_spelling_is_written() {
     // An accessor's calls are member calls, valid with the suffix and with
     // no fix of their own, so renaming its declaration alone would leave
-    // them calling a method that no longer exists.
+    // them calling a method that no longer exists. A binding the parse
+    // tracks whole waits the same way for a place its fix does not reach.
     for source in [
         "class A; property done?: bool; end; A.new.done?",
         "class A; getter done?: bool; end; A.new.done?",
+        "x? = 1; obj = { a: 1 }; [x?, obj.x?]",
+        "module M; X? = 1; end; m = M; m.X?",
     ] {
         let Err(error) = Engine::new().type_check(source) else {
             panic!("{source} checks");

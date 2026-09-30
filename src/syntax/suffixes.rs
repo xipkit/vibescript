@@ -12,6 +12,9 @@
 //! binding with a use that cannot be attributed, such as `:Ready?` or a call
 //! `Ready?(1)`, gets no fix rather than a partial one, as does one whose new
 //! name the source already spells, which the rename would merge with it.
+//! Whatever the parse tracks, a fix is offered only while the fixes of its
+//! spelling reach every place a name token spells it, so a use it does not
+//! know means no fix instead of a partial one.
 //!
 //! The uses come from a second, lenient parse that accepts suffixed
 //! bindings, as the grammar did before ADR-008, and tracks each binding
@@ -91,9 +94,12 @@ pub(super) struct Uses {
     /// rename reaches.
     labelled: Buffer<u32>,
     /// Every name the source spells, in code, symbols and interpolations,
-    /// by the index of how often it does, or none when it does not lex.
+    /// each with an index, or none when it does not lex.
     spelled: Option<Table<u32>>,
-    spellings: Buffer<u32>,
+    spellings: u32,
+    /// Each place a name token spells a suffixed name, other than as a
+    /// label, by where its suffix starts, with the name's index.
+    places: Buffer<(u32, u32)>,
     /// Each capitalized name a nullable type spells, as `Ready` in
     /// `Ready?`, by the offset of its `?`.
     nullable: Buffer<(u32, Name)>,
@@ -647,9 +653,8 @@ fn uses(source: &str, work: &dyn Work) -> Result<Uses> {
     for (question, name) in std::mem::take(&mut uses.nullable) {
         work.charge(1)?;
         if !values.contains(work, &question.to_string())? && !spelled.contains(work, &name)? {
-            let index = u32::try_from(uses.spellings.len()).unwrap_or(u32::MAX);
-            uses.spellings.push(work, 1)?;
-            spelled.insert(work, name, index)?;
+            spelled.insert(work, name, uses.spellings)?;
+            uses.spellings = uses.spellings.saturating_add(1);
         }
     }
     uses.spelled = Some(spelled);
@@ -671,20 +676,19 @@ fn spell<'t, 's: 't>(
         uses: &mut Uses,
         spelled: &mut Table<u32>,
         name: &str,
-    ) -> Result<()> {
-        match spelled.get(work, name)? {
-            Some(&index) => uses.spellings[index as usize] += 1,
-            None => {
-                let index = u32::try_from(uses.spellings.len()).unwrap_or(u32::MAX);
-                uses.spellings.push(work, 1)?;
-                spelled.insert(work, Name::new(work, name)?, index)?;
-            }
+    ) -> Result<u32> {
+        if let Some(&index) = spelled.get(work, name)? {
+            return Ok(index);
         }
-        Ok(())
+        let index = uses.spellings;
+        spelled.insert(work, Name::new(work, name)?, index)?;
+        uses.spellings = uses.spellings.saturating_add(1);
+        Ok(index)
     }
     // The tokens before the current one, the latest first.
     let mut recent: [Option<&Token<'_>>; 3] = [None; 3];
-    for lexeme in lexemes {
+    let mut lexemes = lexemes.peekable();
+    while let Some(lexeme) = lexemes.next() {
         work.charge(1)?;
         let token = &lexeme.token;
         match token {
@@ -704,12 +708,22 @@ fn spell<'t, 's: 't>(
                     _ => false,
                 };
                 let operator = rest.starts_with("!=") || rest.starts_with("!~");
-                let written = source.get(lexeme.offset..lexeme.end + run);
-                match written {
-                    Some(written) if run > 0 && (setter || !operator) => {
-                        record(work, uses, spelled, written)?
-                    }
-                    _ => record(work, uses, spelled, word)?,
+                let written = match source.get(lexeme.offset..lexeme.end + run) {
+                    Some(written) if run > 0 && (setter || !operator) => written,
+                    _ => word.as_str(),
+                };
+                let index = record(work, uses, spelled, written)?;
+                // A label, `ready?:`, is a string key, not a name; so is an
+                // optional shape field's marker.
+                let label = lexemes
+                    .peek()
+                    .is_some_and(|next| next.token == Token::P(':') && next.offset == lexeme.end);
+                if let Some(suffix) = name_suffix_position(written)
+                    && !label
+                    && written[suffix..].bytes().all(|b| matches!(b, b'?' | b'!'))
+                {
+                    let at = u32::try_from(lexeme.offset + suffix).unwrap_or(u32::MAX);
+                    uses.places.push(work, (at, index))?;
                 }
             }
             Token::Symbol(_) | Token::QuotedSymbol(_) => {
@@ -1019,13 +1033,15 @@ fn extended(
 /// it would make two names one, as `x = 1; x? = 2; [x, x?]` would read the
 /// same binding twice. Fixes of one spelling may all leave the same name,
 /// since renaming one spelling everywhere keeps apart what it kept apart:
-/// a method's `ok??` at its definition and each call all leave `ok?`. But
-/// a fix of one place, not a whole binding, is cleared while some place the
-/// spelling is written has no fix, as an accessor's call `a.done?` has
-/// none beside `property done?`. So is one whose name its declaration cannot take: a type alias's
-/// or an enum's that names a builtin type, or an enum member's that
-/// normalizes to the symbol of a name the source spells. Every fix is
-/// cleared when the source does not lex, since its names are then unknown.
+/// a method's `ok??` at its definition and each call all leave `ok?`. So is
+/// one whose name its declaration cannot take, such as a type alias's that
+/// names a builtin type. Every fix is cleared when the source does not lex,
+/// since its names are then unknown.
+///
+/// And every fix of a spelling is cleared while some place a name token
+/// spells it has no fix: a use the fixes do not reach would keep the old
+/// name, as a call `a.done?` would beside `property done?`, however the
+/// fixes were built. Each place and edit is visited once.
 fn withhold_collisions(
     work: &dyn Work,
     source: &str,
@@ -1033,18 +1049,33 @@ fn withhold_collisions(
     diagnostics: &mut [Diagnostic],
 ) -> Result<()> {
     let spelled = uses.spelled.as_ref();
-    // How many of each spelling's places some fix renames.
-    let mut covered: Table<u32> = Table::new();
+    let names = uses.spellings as usize;
+    // The spellings some fix renames, and those a place none reaches keeps.
+    let mut renamed_names = Buffer::with_capacity(work, names)?;
+    let mut kept = Buffer::with_capacity(work, names)?;
+    for _ in 0..names {
+        renamed_names.push(work, false)?;
+        kept.push(work, false)?;
+    }
+    let mut reached: Table<()> = Table::new();
     for diagnostic in diagnostics.iter() {
         if diagnostic.code != Code::NAME_SUFFIX {
             continue;
         }
         for edit in diagnostic.fixes.iter().flat_map(|fix| fix.edits.iter()) {
             work.charge(1)?;
+            let at = u32::try_from(edit.span.start).unwrap_or(u32::MAX);
+            reached.insert(work, at_key(work, "", at)?, ())?;
             let (from, to) = word(source, edit);
-            let written = &source[from..to];
-            let count = covered.get(work, written)?.copied().unwrap_or(0);
-            covered.insert(work, Name::new(work, written)?, count.saturating_add(1))?;
+            if let Some(&index) = spelled.map_or(Ok(None), |s| s.get(work, &source[from..to]))? {
+                renamed_names[index as usize] = true;
+            }
+        }
+    }
+    for &(at, index) in uses.places.iter() {
+        work.charge(1)?;
+        if renamed_names[index as usize] && !reached.contains(work, &at_key(work, "", at)?)? {
+            kept[index as usize] = true;
         }
     }
     // The names the fixes kept so far leave, each with the index of the
@@ -1064,28 +1095,14 @@ fn withhold_collisions(
         };
         let mut left: Buffer<(Name, Name)> = Buffer::new();
         let mut collides = false;
-        // A fix that renames a binding the parse tracked reaches all of its
-        // uses; any other renames one place a spelling is written, which
-        // is safe only while fixes reach every place it is.
-        let binding = match diagnostic.fixes[0].edits.first() {
-            Some(edit) => {
-                let at = u32::try_from(edit.span.start).unwrap_or(u32::MAX);
-                uses.recorded.contains(work, &at_key(work, "b", at)?)?
-            }
-            None => false,
-        };
         for edit in diagnostic.fixes.iter().flat_map(|fix| fix.edits.iter()) {
             work.charge(1)?;
             let (name, written, _reserved) = destination(work, source, edit)?;
-            if !binding {
-                let places = match spelled.get(work, written)? {
-                    Some(&index) => uses.spellings[index as usize],
-                    None => 0,
-                };
-                if places > covered.get(work, written)?.copied().unwrap_or(0) {
-                    collides = true;
-                    break;
-                }
+            if let Some(&index) = spelled.get(work, written)?
+                && kept[index as usize]
+            {
+                collides = true;
+                break;
             }
             if left.last().is_some_and(|(last, _)| **last == *name) {
                 continue;

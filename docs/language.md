@@ -90,10 +90,13 @@ another spelling leaves, since applying it would make two names one:
 `x = 1; x? = 2; [x, x?]` reports V0003 without a fix, where renaming would read
 `x` twice. A method's name, or a variable's with a sigil, is fixed where it is
 spelled, each spelling on its own, so the fixes of `def ok??` and each call
-`ok??` all leave `ok?`, and `vibes fix` applies them together. Such a fix of
-one place is offered only while every place its spelling is written has one:
-`property done?` has none while a call `a.done?`, valid and so without a fix,
-would keep calling the old name. A keyword parameter keeps its name, which
+`ok??` all leave `ok?`, and `vibes fix` applies them together. Whatever a fix
+renames, it is offered only while the fixes of its spelling reach every place a
+name token spells it, whether a name, a type, a member after `.` or `::` or a
+method's name; labels, symbols, strings and comments do not count. So
+`property done?` has no fix while a call `a.done?`, valid and so without a fix,
+would keep calling the old name, and neither has `x? = 1` beside a call
+`obj.x?`. A keyword parameter keeps its name, which
 calls, and a host, pass as a label. Nor is there
 one leaving a name its declaration cannot take: a builtin or prelude type's for
 a type alias or enum, a prelude namespace's, function's or global's for a
