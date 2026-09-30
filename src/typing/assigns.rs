@@ -207,8 +207,9 @@ impl<'a> Assigns<'a> {
     fn walk(&mut self, meter: &Meter, visit: impl FnOnce(&mut Walk<'a, '_>)) {
         let start = self.sites.len() as u32;
         let root = self.roots.len() as u32;
+        let before = self.bytes();
         let mut walk = Walk {
-            before: self.bytes(),
+            before,
             assigns: self,
             root,
             target: None,
@@ -219,7 +220,13 @@ impl<'a> Assigns<'a> {
         };
         visit(&mut walk);
         let stopped = walk.finish();
-        if stopped {
+        let count = self.sites.len() - start as usize;
+        let width = count.next_power_of_two().max(1);
+        // The tree, twice as wide as the assignments rounded up to a power
+        // of two, is counted with what the walk added, and checked against
+        // the budget, before it is built.
+        let tree = 2 * width * std::mem::size_of::<u32>();
+        if stopped || meter.pace(0, self.bytes().saturating_sub(before) + tree) {
             // The spans the stopped walk recorded cover no positions of its
             // empty tree, so they find no assignments.
             self.roots.push(Root {
@@ -229,8 +236,6 @@ impl<'a> Assigns<'a> {
             });
             return;
         }
-        let count = self.sites.len() - start as usize;
-        let width = count.next_power_of_two().max(1);
         let mut lowest = vec![u32::MAX; 2 * width];
         lowest[width..width + count].copy_from_slice(&self.previous[start as usize..]);
         for node in (1..width).rev() {

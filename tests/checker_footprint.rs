@@ -979,6 +979,12 @@ fn shapes() -> Vec<Shape> {
             });
             (Vec::new(), format!("{functions}p(1)\n"))
         }),
+        ("a begin of many assignments", |n| {
+            // The assignments a rescue may see changed are indexed in a
+            // tree twice as wide as their number, rounded up.
+            let body = "a = 1\n".repeat(n * 4);
+            (Vec::new(), format!("begin\n{body}rescue\n  c = 1\nend\n"))
+        }),
         ("a wide self-call graph", |n| {
             // Each method calls itself, a cycle of one for each of them in
             // the graph of the calls construction checks follow.
