@@ -619,8 +619,9 @@ pub(crate) struct Program {
     /// [`Op::Shared`] reads by slot.
     pub shared: Vec<usize>,
     /// The slot of each literal in [`Self::shared`] by whether it is a
-    /// symbol and its text, while compiling.
-    shared_slots: HashMap<(bool, Vec<u8>), usize>,
+    /// symbol and its text, which the literal's value shares, while
+    /// compiling.
+    shared_slots: HashMap<(bool, std::sync::Arc<Vec<u8>>), usize>,
     pub names: HashMap<String, usize>,
     pub hosts: Vec<String>,
     pub members: Vec<String>,
@@ -732,6 +733,9 @@ pub(crate) fn compile_parsed(
             _ => None,
         })
         .collect();
+    // The program keeps a copy of the source, which counts while it
+    // compiles.
+    let _source = work.reserve(source.len())?;
     let mut program = Program {
         file,
         owner: std::sync::Weak::new(),
@@ -1432,7 +1436,7 @@ impl Compiler<'_> {
             crate::value::Kind::Symbol(bytes) => (true, bytes),
             _ => return self.constant(value),
         };
-        let text = (symbol, bytes.data.to_vec());
+        let text = (symbol, std::sync::Arc::clone(&bytes.data));
         let slot = match self.program.shared_slots.get(&text) {
             Some(&slot) => slot,
             None => {
