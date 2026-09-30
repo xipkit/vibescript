@@ -5,7 +5,7 @@ use super::{
     Checker, Input, Modules,
     counted::{CountedMap, CountedSet, CountedVec},
     meter::Heap,
-    program::{Enum, FnDecl, Namespace, NsId},
+    program::{Enum, FnDecl, FnId, Namespace, NsId},
     sigs::{BlockSig, Param, Sig},
     ty::{Field, Kind, Ty, Types},
     walk::{Item, Next, Walk},
@@ -607,30 +607,46 @@ impl<'a> Checker<'a> {
     }
 
     pub(super) fn export(&mut self) -> Exported {
-        let mut functions: Vec<(String, Sig)> = self
-            .program
-            .functions
-            .iter()
-            .filter(|(_, id)| self.program.fns[**id].def.is_some_and(|def| !def.private))
-            .map(|(name, id)| ((*name).to_owned(), (*self.program.fns[*id].sig).clone()))
-            .collect();
+        // Each list is made at the length it takes, which
+        // [`Self::export_bytes`] counted.
+        let program = &self.program;
+        let public = |id: FnId| program.fns[id].def.is_some_and(|def| !def.private);
+        let exported = program.functions.values().filter(|&&id| public(id)).count();
+        let mut functions: Vec<(String, Sig)> = Vec::with_capacity(exported);
+        functions.extend(
+            program
+                .functions
+                .iter()
+                .filter(|&(_, &id)| public(id))
+                .map(|(name, &id)| ((*name).to_owned(), (*program.fns[id].sig).clone())),
+        );
         functions.sort_unstable_by(|a, b| a.0.cmp(&b.0));
         // The file's own enums come first; imported ones follow.
-        let enums = self.program.enums[..self.parsed.enums.len()].to_vec();
-        let mut classes = Vec::new();
-        for (ns, namespace) in self.program.namespaces.iter().enumerate() {
-            if namespace.module.is_none() || !namespace.is_class {
+        let enums = program.enums[..self.parsed.enums.len()].to_vec();
+        let class = |namespace: &Namespace<'_>| namespace.module.is_some() && namespace.is_class;
+        let count = program
+            .namespaces
+            .iter()
+            .filter(|&namespace| class(namespace))
+            .count();
+        let mut classes = Vec::with_capacity(count);
+        for (ns, namespace) in program.namespaces.iter().enumerate() {
+            if !class(namespace) {
                 continue;
             }
-            let mut methods: Vec<(String, Sig, Visibility)> = namespace
-                .methods
-                .iter()
-                .filter(|(name, _)| name.as_str() != "initialize")
-                .map(|(name, &id)| {
-                    let decl = &self.program.fns[id];
-                    (name.clone(), (*decl.sig).clone(), decl.visibility)
-                })
-                .collect();
+            let exported = |name: &&String| name.as_str() != "initialize";
+            let count = namespace.methods.keys().filter(exported).count();
+            let mut methods: Vec<(String, Sig, Visibility)> = Vec::with_capacity(count);
+            methods.extend(
+                namespace
+                    .methods
+                    .iter()
+                    .filter(|(name, _)| exported(name))
+                    .map(|(name, &id)| {
+                        let decl = &program.fns[id];
+                        (name.clone(), (*decl.sig).clone(), decl.visibility)
+                    }),
+            );
             methods.sort_unstable_by(|a, b| a.0.cmp(&b.0));
             classes.push(ExportedClass {
                 id: ns as NsId,
