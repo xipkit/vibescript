@@ -794,6 +794,11 @@ impl<'a> Checker<'a> {
         scope: Option<NsId>,
         offset: usize,
     ) -> Ty {
+        // A check past its budget builds no more types, such as each arm
+        // of a wide union.
+        if self.halted() {
+            return Ty::ERROR;
+        }
         let base = match &ty.kind {
             TypeKind::Scalar(scalar) => match scalar {
                 Scalar::Any => Ty::ANY,

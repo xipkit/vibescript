@@ -331,9 +331,9 @@ impl Types {
             Kind::AnyEnum,
             Kind::AnyEnumType,
         ] {
-            types.intern(kind);
+            types.add(kind);
         }
-        let number = types.intern(Kind::Union(Box::new([Ty::INT, Ty::FLOAT])));
+        let number = types.add(Kind::Union(Box::new([Ty::INT, Ty::FLOAT])));
         debug_assert_eq!(number, Ty::NUMBER);
         types
     }
@@ -379,6 +379,16 @@ impl Types {
     }
 
     pub fn intern(&mut self, kind: Kind) -> Ty {
+        // A stopped check adds no types.
+        if self.stopped() {
+            return Ty::ERROR;
+        }
+        self.add(kind)
+    }
+
+    /// Interns `kind`, as the table's own types are however the check
+    /// stands.
+    fn add(&mut self, kind: Kind) -> Ty {
         // Hashing the kind walks it as far as measuring it does.
         let heap = kind.heap();
         self.transient(heap);
