@@ -727,4 +727,237 @@ mod tests {
         ledger.keep(100).unwrap();
         assert_eq!(meter.unmeasured(), 100);
     }
+
+    /// The lists and maps in the checker's state that are not tables its
+    /// check grows, by the item that holds them and its field: each is made
+    /// once at the size it takes and counted before it is kept, or bounded
+    /// by the engine rather than the source.
+    const UNCOUNTED: &[(&str, &str)] = &[
+        // Signatures and enums, made once each as they are declared.
+        ("Sig", "params"),
+        ("Sig", "vars"),
+        ("BlockSig", "params"),
+        ("Enum", "members"),
+        ("Enum", "symbols"),
+        ("Enum", "by_member"),
+        ("Enum", "by_symbol"),
+        // An indexed union's alternatives by head, made once each.
+        ("Types", "index"),
+        // A walk's tree of the assignments it listed, and a node of a set
+        // of locals, each made at its size.
+        ("Root", "lowest"),
+        ("Node", "Inner"),
+        // Each class's defaults, indexed once and held.
+        ("Defaults", "0"),
+        // A branch's changes, gathered in a scratch list and held by
+        // whoever keeps them; a call's assigned locals, a receiver's
+        // types' bases and the session's locals, each made once.
+        ("Branch", "changes"),
+        ("FileCall", "assigned"),
+        ("ReceiverType", "bases"),
+        ("Session", "locals"),
+        // The engine's hosts, and its builtin signatures once converted.
+        ("Required", "hosts"),
+        ("Converter", "cache"),
+    ];
+
+    /// The lists and maps in the items the checker's state reaches, each
+    /// with the item and the field that holds it.
+    fn collections_in_state() -> Vec<(String, String, String)> {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut sources = vec![root.join("typing.rs")];
+        for entry in std::fs::read_dir(root.join("typing")).unwrap() {
+            sources.push(entry.unwrap().path());
+        }
+        // Each struct's and enum's fields, by the item's name; the tables
+        // themselves are made here, of lists and maps.
+        let mut items: Vec<(String, Vec<(String, String)>)> = Vec::new();
+        for path in sources {
+            if path.file_name().is_some_and(|name| name == "counted.rs") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).unwrap();
+            let text = text.split("#[cfg(test)]").next().unwrap();
+            let code: String = text
+                .lines()
+                .map(|line| line.split("//").next().unwrap())
+                .collect::<Vec<_>>()
+                .join("\n");
+            items.extend(fields(&code));
+        }
+        // What the checker's state reaches, through the types its fields
+        // name.
+        let mut reached = vec!["Checker".to_owned()];
+        let mut at = 0;
+        while at < reached.len() {
+            let name = reached[at].clone();
+            at += 1;
+            for (_, fields) in items.iter().filter(|(item, _)| *item == name) {
+                for (_, ty) in fields {
+                    for word in ty.split(|c: char| !c.is_alphanumeric() && c != '_') {
+                        if items.iter().any(|(item, _)| item == word)
+                            && !reached.iter().any(|seen| seen == word)
+                        {
+                            reached.push(word.to_owned());
+                        }
+                    }
+                }
+            }
+        }
+        let mut found = Vec::new();
+        for (item, fields) in items.iter().filter(|(item, _)| reached.contains(item)) {
+            for (field, ty) in fields {
+                for collection in [
+                    "Vec<",
+                    "VecDeque<",
+                    "HashMap<",
+                    "HashSet<",
+                    "BTreeMap<",
+                    "BTreeSet<",
+                ] {
+                    let bare = ty.match_indices(collection).any(|(start, _)| {
+                        ty[..start]
+                            .chars()
+                            .next_back()
+                            .is_none_or(|c| !c.is_alphanumeric() && c != '_')
+                    });
+                    if bare {
+                        found.push((item.clone(), field.clone(), collection.to_owned()));
+                    }
+                }
+            }
+        }
+        found
+    }
+
+    /// The structs and enums in `code`, each with its fields: a named
+    /// field's name, an enum variant's, or a tuple field's place, with its
+    /// type, or a variant's fields.
+    fn fields(code: &str) -> Vec<(String, Vec<(String, String)>)> {
+        let mut found = Vec::new();
+        for (keyword, variants) in [("struct ", false), ("enum ", true)] {
+            for (start, _) in code.match_indices(keyword) {
+                let before = code[..start].chars().next_back();
+                if before.is_some_and(|c| c.is_alphanumeric() || c == '_') {
+                    continue;
+                }
+                let rest = &code[start + keyword.len()..];
+                let name: String = rest
+                    .chars()
+                    .take_while(|c| c.is_alphanumeric() || *c == '_')
+                    .collect();
+                // The body opens at the first brace or parenthesis past the
+                // generics, unless the item ends first.
+                let Some(open) = rest.find(['{', '(', ';']) else {
+                    continue;
+                };
+                let opener = rest[open..].chars().next().unwrap();
+                if name.is_empty() || opener == ';' {
+                    continue;
+                }
+                let body = &rest[open + 1..open + closing(&rest[open..])];
+                let mut parts = Vec::new();
+                for (place, part) in split(body).into_iter().enumerate() {
+                    let part = part.trim();
+                    let part = part.trim_start_matches(|c: char| c == '#' || c.is_whitespace());
+                    let label: String = part
+                        .trim_start_matches("pub(crate) ")
+                        .trim_start_matches("pub(super) ")
+                        .trim_start_matches("pub ")
+                        .chars()
+                        .take_while(|c| c.is_alphanumeric() || *c == '_')
+                        .collect();
+                    let (label, ty) = match (variants, opener, part.find(':')) {
+                        (true, _, _) => (
+                            label.clone(),
+                            part[label.len().min(part.len())..].to_owned(),
+                        ),
+                        (false, '{', Some(colon)) => (label, part[colon + 1..].to_owned()),
+                        _ => (place.to_string(), part.to_owned()),
+                    };
+                    if !part.is_empty() {
+                        parts.push((label, ty));
+                    }
+                }
+                found.push((name, parts));
+            }
+        }
+        // A type alias is an item of one field, its type.
+        for (start, _) in code.match_indices("type ") {
+            let before = code[..start].chars().next_back();
+            if before.is_some_and(|c| c.is_alphanumeric() || c == '_') {
+                continue;
+            }
+            let rest = &code[start + "type ".len()..];
+            let name: String = rest
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
+            let (Some(equals), Some(end)) = (rest.find('='), rest.find(';')) else {
+                continue;
+            };
+            if !name.is_empty() && equals < end {
+                found.push((
+                    name,
+                    vec![("0".to_owned(), rest[equals + 1..end].to_owned())],
+                ));
+            }
+        }
+        found
+    }
+
+    /// Where the bracket that opens `text` closes it.
+    fn closing(text: &str) -> usize {
+        let mut depth = 0;
+        for (index, c) in text.char_indices() {
+            match c {
+                '{' | '(' | '[' | '<' => depth += 1,
+                '}' | ')' | ']' | '>' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return index;
+                    }
+                }
+                _ => (),
+            }
+        }
+        text.len()
+    }
+
+    /// `body`'s parts between the commas outside any brackets.
+    fn split(body: &str) -> Vec<&str> {
+        let mut parts = Vec::new();
+        let (mut depth, mut from) = (0, 0);
+        for (index, c) in body.char_indices() {
+            match c {
+                '{' | '(' | '[' | '<' => depth += 1,
+                '}' | ')' | ']' | '>' => depth -= 1,
+                ',' if depth == 0 => {
+                    parts.push(&body[from..index]);
+                    from = index + 1;
+                }
+                _ => (),
+            }
+        }
+        parts.push(&body[from..]);
+        parts
+    }
+
+    #[test]
+    fn the_checkers_state_grows_only_through_counted_tables() {
+        let found: Vec<String> = collections_in_state()
+            .into_iter()
+            .filter(|(item, field, _)| {
+                !UNCOUNTED
+                    .iter()
+                    .any(|(allowed, name)| item == allowed && field == name)
+            })
+            .map(|(item, field, collection)| format!("{item}.{field}: {collection}"))
+            .collect();
+        assert!(
+            found.is_empty(),
+            "grow the checker's state through counted tables, or say here why a list or map need not be one:\n{}",
+            found.join("\n")
+        );
+    }
 }
