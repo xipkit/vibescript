@@ -1028,6 +1028,14 @@ fn shapes() -> Vec<Shape> {
                 ),
             )
         }),
+        ("a wide tuple annotation", |n| {
+            // The tuple's type is measured before it is interned.
+            let items = listed(n, |_| "int".to_owned(), ", ");
+            (
+                Vec::new(),
+                format!("type T = [{items}]\ndef f(x: T) -> int\n  1\nend\np(1)\n"),
+            )
+        }),
         ("a wide self-call graph", |n| {
             // Each method calls itself, a cycle of one for each of them in
             // the graph of the calls construction checks follow.

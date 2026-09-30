@@ -396,16 +396,32 @@ impl Types {
         if self.stopped() {
             return Ty::ERROR;
         }
-        self.add(kind)
+        // Hashing the kind walks it as far as measuring it does, and a
+        // check that measure stops adds nothing.
+        let heap = kind.heap();
+        if self.transient(heap) {
+            return Ty::ERROR;
+        }
+        let ty = self.insert(kind, heap);
+        if self.poll() {
+            return Ty::ERROR;
+        }
+        ty
     }
 
-    /// Interns `kind`, as the table's own types are however the check
-    /// stands: whether the measures stop the check, [`Self::intern`] and
-    /// the operations that build types look before they add more.
+    /// Adds one of the table's own types, which it holds however the check
+    /// stands, since each has its fixed place; the check's first poll reads
+    /// a stop.
     fn add(&mut self, kind: Kind) -> Ty {
-        // Hashing the kind walks it as far as measuring it does.
         let heap = kind.heap();
-        let _ = self.transient(heap);
+        let ty = self.insert(kind, heap);
+        let _ = self.poll();
+        ty
+    }
+
+    /// Interns `kind`, whose kinds hold `heap` bytes, unless the table has
+    /// it already.
+    fn insert(&mut self, kind: Kind, heap: usize) -> Ty {
         if let Some(&ty) = self.ids.get(&kind) {
             return ty;
         }
@@ -414,7 +430,6 @@ impl Types {
         let kind = Arc::new(kind);
         self.kinds.push(Arc::clone(&kind));
         self.ids.insert(kind, ty);
-        let _ = self.poll();
         ty
     }
 

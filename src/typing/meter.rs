@@ -789,8 +789,7 @@ mod tests {
         ("check.rs", "let _ = self.grew(3 * name.len());"),
         // A finished walk's last charge, when it is dropped.
         ("walk.rs", "let _ = self.meter.charge(self.visited);"),
-        // The type table's own types, added however the check stands.
-        ("ty.rs", "let _ = self.transient(heap);"),
+        // The type table's own types, each of which has its fixed place.
         ("ty.rs", "let _ = self.poll();"),
     ];
 
