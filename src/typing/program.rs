@@ -381,13 +381,25 @@ impl<'a> Checker<'a> {
         }
         // Required files' enums are types in annotations too.
         self.require_modules(parsed);
+        // Each function's typed block parameter, by the offset of its `def`,
+        // found once rather than by searching every one for each function:
+        // the first one recorded for it, as a search finds, counted while
+        // the functions are declared.
+        let recorded = &parsed.additions.blocks;
+        let blocks_held = self.hold(super::meter::table::<(u32, &BlockParam)>(recorded.len()));
+        self.meter.charge(recorded.len() as u64);
+        let mut blocks: HashMap<u32, &BlockParam> = HashMap::with_capacity(recorded.len());
+        for (owner, block) in recorded.iter() {
+            blocks.entry(*owner).or_insert(block);
+        }
+        let block_param = |offset: u32| blocks.get(&offset).copied();
         // Signatures after every name is known, so annotations resolve.
         for (index, def) in parsed.functions.iter().enumerate() {
             if self.paced(index) {
                 return;
             }
             let main = index == 0;
-            let block = (!main).then(|| block_param(parsed, def.offset)).flatten();
+            let block = (!main).then(|| block_param(def.offset)).flatten();
             let id = self.function(def, None, false, block, main, Visibility::Public);
             if !main {
                 self.program.functions.insert(def.name.as_str(), id);
@@ -408,7 +420,7 @@ impl<'a> Checker<'a> {
                 if self.paced(methods) {
                     return;
                 }
-                let block = block_param(parsed, def.offset);
+                let block = block_param(def.offset);
                 let id = self.function(def, Some(ns as NsId), true, block, false, *visibility);
                 self.program.namespaces[ns]
                     .methods
@@ -419,13 +431,14 @@ impl<'a> Checker<'a> {
                 if self.paced(methods) {
                     return;
                 }
-                let block = block_param(parsed, def.offset);
+                let block = block_param(def.offset);
                 let id = self.function(def, Some(ns as NsId), false, block, false, *visibility);
                 self.program.namespaces[ns]
                     .statics
                     .insert(def.name.to_string(), id);
             }
         }
+        self.release(blocks_held);
         // Which instance variables have defaults, found by class and offset
         // rather than by scanning every default for each variable.
         let defaults: std::collections::HashSet<(u32, u32)> = parsed
@@ -1186,15 +1199,6 @@ fn yields(meter: &super::meter::Meter, body: &[crate::syntax::Stmt]) -> (sigs::B
         sigs::Breaks::Never
     };
     (breaks, walk.bytes())
-}
-
-fn block_param(parsed: &Declarations, offset: u32) -> Option<&BlockParam> {
-    parsed
-        .additions
-        .blocks
-        .iter()
-        .find(|(owner, _)| *owner == offset)
-        .map(|(_, block)| block)
 }
 
 /// Whether a typed block parameter is written `&name?:`.
