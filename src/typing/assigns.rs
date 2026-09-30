@@ -63,12 +63,6 @@ struct Root {
     lowest: Vec<u32>,
 }
 
-/// A listing of a span's distinct names.
-struct Query {
-    span: Span,
-    found: Vec<u32>,
-}
-
 #[derive(Default)]
 pub(super) struct Assigns<'a> {
     /// Each distinct name, by id.
@@ -123,21 +117,28 @@ impl<'a> Assigns<'a> {
     }
 
     /// The distinct names `span`'s assignments write, in the order of their
-    /// first assignment there.
-    pub fn distinct(&self, span: Span) -> Vec<&'a str> {
-        let mut query = Query {
-            span,
-            found: Vec::new(),
-        };
-        if span.start < span.end {
-            let root = &self.roots[span.root as usize];
-            self.first(root, &mut query, 1, root.start, root.start + root.width);
+    /// first assignment there. They are counted before they are listed:
+    /// `reserve` is given their number and the bytes of the names, and
+    /// none are listed unless it returns true.
+    pub fn distinct(&self, span: Span, reserve: impl FnOnce(usize, usize) -> bool) -> Vec<&'a str> {
+        if span.start >= span.end {
+            return Vec::new();
         }
-        query
-            .found
-            .into_iter()
-            .map(|id| self.names[id as usize])
-            .collect()
+        let root = &self.roots[span.root as usize];
+        let all = |found: &mut dyn FnMut(u32)| {
+            self.first(root, span, 1, root.start, root.start + root.width, found);
+        };
+        let (mut count, mut bytes) = (0, 0);
+        all(&mut |id| {
+            count += 1;
+            bytes += self.names[id as usize].len();
+        });
+        if !reserve(count, bytes) {
+            return Vec::new();
+        }
+        let mut names = Vec::with_capacity(count);
+        all(&mut |id| names.push(self.names[id as usize]));
+        names
     }
 
     /// The bytes the lists, trees and maps hold.
@@ -176,23 +177,30 @@ impl<'a> Assigns<'a> {
             .is_some_and(|&position| position < span.end)
     }
 
-    /// Lists the names of the assignments in `query`'s span, below `node` of
-    /// `root`'s tree, which covers positions `left..right`. An assignment
-    /// is its name's first in the span when the name's previous assignment
-    /// comes before the span, so a subtree whose earliest previous
-    /// assignment is in the span holds none.
-    fn first(&self, root: &Root, query: &mut Query, node: usize, left: u32, right: u32) {
-        let span = query.span;
+    /// Gives `found` the name of each assignment in `span` that is its
+    /// name's first there, below `node` of `root`'s tree, which covers
+    /// positions `left..right`. An assignment is its name's first in the
+    /// span when the name's previous assignment comes before the span, so a
+    /// subtree whose earliest previous assignment is in the span holds none.
+    fn first(
+        &self,
+        root: &Root,
+        span: Span,
+        node: usize,
+        left: u32,
+        right: u32,
+        found: &mut dyn FnMut(u32),
+    ) {
         if right <= span.start || span.end <= left || root.lowest[node] > span.start {
             return;
         }
         if right - left == 1 {
-            query.found.push(self.sites[left as usize]);
+            found(self.sites[left as usize]);
             return;
         }
         let middle = left + (right - left) / 2;
-        self.first(root, query, 2 * node, left, middle);
-        self.first(root, query, 2 * node + 1, middle, right);
+        self.first(root, span, 2 * node, left, middle, found);
+        self.first(root, span, 2 * node + 1, middle, right, found);
     }
 
     /// Walks a body no earlier walk covered, as a new root.

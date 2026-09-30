@@ -220,6 +220,15 @@ impl<'a> Checker<'a> {
         {
             return;
         }
+        // The tables of what the source declares, counted before they are
+        // made, and the aliases' texts as they are written.
+        let outline = parsed.outline.len();
+        let tables =
+            super::meter::table::<(&str, &str)>(outline) + super::meter::table::<&str>(outline);
+        self.transient(tables);
+        if self.halted() {
+            return;
+        }
         let carried: std::collections::HashMap<_, _> = parsed
             .outline
             .iter()
@@ -237,12 +246,20 @@ impl<'a> Checker<'a> {
             .map(|declaration| declaration.name.as_str())
             .collect();
         let mut aliases = std::collections::HashMap::new();
+        let mut texts = 0;
         for (scope, alias) in &parsed.additions.aliases {
             if scope.is_none() {
                 let mut text = Vec::new();
                 crate::shapes::format(&alias.ty, &mut text)
                     .expect("formatting into a Vec cannot fail");
                 self.meter.charge(text.len() as u64);
+                texts += text.capacity();
+                self.transient(
+                    tables + super::meter::table::<(&str, Vec<u8>)>(aliases.len() + 1) + texts,
+                );
+                if self.halted() {
+                    return;
+                }
                 aliases.insert(alias.name.as_str(), text);
             }
         }
@@ -441,6 +458,12 @@ impl<'a> Checker<'a> {
         self.release(blocks_held);
         // Which instance variables have defaults, found by class and offset
         // rather than by scanning every default for each variable.
+        self.transient(super::meter::table::<(u32, u32)>(
+            parsed.additions.defaults.len(),
+        ));
+        if self.halted() {
+            return;
+        }
         let defaults: std::collections::HashSet<(u32, u32)> = parsed
             .additions
             .defaults
@@ -688,6 +711,17 @@ impl<'a> Checker<'a> {
         main: bool,
         visibility: Visibility,
     ) -> FnId {
+        // The parameters, each with a copy of its name, and the block's,
+        // counted before they are listed.
+        let held = self.hold(
+            def.params.len() * std::mem::size_of::<Param>()
+                + def
+                    .params
+                    .iter()
+                    .map(|param| param.name.len())
+                    .sum::<usize>()
+                + block.map_or(0, |block| block.params.len()) * std::mem::size_of::<Ty>(),
+        );
         let mut params = Vec::with_capacity(def.params.len());
         for param in &def.params {
             let kind = match param.kind {
@@ -779,6 +813,8 @@ impl<'a> Checker<'a> {
             converts: true,
             id: Some(self.program.fns.len()),
         });
+        // The program counts them from here.
+        self.release(held);
         self.program.fns.push(FnDecl {
             def: Some(def),
             owner,
@@ -887,6 +923,12 @@ impl<'a> Checker<'a> {
                 self.types.hash(value)
             }
             TypeKind::Shape(fields, open) => {
+                // Counted before they are listed; the table counts them from
+                // when it takes them.
+                let held = self.hold(
+                    fields.len() * std::mem::size_of::<Field>()
+                        + fields.iter().map(|field| field.name.len()).sum::<usize>(),
+                );
                 let fields = fields
                     .iter()
                     .map(|field| Field {
@@ -895,24 +937,32 @@ impl<'a> Checker<'a> {
                         optional: field.optional,
                     })
                     .collect();
+                self.release(held);
                 let shape = self.types.shape(fields, *open);
                 self.too_large(offset);
                 shape
             }
             TypeKind::Union(options) => {
+                // Counted while they are listed; the table counts them
+                // while it joins them.
+                let held = self.hold(options.len() * std::mem::size_of::<Ty>());
                 let options: Vec<Ty> = options
                     .iter()
                     .map(|option| self.annotation(option, scope, offset))
                     .collect();
+                self.release(held);
                 let union = self.types.union(&options);
                 self.too_large(offset);
                 union
             }
             TypeKind::Tuple(elements) => {
+                // Counted while they are listed.
+                let held = self.hold(elements.len() * std::mem::size_of::<Ty>());
                 let elements = elements
                     .iter()
                     .map(|element| self.annotation(element, scope, offset))
                     .collect();
+                self.release(held);
                 self.types.tuple(elements)
             }
             TypeKind::Literal(described) => {

@@ -84,23 +84,23 @@ impl Unassigned {
     }
 
     /// The variables, in name order.
-    fn names(&self) -> Vec<String> {
+    fn names(&self) -> Vec<&str> {
         self.marks
             .indices()
             .into_iter()
-            .map(|place| self.roster[place].clone())
+            .map(|place| self.roster[place].as_str())
             .collect()
     }
 
     /// Those of the variables `read` names, in name order, going through
     /// whichever of the two is shorter; returns them with that length,
     /// the work it took.
-    fn read(&self, read: &BTreeSet<String>) -> (Vec<String>, usize) {
+    fn read<'s>(&'s self, read: &'s BTreeSet<String>) -> (Vec<&'s str>, usize) {
         if read.len() < self.len() {
             let names = read
                 .iter()
                 .filter(|name| self.contains(name))
-                .cloned()
+                .map(String::as_str)
                 .collect();
             (names, read.len())
         } else {
@@ -108,11 +108,20 @@ impl Unassigned {
                 .marks
                 .indices()
                 .into_iter()
-                .map(|place| &self.roster[place])
+                .map(|place| self.roster[place].as_str())
                 .filter(|name| read.contains(*name))
-                .cloned()
                 .collect();
             (names, self.len())
+        }
+    }
+
+    /// The most bytes [`Self::read`] of `read`, or [`Self::names`] when
+    /// `read` is `None`, lists.
+    fn listing(&self, read: Option<&BTreeSet<String>>) -> usize {
+        let entry = std::mem::size_of::<&str>();
+        match read {
+            Some(read) if read.len() < self.len() => read.len() * entry,
+            _ => self.len() * (std::mem::size_of::<usize>() + entry),
         }
     }
 }
@@ -323,7 +332,13 @@ impl<'a> Checker<'a> {
     /// Records which instance methods' results the checker proves: those
     /// of the classes whose instances no method can observe unassigned.
     pub(super) fn finish_construction(&mut self) {
-        let mut unproven: HashSet<NsId> = (0..self.program.namespaces.len() as NsId)
+        // At most every namespace, counted before the set is made.
+        let namespaces = self.program.namespaces.len();
+        self.transient(super::meter::table::<NsId>(namespaces));
+        if self.halted() {
+            return;
+        }
+        let mut unproven: HashSet<NsId> = (0..namespaces as NsId)
             .filter(|&ns| !self.initializes(ns))
             .collect();
         self.transient(super::meter::set(&unproven));
@@ -339,24 +354,34 @@ impl<'a> Checker<'a> {
             // Each site costs what it looks at: its read variable, the
             // shorter of its callee's reads and its unassigned variables,
             // or all of those for `self` used as a value.
-            let (observed, work) = match &site.kind {
-                SiteKind::Read(name) => {
+            // The variables a call or `self` observes: those its callee
+            // reads, or all of them; the list of them is counted before it
+            // is made.
+            let listed = match &site.kind {
+                SiteKind::Read(_) => None,
+                SiteKind::Call(callee) => reads.get(callee).map(|read| (**read).as_ref()),
+                SiteKind::Escape => Some(None),
+            };
+            self.transient(listed.map_or(0, |read| site.unassigned.listing(read)));
+            if self.halted() {
+                self.release(taken);
+                return;
+            }
+            let (observed, work) = match (&site.kind, listed) {
+                (SiteKind::Read(name), _) => {
                     let found = site.unassigned.contains(name);
                     (
                         if found {
-                            vec![name.clone()]
+                            vec![name.as_str()]
                         } else {
                             Vec::new()
                         },
                         1,
                     )
                 }
-                SiteKind::Call(callee) => match reads.get(callee).map(|read| &**read) {
-                    Some(Some(read)) => site.unassigned.read(read),
-                    Some(None) => (site.unassigned.names(), site.unassigned.len()),
-                    None => (Vec::new(), 1),
-                },
-                SiteKind::Escape => (site.unassigned.names(), site.unassigned.len()),
+                (_, Some(Some(read))) => site.unassigned.read(read),
+                (_, Some(None)) => (site.unassigned.names(), site.unassigned.len()),
+                (_, None) => (Vec::new(), 1),
             };
             self.meter.charge(work as u64);
             if !observed.is_empty() {
@@ -376,7 +401,7 @@ impl<'a> Checker<'a> {
 
     /// Reports a read of variables `ivars` of an instance being built
     /// before they are assigned, which reads `nil` whatever their types.
-    fn unassigned_read(&mut self, site: &Site, ivars: &[String]) {
+    fn unassigned_read(&mut self, site: &Site, ivars: &[&str]) {
         let (names, _) = super::listed(ivars, |out, ivar| {
             out.push('@');
             out.push_str(ivar);
@@ -420,14 +445,12 @@ impl<'a> Checker<'a> {
         if namespace.methods.contains_key("initialize") {
             return true;
         }
-        let ivars: Vec<(bool, Ty)> = namespace
+        // Read in place rather than copied.
+        let types = &mut self.types;
+        namespace
             .ivars
             .values()
-            .map(|ivar| (ivar.default, ivar.ty))
-            .collect();
-        ivars
-            .into_iter()
-            .all(|(default, ty)| default || self.types.assignable(Ty::NIL, ty))
+            .all(|ivar| ivar.default || types.assignable(Ty::NIL, ivar.ty))
     }
 
     /// The instance variables each method reads, directly or through the
@@ -440,6 +463,24 @@ impl<'a> Checker<'a> {
     /// until nothing changes. Each call, and each variable a method or a
     /// call adds, is a step.
     fn method_reads(&mut self) -> HashMap<FnId, Rc<Option<BTreeSet<String>>>> {
+        // The methods, their places and the calls between them, counted
+        // before they are listed: at most every call each method makes.
+        let methods = self.construction.methods.len();
+        let calls: usize = self
+            .construction
+            .methods
+            .values()
+            .map(|method| method.calls.len())
+            .sum();
+        self.transient(
+            methods * std::mem::size_of::<FnId>()
+                + super::meter::table::<(FnId, usize)>(methods)
+                + methods * std::mem::size_of::<Vec<usize>>()
+                + calls * std::mem::size_of::<usize>(),
+        );
+        if self.halted() {
+            return HashMap::new();
+        }
         let mut ids: Vec<FnId> = self.construction.methods.keys().copied().collect();
         ids.sort_unstable();
         let place: HashMap<FnId, usize> =

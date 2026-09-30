@@ -912,6 +912,12 @@ fn shapes() -> Vec<Shape> {
             let functions = lines(n / 40 + 1, |i| format!("def f{i} -> int\n{body}  0\nend\n"));
             (Vec::new(), format!("{functions}p(1)\n"))
         }),
+        ("a wide keyword call", |n| {
+            // An overloaded method, which lists the call's keywords to choose
+            // among its signatures.
+            let keywords = listed(n, |i| format!("k{i}: {i}"), ", ");
+            (Vec::new(), format!("x = [1, 2].first({keywords})\np(x)\n"))
+        }),
         ("many classes with one default each", |n| {
             let classes = lines(n, |i| format!("class C{i}\n  @v: int = {i}\nend\n"));
             (Vec::new(), format!("{classes}p(1)\n"))

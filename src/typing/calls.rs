@@ -1651,23 +1651,33 @@ impl<'a> Checker<'a> {
                 splat = true;
             }
         }
-        // The names borrow the syntax's.
-        let mut keywords: Vec<std::borrow::Cow<'_, str>> =
-            call.keywords().map(std::borrow::Cow::Borrowed).collect();
-        for arg in call
-            .args
-            .iter()
-            .filter(|arg| matches!(arg.kind, ArgumentKind::KeywordSplat))
-        {
-            if let Node::Hash(entries) = &arg.value.node {
-                keywords.extend(
-                    entries
-                        .iter()
-                        .map(|(name, _)| String::from_utf8_lossy(name)),
-                );
-            }
+        // The names borrow the syntax's, but for a splatted hash's keys that
+        // are not UTF-8, which are copied, at most three bytes for each; the
+        // list is counted before it is made.
+        let splatted = || {
+            call.args
+                .iter()
+                .filter(|arg| matches!(arg.kind, ArgumentKind::KeywordSplat))
+                .filter_map(|arg| match &arg.value.node {
+                    Node::Hash(entries) => Some(entries.iter().map(|(name, _)| name)),
+                    _ => None,
+                })
+                .flatten()
+        };
+        let count = call.keywords().count() + splatted().count();
+        let copied: usize = splatted()
+            .filter(|name| std::str::from_utf8(name).is_err())
+            .map(|name| 3 * name.len())
+            .sum();
+        self.transient(count * std::mem::size_of::<std::borrow::Cow<'_, str>>() + copied);
+        // A check past its budget chooses the first candidate, which it
+        // checks no further.
+        if self.halted() {
+            return Some(0);
         }
-        self.transient(keywords.capacity() * std::mem::size_of::<std::borrow::Cow<'_, str>>());
+        let mut keywords: Vec<std::borrow::Cow<'_, str>> = Vec::with_capacity(count);
+        keywords.extend(call.keywords().map(std::borrow::Cow::Borrowed));
+        keywords.extend(splatted().map(|name| String::from_utf8_lossy(name)));
         let declared = call.block.map(|block| {
             let (arity, scratch) = block_arity(&self.meter, block);
             self.transient(scratch);
@@ -2356,6 +2366,8 @@ impl<'a> Checker<'a> {
         bindings: &mut [Option<Ty>],
         break_to: Option<BreakTo>,
     ) -> Vec<Ty> {
+        // Counted before they are listed.
+        let held = self.hold(block_sig.params.len() * std::mem::size_of::<Ty>());
         let params: Vec<Ty> = block_sig
             .params
             .iter()
@@ -2384,7 +2396,6 @@ impl<'a> Checker<'a> {
             }
             None => (Want::Discard, None),
         };
-        let held = self.hold(super::meter::vec(&params));
         let (result, breaks) = self.block_with_rest(block, &params, rest, want, break_to);
         self.release(held);
         if let Some(pattern) = infer {
@@ -2408,12 +2419,18 @@ impl<'a> Checker<'a> {
 
     /// Checks a block whose parameters have the given types.
     pub(super) fn block(&mut self, block: &'a Block, params: &[Ty], want: Want) -> Ty {
+        // Counted before they are copied.
+        let count = if params.is_empty() {
+            block.params.len()
+        } else {
+            params.len()
+        };
+        let held = self.hold(count * std::mem::size_of::<Ty>());
         let params: Vec<Ty> = if params.is_empty() && !block.params.is_empty() {
             vec![Ty::ERROR; block.params.len()]
         } else {
             params.to_vec()
         };
-        let held = self.hold(super::meter::vec(&params));
         let ty = self.block_with_rest(block, &params, None, want, None).0;
         self.release(held);
         ty
@@ -2439,7 +2456,11 @@ impl<'a> Checker<'a> {
         self.open_scope();
         // The widening below charges for listing these names.
         let span = self.assigns.body(&self.meter, &block.body);
-        for name in self.assigns.distinct(span) {
+        let names = self.assigns.distinct(span, |count, _| {
+            self.transient(count * std::mem::size_of::<&str>());
+            !self.halted()
+        });
+        for name in names {
             if let Some(id) = self.local(name) {
                 if self.frame.ambient.contains(&id)
                     && !name.chars().next().is_some_and(char::is_uppercase)

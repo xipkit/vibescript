@@ -1929,6 +1929,11 @@ impl<'a> Checker<'a> {
         covered: &[String],
         alternate: bool,
     ) -> bool {
+        self.transient(super::meter::table::<&str>(covered.len()));
+        // A check past its budget reports nothing more.
+        if self.halted() {
+            return true;
+        }
         let covered: std::collections::HashSet<&str> = covered.iter().map(String::as_str).collect();
         self.transient(super::meter::set(&covered));
         // The values the `case` misses, as their `when`s name them.
