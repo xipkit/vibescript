@@ -1207,6 +1207,52 @@ fn the_sources_required_files_keep_count_toward_the_quota() {
     );
 }
 
+#[test]
+fn a_file_required_at_run_time_keeps_to_the_quota() {
+    let _serial = SERIAL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    // A file of many public functions with wide signatures, which a script
+    // requires as it runs: its check exports every signature, and the
+    // compilation that follows generates its code, under quotas around
+    // what the whole run takes.
+    let shape = listed(20, |i| format!("x{i}: int"), ", ");
+    let count = if cfg!(any(debug_assertions, target_os = "wasi")) {
+        100
+    } else {
+        500
+    };
+    let file = lines(count, |i| {
+        format!("def f{i}(a: {{ {shape} }}, b{i}: {{ {shape}, y{i}: int }}) -> int\n  1\nend\n")
+    });
+    // Each run needs a fresh engine, whose module cache is empty.
+    let run = |quota: Option<usize>| {
+        let engine = engine_with(vec![("big.vibe".to_owned(), file.clone())]).unwrap();
+        let script = engine.compile("require(\"big\")\nx = 1\n").unwrap();
+        let live = LIVE.load(Relaxed);
+        PEAK.store(live, Relaxed);
+        let result = script
+            .run(limited(None, quota))
+            .map(drop)
+            .map_err(|error| error.kind);
+        (PEAK.load(Relaxed) - live, result)
+    };
+    let (full, result) = run(None);
+    assert_eq!(result, Ok(()));
+    let mut failures = Vec::new();
+    for percent in [60, 80, 100, 120] {
+        let quota = full * percent / 100;
+        let (peak, result) = run(Some(quota));
+        let allowed = quota + quota / 8 + OVERSHOOT;
+        if peak > allowed {
+            failures.push(format!(
+                "{peak} bytes at the peak under {quota}, {allowed} allowed ({result:?})"
+            ));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
 /// [`ALLOCATIONS`] and [`ALLOCATED`] when a budget first stopped the
 /// compilation being measured, or `usize::MAX` before one does.
 static TRIPPED_ALLOCATIONS: AtomicUsize = AtomicUsize::new(usize::MAX);

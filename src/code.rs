@@ -157,6 +157,12 @@ impl Code {
             observe: None,
             annotate: false,
         });
+        // What a required file's check exports, its type table and copies
+        // of its public signatures and classes, is for a check that
+        // requires it to import; the compilation reads none of it, so it
+        // goes before the code is generated, which the peak below counted
+        // it for.
+        checked.exported = None;
         work.charge(usize::try_from(checked.steps).unwrap_or(usize::MAX))?;
         work.checkpoint()?;
         if checked.stopped {
