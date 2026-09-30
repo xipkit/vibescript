@@ -47,16 +47,34 @@ impl Edits {
         std::mem::replace(&mut self.group, group)
     }
 
-    /// The edits of `group` applied on their own, as non-overlapping
-    /// replacements of `source`: edits that nest, overlap or meet are
-    /// rendered together, the later seeing the earlier as when every edit
-    /// is applied.
+    /// The edits of `group`, flattened as [`Self::flatten_group`] flattens
+    /// them.
+    #[cfg(test)]
     pub fn flatten(&self, source: &str, group: usize) -> Vec<(Span, String)> {
-        let mut edits: Vec<&Edit> = self
-            .edits
-            .iter()
-            .filter(|edit| edit.group == Some(group))
+        let members: Vec<usize> = (0..self.edits.len())
+            .filter(|&index| self.edits[index].group == Some(group))
             .collect();
+        self.flatten_group(source, &members)
+    }
+
+    /// The edits of each of `count` rewrites, by the order they were made,
+    /// found in one pass over them all rather than one for each rewrite.
+    pub fn groups(&self, count: usize) -> Vec<Vec<usize>> {
+        let mut groups = vec![Vec::new(); count];
+        for (index, edit) in self.edits.iter().enumerate() {
+            if let Some(members) = edit.group.and_then(|group| groups.get_mut(group)) {
+                members.push(index);
+            }
+        }
+        groups
+    }
+
+    /// The edits `members` lists, which [`Self::groups`] gives for a
+    /// rewrite, applied on their own, as non-overlapping replacements of
+    /// `source`: edits that nest, overlap or meet are rendered together, the
+    /// later seeing the earlier as when every edit is applied.
+    pub fn flatten_group(&self, source: &str, members: &[usize]) -> Vec<(Span, String)> {
+        let mut edits: Vec<&Edit> = members.iter().map(|&index| &self.edits[index]).collect();
         edits.sort_by_key(|edit| (edit.span.start, edit.span.end));
         let mut clusters: Vec<(Span, Vec<&Edit>)> = Vec::new();
         for edit in edits {

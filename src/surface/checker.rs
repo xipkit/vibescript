@@ -245,6 +245,7 @@ fn diagnostics<'s>(
     if checker.stopped {
         return None;
     }
+    let groups = checker.surface.edits.groups(checker.surface.rewrites.len());
     let mut diagnostics = Vec::new();
     for (group, rewrite) in checker.surface.rewrites.iter().enumerate() {
         if group % POLL == 0 && stop() {
@@ -254,7 +255,7 @@ fn diagnostics<'s>(
         let edits: Vec<Edit> = checker
             .surface
             .edits
-            .flatten(source, group)
+            .flatten_group(source, &groups[group])
             .into_iter()
             .map(|(at, replacement)| Edit {
                 span: span(at),
