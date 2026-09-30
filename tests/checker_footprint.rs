@@ -954,6 +954,44 @@ fn shapes() -> Vec<Shape> {
             source.push_str(&format!("x: T{depth} = 1\n"));
             (Vec::new(), source)
         }),
+        // Suffixed bindings fail with V0003, whose fix pass parses the
+        // source again to find every place the fix renames.
+        ("many suffixed locals, each read", |n| {
+            (Vec::new(), lines(n, |i| format!("x{i}? = {i}\np(x{i}?)\n")))
+        }),
+        ("a suffixed local read many times", |n| {
+            (Vec::new(), format!("ok? = 1\n{}", "p(ok?)\n".repeat(n)))
+        }),
+        ("suffixed constants read through their modules", |n| {
+            let modules = lines(n, |i| {
+                format!("module M{i}\n  MAX! = {i}\nend\np(M{i}::MAX!)\n")
+            });
+            (Vec::new(), modules)
+        }),
+        ("a suffixed constant read through a deep path", |n| {
+            let depth = 40;
+            let open = lines(depth, |i| format!("module A{i}\n"));
+            let close = "end\n".repeat(depth);
+            let path = listed(depth, |i| format!("A{i}"), "::");
+            let reads = lines(n, |_| format!("p({path}::MAX!)\n"));
+            (Vec::new(), format!("{open}MAX! = 1\n{close}{reads}"))
+        }),
+        ("suffixed parameters of many functions", |n| {
+            let functions = lines(n, |i| {
+                format!("def f{i}(list!: array<int>) -> int\n  list!.size\nend\n")
+            });
+            (Vec::new(), functions)
+        }),
+        ("many suffixed classes, each constructed", |n| {
+            let classes = lines(n, |i| format!("class C{i}?\nend\nc{i} = C{i}?.new\n"));
+            (Vec::new(), classes)
+        }),
+        ("suffixed locals whose fixes collide", |n| {
+            (
+                Vec::new(),
+                lines(n, |i| format!("x{i}? = {i}\nx{i} = {i}\n")),
+            )
+        }),
     ]
 }
 
