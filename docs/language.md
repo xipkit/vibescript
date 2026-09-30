@@ -72,8 +72,10 @@ suffix, the whole run of `?` and `!` in `x?! = 1`, while a method such as
 the fix writes `nil_` instead, and where no name would be left, as in
 `@? = 1`, there is no fix. A `?` or `!` inside a name, as in `x?1`, is not a
 suffix: V0003 reports it without a fix, since removing it could name something
-else. A scoped call such as `M::ok?` keeps its V0416 fix, `M.ok?`. The fix for
-a binding renames it wherever it is used: every place that binds it and every
+else. A name after `::` is spelled as one after `.` is, so `M::bad??` reports
+V0003 as `M.bad??` does, while a scoped call such as `M::ok?` keeps its V0416
+fix, `M.ok?`. The fix for a binding renames it wherever it is used: every
+place that binds it and every
 read of it in scope, and for a class's, module's or enum's constant also its
 scoped reads in the file, such as `C::LIMIT!` or `C.LIMIT!`, so one fix, or one
 `vibes fix` run, migrates it whole. A class, module, enum or type alias name is such a

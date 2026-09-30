@@ -61,6 +61,25 @@ fn a_method_read_before_a_comma_keeps_one_suffix() {
 }
 
 #[test]
+fn a_name_after_colons_is_spelled_as_one_after_a_dot() {
+    for name in ["bad??", "bad!?", "a?b"] {
+        let messages: Vec<_> = [".", "::"]
+            .iter()
+            .map(|separator| {
+                let source = format!("module M; end; M{separator}{name}");
+                let Err(error) = Engine::new().type_check(&source) else {
+                    panic!("{source} checks");
+                };
+                let diagnostic = &error.diagnostics()[0];
+                assert_eq!(diagnostic.code, Code::NAME_SUFFIX, "{source}: {error}");
+                diagnostic.message.clone()
+            })
+            .collect();
+        assert_eq!(messages[0], messages[1], "{name}");
+    }
+}
+
+#[test]
 fn nested_destructuring_targets_are_bindings() {
     for (source, fixed) in [
         (
@@ -1997,6 +2016,22 @@ fn every_form_that_names_something_is_fixed_whole_or_not_at_all() {
         ),
         ("constant", "X? = 1; X?", true),
         ("namespace constant", "module M; X? = 1; end; M::X?", true),
+        // A name after `::` is spelled as one after `.` is.
+        (
+            "scoped read of a repeated suffix",
+            "module M; X?? = 1; end; M::X??",
+            true,
+        ),
+        (
+            "scoped call of a repeated suffix",
+            "module M; def self.bad? -> int; 1; end; end; M::bad??",
+            false,
+        ),
+        (
+            "scoped name with an inner suffix",
+            "module M; end; M::a?b",
+            false,
+        ),
         (
             "dotted namespace read",
             "module A; module M; X? = 1; end; end; [A::M.X?, A::M::X?]",

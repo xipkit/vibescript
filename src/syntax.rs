@@ -2444,6 +2444,11 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
             let Token::Word(name) = p.bump()? else {
                 unreachable!()
             };
+            // A name after `::` is spelled as one after `.` is; only one with
+            // a `?` or `!` can be spelled wrong.
+            if name.contains(['?', '!']) {
+                p.read_spelling(&name, at)?;
+            }
             let continues = matches!(
                 p.tokens[p.significant(p.pos)].token,
                 Token::Op("::") | Token::P('.')
