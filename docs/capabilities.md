@@ -4,6 +4,8 @@
 
 `Capability::from_value` grants an immutable binding template instead of a factory. Every invocation imports that same value, so its methods still receive the receiving call's fresh grant, while its data and published signatures can be read by the static checker without executing host code. Factories stay opaque to checking because inspecting their binding would require running them. Use a declared `Capability::from_value` template with published method signatures for statically callable services. Declaring a factory gives its name type `any`, which does not permit member calls; a factory is not a substitute for publishing a typed service contract.
 
+A capability's root, or a global's, cannot be a function a script exports: a script calls such a function only through an object, so declaring that template, binding that factory value or supplying that global fails with `ErrorKind::Argument`. Publish the function as an object's field, such as `Value::object(vec![(b"run".to_vec(), function)])`, which declares a namespace whose `run` takes any arguments, or register a host function.
+
 `Engine::declare_capability(&capability)` declares a capability that every call grants, typed by its template: host methods by their published signatures, or `any` arguments and result without one, and data by the types its values show. A factory declares its name as `any`. The static checker types the name as a namespace of those members, `Engine::prelude` lists it, and each call must grant a capability, or supply a global, of the name whose value has the declared members, with the same signatures and data types, before any script code runs. With static types, a capability the host does not declare is an undefined name (V0201).
 
 ```rust

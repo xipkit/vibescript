@@ -163,14 +163,19 @@ impl Capability {
     }
 }
 
-/// Validates a published root as either a method or a data binding.
+/// Validates a published root as either a method or a data binding. A
+/// function a script exports is callable only as an object's field, so as
+/// a root it is refused.
 pub(crate) fn binding_name(
     work: &dyn Work,
     host: HostName<'_>,
     name: &str,
     value: &Value,
 ) -> Result<()> {
-    if matches!(value.0, Kind::Host(_) | Kind::Function(_)) {
+    if matches!(value.0, Kind::Function(_)) {
+        return Err(host.exported_root(name));
+    }
+    if matches!(value.0, Kind::Host(_)) {
         crate::syntax::host_function_name(work, host, name)
     } else {
         crate::syntax::binding_name(work, host.bound(), name)

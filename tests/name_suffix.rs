@@ -1625,13 +1625,45 @@ fn exported_functions_declare_callable_capability_members() {
         let value = engine.compile(script).unwrap().run(options).unwrap().value;
         assert_eq!(value.to_string(), "true", "{script}");
     }
-    // A root that is one binds as no value a script can use, so the checker
-    // does not declare it callable either.
-    let cap = Capability::from_value("ready?", function);
+    // A root that is one would bind as no value a script can use, so every
+    // route that publishes a root refuses it: a template, a factory's value
+    // and a call's global.
+    let exported = |error: Error, kind: &str| {
+        assert_eq!(error.kind, ErrorKind::Argument, "{error}");
+        assert!(
+            error.message.starts_with(&format!(
+                "{kind} \"ready?\" is bound to a function a script exports"
+            )),
+            "{error}"
+        );
+    };
+    let template = Capability::from_value("ready?", function.clone());
+    exported(
+        Engine::new().declare_capability(&template).unwrap_err(),
+        "capability",
+    );
+    let root = function.clone();
+    let factory = Capability::new("ready?", move |_| Ok(root.clone()));
     let mut engine = Engine::new();
-    engine.declare_capability(&cap).unwrap();
-    let error = engine.compile("ready?()").err().unwrap();
-    assert!(error.message.contains("not a function"), "{error}");
+    engine.declare_capability(&factory).unwrap();
+    let options = CallOptions {
+        capabilities: vec![factory],
+        ..CallOptions::default()
+    };
+    exported(
+        engine.compile("1").unwrap().run(options).unwrap_err(),
+        "capability",
+    );
+    let mut options = CallOptions::default();
+    options.globals.insert("ready?".into(), function);
+    exported(
+        Engine::new()
+            .compile("1")
+            .unwrap()
+            .run(options)
+            .unwrap_err(),
+        "global",
+    );
 }
 
 #[test]

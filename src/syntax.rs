@@ -163,6 +163,23 @@ impl<'a> HostName<'a> {
         }
     }
 
+    /// The error for a root bound to a function a script exports, which no
+    /// script can call as a root.
+    pub(crate) fn exported_root(self, name: &str) -> Error {
+        // Enough bytes for `source_text` to mark a cut.
+        let shown = String::from_utf8_lossy(&name.as_bytes()[..name.len().min(72)]);
+        Error::new(
+            crate::ErrorKind::Argument,
+            format!(
+                "{} \"{}\" is bound to a function a script exports, which a script calls only \
+                 through an object: publish it as an object's field, such as \
+                 `Value::object(vec![(b\"run\".to_vec(), function)])`, or register a host function",
+                self.kind,
+                source_text(&shown)
+            ),
+        )
+    }
+
     fn error(self, name: &[u8], reason: impl std::fmt::Display) -> Error {
         use std::fmt::Write;
         // Enough bytes for `source_text` to mark a cut.
