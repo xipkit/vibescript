@@ -770,6 +770,7 @@ fn parser_from_tokens<'a>(source: &'a str, work: &'a dyn Work, tokens: Tokens<'a
         type_structural_error: false,
         interpolations: Buffer::new(),
         suffixed: RefCell::default(),
+        target_start: None,
         namespace: None,
         namespace_body: false,
         record: None,
@@ -911,6 +912,9 @@ struct Parser<'a> {
     interpolations: Buffer<(u32, u32)>,
     /// The uses of suffixed bindings a lenient parse records.
     suffixed: RefCell<suffixes::Uses>,
+    /// The token that starts the destructuring target being read, whose
+    /// name, if that is all the target is, binds.
+    target_start: Option<usize>,
     /// In a lenient parse, the class or module whose body or method is read,
     /// from which scoped names resolve, by its id in the recorded uses.
     namespace: Option<u32>,
@@ -1661,8 +1665,15 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
                 };
                 (Some(inner), open)
             } else {
-                let expression = self.line_expr(0).await?;
-                let p = self.p();
+                let outer = {
+                    let mut p = self.p();
+                    let start = p.pos;
+                    p.target_start.replace(start)
+                };
+                let expression = self.line_expr(0).await;
+                let mut p = self.p();
+                p.target_start = outer;
+                let expression = expression?;
                 // Go checks a statement's lone target only once an operator follows.
                 let lone = place == Place::Statement && parts.is_empty() && !rest;
                 let listed = p.tokens[p.significant(p.pos)].token == Token::P(',');
@@ -3208,15 +3219,20 @@ impl<'a> Parser<'a> {
         if suffixes::lenient() {
             return Ok(());
         }
-        let binding = match &self.tokens[self.pos].token {
-            // A comma after a name that does not start a statement separates
-            // an element or argument, as in `{ a: s.empty??, b: 1 }`.
-            Token::P(',') => self.assignment_starts(self.pos - 1),
-            Token::Op(op) => assignment(op),
-            // A `for` loop's variable.
-            Token::Word(word) => word == "in",
-            _ => false,
-        };
+        // A name that is a whole destructuring target, even in a nested
+        // group such as `a, [x, y] = ...`, binds.
+        let target = self.target_start == Some(self.pos - 1)
+            && matches!(self.tokens[self.pos].token, Token::P(',' | ']' | ')' | ':'));
+        let binding = target
+            || match &self.tokens[self.pos].token {
+                // A comma after a name that does not start a statement separates
+                // an element or argument, as in `{ a: s.empty??, b: 1 }`.
+                Token::P(',') => self.assignment_starts(self.pos - 1),
+                Token::Op(op) => assignment(op),
+                // A `for` loop's variable.
+                Token::Word(word) => word == "in",
+                _ => false,
+            };
         method_spelling(name, true)
             .map_err(|error| error.diagnostic_as(self.work, self.source, offset, !binding))
     }
@@ -3647,6 +3663,7 @@ impl<'a> Parser<'a> {
             type_structural_error: false,
             interpolations: Buffer::new(),
             suffixed: RefCell::new(self.suffixed.take()),
+            target_start: None,
             namespace: self.namespace,
             namespace_body: self.namespace_body,
             // Go parses interpolations without the member probe.

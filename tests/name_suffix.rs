@@ -61,6 +61,32 @@ fn a_method_read_before_a_comma_keeps_one_suffix() {
 }
 
 #[test]
+fn nested_destructuring_targets_are_bindings() {
+    for (source, fixed) in [
+        (
+            "a, [x??, y] = [1, [2, 3]]; x??",
+            "a, [x, y] = [1, [2, 3]]; x",
+        ),
+        (
+            "a, (b!?, c) = [1, [2, 3]]; b!?",
+            "a, (b, c) = [1, [2, 3]]; b",
+        ),
+        (
+            "for a??, b in [[1, 2]]; p(a??); end",
+            "for a, b in [[1, 2]]; p(a); end",
+        ),
+    ] {
+        assert_eq!(first_fix(source), fixed, "{source}");
+        Engine::new().type_check(fixed).unwrap();
+    }
+    // A name read inside a target, as an index is, is no target itself.
+    assert_eq!(
+        first_fix("h = { a: 1 }; a, [h[k??], y] = [1, [2, 3]]"),
+        "h = { a: 1 }; a, [h[k?], y] = [1, [2, 3]]"
+    );
+}
+
+#[test]
 fn method_suffixes_survive_call_forms_and_operators() {
     for source in [
         "def ok? -> bool; true; end; ok?==true",
