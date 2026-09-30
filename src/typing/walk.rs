@@ -16,7 +16,7 @@ use std::slice::Iter;
 
 /// A walk charges the meter, and checks the budget, once per this many
 /// visits.
-const PACE: u64 = 64;
+pub(super) const PACE: u64 = 64;
 
 /// A statement, expression or assignment target a walk visits.
 #[derive(Clone, Copy)]
@@ -183,16 +183,27 @@ impl<'a, 'm, T: Copy> Walk<'a, 'm, T> {
             let Some(item) = item else {
                 continue;
             };
-            self.visited += 1;
-            if self.visited == PACE {
-                self.visited = 0;
-                self.stopped = self.meter.pace(PACE, held + self.bytes());
-                if self.stopped {
-                    return None;
-                }
+            if self.visit(held) {
+                return None;
             }
             return Some((item, tag));
         }
+    }
+
+    /// Counts a visit to syntax the walker holds itself, such as a function
+    /// or a body it walks, as to an item: a step, with a check of the budget
+    /// every [`PACE`] of them, so that many empty ones are charged and
+    /// polled too. Returns whether the check has stopped.
+    pub fn visit(&mut self, held: usize) -> bool {
+        if self.stopped {
+            return true;
+        }
+        self.visited += 1;
+        if self.visited == PACE {
+            self.visited = 0;
+            self.stopped = self.meter.pace(PACE, held + self.bytes());
+        }
+        self.stopped
     }
 
     /// Adds every statement, expression and assignment target `item` holds,

@@ -744,6 +744,17 @@ mod budget_tests {
 
     /// Checks `source` within `budget`, as a required file if `file`.
     fn checked_as(source: &str, budget: Budget, file: bool) -> super::super::Checked {
+        checked_with(source, budget, file, None)
+    }
+
+    /// Checks `source` within `budget`, as a required file if `file`,
+    /// resolving what it requires with `modules`.
+    fn checked_with(
+        source: &str,
+        budget: Budget,
+        file: bool,
+        modules: Option<&super::super::Modules<'_>>,
+    ) -> super::super::Checked {
         let (parsed, tokens, _) = crate::syntax::parse_with_tokens(source, &()).unwrap();
         let declared = crate::declared::Declarations::new();
         super::super::check(&super::super::Input {
@@ -754,7 +765,7 @@ mod budget_tests {
             declared: &declared,
             file,
             origin: None,
-            modules: None,
+            modules,
             budget,
             observe: None,
             annotate: false,
@@ -788,6 +799,36 @@ mod budget_tests {
             union("a", ""),
             union("b", ", x: int")
         )
+    }
+
+    #[test]
+    fn many_empty_declarations_are_charged_and_polled() {
+        // Functions with nothing in them, which the walk for the files a
+        // program requires visits even so, before anything else charges
+        // them, and before the last function's `require`, which it would
+        // then look for.
+        use std::sync::atomic::{AtomicBool, Ordering};
+        static ASKED: AtomicBool = AtomicBool::new(false);
+        let mut source: String = (0..100_000).map(|i| format!("def f{i}\nend\n")).collect();
+        source.push_str("def last\n  require(\"far\")\nend\n");
+        let resolve = |_: &str, _: Option<&crate::loading::Origin>, _: &mut crate::CallContext| {
+            ASKED.store(true, Ordering::Relaxed);
+            Err(crate::Error::new(crate::ErrorKind::Name, "no files"))
+        };
+        let quota = 1_000;
+        let stopped = checked_with(
+            &source,
+            Budget {
+                steps: Some(quota),
+                ..Budget::default()
+            },
+            false,
+            Some(&resolve),
+        );
+        assert!(stopped.stopped, "{} steps, not stopped", stopped.steps);
+        assert!(stopped.steps < 2 * quota, "{} steps", stopped.steps);
+        // The walk stopped at the quota, long before the last function.
+        assert!(!ASKED.load(Ordering::Relaxed), "the file was looked for");
     }
 
     #[test]

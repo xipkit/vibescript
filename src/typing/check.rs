@@ -481,6 +481,8 @@ impl<'a> Checker<'a> {
     }
 
     fn check_function(&mut self, id: FnId) {
+        // Checking a function is a step, whatever its body holds.
+        self.meter.charge(1);
         let decl = &self.program.fns[id];
         let Some(def) = decl.def else {
             return;
@@ -2939,6 +2941,8 @@ fn mentions<'s>(
 ) -> usize {
     use super::walk::{Item, Walk};
     let mut walk = Walk::new(meter);
+    // The body is a visit, empty or not.
+    walk.visit(0);
     walk.stmts(body, ());
     while let Some((item, ())) = walk.next(super::meter::set(names)) {
         if let Item::Expr(Expr {

@@ -363,8 +363,8 @@ impl<'a> Checker<'a> {
             self.declaring();
         }
         // A check that runs out of its budget stops declaring.
-        for module in &parsed.modules {
-            if self.halted() {
+        for (index, module) in parsed.modules.iter().enumerate() {
+            if self.paced(index) {
                 return;
             }
             self.namespace(module, None);
@@ -383,7 +383,7 @@ impl<'a> Checker<'a> {
         self.require_modules(parsed);
         // Signatures after every name is known, so annotations resolve.
         for (index, def) in parsed.functions.iter().enumerate() {
-            if self.halted() {
+            if self.paced(index) {
                 return;
             }
             let main = index == 0;
@@ -393,6 +393,9 @@ impl<'a> Checker<'a> {
                 self.program.functions.insert(def.name.as_str(), id);
             }
         }
+        // The methods declared so far, whose walks for yields charge a
+        // step each.
+        let mut methods = 0;
         for ns in 0..self.program.namespaces.len() {
             if self.halted() {
                 return;
@@ -401,6 +404,10 @@ impl<'a> Checker<'a> {
                 continue;
             };
             for (def, visibility) in &module.instance_methods {
+                methods += 1;
+                if self.paced(methods) {
+                    return;
+                }
                 let block = block_param(parsed, def.offset);
                 let id = self.function(def, Some(ns as NsId), true, block, false, *visibility);
                 self.program.namespaces[ns]
@@ -408,6 +415,10 @@ impl<'a> Checker<'a> {
                     .insert(def.name.to_string(), id);
             }
             for (def, visibility) in &module.methods {
+                methods += 1;
+                if self.paced(methods) {
+                    return;
+                }
                 let block = block_param(parsed, def.offset);
                 let id = self.function(def, Some(ns as NsId), false, block, false, *visibility);
                 self.program.namespaces[ns]
@@ -575,6 +586,15 @@ impl<'a> Checker<'a> {
             span,
             "`require` is reserved: the compiler resolves it statically, so a function cannot take its name",
         ));
+    }
+
+    /// Checks the budget once for every [`super::walk::PACE`] of the
+    /// declarations a loop has visited, `count` of them so far, whose steps
+    /// they charge themselves, as a walk does: the steps, the deadline and
+    /// the cancellation. Returns whether the check has stopped.
+    fn paced(&self, count: usize) -> bool {
+        let pace = super::walk::PACE as usize;
+        (count % pace == pace - 1 && self.meter.pace(0, 0)) || self.halted()
     }
 
     /// Declares `module` and the namespaces nested in it, each before its
@@ -1060,6 +1080,8 @@ fn yields(meter: &super::meter::Meter, body: &[crate::syntax::Stmt]) -> (sigs::B
     use crate::syntax::{Node, Statement};
     // Each entry carries whether it stands inside a loop or a block.
     let mut walk: Walk<'_, '_, bool> = Walk::new(meter);
+    // The body is a visit, empty or not.
+    walk.visit(0);
     walk.stmts(body, false);
     let mut found = false;
     while let Some((item, inside)) = walk.next(0) {

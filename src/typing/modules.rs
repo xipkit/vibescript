@@ -717,6 +717,10 @@ fn requires<'x>(
     out: &mut Vec<(String, Option<String>, usize)>,
     found: &mut usize,
 ) {
+    // The body is a visit, empty or not.
+    if walk.visit(super::meter::vec(out) + *found) {
+        return;
+    }
     walk.stmts(body, ());
     while let Some((item, ())) = walk.next(super::meter::vec(out) + *found) {
         match item {

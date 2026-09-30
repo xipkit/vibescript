@@ -2632,6 +2632,8 @@ fn block_arity(meter: &super::meter::Meter, block: &Block) -> (usize, usize) {
     }
     let mut arity = 0;
     let mut walk = Walk::new(meter);
+    // The block is a visit, empty or not.
+    walk.visit(0);
     walk.stmts(&block.body, ());
     while let Some((item, ())) = walk.next(0) {
         match item {
