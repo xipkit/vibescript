@@ -35,6 +35,7 @@ mod flow;
 mod foreign;
 mod marks;
 mod meter;
+pub(crate) use meter::Heap;
 mod modules;
 mod program;
 mod sigs;

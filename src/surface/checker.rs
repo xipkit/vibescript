@@ -58,16 +58,9 @@ pub(crate) fn footprint(
     interpolated: crate::syntax::Interpolated,
     names: usize,
 ) -> usize {
-    let payloads: usize = tokens
-        .iter()
-        .map(|token| match &token.kind {
-            tooling::TokenKind::String(bytes) => bytes.len(),
-            tooling::TokenKind::Template(parts) => {
-                parts.len() * std::mem::size_of::<std::ops::Range<usize>>()
-            }
-            _ => 0,
-        })
-        .sum();
+    // What the tokens hold, which the pass copies: strings, symbols' names,
+    // interpolations' spans and percent literals' entries.
+    let payloads: usize = tokens.iter().map(crate::typing::Heap::heap).sum();
     (tokens.len() + interpolated.tokens) * PER_TOKEN
         + payloads
         + interpolated.bytes
