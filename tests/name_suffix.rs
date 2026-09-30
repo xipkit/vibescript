@@ -1625,6 +1625,66 @@ fn exported_functions_declare_callable_capability_members() {
         let value = engine.compile(script).unwrap().run(options).unwrap().value;
         assert_eq!(value.to_string(), "true", "{script}");
     }
+    // A call's grant must keep each such member callable, at any depth, as
+    // it must a host method, or it is refused before the script runs.
+    for (declared, granted) in [
+        (
+            Value::object(vec![(b"run?".to_vec(), function.clone())]),
+            Value::object(vec![(b"run?".to_vec(), Value::int(1))]),
+        ),
+        (
+            Value::object(vec![(
+                b"inner".to_vec(),
+                Value::object(vec![(b"run?".to_vec(), function.clone())]),
+            )]),
+            Value::object(vec![(
+                b"inner".to_vec(),
+                Value::object(vec![(b"run?".to_vec(), Value::int(1))]),
+            )]),
+        ),
+        (
+            Value::object(vec![(
+                b"inner".to_vec(),
+                Value::object(vec![(b"run?".to_vec(), method().value())]),
+            )]),
+            Value::object(vec![(
+                b"inner".to_vec(),
+                Value::object(vec![(b"run?".to_vec(), Value::int(1))]),
+            )]),
+        ),
+    ] {
+        let mut engine = Engine::new();
+        engine
+            .declare_capability(&Capability::from_value("cap", declared))
+            .unwrap();
+        let options = CallOptions {
+            capabilities: vec![Capability::from_value("cap", granted)],
+            ..CallOptions::default()
+        };
+        let error = engine.compile("1").unwrap().run(options).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Type, "{error}");
+        assert!(error.message.contains("member run?"), "{error}");
+    }
+    // A grant that keeps it callable is accepted.
+    let mut engine = Engine::new();
+    let template = Value::object(vec![(b"run?".to_vec(), function.clone())]);
+    engine
+        .declare_capability(&Capability::from_value("cap", template.clone()))
+        .unwrap();
+    let options = CallOptions {
+        capabilities: vec![Capability::from_value("cap", template)],
+        ..CallOptions::default()
+    };
+    assert_eq!(
+        engine
+            .compile("cap.run?")
+            .unwrap()
+            .run(options)
+            .unwrap()
+            .value
+            .to_string(),
+        "true"
+    );
     // A root that is one would bind as no value a script can use, so every
     // route that publishes a root refuses it: a template, a factory's value
     // and a call's global.

@@ -177,7 +177,9 @@ pub(crate) fn binding(name: &str, value: &Value) -> Item {
     }
 }
 
-fn contains_methods(value: &Value) -> bool {
+/// Whether `value` is callable, or an object holding a callable at any
+/// depth: a host method or a function a script exports.
+pub(crate) fn contains_methods(value: &Value) -> bool {
     match &value.0 {
         Kind::Host(_) | Kind::Function(_) => true,
         Kind::Hash(hash) => hash
