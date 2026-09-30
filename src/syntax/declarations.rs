@@ -449,6 +449,9 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 ParamKind::Positional => (),
             }
             let id = p.local_id(&param.name, offset)?;
+            if param.kind == ParamKind::Keyword {
+                p.labelled(id)?;
+            }
             p.locals.insert(work, param.name.clone(), id)?;
             p.declared_it |= param.name == "it";
             params.push(work, param)?;

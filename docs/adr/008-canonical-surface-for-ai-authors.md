@@ -381,7 +381,8 @@ Nor does a fix leave a name its declaration's own rules reject, such as a
 builtin type's for a type alias or a prelude namespace's for a constant. A
 fix of one place, not a whole binding, waits until every place its spelling
 is written has one, since renaming a spelling everywhere is always safe and
-renaming it partly is not.
+renaming it partly is not. A keyword parameter keeps its name, part of its
+function's interface through the labels calls pass.
 
 Hash and keyword labels keep suffixes because they spell string keys, not
 bindings. A suffixed shorthand label calls the method with that name;

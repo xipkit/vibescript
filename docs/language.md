@@ -93,7 +93,8 @@ spelled, each spelling on its own, so the fixes of `def ok??` and each call
 `ok??` all leave `ok?`, and `vibes fix` applies them together. Such a fix of
 one place is offered only while every place its spelling is written has one:
 `property done?` has none while a call `a.done?`, valid and so without a fix,
-would keep calling the old name. Nor is there
+would keep calling the old name. A keyword parameter keeps its name, which
+calls, and a host, pass as a label. Nor is there
 one leaving a name its declaration cannot take: a builtin or prelude type's for
 a type alias or enum, a prelude namespace's, function's or global's for a
 constant, or one an enum member would share, once normalized to a symbol, with

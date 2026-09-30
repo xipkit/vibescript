@@ -87,6 +87,9 @@ pub(super) struct Uses {
     nameable: Buffer<(u32, Name)>,
     /// Each suffixed symbol in the source, as [`symbol_key`] spells it.
     symbols: Table<()>,
+    /// The keyword parameters, whose names calls spell as labels, which no
+    /// rename reaches.
+    labelled: Buffer<u32>,
     /// Every name the source spells, in code, symbols and interpolations,
     /// by the index of how often it does, or none when it does not lex.
     spelled: Option<Table<u32>>,
@@ -300,6 +303,15 @@ impl Parser<'_> {
                 uses.binding(self.work, name, namespace, suffix)
             }
         }
+    }
+
+    /// Records that the binding `id` is a keyword parameter, whose calls
+    /// name it with labels a rename would leave behind.
+    pub(super) fn labelled(&self, id: u32) -> Result<()> {
+        if id != 0 {
+            self.suffixed.borrow_mut().labelled.push(self.work, id)?;
+        }
+        Ok(())
     }
 
     /// Records a binding that is not a local, such as an enum member, which
@@ -798,6 +810,9 @@ fn extended(
         if uses.symbols.contains(work, &symbol_key(work, name)?)? {
             unsafe_ids[*id as usize] = true;
         }
+    }
+    for &id in uses.labelled.iter() {
+        unsafe_ids[id as usize] = true;
     }
     // Each read that resolves to a class, module, enum or constant, with
     // its bindings.

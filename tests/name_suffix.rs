@@ -224,7 +224,6 @@ fn bindings_reject_suffixes_with_applicable_fixes() {
             "def f(**ok?: hash<string, bool>); end",
             "def f(**ok: hash<string, bool>); end",
         ),
-        ("def f(*, ok?: bool); end", "def f(*, ok: bool); end"),
         ("def f(&block!: ()); end", "def f(&block: ()); end"),
         ("@done? = true", "@done = true"),
         ("@@done! = true", "@@done = true"),
@@ -1689,6 +1688,25 @@ fn a_fix_of_one_place_waits_for_every_place_its_spelling_is_written() {
         first_fix("class A; property done?: bool; end"),
         "class A; property done: bool; end"
     );
+}
+
+#[test]
+fn a_keyword_parameter_keeps_its_name() {
+    // Calls name a keyword parameter with labels, strings that a rename of
+    // the parameter would leave behind, and a host may call the function too.
+    for source in [
+        "def f(*, ok?: bool); end",
+        "def f(*, k?: int = 1) -> int; k?; end; f(k?: 2)",
+        "def f(a: int, k?:) -> int; k?; end; f(1, k?: 2)",
+        "def f(*, k?: int = 1) -> int; k?; end; f",
+    ] {
+        let Err(error) = Engine::new().type_check(source) else {
+            panic!("{source} checks");
+        };
+        let diagnostic = &error.diagnostics()[0];
+        assert_eq!(diagnostic.code, Code::NAME_SUFFIX, "{source}: {error}");
+        assert!(diagnostic.fixes.is_empty(), "{source}: {diagnostic:?}");
+    }
 }
 
 #[test]
