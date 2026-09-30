@@ -271,6 +271,15 @@ the baseline and candidate; it is not caused by recovery. Raw audits are under
 
 ## Method name suffixes, 2026-09-28
 
+Seventh PR #1319 review: every V0003 fix now waits until the fixes of its
+spelling reach every place a name token spells it, and lowercase alias types
+and dotted namespace reads such as `M.X?` are renamed with their bindings.
+The 41,372-case parse sweep applies the same 1,397 fixes, each passing its
+checks: none of its cases leaves a place of a renamed spelling unreached
+without also spelling the new name, which withheld the fix already. First
+errors change as before, 48 against the pre-review head. No golden
+observation or counter changes.
+
 Sixth PR #1319 review: fixes of one spelling may leave the same name, since
 renaming a spelling everywhere keeps apart what it kept apart, so
 `enums_names_21` returns to its golden from the fourth review: the enum
