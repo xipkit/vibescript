@@ -167,6 +167,8 @@ impl Code {
         // The checker's tables, by its own account, held this much at most
         // while it ran, which counts toward the call's peak and its quota.
         drop(work.reserve(checked.peak_bytes + checked.surface_bytes)?);
+        // What the check found stays while the compiler reads it.
+        let _found = work.reserve(checked.bytes())?;
         if checked.diagnostics.iter().any(|d| d.is_error()) {
             let mut text = crate::source::Source::compile(source, work)?;
             text.filename = filename.clone();

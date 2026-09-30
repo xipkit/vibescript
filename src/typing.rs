@@ -292,6 +292,22 @@ fn key<T>(node: &T) -> usize {
     std::ptr::from_ref(node) as usize
 }
 
+impl Checked {
+    /// What the check's findings hold, which last while the compiler reads
+    /// them: the facts, the diagnostics, the call types and the locals.
+    pub(crate) fn bytes(&self) -> usize {
+        use meter::Heap;
+        let calls = self.calls.entries.capacity() * size_of::<(usize, ReceiverType)>()
+            + self
+                .calls
+                .entries
+                .iter()
+                .map(|(_, call)| call.heap())
+                .sum::<usize>();
+        self.facts.bytes() + self.diagnostics.heap() + calls + self.locals.heap()
+    }
+}
+
 /// What checking the top-level statements of a host script found, for
 /// [`Checked::locals`] and [`Checked::result`].
 pub(crate) struct Session {
