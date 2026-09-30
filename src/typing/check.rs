@@ -495,6 +495,8 @@ impl<'a> Checker<'a> {
         frame.function = Some(id);
         frame.block = sig.block.clone();
         let previous = self.enter_frame(frame);
+        // The frame keeps a copy of the function's name.
+        self.grew(sig.name.len());
         if self.program.file && !main {
             let locals = self.program.file_locals.clone();
             self.transient(locals.heap());
@@ -902,6 +904,7 @@ impl<'a> Checker<'a> {
         let previous = self.frame.names.insert(name.to_owned(), id);
         // The local, its entry by name and its scope's record each copy it.
         self.frame.name_bytes += 3 * name.len();
+        self.grew(3 * name.len());
         if let Some(scope) = self.frame.scopes.last_mut() {
             scope.push((name.to_owned(), previous));
         }
@@ -2990,6 +2993,27 @@ pub(crate) enum Purpose {
     /// A `break` out of a block, which returns from this function, or ends
     /// a loop or block around its `yield`.
     Break(String, bool),
+}
+
+impl Heap for Purpose {
+    fn heap(&self) -> usize {
+        match self {
+            Purpose::Local(name)
+            | Purpose::Global(name)
+            | Purpose::Ivar(name)
+            | Purpose::Field(name)
+            | Purpose::Break(name, _) => name.heap(),
+            Purpose::Argument { name, function, .. } | Purpose::Keyword { name, function } => {
+                name.heap() + function.heap()
+            }
+            Purpose::Result
+            | Purpose::BlockResult
+            | Purpose::Element
+            | Purpose::Annotation
+            | Purpose::Yield(_)
+            | Purpose::Operand => 0,
+        }
+    }
 }
 
 impl<'a> Checker<'a> {

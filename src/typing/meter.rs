@@ -539,7 +539,7 @@ impl<'a> super::Checker<'a> {
             + contexts
             + self.saved
             + self.scratch
-            + self.purposes.capacity() * size_of::<super::check::Purpose>()
+            + self.purposes.heap()
             + self.memo.get().map_or(0, super::Memo::bytes)
             + set(&self.write_chain)
             + map(&self.fetch_receivers)
@@ -664,6 +664,14 @@ impl<'a> super::Checker<'a> {
     /// Counts `bytes` more of what the checker keeps, checking them against
     /// the memory left at once when they are many, rather than at the next
     /// poll that measures, which may be many statements away.
+    /// Measures the tables at once when one of them has grown by `bytes`,
+    /// if that is enough to pass the account's margin, as a long name does.
+    pub(super) fn grew(&self, bytes: usize) {
+        if bytes >= SCRATCH {
+            self.check_memory(0);
+        }
+    }
+
     pub(super) fn grow(&mut self, bytes: usize) {
         self.grown += bytes;
         if bytes >= SCRATCH {

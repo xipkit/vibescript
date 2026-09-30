@@ -1736,7 +1736,7 @@ impl<'a> Checker<'a> {
         mut bindings: Vec<Option<Ty>>,
     ) -> (Ty, Vec<Ty>) {
         bindings.resize(sig.vars.len(), None);
-        let function = sig.name.clone();
+        let function = sig.name.as_str();
         let stay = (!sig.converts).then_some(super::check::BUILTIN_SYMBOL);
         self.symbols(stay, |this| {
             this.check_positional(call, sig, &mut bindings);
@@ -1758,7 +1758,7 @@ impl<'a> Checker<'a> {
                 let break_to = match (sig.breaks, sig.result) {
                     (sigs::Breaks::Result | sigs::Breaks::Inside, Some(result)) => Some(BreakTo {
                         ty: self.types.close(result, &bindings),
-                        function: function.clone(),
+                        function: function.to_owned(),
                         inside: sig.breaks == sigs::Breaks::Inside,
                     }),
                     _ => None,
@@ -1809,7 +1809,7 @@ impl<'a> Checker<'a> {
     }
 
     fn check_positional(&mut self, call: &Call<'a, '_>, sig: &Sig, bindings: &mut [Option<Ty>]) {
-        let function = sig.name.clone();
+        let function = sig.name.as_str();
         let positional_params: Vec<&sigs::Param> = sig
             .params
             .iter()
@@ -1861,16 +1861,16 @@ impl<'a> Checker<'a> {
                     for &element in items.iter() {
                         let param = positional_params.get(index).map(|p| p.ty).or(rest_element);
                         if let Some(param) = param {
-                            self.spread_argument(value, element, param, bindings, &function);
+                            self.spread_argument(value, element, param, bindings, function);
                         }
                         index += 1;
                     }
                 } else if let Some(element) = self.types.element(ty) {
                     for param in positional_params.iter().skip(index) {
-                        self.spread_argument(value, element, param.ty, bindings, &function);
+                        self.spread_argument(value, element, param.ty, bindings, function);
                     }
                     if let Some(rest) = rest_element {
-                        self.spread_argument(value, element, rest, bindings, &function);
+                        self.spread_argument(value, element, rest, bindings, function);
                     }
                     let (min, max) = sig.positional();
                     if index < min || max.is_some() {
@@ -1897,15 +1897,19 @@ impl<'a> Checker<'a> {
             let purpose = Purpose::Argument {
                 index,
                 name,
-                function: function.clone(),
+                function: function.to_owned(),
             };
+            // The names the purpose copies are held while the argument is
+            // checked.
+            let held = self.hold(super::meter::Heap::heap(&purpose));
             let actual = self.argument(value, param_ty, bindings, &purpose);
+            self.release(held);
             if splatted {
                 for param in positional_params.iter().skip(index + 1) {
-                    self.spread_argument(value, actual, param.ty, bindings, &function);
+                    self.spread_argument(value, actual, param.ty, bindings, function);
                 }
                 if let Some(rest) = rest_element {
-                    self.spread_argument(value, actual, rest, bindings, &function);
+                    self.spread_argument(value, actual, rest, bindings, function);
                 }
             }
             index += 1;
@@ -1929,7 +1933,7 @@ impl<'a> Checker<'a> {
     }
 
     fn check_keywords(&mut self, call: &Call<'a, '_>, sig: &Sig, bindings: &mut [Option<Ty>]) {
-        let function = sig.name.clone();
+        let function = sig.name.as_str();
         // The keywords given, kept while their values are checked.
         let mut given = Vec::new();
         let mut held = 0;
@@ -1946,9 +1950,11 @@ impl<'a> Checker<'a> {
                         Some(param_ty) => {
                             let purpose = Purpose::Keyword {
                                 name: name.to_string(),
-                                function: function.clone(),
+                                function: function.to_owned(),
                             };
+                            let purpose_held = self.hold(super::meter::Heap::heap(&purpose));
                             self.argument(&arg.value, param_ty, bindings, &purpose);
+                            self.release(purpose_held);
                         }
                         None => {
                             self.expr(&arg.value, None);
@@ -1977,7 +1983,7 @@ impl<'a> Checker<'a> {
                             });
                             if let Some(expected) = expected {
                                 self.spread_argument(
-                                    &arg.value, field.ty, expected, bindings, &function,
+                                    &arg.value, field.ty, expected, bindings, function,
                                 );
                             } else {
                                 self.report(Diagnostic::error(
@@ -1992,13 +1998,13 @@ impl<'a> Checker<'a> {
                             if let Some(rest) = sig.keyword_rest() {
                                 let expected = self.types.hash_value(rest.ty).unwrap_or(Ty::ANY);
                                 self.spread_argument(
-                                    &arg.value, element, expected, bindings, &function,
+                                    &arg.value, element, expected, bindings, function,
                                 );
                                 for param in
                                     sig.params.iter().filter(|p| p.kind == ParamKind::Keyword)
                                 {
                                     self.spread_argument(
-                                        &arg.value, element, param.ty, bindings, &function,
+                                        &arg.value, element, param.ty, bindings, function,
                                     );
                                 }
                             } else {
