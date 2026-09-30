@@ -298,8 +298,9 @@ impl<K: Eq + Hash, V> CountedMap<K, V> {
     }
 
     /// Makes room for `additional` more entries. A table that must grow
-    /// is counted, with its old table, at the size it grows to at most:
-    /// twice its entries' room, or the room they need.
+    /// is counted, with its old table, at the size it grows to: room for
+    /// the entries it needs, or for one more than it has room for, which
+    /// its buckets round up to twice as many.
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
     pub fn reserve(&mut self, ledger: Ledger<'_>, additional: usize) -> Result<(), Refused> {
         let capacity = self.0.capacity();
@@ -308,7 +309,7 @@ impl<K: Eq + Hash, V> CountedMap<K, V> {
             return Ok(());
         }
         let before = map(&self.0);
-        let most = table::<(K, V)>(needed.max(2 * capacity + 1));
+        let most = table::<(K, V)>(needed.max(capacity + 1));
         let peak = ledger.admit(before.saturating_add(most))?;
         self.0.reserve(additional);
         ledger.grew(map(&self.0).saturating_sub(before), peak);
@@ -447,7 +448,7 @@ impl<T: Eq + Hash> CountedSet<T> {
             return Ok(());
         }
         let before = set(&self.0);
-        let most = table::<T>(needed.max(2 * capacity + 1));
+        let most = table::<T>(needed.max(capacity + 1));
         let peak = ledger.admit(before.saturating_add(most))?;
         self.0.reserve(additional);
         ledger.grew(set(&self.0).saturating_sub(before), peak);
