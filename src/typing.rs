@@ -199,6 +199,12 @@ pub(crate) enum Number {
     Float,
 }
 
+impl counted::Owned for ValueFact {
+    fn owned(&self) -> usize {
+        0
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 struct ValueFact {
     plain: bool,
@@ -252,12 +258,15 @@ impl Facts {
             return;
         }
         let name = class.map_or(0, str::len);
-        if tables.keep(name).is_err() || self.classes.reserve(tables, 1).is_err() {
+        let Ok(mut kept) = tables.keep(name) else {
+            return;
+        };
+        if self.classes.reserve(tables, 1).is_err() {
             return;
         }
         let class = class.map(str::to_owned);
         self.names += class.as_ref().map_or(0, String::capacity);
-        self.classes.insert_within(key(call), class);
+        self.classes.insert_kept(&mut kept, key(call), class);
     }
 
     /// Records that the checker proves `def`'s result; whether it kept
@@ -567,12 +576,10 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
                 .convert_owned(&mut checker.types, &function, None)
                 .host(),
         );
-        // Each is counted before it is kept, and a check it stops
-        // registers no more.
+        // Each signature is counted before it is kept, and its name as the
+        // table takes it; a check they stop registers no more.
         let declarations = meter.declarations();
-        if declarations
-            .keep(name.len() + meter::Heap::heap(&sig))
-            .is_err()
+        if declarations.keep(meter::Heap::heap(&sig)).is_err()
             || checker
                 .program
                 .hosts

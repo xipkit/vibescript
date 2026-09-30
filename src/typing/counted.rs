@@ -7,8 +7,10 @@
 //! the meter whether the check can hold its old and new storage at once,
 //! beside what the check held when last measured and what its tables grew
 //! since, and records what it grew by, which the next measure of its side
-//! takes back into its own count. A table the budget refuses to grow keeps
-//! what it had and stores nothing, and its caller stops.
+//! takes back into its own count. What an element owns on the heap, such
+//! as a copy of a name, is counted with it as the table takes it, or before
+//! it is made, when its caller counts it first. A table the budget refuses
+//! to grow keeps what it had and stores nothing, and its caller stops.
 
 use super::meter::{Heap, Meter, Side, btree_storage, map, set, table};
 use std::{
@@ -78,15 +80,16 @@ impl<'m> Ledger<'m> {
     }
 
     /// Counts `bytes` a table will keep beside its own storage, such as a
-    /// name it copies, before they are made.
+    /// name it copies, before they are made; what it counted, for the
+    /// `_kept` methods of the tables that take them.
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
-    pub fn keep(self, bytes: usize) -> Result<(), Refused> {
+    pub fn keep(self, bytes: usize) -> Result<Kept, Refused> {
         if bytes == 0 {
-            return Ok(());
+            return Ok(Kept(0));
         }
         let peak = self.admit(bytes)?;
         self.grew(bytes, peak);
-        Ok(())
+        Ok(Kept(bytes))
     }
 }
 
@@ -112,18 +115,179 @@ impl Meter {
     }
 }
 
-/// A list an operation builds and drops, whose storage is counted before
-/// it grows, as a table's is, and while it lives, since no measure counts
-/// it: what it grew by is taken back when it is dropped.
+/// What an element of a counted table owns on the heap beyond its slot:
+/// a copy of a name, a list. A table counts it when it takes the element,
+/// with the slot, and the measure of the table's side counts it after. A
+/// value an `Rc` or an `Arc` shares owns nothing here, and neither does a
+/// counted table, whose storage is counted as it grows: whoever makes
+/// them counts them.
+pub(crate) trait Owned {
+    fn owned(&self) -> usize;
+}
+
+/// Types that own nothing on the heap.
+macro_rules! nothing {
+    ($($t:ty),* $(,)?) => {
+        $(impl Owned for $t {
+            fn owned(&self) -> usize {
+                0
+            }
+        })*
+    };
+}
+
+nothing!(
+    bool,
+    u8,
+    u16,
+    u32,
+    u64,
+    usize,
+    i64,
+    super::ty::Ty,
+    super::flow::VarState,
+    crate::members::direct::Base,
+);
+
+impl Owned for crate::diagnostic::Diagnostic {
+    fn owned(&self) -> usize {
+        self.heap()
+    }
+}
+
+impl Owned for super::ReceiverType {
+    fn owned(&self) -> usize {
+        self.heap()
+    }
+}
+
+/// Its name, which the measure of the files a check loads counts.
+impl Owned for crate::loading::Origin {
+    fn owned(&self) -> usize {
+        self.name().len()
+    }
+}
+
+impl<T: ?Sized> Owned for &T {
+    fn owned(&self) -> usize {
+        0
+    }
+}
+
+impl<T: ?Sized> Owned for std::rc::Rc<T> {
+    fn owned(&self) -> usize {
+        0
+    }
+}
+
+impl<T: ?Sized> Owned for Arc<T> {
+    fn owned(&self) -> usize {
+        0
+    }
+}
+
+impl Owned for String {
+    fn owned(&self) -> usize {
+        self.capacity()
+    }
+}
+
+impl Owned for Box<str> {
+    fn owned(&self) -> usize {
+        self.len()
+    }
+}
+
+impl<T: Owned> Owned for Option<T> {
+    fn owned(&self) -> usize {
+        self.as_ref().map_or(0, Owned::owned)
+    }
+}
+
+impl<T: Owned, E: Owned> Owned for Result<T, E> {
+    fn owned(&self) -> usize {
+        match self {
+            Ok(value) => value.owned(),
+            Err(error) => error.owned(),
+        }
+    }
+}
+
+impl<A: Owned, B: Owned> Owned for (A, B) {
+    fn owned(&self) -> usize {
+        self.0.owned() + self.1.owned()
+    }
+}
+
+impl<A: Owned, B: Owned, C: Owned> Owned for (A, B, C) {
+    fn owned(&self) -> usize {
+        self.0.owned() + self.1.owned() + self.2.owned()
+    }
+}
+
+impl<T: Owned> Owned for Vec<T> {
+    fn owned(&self) -> usize {
+        self.capacity() * size_of::<T>() + self.iter().map(Owned::owned).sum::<usize>()
+    }
+}
+
+impl<T> Owned for CountedVec<T> {
+    fn owned(&self) -> usize {
+        0
+    }
+}
+
+impl<K, V> Owned for CountedMap<K, V> {
+    fn owned(&self) -> usize {
+        0
+    }
+}
+
+impl<T> Owned for CountedSet<T> {
+    fn owned(&self) -> usize {
+        0
+    }
+}
+
+impl<T> Owned for CountedBTreeSet<T> {
+    fn owned(&self) -> usize {
+        0
+    }
+}
+
+/// What [`Ledger::keep`] counted for the elements a caller copies before
+/// it stores them, which the `_kept` methods of the tables take from as
+/// they store them.
+#[derive(Debug)]
+pub(crate) struct Kept(usize);
+
+impl Kept {
+    /// Takes `bytes` an element owns from what was counted for it.
+    fn spend(&mut self, bytes: usize) {
+        debug_assert!(
+            bytes <= self.0,
+            "an element owns {bytes} bytes, more than the {} counted for it",
+            self.0
+        );
+        self.0 = self.0.saturating_sub(bytes);
+    }
+}
+
+/// A list an operation builds and drops, whose storage and elements are
+/// counted before it takes them, as a table's are, and while it lives,
+/// since no measure counts it: they are taken back when it is dropped.
 pub(crate) struct ScratchVec<T> {
     list: CountedVec<T>,
+    /// What its elements own.
+    owned: usize,
     meter: Arc<Meter>,
 }
 
-impl<T> ScratchVec<T> {
+impl<T: Owned> ScratchVec<T> {
     pub fn new(meter: &Arc<Meter>) -> Self {
         Self {
             list: CountedVec::new(),
+            owned: 0,
             meter: Arc::clone(meter),
         }
     }
@@ -135,7 +299,10 @@ impl<T> ScratchVec<T> {
 
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
     pub fn push(&mut self, value: T) -> Result<(), Refused> {
-        self.list.push(self.meter.scratch_lists(), value)
+        let owned = value.owned();
+        self.list.push(self.meter.scratch_lists(), value)?;
+        self.owned += owned;
+        Ok(())
     }
 
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
@@ -143,8 +310,11 @@ impl<T> ScratchVec<T> {
     where
         T: Clone,
     {
+        let owned = values.iter().map(Owned::owned).sum::<usize>();
         self.list
-            .extend_from_slice(self.meter.scratch_lists(), values)
+            .extend_from_slice(self.meter.scratch_lists(), values)?;
+        self.owned += owned;
+        Ok(())
     }
 
     pub fn dedup(&mut self)
@@ -156,8 +326,17 @@ impl<T> ScratchVec<T> {
 
     /// The list, no longer counted here: whoever keeps it counts it.
     pub fn into_vec(mut self) -> Vec<T> {
-        self.meter.dropped(self.list.capacity() * size_of::<T>());
+        self.give_back();
         std::mem::take(&mut self.list).into_vec()
+    }
+}
+
+impl<T> ScratchVec<T> {
+    /// Takes back what the list and its elements hold.
+    fn give_back(&mut self) {
+        self.meter
+            .dropped(self.list.capacity() * size_of::<T>() + self.owned);
+        self.owned = 0;
     }
 }
 
@@ -177,20 +356,23 @@ impl<T> std::ops::DerefMut for ScratchVec<T> {
 
 impl<T> Drop for ScratchVec<T> {
     fn drop(&mut self) {
-        self.meter.dropped(self.list.capacity() * size_of::<T>());
+        self.give_back();
     }
 }
 
 /// A set an operation builds and drops, counted as [`ScratchVec`] is.
 pub(crate) struct ScratchSet<T> {
     set: CountedSet<T>,
+    /// What its elements own.
+    owned: usize,
     meter: Arc<Meter>,
 }
 
-impl<T: Eq + Hash> ScratchSet<T> {
+impl<T: Eq + Hash + Owned> ScratchSet<T> {
     pub fn new(meter: &Arc<Meter>) -> Self {
         Self {
             set: CountedSet::new(),
+            owned: 0,
             meter: Arc::clone(meter),
         }
     }
@@ -198,18 +380,22 @@ impl<T: Eq + Hash> ScratchSet<T> {
     /// Adds `value`; whether it is new.
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
     pub fn insert(&mut self, value: T) -> Result<bool, Refused> {
-        self.set.insert(self.meter.scratch_lists(), value)
+        let owned = value.owned();
+        let added = self.set.insert(self.meter.scratch_lists(), value)?;
+        self.owned += owned;
+        Ok(added)
     }
 }
 
 impl<T> Drop for ScratchSet<T> {
     fn drop(&mut self) {
-        self.meter.dropped(set(&self.set.0));
+        self.meter.dropped(set(&self.set.0) + self.owned);
     }
 }
 
-/// A list whose growth is counted before it happens. It reads as a slice;
-/// it grows only through the methods that take a [`Ledger`].
+/// A list whose growth, and what its elements own, is counted before it
+/// happens. It reads as a slice; it grows only through the methods that
+/// take a [`Ledger`] or what one kept.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct CountedVec<T>(Vec<T>);
 
@@ -242,42 +428,82 @@ impl<T> CountedVec<T> {
     /// first, and exactly that much.
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
     pub fn reserve(&mut self, ledger: Ledger<'_>, additional: usize) -> Result<(), Refused> {
+        self.room(ledger, additional, 0)
+    }
+
+    /// Makes room for `additional` more elements that own `owned` bytes,
+    /// counted together.
+    fn room(&mut self, ledger: Ledger<'_>, additional: usize, owned: usize) -> Result<(), Refused> {
         let capacity = self.0.capacity();
         let needed = self.0.len().saturating_add(additional);
         if needed <= capacity {
-            return Ok(());
+            return ledger.keep(owned).map(drop);
         }
         let target = needed.max(2 * capacity).max(4);
         let size = size_of::<T>();
-        let peak = ledger.admit((capacity + target).saturating_mul(size))?;
+        let moment = (capacity + target)
+            .saturating_mul(size)
+            .saturating_add(owned);
+        let peak = ledger.admit(moment)?;
         self.0.reserve_exact(target - self.0.len());
         // The allocator is asked for exactly this much; anything more it
         // gives is counted too.
-        ledger.grew((self.0.capacity() - capacity) * size, peak);
+        ledger.grew((self.0.capacity() - capacity) * size + owned, peak);
         Ok(())
     }
 
+    /// Adds `value`, with what it owns, counted first; a value the budget
+    /// refuses is dropped.
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
-    pub fn push(&mut self, ledger: Ledger<'_>, value: T) -> Result<(), Refused> {
-        self.reserve(ledger, 1)?;
+    pub fn push(&mut self, ledger: Ledger<'_>, value: T) -> Result<(), Refused>
+    where
+        T: Owned,
+    {
+        self.room(ledger, 1, value.owned())?;
         self.0.push(value);
         Ok(())
     }
 
     /// Adds `value` however the budget stands, counting what the list
-    /// grows by, for a list whose entries have fixed places that must be
-    /// kept; the next measure reads a stop.
-    pub fn push_regardless(&mut self, ledger: Ledger<'_>, value: T) {
+    /// grows by and what the value owns, for a list whose entries have
+    /// fixed places that must be kept; the next measure reads a stop.
+    pub fn push_regardless(&mut self, ledger: Ledger<'_>, value: T)
+    where
+        T: Owned,
+    {
         // A ledger that records regardless refuses nothing.
-        match self.reserve(ledger.regardless(), 1) {
+        match self.room(ledger.regardless(), 1, value.owned()) {
             Ok(()) | Err(Refused) => self.0.push(value),
         }
     }
 
-    /// Adds `value` in room [`Self::reserve`] made for it, so that a
-    /// caller that changes several tables can count them all before it
-    /// changes any.
-    pub fn push_within(&mut self, value: T) {
+    /// Adds `value`, which owns nothing, in room [`Self::reserve`] made
+    /// for it, so that a caller that changes several tables can count them
+    /// all before it changes any.
+    pub fn push_within(&mut self, value: T)
+    where
+        T: Owned,
+    {
+        debug_assert_eq!(value.owned(), 0, "what an element owns is counted first");
+        debug_assert!(self.0.len() < self.0.capacity(), "room is made first");
+        self.0.push(value);
+    }
+
+    /// Adds `value` in room [`Self::reserve`] made for it, taking what it
+    /// owns from what `kept` counted for it.
+    pub fn push_kept(&mut self, kept: &mut Kept, value: T)
+    where
+        T: Owned,
+    {
+        kept.spend(value.owned());
+        debug_assert!(self.0.len() < self.0.capacity(), "room is made first");
+        self.0.push(value);
+    }
+
+    /// Adds `value` in room [`Self::reserve`] made for it, whose place it
+    /// moved from counted what it owns until now, such as the state a loop
+    /// was left in, taken from the loop once it ends.
+    pub fn push_moved(&mut self, value: T) {
         debug_assert!(self.0.len() < self.0.capacity(), "room is made first");
         self.0.push(value);
     }
@@ -285,9 +511,10 @@ impl<T> CountedVec<T> {
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
     pub fn extend_from_slice(&mut self, ledger: Ledger<'_>, values: &[T]) -> Result<(), Refused>
     where
-        T: Clone,
+        T: Clone + Owned,
     {
-        self.reserve(ledger, values.len())?;
+        let owned = values.iter().map(Owned::owned).sum::<usize>();
+        self.room(ledger, values.len(), owned)?;
         self.0.extend_from_slice(values);
         Ok(())
     }
@@ -373,35 +600,74 @@ impl<K: Eq + Hash, V> CountedMap<K, V> {
     /// its buckets round up to twice as many.
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
     pub fn reserve(&mut self, ledger: Ledger<'_>, additional: usize) -> Result<(), Refused> {
+        self.room(ledger, additional, 0)
+    }
+
+    /// Makes room for `additional` more entries that own `owned` bytes,
+    /// counted together.
+    fn room(&mut self, ledger: Ledger<'_>, additional: usize, owned: usize) -> Result<(), Refused> {
         let capacity = self.0.capacity();
         let needed = self.0.len().saturating_add(additional);
         if needed <= capacity {
-            return Ok(());
+            return ledger.keep(owned).map(drop);
         }
         let before = map(&self.0);
         let most = table::<(K, V)>(needed.max(capacity + 1));
-        let peak = ledger.admit(before.saturating_add(most))?;
+        let peak = ledger.admit(before.saturating_add(most).saturating_add(owned))?;
         self.0.reserve(additional);
-        ledger.grew(map(&self.0).saturating_sub(before), peak);
+        ledger.grew(map(&self.0).saturating_sub(before) + owned, peak);
         Ok(())
     }
 
-    /// Stores `value` under `key`, giving back the value it replaces.
+    /// Stores `value` under `key`, with what they own, counted first,
+    /// giving back the value it replaces. A key and value the budget
+    /// refuses are dropped.
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
-    pub fn insert(&mut self, ledger: Ledger<'_>, key: K, value: V) -> Result<Option<V>, Refused> {
-        // A table with room takes it, new or not, without growing.
+    pub fn insert(&mut self, ledger: Ledger<'_>, key: K, value: V) -> Result<Option<V>, Refused>
+    where
+        K: Owned,
+        V: Owned,
+    {
+        // A table with room takes it, new or not, without growing, and a
+        // key it has already is counted as if it were new.
         if self.0.len() >= self.0.capacity() {
             if let Some(slot) = self.0.get_mut(&key) {
+                ledger.keep(value.owned())?;
                 return Ok(Some(std::mem::replace(slot, value)));
             }
-            self.reserve(ledger, 1)?;
         }
+        self.room(ledger, 1, key.owned() + value.owned())?;
         Ok(self.0.insert(key, value))
     }
 
+    /// Stores `value` under `key`, which own nothing, in room
+    /// [`Self::reserve`] made for it, giving back the value it replaces.
+    pub fn insert_within(&mut self, key: K, value: V) -> Option<V>
+    where
+        K: Owned,
+        V: Owned,
+    {
+        debug_assert_eq!(
+            key.owned() + value.owned(),
+            0,
+            "what an entry owns is counted first"
+        );
+        debug_assert!(
+            self.0.len() < self.0.capacity() || self.0.contains_key(&key),
+            "room is made first"
+        );
+        self.0.insert(key, value)
+    }
+
     /// Stores `value` under `key` in room [`Self::reserve`] made for it,
-    /// giving back the value it replaces.
-    pub fn insert_within(&mut self, key: K, value: V) -> Option<V> {
+    /// taking what they own from what `kept` counted for them, and giving
+    /// back the value it replaces.
+    pub fn insert_kept(&mut self, kept: &mut Kept, key: K, value: V) -> Option<V>
+    where
+        K: Owned,
+        V: Owned,
+    {
+        kept.spend(key.owned() + value.owned());
         debug_assert!(
             self.0.len() < self.0.capacity() || self.0.contains_key(&key),
             "room is made first"
@@ -410,29 +676,45 @@ impl<K: Eq + Hash, V> CountedMap<K, V> {
     }
 
     /// Stores `value` under `key` however the budget stands, counting what
-    /// the map grows by, for a map whose entries must all be kept; the
-    /// next measure reads a stop.
-    pub fn insert_regardless(&mut self, ledger: Ledger<'_>, key: K, value: V) {
+    /// the map grows by and what they own, for a map whose entries must
+    /// all be kept; the next measure reads a stop.
+    pub fn insert_regardless(&mut self, ledger: Ledger<'_>, key: K, value: V)
+    where
+        K: Owned,
+        V: Owned,
+    {
         // A ledger that records regardless refuses nothing.
-        match self.reserve(ledger.regardless(), 1) {
+        match self.room(ledger.regardless(), 1, key.owned() + value.owned()) {
             Ok(()) | Err(Refused) => {
                 self.0.insert(key, value);
             }
         }
     }
 
-    /// The value under `key`, made by `make` first if the map has none.
+    /// The value under `key`, made by `make` first, and counted with the
+    /// key and what they own, if the map has none.
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
     pub fn get_or_insert_with(
         &mut self,
         ledger: Ledger<'_>,
         key: K,
         make: impl FnOnce() -> V,
-    ) -> Result<&mut V, Refused> {
+    ) -> Result<&mut V, Refused>
+    where
+        K: Owned,
+        V: Owned,
+    {
         if self.0.len() >= self.0.capacity() && !self.0.contains_key(&key) {
             self.reserve(ledger, 1)?;
         }
-        Ok(self.0.entry(key).or_insert_with(make))
+        match self.0.entry(key) {
+            std::collections::hash_map::Entry::Occupied(entry) => Ok(entry.into_mut()),
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                let value = make();
+                ledger.keep(entry.key().owned() + value.owned())?;
+                Ok(entry.insert(value))
+            }
+        }
     }
 
     pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut V>
@@ -507,35 +789,51 @@ impl<T: Eq + Hash> CountedSet<T> {
     /// [`CountedMap`] counts its growth.
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
     pub fn reserve(&mut self, ledger: Ledger<'_>, additional: usize) -> Result<(), Refused> {
+        self.room(ledger, additional, 0)
+    }
+
+    /// Makes room for `additional` more elements that own `owned` bytes,
+    /// counted together.
+    fn room(&mut self, ledger: Ledger<'_>, additional: usize, owned: usize) -> Result<(), Refused> {
         let capacity = self.0.capacity();
         let needed = self.0.len().saturating_add(additional);
         if needed <= capacity {
-            return Ok(());
+            return ledger.keep(owned).map(drop);
         }
         let before = set(&self.0);
         let most = table::<T>(needed.max(capacity + 1));
-        let peak = ledger.admit(before.saturating_add(most))?;
+        let peak = ledger.admit(before.saturating_add(most).saturating_add(owned))?;
         self.0.reserve(additional);
-        ledger.grew(set(&self.0).saturating_sub(before), peak);
+        ledger.grew(set(&self.0).saturating_sub(before) + owned, peak);
         Ok(())
     }
 
-    /// Adds `value`; whether it is new.
+    /// Adds `value`, with what it owns counted first; whether it is new.
+    /// A value the budget refuses is dropped.
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
-    pub fn insert(&mut self, ledger: Ledger<'_>, value: T) -> Result<bool, Refused> {
-        // A set with room takes it, new or not, without growing.
-        if self.0.len() >= self.0.capacity() {
+    pub fn insert(&mut self, ledger: Ledger<'_>, value: T) -> Result<bool, Refused>
+    where
+        T: Owned,
+    {
+        let owned = value.owned();
+        // A set with room takes it, new or not, without growing, and one
+        // that owns nothing without a lookup.
+        if owned > 0 || self.0.len() >= self.0.capacity() {
             if self.0.contains(&value) {
                 return Ok(false);
             }
-            self.reserve(ledger, 1)?;
+            self.room(ledger, 1, owned)?;
         }
         Ok(self.0.insert(value))
     }
 
-    /// Adds `value` in room [`Self::reserve`] made for it; whether it is
-    /// new.
-    pub fn insert_within(&mut self, value: T) -> bool {
+    /// Adds `value` in room [`Self::reserve`] made for it, taking what it
+    /// owns from what `kept` counted for it; whether it is new.
+    pub fn insert_kept(&mut self, kept: &mut Kept, value: T) -> bool
+    where
+        T: Owned,
+    {
+        kept.spend(value.owned());
         debug_assert!(
             self.0.len() < self.0.capacity() || self.0.contains(&value),
             "room is made first"
@@ -585,21 +883,50 @@ impl<T: Ord> CountedBTreeSet<T> {
     }
 
     /// Adds `value`; whether it is new. A new element's share of the
-    /// nodes is counted first; its payload is its caller's to count.
+    /// nodes, and what it owns, are counted first; a value the budget
+    /// refuses is dropped.
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
-    pub fn insert(&mut self, ledger: Ledger<'_>, value: T) -> Result<bool, Refused> {
+    pub fn insert(&mut self, ledger: Ledger<'_>, value: T) -> Result<bool, Refused>
+    where
+        T: Owned,
+    {
+        let owned = value.owned();
+        self.add(ledger, value, owned)
+    }
+
+    /// Adds `value`, taking what it owns from what `kept` counted for it,
+    /// and counting a new element's share of the nodes first; whether it
+    /// is new.
+    #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
+    pub fn insert_kept(
+        &mut self,
+        ledger: Ledger<'_>,
+        kept: &mut Kept,
+        value: T,
+    ) -> Result<bool, Refused>
+    where
+        T: Owned,
+    {
+        kept.spend(value.owned());
+        self.add(ledger, value, 0)
+    }
+
+    /// Adds `value`, counting a new element's share of the nodes and
+    /// `owned` bytes first.
+    fn add(&mut self, ledger: Ledger<'_>, value: T, owned: usize) -> Result<bool, Refused> {
         let length = self.0.len();
         let grown = btree_storage::<T>(length + 1) - btree_storage::<T>(length);
-        // One that takes no more nodes is added, new or not, as it is.
-        if grown == 0 {
+        // One that takes no more nodes, and owns nothing, is added, new or
+        // not, as it is.
+        if grown + owned == 0 {
             return Ok(self.0.insert(value));
         }
         if self.0.contains(&value) {
             return Ok(false);
         }
-        let peak = ledger.admit(grown)?;
+        let peak = ledger.admit(grown + owned)?;
         let added = self.0.insert(value);
-        ledger.grew(grown, peak);
+        ledger.grew(grown + owned, peak);
         Ok(added)
     }
 
@@ -739,6 +1066,57 @@ mod tests {
         // Payloads are counted before they are made.
         ledger.keep(100).unwrap();
         assert_eq!(meter.unmeasured(), 100);
+    }
+
+    #[test]
+    fn a_table_counts_what_its_elements_own_before_it_keeps_them() {
+        let meter = meter(None);
+        let ledger = Ledger::new(&meter, Side::Tables);
+        let mut names: CountedVec<String> = CountedVec::new();
+        names.reserve(ledger, 8).unwrap();
+        let slots = meter.unmeasured();
+        names.push(ledger, "x".repeat(1_000)).unwrap();
+        assert_eq!(meter.unmeasured(), slots + 1_000);
+        let mut map: CountedMap<String, Option<String>> = CountedMap::new();
+        map.insert(ledger, "k".repeat(10), Some("v".repeat(20)))
+            .unwrap();
+        assert_eq!(
+            meter.unmeasured(),
+            slots + 1_000 + super::super::meter::map(&map) + 30
+        );
+        // What was counted before a copy is made is taken as it is kept.
+        let mut kept = ledger.keep(100).unwrap();
+        names.reserve(ledger, 1).unwrap();
+        let before = meter.unmeasured();
+        names.push_kept(&mut kept, "y".repeat(100));
+        assert_eq!(meter.unmeasured(), before);
+    }
+
+    #[test]
+    fn a_table_refuses_an_element_that_owns_more_than_the_budget_leaves() {
+        let meter = meter(Some(16 << 10));
+        let ledger = Ledger::new(&meter, Side::Tables);
+        let mut names: CountedVec<String> = CountedVec::new();
+        names.reserve(ledger, 4).unwrap();
+        names.push(ledger, "a".repeat(100)).unwrap();
+        // The list has room, but not the budget for what the name owns.
+        assert_eq!(names.push(ledger, "b".repeat(64 << 10)), Err(Refused));
+        assert!(meter.stopped());
+        assert_eq!(names.len(), 1);
+        let mut set: CountedBTreeSet<String> = CountedBTreeSet::new();
+        assert_eq!(set.insert(ledger, "c".repeat(10)), Err(Refused));
+        assert!(set.is_empty());
+    }
+
+    #[test]
+    fn a_scratch_list_gives_back_what_its_elements_own() {
+        let meter = meter(None);
+        {
+            let mut list = ScratchVec::new(&meter);
+            list.push("z".repeat(500)).unwrap();
+            assert!(meter.unmeasured() >= 500);
+        }
+        assert_eq!(meter.unmeasured(), 0);
     }
 
     /// The lists and maps in the checker's state that are not tables its

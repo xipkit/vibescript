@@ -29,11 +29,12 @@ impl<'a> Checker<'a> {
     pub(super) fn expr_against(&mut self, expr: &'a Expr, expected: Ty, purpose: &Purpose) -> Ty {
         match &expr.node {
             Node::Conditional(..) | Node::Case(..) | Node::Try(_) | Node::Compound(_) => {
-                // The purpose, and its room on the stack, are counted before
-                // it is kept; a check the budget stops checks no more.
-                let tables = self.meter.tables();
-                if tables.keep(super::meter::Heap::heap(purpose)).is_err()
-                    || self.purposes.push(tables, purpose.clone()).is_err()
+                // The purpose, and its room on the stack, are counted as it
+                // is kept; a check the budget stops checks no more.
+                if self
+                    .purposes
+                    .push(self.meter.tables(), purpose.clone())
+                    .is_err()
                 {
                     return Ty::ERROR;
                 }

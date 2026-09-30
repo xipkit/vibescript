@@ -121,6 +121,26 @@ impl Heap for Enum {
     }
 }
 
+/// Its signature, which an `Rc` shares, is counted where it is made.
+impl super::counted::Owned for FnDecl<'_> {
+    fn owned(&self) -> usize {
+        0
+    }
+}
+
+/// Its name; its tables are counted as they grow.
+impl super::counted::Owned for Namespace<'_> {
+    fn owned(&self) -> usize {
+        self.name.capacity()
+    }
+}
+
+impl super::counted::Owned for Ivar {
+    fn owned(&self) -> usize {
+        0
+    }
+}
+
 impl Heap for FnDecl<'_> {
     fn heap(&self) -> usize {
         self.sig.heap()
@@ -364,16 +384,19 @@ impl<'a> Checker<'a> {
             match &declaration.item {
                 crate::signatures::Item::Constant(constant) => {
                     let ty = sigs::table_type(&mut self.types, &constant.ty, &[]);
-                    if declarations.keep(name.len()).is_err()
-                        || program.declared.reserve(declarations, 1).is_err()
-                    {
+                    let Ok(mut kept) = declarations.keep(name.len()) else {
+                        return;
+                    };
+                    if program.declared.reserve(declarations, 1).is_err() {
                         return;
                     }
-                    program.declared.insert_within(name.clone(), ty);
+                    program.declared.insert_kept(&mut kept, name.clone(), ty);
                 }
                 crate::signatures::Item::Module(module) => {
-                    if declarations.keep(2 * name.len()).is_err()
-                        || program.host_modules.reserve(declarations, 1).is_err()
+                    let Ok(mut kept) = declarations.keep(2 * name.len()) else {
+                        return;
+                    };
+                    if program.host_modules.reserve(declarations, 1).is_err()
                         || self.types.names.hosts.reserve(declarations, 1).is_err()
                         || program.declared.reserve(declarations, 1).is_err()
                     {
@@ -381,9 +404,11 @@ impl<'a> Checker<'a> {
                     }
                     let id = program.host_modules.len() as u32;
                     program.host_modules.push_within(module);
-                    self.types.names.hosts.push_within(name.clone());
+                    self.types.names.hosts.push_kept(&mut kept, name.clone());
                     let ty = self.types.intern(Kind::Host(id));
-                    self.program.declared.insert_within(name.clone(), ty);
+                    self.program
+                        .declared
+                        .insert_kept(&mut kept, name.clone(), ty);
                 }
                 crate::signatures::Item::Function(function) => {
                     let sig = Rc::new(
@@ -391,14 +416,16 @@ impl<'a> Checker<'a> {
                             .convert_owned(&mut self.types, function, None)
                             .host(),
                     );
-                    if declarations.keep(2 * name.len() + sig.heap()).is_err()
-                        || program.declared_calls.reserve(declarations, 1).is_err()
+                    let Ok(mut kept) = declarations.keep(2 * name.len() + sig.heap()) else {
+                        return;
+                    };
+                    if program.declared_calls.reserve(declarations, 1).is_err()
                         || program.hosts.reserve(declarations, 1).is_err()
                     {
                         return;
                     }
-                    program.declared_calls.insert_within(name.clone());
-                    program.hosts.insert_within(name.clone(), sig);
+                    program.declared_calls.insert_kept(&mut kept, name.clone());
+                    program.hosts.insert_kept(&mut kept, name.clone(), sig);
                 }
                 _ => (),
             }
@@ -426,9 +453,11 @@ impl<'a> Checker<'a> {
         // members.
         let mut stopped = self.halted();
         for (index, (name, members)) in parsed.enums.iter().enumerate() {
-            // Its places are kept however the budget stands, and counted.
+            // Its places are kept however the budget stands, and counted:
+            // its names as the tables take them, and the enum an `Arc`
+            // shares here.
             let always = self.meter.declarations().regardless();
-            always.kept(3 * name.len() + std::mem::size_of::<Enum>() + 16);
+            always.kept(name.len() + std::mem::size_of::<Enum>() + 16);
             self.program
                 .enum_names
                 .insert_regardless(always, name.to_string(), index as u32);
@@ -472,7 +501,6 @@ impl<'a> Checker<'a> {
         for (index, (name, _)) in sigs::index().modules.iter().enumerate() {
             debug_assert_eq!(self.types.names.builtins.len(), index);
             let always = self.meter.declarations().regardless();
-            always.kept(name.len());
             self.types
                 .names
                 .builtins
@@ -692,7 +720,7 @@ impl<'a> Checker<'a> {
     }
 
     /// Declares method `name` of namespace `ns`, a static one when
-    /// `statics`, with a copy of its name, counted before it is made.
+    /// `statics`, with a copy of its name, counted as the table takes it.
     /// Returns whether it did: a check the budget stops declares no more.
     fn declare_method(&mut self, ns: usize, name: &str, id: FnId, statics: bool) -> bool {
         let declarations = self.meter.declarations();
@@ -706,12 +734,11 @@ impl<'a> Checker<'a> {
             *entry = id;
             return true;
         }
-        declarations.keep(name.len()).is_ok()
-            && table.insert(declarations, name.to_owned(), id).is_ok()
+        table.insert(declarations, name.to_owned(), id).is_ok()
     }
 
     /// Declares instance variable `name` of namespace `ns`, with a copy of
-    /// its name, counted before it is made; one declared already is
+    /// its name, counted as the table takes it; one declared already is
     /// replaced when `replace`, and kept otherwise. Returns whether it did:
     /// a check the budget stops declares no more.
     fn declare_ivar(&mut self, ns: usize, name: &str, ivar: Ivar, replace: bool) -> bool {
@@ -723,8 +750,7 @@ impl<'a> Checker<'a> {
             }
             return true;
         }
-        declarations.keep(name.len()).is_ok()
-            && ivars.insert(declarations, name.to_owned(), ivar).is_ok()
+        ivars.insert(declarations, name.to_owned(), ivar).is_ok()
     }
 
     /// Reports a class alias that takes the name of a method the class
@@ -840,7 +866,7 @@ impl<'a> Checker<'a> {
         let program = &mut self.program;
         let outer = parent.map(|parent| program.namespaces[parent as usize].name.as_str());
         let length = outer.map_or(0, |outer| outer.len() + 2) + module.name.len();
-        declarations.keep(2 * length).ok()?;
+        let mut kept = declarations.keep(2 * length).ok()?;
         program.namespaces.reserve(declarations, 1).ok()?;
         self.types.names.namespaces.reserve(declarations, 1).ok()?;
         program.by_offset.reserve(declarations, 1).ok()?;
@@ -858,18 +884,24 @@ impl<'a> Checker<'a> {
         }
         name.push_str(&module.name);
         let id = program.namespaces.len() as NsId;
-        self.types.names.namespaces.push_within(name.clone());
-        program.namespaces.push_within(Namespace {
-            checked: false,
-            module: Some(module),
-            name,
-            parent,
-            is_class: module.is_class,
-            methods: CountedMap::new(),
-            statics: CountedMap::new(),
-            ivars: CountedMap::new(),
-            children: CountedMap::new(),
-        });
+        self.types
+            .names
+            .namespaces
+            .push_kept(&mut kept, name.clone());
+        program.namespaces.push_kept(
+            &mut kept,
+            Namespace {
+                checked: false,
+                module: Some(module),
+                name,
+                parent,
+                is_class: module.is_class,
+                methods: CountedMap::new(),
+                statics: CountedMap::new(),
+                ivars: CountedMap::new(),
+                children: CountedMap::new(),
+            },
+        );
         program.by_offset.insert_within(module.offset, id);
         match parent {
             Some(parent) => {
@@ -1296,17 +1328,18 @@ impl<'a> Checker<'a> {
         }
         let ty = *self.program.aliases.get(&(scope, name))?;
         // A self-referential alias resolves to an unknown type once. Its
-        // name is counted with the checker's growth, and room for it in the
-        // table, before either is kept.
-        if self.grow(key.1.capacity())
-            || self
-                .program
-                .alias_types
-                .insert(self.meter.tables(), key.clone(), Ty::ERROR)
-                .is_err()
+        // name, and room for it in the table, are counted as it is kept,
+        // and by the measures after with the checker's growth.
+        let bytes = key.1.capacity();
+        if self
+            .program
+            .alias_types
+            .insert(self.meter.tables(), key.clone(), Ty::ERROR)
+            .is_err()
         {
             return Some(Ty::ERROR);
         }
+        self.grown += bytes;
         let resolved = self.annotation_depth(ty, scope, depth + 1);
         if let Some(entry) = self.program.alias_types.get_mut(&key) {
             *entry = resolved;

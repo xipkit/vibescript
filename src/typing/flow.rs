@@ -37,6 +37,12 @@ pub(crate) struct Branch {
     pub changes: Vec<(LocalId, VarState)>,
 }
 
+impl super::counted::Owned for Branch {
+    fn owned(&self) -> usize {
+        super::meter::vec(&self.changes)
+    }
+}
+
 pub(crate) struct Flow {
     vars: CountedVec<VarState>,
     trail: CountedVec<(LocalId, VarState)>,

@@ -66,6 +66,24 @@ struct Root {
     lowest: Vec<u32>,
 }
 
+impl super::counted::Owned for Root {
+    fn owned(&self) -> usize {
+        self.lowest.capacity() * std::mem::size_of::<u32>()
+    }
+}
+
+impl super::counted::Owned for Span {
+    fn owned(&self) -> usize {
+        0
+    }
+}
+
+impl super::counted::Owned for TrySpans {
+    fn owned(&self) -> usize {
+        0
+    }
+}
+
 #[derive(Default)]
 pub(super) struct Assigns<'a> {
     /// Each distinct name, by id.
@@ -232,7 +250,8 @@ impl<'a> Assigns<'a> {
         // The tree, twice as wide as the assignments rounded up to a power
         // of two, is counted before it is built.
         let tree = 2 * width * std::mem::size_of::<u32>();
-        if stopped || meter.tables().keep(tree).is_err() {
+        let kept = meter.tables().keep(tree);
+        let (false, Ok(mut kept)) = (stopped, kept) else {
             // The spans the stopped walk recorded cover no positions of its
             // empty tree, so they find no assignments.
             self.roots.push_within(Root {
@@ -241,18 +260,21 @@ impl<'a> Assigns<'a> {
                 lowest: Vec::new(),
             });
             return;
-        }
+        };
         let mut lowest = vec![u32::MAX; 2 * width];
         lowest[width..width + count].copy_from_slice(&self.previous[start as usize..]);
         for node in (1..width).rev() {
             lowest[node] = lowest[2 * node].min(lowest[2 * node + 1]);
         }
         self.held += lowest.capacity() * std::mem::size_of::<u32>();
-        self.roots.push_within(Root {
-            start,
-            width: width as u32,
-            lowest,
-        });
+        self.roots.push_kept(
+            &mut kept,
+            Root {
+                start,
+                width: width as u32,
+                lowest,
+            },
+        );
     }
 }
 

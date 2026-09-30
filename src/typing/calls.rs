@@ -521,15 +521,18 @@ impl<'a> Checker<'a> {
                         .contains_key(name),
                     _ => false,
                 });
-                // A check that counting it stops keeps no more receivers.
-                if !self.grow(super::meter::Heap::heap(&receiver_type))
-                    && self
-                        .calls
-                        .push(self.meter.tables(), (span.start, receiver_type))
-                        .is_err()
+                // A check that counting it stops keeps no more receivers;
+                // one it keeps is counted, with what it owns, as it is kept,
+                // and by the measures after.
+                let bytes = super::meter::Heap::heap(&receiver_type);
+                if self
+                    .calls
+                    .push(self.meter.tables(), (span.start, receiver_type))
+                    .is_err()
                 {
                     return Ty::ERROR;
                 }
+                self.grown += bytes;
             }
         }
         let call = Call {
@@ -955,15 +958,17 @@ impl<'a> Checker<'a> {
                             // names no more modules.
                             let name = format!("{}.{}", self.types.display(ty), module.name);
                             let declarations = self.meter.declarations();
-                            if declarations.keep(name.capacity()).is_err()
-                                || self.program.host_modules.reserve(declarations, 1).is_err()
+                            let Ok(mut kept) = declarations.keep(name.capacity()) else {
+                                return Ty::ERROR;
+                            };
+                            if self.program.host_modules.reserve(declarations, 1).is_err()
                                 || self.types.names.hosts.reserve(declarations, 1).is_err()
                             {
                                 return Ty::ERROR;
                             }
                             let id = self.program.host_modules.len();
                             self.program.host_modules.push_within(module);
-                            self.types.names.hosts.push_within(name);
+                            self.types.names.hosts.push_kept(&mut kept, name);
                             id
                         }
                     };
@@ -1416,15 +1421,18 @@ impl<'a> Checker<'a> {
         let name_span = self.spans.member(receiver, name);
         if let (Some(span), false) = (name_span, ty == Ty::ERROR) {
             let receiver_type = ReceiverType::new(self.types.display(ty), self.types.bases(ty));
-            // A check that counting it stops keeps no more receivers.
-            if !self.grow(super::meter::Heap::heap(&receiver_type))
-                && self
-                    .calls
-                    .push(self.meter.tables(), (span.start, receiver_type))
-                    .is_err()
+            // A check that counting it stops keeps no more receivers; one
+            // it keeps is counted, with what it owns, as it is kept, and by
+            // the measures after.
+            let bytes = super::meter::Heap::heap(&receiver_type);
+            if self
+                .calls
+                .push(self.meter.tables(), (span.start, receiver_type))
+                .is_err()
             {
                 return Ty::ERROR;
             }
+            self.grown += bytes;
         }
         if let Kind::Host(index) = *self.types.kind(ty) {
             let module = self.program.host_modules[index as usize];

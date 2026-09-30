@@ -785,13 +785,6 @@ impl<'a> super::Checker<'a> {
         std::mem::replace(&mut self.memo.0, outer)
     }
 
-    /// Counts a diagnostic the checker keeps. Returns whether the check has
-    /// stopped.
-    #[must_use = "the budget may have stopped the check, which must then do no more work"]
-    pub(super) fn keep(&mut self, diagnostic: &crate::diagnostic::Diagnostic) -> bool {
-        self.grow(diagnostic.heap())
-    }
-
     /// Counts `bytes` more of what the checker keeps, before it keeps
     /// them, which the budget admits beside what the check holds, rather
     /// than at the next poll that measures, which may be many statements

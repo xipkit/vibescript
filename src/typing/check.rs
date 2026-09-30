@@ -50,6 +50,37 @@ pub(crate) struct Local {
     pub dictionary: Option<Ty>,
 }
 
+impl super::counted::Owned for Local {
+    fn owned(&self) -> usize {
+        self.name.capacity()
+    }
+}
+
+impl super::counted::Owned for FileCall {
+    fn owned(&self) -> usize {
+        super::counted::Owned::owned(&self.assigned)
+    }
+}
+
+/// The name of the function a `break` returns through; its exits and
+/// results are counted as they grow.
+impl super::counted::Owned for Context {
+    fn owned(&self) -> usize {
+        match self {
+            Context::Block {
+                break_to: Some(to), ..
+            } => to.function.capacity(),
+            _ => 0,
+        }
+    }
+}
+
+impl super::counted::Owned for Purpose {
+    fn owned(&self) -> usize {
+        self.heap()
+    }
+}
+
 /// The states a loop or block is left or continued with.
 #[derive(Default)]
 pub(crate) struct Exits {
@@ -208,8 +239,15 @@ impl Heap for Context {
     fn heap(&self) -> usize {
         match self {
             Context::Loop { exits, .. } => exits.heap(),
-            Context::Block { exits, results, .. } => {
-                exits.heap() + super::meter::vec(results.as_vec())
+            Context::Block {
+                exits,
+                results,
+                break_to,
+                ..
+            } => {
+                exits.heap()
+                    + super::meter::vec(results.as_vec())
+                    + break_to.as_ref().map_or(0, |to| to.function.heap())
             }
         }
     }
@@ -255,13 +293,16 @@ impl<'a> Checker<'a> {
             return;
         }
         // A check its budget stops keeps no more findings, nor one it
-        // refuses room for.
-        if self.keep(&diagnostic)
-            || self
-                .diagnostics
-                .push(self.meter.tables(), diagnostic)
-                .is_err()
+        // refuses room for; one it keeps is counted, with what it owns, as
+        // it is kept, and by the measures after.
+        let bytes = diagnostic.heap();
+        if self
+            .diagnostics
+            .push(self.meter.tables(), diagnostic)
+            .is_ok()
         {
+            self.grown += bytes;
+        } else {
             self.stopped = true;
         }
     }
@@ -318,17 +359,19 @@ impl<'a> Checker<'a> {
             // counted before it is made.
             let declarations = self.meter.declarations();
             let names: usize = written.iter().map(String::capacity).sum();
-            if declarations.keep(names).is_err()
-                || self
-                    .program
-                    .file_written
-                    .reserve(declarations, written.len())
-                    .is_err()
+            let Ok(mut kept) = declarations.keep(names) else {
+                return;
+            };
+            if self
+                .program
+                .file_written
+                .reserve(declarations, written.len())
+                .is_err()
             {
                 return;
             }
             for name in written {
-                self.program.file_written.insert_within(name);
+                self.program.file_written.insert_kept(&mut kept, name);
             }
             if self.declared() {
                 return;
@@ -721,19 +764,22 @@ impl<'a> Checker<'a> {
             // Counted, with room for them, before they are copied.
             let (count, bytes) = self.assigned_size();
             let declarations = self.meter.declarations();
-            stopped = declarations.keep(bytes).is_err()
+            let kept = declarations.keep(bytes);
+            stopped = kept.is_err()
                 || self
                     .program
                     .file_locals
                     .reserve(declarations, count)
                     .is_err();
-            if !stopped {
+            if let (Ok(mut kept), false) = (kept, stopped) {
                 for (name, &id) in &self.frame.names {
                     if self.frame.flow.get(id).assigned {
                         let local = &self.frame.locals[id as usize];
-                        self.program
-                            .file_locals
-                            .insert_within(name.clone(), (local.declared, local.offset));
+                        self.program.file_locals.insert_kept(
+                            &mut kept,
+                            name.clone(),
+                            (local.declared, local.offset),
+                        );
                     }
                 }
                 stopped = self.declared();
@@ -931,22 +977,26 @@ impl<'a> Checker<'a> {
             assigned.extend(self.assigned_locals().map(|(name, _)| name.clone()));
             // Sorted, so each name the callee reads is found by search.
             assigned.sort_unstable();
-            if self.meter.charge(assigned.len() as u64) || self.grow(assigned.heap()) {
+            if self.meter.charge(assigned.len() as u64) {
                 return;
             }
+            let bytes = assigned.heap();
             let call = FileCall {
                 callee,
                 span,
                 assigned,
             };
             // A call the budget refuses room for is not recorded, and the
-            // check stops.
+            // check stops; one it records is counted, with the names it
+            // keeps, as it is kept, and by the measures after.
             if self
                 .program
                 .file_calls
                 .push(self.meter.tables(), call)
-                .is_err()
+                .is_ok()
             {
+                self.grown += bytes;
+            } else {
                 self.stopped = true;
             }
         } else if let Some(caller) = self.frame.function {
@@ -991,8 +1041,12 @@ impl<'a> Checker<'a> {
                     return;
                 }
                 let before = super::meter::btree_storage::<String>(reads.len());
-                if tables.keep(name.len()).is_err()
-                    || reads.insert(tables, name.to_owned()).is_err()
+                let Ok(mut kept) = tables.keep(name.len()) else {
+                    return;
+                };
+                if reads
+                    .insert_kept(tables, &mut kept, name.to_owned())
+                    .is_err()
                 {
                     return;
                 }
@@ -1180,7 +1234,7 @@ impl<'a> Checker<'a> {
         // any table changes, so a refusal leaves the frame as it was.
         let tables = self.meter.tables();
         let frame = &mut self.frame;
-        tables.keep(3 * name.len()).ok()?;
+        let mut kept = tables.keep(3 * name.len()).ok()?;
         frame.flow.reserve().ok()?;
         frame.locals.reserve(tables, 1).ok()?;
         if !frame.names.contains_key(name) {
@@ -1191,18 +1245,21 @@ impl<'a> Checker<'a> {
         }
         let id = frame.flow.add(declared);
         debug_assert_eq!(id as usize, frame.locals.len());
-        frame.locals.push_within(Local {
-            name: name.to_owned(),
-            declared,
-            offset,
-            annotated,
-            checked: false,
-            dictionary: None,
-        });
-        let previous = frame.names.insert_within(name.to_owned(), id);
+        frame.locals.push_kept(
+            &mut kept,
+            Local {
+                name: name.to_owned(),
+                declared,
+                offset,
+                annotated,
+                checked: false,
+                dictionary: None,
+            },
+        );
+        let previous = frame.names.insert_kept(&mut kept, name.to_owned(), id);
         frame.name_bytes += 3 * name.len();
         if let Some(scope) = frame.scopes.last_mut() {
-            scope.push_within((name.to_owned(), previous));
+            scope.push_kept(&mut kept, (name.to_owned(), previous));
         }
         Some(id)
     }
@@ -1682,14 +1739,20 @@ impl<'a> Checker<'a> {
         let mut branches = exits.breaks;
         if ends {
             let tables = self.meter.tables();
-            // A check the budget stops joins none of them.
+            // The state at the loop's end, which its exits did not keep, is
+            // counted with room for it and them; a check the budget stops
+            // joins none of them.
+            let kept = tables.keep(super::counted::Owned::owned(&end));
+            let Ok(mut kept) = kept else {
+                return exits.values.into_vec();
+            };
             if branches.reserve(tables, exits.nexts.len() + 2).is_err() {
                 return exits.values.into_vec();
             }
             for branch in exits.nexts {
-                branches.push_within(branch);
+                branches.push_moved(branch);
             }
-            branches.push_within(end);
+            branches.push_kept(&mut kept, end);
             branches.push_within(Branch {
                 live: true,
                 changes: Vec::new(),
@@ -2956,7 +3019,12 @@ impl<'a> Checker<'a> {
             *entry = ty;
             return self.halted();
         }
-        self.grow(key.1.len()) || self.constants.insert(self.meter.tables(), key, ty).is_err()
+        let bytes = key.1.capacity();
+        if self.constants.insert(self.meter.tables(), key, ty).is_err() {
+            return true;
+        }
+        self.grown += bytes;
+        self.halted()
     }
 
     /// Whether `target` is the target of a plain assignment that stands

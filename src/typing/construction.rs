@@ -183,6 +183,21 @@ struct Site {
     span: Span,
 }
 
+/// The name a read keeps; the roster and the set of variables it shares
+/// are counted as the sites first keep them.
+impl super::counted::Owned for Site {
+    fn owned(&self) -> usize {
+        self.kind.heap()
+    }
+}
+
+/// Its sets are counted as they grow.
+impl super::counted::Owned for Uses {
+    fn owned(&self) -> usize {
+        0
+    }
+}
+
 enum SiteKind {
     Read(String),
     Call(FnId),
@@ -269,12 +284,16 @@ impl<'a> Checker<'a> {
         if let Some(uses) = uses(&mut self.construction, self.frame.function, tables) {
             // The name, and the set's room for it, are counted before it
             // is kept; a check the budget stops records no more.
-            if uses.reads.contains(name) {
-            } else if tables.keep(name.len()).is_err() {
-                return;
-            } else {
+            if !uses.reads.contains(name) {
+                let Ok(mut kept) = tables.keep(name.len()) else {
+                    return;
+                };
                 let before = btree_storage::<String>(uses.reads.len());
-                if uses.reads.insert(tables, name.to_owned()).is_err() {
+                if uses
+                    .reads
+                    .insert_kept(tables, &mut kept, name.to_owned())
+                    .is_err()
+                {
                     return;
                 }
                 let bytes = btree_storage::<String>(uses.reads.len()) - before + name.len();
@@ -622,8 +641,8 @@ fn gather<'n>(
 ) -> Result<(), super::counted::Refused> {
     for name in names {
         if !read.contains(name) {
-            tables.keep(name.len())?;
-            read.insert(tables, name.clone())?;
+            let mut kept = tables.keep(name.len())?;
+            read.insert_kept(tables, &mut kept, name.clone())?;
         }
     }
     Ok(())

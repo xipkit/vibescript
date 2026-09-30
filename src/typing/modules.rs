@@ -142,6 +142,13 @@ pub(crate) struct Required<'a> {
     pub kept: usize,
 }
 
+/// Its path; its tables are counted as they grow.
+impl super::counted::Owned for Exports {
+    fn owned(&self) -> usize {
+        self.path.capacity()
+    }
+}
+
 impl Heap for Exports {
     fn heap(&self) -> usize {
         self.path.heap() + self.functions.heap() + self.enums.heap()
@@ -261,16 +268,15 @@ impl<'a> Checker<'a> {
             }
             if let (Ok(id), Some(alias)) = (id, alias) {
                 // A new alias's copy of its name, and its room in the
-                // table, are counted before it is kept; a check that stops
-                // loads no more files.
+                // table, are counted as it is kept; a check that stops loads
+                // no more files.
                 let alias = alias.trim();
                 if !self.modules.aliases.contains_key(alias)
-                    && (self.grow(alias.len())
-                        || self
-                            .modules
-                            .aliases
-                            .insert(self.meter.declarations(), alias.to_owned(), id)
-                            .is_err())
+                    && self
+                        .modules
+                        .aliases
+                        .insert(self.meter.declarations(), alias.to_owned(), id)
+                        .is_err()
                 {
                     self.release(held);
                     return;
@@ -335,21 +341,19 @@ impl<'a> Checker<'a> {
             return known.clone();
         }
         // The table keeps a copy of the path, and of the reason a file did
-        // not load, each counted, with the path's room in the table, before
-        // it is kept.
-        if self.grow(path.len() + CIRCULAR.len())
-            || self
-                .modules
-                .by_path
-                .insert(
-                    self.meter.declarations(),
-                    path.to_owned(),
-                    Err(CIRCULAR.into()),
-                )
-                .is_err()
+        // not load, each counted, with the path's room in the table, as it
+        // is kept, and by the measures after.
+        let circular: Result<u32, String> = Err(CIRCULAR.into());
+        let bytes = path.len() + super::counted::Owned::owned(&circular);
+        if self
+            .modules
+            .by_path
+            .insert(self.meter.declarations(), path.to_owned(), circular)
+            .is_err()
         {
             return Err("the check ran out of its budget".into());
         }
+        self.grown += bytes;
         let result = self.load_module_uncached(path);
         if let Err(reason) = &result {
             if self.grow(reason.len()) {
@@ -538,40 +542,47 @@ impl<'a> Checker<'a> {
             }
             None => (CountedMap::new(), CountedMap::new()),
         };
-        // Each function published by a new name, the file's exports and
-        // its origin, with their copies of their names and room for them
-        // in the tables, are counted before they are kept.
+        // Each function published by a new name, with its copy of its name
+        // and room for it, is counted as the table takes it; the file's
+        // exports and its origin, with their copies of their names and
+        // room for them in the tables, before they are kept.
         for (name, sig) in &functions {
             if self.modules.published.contains_key(name) {
                 continue;
             }
             let declarations = self.meter.declarations();
-            if declarations.keep(name.len()).is_err()
-                || self
-                    .modules
-                    .published
-                    .insert(declarations, name.clone(), Rc::clone(sig))
-                    .is_err()
+            if self
+                .modules
+                .published
+                .insert(declarations, name.clone(), Rc::clone(sig))
+                .is_err()
             {
                 self.release(tree);
                 return Err("the check ran out of its budget".into());
             }
         }
         let declarations = self.meter.declarations();
-        if declarations.keep(path.len() + origin.name().len()).is_err()
-            || self.modules.loaded.reserve(declarations, 1).is_err()
+        let kept = declarations.keep(path.len() + origin.name().len());
+        let Ok(mut kept) = kept else {
+            self.release(tree);
+            return Err("the check ran out of its budget".into());
+        };
+        if self.modules.loaded.reserve(declarations, 1).is_err()
             || self.modules.by_origin.reserve(declarations, 1).is_err()
         {
             self.release(tree);
             return Err("the check ran out of its budget".into());
         }
         let id = self.modules.loaded.len() as u32;
-        self.modules.loaded.push_within(Exports {
-            path: path.to_owned(),
-            functions,
-            enums,
-        });
-        self.modules.by_origin.insert_within(origin, id);
+        self.modules.loaded.push_kept(
+            &mut kept,
+            Exports {
+                path: path.to_owned(),
+                functions,
+                enums,
+            },
+        );
+        self.modules.by_origin.insert_kept(&mut kept, origin, id);
         self.release(tree);
         Ok(id)
     }
@@ -699,8 +710,10 @@ impl<'a> Checker<'a> {
             let program = &mut self.program;
             let free = !program.enum_names.contains_key(&declared.name)
                 && !program.roots.contains_key(declared.name.as_str());
-            if declarations.keep(3 * declared.name.len()).is_err()
-                || program.enums.reserve(declarations, 1).is_err()
+            let Ok(mut kept) = declarations.keep(3 * declared.name.len()) else {
+                break;
+            };
+            if program.enums.reserve(declarations, 1).is_err()
                 || self.types.names.enums.reserve(declarations, 1).is_err()
                 || (free && program.enum_names.reserve(declarations, 1).is_err())
                 || enums.reserve(declarations, 1).is_err()
@@ -709,19 +722,26 @@ impl<'a> Checker<'a> {
             }
             let id = program.enums.len() as u32;
             program.enums.push_within(declared.clone());
-            self.types.names.enums.push_within(declared.name.clone());
+            self.types
+                .names
+                .enums
+                .push_kept(&mut kept, declared.name.clone());
             if free {
-                program.enum_names.insert_within(declared.name.clone(), id);
+                program
+                    .enum_names
+                    .insert_kept(&mut kept, declared.name.clone(), id);
             }
-            enums.insert_within(declared.name.clone(), id);
+            enums.insert_kept(&mut kept, declared.name.clone(), id);
             imports.enums.push(id);
         }
         for class in &exported.classes {
             // The class, its two copies of its name and room for it in both
             // tables are counted before either changes.
             let declarations = self.meter.declarations();
-            if declarations.keep(2 * class.name.len()).is_err()
-                || self.program.namespaces.reserve(declarations, 1).is_err()
+            let Ok(mut kept) = declarations.keep(2 * class.name.len()) else {
+                break;
+            };
+            if self.program.namespaces.reserve(declarations, 1).is_err()
                 || self
                     .types
                     .names
@@ -732,18 +752,24 @@ impl<'a> Checker<'a> {
                 break;
             }
             let id = self.program.namespaces.len() as NsId;
-            self.types.names.namespaces.push_within(class.name.clone());
-            self.program.namespaces.push_within(Namespace {
-                checked: false,
-                module: None,
-                name: class.name.clone(),
-                parent: None,
-                is_class: true,
-                methods: CountedMap::new(),
-                statics: CountedMap::new(),
-                ivars: CountedMap::new(),
-                children: CountedMap::new(),
-            });
+            self.types
+                .names
+                .namespaces
+                .push_kept(&mut kept, class.name.clone());
+            self.program.namespaces.push_kept(
+                &mut kept,
+                Namespace {
+                    checked: false,
+                    module: None,
+                    name: class.name.clone(),
+                    parent: None,
+                    is_class: true,
+                    methods: CountedMap::new(),
+                    statics: CountedMap::new(),
+                    ivars: CountedMap::new(),
+                    children: CountedMap::new(),
+                },
+            );
             imports.classes.insert(class.id, id);
         }
         for class in &exported.classes {
@@ -761,8 +787,10 @@ impl<'a> Checker<'a> {
                 // counted before either changes.
                 let declarations = self.meter.declarations();
                 let methods = &mut self.program.namespaces[owner as usize].methods;
-                if declarations.keep(name.len() + sig.heap()).is_err()
-                    || methods.reserve(declarations, 1).is_err()
+                let Ok(mut kept) = declarations.keep(name.len() + sig.heap()) else {
+                    break;
+                };
+                if methods.reserve(declarations, 1).is_err()
                     || self.program.fns.reserve(declarations, 1).is_err()
                 {
                     break;
@@ -776,9 +804,11 @@ impl<'a> Checker<'a> {
                     main: false,
                     visibility: *visibility,
                 });
-                self.program.namespaces[owner as usize]
-                    .methods
-                    .insert_within(name.clone(), id);
+                self.program.namespaces[owner as usize].methods.insert_kept(
+                    &mut kept,
+                    name.clone(),
+                    id,
+                );
             }
         }
         let mut functions = CountedMap::new();
@@ -787,10 +817,10 @@ impl<'a> Checker<'a> {
                 break;
             }
             let sig = Rc::new(self.import_sig(&exported.types, sig, &imports));
-            // Its name and signature, with its room in the table, are
-            // counted before they are kept.
+            // Its signature is counted before it is kept, and its name, with
+            // its room in the table, as the table takes it.
             let declarations = self.meter.declarations();
-            if declarations.keep(name.len() + sig.heap()).is_err()
+            if declarations.keep(sig.heap()).is_err()
                 || functions.insert(declarations, name.clone(), sig).is_err()
             {
                 break;
