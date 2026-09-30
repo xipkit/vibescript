@@ -403,8 +403,9 @@ impl<'a> Checker<'a> {
         self.release(taken);
         for decl in &self.program.fns {
             if let (Some(def), Some(owner), true) = (decl.def, decl.owner, decl.instance) {
-                if !unproven.contains(&owner) {
-                    self.facts.record_result(def);
+                if !unproven.contains(&owner) && !self.facts.record_result(self.meter.tables(), def)
+                {
+                    break;
                 }
             }
         }

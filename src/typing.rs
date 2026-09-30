@@ -21,6 +21,7 @@
 //! tree's start offsets into exact spans from the parser's tokens.
 
 use crate::{capability::Registered, diagnostic::Diagnostic, syntax::Declarations};
+use counted::{CountedMap, CountedSet, Ledger};
 use std::{
     collections::{HashMap, HashSet},
     fmt,
@@ -168,23 +169,23 @@ pub(crate) struct Facts {
     pub keep_type_checks: bool,
     /// The one static base type of each member call's receiver that has one
     /// the runtime binds builtins to; `None` where checks disagreed.
-    bases: HashMap<usize, Option<crate::members::direct::Base>>,
+    bases: CountedMap<usize, Option<crate::members::direct::Base>>,
     /// Whether each expression's value is plain: it can hold no host method
     /// or exported function, which only values of type `any`, capabilities
     /// and required modules can. The runtime skips its scan for them. Also
     /// records a single numeric type, when proved, for arithmetic dispatch.
-    values: HashMap<usize, ValueFact>,
+    values: CountedMap<usize, ValueFact>,
     /// Whether every parameter of each block is plain.
-    blocks: HashMap<usize, bool>,
+    blocks: CountedMap<usize, bool>,
     /// For each member call whose receiver is always an instance of one
     /// class this source declares, and whose member is that class's method,
     /// the class's qualified name; `None` where checks disagreed.
-    classes: HashMap<usize, Option<String>>,
+    classes: CountedMap<usize, Option<String>>,
     /// The instance methods whose result the checker proves, by the offset
     /// of their definition: no method of their class can read an instance
     /// variable before it is assigned ([`construction`]). The compiler moves
     /// definitions, so their offset names them.
-    results: std::collections::HashSet<u32>,
+    results: CountedSet<u32>,
     /// What the recorded class names hold, for the checker's memory
     /// account.
     names: usize,
@@ -203,45 +204,71 @@ struct ValueFact {
     number: Option<Number>,
 }
 
+// A fact the budget refuses room for is not kept: the check has stopped,
+// and the compiler reads a missing fact as proving nothing.
 impl Facts {
     fn record_base(
         &mut self,
+        tables: Ledger<'_>,
         call: &crate::syntax::Expr,
         base: Option<crate::members::direct::Base>,
     ) {
-        let recorded = self.bases.entry(key(call)).or_insert(base);
-        if *recorded != base {
-            *recorded = None;
+        if let Ok(recorded) = self.bases.get_or_insert_with(tables, key(call), || base) {
+            if *recorded != base {
+                *recorded = None;
+            }
         }
     }
 
-    fn record_value(&mut self, expr: &crate::syntax::Expr, plain: bool, number: Option<Number>) {
-        let recorded = self
-            .values
-            .entry(key(expr))
-            .or_insert(ValueFact { plain, number });
-        recorded.plain &= plain;
-        if recorded.number != number {
-            recorded.number = None;
+    fn record_value(
+        &mut self,
+        tables: Ledger<'_>,
+        expr: &crate::syntax::Expr,
+        plain: bool,
+        number: Option<Number>,
+    ) {
+        let fact = ValueFact { plain, number };
+        if let Ok(recorded) = self.values.get_or_insert_with(tables, key(expr), || fact) {
+            recorded.plain &= plain;
+            if recorded.number != number {
+                recorded.number = None;
+            }
         }
     }
 
-    fn record_class(&mut self, call: &crate::syntax::Expr, class: Option<String>) {
-        let recorded = self.classes.entry(key(call)).or_insert_with(|| {
-            self.names += class.as_ref().map_or(0, String::capacity);
-            class.clone()
-        });
-        if *recorded != class {
-            *recorded = None;
+    /// Records the class whose method `call` calls, copying its name the
+    /// first time, counted before it is.
+    fn record_class(
+        &mut self,
+        tables: Ledger<'_>,
+        call: &crate::syntax::Expr,
+        class: Option<&str>,
+    ) {
+        if let Some(recorded) = self.classes.get_mut(&key(call)) {
+            if recorded.as_deref() != class {
+                *recorded = None;
+            }
+            return;
         }
+        let name = class.map_or(0, str::len);
+        if tables.keep(name).is_err() || self.classes.reserve(tables, 1).is_err() {
+            return;
+        }
+        let class = class.map(str::to_owned);
+        self.names += class.as_ref().map_or(0, String::capacity);
+        self.classes.insert_within(key(call), class);
     }
 
-    fn record_result(&mut self, def: &crate::syntax::Definition) {
-        self.results.insert(def.offset);
+    /// Records that the checker proves `def`'s result; whether it kept
+    /// that.
+    fn record_result(&mut self, tables: Ledger<'_>, def: &crate::syntax::Definition) -> bool {
+        self.results.insert(tables, def.offset).is_ok()
     }
 
-    fn record_block(&mut self, block: &crate::syntax::Block, plain: bool) {
-        *self.blocks.entry(key(block)).or_insert(plain) &= plain;
+    fn record_block(&mut self, tables: Ledger<'_>, block: &crate::syntax::Block, plain: bool) {
+        if let Ok(recorded) = self.blocks.get_or_insert_with(tables, key(block), || plain) {
+            *recorded &= plain;
+        }
     }
 
     /// The base the receiver of `call` always has, if one was recorded.

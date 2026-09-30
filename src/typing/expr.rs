@@ -154,7 +154,8 @@ impl<'a> Checker<'a> {
                 Ty::FLOAT => Some(super::Number::Float),
                 _ => None,
             };
-            self.facts.record_value(expr, plain, number);
+            self.facts
+                .record_value(self.meter.tables(), expr, plain, number);
         }
         ty
     }

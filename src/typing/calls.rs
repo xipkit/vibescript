@@ -483,18 +483,18 @@ impl<'a> Checker<'a> {
         if ty != Ty::ERROR && block.is_none() {
             let called = if safe { self.types.without_nil(ty) } else { ty };
             let base = crate::members::direct::Base::of(&self.types.bases(called));
-            self.facts.record_base(expr, base);
+            self.facts.record_base(self.meter.tables(), expr, base);
             let class = match self.types.kind(called) {
                 Kind::Instance(ns) => {
                     let namespace = &self.program.namespaces[*ns as usize];
                     (namespace.module.is_some()
                         && !matches!(name, "initialize" | "class")
                         && namespace.methods.contains_key(name))
-                    .then(|| namespace.name.clone())
+                    .then_some(namespace.name.as_str())
                 }
                 _ => None,
             };
-            self.facts.record_class(expr, class);
+            self.facts.record_class(self.meter.tables(), expr, class);
         }
         let name_span = self.spans.member(receiver, name);
         if let Some(span) = name_span {
@@ -2492,7 +2492,7 @@ impl<'a> Checker<'a> {
             .iter()
             .chain(rest.as_ref())
             .all(|&ty| self.types.plain(ty));
-        self.facts.record_block(block, plain);
+        self.facts.record_block(self.meter.tables(), block, plain);
         // Union receivers supply different block parameter types on each pass.
         let outer_memo = self.set_memo(None);
         if !self.open_scope() {
