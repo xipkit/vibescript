@@ -1205,6 +1205,52 @@ mod budget_tests {
     }
 
     #[test]
+    fn the_findings_count_the_sources_required_files_keep() {
+        // Files each with a type error, whose diagnostic keeps the file's
+        // source and name for as long as the findings last, each counted
+        // once however many diagnostics keep it.
+        let body = "x = 1\n".repeat(2_000);
+        let files: Vec<String> = (0..3)
+            .map(|k| {
+                format!(
+                    "{}{body}y: string = 1\nz: string = 2\n",
+                    "w = 1\n".repeat(k)
+                )
+            })
+            .collect();
+        let mut engine = crate::Engine::new();
+        engine
+            .set_module_sources(
+                files
+                    .iter()
+                    .enumerate()
+                    .map(|(k, file)| (format!("m{k}.vibe"), file.clone()))
+                    .collect(),
+            )
+            .unwrap();
+        let resolve = |path: &str,
+                       origin: Option<&crate::loading::Origin>,
+                       context: &mut crate::CallContext| {
+            engine.loader.source(path, origin, context)
+        };
+        let source = "require(\"m0\")\nrequire(\"m1\")\nrequire(\"m2\")\n";
+        let checked = checked_with(source, Budget::default(), false, Some(&resolve));
+        let kept = checked
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.source.is_some())
+            .count();
+        assert_eq!(kept, 6);
+        let sources: usize = files.iter().map(String::len).sum();
+        assert!(
+            checked.bytes() >= sources,
+            "{} bytes counted for the findings of files of {sources} bytes",
+            checked.bytes()
+        );
+        assert!(checked.bytes() < sources + sources / 4);
+    }
+
+    #[test]
     fn interpolations_parse_again_within_the_step_quota() {
         // Fifty strings, each interpolating a 2,000-element literal, which
         // the spans parse again before the check starts.

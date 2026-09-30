@@ -1110,6 +1110,62 @@ fn shapes() -> Vec<Shape> {
                 lines(n, |i| format!("x{i}? = {i}\nx{i} = {i}\n")),
             )
         }),
+        // A call's positional arguments are listed, each element of a
+        // literal splat.
+        ("a call spreading a wide literal", |n| {
+            let items = listed(n * 4, |_| "1".to_owned(), ", ");
+            (
+                Vec::new(),
+                format!("def f(*xs: array<int>) -> int\n  0\nend\np(f(*[{items}]))\n"),
+            )
+        }),
+        // The surface pass rewrites each entry.
+        ("a percent literal of many short entries", |n| {
+            (
+                Vec::new(),
+                format!("x = %w[{}]\np(x)\n", "a ".repeat(n * 16)),
+            )
+        }),
+        // A required file's exports copy its functions and its classes'
+        // methods.
+        (
+            "a required file exporting many functions and classes",
+            |n| {
+                let method = |m: usize| format!("  def m{m}(a: int) -> int\n    a\n  end\n");
+                let file = lines(n / 2, |i| format!("def f{i}(a: int) -> int\n  a\nend\n"))
+                    + &lines(n / 20 + 1, |c| {
+                        format!("class K{c}\n{}end\n", lines(10, method))
+                    });
+                (
+                    vec![("exports.vibe".to_owned(), file)],
+                    "require(\"exports\")\np(1)\n".to_owned(),
+                )
+            },
+        ),
+        // A required file's methods call each other in a cycle, which
+        // gathers every variable they read, each name copied.
+        (
+            "a required file whose methods read many variables in a cycle",
+            |n| {
+                let methods = n / 50 + 1;
+                let method = |m: usize| {
+                    let reads = listed(50, |i| format!("@v{}", m * 50 + i), " + ");
+                    let next = (m + 1) % methods;
+                    format!("  def m{m} -> int\n    {reads} + self.m{next}\n  end\n")
+                };
+                let count = methods * 50;
+                let class = format!(
+                    "class C\n{}  def initialize\n{}  end\n{}end\n",
+                    lines(count, |i| format!("  @v{i}: int\n")),
+                    lines(count, |i| format!("    @v{i} = {i}\n")),
+                    lines(methods, method)
+                );
+                (
+                    vec![("cycle.vibe".to_owned(), class)],
+                    "require(\"cycle\")\np(1)\n".to_owned(),
+                )
+            },
+        ),
     ]
 }
 
@@ -1307,6 +1363,70 @@ fn require_paths_count_toward_the_quota() {
     let (full, _) = compiled_peak(&engine, &source, &limited(None, None));
     let mut failures = Vec::new();
     for percent in (40..=60).step_by(5) {
+        let quota = full * percent / 100;
+        let (peak, result) = compiled_peak(&engine, &source, &limited(None, Some(quota)));
+        let allowed = quota + quota / 8 + OVERSHOOT;
+        if peak > allowed {
+            failures.push(format!(
+                "{peak} bytes at the peak under {quota}, {allowed} allowed ({result:?})"
+            ));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[test]
+fn a_retained_declarations_aliases_are_written_within_the_budget() {
+    let _serial = SERIAL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    // An engine that declares a retained class, and a source whose
+    // top-level alias spells a wide shape: its check writes the alias out
+    // to compare it with the class's retained ones.
+    let class = "class C\nend\n";
+    let (_, bindings) = Engine::new()
+        .compile(class)
+        .unwrap()
+        .run_bindings(limited(None, None))
+        .unwrap();
+    let retained = vibescript::Capability::from_value("C", bindings["C"].clone());
+    let mut engine = Engine::new();
+    engine.declare_capability(&retained).unwrap();
+    let fields = if cfg!(any(debug_assertions, target_os = "wasi")) {
+        4_000
+    } else {
+        16_000
+    };
+    let fields = listed(
+        fields,
+        |i| format!("field_{i}_{}: int", "f".repeat(40)),
+        ", ",
+    );
+    let source = format!("type Big = {{ {fields} }}\n{class}p(1)\n");
+    let _ = engine.compile_with_options(&source, &limited(None, None));
+    let (full, _) = compiled_peak(&engine, &source, &limited(None, None));
+    // Its cost in steps, to within a factor of four.
+    let mut cost = 1u64 << 12;
+    while cost < 1 << 40 {
+        let (_, result) = after_trip(&engine, &source, &limited(Some(cost), None));
+        if result != Err(vibescript::ErrorKind::Steps) {
+            break;
+        }
+        cost *= 4;
+    }
+    let mut failures = Vec::new();
+    for divisor in [2u64, 4, 8, 16] {
+        let options = limited(Some(cost / divisor), None);
+        if let (Some((allocations, bytes)), _) = after_trip(&engine, &source, &options) {
+            if allocations > AFTER_TRIP_ALLOCATIONS || bytes > AFTER_TRIP_BYTES {
+                failures.push(format!(
+                    "{allocations} allocations of {bytes} bytes after {} steps stopped it",
+                    cost / divisor
+                ));
+            }
+        }
+    }
+    for percent in [25, 50, 75] {
         let quota = full * percent / 100;
         let (peak, result) = compiled_peak(&engine, &source, &limited(None, Some(quota)));
         let allowed = quota + quota / 8 + OVERSHOOT;
