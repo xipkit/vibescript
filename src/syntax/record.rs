@@ -294,15 +294,23 @@ fn token_list(
         .sum();
     let held = work
         .reserve(parser.tokens.len() * std::mem::size_of::<crate::tooling::Token>() + payloads)?;
+    // An entry's text, built in place rather than from a copy of each
+    // part, so a long entry is held once.
     let text = |parts: &[Part<'_>]| {
-        parts
-            .iter()
-            .map(|part| match part {
-                Part::Text(bytes) => Some(bytes.as_ref().to_vec()),
-                Part::Expr(..) => None,
-            })
-            .collect::<Option<Vec<_>>>()
-            .map(|pieces| pieces.concat())
+        let mut length = 0;
+        for part in parts {
+            match part {
+                Part::Text(bytes) => length += bytes.len(),
+                Part::Expr(..) => return None,
+            }
+        }
+        let mut text = Vec::with_capacity(length);
+        for part in parts {
+            if let Part::Text(bytes) = part {
+                text.extend_from_slice(bytes.as_ref());
+            }
+        }
+        Some(text)
     };
     let mut tokens = Vec::with_capacity(parser.tokens.len());
     for lexeme in parser.tokens.range(0..parser.tokens.len()) {
