@@ -797,6 +797,7 @@ pub(crate) fn compile_parsed(
             outer: Buffer::new(),
             reads: Table::new(),
             assigned: Table::new(),
+            handler_locals: None,
         });
         let additions = Additions {
             block: if index == 0 {
@@ -1030,6 +1031,11 @@ struct Compiler<'a> {
     outer: Buffer<Table<usize>>,
     reads: Table<()>,
     assigned: Table<()>,
+    /// The reservation of the locals each `begin`'s handlers reset, which
+    /// the generated code keeps. Nested `begin`s each list the locals of
+    /// every level inside them, so the lists can grow with the square of
+    /// the source; they stay charged until the function is generated.
+    handler_locals: Option<crate::budget::Charge>,
 }
 
 /// A declared block's argument and result types, each with its check
