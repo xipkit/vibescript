@@ -7,8 +7,14 @@
 //! other misses. The checker's peak is also compared between each two of
 //! its measures with the larger of them, so scratch it takes and frees
 //! between them without counting fails too, even when a table it builds
-//! later is as large. It has a target of its own, since the allocator is
-//! global.
+//! later is as large.
+//!
+//! A second test compiles wide and deep programs under small memory quotas
+//! and requires the real heap never to pass the quota by more than a small
+//! allowance before the compilation reports it, so memory that any part of
+//! compiling allocates before its account sees it fails there. The tests
+//! have a target of their own, since the allocator is global, and run one
+//! at a time.
 
 use std::{
     alloc::{GlobalAlloc, Layout, System},
@@ -84,6 +90,10 @@ unsafe impl GlobalAlloc for Counting {
 
 #[global_allocator]
 static ALLOCATOR: Counting = Counting;
+
+/// Held by each test while it runs, since the allocator counts every
+/// thread's allocations.
+static SERIAL: Mutex<()> = Mutex::new(());
 
 /// How far the real peak may exceed the checker's own account.
 const FACTOR: f64 = 1.5;
@@ -487,6 +497,9 @@ fn corpora() -> Vec<(String, String)> {
 
 #[test]
 fn the_checkers_account_covers_its_peak_memory() {
+    let _serial = SERIAL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let engine = Engine::new();
     // The builtin signature tables load once, outside any check.
     measure(&engine, "def f(x: array<int>) -> int\n  x.length\nend\n");
@@ -548,6 +561,284 @@ fn the_checkers_account_covers_its_peak_memory() {
     assert!(
         failures.is_empty(),
         "{} passes outgrew their account:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
+/// How much the real heap of a metered compilation may pass its memory
+/// quota, beyond an eighth of the quota, before the compilation reports
+/// the quota. The accounts estimate hash tables and other capacities, which
+/// the eighth allows for; this covers what they bound without counting it
+/// exactly, such as the stack a syntax tree's teardown keeps.
+const OVERSHOOT: usize = 256 << 10;
+
+/// A family of programs that grow with `n`: a script and the files it
+/// requires.
+type Shape = (&'static str, fn(usize) -> (Vec<(String, String)>, String));
+
+fn lines(n: usize, line: impl Fn(usize) -> String) -> String {
+    (0..n).map(line).collect()
+}
+
+fn listed(n: usize, item: impl Fn(usize) -> String, separator: &str) -> String {
+    (0..n).map(item).collect::<Vec<_>>().join(separator)
+}
+
+/// Programs that grow wide or deep: wide enums, shapes and unions, many
+/// interpolations, many locals of one wide type, nested and deep syntax,
+/// required files, construction checks and diagnostics.
+fn shapes() -> Vec<Shape> {
+    vec![
+        ("a wide enum", |n| {
+            let members = lines(n, |i| format!("  M{i}\n"));
+            (Vec::new(), format!("enum E\n{members}end\np(E::M0)\n"))
+        }),
+        ("a wide enum of long names", |n| {
+            let pad = "Ab".repeat(100);
+            let members = lines(n / 10 + 1, |i| format!("  M{pad}{i}\n"));
+            (Vec::new(), format!("enum E\n{members}end\np(1)\n"))
+        }),
+        (
+            "a wide enum given an unknown symbol and an incomplete case",
+            |n| {
+                let members = lines(n, |i| format!("  M{i}\n"));
+                (
+                    Vec::new(),
+                    format!(
+                        "enum E\n{members}end\ndef f(e: E) -> int\n  case e\n  when E::M0 then 0\n  end\nend\np(f(:nope))\n"
+                    ),
+                )
+            },
+        ),
+        ("many interpolations", |n| {
+            let literal = listed(200, |_| "1".to_owned(), ", ");
+            (
+                Vec::new(),
+                lines(n, |i| format!("x{i} = \"#{{[{literal}].length}}\"\n")),
+            )
+        }),
+        ("many tokens after one interpolation", |n| {
+            let rest = lines(n, |i| format!("y{i} = [{i}, {i}, {i}]\n"));
+            (Vec::new(), format!("s = \"#{{1}}\"\n{rest}"))
+        }),
+        ("one large interpolation", |n| {
+            let literal = listed(n, |_| "1".to_owned(), ", ");
+            (
+                Vec::new(),
+                format!("x = \"#{{[{literal}].length}}\"\np(x)\n"),
+            )
+        }),
+        ("many locals sharing a wide union", |n| {
+            let arms = listed(700, |i| format!("{{a{i}: int}}"), " | ");
+            let locals = lines(n, |i| format!("x{i} = f\n"));
+            (
+                Vec::new(),
+                format!("type U = {arms}\ndef f -> U\n  {{a0: 1}}\nend\n{locals}"),
+            )
+        }),
+        ("a wide shape", |n| {
+            let fields = listed(n, |i| format!("f{i}: int"), ", ");
+            let values = listed(n, |i| format!("f{i}: {i}"), ", ");
+            (
+                Vec::new(),
+                format!("type S = {{ {fields} }}\nx: S = {{ {values} }}\np(x)\n"),
+            )
+        }),
+        ("a wide union", |n| {
+            let arms = listed(n.min(1_000), |i| format!("{{a{i}: int}}"), " | ");
+            (
+                Vec::new(),
+                format!("type U = {arms}\ndef f(x: U?) -> U?\n  x\nend\np(f(nil))\n"),
+            )
+        }),
+        ("many wrong calls with a wide type", |n| {
+            let arms = listed(1_000, |i| format!("{{a{i}: int}}"), " | ");
+            let calls = "f(1)\n".repeat(n);
+            (
+                Vec::new(),
+                format!("type Wide = {arms}\ndef f(x: Wide) -> int\n  1\nend\n{calls}"),
+            )
+        }),
+        ("nested begins around many narrowed locals", |n| {
+            let levels = n.min(400);
+            (
+                Vec::new(),
+                format!(
+                    "{}{}{}{}",
+                    lines(n, |i| format!("x{i}: int? = 1\n")),
+                    "begin\n".repeat(levels),
+                    lines(n, |i| format!("x{i} = nil\n")),
+                    "rescue\nc = 1\nensure\nc = 2\nend\n".repeat(levels)
+                ),
+            )
+        }),
+        ("deep begins", |n| {
+            let depth = n.min(1_000);
+            let (open, close) = (
+                "begin\n".repeat(depth),
+                "rescue\nc = 2\nend\n".repeat(depth),
+            );
+            (Vec::new(), format!("c = 0\n{open}c = 1\n{close}p(c)\n"))
+        }),
+        ("deep ifs", |n| {
+            let depth = n.min(1_000);
+            let (open, close) = ("if c == 0\n".repeat(depth), "end\n".repeat(depth));
+            (Vec::new(), format!("c = 0\n{open}c = 1\n{close}p(c)\n"))
+        }),
+        ("deep blocks", |n| {
+            let depth = n.min(400);
+            let (open, close) = ("[1].each { |q|\n".repeat(depth), "}\n".repeat(depth));
+            (Vec::new(), format!("c = 0\n{open}c = 1\n{close}p(c)\n"))
+        }),
+        ("deep arrays", |n| {
+            let depth = n.min(1_000);
+            (
+                Vec::new(),
+                format!("x = {}1{}\np(x)\n", "[".repeat(depth), "]".repeat(depth)),
+            )
+        }),
+        ("nested union indexes", |n| {
+            let wide = format!("[{}].length", listed(200, |_| "1".to_owned(), ", "));
+            let mut index = "0".to_owned();
+            for _ in 0..n.min(150) {
+                index = format!("u[{wide} + g({index})]");
+            }
+            (
+                Vec::new(),
+                format!(
+                    "def g(v: int | float | nil) -> int\n  0\nend\ndef f(u: array<int> | array<float>) -> int\n  x = {index}\n  0\nend\n"
+                ),
+            )
+        }),
+        ("a required file", |n| {
+            let file = lines(n, |i| format!("x{i} = [{i}, {i}].length\n"));
+            (
+                vec![("big.vibe".to_owned(), file)],
+                "require(\"big\")\np(1)\n".to_owned(),
+            )
+        }),
+        ("construction checks", |n| {
+            let class = |class: usize| {
+                format!(
+                    "class C{class}\n{}  def initialize\n{}  end\n  def touch -> int\n    1\n  end\nend\n",
+                    lines(1_000, |i| format!("  @v{i}: int\n")),
+                    lines(1_000, |i| format!("    @v{i} = 1\n    touch\n"))
+                )
+            };
+            (Vec::new(), lines((n / 1_000).max(1), class))
+        }),
+        ("a class leaving variables unassigned", |n| {
+            let variables = lines(n, |i| format!("  @v{i}: int\n"));
+            (
+                Vec::new(),
+                format!("class C\n{variables}  def initialize\n  end\nend\n"),
+            )
+        }),
+        ("a mismatch with shapes nested through aliases", |n| {
+            let depth = (n / 1_000).clamp(1, 8);
+            let mut source = format!(
+                "type T0 = {{ {} }}\n",
+                listed(8, |i| format!("x{i}: int"), ", ")
+            );
+            for level in 1..=depth {
+                let fields = listed(8, |i| format!("f{i}: T{}", level - 1), ", ");
+                source.push_str(&format!("type T{level} = {{ {fields} }}\n"));
+            }
+            source.push_str(&format!("x: T{depth} = 1\n"));
+            (Vec::new(), source)
+        }),
+    ]
+}
+
+/// An engine that requires `modules`, or `None` when it refuses them.
+fn engine_with(modules: Vec<(String, String)>) -> Option<Engine> {
+    let mut engine = Engine::new();
+    if !modules.is_empty() {
+        engine
+            .set_module_sources(modules.into_iter().collect())
+            .ok()?;
+    }
+    Some(engine)
+}
+
+/// The real peak heap of compiling `source` under `options`, above what
+/// was live when it started, and what the compilation gave.
+fn compiled_peak(
+    engine: &Engine,
+    source: &str,
+    options: &vibescript::CallOptions,
+) -> (usize, Result<(), vibescript::ErrorKind>) {
+    let live = LIVE.load(Relaxed);
+    PEAK.store(live, Relaxed);
+    let result = engine
+        .compile_with_options(source, options)
+        .map(drop)
+        .map_err(|error| error.kind);
+    (PEAK.load(Relaxed) - live, result)
+}
+
+#[test]
+fn a_metered_compilation_stays_within_its_memory_quota() {
+    let _serial = SERIAL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let small = cfg!(target_os = "wasi");
+    let quotas: &[usize] = if small {
+        &[1 << 20, 3 << 20]
+    } else {
+        &[1 << 20, 3 << 20, 4 << 20, 16 << 20]
+    };
+    let unlimited = vibescript::CallOptions {
+        limits: vibescript::Limits {
+            steps: None,
+            memory_bytes: None,
+            ..vibescript::Limits::default()
+        },
+        ..vibescript::CallOptions::default()
+    };
+    let mut failures = Vec::new();
+    for (name, shape) in shapes() {
+        // What the process loads once, such as builtin tables, loads before
+        // any compilation is measured.
+        let (modules, source) = shape(500);
+        if let Some(engine) = engine_with(modules) {
+            let _ = engine.compile_with_options(&source, &unlimited);
+        }
+        for &quota in quotas {
+            let options = vibescript::CallOptions {
+                limits: vibescript::Limits {
+                    steps: None,
+                    memory_bytes: Some(quota),
+                    ..vibescript::Limits::default()
+                },
+                ..vibescript::CallOptions::default()
+            };
+            let mut n = 500;
+            loop {
+                let (modules, source) = shape(n);
+                let size = source.len() + modules.iter().map(|(_, file)| file.len()).sum::<usize>();
+                if size > quota || n > 1 << 20 {
+                    break;
+                }
+                let Some(engine) = engine_with(modules) else {
+                    break;
+                };
+                let (peak, result) = compiled_peak(&engine, &source, &options);
+                let allowed = quota + quota / 8 + OVERSHOOT;
+                if peak > allowed {
+                    failures.push(format!(
+                        "{name} of {n} under {} KiB: {peak} bytes at the peak, {allowed} allowed ({result:?})",
+                        quota >> 10
+                    ));
+                }
+                n *= 2;
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} compilations passed their quota:\n{}",
         failures.len(),
         failures.join("\n")
     );
