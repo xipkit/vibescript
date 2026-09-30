@@ -434,10 +434,20 @@ impl<'a> Checker<'a> {
             self.release(tree);
             return Err("the check ran out of its budget".into());
         }
-        let source: Arc<str> = source.into();
+        // The copy of the source the file's diagnostics share is made only
+        // for a first diagnostic that needs it, and counted before it is,
+        // while the source it copies is held as well.
+        let mut shared: Option<Arc<str>> = None;
         for mut diagnostic in checked.diagnostics.into_iter().filter(Diagnostic::is_error) {
             if diagnostic.source.is_none() {
-                diagnostic.source = Some(source.clone());
+                if shared.is_none() {
+                    if self.transient(source.len()) {
+                        self.release(tree);
+                        return Err("the check ran out of its budget".into());
+                    }
+                    shared = Some(Arc::from(source.as_str()));
+                }
+                diagnostic.source = shared.clone();
             }
             let file = diagnostic
                 .file

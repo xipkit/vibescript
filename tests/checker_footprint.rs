@@ -1042,6 +1042,15 @@ fn shapes() -> Vec<Shape> {
             let strings = listed(32, |_| "\"s\"".to_owned(), ", ");
             (Vec::new(), lines(n, |i| format!("x{i} = [{strings}]\n")))
         }),
+        ("a required file of long strings", |n| {
+            // Its diagnostics would share a copy of its source.
+            let pad = "a".repeat(1_000);
+            let file = lines(n / 10 + 1, |i| format!("x{i} = \"{pad}\"\n"));
+            (
+                vec![("big.vibe".to_owned(), file)],
+                "require(\"big\")\np(1)\n".to_owned(),
+            )
+        }),
         ("a wide self-call graph", |n| {
             // Each method calls itself, a cycle of one for each of them in
             // the graph of the calls construction checks follow.
