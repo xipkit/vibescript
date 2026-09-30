@@ -573,13 +573,22 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     locals.sort_unstable();
     let too_deep = checker.too_deep;
     let mut diagnostics = checker.diagnostics;
-    // Sorting the diagnostics and the calls in order keeps a copy of each.
-    meter.scratch(meter::vec(&diagnostics) + meter::vec(&checker.calls));
-    diagnostics.sort_by_key(|d| (d.span.start, d.span.end));
-    diagnostics.dedup_by(|a, b| a.code == b.code && a.span == b.span && a.message == b.message);
+    let mut calls = checker.calls;
+    if stopped {
+        // A check past its budget fails, whatever it found, so what it
+        // found is dropped rather than put in order, which copies it.
+        diagnostics = Vec::new();
+        calls = Vec::new();
+    } else {
+        // Sorting the diagnostics and the calls in order keeps a copy of
+        // each.
+        meter.scratch(meter::vec(&diagnostics) + meter::vec(&calls));
+        diagnostics.sort_by_key(|d| (d.span.start, d.span.end));
+        diagnostics.dedup_by(|a, b| a.code == b.code && a.span == b.span && a.message == b.message);
+    }
     let mut checked = Checked {
         diagnostics,
-        calls: CallTypes::from_entries(checker.calls),
+        calls: CallTypes::from_entries(calls),
         steps,
         exported,
         locals,
