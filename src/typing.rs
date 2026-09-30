@@ -478,6 +478,16 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         std::sync::Arc::clone(&meter),
     );
     meter.outside(spans.bytes());
+    // Parsing the interpolations again can use up the budget, and then
+    // nothing else is checked.
+    if meter.stopped() {
+        return Checked {
+            steps: meter.steps(),
+            stopped: true,
+            peak_bytes: meter.peak(),
+            ..Checked::default()
+        };
+    }
     let mut checker = Checker {
         source: input.source,
         parsed: input.parsed,
