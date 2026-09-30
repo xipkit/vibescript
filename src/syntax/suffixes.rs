@@ -116,6 +116,8 @@ pub(super) struct Uses {
 
 /// The spelling a symbol and a name compare by: lowercase, without `_`.
 fn symbol_key(work: &dyn Work, name: &str) -> Result<Name> {
+    // Lowercasing may lengthen a character, up to three times over.
+    let _reserved = work.reserve(name.len().saturating_mul(3))?;
     let folded: String = name
         .chars()
         .filter(|&c| c != '_')
@@ -1009,7 +1011,7 @@ fn withhold_collisions(
         let mut collides = false;
         for edit in diagnostic.fixes.iter().flat_map(|fix| fix.edits.iter()) {
             work.charge(1)?;
-            let name = destination(source, edit);
+            let (name, _reserved) = destination(work, source, edit)?;
             if left.last().is_some_and(|last| **last == *name) {
                 continue;
             }
@@ -1032,14 +1034,21 @@ fn withhold_collisions(
 
 /// The name an edit of a V0003 fix leaves: the word it edits as it reads
 /// once the edit applies, or the name a quoted symbol's replacement spells.
-fn destination(source: &str, edit: &Edit) -> String {
+/// A name may be nearly as long as the source, so its memory is reserved,
+/// for as long as the reservation returned with it lives, before it is built.
+fn destination(
+    work: &dyn Work,
+    source: &str,
+    edit: &Edit,
+) -> Result<(String, Option<crate::budget::Charge>)> {
     let (start, end) = (edit.span.start, edit.span.end);
     if let Some(name) = edit
         .replacement
         .strip_prefix(":\"")
         .and_then(|name| name.strip_suffix('"'))
     {
-        return name.to_string();
+        let reserved = work.reserve(name.len())?;
+        return Ok((name.to_string(), reserved));
     }
     let word = |c: char| c == '_' || c == '@' || super::unicode::letter_or_digit(c);
     let from = source[..start].rfind(|c: char| !word(c)).map_or(0, |i| {
@@ -1048,12 +1057,14 @@ fn destination(source: &str, edit: &Edit) -> String {
     let to = source[end..]
         .find(|c: char| !word(c) && c != '?' && c != '!')
         .map_or(source.len(), |i| end + i);
-    format!(
-        "{}{}{}",
-        &source[from..start],
-        edit.replacement,
-        &source[end..to]
-    )
+    let (before, after) = (&source[from..start], &source[end..to]);
+    let length = before.len() + edit.replacement.len() + after.len();
+    let reserved = work.reserve(length)?;
+    let mut name = String::with_capacity(length);
+    name.push_str(before);
+    name.push_str(&edit.replacement);
+    name.push_str(after);
+    Ok((name, reserved))
 }
 
 /// Whether the name whose suffix starts at `at` stands bare, where it may
@@ -1311,6 +1322,26 @@ mod tests {
         options.limits.steps = None;
         options.limits.memory_bytes = None;
         options
+    }
+
+    #[test]
+    fn a_fix_name_is_charged_before_it_is_built() {
+        let long = 1 << 20;
+        let source = format!("{}? = 1", "x".repeat(long));
+        let edit = Edit {
+            span: Span::new(long, long + 1),
+            replacement: String::new(),
+        };
+        let mut options = unlimited();
+        options.limits.memory_bytes = Some(long / 2);
+        let mut context = CallContext::new(options);
+        let work = Meter(RefCell::new(&mut context));
+        let error = destination(&work, &source, &edit).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Memory, "{error}");
+        let error = symbol_key(&work, &source[..long + 1]).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Memory, "{error}");
+        let (name, _) = destination(&(), &source, &edit).unwrap();
+        assert_eq!(name.len(), long);
     }
 
     #[test]
