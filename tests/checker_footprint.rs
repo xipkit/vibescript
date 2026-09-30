@@ -301,6 +301,34 @@ fn adversarial() -> Vec<(String, String)> {
             join(scale(200_000), &|_| "1".to_owned(), ", ")
         ),
     ));
+    let wide = join(scale(200_000), &|_| "1".to_owned(), ", ");
+    programs.push((
+        "a module body holding a 200,000-element array".to_owned(),
+        format!("module M\n  X = [{wide}]\nend\n"),
+    ));
+    programs.push((
+        "a function holding a 200,000-element array".to_owned(),
+        format!("def f -> int\n  [{wide}].length\nend\n"),
+    ));
+    programs.push((
+        "an implicit block holding a 200,000-element array".to_owned(),
+        format!("x = [1].map {{ [it, {wide}].length }}\n"),
+    ));
+    programs.push((
+        "a mismatch at a statement holding a 200,000-element array".to_owned(),
+        format!("def f -> int\n  x = [{wide}]\nend\n"),
+    ));
+    programs.push((
+        "a module holding 20,000 modules".to_owned(),
+        format!(
+            "module Outer\n{}end\n",
+            join(scale(20_000), &|i| format!("  module M{i}\n  end\n"), "")
+        ),
+    ));
+    programs.push((
+        "a 20,000-part destructuring".to_owned(),
+        format!("{} = []\n", join(scale(20_000), &|i| format!("a{i}"), ", ")),
+    ));
     let entry = "w".repeat(scale(256_000));
     programs.push((
         "percent literals of long entries".to_owned(),
@@ -790,6 +818,46 @@ fn shapes() -> Vec<Shape> {
                 Vec::new(),
                 format!("begin\n  x = [{items}]\nrescue\n  x = []\nend\np(x)\n"),
             )
+        }),
+        ("a module body holding a wide array", |n| {
+            let items = listed(n * 4, |_| "1".to_owned(), ", ");
+            (
+                Vec::new(),
+                format!("module M\n  X = [{items}]\nend\np(M::X.length)\n"),
+            )
+        }),
+        ("a function holding a wide array", |n| {
+            let items = listed(n * 4, |_| "1".to_owned(), ", ");
+            (
+                Vec::new(),
+                format!("def f -> int\n  [{items}].length\nend\np(f)\n"),
+            )
+        }),
+        ("an implicit block holding a wide array", |n| {
+            let items = listed(n * 4, |_| "1".to_owned(), ", ");
+            (
+                Vec::new(),
+                format!("x = [1].map {{ [it, {items}].length }}\np(x)\n"),
+            )
+        }),
+        ("a module holding many modules", |n| {
+            let modules = lines(n, |i| format!("  module M{i}\n  end\n"));
+            (Vec::new(), format!("module Outer\n{modules}end\np(1)\n"))
+        }),
+        ("a wide destructuring", |n| {
+            let targets = listed(n, |i| format!("a{i}"), ", ");
+            (Vec::new(), format!("{targets} = []\np(a0)\n"))
+        }),
+        ("a mismatch at a statement holding a wide array", |n| {
+            let items = listed(n * 4, |_| "1".to_owned(), ", ");
+            (
+                Vec::new(),
+                format!("def f -> int\n  x = [{items}]\nend\np(1)\n"),
+            )
+        }),
+        ("a compound assignment of a wide array", |n| {
+            let items = listed(n * 4, |_| "1".to_owned(), ", ");
+            (Vec::new(), format!("x = [1]\nx += [{items}]\np(x)\n"))
         }),
         ("a very wide interpolation", |n| {
             let literal = listed(n * 4, |_| "1".to_owned(), ",");
