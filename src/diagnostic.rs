@@ -383,6 +383,25 @@ impl Fix {
         output.push_str(&source[cursor..]);
         Some(output)
     }
+
+    /// Whether [`Self::apply`] applies the edits to `source`, without
+    /// building the result.
+    pub(crate) fn applies(&self, source: &str) -> bool {
+        let mut spans: Vec<Span> = self.edits.iter().map(|edit| edit.span).collect();
+        spans.sort_by_key(|span| (span.start, span.end));
+        let mut cursor = 0;
+        for Span { start, end } in spans {
+            if start < cursor
+                || end > source.len()
+                || !source.is_char_boundary(start)
+                || !source.is_char_boundary(end)
+            {
+                return false;
+            }
+            cursor = end;
+        }
+        true
+    }
 }
 
 /// One compile-time finding.

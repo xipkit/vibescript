@@ -58,6 +58,12 @@ const PER_TOKEN: usize = 240;
 /// classes and modules, which grow with the square of their depth.
 const NAME_COPIES: usize = 3;
 
+/// The copies the pass holds at once of each byte of a percent literal's
+/// entries, which it always rewrites as an array literal, beyond its copy
+/// of the token: the entries quoted, the array literal, and the edits and
+/// renderings of the fix, measured over percent literals of long entries.
+const REWRITE_COPIES: usize = 6;
+
 /// About the most memory [`add_to`] holds while it reads a source with
 /// `tokens`, whose interpolations hold what `interpolated` says and whose
 /// classes and modules have qualified names of `names` bytes in all, which
@@ -70,8 +76,18 @@ pub(crate) fn footprint(
     // What the tokens hold, which the pass copies: strings, symbols' names,
     // interpolations' spans and percent literals' entries.
     let payloads: usize = tokens.iter().map(crate::typing::Heap::heap).sum();
+    let rewritten: usize = tokens
+        .iter()
+        .map(|token| match &token.kind {
+            tooling::TokenKind::Words { entries, .. } => {
+                entries.iter().flatten().map(Vec::len).sum()
+            }
+            _ => 0,
+        })
+        .sum();
     (tokens.len() + interpolated.tokens) * PER_TOKEN
         + payloads
+        + rewritten * REWRITE_COPIES
         + interpolated.bytes
         + names * NAME_COPIES
 }
@@ -200,7 +216,7 @@ fn diagnostics(source: &str, tree: &syntax::Tree, calls: &CallTypes) -> Vec<Diag
         };
         let mut diagnostic = Diagnostic::error(code, span(rewrite.span), message);
         let fix = Fix::edits(rewrite.advice.clone(), edits);
-        if !fix.edits.is_empty() && fix.apply(source).is_some() {
+        if !fix.edits.is_empty() && fix.applies(source) {
             diagnostic = diagnostic.with_fix(fix);
         }
         diagnostics.push(diagnostic);
@@ -219,7 +235,7 @@ fn diagnostics(source: &str, tree: &syntax::Tree, calls: &CallTypes) -> Vec<Diag
                 })
                 .collect();
             let fix = Fix::edits(finding.advice.clone(), edits).suggestion();
-            if fix.apply(source).is_some() {
+            if fix.applies(source) {
                 diagnostic = diagnostic.with_fix(fix);
             }
         }

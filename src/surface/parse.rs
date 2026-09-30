@@ -2706,7 +2706,12 @@ impl<'s> Parser<'s> {
         let start = self.start();
         let open = self.pos;
         let tok = self.bump();
-        let kind = self.kind_at(tok).clone();
+        // Only the kinds decided here, which hold nothing on the heap: a
+        // copy of a literal's would duplicate a long string for a moment.
+        let kind = match self.kind_at(tok) {
+            kind @ (TokenKind::Word | TokenKind::Punct(_) | TokenKind::Operator(_)) => kind.clone(),
+            _ => TokenKind::Invalid,
+        };
         let expr = match kind {
             TokenKind::Word => {
                 let word = self.text(tok);
