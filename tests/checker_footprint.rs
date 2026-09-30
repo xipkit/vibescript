@@ -341,6 +341,11 @@ fn adversarial() -> Vec<(String, String)> {
         "percent literals of long entries".to_owned(),
         format!("x = %w[{entry} a]\ny = %i[{entry} b]\n"),
     ));
+    // Each entry the pass rewrites is a quoted copy and its separators.
+    programs.push((
+        "a percent literal of 1,000,000 short entries".to_owned(),
+        format!("x = %w[{}]\n", "a ".repeat(scale(1_000_000))),
+    ));
     let levels = if small { 100 } else { 900 };
     programs.push((
         "nested begins around many assignments".to_owned(),

@@ -24,7 +24,7 @@ mod walk;
 
 #[cfg(test)]
 use checker::check;
-pub(crate) use checker::{add_to, footprint};
+pub(crate) use checker::{add_to, entries, footprint};
 
 use crate::diagnostic::Code;
 use syntax::Span;

@@ -637,11 +637,14 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     // unless the source is too tall to walk or the check stopped early.
     if !too_deep && !stopped {
         // The pass charges a step a token up front, those it lexes again
-        // inside interpolations too, and holds a tree of the tokens beside
-        // what the checker keeps, and for a moment the syntax of each
-        // interpolation it parses again.
+        // inside interpolations too, and each entry of a percent literal
+        // it rewrites, and holds a tree of the tokens beside what the
+        // checker keeps, and for a moment the syntax of each interpolation
+        // it parses again.
         let interpolated = input.parsed.interpolated;
-        let tokens = (input.tokens.len() + interpolated.tokens) as u64;
+        let tokens = (input.tokens.len()
+            + interpolated.tokens
+            + crate::surface::entries(input.tokens)) as u64;
         let names = checker
             .program
             .namespaces

@@ -80,8 +80,13 @@ impl<'a> Checker<'a> {
             return;
         };
         let removed = excerpt(self.text(expr.span));
-        let mut items = Vec::new();
+        let mut items = Vec::with_capacity(entries.len());
         for entry in entries {
+            // Each entry is a step the pass charged up front, and the walk
+            // asks now and then whether the compilation has stopped.
+            if self.halt() {
+                return;
+            }
             let Some(bytes) = entry else {
                 self.report(Finding::new(
                     Rule::PercentLiteral,

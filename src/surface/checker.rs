@@ -81,6 +81,24 @@ const WORD_COPIES: usize = 4;
 /// renderings of the fix, measured over percent literals of long entries.
 const REWRITE_COPIES: usize = 6;
 
+/// The most the rules' pass holds for each entry of a percent literal
+/// beyond its bytes: its quoted copy's place in the list of them, and its
+/// separator in the array literal and in the fix's copies of it, measured
+/// over percent literals of many short entries.
+const PER_ENTRY: usize = 40;
+
+/// The entries of the percent literals among `tokens`, each of which the
+/// rules' pass rewrites, a step each.
+pub(crate) fn entries(tokens: &[tooling::Token]) -> usize {
+    tokens
+        .iter()
+        .map(|token| match &token.kind {
+            tooling::TokenKind::Words { entries, .. } => entries.len(),
+            _ => 0,
+        })
+        .sum()
+}
+
 /// About the most memory [`add_to`] holds while it reads a source with
 /// `tokens`, whose interpolations hold what `interpolated` says and whose
 /// classes and modules have qualified names of `names` bytes in all, which
@@ -109,6 +127,7 @@ pub(crate) fn footprint(
         .map(|token| token.span.len())
         .sum();
     (tokens.len() + interpolated.tokens) * PER_TOKEN
+        + entries(tokens) * PER_ENTRY
         + payloads
         + (words + interpolated.words) * WORD_COPIES
         + rewritten * REWRITE_COPIES
@@ -141,7 +160,7 @@ pub(crate) fn add_to(
     within: &(dyn Fn(u64) -> bool + Sync),
     canonical: &dyn Fn(&str, u64) -> Option<Option<crate::Error>>,
 ) {
-    let read = u64::try_from(tokens.len() + interpolated).unwrap_or(u64::MAX);
+    let read = u64::try_from(tokens.len() + interpolated + entries(tokens)).unwrap_or(u64::MAX);
     checked.steps += read;
     let charged = checked.steps;
     let stop = move || !within(charged);
