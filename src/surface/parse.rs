@@ -34,7 +34,7 @@ pub fn parse(source: &str) -> Result<Tree> {
         too_deep: false,
     })?;
     let starts = Starts::new(&tokens);
-    let mut parser = Parser::new(source, tokens, starts);
+    let mut parser = Parser::new(source, tokens, starts, &|| false);
     parser.declare_types();
     let body = parser.program()?;
     Ok(Tree {
@@ -46,14 +46,27 @@ pub fn parse(source: &str) -> Result<Tree> {
 
 /// Parses `source` from the tokens the compiler read, refusing nesting
 /// deeper than `limit` statements and expressions. The parser recurses once
-/// per level, so the limit bounds the stack it needs.
-pub fn parse_tokens(source: &str, tokens: &[tooling::Token], limit: usize) -> Result<Tree> {
+/// per level, so the limit bounds the stack it needs. It gives up once
+/// `stop`, which it asks now and then, says the compilation has stopped.
+pub fn parse_tokens<'s>(
+    source: &'s str,
+    tokens: &[tooling::Token],
+    limit: usize,
+    stop: Stop<'s>,
+) -> Result<Tree> {
     let tokens = convert(source, tokens, 0);
     let starts = Starts::new(&tokens);
-    let mut parser = Parser::new(source, tokens, starts);
+    let mut parser = Parser::new(source, tokens, starts, stop);
     parser.declare_types();
     parser.limit = limit;
     let body = parser.program();
+    if parser.stopped {
+        return Err(Fail {
+            offset: 0,
+            message: "stopped".to_owned(),
+            too_deep: false,
+        });
+    }
     // A speculative parse that failed at the limit may have been retried
     // another way, so any refusal refuses the source.
     if let Some(offset) = parser.too_deep {
@@ -71,8 +84,69 @@ pub fn parse_tokens(source: &str, tokens: &[tooling::Token], limit: usize) -> Re
     })
 }
 
+#[cfg(test)]
 fn lex(source: &str, base: usize) -> crate::Result<Vec<Token>> {
     Ok(convert(source, &tooling::tokens(source)?, base))
+}
+
+/// Lexes an interpolation's `source`, which starts at `base` in the whole
+/// source, as the compiler reads it, parsing it in full, and gives up once
+/// `stop` says the compilation has stopped.
+fn lex_until(source: &str, base: usize, stop: Stop<'_>) -> crate::Result<Vec<Token>> {
+    let work = Stopping {
+        stop,
+        calls: std::cell::Cell::new(0),
+    };
+    Ok(convert(
+        source,
+        &crate::syntax::record::tokens_within(source, &work)?,
+        base,
+    ))
+}
+
+/// The unmetered work of lexing an interpolation, which the pass charged
+/// in advance, asking now and then whether the compilation has stopped.
+struct Stopping<'s> {
+    stop: Stop<'s>,
+    calls: std::cell::Cell<u32>,
+}
+
+impl Stopping<'_> {
+    /// Fails, every [`POLL`] calls, once the compilation has stopped.
+    fn ask(&self) -> crate::Result<()> {
+        let calls = self.calls.get().wrapping_add(1);
+        self.calls.set(calls);
+        if calls % POLL == 0 && (self.stop)() {
+            return Err(crate::Error::new(crate::ErrorKind::Cancelled, "stopped"));
+        }
+        Ok(())
+    }
+}
+
+impl crate::compilation::Work for Stopping<'_> {
+    fn unmetered(&self) -> bool {
+        true
+    }
+
+    fn charge(&self, _: usize) -> crate::Result<()> {
+        self.ask()
+    }
+
+    fn bytes(&self, _: usize) -> crate::Result<()> {
+        Ok(())
+    }
+
+    fn checkpoint(&self) -> crate::Result<()> {
+        self.ask()
+    }
+
+    fn reserve(&self, _: usize) -> crate::Result<Option<crate::budget::Charge>> {
+        Ok(None)
+    }
+
+    fn allocation_error(&self, message: &str) -> crate::Error {
+        crate::Error::new(crate::ErrorKind::Memory, message)
+    }
 }
 
 fn convert(source: &str, tokens: &[tooling::Token], base: usize) -> Vec<Token> {
@@ -235,7 +309,21 @@ struct Parser<'s> {
     too_deep: Option<usize>,
     /// The type aliases, classes and enums the source declares anywhere.
     type_names: std::rc::Rc<HashSet<String>>,
+    /// Whether the compilation has stopped, which the parser asks every
+    /// [`POLL`] levels of nesting and before it lexes an interpolation.
+    stop: Stop<'s>,
+    /// The levels entered since the parser last asked [`Self::stop`].
+    unpolled: u32,
+    /// Whether the parser gave up because the compilation stopped.
+    stopped: bool,
 }
+
+/// Whether the compilation a parse is part of has stopped.
+pub type Stop<'s> = &'s (dyn Fn() -> bool + Sync);
+
+/// How many levels of nesting the parser enters between asking whether the
+/// compilation has stopped.
+const POLL: u32 = 256;
 
 /// Parser state that a speculative parse restores.
 struct Saved {
@@ -254,7 +342,7 @@ struct Saved {
 }
 
 impl<'s> Parser<'s> {
-    fn new(source: &'s str, tokens: Vec<Token>, starts: Starts) -> Self {
+    fn new(source: &'s str, tokens: Vec<Token>, starts: Starts, stop: Stop<'s>) -> Self {
         Self {
             source,
             tokens,
@@ -281,6 +369,9 @@ impl<'s> Parser<'s> {
             limit: usize::MAX,
             too_deep: None,
             type_names: std::rc::Rc::default(),
+            stop,
+            unpolled: 0,
+            stopped: false,
         }
     }
 
@@ -1065,8 +1156,19 @@ impl<'s> Parser<'s> {
         self.nested(Self::unnested_declaration)
     }
 
-    /// Runs `parse` one level deeper, failing past the nesting limit.
+    /// Runs `parse` one level deeper, failing past the nesting limit or once
+    /// the compilation has stopped.
     fn nested<T>(&mut self, parse: impl FnOnce(&mut Self) -> Result<T>) -> Result<T> {
+        if !self.stopped {
+            self.unpolled += 1;
+            if self.unpolled >= POLL {
+                self.unpolled = 0;
+                self.stopped = (self.stop)();
+            }
+        }
+        if self.stopped {
+            return self.fail("stopped");
+        }
         if self.depth >= self.limit {
             self.too_deep.get_or_insert(self.start());
             return self.fail("nesting too deep");
@@ -2815,8 +2917,19 @@ impl<'s> Parser<'s> {
     /// The fragment's tokens join the tree's after its end, so every token
     /// index in the tree refers to one list.
     fn interpolation(&mut self, span: std::ops::Range<usize>) -> Option<Expr> {
+        // Lexing an interpolation parses it in full, so the parser asks
+        // before each one whether the compilation has stopped.
+        if !self.stopped {
+            self.stopped = (self.stop)();
+        }
+        if self.stopped {
+            return None;
+        }
         let text = &self.source[span.clone()];
-        let tokens = lex(text, span.start).ok()?;
+        let Ok(tokens) = lex_until(text, span.start, self.stop) else {
+            self.stopped = (self.stop)();
+            return None;
+        };
         let base = self.tokens.len();
         self.tokens.extend(tokens);
         self.starts.extend(&self.tokens, base);
@@ -2824,6 +2937,7 @@ impl<'s> Parser<'s> {
             self.source,
             std::mem::take(&mut self.tokens),
             std::mem::take(&mut self.starts),
+            self.stop,
         );
         parser.pos = base;
         parser.floor = base;
@@ -2837,6 +2951,7 @@ impl<'s> Parser<'s> {
         parser.lines();
         let complete = parser.eof(parser.pos);
         self.too_deep = self.too_deep.or(parser.too_deep);
+        self.stopped |= parser.stopped;
         // What the interpolation declared stays in it.
         parser.undo_locals(0);
         self.locals = parser.locals;

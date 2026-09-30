@@ -911,7 +911,7 @@ fn the_rules_parser_reads_tuples_of_shapes_and_tuples() {
         "enum Status\nDraft\nend\nrows: array<[[Status], int]> = [[[:draft], 2]]\nrows.map { |((state: Status), n: int)| state }\n",
     ] {
         let tokens = crate::tooling::tokens(source).unwrap();
-        super::parse::parse_tokens(source, &tokens, usize::MAX)
+        super::parse::parse_tokens(source, &tokens, usize::MAX, &|| false)
             .unwrap_or_else(|error| panic!("{source}: {error:?}"));
     }
     let checked = crate::Engine::new()
@@ -935,7 +935,7 @@ fn the_rules_parser_reads_called_groups_and_tuple_type_arguments() {
         "x = JSON.parse_as(\"[]\", [string, array<int>])",
     ] {
         let tokens = crate::tooling::tokens(source).unwrap();
-        super::parse::parse_tokens(source, &tokens, usize::MAX)
+        super::parse::parse_tokens(source, &tokens, usize::MAX, &|| false)
             .unwrap_or_else(|error| panic!("{source}: {error:?}"));
     }
     let checked = crate::Engine::new()

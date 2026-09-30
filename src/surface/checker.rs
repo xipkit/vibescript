@@ -26,7 +26,14 @@ const DEEP_STACK: usize = 256 << 20;
 #[cfg(test)]
 pub fn check(source: &str) -> crate::Result<Vec<Diagnostic>> {
     let tokens = tooling::tokens(source)?;
-    Ok(walk(source, &tokens, &CallTypes::default(), &mut || true).unwrap_or_default())
+    Ok(walk(
+        source,
+        &tokens,
+        &CallTypes::default(),
+        &mut || true,
+        &|| false,
+    )
+    .unwrap_or_default())
 }
 
 /// The removed spellings in `source`, whose tokens the compiler read, in
@@ -34,17 +41,19 @@ pub fn check(source: &str) -> crate::Result<Vec<Diagnostic>> {
 /// gives the static checker's receiver types, which decide the rename of a
 /// member whose replacement depends on its receiver. A source nested past
 /// [`NESTING`] is parsed again without the limit only if `afford`, which
-/// charges that parse, allows it.
-fn walk(
-    source: &str,
+/// charges that parse, allows it. A parse gives up, and the walk reads
+/// nothing, once `stop` says the compilation has stopped.
+fn walk<'s>(
+    source: &'s str,
     tokens: &[tooling::Token],
     calls: &CallTypes,
     afford: &mut dyn FnMut() -> bool,
+    stop: parse::Stop<'s>,
 ) -> Option<Vec<Diagnostic>> {
-    match parse::parse_tokens(source, tokens, NESTING) {
+    match parse::parse_tokens(source, tokens, NESTING, stop) {
         Ok(tree) => Some(diagnostics(source, &tree, calls)),
         // A parse that never reached the limit fails the same way without it.
-        Err(fail) if fail.too_deep && afford() => deep(source, tokens, calls),
+        Err(fail) if fail.too_deep && afford() => deep(source, tokens, calls, stop),
         Err(_) => None,
     }
 }
@@ -104,21 +113,25 @@ pub(crate) fn footprint(
 /// or one the rules cannot read, is charged the same steps, and taken only
 /// if `within` says the steps it brings the check to are within its
 /// budget. Otherwise the check stops, and compilation fails charging them.
+/// A parse also asks `within` now and then whether the budget has run out
+/// since, as a deadline or a cancellation does, and gives up if it has.
 pub(crate) fn add_to(
     checked: &mut crate::typing::Checked,
     source: &str,
     tokens: &[tooling::Token],
     interpolated: usize,
-    within: &dyn Fn(u64) -> bool,
+    within: &(dyn Fn(u64) -> bool + Sync),
 ) {
     let read = u64::try_from(tokens.len() + interpolated).unwrap_or(u64::MAX);
     checked.steps += read;
+    let charged = checked.steps;
+    let stop = move || !within(charged);
     let mut steps = checked.steps;
     let mut afford = || {
         steps = steps.saturating_add(read);
         within(steps)
     };
-    let walked = walk(source, tokens, &checked.calls, &mut afford);
+    let walked = walk(source, tokens, &checked.calls, &mut afford, &stop);
     let Some(surface) = walked else {
         // The compiler's grammar reads the removed syntax only so that these
         // rules report it. A source they cannot read must parse without
@@ -164,12 +177,17 @@ pub(crate) fn add_to(
 }
 
 #[cfg(not(target_os = "wasi"))]
-fn deep(source: &str, tokens: &[tooling::Token], calls: &CallTypes) -> Option<Vec<Diagnostic>> {
+fn deep<'s>(
+    source: &'s str,
+    tokens: &[tooling::Token],
+    calls: &CallTypes,
+    stop: parse::Stop<'s>,
+) -> Option<Vec<Diagnostic>> {
     std::thread::scope(|scope| {
         std::thread::Builder::new()
             .stack_size(DEEP_STACK)
             .spawn_scoped(scope, || {
-                parse::parse_tokens(source, tokens, usize::MAX)
+                parse::parse_tokens(source, tokens, usize::MAX, stop)
                     .ok()
                     .map(|tree| diagnostics(source, &tree, calls))
             })
@@ -182,7 +200,12 @@ fn deep(source: &str, tokens: &[tooling::Token], calls: &CallTypes) -> Option<Ve
 /// WASI preview 1 cannot start a thread with a larger stack, so a source
 /// nested this deeply goes unread there.
 #[cfg(target_os = "wasi")]
-fn deep(_: &str, _: &[tooling::Token], _: &CallTypes) -> Option<Vec<Diagnostic>> {
+fn deep(
+    _: &str,
+    _: &[tooling::Token],
+    _: &CallTypes,
+    _: parse::Stop<'_>,
+) -> Option<Vec<Diagnostic>> {
     None
 }
 
