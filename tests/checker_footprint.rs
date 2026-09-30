@@ -899,6 +899,19 @@ fn shapes() -> Vec<Shape> {
             let literal = listed(n * 4, |_| "1".to_owned(), ",");
             (Vec::new(), format!("x = \"#{{[{literal}]}}\"\np(x)\n"))
         }),
+        ("many functions each around nested begins", |n| {
+            // Each level's handlers list the locals of every level inside
+            // it, which the program keeps for each function.
+            let levels = if cfg!(target_os = "wasi") { 20 } else { 40 };
+            let body = format!(
+                "{}{}{}",
+                "  begin\n".repeat(levels),
+                lines(levels, |i| format!("  x{i} = {i}\n")),
+                "  rescue\n  c = 1\n  end\n".repeat(levels)
+            );
+            let functions = lines(n / 40 + 1, |i| format!("def f{i} -> int\n{body}  0\nend\n"));
+            (Vec::new(), format!("{functions}p(1)\n"))
+        }),
         ("many classes with one default each", |n| {
             let classes = lines(n, |i| format!("class C{i}\n  @v: int = {i}\nend\n"));
             (Vec::new(), format!("{classes}p(1)\n"))

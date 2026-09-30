@@ -772,6 +772,10 @@ pub(crate) fn compile_parsed(
         program.register_module(module, "", &mut defs, &mut contexts, &mut typing, work)?;
     }
     program.functions = (0..defs.len()).map(|_| Function::default()).collect();
+    // The locals each function's `begin`s have their handlers reset, which
+    // the program keeps: charged until the whole program is compiled, not
+    // only until each function is.
+    let mut handler_locals = None;
     for (index, def) in defs.into_iter().enumerate() {
         work.bytes(def.name.len())?;
         let binds_parameters = def
@@ -815,6 +819,7 @@ pub(crate) fn compile_parsed(
         let params = compiling.params.take();
         let proven = compiling.proven.take();
         let mut c = compiling.compiler.into_inner();
+        crate::budget::Charge::merge(&mut handler_locals, c.handler_locals.take());
         let finish = c.emit(Op::Finish);
         c.locations[finish] = def.body.last().map_or(def.offset, |stmt| stmt.offset);
         // The top level, a namespace body and an accessor keep their
@@ -1038,7 +1043,7 @@ struct Compiler<'a> {
     /// The reservation of the locals each `begin`'s handlers reset, which
     /// the generated code keeps. Nested `begin`s each list the locals of
     /// every level inside them, so the lists can grow with the square of
-    /// the source; they stay charged until the function is generated.
+    /// the source; they stay charged until the program is compiled.
     handler_locals: Option<crate::budget::Charge>,
 }
 
