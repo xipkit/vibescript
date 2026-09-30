@@ -1581,6 +1581,32 @@ fn ordinary_hashes_validate_their_callable_fields() {
 }
 
 #[test]
+fn a_fix_never_leaves_a_name_its_declaration_cannot_take() {
+    for source in [
+        // A type alias or an enum cannot take a builtin type's name.
+        "type int! = string",
+        "type Int! = string",
+        "enum int!; A; end",
+        "enum Time!; A; end",
+        // A member cannot normalize to another's symbol.
+        "enum S; Ready; READY?; end",
+        // A constant cannot rebind a prelude namespace.
+        "Math! = 1; Math!",
+    ] {
+        let Err(error) = Engine::new().type_check(source) else {
+            panic!("{source} checks");
+        };
+        let diagnostic = &error.diagnostics()[0];
+        assert_eq!(diagnostic.code, Code::NAME_SUFFIX, "{source}: {error}");
+        assert!(diagnostic.fixes.is_empty(), "{source}: {diagnostic:?}");
+    }
+    // A class may take a prelude namespace's name.
+    let fixed = first_fix("class Math!; end; Math!.new");
+    assert_eq!(fixed, "class Math; end; Math.new");
+    Engine::new().type_check(&fixed).unwrap();
+}
+
+#[test]
 fn type_alias_names_are_renamed_with_every_type_that_reads_them() {
     for (source, fixed) in [
         (

@@ -87,10 +87,14 @@ there is no fix rather than one that renames only part of it. Nor is there one
 that would leave a name the file already spells anywhere, as a binding, method,
 namespace, member, label, symbol or nullable type, or that an earlier fix
 leaves, since applying it would make two names one: `x = 1; x? = 2; [x, x?]`
-reports V0003 without a fix, where renaming would read `x` twice. A required
-file's public functions bind in the requiring script only where their names are
-free, so a rename there cannot capture one. A suffixed name that no suffixed
-binding owns, such as a call of a host's `ready?`, is never renamed.
+reports V0003 without a fix, where renaming would read `x` twice. Nor is there
+one leaving a name its declaration cannot take: a builtin or prelude type's for
+a type alias or enum, a prelude namespace's, function's or global's for a
+constant, or one an enum member would share, once normalized to a symbol, with
+another name. A required file's public functions bind in the requiring script
+only where their names are free, so a rename there cannot capture one. A
+suffixed name that no suffixed binding owns, such as a call of a host's
+`ready?`, is never renamed.
 
 Member assignment targets also have no suffix: `h.ready? = 1`, compound
 updates such as `h.ready! += 1`, and destructuring targets report V0003.

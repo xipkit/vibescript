@@ -314,6 +314,8 @@ impl Parser<'_> {
             let id = uses.binding(self.work, name, Some(namespace), suffix)?;
             uses.nameable
                 .push(self.work, (id, Name::new(self.work, name)?))?;
+            let member = at_key(self.work, "m", suffix)?;
+            uses.recorded.insert(self.work, member, 0)?;
         }
         Ok(())
     }
@@ -987,8 +989,10 @@ fn extended(
 /// Clears each V0003 fix that would leave a name the source already spells
 /// anywhere, or that an earlier fix leaves: applied, it would make two
 /// names one, as `x = 1; x? = 2; [x, x?]` would read the same binding
-/// twice. Every fix is cleared when the source does not lex, since its
-/// names are then unknown.
+/// twice. So is one whose name its declaration cannot take: a type alias's
+/// or an enum's that names a builtin type, or an enum member's that
+/// normalizes to the symbol of a name the source spells. Every fix is
+/// cleared when the source does not lex, since its names are then unknown.
 fn withhold_collisions(
     work: &dyn Work,
     source: &str,
@@ -998,6 +1002,8 @@ fn withhold_collisions(
     let spelled = uses.spelled.as_ref();
     // The names the fixes kept so far leave.
     let mut taken: Table<()> = Table::new();
+    // The symbols the spelled names normalize to, once a member needs them.
+    let mut symbols: Option<Table<()>> = None;
     for diagnostic in diagnostics.iter_mut() {
         work.charge(1)?;
         if diagnostic.code != Code::NAME_SUFFIX || diagnostic.fixes.is_empty() {
@@ -1015,7 +1021,10 @@ fn withhold_collisions(
             if left.last().is_some_and(|last| **last == *name) {
                 continue;
             }
-            if spelled.contains(work, &name)? || taken.contains(work, &name)? {
+            if spelled.contains(work, &name)?
+                || taken.contains(work, &name)?
+                || !declarable(work, source, uses, spelled, &mut symbols, edit, &name)?
+            {
                 collides = true;
                 break;
             }
@@ -1030,6 +1039,70 @@ fn withhold_collisions(
         }
     }
     Ok(())
+}
+
+/// Whether the declaration an edit renames can take `name`: a type alias
+/// or an enum cannot take a builtin or prelude type's, an enum member cannot
+/// take one that normalizes to the symbol of a name the source spells, as
+/// `READY` does to that of a member `Ready`, and a capitalized binding, a
+/// constant, cannot rebind a prelude namespace, function or global.
+fn declarable(
+    work: &dyn Work,
+    source: &str,
+    uses: &Uses,
+    spelled: &Table<()>,
+    symbols: &mut Option<Table<()>>,
+    edit: &Edit,
+    name: &str,
+) -> Result<bool> {
+    let start = source[..edit.span.start]
+        .rfind(|c: char| c != '_' && c != '@' && !super::unicode::letter_or_digit(c))
+        .map_or(0, |i| {
+            i + source[i..].chars().next().map_or(0, char::len_utf8)
+        });
+    let keyword = source[..start]
+        .trim_end()
+        .rsplit(|c: char| !super::unicode::letter_or_digit(c) && c != '_')
+        .next()
+        .unwrap_or_default();
+    let prelude = |types: bool| {
+        crate::signatures::table()
+            .items
+            .iter()
+            .any(|item| match item {
+                crate::signatures::Item::Alias(alias) => types && alias.name == name,
+                crate::signatures::Item::Function(function) => !types && function.name == name,
+                crate::signatures::Item::Constant(constant) => !types && constant.name == name,
+                crate::signatures::Item::Module(module) => !types && module.name == name,
+                _ => false,
+            })
+    };
+    if matches!(keyword, "type" | "enum") {
+        return Ok(crate::types::builtin_name(name).is_none() && !prelude(true));
+    }
+    let at = u32::try_from(edit.span.start).unwrap_or(u32::MAX);
+    if !uses.recorded.contains(work, &at_key(work, "m", at)?)? {
+        let constant = name.starts_with(super::unicode::upper);
+        return Ok(matches!(keyword, "class" | "module") || !constant || !prelude(false));
+    }
+    if symbols.is_none() {
+        let mut normalized = Table::new();
+        for (spelling, ()) in spelled.iter(work)? {
+            work.charge(1)?;
+            let _reserved = work.reserve(spelling.len().saturating_mul(4))?;
+            let symbol = crate::enums::symbol(spelling);
+            if !normalized.contains(work, &symbol)? {
+                normalized.insert(work, Name::new(work, &symbol)?, ())?;
+            }
+        }
+        *symbols = Some(normalized);
+    }
+    let _reserved = work.reserve(name.len().saturating_mul(4))?;
+    let symbol = crate::enums::symbol(name);
+    match symbols {
+        Some(symbols) => Ok(!symbols.contains(work, &symbol)?),
+        None => Ok(true),
+    }
 }
 
 /// The name an edit of a V0003 fix leaves: the word it edits as it reads
