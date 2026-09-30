@@ -373,17 +373,36 @@ impl<'a> Checker<'a> {
     fn defaults_of(&mut self, offset: u32) -> Vec<(&'a Stmt, Option<&'a str>)> {
         if self.defaults.is_none() {
             let additions = &self.parsed.additions;
-            let names: HashMap<(u32, u32), &'a str> = additions
-                .ivars
-                .iter()
-                .map(|(class, ivar)| ((*class, ivar.offset), ivar.name.as_str()))
-                .collect();
-            self.transient(super::meter::map(&names));
+            // Both indexes are counted before they are built: the names by
+            // class and offset, and each class's defaults, which take at
+            // most four places a class, or twice their number.
+            let (ivars, count) = (additions.ivars.len(), additions.defaults.len());
+            let most = super::meter::table::<((u32, u32), &str)>(ivars)
+                + super::meter::table::<(u32, Vec<(&Stmt, Option<&str>)>)>(count)
+                + 4 * count * std::mem::size_of::<(&Stmt, Option<&str>)>();
+            self.transient(most);
+            if self.halted() {
+                return Vec::new();
+            }
+            let mut names: HashMap<(u32, u32), &'a str> = HashMap::with_capacity(ivars);
             let mut defaults: HashMap<u32, Vec<(&'a Stmt, Option<&'a str>)>> = HashMap::new();
-            for (class, stmt) in additions.defaults.iter() {
+            // Each entry is a step, and the budget is checked as a walk
+            // checks it.
+            let pace = super::walk::PACE as usize;
+            for (index, (class, ivar)) in additions.ivars.iter().enumerate() {
+                if index % pace == pace - 1 && self.meter.pace(pace as u64, most) {
+                    return Vec::new();
+                }
+                names.insert((*class, ivar.offset), ivar.name.as_str());
+            }
+            for (index, (class, stmt)) in additions.defaults.iter().enumerate() {
+                if index % pace == pace - 1 && self.meter.pace(pace as u64, most) {
+                    return Vec::new();
+                }
                 let name = names.get(&(*class, stmt.offset)).copied();
                 defaults.entry(*class).or_default().push((stmt, name));
             }
+            self.meter.charge(((ivars % pace) + (count % pace)) as u64);
             let bytes = super::meter::map(&defaults)
                 + defaults.values().map(super::meter::vec).sum::<usize>();
             self.hold(bytes);

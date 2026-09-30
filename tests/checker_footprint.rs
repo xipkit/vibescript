@@ -899,6 +899,10 @@ fn shapes() -> Vec<Shape> {
             let literal = listed(n * 4, |_| "1".to_owned(), ",");
             (Vec::new(), format!("x = \"#{{[{literal}]}}\"\np(x)\n"))
         }),
+        ("many classes with one default each", |n| {
+            let classes = lines(n, |i| format!("class C{i}\n  @v: int = {i}\nend\n"));
+            (Vec::new(), format!("{classes}p(1)\n"))
+        }),
         ("many empty functions and classes", |n| {
             let functions = lines(n, |i| format!("def f{i}\nend\n"));
             let classes = lines(n, |i| format!("class C{i}\nend\n"));
