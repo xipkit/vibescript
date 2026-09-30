@@ -498,6 +498,9 @@ impl<'a> Checker<'a> {
         if self.program.file && !main {
             let locals = self.program.file_locals.clone();
             self.transient(locals.heap());
+            // Each function declares every one of the file's locals, a step
+            // each.
+            self.meter.charge(locals.len() as u64);
             for (name, (ty, offset)) in locals {
                 if !def.params.iter().any(|param| param.name == name) {
                     let id = self.declare(&name, ty, offset, true);
