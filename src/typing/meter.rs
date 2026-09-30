@@ -472,7 +472,11 @@ impl<'a> super::Checker<'a> {
     /// their names in the type table.
     pub(super) fn declared(&mut self) {
         self.declared_bytes = self.program.heap() + self.types.names.heap() + self.modules.heap();
-        self.meter.outside(self.outside());
+        // Declarations with nothing to check can grow the program to any
+        // size between the checker's polls, so each measure of them is
+        // checked against the budget.
+        self.check_memory(0);
+        self.over_budget();
     }
 
     /// What the checker's tables other than the type table hold.

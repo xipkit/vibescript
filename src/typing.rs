@@ -527,9 +527,13 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     checker.declare_hosts(input.declared);
     checker.program.file = input.file;
     checker.declare_program(input.parsed);
-    checker.check_retained_declarations(input.declared, input.parsed);
-    checker.declared();
-    checker.check_all();
+    // A check that ran out of its budget declaring the program checks none
+    // of it.
+    if !checker.halted() {
+        checker.check_retained_declarations(input.declared, input.parsed);
+        checker.declared();
+        checker.check_all();
+    }
     let steps = checker.total_steps();
     checker.held();
     let stopped = checker.stopped || meter.stopped();

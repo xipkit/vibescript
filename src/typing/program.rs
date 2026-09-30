@@ -362,7 +362,11 @@ impl<'a> Checker<'a> {
             self.types.names.enums.push(name.to_string());
             self.declaring();
         }
+        // A check that runs out of its budget stops declaring.
         for module in &parsed.modules {
+            if self.halted() {
+                return;
+            }
             self.namespace(module, None);
         }
         for (scope, alias) in &parsed.additions.aliases {
@@ -379,6 +383,9 @@ impl<'a> Checker<'a> {
         self.require_modules(parsed);
         // Signatures after every name is known, so annotations resolve.
         for (index, def) in parsed.functions.iter().enumerate() {
+            if self.halted() {
+                return;
+            }
             let main = index == 0;
             let block = (!main).then(|| block_param(parsed, def.offset)).flatten();
             let id = self.function(def, None, false, block, main, Visibility::Public);
@@ -387,6 +394,9 @@ impl<'a> Checker<'a> {
             }
         }
         for ns in 0..self.program.namespaces.len() {
+            if self.halted() {
+                return;
+            }
             let Some(module) = self.program.namespaces[ns].module else {
                 continue;
             };
