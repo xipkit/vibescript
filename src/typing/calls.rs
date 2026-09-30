@@ -1669,7 +1669,7 @@ impl<'a> Checker<'a> {
         }
         self.transient(keywords.capacity() * std::mem::size_of::<std::borrow::Cow<'_, str>>());
         let declared = call.block.map(|block| {
-            let (arity, scratch) = block_arity(block);
+            let (arity, scratch) = block_arity(&self.meter, block);
             self.transient(scratch);
             arity
         });
@@ -2616,33 +2616,32 @@ impl<'a> Checker<'a> {
 }
 
 /// How many parameters a block declares: its explicit list, or the highest
-/// numbered parameter or `it` it reads; with the bytes of the lists the
-/// walk kept.
-fn block_arity(block: &Block) -> (usize, usize) {
+/// numbered parameter or `it` it reads, charging the walk that finds them
+/// to `meter`; with the bytes of the stack the walk kept.
+fn block_arity(meter: &super::meter::Meter, block: &Block) -> (usize, usize) {
+    use super::walk::{Item, Next, Walk};
+    use crate::syntax::Statement;
     if !block.implicit {
         return (block.params.len(), 0);
     }
     let mut arity = 0;
-    let mut pending: Vec<&Expr> = Vec::new();
-    let mut statements: Vec<&crate::syntax::Stmt> = block.body.iter().collect();
-    while let Some(stmt) = statements.pop() {
-        match &stmt.node {
-            crate::syntax::Statement::Expr(e) => pending.push(e),
-            crate::syntax::Statement::Assign(_, _, e) => pending.push(e),
-            crate::syntax::Statement::Return(Some(e))
-            | crate::syntax::Statement::Next(Some(e))
-            | crate::syntax::Statement::Break(Some(e)) => pending.push(e),
-            crate::syntax::Statement::If(branches, alternate, _) => {
-                for (c, body) in branches.iter() {
-                    pending.push(c);
-                    statements.extend(body.iter());
+    let mut walk = Walk::new(meter);
+    walk.stmts(&block.body, ());
+    while let Some((item, ())) = walk.next(0) {
+        match item {
+            Item::Stmt(stmt) => match &stmt.node {
+                Statement::Expr(e)
+                | Statement::Assign(_, _, e)
+                | Statement::Return(Some(e))
+                | Statement::Next(Some(e))
+                | Statement::Break(Some(e)) => walk.expr(e, ()),
+                Statement::If(branches, alternate, _) => {
+                    walk.push(Next::Clauses(branches.iter()), ());
+                    walk.stmts(alternate, ());
                 }
-                statements.extend(alternate.iter());
-            }
-            _ => (),
-        }
-        while let Some(e) = pending.pop() {
-            match &e.node {
+                _ => (),
+            },
+            Item::Expr(e) => match &e.node {
                 Node::Var(name) if name.as_str() == "it" => arity = arity.max(1),
                 Node::Var(name) => {
                     if let Some(n) = name.strip_prefix('_').and_then(|n| n.parse::<usize>().ok()) {
@@ -2650,38 +2649,37 @@ fn block_arity(block: &Block) -> (usize, usize) {
                     }
                 }
                 Node::Binary(_, l, r) => {
-                    pending.push(l);
-                    pending.push(r);
+                    walk.expr(l, ());
+                    walk.expr(r, ());
                 }
-                Node::Unary(_, v) => pending.push(v),
+                Node::Unary(_, v) => walk.expr(v, ()),
                 Node::Method(r, _, args, _) | Node::SafeMethod(r, _, args, _) => {
-                    pending.push(r);
-                    pending.extend(args.iter().map(|a| &a.value));
+                    walk.expr(r, ());
+                    walk.push(Next::Arguments(args.iter()), ());
                 }
-                Node::Member(r, _) | Node::SafeMember(r, _) => pending.push(r),
+                Node::Member(r, _) | Node::SafeMember(r, _) => walk.expr(r, ()),
                 Node::Call(name, args, _) => {
                     if name.as_str() == "it" {
                         arity = arity.max(1);
                     }
-                    pending.extend(args.iter().map(|a| &a.value));
+                    walk.push(Next::Arguments(args.iter()), ());
                 }
                 Node::Index(r, s) => {
-                    pending.push(r);
-                    pending.extend(s.iter());
+                    walk.expr(r, ());
+                    walk.push(Next::Exprs(s.iter()), ());
                 }
-                Node::Array(items) | Node::Template(items, _) => pending.extend(items.iter()),
-                Node::Hash(entries) => pending.extend(entries.iter().map(|(_, v)| v)),
+                Node::Array(items) | Node::Template(items, _) => {
+                    walk.push(Next::Exprs(items.iter()), ());
+                }
+                Node::Hash(entries) => walk.push(Next::Pairs(entries.iter()), ()),
                 Node::Conditional(branches, alternate) => {
-                    for (c, v) in branches.iter() {
-                        pending.push(c);
-                        pending.push(v);
-                    }
-                    pending.push(alternate);
+                    walk.push(Next::Branches(branches.iter()), ());
+                    walk.expr(alternate, ());
                 }
                 _ => (),
-            }
+            },
+            Item::Target(_) => (),
         }
     }
-    let scratch = (statements.capacity() + pending.capacity()) * std::mem::size_of::<usize>();
-    (arity, scratch)
+    (arity, walk.bytes())
 }
