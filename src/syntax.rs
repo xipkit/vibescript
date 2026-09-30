@@ -580,28 +580,41 @@ impl Target {
             };
         }
     }
-    // Destructuring nests as deeply as the syntax limit, so walk it without recursion.
+    // Destructuring nests as deeply as the syntax limit, so walk it without
+    // recursion, in source order, keeping what is left of each level's
+    // parts rather than every part at once.
     fn parts(&self, mut visit: impl FnMut(&Self, u32) -> bool) -> bool {
-        let mut pending = vec![(self, 0)];
-        while let Some((target, depth)) = pending.pop() {
+        // What is left of each level's parts, and its depth.
+        type Level<'t> = (std::slice::Iter<'t, (Option<Target>, bool)>, u32);
+        let mut levels: Vec<Level<'_>> = Vec::new();
+        let mut next = Some((self, 0));
+        loop {
+            let (target, depth) = match next.take() {
+                Some(next) => next,
+                None => {
+                    let Some((level, depth)) = levels.last_mut() else {
+                        return true;
+                    };
+                    let depth = *depth;
+                    match level.next() {
+                        Some((Some(target), _)) => (target, depth),
+                        Some((None, _)) => continue,
+                        None => {
+                            levels.pop();
+                            continue;
+                        }
+                    }
+                }
+            };
             if !visit(target, depth) {
                 return false;
             }
             match target {
-                Self::Typed(target, _) => pending.push((target, depth)),
+                Self::Typed(target, _) => next = Some((target, depth)),
                 Self::Value(_) => (),
-                Self::Tuple(parts) => {
-                    pending.extend(
-                        parts
-                            .iter()
-                            .rev()
-                            .filter_map(|(t, _)| t.as_ref())
-                            .map(|t| (t, depth + 1)),
-                    );
-                }
+                Self::Tuple(parts) => levels.push((parts.iter(), depth + 1)),
             }
         }
-        true
     }
     fn is_binding(&self) -> bool {
         self.parts(|target, _| match target {
