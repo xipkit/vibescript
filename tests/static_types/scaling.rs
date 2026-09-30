@@ -260,8 +260,11 @@ fn doubling_a_program_at_most_doubles_the_checking_work() {
 fn a_deep_nest_around_many_assignments_checks_in_linear_work() {
     // Each level's rescue and ensure may see what the levels inside assign;
     // listing those assignments again at every level once took work and
-    // memory proportional to the depth times the assignments. The one walk
-    // that lists them is charged a step for each statement and expression.
+    // memory proportional to the depth times the assignments. The walks
+    // that list them, find the files the program requires and whether a
+    // function yields are each charged a step for each statement and
+    // expression, and on WASI, where the pass over the canonical surface
+    // cannot read syntax this deep, a parse of the source is charged again.
     let levels = if cfg!(target_os = "wasi") { 100 } else { 900 };
     let source = format!(
         "x: int? = 1\nc = true\n{}{}{}",
@@ -271,7 +274,7 @@ fn a_deep_nest_around_many_assignments_checks_in_linear_work() {
     );
     let steps = steps(&source);
     assert!(
-        steps < 3 * source.len() as u64,
+        steps < 4 * source.len() as u64,
         "{steps} steps for {} bytes",
         source.len()
     );

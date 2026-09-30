@@ -7,6 +7,7 @@ use super::{
     program::{Enum, FnDecl, Namespace, NsId},
     sigs::{BlockSig, Param, Sig},
     ty::{Field, Kind, Ty, Types},
+    walk::{Item, Next, Walk},
 };
 use crate::{
     capability::Registered,
@@ -186,21 +187,36 @@ impl<'a> Checker<'a> {
             return;
         }
         let mut requests = Vec::new();
-        let mut bodies: Vec<&[Stmt]> = parsed.functions.iter().map(|f| &f.body[..]).collect();
-        let mut pending: Vec<&crate::syntax::modules::Module> = parsed.modules.iter().collect();
-        while let Some(module) = pending.pop() {
-            bodies.push(&module.body);
-            bodies.extend(module.methods.iter().map(|(def, _)| &def.body[..]));
-            bodies.extend(module.instance_methods.iter().map(|(def, _)| &def.body[..]));
-            pending.extend(module.modules.iter().chain(&module.inner));
+        // What the paths and aliases found hold.
+        let mut found = 0;
+        let mut walk = Walk::new(&self.meter);
+        for function in parsed.functions.iter() {
+            requires(&mut walk, &function.body, &mut requests, &mut found);
         }
-        // The bodies stay listed while each is walked.
-        let held = self.hold(super::meter::vec(&bodies) + super::meter::vec(&pending));
-        for body in bodies {
-            let scratch = requires(body, &mut requests);
-            self.transient(scratch);
+        // What is left of the namespaces at each level of nesting, whose
+        // bodies and methods are walked in turn.
+        let mut levels = vec![parsed.modules.iter().chain([].iter())];
+        while let Some(level) = levels.last_mut() {
+            let Some(module) = level.next() else {
+                levels.pop();
+                continue;
+            };
+            requires(&mut walk, &module.body, &mut requests, &mut found);
+            for (def, _) in module.methods.iter() {
+                requires(&mut walk, &def.body, &mut requests, &mut found);
+            }
+            for (def, _) in module.instance_methods.iter() {
+                requires(&mut walk, &def.body, &mut requests, &mut found);
+            }
+            levels.push(module.modules.iter().chain(module.inner.iter()));
         }
-        self.release(held);
+        let scratch = walk.bytes() + super::meter::vec(&levels);
+        drop(walk);
+        self.transient(scratch + super::meter::vec(&requests) + found);
+        // A check past its budget loads no files.
+        if self.halted() {
+            return;
+        }
         requests.sort_unstable_by_key(|request| request.2);
         for (path, alias, offset) in requests {
             // A check past its budget loads no more files.
@@ -637,50 +653,48 @@ impl<'a> Checker<'a> {
     }
 }
 
-/// The literal paths, and aliases, of the `require` calls in statements,
-/// and the bytes of the lists the walk kept.
-fn requires(body: &[Stmt], out: &mut Vec<(String, Option<String>, usize)>) -> usize {
-    let mut statements: Vec<&Stmt> = body.iter().collect();
-    let mut expressions: Vec<&Expr> = Vec::new();
-    loop {
-        if let Some(expr) = expressions.pop() {
-            visit(expr, &mut statements, &mut expressions, out);
-            continue;
-        }
-        let Some(stmt) = statements.pop() else {
-            return (statements.capacity() + expressions.capacity()) * std::mem::size_of::<usize>();
-        };
-        match &stmt.node {
-            Statement::Expr(e) => expressions.push(e),
-            Statement::Assign(_, _, e) => expressions.push(e),
-            Statement::If(branches, alternate, _) => {
-                for (condition, body) in branches.iter() {
-                    expressions.push(condition);
-                    statements.extend(body.iter());
+/// Adds the literal paths, and aliases, of the `require` calls in `body` to
+/// `out`, and what they hold to `found`, walking it with `walk`.
+fn requires<'x>(
+    walk: &mut Walk<'x, '_>,
+    body: &'x [Stmt],
+    out: &mut Vec<(String, Option<String>, usize)>,
+    found: &mut usize,
+) {
+    walk.stmts(body, ());
+    while let Some((item, ())) = walk.next(super::meter::vec(out) + *found) {
+        match item {
+            Item::Stmt(stmt) => match &stmt.node {
+                Statement::Expr(e)
+                | Statement::Assign(_, _, e)
+                | Statement::Return(Some(e))
+                | Statement::Break(Some(e))
+                | Statement::Next(Some(e)) => walk.expr(e, ()),
+                Statement::If(branches, alternate, _) => {
+                    walk.push(Next::Clauses(branches.iter()), ());
+                    walk.stmts(alternate, ());
                 }
-                statements.extend(alternate.iter());
-            }
-            Statement::While(condition, body, _) => {
-                expressions.push(condition);
-                statements.extend(body.iter());
-            }
-            Statement::For(_, iterable, body) => {
-                expressions.push(iterable);
-                statements.extend(body.iter());
-            }
-            Statement::Return(Some(e)) | Statement::Break(Some(e)) | Statement::Next(Some(e)) => {
-                expressions.push(e)
-            }
-            _ => (),
+                Statement::While(condition, body, _) => {
+                    walk.expr(condition, ());
+                    walk.stmts(body, ());
+                }
+                Statement::For(_, iterable, body) => {
+                    walk.expr(iterable, ());
+                    walk.stmts(body, ());
+                }
+                _ => (),
+            },
+            Item::Expr(expr) => visit(expr, walk, out, found),
+            Item::Target(_) => (),
         }
     }
 }
 
 fn visit<'x>(
     expr: &'x Expr,
-    statements: &mut Vec<&'x Stmt>,
-    expressions: &mut Vec<&'x Expr>,
+    walk: &mut Walk<'x, '_>,
     out: &mut Vec<(String, Option<String>, usize)>,
+    found: &mut usize,
 ) {
     match &expr.node {
         Node::Call(name, args, _) => {
@@ -706,53 +720,48 @@ fn visit<'x>(
                         _ => None,
                     });
                 if let Some(path) = path {
+                    *found += path.capacity() + alias.as_ref().map_or(0, String::capacity);
                     out.push((path, alias, expr.offset as usize));
                 }
             }
-            expressions.extend(args.iter().map(|a| &a.value));
+            walk.push(Next::Arguments(args.iter()), ());
         }
-        Node::Compound(stmt) => statements.push(stmt),
+        Node::Compound(stmt) => walk.push(Next::Item(Item::Stmt(stmt)), ()),
         Node::Try(attempt) => {
-            statements.extend(attempt.body.iter());
-            statements.extend(attempt.alternate.iter());
-            statements.extend(attempt.ensure.iter());
-            for rescue in attempt.rescues.iter() {
-                statements.extend(rescue.body.iter());
-            }
+            walk.stmts(&attempt.body, ());
+            walk.stmts(&attempt.alternate, ());
+            walk.stmts(&attempt.ensure, ());
+            walk.push(Next::Rescues(attempt.rescues.iter()), ());
         }
         Node::BlockCall(call, block) => {
-            expressions.push(call);
-            statements.extend(block.body.iter());
+            walk.expr(call, ());
+            walk.stmts(&block.body, ());
         }
         Node::Conditional(branches, alternate) => {
-            for (c, v) in branches.iter() {
-                expressions.push(c);
-                expressions.push(v);
-            }
-            expressions.push(alternate);
+            walk.push(Next::Branches(branches.iter()), ());
+            walk.expr(alternate, ());
         }
         Node::Case(subject, whens, alternate) => {
-            expressions.extend(subject.as_deref());
-            for when in whens.iter() {
-                expressions.push(&when.result);
+            for expr in subject.iter().chain(alternate) {
+                walk.expr(expr, ());
             }
-            expressions.extend(alternate.as_deref());
+            walk.push(Next::Results(whens.iter()), ());
         }
         Node::Binary(_, l, r) => {
-            expressions.push(l);
-            expressions.push(r);
+            walk.expr(l, ());
+            walk.expr(r, ());
         }
-        Node::Unary(_, v) => expressions.push(v),
+        Node::Unary(_, v) => walk.expr(v, ()),
         Node::Method(recv, _, args, _) | Node::SafeMethod(recv, _, args, _) => {
-            expressions.push(recv);
-            expressions.extend(args.iter().map(|a| &a.value));
+            walk.expr(recv, ());
+            walk.push(Next::Arguments(args.iter()), ());
         }
-        Node::Member(recv, _) | Node::SafeMember(recv, _) => expressions.push(recv),
-        Node::Array(items) | Node::Template(items, _) => expressions.extend(items.iter()),
-        Node::Hash(entries) => expressions.extend(entries.iter().map(|(_, v)| v)),
+        Node::Member(recv, _) | Node::SafeMember(recv, _) => walk.expr(recv, ()),
+        Node::Array(items) | Node::Template(items, _) => walk.push(Next::Exprs(items.iter()), ()),
+        Node::Hash(entries) => walk.push(Next::Pairs(entries.iter()), ()),
         Node::Index(recv, selectors) => {
-            expressions.push(recv);
-            expressions.extend(selectors.iter());
+            walk.expr(recv, ());
+            walk.push(Next::Exprs(selectors.iter()), ());
         }
         _ => (),
     }

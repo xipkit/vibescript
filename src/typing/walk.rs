@@ -41,6 +41,8 @@ pub(super) enum Next<'a> {
     Clauses(Iter<'a, (Expr, Buffer<Stmt>)>),
     /// A `case`'s `when`s: each one's values and result.
     Whens(Iter<'a, When>),
+    /// A `case`'s results, without the values the `when`s name.
+    Results(Iter<'a, When>),
     Values(Iter<'a, (Expr, bool)>),
     /// A `begin`'s rescues' bodies.
     Rescues(Iter<'a, Rescue>),
@@ -65,7 +67,7 @@ impl Next<'_> {
             Next::Pairs(items) => items.len() == 0,
             Next::Branches(items) => items.len() == 0,
             Next::Clauses(items) => items.len() == 0,
-            Next::Whens(items) => items.len() == 0,
+            Next::Whens(items) | Next::Results(items) => items.len() == 0,
             Next::Values(items) => items.len() == 0,
             Next::Rescues(items) => items.len() == 0,
             Next::Parts(items) => items.len() == 0,
@@ -156,6 +158,7 @@ impl<'a, 'm, T: Copy> Walk<'a, 'm, T> {
                     ),
                     None => (None, None),
                 },
+                Next::Results(items) => (items.next().map(|when| Item::Expr(&when.result)), None),
                 Next::Rescues(items) => (
                     None,
                     items.next().map(|rescue| Next::Stmts(rescue.body.iter())),
