@@ -643,7 +643,7 @@ fn diagnostics_spell_out_bounded_lists_and_types() {
     let options = CallOptions {
         limits: Limits {
             steps: None,
-            memory_bytes: Some(64 << 20),
+            memory_bytes: Some(128 << 20),
             ..Limits::default()
         },
         ..CallOptions::default()

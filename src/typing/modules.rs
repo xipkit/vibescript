@@ -269,7 +269,7 @@ impl<'a> Checker<'a> {
         let parsing = context.stats();
         self.meter.charge(parsing.steps);
         self.observed(held + parsing.peak_memory_bytes);
-        let (parsed, tokens) = match parse {
+        let (parsed, tokens, _tokens_held) = match parse {
             Ok(parsed) => parsed,
             Err(error)
                 if matches!(

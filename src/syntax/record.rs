@@ -184,24 +184,29 @@ pub(crate) fn tokens_within(
 ) -> Result<Vec<crate::tooling::Token>> {
     let parsing = Parsing::<super::recovery::FailFast>::new(parser(source, work)?);
     parsing.run(Call::Program)?;
-    Ok(token_list(source, &parsing.parser.into_inner()))
+    Ok(token_list(source, &parsing.parser.into_inner(), work)?.0)
 }
 
 /// Parses source like [`super::parse`], also returning the tokens the parser
-/// finally read, as [`tokens`] lists them.
+/// finally read, as [`tokens`] lists them, and the reservation of their
+/// memory in `work`, which is to last as long as they do.
 pub(crate) fn parse_with_tokens(
     source: &str,
     work: &dyn crate::compilation::Work,
-) -> Result<(Declarations, Vec<crate::tooling::Token>)> {
+) -> Result<(
+    Declarations,
+    Vec<crate::tooling::Token>,
+    Option<crate::budget::Charge>,
+)> {
     let parsing = Parsing::<super::recovery::FailFast>::new(parser(source, work)?);
     let mut declarations = match parsing.run(Call::Program)? {
         Parsed::Program(declarations) => declarations,
         _ => unreachable!(),
     };
     let parser = parsing.parser.into_inner();
-    let tokens = token_list(source, &parser);
+    let (tokens, held) = token_list(source, &parser, work)?;
     declarations.interpolated = interpolated(&parser);
-    Ok((declarations, tokens))
+    Ok((declarations, tokens, held))
 }
 
 /// What the interpolations of the parser's tokens hold, at every depth.
@@ -243,9 +248,42 @@ fn open<'p, 'a>(
     }
 }
 
-fn token_list(source: &str, parser: &super::Parser<'_>) -> Vec<crate::tooling::Token> {
+/// The tokens the parser finally read, as the tooling lists them, with
+/// the reservation of what they hold in `work`, made before they are built.
+fn token_list(
+    source: &str,
+    parser: &super::Parser<'_>,
+    work: &dyn crate::compilation::Work,
+) -> Result<(Vec<crate::tooling::Token>, Option<crate::budget::Charge>)> {
     use super::lexer::{Part, Token};
     use crate::tooling::TokenKind;
+    let payloads: usize = parser
+        .tokens
+        .range(0..parser.tokens.len())
+        .map(|lexeme| match &lexeme.token {
+            Token::Symbol(name) => name.len(),
+            Token::QuotedSymbol(name) => name.len(),
+            Token::Bytes(bytes) => bytes.len(),
+            Token::Template(parts) => parts.len() * std::mem::size_of::<std::ops::Range<usize>>(),
+            Token::Words(words) => words
+                .entries
+                .iter()
+                .map(|entry| {
+                    std::mem::size_of::<Option<Vec<u8>>>()
+                        + entry
+                            .iter()
+                            .map(|part| match part {
+                                Part::Text(bytes) => bytes.len(),
+                                Part::Expr(..) => 0,
+                            })
+                            .sum::<usize>()
+                })
+                .sum(),
+            _ => 0,
+        })
+        .sum();
+    let held = work
+        .reserve(parser.tokens.len() * std::mem::size_of::<crate::tooling::Token>() + payloads)?;
     let text = |parts: &[Part<'_>]| {
         parts
             .iter()
@@ -300,5 +338,5 @@ fn token_list(source: &str, parser: &super::Parser<'_>) -> Vec<crate::tooling::T
             line: lexeme.line,
         });
     }
-    tokens
+    Ok((tokens, held))
 }

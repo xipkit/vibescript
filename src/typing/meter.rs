@@ -674,7 +674,7 @@ mod budget_tests {
 
     /// Checks `source` within `budget`.
     fn checked(source: &str, budget: Budget) -> super::super::Checked {
-        let (parsed, tokens) = crate::syntax::parse_with_tokens(source, &()).unwrap();
+        let (parsed, tokens, _) = crate::syntax::parse_with_tokens(source, &()).unwrap();
         let declared = crate::declared::Declarations::new();
         super::super::check(&super::super::Input {
             source,

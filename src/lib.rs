@@ -172,7 +172,7 @@ impl Engine {
         for name in self.hosts.keys() {
             syntax::host_function_name(&(), syntax::HostName::FUNCTION, name)?;
         }
-        let (parsed, tokens) = syntax::parse_with_tokens(source, &()).map_err(|error| {
+        let (parsed, tokens, _) = syntax::parse_with_tokens(source, &()).map_err(|error| {
             source::parse_error(
                 source,
                 None,
@@ -223,7 +223,7 @@ impl Engine {
         for name in self.hosts.keys() {
             syntax::host_function_name(&(), syntax::HostName::FUNCTION, name)?;
         }
-        let (parsed, tokens) = syntax::parse_with_tokens(source, &()).map_err(|error| {
+        let (parsed, tokens, _) = syntax::parse_with_tokens(source, &()).map_err(|error| {
             source::parse_error(
                 source,
                 None,

@@ -133,13 +133,14 @@ impl Code {
         let filename = origin.as_ref().map(crate::loading::Origin::filename);
         let parse_error =
             |error| crate::source::parse_error(source, filename.as_ref(), error, work);
-        let (parsed, tokens) = crate::syntax::parse_with_tokens(source, work).map_err(|error| {
-            parse_error(if file {
-                crate::syntax::canonical_syntax(source, work, error)
-            } else {
-                crate::syntax::host_syntax(source, work, error)
-            })
-        })?;
+        let (parsed, tokens, _tokens_held) = crate::syntax::parse_with_tokens(source, work)
+            .map_err(|error| {
+                parse_error(if file {
+                    crate::syntax::canonical_syntax(source, work, error)
+                } else {
+                    crate::syntax::host_syntax(source, work, error)
+                })
+            })?;
         let resolve = |path: &str, origin: Option<&crate::loading::Origin>| {
             loader.unwrap().source(path, origin)
         };
