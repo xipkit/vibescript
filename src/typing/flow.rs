@@ -6,8 +6,9 @@
 //! changes the branch made, not to the number of locals.
 
 use super::{
+    counted::{CountedSet, CountedVec, Refused},
     marks::Marks,
-    meter::{Meter, map, table as map_of, vec},
+    meter::{Meter, table as map_of},
     ty::{Ty, Types},
 };
 use std::{collections::HashMap, sync::Arc};
@@ -37,8 +38,8 @@ pub(crate) struct Branch {
 }
 
 pub(crate) struct Flow {
-    pub vars: Vec<VarState>,
-    trail: Vec<(LocalId, VarState)>,
+    vars: CountedVec<VarState>,
+    trail: CountedVec<(LocalId, VarState)>,
     /// Whether control can reach the current point.
     pub live: bool,
     /// The check's account, which the flow's work is charged to.
@@ -55,24 +56,11 @@ impl super::meter::Heap for Branch {
     }
 }
 
-/// Whether the locals a branch changed, `seen`, and their states,
-/// `changes`, may take one more within the budget. When either is full,
-/// its storage as it is and as it will be once grown are both held for a
-/// moment, and are counted before it grows.
-fn room(meter: &Meter, seen: &HashMap<LocalId, ()>, changes: &Vec<(LocalId, VarState)>) -> bool {
-    if seen.len() < seen.capacity() && changes.len() < changes.capacity() {
-        return true;
-    }
-    let grown = map_of::<(LocalId, ())>((2 * seen.capacity()).max(4))
-        + (2 * changes.capacity()).max(4) * std::mem::size_of::<(LocalId, VarState)>();
-    !meter.scratch(map(seen) + vec(changes) + grown)
-}
-
 impl Flow {
     pub fn new(meter: Arc<Meter>) -> Self {
         Self {
-            vars: Vec::new(),
-            trail: Vec::new(),
+            vars: CountedVec::new(),
+            trail: CountedVec::new(),
             live: true,
             meter,
             tracked: None,
@@ -107,9 +95,15 @@ impl Flow {
         }
     }
 
-    /// Adds a local, unassigned.
+    /// Makes room for one more local, counted first.
+    #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
+    pub fn reserve(&mut self) -> Result<(), Refused> {
+        self.vars.reserve(self.meter.tables(), 1)
+    }
+
+    /// Adds a local, unassigned, in the room [`Self::reserve`] made.
     pub fn add(&mut self, declared: Ty) -> LocalId {
-        self.vars.push(VarState {
+        self.vars.push_within(VarState {
             ty: declared,
             assigned: false,
         });
@@ -118,8 +112,8 @@ impl Flow {
 
     /// The bytes the states and the trail hold.
     pub fn bytes(&self) -> usize {
-        super::meter::vec(&self.vars)
-            + super::meter::vec(&self.trail)
+        super::meter::vec(self.vars.as_vec())
+            + super::meter::vec(self.trail.as_vec())
             + self.tracked.as_ref().map_or(0, |(_, marks)| marks.bytes())
     }
 
@@ -127,10 +121,15 @@ impl Flow {
         self.vars[id as usize]
     }
 
+    /// Changes local `id`'s state, recording the change to undo. A change
+    /// the budget refuses room to record is not made: the check has
+    /// stopped, and reads no more.
     pub fn set(&mut self, id: LocalId, state: VarState) {
         let old = self.vars[id as usize];
         if old != state {
-            self.trail.push((id, old));
+            if self.trail.push(self.meter.tables(), (id, old)).is_err() {
+                return;
+            }
             self.vars[id as usize] = state;
             self.note(id, old.assigned, state.assigned);
         }
@@ -156,8 +155,9 @@ impl Flow {
                 changes: Vec::new(),
             };
         }
-        let mut changes: Vec<(LocalId, VarState)> = Vec::new();
-        let mut seen: HashMap<LocalId, ()> = HashMap::new();
+        // The changes are collected in tables that count their growth.
+        let mut changes = CountedVec::new();
+        let mut seen = CountedSet::new();
         let mut stopped = false;
         while self.trail.len() > mark.trail {
             let (id, old) = self.trail.pop().unwrap();
@@ -165,19 +165,26 @@ impl Flow {
             // A check this stops still undoes every change, but collects no
             // more of them.
             if !stopped {
-                stopped = self.meter.charge(1) || !room(&self.meter, &seen, &changes);
-                if !stopped && seen.insert(id, ()).is_none() {
-                    changes.push((id, current));
-                }
+                let tables = self.meter.tables();
+                stopped = self.meter.charge(1)
+                    || match seen.insert(tables, id) {
+                        Ok(true) => changes.push(tables, (id, current)).is_err(),
+                        Ok(false) => false,
+                        Err(Refused) => true,
+                    };
             }
             self.vars[id as usize] = old;
             self.note(id, current.assigned, old.assigned);
         }
-        if stopped || self.meter.scratch(map(&seen) + vec(&changes)) {
-            changes = Vec::new();
-        }
         self.live = mark.live;
-        Branch { live, changes }
+        Branch {
+            live,
+            changes: if stopped {
+                Vec::new()
+            } else {
+                changes.into_vec()
+            },
+        }
     }
 
     /// The changes since `mark`, without undoing them: the state at an early
@@ -189,25 +196,28 @@ impl Flow {
                 changes: Vec::new(),
             };
         }
-        let mut changes: Vec<(LocalId, VarState)> = Vec::new();
-        let mut seen: HashMap<LocalId, ()> = HashMap::new();
+        let mut changes = CountedVec::new();
+        let mut seen = CountedSet::new();
         let steps = (self.trail.len() - mark.trail) as u64;
-        let mut stopped = false;
+        let tables = self.meter.tables();
+        let mut stopped = self.meter.charge(steps);
         for &(id, _) in &self.trail[mark.trail..] {
-            if !room(&self.meter, &seen, &changes) {
-                stopped = true;
+            if stopped {
                 break;
             }
-            if seen.insert(id, ()).is_none() {
-                changes.push((id, self.vars[id as usize]));
-            }
-        }
-        if stopped || self.meter.scratch(map(&seen) + vec(&changes)) || self.meter.charge(steps) {
-            changes = Vec::new();
+            stopped = match seen.insert(tables, id) {
+                Ok(true) => changes.push(tables, (id, self.vars[id as usize])).is_err(),
+                Ok(false) => false,
+                Err(Refused) => true,
+            };
         }
         Branch {
             live: true,
-            changes,
+            changes: if stopped {
+                Vec::new()
+            } else {
+                changes.into_vec()
+            },
         }
     }
 

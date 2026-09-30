@@ -2,6 +2,7 @@
 
 use super::{
     Checker,
+    counted::{CountedMap, CountedVec},
     flow::{Branch, Flow, LocalId, Mark, VarState},
     meter::Heap,
     program::{FnId, NsId},
@@ -53,11 +54,11 @@ pub(crate) struct Local {
 #[derive(Default)]
 pub(crate) struct Exits {
     /// The state at each `break`, which leaves the loop or the call.
-    pub breaks: Vec<Branch>,
+    pub breaks: CountedVec<Branch>,
     /// The state at each `next`, which starts the next iteration.
-    pub nexts: Vec<Branch>,
+    pub nexts: CountedVec<Branch>,
     /// The types of the values `break` gives.
-    pub values: Vec<Ty>,
+    pub values: CountedVec<Ty>,
 }
 
 /// The type a `break` value out of a script function's block must have:
@@ -90,7 +91,7 @@ pub(crate) enum Context {
         /// Whether the block's value is used at all.
         used: bool,
         /// The values `next` and the tail gave, for inference.
-        results: Vec<Ty>,
+        results: CountedVec<Ty>,
     },
 }
 
@@ -129,19 +130,19 @@ pub(crate) struct Frame {
     pub function: Option<FnId>,
     /// In an instance variable's default: the variables not assigned yet.
     pub building: Option<super::construction::Unassigned>,
-    pub locals: Vec<Local>,
-    pub names: HashMap<String, LocalId>,
-    pub ambient: Vec<LocalId>,
+    pub locals: CountedVec<Local>,
+    pub names: CountedMap<String, LocalId>,
+    pub ambient: CountedVec<LocalId>,
     /// Names each open block scope shadowed, to restore when it closes.
-    pub scopes: Vec<Vec<(String, Option<LocalId>)>>,
+    pub scopes: CountedVec<CountedVec<(String, Option<LocalId>)>>,
     pub flow: Flow,
-    pub contexts: Vec<Context>,
+    pub contexts: CountedVec<Context>,
     /// Whether the body is a class or module body, whose capitalized
     /// assignments are constants.
     pub namespace_body: bool,
     /// In a required file's function or method: the locals that are the
     /// file's top-level locals.
-    pub shared: Vec<LocalId>,
+    pub shared: CountedVec<LocalId>,
     /// What the locals' names take, in the locals, the map of them by name
     /// and the scopes that record them.
     pub name_bytes: usize,
@@ -166,14 +167,14 @@ impl Frame {
             initialize: None,
             function: None,
             building: None,
-            locals: Vec::new(),
-            names: HashMap::new(),
-            ambient: Vec::new(),
-            scopes: Vec::new(),
+            locals: CountedVec::new(),
+            names: CountedMap::new(),
+            ambient: CountedVec::new(),
+            scopes: CountedVec::new(),
             flow: Flow::new(std::sync::Arc::clone(meter)),
-            contexts: Vec::new(),
+            contexts: CountedVec::new(),
             namespace_body: false,
-            shared: Vec::new(),
+            shared: CountedVec::new(),
             name_bytes: 0,
         }
     }
@@ -182,19 +183,23 @@ impl Frame {
 impl Heap for Frame {
     fn heap(&self) -> usize {
         use super::meter::{map, vec};
-        vec(&self.locals)
+        vec(self.locals.as_vec())
             + map(&self.names)
             + self.name_bytes
-            + vec(&self.scopes)
-            + self.scopes.iter().map(vec).sum::<usize>()
+            + vec(self.scopes.as_vec())
+            + self
+                .scopes
+                .iter()
+                .map(|scope| vec(scope.as_vec()))
+                .sum::<usize>()
             + self.flow.bytes()
-            + vec(&self.contexts)
+            + vec(self.contexts.as_vec())
             + self
                 .initialize
                 .as_ref()
                 .map_or(0, |(roster, _)| super::construction::roster_bytes(roster))
-            + vec(&self.ambient)
-            + vec(&self.shared)
+            + vec(self.ambient.as_vec())
+            + vec(self.shared.as_vec())
             + self.name.heap()
     }
 }
@@ -203,14 +208,16 @@ impl Heap for Context {
     fn heap(&self) -> usize {
         match self {
             Context::Loop { exits, .. } => exits.heap(),
-            Context::Block { exits, results, .. } => exits.heap() + super::meter::vec(results),
+            Context::Block { exits, results, .. } => {
+                exits.heap() + super::meter::vec(results.as_vec())
+            }
         }
     }
 }
 
 impl Heap for Exits {
     fn heap(&self) -> usize {
-        self.breaks.heap() + self.nexts.heap() + super::meter::vec(&self.values)
+        self.breaks.heap() + self.nexts.heap() + super::meter::vec(self.values.as_vec())
     }
 }
 
@@ -478,9 +485,15 @@ impl<'a> Checker<'a> {
             )
         }));
         for (name, declared, offset, state) in &ambient {
-            let id = self.declare(name, *declared, *offset, true);
+            // A check the budget stops declares no more of them, and the
+            // body it checks next reads no code.
+            let Some(id) = self.declare(name, *declared, *offset, true) else {
+                break;
+            };
             self.frame.flow.set(id, *state);
-            self.frame.ambient.push(id);
+            if self.frame.ambient.push(self.meter.tables(), id).is_err() {
+                break;
+            }
         }
         self.stmts(&module.body, Want::Discard);
         self.release(held);
@@ -580,9 +593,15 @@ impl<'a> Checker<'a> {
             }
             for (name, (ty, offset)) in locals {
                 if !def.params.iter().any(|param| param.name == name) {
-                    let id = self.declare(&name, ty, offset, true);
+                    let Some(id) = self.declare(&name, ty, offset, true) else {
+                        self.leave_frame(previous);
+                        return;
+                    };
                     self.assign_local(id, ty);
-                    self.frame.shared.push(id);
+                    if self.frame.shared.push(self.meter.tables(), id).is_err() {
+                        self.leave_frame(previous);
+                        return;
+                    }
                 }
             }
         }
@@ -608,7 +627,11 @@ impl<'a> Checker<'a> {
                     },
                 ]);
             }
-            let local = self.declare(&param.name, declared.ty, def.offset as usize, true);
+            let Some(local) = self.declare(&param.name, declared.ty, def.offset as usize, true)
+            else {
+                self.leave_frame(previous);
+                return;
+            };
             self.assign_local(local, declared.ty);
             if let Some(ivar) = &param.ivar {
                 let span = self
@@ -618,8 +641,7 @@ impl<'a> Checker<'a> {
             }
         }
         if sig.block.as_ref().is_some_and(|block| block.optional) {
-            let given = self.pseudo_local();
-            self.frame.block_given = Some(given);
+            self.frame.block_given = self.pseudo_local();
         }
         if accessor {
             // Properties read and write their declared instance variable.
@@ -737,7 +759,10 @@ impl<'a> Checker<'a> {
             if self.types.assignable(Ty::NIL, ty) {
                 continue;
             }
-            let id = self.pseudo_local();
+            // A check the budget stops tracks none of them.
+            let Some(id) = self.pseudo_local() else {
+                return;
+            };
             first.get_or_insert(id);
             roster.push(name);
         }
@@ -1064,23 +1089,32 @@ impl<'a> Checker<'a> {
 
     // Locals -----------------------------------------------------------
 
-    /// Declares a local in the innermost scope.
+    /// Declares a local in the innermost scope; `None` when the budget
+    /// refuses it room, which stops the check and declares nothing.
     pub(super) fn declare(
         &mut self,
         name: &str,
         declared: Ty,
         offset: usize,
         annotated: bool,
-    ) -> LocalId {
+    ) -> Option<LocalId> {
         // The local, its entry by name and its scope's record each copy its
-        // name, counted before they do. The caller needs an id however the
-        // budget stands, so a check that stops declares a local without a
-        // name, which nothing looks up: the check reads no more code.
-        let named = !self.transient(3 * name.len());
-        let name = if named { name } else { "" };
-        let id = self.frame.flow.add(declared);
-        debug_assert_eq!(id as usize, self.frame.locals.len());
-        self.frame.locals.push(Local {
+        // name. They, and room in each table they go in, are counted before
+        // any table changes, so a refusal leaves the frame as it was.
+        let tables = self.meter.tables();
+        let frame = &mut self.frame;
+        tables.keep(3 * name.len()).ok()?;
+        frame.flow.reserve().ok()?;
+        frame.locals.reserve(tables, 1).ok()?;
+        if !frame.names.contains_key(name) {
+            frame.names.reserve(tables, 1).ok()?;
+        }
+        if let Some(scope) = frame.scopes.last_mut() {
+            scope.reserve(tables, 1).ok()?;
+        }
+        let id = frame.flow.add(declared);
+        debug_assert_eq!(id as usize, frame.locals.len());
+        frame.locals.push_within(Local {
             name: name.to_owned(),
             declared,
             offset,
@@ -1088,22 +1122,23 @@ impl<'a> Checker<'a> {
             checked: false,
             dictionary: None,
         });
-        let previous = if named {
-            self.frame.names.insert(name.to_owned(), id)
-        } else {
-            None
-        };
-        self.frame.name_bytes += 3 * name.len();
-        if let Some(scope) = self.frame.scopes.last_mut() {
-            scope.push((name.to_owned(), previous));
+        let previous = frame.names.insert_within(name.to_owned(), id);
+        frame.name_bytes += 3 * name.len();
+        if let Some(scope) = frame.scopes.last_mut() {
+            scope.push_within((name.to_owned(), previous));
         }
-        id
+        Some(id)
     }
 
-    /// A flow fact that is not a named local, such as whether a block was given.
-    fn pseudo_local(&mut self) -> LocalId {
+    /// A flow fact that is not a named local, such as whether a block was
+    /// given; `None` when the budget refuses it room, which stops the
+    /// check and adds nothing.
+    fn pseudo_local(&mut self) -> Option<LocalId> {
+        let tables = self.meter.tables();
+        self.frame.flow.reserve().ok()?;
+        self.frame.locals.reserve(tables, 1).ok()?;
         let id = self.frame.flow.add(Ty::BOOL);
-        self.frame.locals.push(Local {
+        self.frame.locals.push_within(Local {
             name: String::new(),
             declared: Ty::BOOL,
             offset: 0,
@@ -1111,7 +1146,7 @@ impl<'a> Checker<'a> {
             checked: false,
             dictionary: None,
         });
-        id
+        Some(id)
     }
 
     pub(super) fn local(&self, name: &str) -> Option<LocalId> {
@@ -1147,18 +1182,29 @@ impl<'a> Checker<'a> {
         }
     }
 
-    pub(super) fn open_scope(&mut self) {
-        self.frame.scopes.push(Vec::new());
+    /// Opens a block scope; whether it did. A scope the budget refuses
+    /// room for is not opened, and must not be closed: the check has
+    /// stopped.
+    #[must_use = "a scope the budget refuses is not opened, and must not be closed"]
+    pub(super) fn open_scope(&mut self) -> bool {
+        self.frame
+            .scopes
+            .push(self.meter.tables(), CountedVec::new())
+            .is_ok()
     }
 
     pub(super) fn close_scope(&mut self) {
         let Some(scope) = self.frame.scopes.pop() else {
             return;
         };
+        // A name a scope shadowed had its entry, which it gets back in
+        // place.
         for (name, previous) in scope.into_iter().rev() {
             match previous {
                 Some(id) => {
-                    self.frame.names.insert(name, id);
+                    if let Some(entry) = self.frame.names.get_mut(&name) {
+                        *entry = id;
+                    }
                 }
                 None => {
                     self.frame.names.remove(&name);
@@ -1506,10 +1552,21 @@ impl<'a> Checker<'a> {
             matches!(&condition.node, Node::Literal(v) if v.type_name() == "bool" && v.truthy());
         let narrow = self.condition(condition);
         self.apply(&narrow.then);
-        self.frame.contexts.push(Context::Loop {
+        let context = Context::Loop {
             mark: before,
             exits: Exits::default(),
-        });
+        };
+        // A loop the budget refuses room for is not checked; its narrowing
+        // is undone as its end would.
+        if self
+            .frame
+            .contexts
+            .push(self.meter.tables(), context)
+            .is_err()
+        {
+            self.frame.flow.rollback(before);
+            return Ty::ERROR;
+        }
         let value = self.stmts(body, Self::body_want(last));
         let context = self.frame.contexts.pop().unwrap();
         let mut values = self.finish_loop(before, context, !infinite);
@@ -1547,15 +1604,22 @@ impl<'a> Checker<'a> {
         let end = self.frame.flow.rollback(before);
         let mut branches = exits.breaks;
         if ends {
-            branches.extend(exits.nexts);
-            branches.push(end);
-            branches.push(Branch {
+            let tables = self.meter.tables();
+            // A check the budget stops joins none of them.
+            if branches.reserve(tables, exits.nexts.len() + 2).is_err() {
+                return exits.values.into_vec();
+            }
+            for branch in exits.nexts {
+                branches.push_within(branch);
+            }
+            branches.push_within(end);
+            branches.push_within(Branch {
                 live: true,
                 changes: Vec::new(),
             });
         }
-        self.join(branches);
-        exits.values
+        self.join(branches.into_vec());
+        exits.values.into_vec()
     }
 
     /// Checks a `for` loop and returns its value: the iterable, or what
@@ -1577,10 +1641,21 @@ impl<'a> Checker<'a> {
         self.declare_for_target(target, element, nonempty);
         let before = self.frame.flow.mark();
         self.bind_target(target, element, true);
-        self.frame.contexts.push(Context::Loop {
+        let context = Context::Loop {
             mark: before,
             exits: Exits::default(),
-        });
+        };
+        // A loop the budget refuses room for is not checked; its bindings
+        // are undone as its end would.
+        if self
+            .frame
+            .contexts
+            .push(self.meter.tables(), context)
+            .is_err()
+        {
+            self.frame.flow.rollback(before);
+            return Ty::ERROR;
+        }
         let value = self.stmts(body, Self::body_want(last));
         let mut context = self.frame.contexts.pop().unwrap();
         let skips = !context.exits().nexts.is_empty();
@@ -1617,8 +1692,10 @@ impl<'a> Checker<'a> {
                         } else {
                             self.types.optional(element)
                         };
-                        let id = self.declare(name, declared, expr.offset as usize, false);
-                        self.assign_local(id, if nonempty { element } else { Ty::NIL });
+                        if let Some(id) = self.declare(name, declared, expr.offset as usize, false)
+                        {
+                            self.assign_local(id, if nonempty { element } else { Ty::NIL });
+                        }
                     }
                 }
             }
@@ -1781,8 +1858,13 @@ impl<'a> Checker<'a> {
             (None, None) => Ty::NIL,
         };
         if self.frame.flow.live {
+            let tables = self.meter.tables();
             if let Some(context) = self.frame.contexts.last_mut() {
-                context.exits().values.push(ty);
+                // A check the budget stops keeps no more of them.
+                if context.exits().values.push(tables, ty).is_err() {
+                    self.frame.flow.live = false;
+                    return;
+                }
             }
         }
         self.exit_context(true);
@@ -1832,9 +1914,12 @@ impl<'a> Checker<'a> {
             }
         }
         let branch = self.frame.flow.peek(mark);
+        let tables = self.meter.tables();
         let exits = self.frame.contexts.last_mut().unwrap().exits();
-        exits.breaks.push(branch);
-        exits.values.push(value);
+        // A check the budget stops records neither.
+        if exits.values.reserve(tables, 1).is_ok() && exits.breaks.push(tables, branch).is_ok() {
+            exits.values.push_within(value);
+        }
     }
 
     /// Records the state at a `break` or `next` for the enclosing loop or block.
@@ -1846,11 +1931,16 @@ impl<'a> Checker<'a> {
             return;
         };
         let branch = self.frame.flow.peek(context.mark());
+        let tables = self.meter.tables();
         let exits = self.frame.contexts.last_mut().unwrap().exits();
-        if leaves {
-            exits.breaks.push(branch);
+        let kept = if leaves {
+            exits.breaks.push(tables, branch)
         } else {
-            exits.nexts.push(branch);
+            exits.nexts.push(tables, branch)
+        };
+        // A check the budget stops keeps no more of them.
+        if kept.is_err() {
+            self.frame.flow.live = false;
         }
     }
 
@@ -1878,8 +1968,13 @@ impl<'a> Checker<'a> {
                     }
                     (None, None) => Ty::NIL,
                 };
+                let tables = self.meter.tables();
                 if let Some(Context::Block { results, .. }) = self.frame.contexts.last_mut() {
-                    results.push(ty);
+                    // A check the budget stops keeps no more of them.
+                    if results.push(tables, ty).is_err() {
+                        self.frame.flow.live = false;
+                        return;
+                    }
                 }
             }
             None => {
@@ -2229,7 +2324,9 @@ impl<'a> Checker<'a> {
                         id
                     }
                     None => {
-                        let id = self.declare(name, declared, *offset as usize, true);
+                        let Some(id) = self.declare(name, declared, *offset as usize, true) else {
+                            return ty;
+                        };
                         self.frame.locals[id as usize].checked = true;
                         id
                     }
@@ -2320,7 +2417,11 @@ impl<'a> Checker<'a> {
                         None => {
                             let ty = self.expr(value, None);
                             let declared = self.local_type(name, ty, value, expr.offset as usize);
-                            let id = self.declare(name, declared, expr.offset as usize, false);
+                            let Some(id) =
+                                self.declare(name, declared, expr.offset as usize, false)
+                            else {
+                                return ty;
+                            };
                             if let (Node::Hash(_), Kind::Shape(..)) =
                                 (&value.node, self.types.kind(ty))
                             {
@@ -2497,7 +2598,13 @@ impl<'a> Checker<'a> {
                         // A part such as the missing second element of
                         // `a, b = [1]` is `nil`, and uses of it are checked
                         // as any other type's.
-                        _ => self.declare(name, ty, expr.offset as usize, false),
+                        _ => {
+                            let Some(id) = self.declare(name, ty, expr.offset as usize, false)
+                            else {
+                                return;
+                            };
+                            id
+                        }
                     };
                     self.assign_local(id, ty);
                 }
@@ -2558,7 +2665,10 @@ impl<'a> Checker<'a> {
                         let id = match (assignment, self.local(name)) {
                             (true, Some(id)) => id,
                             _ => {
-                                let id = self.declare(name, declared, *offset as usize, true);
+                                let Some(id) = self.declare(name, declared, *offset as usize, true)
+                                else {
+                                    return;
+                                };
                                 self.frame.locals[id as usize].checked = true;
                                 id
                             }

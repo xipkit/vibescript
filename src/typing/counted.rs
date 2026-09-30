@@ -64,6 +64,23 @@ impl<'m> Ledger<'m> {
     }
 }
 
+impl Meter {
+    /// The ledger of the checker's tables other than the type table.
+    pub fn tables(&self) -> Ledger<'_> {
+        Ledger::new(self, Side::Tables)
+    }
+
+    /// The ledger of the type table's own tables.
+    pub fn types(&self) -> Ledger<'_> {
+        Ledger::new(self, Side::Types)
+    }
+
+    /// The ledger of the declarations.
+    pub fn declarations(&self) -> Ledger<'_> {
+        Ledger::new(self, Side::Declarations)
+    }
+}
+
 /// A list whose growth is counted before it happens. It reads as a slice;
 /// it grows only through the methods that take a [`Ledger`].
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -123,6 +140,14 @@ impl<T> CountedVec<T> {
         Ok(())
     }
 
+    /// Adds `value` in room [`Self::reserve`] made for it, so that a
+    /// caller that changes several tables can count them all before it
+    /// changes any.
+    pub fn push_within(&mut self, value: T) {
+        debug_assert!(self.0.len() < self.0.capacity(), "room is made first");
+        self.0.push(value);
+    }
+
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
     pub fn insert(&mut self, ledger: Ledger<'_>, index: usize, value: T) -> Result<(), Refused> {
         self.reserve(ledger, 1)?;
@@ -173,14 +198,6 @@ impl<T> CountedVec<T> {
         self.0.retain(keep);
     }
 
-    pub fn as_mut_slice(&mut self) -> &mut [T] {
-        &mut self.0
-    }
-
-    pub fn last_mut(&mut self) -> Option<&mut T> {
-        self.0.last_mut()
-    }
-
     pub fn drain(&mut self, range: impl std::ops::RangeBounds<usize>) -> std::vec::Drain<'_, T> {
         self.0.drain(range)
     }
@@ -194,17 +211,10 @@ impl<T> Deref for CountedVec<T> {
     }
 }
 
-impl<T> std::ops::Index<usize> for CountedVec<T> {
-    type Output = T;
-
-    fn index(&self, index: usize) -> &T {
-        &self.0[index]
-    }
-}
-
-impl<T> std::ops::IndexMut<usize> for CountedVec<T> {
-    fn index_mut(&mut self, index: usize) -> &mut T {
-        &mut self.0[index]
+/// Its elements change in place through the slice, which cannot grow.
+impl<T> std::ops::DerefMut for CountedVec<T> {
+    fn deref_mut(&mut self) -> &mut [T] {
+        &mut self.0
     }
 }
 
@@ -276,6 +286,16 @@ impl<K: Eq + Hash, V> CountedMap<K, V> {
         Ok(self.0.insert(key, value))
     }
 
+    /// Stores `value` under `key` in room [`Self::reserve`] made for it,
+    /// giving back the value it replaces.
+    pub fn insert_within(&mut self, key: K, value: V) -> Option<V> {
+        debug_assert!(
+            self.0.len() < self.0.capacity() || self.0.contains_key(&key),
+            "room is made first"
+        );
+        self.0.insert(key, value)
+    }
+
     /// The value under `key`, made by `make` first if the map has none.
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
     pub fn get_or_insert_with(
@@ -332,6 +352,15 @@ impl<K, V> Deref for CountedMap<K, V> {
 
     fn deref(&self) -> &HashMap<K, V> {
         &self.0
+    }
+}
+
+impl<'a, K, V> IntoIterator for &'a CountedMap<K, V> {
+    type Item = (&'a K, &'a V);
+    type IntoIter = std::collections::hash_map::Iter<'a, K, V>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
     }
 }
 
@@ -406,6 +435,15 @@ impl<T> Deref for CountedSet<T> {
 
     fn deref(&self) -> &HashSet<T> {
         &self.0
+    }
+}
+
+impl<'a, T> IntoIterator for &'a CountedSet<T> {
+    type Item = &'a T;
+    type IntoIter = std::collections::hash_set::Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
     }
 }
 

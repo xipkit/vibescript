@@ -5,6 +5,7 @@
 use super::{
     Checker, ReceiverType,
     check::{Context, Purpose, Want},
+    counted::CountedVec,
     program::{FnId, NsId},
     sigs::{self, BlockSig, ParamKind, Sig},
     ty::{Kind, Ty, Types},
@@ -2494,7 +2495,10 @@ impl<'a> Checker<'a> {
         self.facts.record_block(block, plain);
         // Union receivers supply different block parameter types on each pass.
         let outer_memo = self.set_memo(None);
-        self.open_scope();
+        if !self.open_scope() {
+            self.put_back_memo(outer_memo);
+            return (Ty::ERROR, Vec::new());
+        }
         // The widening below charges for listing these names.
         let span = self.assigns.body(&self.meter, &block.body);
         let names = self.assigns.distinct(span, |count, _| {
@@ -2506,7 +2510,12 @@ impl<'a> Checker<'a> {
                     && !name.chars().next().is_some_and(char::is_uppercase)
                 {
                     let ty = self.frame.locals[id as usize].declared;
-                    self.declare(name, ty, block.offset as usize, false);
+                    if self
+                        .declare(name, ty, block.offset as usize, false)
+                        .is_none()
+                    {
+                        break;
+                    }
                 }
             }
         }
@@ -2516,26 +2525,40 @@ impl<'a> Checker<'a> {
             Want::Infer(_) => (None, true),
             Want::Discard => (None, false),
         };
-        self.frame.contexts.push(Context::Block {
+        let context = Context::Block {
             mark: before,
             exits: super::check::Exits::default(),
             result,
             hint: want.hint(),
             break_to,
             used,
-            results: Vec::new(),
-        });
+            results: CountedVec::new(),
+        };
+        // A block the budget refuses room for is not checked.
+        if self
+            .frame
+            .contexts
+            .push(self.meter.tables(), context)
+            .is_err()
+        {
+            self.close_scope();
+            self.put_back_memo(outer_memo);
+            return (Ty::ERROR, Vec::new());
+        }
         let targets = &block.params;
         if block.implicit {
             let first = params.first().copied().unwrap_or(Ty::NIL);
             if block.infer_it {
-                let id = self.declare("it", first, block.offset as usize, false);
-                self.assign_local(id, first);
+                if let Some(id) = self.declare("it", first, block.offset as usize, false) {
+                    self.assign_local(id, first);
+                }
             }
             for index in 0..9 {
                 let name = format!("_{}", index + 1);
                 let ty = params.get(index).copied().or(rest).unwrap_or(Ty::NIL);
-                let id = self.declare(&name, ty, block.offset as usize, false);
+                let Some(id) = self.declare(&name, ty, block.offset as usize, false) else {
+                    break;
+                };
                 self.assign_local(id, ty);
             }
         } else if targets.len() > 1
@@ -2588,10 +2611,11 @@ impl<'a> Checker<'a> {
         let mut context = self.frame.contexts.pop().unwrap();
         let mut results = match &mut context {
             Context::Block { results, .. } => std::mem::take(results),
-            Context::Loop { .. } => Vec::new(),
+            Context::Loop { .. } => CountedVec::new(),
         };
-        if live {
-            results.push(tail);
+        // A check the budget stops keeps no more of them.
+        if live && results.push(self.meter.tables(), tail).is_err() {
+            results.clear();
         }
         let breaks = self.finish_loop(before, context, true);
         self.close_scope();
@@ -2607,8 +2631,9 @@ impl<'a> Checker<'a> {
                 offset,
                 ..
             }) if !name.starts_with('@') => {
-                let id = self.declare(name, ty, *offset as usize, false);
-                self.assign_local(id, ty);
+                if let Some(id) = self.declare(name, ty, *offset as usize, false) {
+                    self.assign_local(id, ty);
+                }
             }
             _ => self.bind_target(target, ty, false),
         }

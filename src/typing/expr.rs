@@ -2067,10 +2067,15 @@ impl<'a> Checker<'a> {
             self.widen(spans.body);
         }
         for rescue in attempt.rescues.iter() {
-            self.open_scope();
+            if !self.open_scope() {
+                break;
+            }
             if let Some(binding) = &rescue.binding {
-                let id = self.declare(binding, Ty::ERROR_VALUE, rescue.offset as usize, true);
-                self.assign_local(id, Ty::ERROR_VALUE);
+                if let Some(id) =
+                    self.declare(binding, Ty::ERROR_VALUE, rescue.offset as usize, true)
+                {
+                    self.assign_local(id, Ty::ERROR_VALUE);
+                }
             }
             let mark = self.frame.flow.mark();
             let ty = self.stmts(&rescue.body, want);
