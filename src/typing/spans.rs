@@ -1,9 +1,10 @@
 //! Source spans of syntax nodes, which record only where they start: the
 //! parser's tokens give each node's end.
 
+use super::walk::{Item, Next, Walk};
 use crate::{
     diagnostic::Span,
-    syntax::{Argument, Block, CallForm, Expr, Node, Statement, Stmt, Target},
+    syntax::{CallForm, Expr, Node, Statement, Stmt},
     tooling::{Token, TokenKind},
 };
 
@@ -21,8 +22,12 @@ pub(crate) struct Spans<'a> {
     tokens: std::borrow::Cow<'a, [Token]>,
     /// The check's account, which tokens and nodes visited are charged to.
     meter: std::sync::Arc<super::meter::Meter>,
-    /// [`last_offset`] by node, so shared subtrees are walked once.
+    /// Where each expression's last token starts, by node, so shared
+    /// subtrees are walked once.
     lasts: std::cell::RefCell<std::collections::HashMap<usize, usize>>,
+    /// [`Self::furthest`] of each statement measured, by node, so a
+    /// statement nested in many that are measured is walked once.
+    furthest: std::cell::RefCell<std::collections::HashMap<usize, usize>>,
     /// What the tokens hold when they are a merged copy of their own.
     owned: usize,
     /// The most that parsing one interpolation again held.
@@ -144,6 +149,7 @@ impl<'a> Spans<'a> {
             tokens,
             meter,
             lasts: std::cell::RefCell::default(),
+            furthest: std::cell::RefCell::default(),
             owned,
             parsing,
         }
@@ -157,13 +163,15 @@ impl<'a> Spans<'a> {
 
     /// What the spans' tables hold.
     pub fn bytes(&self) -> usize {
-        self.owned + self.table()
+        self.owned
+            + super::meter::map(&self.lasts.borrow())
+            + super::meter::map(&self.furthest.borrow())
     }
 
-    /// What the table of last offsets holds, which grows by an entry a
-    /// node.
+    /// What the larger of the tables of offsets holds, each of which grows
+    /// by an entry a node.
     pub fn table(&self) -> usize {
-        super::meter::map(&self.lasts.borrow())
+        super::meter::map(&self.lasts.borrow()).max(super::meter::map(&self.furthest.borrow()))
     }
 
     fn step(&self, count: usize) {
@@ -249,9 +257,10 @@ impl<'a> Spans<'a> {
             }
             _ => None,
         };
+        let furthest = self.stmt_furthest(stmt);
         let last = match value {
-            Some(value) => self.last(value).max(stmt_last(stmt)),
-            None => stmt_last(stmt),
+            Some(value) => self.last(value).max(furthest),
+            None => furthest,
         };
         let last = last.max(start);
         Span::new(start, self.close(start, last))
@@ -432,11 +441,7 @@ impl<'a> Spans<'a> {
                 Node::Binary(_, _, right) => (&**right, Trail::None),
                 Node::Unary(_, value) => (&**value, Trail::None),
                 Node::Range(_, Some(end), _) => (&**end, Trail::None),
-                _ => {
-                    let (last, visited) = last_offset_counted(current, &self.lasts);
-                    self.step(visited);
-                    break last;
-                }
+                _ => break self.furthest(Item::Expr(current), true),
             };
             path.push((current, trail));
             current = next;
@@ -451,6 +456,76 @@ impl<'a> Spans<'a> {
             self.lasts.borrow_mut().insert(key, position);
         }
         position
+    }
+
+    /// The greatest start of a statement, expression, rescue or block in
+    /// `root`, which is where its last token-bearing part starts, charging
+    /// the walk that finds it. With `memo`, an expression other than `root`
+    /// that holds no statement between them takes the start of its last
+    /// token remembered in [`Self::lasts`], if any, instead of its parts.
+    fn furthest(&self, root: Item<'_>, memo: bool) -> usize {
+        let mut last = match root {
+            Item::Stmt(stmt) => stmt.offset as usize,
+            Item::Expr(expr) => expr.offset as usize,
+            Item::Target(_) => 0,
+        };
+        let lasts = self.lasts.borrow();
+        // Each entry carries whether its expressions may take a remembered
+        // start: not below a statement, as a statement's parts are measured
+        // afresh.
+        let mut walk = Walk::new(&self.meter);
+        walk.push(Next::Item(root), memo);
+        let mut first = true;
+        while let Some((item, remembered)) = walk.next(0) {
+            let own = match item {
+                // A statement below the root is measured once, however many
+                // statements around it are.
+                Item::Stmt(stmt) if !first => {
+                    last = last.max(self.stmt_furthest(stmt));
+                    continue;
+                }
+                Item::Stmt(stmt) => stmt.offset as usize,
+                Item::Expr(expr) => expr.offset as usize,
+                Item::Target(_) => 0,
+            };
+            last = last.max(own);
+            if let Item::Expr(expr) = item {
+                let key = std::ptr::from_ref(expr) as usize;
+                if remembered && !first {
+                    if let Some(&known) = lasts.get(&key) {
+                        last = last.max(known);
+                        continue;
+                    }
+                }
+                match &expr.node {
+                    Node::Try(attempt) => {
+                        for rescue in attempt.rescues.iter() {
+                            last = last.max(rescue.offset as usize);
+                        }
+                    }
+                    Node::BlockCall(_, block) => {
+                        last = last.max(block.offset as usize);
+                        walk.push(Next::Targets(block.params.iter()), false);
+                    }
+                    _ => (),
+                }
+            }
+            first = false;
+            let below = remembered && matches!(item, Item::Expr(_));
+            walk.children(item, below);
+        }
+        last
+    }
+
+    /// [`Self::furthest`] of a statement, measured once.
+    fn stmt_furthest(&self, stmt: &Stmt) -> usize {
+        let key = std::ptr::from_ref(stmt) as usize;
+        if let Some(&known) = self.furthest.borrow().get(&key) {
+            return known;
+        }
+        let furthest = self.furthest(Item::Stmt(stmt), false);
+        self.furthest.borrow_mut().insert(key, furthest);
+        furthest
     }
 
     /// The start of the member name `name` that follows a receiver whose
@@ -530,166 +605,4 @@ pub(crate) fn first_offset(expr: &Expr) -> usize {
         first = first.min(current.offset as usize);
     }
     first
-}
-
-/// The start of the last token-bearing child of an expression.
-pub(crate) fn last_offset(expr: &Expr) -> usize {
-    last_offset_counted(expr, &std::cell::RefCell::default()).0
-}
-
-/// [`last_offset`], reusing the results `memo` holds for subtrees, and the
-/// number of nodes it visited.
-fn last_offset_counted(
-    root: &Expr,
-    memo: &std::cell::RefCell<std::collections::HashMap<usize, usize>>,
-) -> (usize, usize) {
-    let mut last = root.offset as usize;
-    let mut visited = 0;
-    let mut pending = vec![root];
-    let mut visit_stmts: Vec<&Stmt> = Vec::new();
-    while let Some(expr) = pending.pop() {
-        visited += 1;
-        last = last.max(expr.offset as usize);
-        if !std::ptr::eq(expr, root) {
-            if let Some(&known) = memo.borrow().get(&(std::ptr::from_ref(expr) as usize)) {
-                last = last.max(known);
-                continue;
-            }
-        }
-        match &expr.node {
-            Node::Try(attempt) => {
-                visit_stmts.extend(attempt.body.iter());
-                visit_stmts.extend(attempt.alternate.iter());
-                visit_stmts.extend(attempt.ensure.iter());
-                for rescue in attempt.rescues.iter() {
-                    last = last.max(rescue.offset as usize);
-                    visit_stmts.extend(rescue.body.iter());
-                }
-            }
-            Node::Shape(_, Some(fallback), _) => pending.push(fallback),
-            Node::Template(values, _) | Node::Array(values) | Node::Yield(values) => {
-                pending.extend(values.iter())
-            }
-            Node::Hash(entries) => pending.extend(entries.iter().map(|(_, value)| value)),
-            Node::Unary(_, value) => pending.push(value),
-            Node::Binary(_, left, right) => {
-                pending.push(left);
-                pending.push(right);
-            }
-            Node::Range(start, end, _) => {
-                pending.extend(start.as_deref());
-                pending.extend(end.as_deref());
-            }
-            Node::Conditional(branches, alternate) => {
-                for (condition, value) in branches.iter() {
-                    pending.push(condition);
-                    pending.push(value);
-                }
-                pending.push(alternate);
-            }
-            Node::Case(subject, whens, alternate) => {
-                pending.extend(subject.as_deref());
-                for when in whens.iter() {
-                    pending.extend(when.values.iter().map(|(value, _)| value));
-                    pending.push(&when.result);
-                }
-                pending.extend(alternate.as_deref());
-            }
-            Node::Compound(stmt) => visit_stmts.push(stmt),
-            Node::Call(_, args, _) => pending.extend(arguments(args)),
-            Node::ComputedCall(receiver, args) => {
-                pending.push(receiver);
-                pending.extend(arguments(args));
-            }
-            Node::BlockCall(call, block) => {
-                pending.push(call);
-                last = last.max(block_last(block));
-            }
-            Node::Member(receiver, _) | Node::SafeMember(receiver, _) => pending.push(receiver),
-            Node::Scope(receiver, _, args) => {
-                pending.push(receiver);
-                if let Some(args) = args {
-                    pending.extend(arguments(args));
-                }
-            }
-            Node::Method(receiver, _, args, _) | Node::SafeMethod(receiver, _, args, _) => {
-                pending.push(receiver);
-                pending.extend(arguments(args));
-            }
-            Node::Index(receiver, selectors) => {
-                pending.push(receiver);
-                pending.extend(selectors.iter());
-            }
-            _ => (),
-        }
-        while let Some(stmt) = visit_stmts.pop() {
-            visited += 1;
-            last = last.max(stmt_last(stmt));
-        }
-    }
-    (last, visited)
-}
-
-fn arguments(args: &[Argument]) -> impl Iterator<Item = &Expr> {
-    args.iter().map(|arg| &arg.value)
-}
-
-fn block_last(block: &Block) -> usize {
-    let mut last = block.offset as usize;
-    for stmt in block.body.iter() {
-        last = last.max(stmt_last(stmt));
-    }
-    for target in block.params.iter() {
-        last = last.max(target_last(target));
-    }
-    last
-}
-
-fn target_last(target: &Target) -> usize {
-    match target {
-        Target::Value(expr) => last_offset(expr),
-        Target::Typed(target, _) => target_last(target),
-        Target::Tuple(parts) => parts
-            .iter()
-            .filter_map(|(part, _)| part.as_ref().map(target_last))
-            .max()
-            .unwrap_or(0),
-    }
-}
-
-/// The start of the last token-bearing part of a statement.
-pub(crate) fn stmt_last(stmt: &Stmt) -> usize {
-    let own = stmt.offset as usize;
-    match &stmt.node {
-        Statement::Expr(expr) => own.max(last_offset(expr)),
-        Statement::Assign(target, _, value) => own.max(target_last(target)).max(last_offset(value)),
-        Statement::If(branches, alternate, _) => {
-            let mut last = own;
-            for (condition, body) in branches.iter() {
-                last = last.max(last_offset(condition));
-                for stmt in body.iter() {
-                    last = last.max(stmt_last(stmt));
-                }
-            }
-            for stmt in alternate.iter() {
-                last = last.max(stmt_last(stmt));
-            }
-            last
-        }
-        Statement::While(condition, body, _) => body
-            .iter()
-            .map(stmt_last)
-            .fold(own.max(last_offset(condition)), usize::max),
-        Statement::For(target, iterable, body) => body.iter().map(stmt_last).fold(
-            own.max(target_last(target)).max(last_offset(iterable)),
-            usize::max,
-        ),
-        Statement::Return(value) | Statement::Break(value) | Statement::Next(value) => {
-            own.max(value.as_ref().map_or(0, last_offset))
-        }
-        Statement::Raise(value, message) => own
-            .max(value.as_deref().map_or(0, last_offset))
-            .max(message.as_deref().map_or(0, last_offset)),
-        _ => own,
-    }
 }

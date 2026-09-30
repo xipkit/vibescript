@@ -31,6 +31,7 @@ pub(super) enum Next<'a> {
     Item(Item<'a>),
     Stmts(Iter<'a, Stmt>),
     Exprs(Iter<'a, Expr>),
+    Targets(Iter<'a, Target>),
     /// Arguments' values.
     Arguments(Iter<'a, Argument>),
     /// A hash literal's values.
@@ -63,6 +64,7 @@ impl Next<'_> {
             Next::Item(_) => false,
             Next::Stmts(items) => items.len() == 0,
             Next::Exprs(items) => items.len() == 0,
+            Next::Targets(items) => items.len() == 0,
             Next::Arguments(items) => items.len() == 0,
             Next::Pairs(items) => items.len() == 0,
             Next::Branches(items) => items.len() == 0,
@@ -135,6 +137,7 @@ impl<'a, 'm, T: Copy> Walk<'a, 'm, T> {
                 Next::Item(item) => (Some(*item), None),
                 Next::Stmts(items) => (items.next().map(Item::Stmt), None),
                 Next::Exprs(items) => (items.next().map(Item::Expr), None),
+                Next::Targets(items) => (items.next().map(Item::Target), None),
                 Next::Arguments(items) => (items.next().map(|arg| Item::Expr(&arg.value)), None),
                 Next::Pairs(items) => (items.next().map(|(_, value)| Item::Expr(value)), None),
                 Next::Values(items) => (items.next().map(|(value, _)| Item::Expr(value)), None),
