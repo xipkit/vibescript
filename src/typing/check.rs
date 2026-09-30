@@ -247,7 +247,10 @@ impl<'a> Checker<'a> {
         if self.mute > 0 {
             return;
         }
-        self.keep(&diagnostic);
+        // A check its budget stops keeps no more findings.
+        if self.keep(&diagnostic) {
+            return;
+        }
         self.diagnostics.push(diagnostic);
     }
 
@@ -273,12 +276,13 @@ impl<'a> Checker<'a> {
             for decl in self.program.fns.iter().filter(|decl| decl.main) {
                 if let Some(def) = decl.def {
                     let scratch = assigned_names(&self.meter, &def.body, &mut shared);
-                    self.transient(scratch + shared.heap());
+                    if self.transient(scratch + shared.heap()) {
+                        return;
+                    }
                 }
             }
             // The names move into a set, counted before it is made.
-            self.transient(shared.heap() + super::meter::table::<String>(shared.len()));
-            if self.halted() {
+            if self.transient(shared.heap() + super::meter::table::<String>(shared.len())) {
                 return;
             }
             let shared: std::collections::HashSet<String> = shared.into_iter().collect();
@@ -290,7 +294,9 @@ impl<'a> Checker<'a> {
                 let Some(def) = decl.def else { continue };
                 let mut names = Vec::new();
                 let scratch = assigned_names(&self.meter, &def.body, &mut names);
-                self.transient(scratch + names.heap() + shared.heap() + written.heap());
+                if self.transient(scratch + names.heap() + shared.heap() + written.heap()) {
+                    return;
+                }
                 names.retain(|name| {
                     shared.contains(name) && !def.params.iter().any(|param| param.name == *name)
                 });
@@ -298,14 +304,15 @@ impl<'a> Checker<'a> {
             }
             // The names move into the program's set, counted before it is
             // made.
-            self.transient(
+            if self.transient(
                 shared.heap() + written.heap() + super::meter::table::<String>(written.len()),
-            );
-            if self.halted() {
+            ) {
                 return;
             }
             self.program.file_written = written.into_iter().collect();
-            self.declared();
+            if self.declared() {
+                return;
+            }
         }
         if let Some(main) = self.program.fns.iter().position(|decl| decl.main) {
             self.check_function(main);
@@ -387,8 +394,7 @@ impl<'a> Checker<'a> {
             let most = super::meter::table::<((u32, u32), &str)>(ivars)
                 + super::meter::table::<(u32, Vec<(&Stmt, Option<&str>)>)>(count)
                 + 4 * count * std::mem::size_of::<(&Stmt, Option<&str>)>();
-            self.transient(most);
-            if self.halted() {
+            if self.transient(most) {
                 return Vec::new();
             }
             let mut names: HashMap<(u32, u32), &'a str> = HashMap::with_capacity(ivars);
@@ -409,10 +415,15 @@ impl<'a> Checker<'a> {
                 let name = names.get(&(*class, stmt.offset)).copied();
                 defaults.entry(*class).or_default().push((stmt, name));
             }
-            self.meter.charge(((ivars % pace) + (count % pace)) as u64);
+            if self.meter.charge(((ivars % pace) + (count % pace)) as u64) {
+                return Vec::new();
+            }
             let bytes = super::meter::map(&defaults)
                 + defaults.values().map(super::meter::vec).sum::<usize>();
-            self.hold(bytes);
+            // Kept for the rest of the check.
+            if self.hold(bytes).is_none() {
+                return Vec::new();
+            }
             self.defaults = Some((defaults, bytes));
         }
         let (defaults, bytes) = self.defaults.take().unwrap();
@@ -435,7 +446,10 @@ impl<'a> Checker<'a> {
         // number times the namespaces.
         let mut mentioned = std::collections::HashSet::new();
         let scratch = mentions(&self.meter, &module.body, &mut mentioned);
-        self.transient(scratch + super::meter::set(&mentioned));
+        if self.transient(scratch + super::meter::set(&mentioned)) {
+            self.leave_frame(previous);
+            return;
+        }
         // The enclosing locals the body names, with a copy of each name,
         // counted before they are copied; a check past its budget copies
         // none.
@@ -447,19 +461,22 @@ impl<'a> Checker<'a> {
         let (count, bytes) = named().fold((0, 0), |(count, bytes), (name, _)| {
             (count + 1, bytes + name.len())
         });
-        let held = self.hold(count * std::mem::size_of::<(String, Ty, usize, VarState)>() + bytes);
-        let mut ambient = Vec::with_capacity(if self.halted() { 0 } else { count });
-        if !self.halted() {
-            ambient.extend(named().map(|(name, id)| {
-                let local = &previous.locals[id as usize];
-                (
-                    name.to_owned(),
-                    local.declared,
-                    local.offset,
-                    previous.flow.get(id),
-                )
-            }));
-        }
+        let Some(held) =
+            self.hold(count * std::mem::size_of::<(String, Ty, usize, VarState)>() + bytes)
+        else {
+            self.leave_frame(previous);
+            return;
+        };
+        let mut ambient = Vec::with_capacity(count);
+        ambient.extend(named().map(|(name, id)| {
+            let local = &previous.locals[id as usize];
+            (
+                name.to_owned(),
+                local.declared,
+                local.offset,
+                previous.flow.get(id),
+            )
+        }));
         for (name, declared, offset, state) in &ambient {
             let id = self.declare(name, *declared, *offset, true);
             self.frame.flow.set(id, *state);
@@ -474,14 +491,15 @@ impl<'a> Checker<'a> {
             .fold((0, 0), |(count, bytes), (name, ..)| {
                 (count + 1, bytes + name.len())
             });
-        self.transient(count * std::mem::size_of::<(String, VarState)>() + bytes);
-        let mut changes = Vec::with_capacity(if self.halted() { 0 } else { count });
-        if !self.halted() {
-            changes.extend(ambient.iter().filter_map(|(name, _, _, _)| {
-                self.local(name)
-                    .map(|id| (name.clone(), self.frame.flow.get(id)))
-            }));
+        if self.transient(count * std::mem::size_of::<(String, VarState)>() + bytes) {
+            self.leave_frame(previous);
+            return;
         }
+        let mut changes = Vec::with_capacity(count);
+        changes.extend(ambient.iter().filter_map(|(name, _, _, _)| {
+            self.local(name)
+                .map(|id| (name.clone(), self.frame.flow.get(id)))
+        }));
         // Instance-variable defaults run for each instance.
         let defaults = self.defaults_of(module.offset);
         let name = self.frame.name.clone();
@@ -495,7 +513,11 @@ impl<'a> Checker<'a> {
         }
         unassigned.sort_unstable();
         let roster: super::construction::Roster = unassigned.into();
-        let held = self.hold(super::construction::roster_bytes(&roster));
+        let Some(held) = self.hold(super::construction::roster_bytes(&roster)) else {
+            self.leave_frame(body);
+            self.leave_frame(previous);
+            return;
+        };
         // Each default sees the same set, less what the ones before it
         // assign, shared with the uses of `self` in them rather than copied.
         let mut building = super::construction::Unassigned::all(roster);
@@ -503,7 +525,9 @@ impl<'a> Checker<'a> {
             self.frame.building = Some(building.clone());
             self.stmt(stmt, Want::Discard);
             if let Some(name) = assigned {
-                self.grow(building.remove(name));
+                if self.grow(building.remove(name)) {
+                    break;
+                }
             }
         }
         self.frame.building = None;
@@ -519,7 +543,9 @@ impl<'a> Checker<'a> {
 
     fn check_function(&mut self, id: FnId) {
         // Checking a function is a step, whatever its body holds.
-        self.meter.charge(1);
+        if self.meter.charge(1) {
+            return;
+        }
         let decl = &self.program.fns[id];
         let Some(def) = decl.def else {
             return;
@@ -535,16 +561,23 @@ impl<'a> Checker<'a> {
         frame.block = sig.block.clone();
         let previous = self.enter_frame(frame);
         // The frame keeps a copy of the function's name.
-        self.grew(sig.name.len());
+        if self.grew(sig.name.len()) {
+            self.leave_frame(previous);
+            return;
+        }
         if self.program.file && !main {
             // The file's locals are copied, and counted before they are.
-            self.transient(self.program.file_locals.heap());
-        }
-        if self.program.file && !main && !self.halted() {
+            if self.transient(self.program.file_locals.heap()) {
+                self.leave_frame(previous);
+                return;
+            }
             let locals = self.program.file_locals.clone();
             // Each function declares every one of the file's locals, a step
             // each.
-            self.meter.charge(locals.len() as u64);
+            if self.meter.charge(locals.len() as u64) {
+                self.leave_frame(previous);
+                return;
+            }
             for (name, (ty, offset)) in locals {
                 if !def.params.iter().any(|param| param.name == name) {
                     let id = self.declare(&name, ty, offset, true);
@@ -604,45 +637,50 @@ impl<'a> Checker<'a> {
         let body = &def.body;
         let result = self.stmts(body, want);
         // A check past its budget keeps neither what a session declares
-        // nor a required file's locals.
-        if main && !self.program.file && self.annotate && !self.halted() {
+        // nor a required file's locals, and checks nothing more here.
+        let mut stopped = self.halted();
+        if main && !self.program.file && self.annotate && !stopped {
             // Counted before they are copied.
             let (count, bytes) = self.assigned_size();
-            self.transient(count * std::mem::size_of::<(String, Ty)>() + bytes);
+            stopped = self.transient(count * std::mem::size_of::<(String, Ty)>() + bytes);
+            if !stopped {
+                let mut locals = Vec::with_capacity(count);
+                locals.extend(
+                    self.assigned_locals()
+                        .map(|(name, id)| (name.clone(), self.frame.locals[id as usize].declared)),
+                );
+                self.session = Some(super::Session { locals, result });
+                let locals = self
+                    .session
+                    .as_ref()
+                    .map_or(0, |session| session.locals.heap());
+                stopped = self.grow(locals);
+            }
         }
-        if main && !self.program.file && self.annotate && !self.halted() {
-            let mut locals = Vec::with_capacity(self.assigned_size().0);
-            locals.extend(
-                self.assigned_locals()
-                    .map(|(name, id)| (name.clone(), self.frame.locals[id as usize].declared)),
-            );
-            self.session = Some(super::Session { locals, result });
-            let locals = self
-                .session
-                .as_ref()
-                .map_or(0, |session| session.locals.heap());
-            self.grow(locals);
-        }
-        if main && self.program.file && !self.halted() {
+        if main && self.program.file && !stopped {
             // Counted before they are copied.
             let (count, bytes) = self.assigned_size();
             let locals = &self.program.file_locals;
-            self.transient(
+            stopped = self.transient(
                 locals.heap()
                     + super::meter::table::<(String, (Ty, usize))>(locals.len() + count)
                     + bytes,
             );
-        }
-        if main && self.program.file && !self.halted() {
-            for (name, &id) in &self.frame.names {
-                if self.frame.flow.get(id).assigned {
-                    let local = &self.frame.locals[id as usize];
-                    self.program
-                        .file_locals
-                        .insert(name.clone(), (local.declared, local.offset));
+            if !stopped {
+                for (name, &id) in &self.frame.names {
+                    if self.frame.flow.get(id).assigned {
+                        let local = &self.frame.locals[id as usize];
+                        self.program
+                            .file_locals
+                            .insert(name.clone(), (local.declared, local.offset));
+                    }
                 }
+                stopped = self.declared();
             }
-            self.declared();
+        }
+        if stopped {
+            self.leave_frame(previous);
+            return;
         }
         if self.frame.flow.live {
             if let (Some(result), false) = (sig.result, main) {
@@ -681,8 +719,7 @@ impl<'a> Checker<'a> {
             .fold((0, 0), |(count, bytes), (name, _)| {
                 (count + 1, bytes + name.len())
             });
-        self.transient(count * std::mem::size_of::<(String, Ty)>() + bytes);
-        if self.halted() {
+        if self.transient(count * std::mem::size_of::<(String, Ty)>() + bytes) {
             return;
         }
         let mut required: Vec<(String, Ty)> = Vec::with_capacity(count);
@@ -723,8 +760,7 @@ impl<'a> Checker<'a> {
             return;
         }
         // Their places, counted before they are listed.
-        self.transient(unassigned.len() * std::mem::size_of::<usize>());
-        if self.halted() {
+        if self.transient(unassigned.len() * std::mem::size_of::<usize>()) {
             return;
         }
         let places = unassigned.indices();
@@ -788,7 +824,9 @@ impl<'a> Checker<'a> {
         }
         // The names are read in place: the frame, not the program, changes.
         for name in &self.program.file_written {
-            self.meter.charge(1);
+            if self.meter.charge(1) {
+                return;
+            }
             if let Some(&id) = self.frame.names.get(name.as_str()) {
                 let state = self.frame.flow.get(id);
                 let declared = self.frame.locals[id as usize].declared;
@@ -810,16 +848,16 @@ impl<'a> Checker<'a> {
             }
             // The locals assigned so far, counted before they are copied.
             let (count, bytes) = self.assigned_size();
-            self.transient(count * std::mem::size_of::<String>() + bytes);
-            if self.halted() {
+            if self.transient(count * std::mem::size_of::<String>() + bytes) {
                 return;
             }
             let mut assigned: Vec<String> = Vec::with_capacity(count);
             assigned.extend(self.assigned_locals().map(|(name, _)| name.clone()));
             // Sorted, so each name the callee reads is found by search.
             assigned.sort_unstable();
-            self.meter.charge(assigned.len() as u64);
-            self.grow(assigned.heap());
+            if self.meter.charge(assigned.len() as u64) || self.grow(assigned.heap()) {
+                return;
+            }
             self.program.file_calls.push(FileCall {
                 callee,
                 span,
@@ -830,7 +868,9 @@ impl<'a> Checker<'a> {
             let before = callees.capacity();
             callees.push(callee);
             let grown = (callees.capacity() - before) * std::mem::size_of::<FnId>();
-            self.grow(grown);
+            // The call is recorded either way, and this is the last of it:
+            // a check this stops records no more, as `halted` then says.
+            let _ = self.grow(grown);
         }
     }
 
@@ -842,7 +882,9 @@ impl<'a> Checker<'a> {
                 let reads = &mut self.program.file_uses.entry(function).or_default().0;
                 let bytes = super::meter::btree_entry(reads) + name.len();
                 if reads.insert(name.to_owned()) {
-                    self.grow(bytes);
+                    // The read is recorded either way, and this is the last
+                    // of it: a check this stops records no more.
+                    let _ = self.grow(bytes);
                 }
             }
         }
@@ -854,13 +896,14 @@ impl<'a> Checker<'a> {
     fn check_file_calls(&mut self) {
         let uses = std::mem::take(&mut self.program.file_uses);
         // Taken from the program, the table is held while it is read.
-        let taken = self.hold(super::meter::map(&uses));
+        let Some(taken) = self.hold(super::meter::map(&uses)) else {
+            return;
+        };
         // A copy of what each function reads, counted before it is made.
-        self.transient(
+        if self.transient(
             super::meter::table::<(FnId, std::collections::BTreeSet<String>)>(uses.len())
                 + uses.values().map(|(read, _)| read.heap()).sum::<usize>(),
-        );
-        if self.halted() {
+        ) {
             self.release(taken);
             return;
         }
@@ -868,7 +911,10 @@ impl<'a> Checker<'a> {
             .iter()
             .map(|(&id, (read, _))| (id, read.clone()))
             .collect();
-        self.grow(reads.heap());
+        if self.grow(reads.heap()) {
+            self.release(taken);
+            return;
+        }
         // Checking each call charged for the first pass over the calls.
         let mut again = false;
         let mut changed = true;
@@ -880,17 +926,26 @@ impl<'a> Checker<'a> {
                     return;
                 }
                 for callee in callees {
-                    self.meter.charge(u64::from(again));
+                    if self.meter.charge(u64::from(again)) {
+                        self.release(taken);
+                        return;
+                    }
                     let Some(read) = reads.get(callee).cloned() else {
                         continue;
                     };
-                    self.meter.charge(read.len() as u64);
+                    if self.meter.charge(read.len() as u64) {
+                        self.release(taken);
+                        return;
+                    }
                     let entry = reads.entry(caller).or_default();
                     for name in read {
                         let bytes = super::meter::btree_entry(entry) + name.len();
                         if entry.insert(name) {
                             changed = true;
-                            self.grow(bytes);
+                            if self.grow(bytes) {
+                                self.release(taken);
+                                return;
+                            }
                         }
                     }
                 }
@@ -898,17 +953,22 @@ impl<'a> Checker<'a> {
             again = true;
         }
         let calls = std::mem::take(&mut self.program.file_calls);
-        let taken = taken + self.hold(super::meter::vec(&calls));
+        let Some(calls_held) = self.hold(super::meter::vec(&calls)) else {
+            self.release(taken);
+            return;
+        };
+        let taken = taken + calls_held;
         for call in calls {
             let Some(read) = reads.get(&call.callee) else {
                 continue;
             };
-            self.meter.charge(read.len() as u64);
-            let missing: Vec<&String> = read
+            if self.meter.charge(read.len() as u64) {
+                break;
+            }
+            let Some(first) = read
                 .iter()
-                .filter(|name| call.assigned.binary_search(name).is_err())
-                .collect();
-            let Some(first) = missing.first() else {
+                .find(|name| call.assigned.binary_search(name).is_err())
+            else {
                 continue;
             };
             let callee = self.program.fns[call.callee]
@@ -1002,7 +1062,10 @@ impl<'a> Checker<'a> {
         let previous = self.frame.names.insert(name.to_owned(), id);
         // The local, its entry by name and its scope's record each copy it.
         self.frame.name_bytes += 3 * name.len();
-        self.grew(3 * name.len());
+        // The local is declared however the budget stands, since the caller
+        // needs its id and its scope's record; a check this stops checks no
+        // more statements, as `halted` says.
+        let _ = self.grew(3 * name.len());
         if let Some(scope) = self.frame.scopes.last_mut() {
             scope.push((name.to_owned(), previous));
         }
@@ -1097,10 +1160,12 @@ impl<'a> Checker<'a> {
     pub(super) fn explore(&mut self, explored: &mut Vec<Branch>, branch: Branch) {
         // A check past its budget unwinds without keeping branches, which
         // its joins would not read.
-        if self.halted() {
+        if self
+            .hold(std::mem::size_of::<Branch>() + branch.heap())
+            .is_none()
+        {
             return;
         }
-        self.hold(std::mem::size_of::<Branch>() + branch.heap());
         explored.push(branch);
     }
 
@@ -1121,7 +1186,9 @@ impl<'a> Checker<'a> {
         }
         // The branches, taken from wherever they were kept, and a table of
         // each one's changes are held while the join runs.
-        let held = self.hold(branches.heap() + Flow::join_scratch(&branches));
+        let Some(held) = self.hold(branches.heap() + Flow::join_scratch(&branches)) else {
+            return;
+        };
         // The locals' declared types are read in place, not copied at every
         // join.
         let locals = &self.frame.locals;
@@ -1138,7 +1205,9 @@ impl<'a> Checker<'a> {
     /// since the body may run again after narrowing them.
     pub(super) fn widen_for_loop(&mut self, body: &'a [Stmt]) {
         let span = self.assigns.body(&self.meter, body);
-        self.meter.charge(body.len() as u64);
+        if self.meter.charge(body.len() as u64) {
+            return;
+        }
         self.widen(span);
     }
 
@@ -1150,10 +1219,11 @@ impl<'a> Checker<'a> {
             return;
         }
         let names = self.assigns.distinct(span, |count, _| {
-            self.transient(count * std::mem::size_of::<&str>());
-            !self.halted()
+            !self.transient(count * std::mem::size_of::<&str>())
         });
-        self.meter.charge(names.len() as u64);
+        if self.meter.charge(names.len() as u64) {
+            return;
+        }
         for name in names {
             if let Some(id) = self.local(name) {
                 let state = self.frame.flow.get(id);
@@ -1195,8 +1265,7 @@ impl<'a> Checker<'a> {
     /// Checks a statement, `last` when it ends a body, where a loop gives
     /// another value than as an expression.
     fn statement(&mut self, stmt: &'a Stmt, want: Want, last: bool) -> Ty {
-        self.meter.charge(1);
-        if self.over_budget() {
+        if self.meter.charge(1) || self.over_budget() {
             return Ty::ERROR;
         }
         if super::too_tall(stmt.height()) {
@@ -2189,7 +2258,11 @@ impl<'a> Checker<'a> {
                         })
                     } else {
                         let ty = self.expr(value, None);
-                        self.grow(key.1.len());
+                        // A check that counting the constant's name stops
+                        // keeps no more constants.
+                        if self.grow(key.1.len()) {
+                            return Ty::ERROR;
+                        }
                         self.constants.insert(key, ty);
                         ty
                     }
@@ -2257,7 +2330,9 @@ impl<'a> Checker<'a> {
         };
         let splat = parts.iter().position(|(_, rest)| *rest);
         let after = splat.map_or(0, |splat| parts.len() - splat - 1);
-        let held = self.hold(items.len() * std::mem::size_of::<Ty>());
+        let Some(held) = self.hold(items.len() * std::mem::size_of::<Ty>()) else {
+            return Ty::ERROR;
+        };
         let types: Vec<Ty> = items
             .iter()
             .enumerate()
@@ -2647,7 +2722,11 @@ impl<'a> Checker<'a> {
         self.report(diagnostic);
         // Later reads and writes check against the first value's type.
         let ty = if nameable { ty } else { Ty::ERROR };
-        self.grow(key.1.len());
+        // A check that counting the constant's name stops keeps no more
+        // constants.
+        if self.grow(key.1.len()) {
+            return;
+        }
         self.constants.insert(key, ty);
     }
 

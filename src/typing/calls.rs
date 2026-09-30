@@ -520,8 +520,10 @@ impl<'a> Checker<'a> {
                         .contains_key(name),
                     _ => false,
                 });
-                self.grow(super::meter::Heap::heap(&receiver_type));
-                self.calls.push((span.start, receiver_type));
+                // A check that counting it stops keeps no more receivers.
+                if !self.grow(super::meter::Heap::heap(&receiver_type)) {
+                    self.calls.push((span.start, receiver_type));
+                }
             }
         }
         let call = Call {
@@ -944,7 +946,10 @@ impl<'a> Checker<'a> {
                             let id = self.program.host_modules.len();
                             self.program.host_modules.push(module);
                             let name = format!("{}.{}", self.types.display(ty), module.name);
-                            self.grow(name.capacity() + std::mem::size_of::<String>());
+                            // Named whatever the budget says, since the id
+                            // names it; the type interned next is an error
+                            // once the check stops.
+                            let _ = self.grow(name.capacity() + std::mem::size_of::<String>());
                             self.types.names.hosts.push(name);
                             id
                         });
@@ -1397,8 +1402,10 @@ impl<'a> Checker<'a> {
         let name_span = self.spans.member(receiver, name);
         if let (Some(span), false) = (name_span, ty == Ty::ERROR) {
             let receiver_type = ReceiverType::new(self.types.display(ty), self.types.bases(ty));
-            self.grow(super::meter::Heap::heap(&receiver_type));
-            self.calls.push((span.start, receiver_type));
+            // A check that counting it stops keeps no more receivers.
+            if !self.grow(super::meter::Heap::heap(&receiver_type)) {
+                self.calls.push((span.start, receiver_type));
+            }
         }
         if let Kind::Host(index) = *self.types.kind(ty) {
             let module = self.program.host_modules[index as usize];
@@ -1669,20 +1676,24 @@ impl<'a> Checker<'a> {
             .filter(|name| std::str::from_utf8(name).is_err())
             .map(|name| 3 * name.len())
             .sum();
-        self.transient(count * std::mem::size_of::<std::borrow::Cow<'_, str>>() + copied);
         // A check past its budget chooses the first candidate, which it
         // checks no further.
-        if self.halted() {
+        if self.transient(count * std::mem::size_of::<std::borrow::Cow<'_, str>>() + copied) {
             return Some(0);
         }
         let mut keywords: Vec<std::borrow::Cow<'_, str>> = Vec::with_capacity(count);
         keywords.extend(call.keywords().map(std::borrow::Cow::Borrowed));
         keywords.extend(splatted().map(|name| String::from_utf8_lossy(name)));
-        let declared = call.block.map(|block| {
-            let (arity, scratch) = block_arity(&self.meter, block);
-            self.transient(scratch);
-            arity
-        });
+        let declared = match call.block {
+            Some(block) => {
+                let (arity, scratch) = block_arity(&self.meter, block);
+                if self.transient(scratch) {
+                    return Some(0);
+                }
+                Some(arity)
+            }
+            None => None,
+        };
         let fits = |sig: &Sig, relaxed: bool| {
             let (min, max) = sig.positional();
             let count = positional >= min
@@ -1846,10 +1857,12 @@ impl<'a> Checker<'a> {
         if let Some(extra) = call.extra {
             arguments.push((extra, false));
         }
-        let held = self.hold(
+        let Some(held) = self.hold(
             positional_params.capacity() * std::mem::size_of::<&sigs::Param>()
                 + arguments.capacity() * std::mem::size_of::<(&Expr, bool)>(),
-        );
+        ) else {
+            return;
+        };
         for (value, splat) in arguments {
             if splat {
                 splatted = true;
@@ -1911,9 +1924,12 @@ impl<'a> Checker<'a> {
             };
             // The names the purpose copies are held while the argument is
             // checked.
-            let held = self.hold(super::meter::Heap::heap(&purpose));
+            let Some(argument_held) = self.hold(super::meter::Heap::heap(&purpose)) else {
+                self.release(held);
+                return;
+            };
             let actual = self.argument(value, param_ty, bindings, &purpose);
-            self.release(held);
+            self.release(argument_held);
             if splatted {
                 for param in positional_params.iter().skip(index + 1) {
                     self.spread_argument(value, actual, param.ty, bindings, function);
@@ -1950,7 +1966,11 @@ impl<'a> Checker<'a> {
         for arg in call.args {
             match &arg.kind {
                 ArgumentKind::Keyword(name) => {
-                    held += self.hold(std::mem::size_of::<String>() + name.len());
+                    let Some(bytes) = self.hold(std::mem::size_of::<String>() + name.len()) else {
+                        self.release(held);
+                        return;
+                    };
+                    held += bytes;
                     given.push(name.to_string());
                     let param = sig.keyword(name).map(|p| p.ty).or_else(|| {
                         sig.keyword_rest()
@@ -1962,7 +1982,11 @@ impl<'a> Checker<'a> {
                                 name: name.to_string(),
                                 function: function.to_owned(),
                             };
-                            let purpose_held = self.hold(super::meter::Heap::heap(&purpose));
+                            let Some(purpose_held) = self.hold(super::meter::Heap::heap(&purpose))
+                            else {
+                                self.release(held);
+                                return;
+                            };
                             self.argument(&arg.value, param_ty, bindings, &purpose);
                             self.release(purpose_held);
                         }
@@ -1981,10 +2005,19 @@ impl<'a> Checker<'a> {
                 ArgumentKind::KeywordSplat => {
                     let ty = self.expr(&arg.value, None);
                     if let Kind::Shape(fields, _) = &*self.types.shared(ty) {
-                        held += self.hold(fields.len() * std::mem::size_of::<String>());
+                        let Some(bytes) = self.hold(fields.len() * std::mem::size_of::<String>())
+                        else {
+                            self.release(held);
+                            return;
+                        };
+                        held += bytes;
                         for field in fields.iter() {
                             if !field.optional {
-                                held += self.hold(field.name.len());
+                                let Some(bytes) = self.hold(field.name.len()) else {
+                                    self.release(held);
+                                    return;
+                                };
+                                held += bytes;
                                 given.push(field.name.to_string());
                             }
                             let expected = sig.keyword(&field.name).map(|p| p.ty).or_else(|| {
@@ -2367,7 +2400,9 @@ impl<'a> Checker<'a> {
         break_to: Option<BreakTo>,
     ) -> Vec<Ty> {
         // Counted before they are listed.
-        let held = self.hold(block_sig.params.len() * std::mem::size_of::<Ty>());
+        let Some(held) = self.hold(block_sig.params.len() * std::mem::size_of::<Ty>()) else {
+            return Vec::new();
+        };
         let params: Vec<Ty> = block_sig
             .params
             .iter()
@@ -2425,7 +2460,9 @@ impl<'a> Checker<'a> {
         } else {
             params.len()
         };
-        let held = self.hold(count * std::mem::size_of::<Ty>());
+        let Some(held) = self.hold(count * std::mem::size_of::<Ty>()) else {
+            return Ty::ERROR;
+        };
         let params: Vec<Ty> = if params.is_empty() && !block.params.is_empty() {
             vec![Ty::ERROR; block.params.len()]
         } else {
@@ -2457,8 +2494,7 @@ impl<'a> Checker<'a> {
         // The widening below charges for listing these names.
         let span = self.assigns.body(&self.meter, &block.body);
         let names = self.assigns.distinct(span, |count, _| {
-            self.transient(count * std::mem::size_of::<&str>());
-            !self.halted()
+            !self.transient(count * std::mem::size_of::<&str>())
         });
         for name in names {
             if let Some(id) = self.local(name) {

@@ -338,9 +338,11 @@ impl Types {
         types
     }
 
-    /// Adds `steps` to the check's work.
-    pub fn charge(&self, steps: u64) {
-        self.meter.charge(steps);
+    /// Adds `steps` to the check's work. Returns whether the check has
+    /// stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    pub fn charge(&self, steps: u64) -> bool {
+        self.meter.charge(steps)
     }
 
     /// Whether the check passed its budget; operations then return at once.
@@ -349,28 +351,39 @@ impl Types {
     }
 
     /// Checks the account against the budget, the whole check's work and
-    /// memory, so one operation on large types cannot run past it.
-    fn poll(&self) {
-        self.meter.poll(|| self.meter.held(self.bytes()));
+    /// memory, so one operation on large types cannot run past it. Returns
+    /// whether the check has stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    fn poll(&self) -> bool {
+        self.meter.poll(|| self.meter.held(self.bytes()))
     }
 
     /// Records `bytes` an operation holds beside the table while it runs,
     /// such as a large type it is building, which the budget bounds with
-    /// the rest; smaller ones stay within the account's margin.
-    fn transient(&self, bytes: usize) {
+    /// the rest; smaller ones stay within the account's margin. Returns
+    /// whether the check has stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    fn transient(&self, bytes: usize) -> bool {
         if bytes >= 4096 {
-            self.meter.transient(self.bytes(), bytes);
+            return self.meter.transient(self.bytes(), bytes);
         }
+        self.stopped()
     }
 
     /// Counts `bytes` an operation keeps beside the table while it polls,
-    /// until [`Self::release`] takes them back; returns them.
-    fn hold(&mut self, bytes: usize) -> usize {
-        self.scratch += bytes;
-        if bytes >= 4096 {
-            self.meter.transient(self.bytes(), 0);
+    /// until [`Self::release`] takes them back; returns them. A check that
+    /// has stopped, or that they stop, holds nothing and gets `None`.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    fn hold(&mut self, bytes: usize) -> Option<usize> {
+        if self.stopped() {
+            return None;
         }
-        bytes
+        self.scratch += bytes;
+        if bytes >= 4096 && self.meter.transient(self.bytes(), 0) {
+            self.scratch -= bytes;
+            return None;
+        }
+        Some(bytes)
     }
 
     /// Takes back what [`Self::hold`] counted.
@@ -387,11 +400,12 @@ impl Types {
     }
 
     /// Interns `kind`, as the table's own types are however the check
-    /// stands.
+    /// stands: whether the measures stop the check, [`Self::intern`] and
+    /// the operations that build types look before they add more.
     fn add(&mut self, kind: Kind) -> Ty {
         // Hashing the kind walks it as far as measuring it does.
         let heap = kind.heap();
-        self.transient(heap);
+        let _ = self.transient(heap);
         if let Some(&ty) = self.ids.get(&kind) {
             return ty;
         }
@@ -400,7 +414,7 @@ impl Types {
         let kind = Arc::new(kind);
         self.kinds.push(Arc::clone(&kind));
         self.ids.insert(kind, ty);
-        self.poll();
+        let _ = self.poll();
         ty
     }
 
@@ -434,7 +448,9 @@ impl Types {
     /// renamed, as `deep_transform_keys` renames them: each shape becomes a
     /// dictionary of its fields' types.
     pub fn rekeyed(&mut self, ty: Ty) -> Ty {
-        self.charge(1);
+        if self.charge(1) {
+            return Ty::ERROR;
+        }
         match &*self.shared(ty) {
             Kind::Shape(fields, open) => {
                 let mut values: Vec<Ty> =
@@ -468,13 +484,18 @@ impl Types {
     /// A shape from fields in any order; a later field of the same name wins.
     pub fn shape(&mut self, mut fields: Vec<Field>, open: bool) -> Ty {
         // The fields are held beside the table until they are interned.
-        let held = self.hold(fields.heap());
+        let Some(held) = self.hold(fields.heap()) else {
+            return Ty::ERROR;
+        };
         fields.reverse();
         fields.sort_by(|a, b| a.name.cmp(&b.name));
         // Sorting them in order kept a copy of them for a moment.
-        self.transient(fields.capacity() * std::mem::size_of::<Field>());
+        let sorted = self.transient(fields.capacity() * std::mem::size_of::<Field>());
         fields.dedup_by(|a, b| a.name == b.name);
-        self.work(fields.len());
+        if sorted || self.work(fields.len()) {
+            self.release(held);
+            return Ty::ERROR;
+        }
         let ty = if fields.len() > MAX_FIELDS {
             self.too_large.get_or_insert(("shape", fields.len()));
             Ty::ERROR
@@ -494,10 +515,10 @@ impl Types {
     /// `any` or an unknown type absorbs the rest.
     pub fn union(&mut self, types: &[Ty]) -> Ty {
         // The caller's types are held beside the table while this runs.
-        self.transient(std::mem::size_of_val(types));
-        self.charge(types.len() as u64);
-        self.poll();
-        if self.stopped() {
+        if self.transient(std::mem::size_of_val(types))
+            || self.charge(types.len() as u64)
+            || self.poll()
+        {
             return Ty::ERROR;
         }
         let mut members = Vec::with_capacity(types.len());
@@ -513,9 +534,11 @@ impl Types {
             return Ty::ANY;
         }
         // The caller's types, and the members gathered from them.
-        self.transient(
+        if self.transient(
             std::mem::size_of_val(types) + members.capacity() * std::mem::size_of::<Ty>(),
-        );
+        ) {
+            return Ty::ERROR;
+        }
         members.sort_unstable();
         members.dedup();
         if members.len() > MAX_ALTERNATIVES {
@@ -587,9 +610,12 @@ impl Types {
         result
     }
 
+    /// A stopped check relates no more types, and takes every one as
+    /// assignable, so it reports nothing more.
     fn assignable_uncached(&mut self, from: Ty, to: Ty) -> bool {
-        self.charge(1);
-        self.poll();
+        if self.charge(1) || self.poll() {
+            return true;
+        }
         if let Kind::Union(members) = self.kind(from) {
             let count = members.len();
             for index in 0..count {
@@ -615,7 +641,9 @@ impl Types {
             }
             (Kind::Tuple(items), Kind::Array(element)) => {
                 let (count, element) = (items.len(), *element);
-                self.work(count);
+                if self.work(count) {
+                    return true;
+                }
                 (0..count).all(|index| {
                     let item = self.tuple_item(from, index);
                     self.assignable(item, element)
@@ -626,7 +654,9 @@ impl Types {
                 if count != b.len() {
                     return false;
                 }
-                self.work(count);
+                if self.work(count) {
+                    return true;
+                }
                 (0..count).all(|index| {
                     let (x, y) = (self.tuple_item(from, index), self.tuple_item(to, index));
                     self.assignable(x, y)
@@ -639,7 +669,9 @@ impl Types {
                 if open && value != Ty::ANY {
                     return false;
                 }
-                self.work(count);
+                if self.work(count) {
+                    return true;
+                }
                 (0..count).all(|index| {
                     let field = self.field_type(from, index);
                     self.assignable(field, value)
@@ -683,6 +715,14 @@ impl Types {
                 let Kind::Union(alternatives) = self.kind(union) else {
                     return Vec::new();
                 };
+                // Charged before it is built.
+                let count = alternatives.len();
+                if self.work(count) {
+                    return Vec::new();
+                }
+                let Kind::Union(alternatives) = self.kind(union) else {
+                    return Vec::new();
+                };
                 let mut index: HashMap<Head, Vec<Ty>> = HashMap::new();
                 for &alternative in alternatives.iter() {
                     index
@@ -690,8 +730,6 @@ impl Types {
                         .or_default()
                         .push(alternative);
                 }
-                let count = alternatives.len();
-                self.work(count);
                 if self.indexed + count > INDEXED {
                     self.index.clear();
                     self.indexed = 0;
@@ -710,7 +748,9 @@ impl Types {
                 found.extend_from_slice(alternatives);
             }
         }
-        self.work(found.len());
+        if self.work(found.len()) {
+            return Vec::new();
+        }
         found
     }
 
@@ -726,7 +766,9 @@ impl Types {
         if from_open && !to_open {
             return false;
         }
-        self.work(count);
+        if self.work(count) {
+            return true;
+        }
         let (Kind::Shape(a, _), Kind::Shape(b, _)) = (self.kind(from), self.kind(to)) else {
             return false;
         };
@@ -767,12 +809,14 @@ impl Types {
     }
 
     /// Charges `units` of work that grows with a type's size, a step for
-    /// every 64, so small types cost nothing more.
-    pub fn work(&mut self, units: usize) {
+    /// every 64, so small types cost nothing more. Returns whether the
+    /// check has stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    pub fn work(&mut self, units: usize) -> bool {
         if units >= 64 {
-            self.charge((units / 64) as u64);
-            self.poll();
+            return self.charge((units / 64) as u64) || self.poll();
         }
+        self.stopped()
     }
 
     fn tuple_item(&self, tuple: Ty, index: usize) -> Ty {

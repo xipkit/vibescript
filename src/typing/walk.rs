@@ -316,7 +316,9 @@ impl<'a, 'm, T: Copy> Walk<'a, 'm, T> {
 impl<T: Copy> Drop for Walk<'_, '_, T> {
     /// Charges the items visited since the meter was last charged.
     fn drop(&mut self) {
-        self.meter.charge(self.visited);
+        // The walk is over, so there is nothing left for a stop to end;
+        // the meter keeps it for the check.
+        let _ = self.meter.charge(self.visited);
     }
 }
 

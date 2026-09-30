@@ -544,17 +544,15 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     // of it.
     if !checker.halted() {
         checker.check_retained_declarations(input.declared, input.parsed);
-        checker.declared();
-        checker.check_all();
+        if !checker.declared() {
+            checker.check_all();
+        }
     }
     let steps = checker.total_steps();
     checker.held();
     // A required file's exports copy its public declarations beside them,
     // which the budget bounds with the rest before they are made.
-    if input.file && !checker.halted() {
-        meter.scratch(checker.export_bytes());
-    }
-    let stopped = checker.stopped || meter.stopped();
+    let stopped = checker.halted() || (input.file && meter.scratch(checker.export_bytes()));
     // A check past its budget exports nothing: its caller stops too.
     let exported = (input.file && !stopped).then(|| std::sync::Arc::new(checker.export()));
     let (mut locals, result) = match checker.session.take().filter(|_| input.annotate) {
@@ -576,20 +574,19 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         None => (Vec::new(), None),
     };
     // The locals' annotations are written out after the last measure.
-    meter.scratch(meter::Heap::heap(&locals));
+    let stopped = stopped || meter.scratch(meter::Heap::heap(&locals));
     locals.sort_unstable();
     let too_deep = checker.too_deep;
     let mut diagnostics = checker.diagnostics;
     let mut calls = checker.calls;
+    // Sorting the diagnostics and the calls in order keeps a copy of each.
+    let stopped = stopped || meter.scratch(meter::vec(&diagnostics) + meter::vec(&calls));
     if stopped {
         // A check past its budget fails, whatever it found, so what it
         // found is dropped rather than put in order, which copies it.
         diagnostics = Vec::new();
         calls = Vec::new();
     } else {
-        // Sorting the diagnostics and the calls in order keeps a copy of
-        // each.
-        meter.scratch(meter::vec(&diagnostics) + meter::vec(&calls));
         diagnostics.sort_by_key(|d| (d.span.start, d.span.end));
         diagnostics.dedup_by(|a, b| a.code == b.code && a.span == b.span && a.message == b.message);
     }

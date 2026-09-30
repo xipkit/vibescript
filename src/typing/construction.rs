@@ -243,7 +243,9 @@ impl<'a> Checker<'a> {
         let (bytes, visited) = site.unassigned.marks.retain(&mut construction.retained);
         construction.held += bytes + site.kind.heap();
         construction.sites.push(site);
-        self.meter.charge(visited as u64);
+        // The site is kept either way, and this is the last of it: a check
+        // this stops keeps no more, as `halted` then says.
+        let _ = self.meter.charge(visited as u64);
     }
 
     /// Records a read of instance variable `name` of `self` at `span`.
@@ -334,19 +336,24 @@ impl<'a> Checker<'a> {
     pub(super) fn finish_construction(&mut self) {
         // At most every namespace, counted before the set is made.
         let namespaces = self.program.namespaces.len();
-        self.transient(super::meter::table::<NsId>(namespaces));
-        if self.halted() {
+        if self.transient(super::meter::table::<NsId>(namespaces)) {
             return;
         }
         let mut unproven: HashSet<NsId> = (0..namespaces as NsId)
             .filter(|&ns| !self.initializes(ns))
             .collect();
-        self.transient(super::meter::set(&unproven));
+        if self.transient(super::meter::set(&unproven)) {
+            return;
+        }
         let (reads, reads_held) = self.method_reads();
         let sites = std::mem::take(&mut self.construction.sites);
         // Taken from the records, the sites are held while they are read,
         // as the methods' reads are.
-        let taken = reads_held + self.hold(super::meter::vec(&sites));
+        let Some(sites_held) = self.hold(super::meter::vec(&sites)) else {
+            self.release(reads_held);
+            return;
+        };
+        let taken = reads_held + sites_held;
         for site in sites {
             if self.over_budget() {
                 self.release(taken);
@@ -363,8 +370,7 @@ impl<'a> Checker<'a> {
                 SiteKind::Call(callee) => reads.get(callee).map(|read| (**read).as_ref()),
                 SiteKind::Escape => Some(None),
             };
-            self.transient(listed.map_or(0, |read| site.unassigned.listing(read)));
-            if self.halted() {
+            if self.transient(listed.map_or(0, |read| site.unassigned.listing(read))) {
                 self.release(taken);
                 return;
             }
@@ -384,7 +390,10 @@ impl<'a> Checker<'a> {
                 (_, Some(None)) => (site.unassigned.names(), site.unassigned.len()),
                 (_, None) => (Vec::new(), 1),
             };
-            self.meter.charge(work as u64);
+            if self.meter.charge(work as u64) {
+                self.release(taken);
+                return;
+            }
             if !observed.is_empty() {
                 unproven.insert(site.class);
                 self.unassigned_read(&site, &observed);
@@ -476,13 +485,12 @@ impl<'a> Checker<'a> {
             .values()
             .map(|method| method.calls.len())
             .sum();
-        self.transient(
+        if self.transient(
             methods * std::mem::size_of::<FnId>()
                 + super::meter::table::<(FnId, usize)>(methods)
                 + methods * std::mem::size_of::<Vec<usize>>()
                 + calls * std::mem::size_of::<usize>(),
-        );
-        if self.halted() {
+        ) {
             return (HashMap::new(), 0);
         }
         let mut ids: Vec<FnId> = self.construction.methods.keys().copied().collect();
@@ -508,15 +516,13 @@ impl<'a> Checker<'a> {
             + calls.iter().map(super::meter::vec).sum::<usize>();
         // A cycle's reads themselves are counted as they are kept.
         let reads = std::mem::size_of::<Rc<Option<BTreeSet<String>>>>() + RC_COUNTS;
-        let held = self.hold(
+        let Some(held) = self.hold(
             graph
                 + methods * (SEARCH_SCRATCH + CYCLE + reads)
                 + super::meter::table::<(FnId, Rc<Option<BTreeSet<String>>>)>(methods),
-        );
-        if self.halted() {
-            self.release(held);
+        ) else {
             return (HashMap::new(), 0);
-        }
+        };
         let Some((cycles, cycle_of)) = cycles(&calls, &self.meter) else {
             self.release(held);
             return (HashMap::new(), 0);
@@ -532,8 +538,13 @@ impl<'a> Checker<'a> {
             let mut read = BTreeSet::new();
             for &member in members {
                 let uses = &self.construction.methods[&ids[member]];
-                self.meter
-                    .charge(uses.calls.len() as u64 + uses.reads.len() as u64);
+                if self
+                    .meter
+                    .charge(uses.calls.len() as u64 + uses.reads.len() as u64)
+                {
+                    self.release(held);
+                    return (HashMap::new(), 0);
+                }
                 escapes |= uses.escapes;
                 if !escapes {
                     read.extend(uses.reads.iter().cloned());
@@ -546,7 +557,10 @@ impl<'a> Checker<'a> {
                     match &*found[other] {
                         None => escapes = true,
                         Some(called) => {
-                            self.meter.charge(called.len() as u64);
+                            if self.meter.charge(called.len() as u64) {
+                                self.release(held);
+                                return (HashMap::new(), 0);
+                            }
                             if !escapes {
                                 read.extend(called.iter().cloned());
                             }
@@ -668,6 +682,8 @@ fn cycles(
             }
         }
     }
-    meter.charge(visited);
+    if meter.charge(visited) {
+        return None;
+    }
     Some((cycles, cycle_of))
 }

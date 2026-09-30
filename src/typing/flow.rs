@@ -145,17 +145,24 @@ impl Flow {
         }
         let mut changes: Vec<(LocalId, VarState)> = Vec::new();
         let mut seen: HashMap<LocalId, ()> = HashMap::new();
+        let mut stopped = false;
         while self.trail.len() > mark.trail {
-            self.meter.charge(1);
             let (id, old) = self.trail.pop().unwrap();
             let current = self.vars[id as usize];
-            if seen.insert(id, ()).is_none() {
-                changes.push((id, current));
+            // A check this stops still undoes every change, but collects no
+            // more of them.
+            if !stopped {
+                stopped = self.meter.charge(1);
+                if !stopped && seen.insert(id, ()).is_none() {
+                    changes.push((id, current));
+                }
             }
             self.vars[id as usize] = old;
             self.note(id, current.assigned, old.assigned);
         }
-        self.meter.scratch(map(&seen) + vec(&changes));
+        if stopped || self.meter.scratch(map(&seen) + vec(&changes)) {
+            changes = Vec::new();
+        }
         self.live = mark.live;
         Branch { live, changes }
     }
@@ -177,8 +184,9 @@ impl Flow {
                 changes.push((id, self.vars[id as usize]));
             }
         }
-        self.meter.scratch(map(&seen) + vec(&changes));
-        self.meter.charge(steps);
+        if self.meter.scratch(map(&seen) + vec(&changes)) || self.meter.charge(steps) {
+            changes = Vec::new();
+        }
         Branch {
             live: true,
             changes,
@@ -222,10 +230,9 @@ impl Flow {
         ids.dedup();
         for id in ids {
             // A union below can stop the check, which then reads no more.
-            if self.meter.stopped() {
+            if self.meter.stopped() || self.meter.charge(live.len() as u64) {
                 break;
             }
-            self.meter.charge(live.len() as u64);
             let base = self.vars[id as usize];
             let states: Vec<VarState> = finals
                 .iter()

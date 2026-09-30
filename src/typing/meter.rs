@@ -72,6 +72,7 @@ impl Meter {
     /// steps it also asks the deadline and the cancellation token, so work
     /// that charges without polling still stops for them. Returns whether
     /// the check has stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
     pub fn charge(&self, steps: u64) -> bool {
         let total = self.steps.fetch_add(steps, Relaxed).saturating_add(steps);
         if self.budget.steps.is_some_and(|left| total > left) {
@@ -134,8 +135,9 @@ impl Meter {
     /// Records `extra` bytes of scratch an operation holds for a moment
     /// beside what the check held when last measured, stopping it if they
     /// pass the memory left; less than [`SCRATCH`] stays within the
-    /// account's margin.
-    pub fn scratch(&self, extra: usize) {
+    /// account's margin. Returns whether the check has stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    pub fn scratch(&self, extra: usize) -> bool {
         if extra >= SCRATCH {
             let held = self.last.load(Relaxed) + extra;
             self.reach(held);
@@ -143,19 +145,20 @@ impl Meter {
                 self.stop();
             }
         }
+        self.stopped()
     }
 
     /// Charges `steps` of a walk over the syntax that holds `extra` bytes
     /// beside what the check held when last measured, and checks the
     /// steps, the deadline, the cancellation token and the memory against
     /// the budget. Returns whether the check has stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
     pub fn pace(&self, steps: u64, extra: usize) -> bool {
-        self.charge(steps);
-        if self.budget.steps.is_some_and(|left| self.steps() > left) || self.budget.interrupted() {
+        if self.charge(steps) || self.budget.interrupted() {
             self.stop();
+            return true;
         }
-        self.scratch(extra);
-        self.stopped()
+        self.scratch(extra)
     }
 
     /// Records that the check held `bytes` at some point, as while a
@@ -173,12 +176,15 @@ impl Meter {
 
     /// Records the type table's `bytes` with `extra` an operation holds
     /// while it runs, stopping the check if they pass the memory left.
-    pub fn transient(&self, types: usize, extra: usize) {
+    /// Returns whether the check has stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    pub fn transient(&self, types: usize, extra: usize) -> bool {
         let held = self.account(types) + extra;
         self.reach(held);
         if self.budget.memory.is_some_and(|left| held > left) {
             self.stop();
         }
+        self.stopped()
     }
 
     /// Checks the totals against the budget: the steps on every poll, and
@@ -187,6 +193,7 @@ impl Meter {
     /// cancellation token are also checked once [`INTERRUPTIBLE`] steps of
     /// work have passed since they last were, however few polls that took.
     /// Once past any of them the check stays stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
     pub fn poll(&self, measure: impl FnOnce() -> usize) -> bool {
         if self.stopped() {
             return true;
@@ -478,6 +485,7 @@ impl<'a> super::Checker<'a> {
     /// the host cancelled. Statements and expressions begun after that are
     /// skipped, and compilation fails with the budget's error. A check
     /// without a budget never stops.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
     pub(super) fn over_budget(&mut self) -> bool {
         if !self.stopped {
             self.stopped = self.meter.poll(|| self.held());
@@ -503,25 +511,29 @@ impl<'a> super::Checker<'a> {
     /// Follows the declarations as they are made: measures them again, and
     /// records what the checker holds, once they grow by a quarter, so the
     /// account keeps up with them at a cost linear in their number.
-    pub(super) fn declaring(&mut self) {
+    /// Returns whether the check has stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    pub(super) fn declaring(&mut self) -> bool {
         let program = &self.program;
         let count = program.fns.len() + program.namespaces.len() + program.enums.len();
         if count > self.declared_count + self.declared_count / 4 {
             self.declared_count = count;
-            self.declared();
+            return self.declared();
         }
+        self.halted()
     }
 
     /// Measures the declarations once they change, which is rarely: the
     /// program's functions, classes, modules and enums, the host's, and
-    /// their names in the type table.
-    pub(super) fn declared(&mut self) {
+    /// their names in the type table. Returns whether the check has
+    /// stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    pub(super) fn declared(&mut self) -> bool {
         self.declared_bytes = self.program.heap() + self.types.names.heap() + self.modules.heap();
         // Declarations with nothing to check can grow the program to any
         // size between the checker's polls, so each measure of them is
         // checked against the budget.
-        self.check_memory(0);
-        self.over_budget();
+        self.check_memory(0) || self.over_budget()
     }
 
     /// What the checker's tables other than the type table hold.
@@ -566,23 +578,29 @@ impl<'a> super::Checker<'a> {
     /// Records `bytes` of scratch an operation holds beside the tables
     /// for a moment, such as the lists a walk over the syntax keeps, for
     /// the budget and the peak. Less than [`SCRATCH`] stays within the
-    /// account's margin.
-    pub(super) fn transient(&self, bytes: usize) {
-        if bytes >= SCRATCH {
-            self.check_memory(bytes);
-        }
+    /// account's margin. Returns whether the check has stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    pub(super) fn transient(&self, bytes: usize) -> bool {
+        (bytes >= SCRATCH && self.check_memory(bytes)) || self.halted()
     }
 
     /// Counts `bytes` of scratch that an operation keeps while it checks
     /// more code, such as the types of a literal's elements, until
     /// [`Self::release`] takes them back; returns them. Many are checked
-    /// against the memory left at once.
-    pub(super) fn hold(&mut self, bytes: usize) -> usize {
-        self.scratch += bytes;
-        if bytes >= SCRATCH {
-            self.check_memory(0);
+    /// against the memory left at once. A check that has stopped, or that
+    /// they stop, holds nothing and gets `None`: the operation must not
+    /// build what they count.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    pub(super) fn hold(&mut self, bytes: usize) -> Option<usize> {
+        if self.halted() {
+            return None;
         }
-        bytes
+        self.scratch += bytes;
+        if (bytes >= SCRATCH && self.check_memory(0)) || self.halted() {
+            self.scratch -= bytes;
+            return None;
+        }
+        Some(bytes)
     }
 
     /// Records that the check held `bytes` at some point, as while a
@@ -597,10 +615,12 @@ impl<'a> super::Checker<'a> {
     }
 
     /// Records what the tables hold now with `extra` bytes beside them,
-    /// stopping the check if they pass the memory left.
-    fn check_memory(&self, extra: usize) {
+    /// stopping the check if they pass the memory left. Returns whether
+    /// the check has stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    fn check_memory(&self, extra: usize) -> bool {
         self.meter.outside(self.outside());
-        self.meter.transient(self.types.bytes(), extra);
+        self.meter.transient(self.types.bytes(), extra)
     }
 
     /// Makes `frame` current, setting the replaced one aside, which the
@@ -646,9 +666,11 @@ impl<'a> super::Checker<'a> {
             std::mem::swap(&mut inner.types, &mut outer.types);
         }
         // Each type that moves is a step, and the table they move from is
-        // live beside the tables until they have.
-        self.meter.charge(inner.types.len() as u64);
-        self.transient(inner.bytes());
+        // live beside the tables until they have; a check they stop moves
+        // none.
+        if self.meter.charge(inner.types.len() as u64) || self.transient(inner.bytes()) {
+            return;
+        }
         let Some(outer) = self.memo.0.as_mut() else {
             return;
         };
@@ -670,27 +692,29 @@ impl<'a> super::Checker<'a> {
         std::mem::replace(&mut self.memo.0, outer)
     }
 
-    /// Counts a diagnostic the checker keeps.
-    pub(super) fn keep(&mut self, diagnostic: &crate::diagnostic::Diagnostic) {
-        self.grow(diagnostic.heap());
+    /// Counts a diagnostic the checker keeps. Returns whether the check has
+    /// stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    pub(super) fn keep(&mut self, diagnostic: &crate::diagnostic::Diagnostic) -> bool {
+        self.grow(diagnostic.heap())
+    }
+
+    /// Measures the tables at once when one of them has grown by `bytes`,
+    /// if that is enough to pass the account's margin, as a long name does.
+    /// Returns whether the check has stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    pub(super) fn grew(&self, bytes: usize) -> bool {
+        (bytes >= SCRATCH && self.check_memory(0)) || self.halted()
     }
 
     /// Counts `bytes` more of what the checker keeps, checking them against
     /// the memory left at once when they are many, rather than at the next
-    /// poll that measures, which may be many statements away.
-    /// Measures the tables at once when one of them has grown by `bytes`,
-    /// if that is enough to pass the account's margin, as a long name does.
-    pub(super) fn grew(&self, bytes: usize) {
-        if bytes >= SCRATCH {
-            self.check_memory(0);
-        }
-    }
-
-    pub(super) fn grow(&mut self, bytes: usize) {
+    /// poll that measures, which may be many statements away. Returns
+    /// whether the check has stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    pub(super) fn grow(&mut self, bytes: usize) -> bool {
         self.grown += bytes;
-        if bytes >= SCRATCH {
-            self.check_memory(0);
-        }
+        (bytes >= SCRATCH && self.check_memory(0)) || self.halted()
     }
 }
 
@@ -742,6 +766,61 @@ mod tests {
         assert!(
             found.is_empty(),
             "set counted state aside through the meter's methods, so the account follows it:\n{}",
+            found.join("\n")
+        );
+    }
+
+    /// The places that go on after a charge or a measure whatever it says,
+    /// by file and what they discard, each because nothing is left for a
+    /// stop to end there: the budget's stop is the meter's, which the
+    /// caller's next check reads.
+    const GOING_ON: &[(&str, &str)] = &[
+        // A kept site's charge, its last step.
+        (
+            "construction.rs",
+            "let _ = self.meter.charge(visited as u64);",
+        ),
+        // A host module's name, which the id it returns names.
+        ("calls.rs", "let _ = self.grow(name.capacity()"),
+        // The last of recording a required file's call, and a read.
+        ("check.rs", "let _ = self.grow(grown);"),
+        ("check.rs", "let _ = self.grow(bytes);"),
+        // A local's names, which its id and its scope need.
+        ("check.rs", "let _ = self.grew(3 * name.len());"),
+        // A finished walk's last charge, when it is dropped.
+        ("walk.rs", "let _ = self.meter.charge(self.visited);"),
+        // The type table's own types, added however the check stands.
+        ("ty.rs", "let _ = self.transient(heap);"),
+        ("ty.rs", "let _ = self.poll();"),
+    ];
+
+    #[test]
+    fn a_charge_or_measure_is_discarded_only_where_nothing_is_left() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut sources = vec![root.join("typing.rs")];
+        for entry in std::fs::read_dir(root.join("typing")).unwrap() {
+            sources.push(entry.unwrap().path());
+        }
+        let mut found = Vec::new();
+        for path in sources {
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            let text = std::fs::read_to_string(&path).unwrap();
+            for (number, line) in text.lines().enumerate() {
+                let line = line.trim();
+                if !line.starts_with("let _ = ") {
+                    continue;
+                }
+                let allowed = GOING_ON
+                    .iter()
+                    .any(|(file, prefix)| name == *file && line.starts_with(prefix));
+                if !allowed {
+                    found.push(format!("{}:{}: {line}", path.display(), number + 1));
+                }
+            }
+        }
+        assert!(
+            found.is_empty(),
+            "stop once a charge or a measure stops the check, or say here why nothing is left:\n{}",
             found.join("\n")
         );
     }

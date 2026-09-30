@@ -50,13 +50,14 @@ impl<'a> Spans<'a> {
         let size = std::mem::size_of::<Token>();
         // Holds `bytes` in the account until the checker measures its own
         // tables, stopping the check if they pass the memory left, before
-        // what they count is made.
+        // what they count is made. Returns whether the check has stopped.
         let hold = |bytes: usize| {
             meter.outside(bytes);
             let held = meter.held(0);
             if meter.budget().memory.is_some_and(|left| held > left) {
                 meter.stop();
             }
+            meter.stopped()
         };
         let mut parsing = 0;
         // What the merged copy's tokens hold beyond the list, once it is
@@ -88,9 +89,12 @@ impl<'a> Spans<'a> {
                 &crate::compilation::Meter(std::cell::RefCell::new(&mut context)),
             );
             let used = context.stats();
-            meter.charge(used.steps);
+            let charged = meter.charge(used.steps);
             parsing = parsing.max(used.peak_memory_bytes);
-            meter.scratch(merged + used.peak_memory_bytes);
+            // A check the parse's work stops merges no more tokens.
+            if meter.scratch(merged + used.peak_memory_bytes) || charged {
+                break;
+            }
             match inner {
                 Ok(inner) => {
                     // Appending copies the parser's tokens the first time,
@@ -105,8 +109,7 @@ impl<'a> Spans<'a> {
                     };
                     let added = super::meter::Heap::heap(inner.as_slice());
                     let grown = 2 * (length + inner.len());
-                    hold((before + grown) * size + copied + added);
-                    if meter.stopped() {
+                    if hold((before + grown) * size + copied + added) {
                         break;
                     }
                     payloads = copied + added;
@@ -139,8 +142,7 @@ impl<'a> Spans<'a> {
             owned = super::meter::Heap::heap(tokens);
             // Sorting them in order keeps a copy of them for a moment, which
             // is counted first; a check that it stops never reads them.
-            hold(owned + tokens.len() * size);
-            if !meter.stopped() {
+            if !hold(owned + tokens.len() * size) {
                 tokens.sort_by_key(|token| token.span.start);
             }
         }
@@ -174,8 +176,11 @@ impl<'a> Spans<'a> {
         super::meter::map(&self.lasts.borrow()).max(super::meter::map(&self.furthest.borrow()))
     }
 
-    fn step(&self, count: usize) {
-        self.meter.charge(count as u64);
+    /// Charges `count` steps of a scan over the tokens. Returns whether the
+    /// check has stopped, when a scan gives up with the span it has.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    fn step(&self, count: usize) -> bool {
+        self.meter.charge(count as u64)
     }
 
     /// The index of the token that starts at `offset`.
@@ -229,7 +234,9 @@ impl<'a> Spans<'a> {
     pub fn word_after(&self, offset: usize, name: &str) -> Span {
         let start = self.token_from(offset);
         for index in start..self.tokens.len().min(start + 256) {
-            self.step(1);
+            if self.step(1) {
+                break;
+            }
             if self.tokens[index].kind == TokenKind::Word && self.text(index) == name {
                 let span = &self.tokens[index].span;
                 return Span::new(span.start, span.end);
@@ -277,7 +284,9 @@ impl<'a> Spans<'a> {
             let mut depth = 0;
             let mut closes = None;
             for index in first - 1..self.tokens.len() {
-                self.step(1);
+                if self.step(1) {
+                    return start;
+                }
                 let token = &self.tokens[index];
                 if token.span.start >= end {
                     break;
@@ -312,7 +321,9 @@ impl<'a> Spans<'a> {
         };
         let first = self.token_from(start);
         let mut depth: i64 = 0;
-        self.step(last_index.saturating_sub(first) + 1);
+        if self.step(last_index.saturating_sub(first) + 1) {
+            return self.tokens[last_index].span.end;
+        }
         for index in first..=last_index {
             match &self.tokens[index].kind {
                 TokenKind::Punct('(' | '[' | '{') => depth += 1,
@@ -323,7 +334,9 @@ impl<'a> Spans<'a> {
         let mut end = self.tokens[last_index].span.end;
         let mut index = last_index + 1;
         while depth > 0 && index < self.tokens.len() {
-            self.step(1);
+            if self.step(1) {
+                break;
+            }
             match &self.tokens[index].kind {
                 TokenKind::Punct(')' | ']' | '}') => {
                     depth -= 1;
@@ -352,7 +365,9 @@ impl<'a> Spans<'a> {
         let mut index = from;
         let limit = self.tokens.len().min(from + 512);
         while index + 1 < limit {
-            self.step(1);
+            if self.step(1) {
+                return None;
+            }
             let dot = matches!(
                 self.tokens[index].kind,
                 TokenKind::Punct('.') | TokenKind::Operator("&." | "::")
@@ -378,7 +393,9 @@ impl<'a> Spans<'a> {
         let mut index = self.token_from(member.start);
         while index > 0 {
             index -= 1;
-            self.step(1);
+            if self.step(1) {
+                return None;
+            }
             let token = &self.tokens[index];
             if token.kind != TokenKind::Newline {
                 return Some(Span::new(token.span.start, token.span.end));
@@ -539,7 +556,9 @@ impl<'a> Spans<'a> {
         index += 1;
         let limit = self.tokens.len().min(index + 64);
         while index < limit {
-            self.step(1);
+            if self.step(1) {
+                return last;
+            }
             match &self.tokens[index].kind {
                 TokenKind::Punct(')' | ']' | '}') | TokenKind::Newline => index += 1,
                 TokenKind::Punct('.') | TokenKind::Operator("&." | "::") => break,

@@ -212,9 +212,8 @@ impl<'a> Checker<'a> {
         }
         let scratch = walk.bytes() + super::meter::vec(&levels);
         drop(walk);
-        self.transient(scratch + super::meter::vec(&requests) + found);
         // A check past its budget loads no files.
-        if self.halted() {
+        if self.transient(scratch + super::meter::vec(&requests) + found) {
             return;
         }
         requests.sort_unstable_by_key(|request| request.2);
@@ -292,8 +291,12 @@ impl<'a> Checker<'a> {
         let mut context = self.context(held);
         let resolved = resolve(path, self.modules.origin, &mut context);
         let resolving = context.stats();
-        self.meter.charge(resolving.steps);
+        let charged = self.meter.charge(resolving.steps);
         self.observed(held + resolving.peak_memory_bytes);
+        if charged {
+            self.stopped = true;
+            return Err("the check ran out of its budget".into());
+        }
         let (source, origin) = match resolved {
             Ok(resolved) => resolved,
             Err(error) if context.exhausted() => {
@@ -318,8 +321,12 @@ impl<'a> Checker<'a> {
             &crate::compilation::Meter(std::cell::RefCell::new(&mut context)),
         );
         let parsing = context.stats();
-        self.meter.charge(parsing.steps);
+        let charged = self.meter.charge(parsing.steps);
         self.observed(held + parsing.peak_memory_bytes);
+        if charged {
+            self.stopped = true;
+            return Err("the check ran out of its budget".into());
+        }
         let (parsed, tokens, _tokens_held) = match parse {
             Ok(parsed) => parsed,
             Err(error)
@@ -345,7 +352,10 @@ impl<'a> Checker<'a> {
                 return Err(error.to_string());
             }
         };
-        let tree = self.hold(source.len() + parsing.retained_memory_bytes);
+        let Some(tree) = self.hold(source.len() + parsing.retained_memory_bytes) else {
+            self.stopped = true;
+            return Err("the check ran out of its budget".into());
+        };
         // The file's check may spend what this one leaves.
         let steps = self.total_steps();
         let mut budget = self.meter.budget().less(steps);
@@ -365,18 +375,19 @@ impl<'a> Checker<'a> {
             annotate: false,
         };
         let checked = super::check_nested(&input, self.modules.depth + 1);
-        self.meter.charge(checked.steps);
+        let charged = self.meter.charge(checked.steps);
         // What the file's check held beside this one's tables, and at most
         // its surface pass's too.
         self.observed(held + checked.peak_bytes + checked.surface_bytes);
-        // A charge asks nothing of the budget, so the steps are checked
-        // against it before the exports are imported.
-        if checked.stopped || self.over_budget() {
+        // The file's steps are checked against the budget, and its memory
+        // too, before its exports are imported.
+        if checked.stopped || charged || self.over_budget() {
             // The file's check stopped at the budget this one shares, or
             // its steps took this one past it, so this one stops too,
             // without its findings or exports.
             self.stopped = true;
             self.meter.stop();
+            self.release(tree);
             return Err("the check ran out of its budget".into());
         }
         let source: Arc<str> = source.into();
@@ -392,17 +403,17 @@ impl<'a> Checker<'a> {
         }
         let (functions, enums) = match &checked.exported {
             Some(exported) => {
-                let held = self.hold(exported.bytes());
                 // A check that holding the exports stops imports none of
                 // them.
-                if self.halted() {
-                    self.release(held);
+                let Some(held) = self.hold(exported.bytes()) else {
+                    self.release(tree);
                     return Err("the check ran out of its budget".into());
-                }
+                };
                 let imported = self.import(exported);
                 self.release(held);
                 // A check that importing them stops publishes none of them.
                 if self.halted() {
+                    self.release(tree);
                     return Err("the check ran out of its budget".into());
                 }
                 imported
@@ -518,7 +529,11 @@ impl<'a> Checker<'a> {
         };
         let mut enums = HashMap::new();
         for declared in &exported.enums {
-            self.meter.charge(1);
+            // A check this stops imports no more, and its caller none of
+            // what it imported.
+            if self.meter.charge(1) {
+                break;
+            }
             let id = self.program.enums.len() as u32;
             self.program.enums.push(declared.clone());
             self.types.names.enums.push(declared.name.clone());
@@ -576,7 +591,9 @@ impl<'a> Checker<'a> {
             let sig = self.import_sig(&exported.types, sig, &imports);
             functions.insert(name.clone(), Rc::new(sig));
         }
-        self.declaring();
+        if self.declaring() {
+            return (HashMap::new(), HashMap::new());
+        }
         (functions, enums)
     }
 
@@ -616,7 +633,9 @@ impl<'a> Checker<'a> {
     /// classes become the ones imported from it, and a type the file could
     /// not resolve, or one of a file it requires in turn, becomes `any`.
     fn import_ty(&mut self, from: &Types, ty: Ty, imports: &Imports) -> Ty {
-        self.meter.charge(1);
+        if self.meter.charge(1) {
+            return Ty::ANY;
+        }
         match &*from.shared(ty) {
             Kind::Error | Kind::Namespace(_) | Kind::Exports(_) => Ty::ANY,
             Kind::Array(element) => {
