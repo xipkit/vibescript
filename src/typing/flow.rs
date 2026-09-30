@@ -240,15 +240,21 @@ impl Flow {
     }
 
     /// About what [`Self::join`] holds while it joins `branches`: a table of
-    /// each one's changes, and a list of the locals they change.
+    /// each one's changes, a list of the locals they change, and lists of
+    /// the branches and of their states of the local it joins.
     pub fn join_scratch(branches: &[Branch]) -> usize {
         branches
             .iter()
             .map(|branch| {
                 let changes = branch.changes.len();
+                // Its changes by local, their ids, its place among the live
+                // branches, and its state and type of each local joined.
                 map_of::<(LocalId, VarState)>(changes)
                     + changes * std::mem::size_of::<LocalId>()
                     + std::mem::size_of::<HashMap<LocalId, VarState>>()
+                    + std::mem::size_of::<&Branch>()
+                    + std::mem::size_of::<VarState>()
+                    + std::mem::size_of::<Ty>()
             })
             .sum()
     }
