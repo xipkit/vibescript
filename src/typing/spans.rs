@@ -40,16 +40,19 @@ impl<'a> Spans<'a> {
         // The parser lists each interpolation separately from its outer string
         // token. Merge their tokens by source offset for member and edit spans.
         // Each is parsed again for its tokens, which holds its syntax for a
-        // moment, within the memory the check may spend.
+        // moment, within the steps and memory the check may spend, and its
+        // steps are the check's; one that runs out of them stops the check.
         let mut parsing = 0;
         for &(start, end) in interpolations {
+            if meter.stopped() {
+                break;
+            }
             let start = start as usize;
             let end = end as usize - 1;
-            meter.charge((end - start) as u64);
             let budget = meter.budget();
             let mut context = crate::CallContext::new(crate::CallOptions {
                 limits: crate::Limits {
-                    steps: None,
+                    steps: budget.steps.map(|left| left.saturating_sub(meter.steps())),
                     memory_bytes: budget.memory,
                     ..crate::Limits::default()
                 },
@@ -61,17 +64,33 @@ impl<'a> Spans<'a> {
                 &source[start..end],
                 &crate::compilation::Meter(std::cell::RefCell::new(&mut context)),
             );
-            parsing = parsing.max(context.stats().peak_memory_bytes);
-            if let Ok(inner) = inner {
-                tokens
-                    .to_mut()
-                    .extend(inner.into_iter().filter_map(|mut token| {
-                        if token.kind == TokenKind::Eof {
-                            return None;
-                        }
-                        token.span = token.span.start + start..token.span.end + start;
-                        Some(token)
-                    }));
+            let used = context.stats();
+            meter.charge(used.steps);
+            parsing = parsing.max(used.peak_memory_bytes);
+            match inner {
+                Ok(inner) => {
+                    tokens
+                        .to_mut()
+                        .extend(inner.into_iter().filter_map(|mut token| {
+                            if token.kind == TokenKind::Eof {
+                                return None;
+                            }
+                            token.span = token.span.start + start..token.span.end + start;
+                            Some(token)
+                        }));
+                }
+                Err(error)
+                    if matches!(
+                        error.kind,
+                        crate::ErrorKind::Steps
+                            | crate::ErrorKind::Memory
+                            | crate::ErrorKind::Deadline
+                            | crate::ErrorKind::Cancelled
+                    ) =>
+                {
+                    meter.stop();
+                }
+                Err(_) => (),
             }
         }
         let mut owned = 0;

@@ -720,6 +720,33 @@ mod budget_tests {
     }
 
     #[test]
+    fn interpolations_parse_again_within_the_step_quota() {
+        // Fifty strings, each interpolating a 2,000-element literal, which
+        // the spans parse again before the check starts.
+        let literal = vec!["1"; 2_000].join(", ");
+        let source: String = (0..50)
+            .map(|i| format!("x{i} = \"#{{[{literal}].length}}\"\n"))
+            .collect();
+        let full = checked(&source, Budget::default());
+        assert!(!full.stopped);
+        let quota = 1_000;
+        let stopped = checked(
+            &source,
+            Budget {
+                steps: Some(quota),
+                ..Budget::default()
+            },
+        );
+        assert!(stopped.stopped);
+        assert!(
+            stopped.steps < 2 * quota,
+            "{} steps for a quota of {quota}, of {}",
+            stopped.steps,
+            full.steps
+        );
+    }
+
+    #[test]
     fn the_check_stops_within_its_budget() {
         for source in [nested_begins(60, 300), loose_unions(200)] {
             let full = checked(&source, Budget::default());
