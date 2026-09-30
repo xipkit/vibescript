@@ -960,4 +960,67 @@ mod tests {
             found.join("\n")
         );
     }
+
+    /// The lists and maps each file of the checker makes for an operation,
+    /// with a `.collect()`, `with_capacity`, `to_vec` or `vec!`, by file and
+    /// in four kinds: a few elements, or one for each level of syntax the
+    /// parser allows; a type's or a signature's parts, which the type table
+    /// or the declarations count already; the builtin signatures', which
+    /// the engine bounds; and those counted, held or checked against the
+    /// budget before they are made, at the lengths they take. A list the
+    /// source sizes otherwise is a scratch list, counted while it lives.
+    const MADE: &[(&str, [usize; 4])] = &[
+        ("typing.rs", [0, 0, 0, 1]),
+        ("assigns.rs", [0, 0, 0, 2]),
+        ("calls.rs", [0, 3, 4, 5]),
+        ("check.rs", [4, 1, 0, 11]),
+        ("construction.rs", [1, 0, 0, 15]),
+        ("expr.rs", [3, 5, 0, 13]),
+        ("flow.rs", [0, 0, 0, 6]),
+        ("foreign.rs", [1, 0, 0, 0]),
+        ("marks.rs", [2, 0, 0, 1]),
+        ("modules.rs", [0, 5, 0, 7]),
+        ("program.rs", [0, 0, 0, 15]),
+        ("sigs.rs", [0, 1, 9, 0]),
+        ("ty.rs", [11, 11, 0, 1]),
+    ];
+
+    #[test]
+    fn the_lists_an_operation_makes_are_each_of_a_kind() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut sources = vec![root.join("typing.rs")];
+        for entry in std::fs::read_dir(root.join("typing")).unwrap() {
+            sources.push(entry.unwrap().path());
+        }
+        let mut found = Vec::new();
+        for path in sources {
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            if name == "counted.rs" {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).unwrap();
+            let code = text.split("#[cfg(test)]").next().unwrap();
+            let made = code
+                .lines()
+                .filter(|line| !line.trim_start().starts_with("//"))
+                .filter(|line| {
+                    [".collect(", "with_capacity(", ".to_vec()", "vec!["]
+                        .iter()
+                        .any(|site| line.contains(site))
+                })
+                .count();
+            let kinds = MADE
+                .iter()
+                .find(|(file, _)| *file == name)
+                .map_or(0, |(_, kinds)| kinds.iter().sum());
+            if made != kinds {
+                found.push(format!("{name}: {made} made, {kinds} of a kind"));
+            }
+        }
+        assert!(
+            found.is_empty(),
+            "say here which kind each list or map these files make is, or make it in a scratch list:\n{}",
+            found.join("\n")
+        );
+    }
 }
