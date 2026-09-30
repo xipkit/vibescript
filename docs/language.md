@@ -82,8 +82,9 @@ every read of it, bare, scoped as in `A::Ready?`, as a parent after `<` or in a
 type, where a final `?` stays the nullable marker. Where some use cannot be told from another
 name, as the symbol `:Ready?`, the call `Ready?(1)`, a type `Ready!?` that
 reads as a nullable `Ready!`, a read through a scope that is no path of
-namespaces, such as `c::LIMIT!` with `c` a local, or code past a syntax error,
-there is no fix rather than one that renames only part of it. Nor is there one
+namespaces, such as `c::LIMIT!` with `c` a local or `M.X?` with a parameter `M`
+shadowing the module, or code past a syntax error, there is no fix rather than
+one that renames only part of it. Nor is there one
 that would leave a name the file already spells anywhere, as a binding, method,
 namespace, member, label, symbol or nullable type, or that an earlier fix of
 another spelling leaves, since applying it would make two names one:

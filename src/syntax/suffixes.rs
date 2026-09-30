@@ -433,6 +433,9 @@ impl Parser<'_> {
         let start = at_key(work, "", scope.offset)?;
         let mut uses = self.suffixed.borrow_mut();
         let path = match &scope.node {
+            // A local, such as a parameter `M`, shadows a namespace of its
+            // name, so a read through it is through a value.
+            Node::Var(head) if self.locals.contains(work, head)? => 0,
             Node::Var(head) => uses.path(work, 0, head, self.namespace, scope.offset)?,
             Node::Scope(_, _, None) => uses.scopes.get(work, &start)?.copied().unwrap_or(0),
             _ => 0,

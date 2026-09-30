@@ -1905,6 +1905,23 @@ fn every_form_that_names_something_is_fixed_whole_or_not_at_all() {
             "module M; X? = 1; end; m = M; m.X?",
             false,
         ),
+        // A local of a namespace's name shadows it, so a read through the
+        // local is through a value, `.` or `::` alike.
+        (
+            "read through a parameter",
+            "module M; X? = 1; end; def f(M: any); [M.X?, M::X?]; end; M.X?",
+            false,
+        ),
+        (
+            "read through a local",
+            "module M; X? = 1; end; def f -> any; M = 2; M.X?; end; M.X?",
+            false,
+        ),
+        (
+            "read through a block parameter",
+            "module M; X? = 1; end; [1].each { |M| M.X? }; M.X?",
+            false,
+        ),
         ("class", "class R?; end; R?.new", true),
         ("module", "module R!; end; R!", true),
         ("enum", "enum S?; A; end; S?::A", true),
