@@ -963,6 +963,14 @@ fn shapes() -> Vec<Shape> {
                 "require(\"big\")\np(1)\n".to_owned(),
             )
         }),
+        ("type errors among removed spellings", |n| {
+            // Each spelling's diagnostic replaces the checker's inside it,
+            // which merging the two lists finds.
+            (
+                Vec::new(),
+                lines(n, |i| format!("x{i}: string = 1\nn{i} = [1].size\n")),
+            )
+        }),
         ("a wide self-call graph", |n| {
             // Each method calls itself, a cycle of one for each of them in
             // the graph of the calls construction checks follow.

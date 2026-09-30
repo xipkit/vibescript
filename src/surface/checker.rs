@@ -187,10 +187,30 @@ pub(crate) fn add_to(
     if surface.is_empty() {
         return;
     }
-    checked.diagnostics.retain(|diagnostic| {
-        !surface.iter().any(|removed| {
-            removed.span.start <= diagnostic.span.start && diagnostic.span.end <= removed.span.end
+    // Leaving out the checker's diagnostics a removed spelling contains,
+    // and putting the two lists in order, is a step for each diagnostic,
+    // taken only within the budget.
+    let merging = (checked.diagnostics.len() + surface.len()) as u64;
+    checked.steps = checked.steps.saturating_add(merging);
+    if !within(checked.steps) {
+        checked.stopped = true;
+        return;
+    }
+    // The spellings are in order of where they start, each with the
+    // furthest end of those that start no later, so the spelling that
+    // could contain a diagnostic is found by search rather than by trying
+    // every one.
+    let mut furthest = 0;
+    let reach: Vec<(usize, usize)> = surface
+        .iter()
+        .map(|removed| {
+            furthest = furthest.max(removed.span.end);
+            (removed.span.start, furthest)
         })
+        .collect();
+    checked.diagnostics.retain(|diagnostic| {
+        let before = reach.partition_point(|&(start, _)| start <= diagnostic.span.start);
+        before == 0 || reach[before - 1].1 < diagnostic.span.end
     });
     checked.diagnostics.extend(surface);
     checked
