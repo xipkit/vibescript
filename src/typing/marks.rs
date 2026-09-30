@@ -3,6 +3,7 @@
 //! so the checker can keep what holds at many points of a long function
 //! without copying it at each.
 
+use super::counted::{CountedSet, Ledger};
 use std::rc::Rc;
 
 /// The indices a leaf holds.
@@ -147,16 +148,21 @@ impl Marks {
         }
     }
 
-    /// Adds the nodes of this set that `seen`, their addresses, lacks;
-    /// returns their bytes and the nodes it looked at. A node `seen` has
-    /// is not entered: what it holds was added with it, and nodes another
-    /// set shares never change.
-    pub fn retain(&self, seen: &mut std::collections::HashSet<usize>) -> (usize, usize) {
+    /// Adds the nodes of this set that `seen`, their addresses, lacks,
+    /// each counted to `ledger` before it is; returns their bytes and the
+    /// nodes it looked at, or `None` once the budget refuses one, which
+    /// stops the check. A node `seen` has is not entered: what it holds was
+    /// added with it, and nodes another set shares never change.
+    pub fn retain(
+        &self,
+        seen: &mut CountedSet<usize>,
+        ledger: Ledger<'_>,
+    ) -> Option<(usize, usize)> {
         let (mut bytes, mut visited) = (0, 0);
         let mut pending = vec![&self.root];
         while let Some(node) = pending.pop() {
             visited += 1;
-            if !seen.insert(Rc::as_ptr(node) as usize) {
+            if !seen.insert(ledger, Rc::as_ptr(node) as usize).ok()? {
                 continue;
             }
             bytes += node_bytes(node);
@@ -164,7 +170,7 @@ impl Marks {
                 pending.extend(children);
             }
         }
-        (bytes, visited)
+        Some((bytes, visited))
     }
 
     /// The indices in the set, in order.

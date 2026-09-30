@@ -16,8 +16,9 @@
 
 use super::{
     Checker,
+    counted::{CountedBTreeSet, CountedMap, CountedSet, CountedVec},
     marks::Marks,
-    meter::{Heap, btree_entry},
+    meter::{Heap, btree_storage},
     program::{FnId, NsId},
     ty::Ty,
 };
@@ -136,9 +137,9 @@ impl Unassigned {
 #[derive(Default)]
 pub(crate) struct Construction {
     /// What each instance method does with `self`.
-    methods: HashMap<FnId, Uses>,
+    methods: CountedMap<FnId, Uses>,
     /// Uses of `self` while it has unassigned variables.
-    sites: Vec<Site>,
+    sites: CountedVec<Site>,
     /// What the methods' uses and the sites hold beyond the tables' own
     /// storage, for the checker's memory account.
     held: usize,
@@ -146,14 +147,14 @@ pub(crate) struct Construction {
     /// unassigned variables that the sites keep, which they share, so each
     /// is counted in `held` once. The sites keep them after the frames
     /// that made them are gone.
-    retained: HashSet<usize>,
+    retained: CountedSet<usize>,
 }
 
 impl Construction {
     /// What the records hold.
     pub fn bytes(&self) -> usize {
         super::meter::map(&self.methods)
-            + super::meter::vec(&self.sites)
+            + super::meter::vec(self.sites.as_vec())
             + super::meter::set(&self.retained)
             + self.held
     }
@@ -168,8 +169,8 @@ impl Construction {
 /// What a method does with `self`, directly or in its blocks.
 #[derive(Default)]
 struct Uses {
-    reads: BTreeSet<String>,
-    calls: BTreeSet<FnId>,
+    reads: CountedBTreeSet<String>,
+    calls: CountedBTreeSet<FnId>,
     /// Whether `self` is used as a value, which lets any method read it.
     escapes: bool,
 }
@@ -218,11 +219,6 @@ impl<'a> Checker<'a> {
         (!unassigned.is_empty()).then_some(unassigned)
     }
 
-    fn uses(&mut self) -> Option<&mut Uses> {
-        let function = self.frame.function?;
-        Some(self.construction.methods.entry(function).or_default())
-    }
-
     fn site(&mut self, kind: SiteKind, span: Span) {
         let Some(class) = self.frame.owner else {
             return;
@@ -239,27 +235,49 @@ impl<'a> Checker<'a> {
 
     /// Keeps `site`, counting what it holds that no earlier site shares:
     /// its roster, and the nodes of its set of unassigned variables that
-    /// the assignments before it copied.
+    /// the assignments before it copied. The addresses it records, and
+    /// room for the site, are counted before they are kept, and a check
+    /// the budget stops keeps no more sites.
     fn record_site(&mut self, site: Site) {
+        let tables = self.meter.tables();
         let construction = &mut self.construction;
         let roster = Rc::as_ptr(&site.unassigned.roster).cast::<u8>() as usize;
-        if construction.retained.insert(roster) {
-            construction.held += roster_bytes(&site.unassigned.roster);
+        match construction.retained.insert(tables, roster) {
+            Ok(true) => construction.held += roster_bytes(&site.unassigned.roster),
+            Ok(false) => (),
+            Err(_) => return,
         }
-        let (bytes, visited) = site.unassigned.marks.retain(&mut construction.retained);
-        construction.held += bytes + site.kind.heap();
-        // A check that finding what it shares stops keeps no more sites.
-        if self.meter.charge(visited as u64) {
+        let Some((bytes, visited)) = site
+            .unassigned
+            .marks
+            .retain(&mut construction.retained, tables)
+        else {
             return;
+        };
+        construction.held += bytes + site.kind.heap();
+        // A check that finding what it shares stops keeps no more sites,
+        // and a site the budget refuses room for is not kept.
+        if self.meter.charge(visited as u64) || self.construction.sites.push(tables, site).is_err()
+        {
+            self.stopped = true;
         }
-        self.construction.sites.push(site);
     }
 
     /// Records a read of instance variable `name` of `self` at `span`.
     pub(super) fn read_ivar(&mut self, name: &str, span: Span) {
-        if let Some(uses) = self.uses() {
-            let bytes = btree_entry(&uses.reads) + name.len();
-            if uses.reads.insert(name.to_owned()) {
+        let tables = self.meter.tables();
+        if let Some(uses) = uses(&mut self.construction, self.frame.function, tables) {
+            // The name, and the set's room for it, are counted before it
+            // is kept; a check the budget stops records no more.
+            if uses.reads.contains(name) {
+            } else if tables.keep(name.len()).is_err() {
+                return;
+            } else {
+                let before = btree_storage::<String>(uses.reads.len());
+                if uses.reads.insert(tables, name.to_owned()).is_err() {
+                    return;
+                }
+                let bytes = btree_storage::<String>(uses.reads.len()) - before + name.len();
                 self.construction.held += bytes;
             }
         }
@@ -268,11 +286,15 @@ impl<'a> Checker<'a> {
 
     /// Records a call of method `callee` on `self` at `span`.
     pub(super) fn call_on_self(&mut self, callee: FnId, span: Span) {
-        if let Some(uses) = self.uses() {
-            let bytes = btree_entry(&uses.calls);
-            if uses.calls.insert(callee) {
-                self.construction.held += bytes;
+        let tables = self.meter.tables();
+        if let Some(uses) = uses(&mut self.construction, self.frame.function, tables) {
+            let before = btree_storage::<FnId>(uses.calls.len());
+            // A check the budget stops records no more.
+            if uses.calls.insert(tables, callee).is_err() {
+                return;
             }
+            let bytes = btree_storage::<FnId>(uses.calls.len()) - before;
+            self.construction.held += bytes;
         }
         self.site(SiteKind::Call(callee), span);
     }
@@ -289,7 +311,8 @@ impl<'a> Checker<'a> {
             self.self_receiver = false;
             return;
         }
-        if let Some(uses) = self.uses() {
+        let tables = self.meter.tables();
+        if let Some(uses) = uses(&mut self.construction, self.frame.function, tables) {
             uses.escapes = true;
         }
         let Some(class) = self.frame.owner else {
@@ -356,7 +379,7 @@ impl<'a> Checker<'a> {
         let sites = std::mem::take(&mut self.construction.sites);
         // Taken from the records, the sites are held while they are read,
         // as the methods' reads are.
-        let Some(sites_held) = self.hold(super::meter::vec(&sites)) else {
+        let Some(sites_held) = self.hold(super::meter::vec(sites.as_vec())) else {
             self.release(reads_held);
             return;
         };
@@ -543,7 +566,7 @@ impl<'a> Checker<'a> {
                 return (HashMap::new(), 0);
             }
             let mut escapes = false;
-            let mut read = BTreeSet::new();
+            let mut read = CountedBTreeSet::new();
             for &member in members {
                 let uses = &self.construction.methods[&ids[member]];
                 if self
@@ -554,8 +577,10 @@ impl<'a> Checker<'a> {
                     return (HashMap::new(), 0);
                 }
                 escapes |= uses.escapes;
-                if !escapes {
-                    read.extend(uses.reads.iter().cloned());
+                let tables = self.meter.tables();
+                if !escapes && gather(&mut read, uses.reads.iter(), tables).is_err() {
+                    self.release(held);
+                    return (HashMap::new(), 0);
                 }
                 for &callee in &calls[member] {
                     let other = cycle_of[callee];
@@ -565,18 +590,17 @@ impl<'a> Checker<'a> {
                     match &*found[other] {
                         None => escapes = true,
                         Some(called) => {
-                            if self.meter.charge(called.len() as u64) {
+                            if self.meter.charge(called.len() as u64)
+                                || (!escapes && gather(&mut read, called.iter(), tables).is_err())
+                            {
                                 self.release(held);
                                 return (HashMap::new(), 0);
-                            }
-                            if !escapes {
-                                read.extend(called.iter().cloned());
                             }
                         }
                     }
                 }
             }
-            let read = (!escapes).then_some(read);
+            let read = (!escapes).then(|| read.into_set());
             self.construction.held += read.heap() + std::mem::size_of::<Option<BTreeSet<String>>>();
             found.push(Rc::new(read));
         }
@@ -587,6 +611,36 @@ impl<'a> Checker<'a> {
             .collect();
         (reads, held)
     }
+}
+
+/// Adds `names` to the reads `read` gathers, each new one's copy counted
+/// to `tables`, with its room in the set, before it is kept.
+fn gather<'n>(
+    read: &mut CountedBTreeSet<String>,
+    names: impl Iterator<Item = &'n String>,
+    tables: super::counted::Ledger<'_>,
+) -> Result<(), super::counted::Refused> {
+    for name in names {
+        if !read.contains(name) {
+            tables.keep(name.len())?;
+            read.insert(tables, name.clone())?;
+        }
+    }
+    Ok(())
+}
+
+/// What `function`, the function being checked, does with `self`, with
+/// its entry counted to `tables` before it is made; `None` outside one, or
+/// when the budget refuses it, which stops the check.
+fn uses<'c>(
+    construction: &'c mut Construction,
+    function: Option<FnId>,
+    tables: super::counted::Ledger<'_>,
+) -> Option<&'c mut Uses> {
+    construction
+        .methods
+        .get_or_insert_with(tables, function?, Uses::default)
+        .ok()
 }
 
 /// What each instance method reads of `self`, shared by the methods of a
