@@ -33,9 +33,6 @@ enum Shape {
     Value(Option<Type>),
     /// A host method with this published signature; none accepts any method.
     Method(Option<crate::Signature>),
-    /// A function a script exports, declared as taking any arguments, which
-    /// a call may replace with any other callable.
-    Callable,
     /// An object with these members.
     Object(Vec<(String, Shape)>),
     /// A retained script declaration, pinned to its nominal identity and source.
@@ -232,9 +229,8 @@ fn shape(value: &Value, top: bool) -> Result<Shape> {
         Kind::Host(method) => {
             Shape::Method(method.signature().map(|signature| signature.source.clone()))
         }
-        Kind::Function(_) => Shape::Callable,
-        // An object holding a callable at any depth, a host method or a
-        // function a script exports, is a namespace, as its declaration is.
+        // An object holding a host method at any depth is a namespace, as
+        // its declaration is.
         Kind::Hash(hash) if signatures::host::contains_methods(value) => {
             let mut members = Vec::new();
             for (key, field) in &hash.buffer.data {
@@ -305,16 +301,6 @@ fn check(ctx: &mut CallContext, shape: &Shape, subject: &str, value: &Value) -> 
             }
             Ok(())
         }
-        Shape::Callable => match value.0 {
-            Kind::Function(_) | Kind::Host(_) => Ok(()),
-            _ => Err(Error::new(
-                ErrorKind::Type,
-                format!(
-                    "{subject} must be callable, as the host declares it, got {}",
-                    value.type_name()
-                ),
-            )),
-        },
         Shape::Object(members) => {
             let Kind::Hash(hash) = &value.0 else {
                 return Err(Error::new(

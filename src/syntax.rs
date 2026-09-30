@@ -172,9 +172,24 @@ impl<'a> HostName<'a> {
             crate::ErrorKind::Argument,
             format!(
                 "{} \"{}\" is bound to a function a script exports, which a script calls only \
-                 through an object: publish it as an object's field, such as \
-                 `Value::object(vec![(b\"run\".to_vec(), function)])`, or register a host function",
+                 through its module: register a host function instead",
                 self.kind,
+                source_text(&shown)
+            ),
+        )
+    }
+
+    /// The error for a template, named by this method's owner, that holds a
+    /// function a script exports at `key`.
+    pub(crate) fn exported_member(self, key: &[u8]) -> Error {
+        let shown = String::from_utf8_lossy(&key[..key.len().min(72)]);
+        let (kind, owner) = self.owner.unwrap_or((self.kind, ""));
+        Error::new(
+            crate::ErrorKind::Argument,
+            format!(
+                "{kind} \"{}\" holds a function a script exports at \"{}\", which a script \
+                 calls only through its module: register a host function instead",
+                source_text(owner),
                 source_text(&shown)
             ),
         )

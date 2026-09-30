@@ -141,13 +141,13 @@ methods are checked before scripts can access them. A factory root ending in
 binding rejects it if the factory returns data. Internal or repeated suffixes
 are rejected at declaration. A callable field of any hash or object a host
 supplies, as a global, a factory's value or a callback's result, must spell a
-method; ordinary string data keys may contain punctuation. An object whose
-callable fields are functions a script exports is declared as a namespace of
-functions, as one holding host methods is, taking any arguments the runtime
-then checks. An exported function cannot be a capability's or a global's root,
-since a script calls it only through an object: such a root is a host error. A required file's exported functions may include a setter such as
-`value=`, as a script's `def value=` is. A host method may not: no script can call a host setter, so a
-capability template, a factory's value, a global or a callback that publishes
+method; ordinary string data keys may contain punctuation. A capability
+template cannot hold a function a script exports, at its root or any depth,
+nor can a global's root be one: a script calls such a function only through
+its module, so either is a host error. A required file's exported functions
+may include a setter such as `value=`, as a script's `def value=` is. A host
+method may not: no script can call a host setter, so a capability template, a
+factory's value, a global or a callback that publishes
 `value=` fails with a host error, as does a registered host function of that
 name. A global's or data capability's name is one a script can read: a letter
 or `_`, then letters, digits and `_`, and no keyword. A template's data keys

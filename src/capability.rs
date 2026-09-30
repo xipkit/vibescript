@@ -164,8 +164,8 @@ impl Capability {
 }
 
 /// Validates a published root as either a method or a data binding. A
-/// function a script exports is callable only as an object's field, so as
-/// a root it is refused.
+/// function a script exports is callable only through its module, so as a
+/// root it is refused.
 pub(crate) fn binding_name(
     work: &dyn Work,
     host: HostName<'_>,
@@ -197,7 +197,8 @@ pub(crate) fn member_name(
 }
 
 /// Validates immutable host templates before the checker or prelude publishes
-/// them; `host` names the methods the template holds.
+/// them; `host` names the methods the template holds. A template may not hold
+/// a function a script exports, at any depth.
 pub(crate) fn template_names(work: &dyn Work, host: HostName<'_>, value: &Value) -> Result<()> {
     if value.depth() > crate::budget::MAX_VALUE_DEPTH {
         return Err(Error::new(ErrorKind::Recursion, "value nesting too deep"));
@@ -208,6 +209,11 @@ pub(crate) fn template_names(work: &dyn Work, host: HostName<'_>, value: &Value)
         match &value.0 {
             Kind::Hash(hash) if seen.insert(Arc::as_ptr(hash) as usize) => {
                 for (key, field) in &hash.buffer.data {
+                    // A script calls an exported function only through its
+                    // module, so a template may not hold one.
+                    if matches!(field.0, Kind::Function(_)) {
+                        return Err(host.exported_member(key.as_bytes().unwrap_or_default()));
+                    }
                     if let Some(key) = key.as_bytes() {
                         member_name(work, host, key, field)?;
                     }
@@ -215,6 +221,14 @@ pub(crate) fn template_names(work: &dyn Work, host: HostName<'_>, value: &Value)
                 }
             }
             Kind::Array(array) if seen.insert(Arc::as_ptr(array) as usize) => {
+                if array
+                    .buffer
+                    .data
+                    .iter()
+                    .any(|item| matches!(item.0, Kind::Function(_)))
+                {
+                    return Err(host.exported_member(b"[]"));
+                }
                 pending.extend(&array.buffer.data);
             }
             _ => (),

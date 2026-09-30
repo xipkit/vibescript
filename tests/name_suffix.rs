@@ -1583,7 +1583,7 @@ fn suffix_fixes_leave_a_valid_name_or_are_not_offered() {
 }
 
 #[test]
-fn exported_functions_declare_callable_capability_members() {
+fn capability_templates_refuse_exported_functions() {
     let mut exporting = Engine::new();
     exporting
         .set_module_sources([("m.vibe".into(), "def ok? -> bool; true; end".into())].into())
@@ -1598,96 +1598,41 @@ fn exported_functions_declare_callable_capability_members() {
         .unwrap()[0]
         .1
         .clone();
-    // An object whose only callable fields are exported functions is a
-    // namespace the checker calls, as the runtime does.
-    for fields in [
-        vec![(b"run?".to_vec(), function.clone())],
-        vec![(
-            b"inner".to_vec(),
+    // A script calls an exported function only through its module, so a
+    // template holding one anywhere is refused when it is declared.
+    for (template, key) in [
+        (
             Value::object(vec![(b"run?".to_vec(), function.clone())]),
-        )],
+            "run?",
+        ),
+        (
+            Value::object(vec![(
+                b"inner".to_vec(),
+                Value::object(vec![(b"run".to_vec(), function.clone())]),
+            )]),
+            "run",
+        ),
+        (
+            Value::object(vec![(
+                b"list".to_vec(),
+                Value::array(vec![function.clone()]),
+            )]),
+            "[]",
+        ),
     ] {
-        let nested = fields[0].0 == b"inner";
-        let cap = Capability::from_value("cap", Value::object(fields));
-        let script = if nested { "cap.inner.run?" } else { "cap.run?" };
-        let mut engine = Engine::new();
-        engine.declare_capability(&cap).unwrap();
-        let checked = engine.type_check(script).unwrap();
+        let error = Engine::new()
+            .declare_capability(&Capability::from_value("cap", template))
+            .unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Argument, "{error}");
         assert!(
-            checked.diagnostics.is_empty(),
-            "{script}: {:?}",
-            checked.diagnostics
+            error.message.starts_with(&format!(
+                "capability \"cap\" holds a function a script exports at \"{key}\""
+            )),
+            "{error}"
         );
-        let options = CallOptions {
-            capabilities: vec![cap],
-            ..CallOptions::default()
-        };
-        let value = engine.compile(script).unwrap().run(options).unwrap().value;
-        assert_eq!(value.to_string(), "true", "{script}");
     }
-    // A call's grant must keep each such member callable, at any depth, as
-    // it must a host method, or it is refused before the script runs.
-    for (declared, granted) in [
-        (
-            Value::object(vec![(b"run?".to_vec(), function.clone())]),
-            Value::object(vec![(b"run?".to_vec(), Value::int(1))]),
-        ),
-        (
-            Value::object(vec![(
-                b"inner".to_vec(),
-                Value::object(vec![(b"run?".to_vec(), function.clone())]),
-            )]),
-            Value::object(vec![(
-                b"inner".to_vec(),
-                Value::object(vec![(b"run?".to_vec(), Value::int(1))]),
-            )]),
-        ),
-        (
-            Value::object(vec![(
-                b"inner".to_vec(),
-                Value::object(vec![(b"run?".to_vec(), method().value())]),
-            )]),
-            Value::object(vec![(
-                b"inner".to_vec(),
-                Value::object(vec![(b"run?".to_vec(), Value::int(1))]),
-            )]),
-        ),
-    ] {
-        let mut engine = Engine::new();
-        engine
-            .declare_capability(&Capability::from_value("cap", declared))
-            .unwrap();
-        let options = CallOptions {
-            capabilities: vec![Capability::from_value("cap", granted)],
-            ..CallOptions::default()
-        };
-        let error = engine.compile("1").unwrap().run(options).unwrap_err();
-        assert_eq!(error.kind, ErrorKind::Type, "{error}");
-        assert!(error.message.contains("member run?"), "{error}");
-    }
-    // A grant that keeps it callable is accepted.
-    let mut engine = Engine::new();
-    let template = Value::object(vec![(b"run?".to_vec(), function.clone())]);
-    engine
-        .declare_capability(&Capability::from_value("cap", template.clone()))
-        .unwrap();
-    let options = CallOptions {
-        capabilities: vec![Capability::from_value("cap", template)],
-        ..CallOptions::default()
-    };
-    assert_eq!(
-        engine
-            .compile("cap.run?")
-            .unwrap()
-            .run(options)
-            .unwrap()
-            .value
-            .to_string(),
-        "true"
-    );
-    // A root that is one would bind as no value a script can use, so every
-    // route that publishes a root refuses it: a template, a factory's value
-    // and a call's global.
+    // So is a root, by every route that publishes one: a template, a
+    // factory's value and a call's global.
     let exported = |error: Error, kind: &str| {
         assert_eq!(error.kind, ErrorKind::Argument, "{error}");
         assert!(
@@ -1724,6 +1669,38 @@ fn exported_functions_declare_callable_capability_members() {
             .unwrap_err(),
         "global",
     );
+}
+
+#[test]
+fn a_grant_keeps_nested_host_methods_callable() {
+    // An object nested in a template that holds a host method is declared,
+    // and checked, as a namespace, so a grant must keep the method callable.
+    let nested = |run: Value| {
+        Value::object(vec![(
+            b"inner".to_vec(),
+            Value::object(vec![(b"run?".to_vec(), run)]),
+        )])
+    };
+    let mut engine = Engine::new();
+    engine
+        .declare_capability(&Capability::from_value("cap", nested(method().value())))
+        .unwrap();
+    let options = CallOptions {
+        capabilities: vec![Capability::from_value("cap", nested(Value::int(1)))],
+        ..CallOptions::default()
+    };
+    let error = engine.compile("1").unwrap().run(options).unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Type, "{error}");
+    assert!(error.message.contains("member run?"), "{error}");
+    let options = CallOptions {
+        capabilities: vec![Capability::from_value("cap", nested(method().value()))],
+        ..CallOptions::default()
+    };
+    engine
+        .compile("cap.inner.run?")
+        .unwrap()
+        .run(options)
+        .unwrap();
 }
 
 #[test]

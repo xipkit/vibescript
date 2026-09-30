@@ -131,10 +131,7 @@ fn documented(item: Item, doc: &str) -> Item {
 }
 
 /// A bound value as a declaration: a host method becomes a function, an
-/// object holding host methods or functions a script exports a namespace,
-/// and any other value a constant. An exported function is callable only
-/// as such an object's member, which the checker calls with any arguments
-/// and the runtime checks; as a root it is a value no script can use.
+/// object holding host methods a namespace, and any other value a constant.
 pub(crate) fn binding(name: &str, value: &Value) -> Item {
     match &value.0 {
         Kind::Host(bound) => Item::Function(method_function(name, bound)),
@@ -151,11 +148,7 @@ pub(crate) fn binding(name: &str, value: &Value) -> Item {
                     if !crate::syntax::identifier(stem) {
                         return None;
                     }
-                    let item = match &field.0 {
-                        Kind::Function(_) => Item::Function(unsigned(key, true, true)),
-                        _ => binding(key, field),
-                    };
-                    Some(match item {
+                    Some(match binding(key, field) {
                         Item::Function(function) => Member::Function(function),
                         Item::Module(module) => Member::Module(module),
                         Item::Constant(constant) => Member::Constant(constant),
@@ -177,11 +170,10 @@ pub(crate) fn binding(name: &str, value: &Value) -> Item {
     }
 }
 
-/// Whether `value` is callable, or an object holding a callable at any
-/// depth: a host method or a function a script exports.
+/// Whether `value` is a host method, or an object holding one at any depth.
 pub(crate) fn contains_methods(value: &Value) -> bool {
     match &value.0 {
-        Kind::Host(_) | Kind::Function(_) => true,
+        Kind::Host(_) => true,
         Kind::Hash(hash) => hash
             .buffer
             .data
