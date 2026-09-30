@@ -387,13 +387,15 @@ impl Parser<'_> {
 
     /// Records the read of `name`, spelled at `at` through `scope`, and,
     /// when a scope `continues` them, the path the two spell if `scope` is
-    /// one, such as `Outer::Inner`.
+    /// one, such as `Outer::Inner`. A read `called` with arguments, as in
+    /// `A::B!(1)`, is of a method that merely shares a name, so not safe.
     pub(super) fn scoped_read(
         &self,
         scope: &Expr,
         name: &str,
         at: usize,
         continues: bool,
+        called: bool,
     ) -> Result<()> {
         if !lenient() {
             return Ok(());
@@ -420,9 +422,13 @@ impl Parser<'_> {
                     owner: self.namespace,
                     path,
                     name: Name::new(work, name)?,
-                    safe: true,
+                    safe: !called,
                 };
                 index = uses.value_read(work, entry)?;
+                if called {
+                    // A lookahead may have recorded the read already.
+                    uses.scoped[index as usize - 1].safe = false;
+                }
             }
         }
         uses.calls.insert(work, start.clone(), index)?;

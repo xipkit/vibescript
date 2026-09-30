@@ -2402,7 +2402,8 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
                 unreachable!()
             };
             let continues = p.tokens[p.significant(p.pos)].token == Token::Op("::");
-            p.scoped_read(&lhs, &name, at, continues)?;
+            let called = p.token() == &Token::P('(');
+            p.scoped_read(&lhs, &name, at, continues, called)?;
             (Name::new(work, &name)?, p.take_p('('))
         };
         let args = if parenthesized {

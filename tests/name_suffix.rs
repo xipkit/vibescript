@@ -1647,6 +1647,8 @@ fn class_module_and_enum_names_are_renamed_wherever_they_are_used() {
     for source in [
         "class Ready?; end; p(:Ready?)",
         "class Ready?; end; p(Ready?(1))",
+        "module A; module B!; X = 1; end; def self.B!(n: int) -> int; n; end; end\n\
+         [A::B!::X, A::B!(1)]",
         "enum State; Done?; end; State::Done? == :done?",
         "class Ready?; end; Ready?.new; x = )",
         // `Node!?` is a nullable `Node!` to the type, though it may mean the class.
