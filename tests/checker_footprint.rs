@@ -268,6 +268,18 @@ fn adversarial() -> Vec<(String, String)> {
         "a mismatch with a shape nested six deep through aliases".to_owned(),
         format!("{}\nx: T5 = 1\n", nested.join("\n")),
     ));
+    programs.push((
+        "a begin holding a 200,000-element array".to_owned(),
+        format!(
+            "begin\n  x = [{}]\nrescue\n  x = []\nend\n",
+            join(scale(200_000), &|_| "1".to_owned(), ", ")
+        ),
+    ));
+    let entry = "w".repeat(scale(256_000));
+    programs.push((
+        "percent literals of long entries".to_owned(),
+        format!("x = %w[{entry} a]\ny = %i[{entry} b]\n"),
+    ));
     let levels = if small { 100 } else { 900 };
     programs.push((
         "nested begins around many assignments".to_owned(),
@@ -733,6 +745,43 @@ fn shapes() -> Vec<Shape> {
             (
                 Vec::new(),
                 format!("class C\n{variables}  def initialize\n  end\nend\n"),
+            )
+        }),
+        ("a long symbol", |n| {
+            let name = "s".repeat(n * 64);
+            (Vec::new(), format!("x = :{name}\np(x)\n"))
+        }),
+        ("long percent-literal entries", |n| {
+            let word = "w".repeat(n * 64);
+            (
+                Vec::new(),
+                format!("x = %w[{word} a]\ny = %i[{word} b]\np(x)\n"),
+            )
+        }),
+        ("a begin holding a wide array", |n| {
+            let items = listed(n * 4, |_| "1".to_owned(), ", ");
+            (
+                Vec::new(),
+                format!("begin\n  x = [{items}]\nrescue\n  x = []\nend\np(x)\n"),
+            )
+        }),
+        ("a very wide interpolation", |n| {
+            let literal = listed(n * 4, |_| "1".to_owned(), ",");
+            (Vec::new(), format!("x = \"#{{[{literal}]}}\"\np(x)\n"))
+        }),
+        ("many empty functions and classes", |n| {
+            let functions = lines(n, |i| format!("def f{i}\nend\n"));
+            let classes = lines(n, |i| format!("class C{i}\nend\n"));
+            (Vec::new(), format!("{functions}{classes}p(1)\n"))
+        }),
+        ("a large required file that runs out mid-check", |n| {
+            let functions = lines(n, |i| {
+                format!("def f{i}(a: int, b: string, c: array<int>) -> int\n  a\nend\n")
+            });
+            let body = lines(n, |i| format!("x{i} = f{i}(1, \"b\", [1])\n"));
+            (
+                vec![("big.vibe".to_owned(), format!("{functions}{body}"))],
+                "require(\"big\")\np(1)\n".to_owned(),
             )
         }),
         ("a mismatch with shapes nested through aliases", |n| {
