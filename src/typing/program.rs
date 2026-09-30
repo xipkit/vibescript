@@ -717,7 +717,7 @@ impl<'a> Checker<'a> {
             }
             (None, _) => def.name.to_string(),
         };
-        let (breaks, scratch) = yields(&def.body);
+        let (breaks, scratch) = yields(&self.meter, &def.body);
         self.transient(scratch);
         let sig = Rc::new(Sig {
             name,
@@ -1036,144 +1036,117 @@ fn literal_type(expr: &crate::syntax::Expr) -> Ty {
 /// Where a `break` out of the block a function body yields to goes: out
 /// of the function when every `yield` stands outside loops and blocks, and
 /// otherwise into the loop or call around a `yield`, or nowhere when the
-/// body never yields; with the bytes of the lists the walk kept.
-fn yields(body: &[crate::syntax::Stmt]) -> (sigs::Breaks, usize) {
-    let mut statements = Vec::new();
-    let mut expressions = Vec::new();
-    let breaks = yields_in(body, &mut statements, &mut expressions);
-    let scratch = statements.capacity() * std::mem::size_of::<(&crate::syntax::Stmt, bool)>()
-        + expressions.capacity() * std::mem::size_of::<(&crate::syntax::Expr, bool)>();
-    (breaks, scratch)
-}
-
-/// [`yields`], walking with the lists it is given.
-fn yields_in<'b>(
-    body: &'b [crate::syntax::Stmt],
-    statements: &mut Vec<(&'b crate::syntax::Stmt, bool)>,
-    expressions: &mut Vec<(&'b crate::syntax::Expr, bool)>,
-) -> sigs::Breaks {
-    let mut found = false;
+/// body never yields; with the bytes of the stack the walk kept, which is
+/// charged to `meter`.
+fn yields(meter: &super::meter::Meter, body: &[crate::syntax::Stmt]) -> (sigs::Breaks, usize) {
+    use super::walk::{Item, Next, Walk};
     use crate::syntax::{Node, Statement};
-    statements.extend(body.iter().map(|stmt| (stmt, false)));
-    loop {
-        if let Some((expr, inside)) = expressions.pop() {
-            match &expr.node {
+    // Each entry carries whether it stands inside a loop or a block.
+    let mut walk: Walk<'_, '_, bool> = Walk::new(meter);
+    walk.stmts(body, false);
+    let mut found = false;
+    while let Some((item, inside)) = walk.next(0) {
+        match item {
+            Item::Expr(expr) => match &expr.node {
                 Node::Yield(args) => {
                     if inside {
-                        return sigs::Breaks::Inside;
+                        return (sigs::Breaks::Inside, walk.bytes());
                     }
                     found = true;
-                    expressions.extend(args.iter().map(|arg| (arg, inside)));
+                    walk.push(Next::Exprs(args.iter()), inside);
                 }
                 Node::BlockCall(call, block) => {
-                    expressions.push((call, inside));
-                    statements.extend(block.body.iter().map(|stmt| (stmt, true)));
+                    walk.expr(call, inside);
+                    walk.stmts(&block.body, true);
                 }
-                Node::Compound(stmt) => statements.push((stmt, inside)),
+                Node::Compound(stmt) => walk.push(Next::Item(Item::Stmt(stmt)), inside),
                 Node::Try(attempt) => {
-                    let bodies = [&attempt.body, &attempt.alternate, &attempt.ensure];
-                    for body in bodies {
-                        statements.extend(body.iter().map(|stmt| (stmt, inside)));
-                    }
-                    for rescue in attempt.rescues.iter() {
-                        statements.extend(rescue.body.iter().map(|stmt| (stmt, inside)));
-                    }
+                    walk.stmts(&attempt.body, inside);
+                    walk.stmts(&attempt.alternate, inside);
+                    walk.stmts(&attempt.ensure, inside);
+                    walk.push(Next::Rescues(attempt.rescues.iter()), inside);
                 }
                 Node::Conditional(branches, alternate) => {
-                    for (condition, value) in branches.iter() {
-                        expressions.push((condition, inside));
-                        expressions.push((value, inside));
-                    }
-                    expressions.push((alternate, inside));
+                    walk.push(Next::Branches(branches.iter()), inside);
+                    walk.expr(alternate, inside);
                 }
                 Node::Case(subject, whens, alternate) => {
-                    expressions.extend(subject.as_deref().map(|e| (e, inside)));
-                    for when in whens.iter() {
-                        expressions.extend(when.values.iter().map(|(value, _)| (value, inside)));
-                        expressions.push((&when.result, inside));
+                    for expr in subject.iter().chain(alternate) {
+                        walk.expr(expr, inside);
                     }
-                    expressions.extend(alternate.as_deref().map(|e| (e, inside)));
+                    walk.push(Next::Whens(whens.iter()), inside);
                 }
                 Node::Binary(_, left, right) => {
-                    expressions.push((left, inside));
-                    expressions.push((right, inside));
+                    walk.expr(left, inside);
+                    walk.expr(right, inside);
                 }
                 Node::Range(start, end, _) => {
-                    expressions.extend([start, end].into_iter().flatten().map(|e| (&**e, inside)));
+                    for expr in start.iter().chain(end) {
+                        walk.expr(expr, inside);
+                    }
                 }
-                Node::Unary(_, value) => expressions.push((value, inside)),
-                Node::Call(_, args, _) => {
-                    expressions.extend(args.iter().map(|arg| (&arg.value, inside)));
-                }
-                Node::ComputedCall(receiver, args) => {
-                    expressions.push((receiver, inside));
-                    expressions.extend(args.iter().map(|arg| (&arg.value, inside)));
-                }
-                Node::Method(receiver, _, args, _) | Node::SafeMethod(receiver, _, args, _) => {
-                    expressions.push((receiver, inside));
-                    expressions.extend(args.iter().map(|arg| (&arg.value, inside)));
+                Node::Unary(_, value) => walk.expr(value, inside),
+                Node::Call(_, args, _) => walk.push(Next::Arguments(args.iter()), inside),
+                Node::ComputedCall(receiver, args)
+                | Node::Method(receiver, _, args, _)
+                | Node::SafeMethod(receiver, _, args, _) => {
+                    walk.expr(receiver, inside);
+                    walk.push(Next::Arguments(args.iter()), inside);
                 }
                 Node::Scope(receiver, _, args) => {
-                    expressions.push((receiver, inside));
-                    for arg in args.iter().flat_map(|args| args.iter()) {
-                        expressions.push((&arg.value, inside));
+                    walk.expr(receiver, inside);
+                    if let Some(args) = args {
+                        walk.push(Next::Arguments(args.iter()), inside);
                     }
                 }
                 Node::Member(receiver, _) | Node::SafeMember(receiver, _) => {
-                    expressions.push((receiver, inside));
+                    walk.expr(receiver, inside);
                 }
                 Node::Index(receiver, selectors) => {
-                    expressions.push((receiver, inside));
-                    expressions.extend(selectors.iter().map(|e| (e, inside)));
+                    walk.expr(receiver, inside);
+                    walk.push(Next::Exprs(selectors.iter()), inside);
                 }
                 Node::Array(items) | Node::Template(items, _) => {
-                    expressions.extend(items.iter().map(|e| (e, inside)));
+                    walk.push(Next::Exprs(items.iter()), inside);
                 }
-                Node::Hash(entries) => {
-                    expressions.extend(entries.iter().map(|(_, e)| (e, inside)));
+                Node::Hash(entries) => walk.push(Next::Pairs(entries.iter()), inside),
+                Node::Shape(_, Some(fallback), _) => walk.expr(fallback, inside),
+                _ => (),
+            },
+            Item::Stmt(stmt) => match &stmt.node {
+                Statement::Expr(e)
+                | Statement::Assign(_, _, e)
+                | Statement::Return(Some(e))
+                | Statement::Break(Some(e))
+                | Statement::Next(Some(e)) => walk.expr(e, inside),
+                Statement::Raise(value, message) => {
+                    for expr in value.iter().chain(message) {
+                        walk.expr(expr, inside);
+                    }
                 }
-                Node::Shape(_, fallback, _) => {
-                    expressions.extend(fallback.as_deref().map(|e| (e, inside)));
+                Statement::If(branches, alternate, _) => {
+                    walk.push(Next::Clauses(branches.iter()), inside);
+                    walk.stmts(alternate, inside);
+                }
+                Statement::While(condition, body, _) => {
+                    walk.expr(condition, inside);
+                    walk.stmts(body, true);
+                }
+                Statement::For(_, iterable, body) => {
+                    walk.expr(iterable, inside);
+                    walk.stmts(body, true);
                 }
                 _ => (),
-            }
-            continue;
-        }
-        let Some((stmt, inside)) = statements.pop() else {
-            return if found {
-                sigs::Breaks::Result
-            } else {
-                sigs::Breaks::Never
-            };
-        };
-        match &stmt.node {
-            Statement::Expr(e) => expressions.push((e, inside)),
-            Statement::Assign(_, _, e) => expressions.push((e, inside)),
-            Statement::Return(Some(e)) | Statement::Break(Some(e)) | Statement::Next(Some(e)) => {
-                expressions.push((e, inside));
-            }
-            Statement::Raise(value, message) => {
-                expressions.extend(value.as_deref().map(|e| (e, inside)));
-                expressions.extend(message.as_deref().map(|e| (e, inside)));
-            }
-            Statement::If(branches, alternate, _) => {
-                for (condition, body) in branches.iter() {
-                    expressions.push((condition, inside));
-                    statements.extend(body.iter().map(|stmt| (stmt, inside)));
-                }
-                statements.extend(alternate.iter().map(|stmt| (stmt, inside)));
-            }
-            Statement::While(condition, body, _) => {
-                expressions.push((condition, inside));
-                statements.extend(body.iter().map(|stmt| (stmt, true)));
-            }
-            Statement::For(_, iterable, body) => {
-                expressions.push((iterable, inside));
-                statements.extend(body.iter().map(|stmt| (stmt, true)));
-            }
-            _ => (),
+            },
+            Item::Target(_) => (),
         }
     }
+    let breaks = if found {
+        sigs::Breaks::Result
+    } else {
+        sigs::Breaks::Never
+    };
+    (breaks, walk.bytes())
 }
 
 fn block_param(parsed: &Declarations, offset: u32) -> Option<&BlockParam> {
