@@ -242,10 +242,11 @@ impl<'a> Checker<'a> {
         }
         let (bytes, visited) = site.unassigned.marks.retain(&mut construction.retained);
         construction.held += bytes + site.kind.heap();
-        construction.sites.push(site);
-        // The site is kept either way, and this is the last of it: a check
-        // this stops keeps no more, as `halted` then says.
-        let _ = self.meter.charge(visited as u64);
+        // A check that finding what it shares stops keeps no more sites.
+        if self.meter.charge(visited as u64) {
+            return;
+        }
+        self.construction.sites.push(site);
     }
 
     /// Records a read of instance variable `name` of `self` at `span`.

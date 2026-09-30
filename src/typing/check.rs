@@ -864,13 +864,18 @@ impl<'a> Checker<'a> {
                 assigned,
             });
         } else if let Some(caller) = self.frame.function {
-            let callees = &mut self.program.file_uses.entry(caller).or_default().1;
-            let before = callees.capacity();
-            callees.push(callee);
-            let grown = (callees.capacity() - before) * std::mem::size_of::<FnId>();
-            // The call is recorded either way, and this is the last of it:
-            // a check this stops records no more, as `halted` then says.
-            let _ = self.grow(grown);
+            let callees = &self.program.file_uses.entry(caller).or_default().1;
+            // A list that is full doubles, counted before it does; a check
+            // that stops records no more calls.
+            if callees.len() == callees.capacity() {
+                let grown = callees.capacity().max(4) * std::mem::size_of::<FnId>();
+                if self.grow(grown) {
+                    return;
+                }
+            }
+            if let Some((_, callees)) = self.program.file_uses.get_mut(&caller) {
+                callees.push(callee);
+            }
         }
     }
 
@@ -879,12 +884,18 @@ impl<'a> Checker<'a> {
     pub(super) fn shared_read(&mut self, id: LocalId, name: &str) {
         if self.frame.shared.contains(&id) {
             if let Some(function) = self.frame.function {
-                let reads = &mut self.program.file_uses.entry(function).or_default().0;
+                let reads = &self.program.file_uses.entry(function).or_default().0;
+                if reads.contains(name) {
+                    return;
+                }
+                // Counted before it is kept; a check that stops records no
+                // more reads.
                 let bytes = super::meter::btree_entry(reads) + name.len();
-                if reads.insert(name.to_owned()) {
-                    // The read is recorded either way, and this is the last
-                    // of it: a check this stops records no more.
-                    let _ = self.grow(bytes);
+                if self.grow(bytes) {
+                    return;
+                }
+                if let Some((reads, _)) = self.program.file_uses.get_mut(&function) {
+                    reads.insert(name.to_owned());
                 }
             }
         }
@@ -1061,6 +1072,12 @@ impl<'a> Checker<'a> {
         offset: usize,
         annotated: bool,
     ) -> LocalId {
+        // The local, its entry by name and its scope's record each copy its
+        // name, counted before they do. The caller needs an id however the
+        // budget stands, so a check that stops declares a local without a
+        // name, which nothing looks up: the check reads no more code.
+        let named = !self.transient(3 * name.len());
+        let name = if named { name } else { "" };
         let id = self.frame.flow.add(declared);
         debug_assert_eq!(id as usize, self.frame.locals.len());
         self.frame.locals.push(Local {
@@ -1071,13 +1088,12 @@ impl<'a> Checker<'a> {
             checked: false,
             dictionary: None,
         });
-        let previous = self.frame.names.insert(name.to_owned(), id);
-        // The local, its entry by name and its scope's record each copy it.
+        let previous = if named {
+            self.frame.names.insert(name.to_owned(), id)
+        } else {
+            None
+        };
         self.frame.name_bytes += 3 * name.len();
-        // The local is declared however the budget stands, since the caller
-        // needs its id and its scope's record; a check this stops checks no
-        // more statements, as `halted` says.
-        let _ = self.grew(3 * name.len());
         if let Some(scope) = self.frame.scopes.last_mut() {
             scope.push((name.to_owned(), previous));
         }

@@ -775,18 +775,6 @@ mod tests {
     /// stop to end there: the budget's stop is the meter's, which the
     /// caller's next check reads.
     const GOING_ON: &[(&str, &str)] = &[
-        // A kept site's charge, its last step.
-        (
-            "construction.rs",
-            "let _ = self.meter.charge(visited as u64);",
-        ),
-        // A host module's name, which the id it returns names.
-        ("calls.rs", "let _ = self.grow(name.capacity()"),
-        // The last of recording a required file's call, and a read.
-        ("check.rs", "let _ = self.grow(grown);"),
-        ("check.rs", "let _ = self.grow(bytes);"),
-        // A local's names, which its id and its scope need.
-        ("check.rs", "let _ = self.grew(3 * name.len());"),
         // A finished walk's last charge, when it is dropped.
         ("walk.rs", "let _ = self.meter.charge(self.visited);"),
         // The type table's own types, each of which has its fixed place.

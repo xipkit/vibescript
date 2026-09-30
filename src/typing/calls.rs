@@ -937,22 +937,26 @@ impl<'a> Checker<'a> {
                 crate::signatures::Member::Module(module) => {
                     self.non_callable_member(call);
                     self.loose_args(call);
-                    let id = self
+                    let known = self
                         .program
                         .host_modules
                         .iter()
-                        .position(|&known| std::ptr::eq(known, module))
-                        .unwrap_or_else(|| {
+                        .position(|&known| std::ptr::eq(known, module));
+                    let id = match known {
+                        Some(id) => id,
+                        None => {
+                            // Counted before it is kept; a check that stops
+                            // names no more modules.
+                            let name = format!("{}.{}", self.types.display(ty), module.name);
+                            if self.grow(name.capacity() + std::mem::size_of::<String>()) {
+                                return Ty::ERROR;
+                            }
                             let id = self.program.host_modules.len();
                             self.program.host_modules.push(module);
-                            let name = format!("{}.{}", self.types.display(ty), module.name);
-                            // Named whatever the budget says, since the id
-                            // names it; the type interned next is an error
-                            // once the check stops.
-                            let _ = self.grow(name.capacity() + std::mem::size_of::<String>());
                             self.types.names.hosts.push(name);
                             id
-                        });
+                        }
+                    };
                     return self.types.intern(Kind::Host(id as u32));
                 }
                 crate::signatures::Member::Constant(constant) => {
