@@ -230,17 +230,14 @@ fn shape(value: &Value, top: bool) -> Result<Shape> {
             Shape::Method(method.signature().map(|signature| signature.source.clone()))
         }
         // An object holding a host method at any depth is a namespace, as
-        // its declaration is.
+        // its declaration is, of exactly the members it declares.
         Kind::Hash(hash) if signatures::host::contains_methods(value) => {
             let mut members = Vec::new();
             for (key, field) in &hash.buffer.data {
-                let Some(key) = key.as_bytes() else {
+                let Some(key) = key.as_bytes().and_then(signatures::host::member_key) else {
                     continue;
                 };
-                members.push((
-                    String::from_utf8_lossy(key).into_owned(),
-                    shape(field, false)?,
-                ));
+                members.push((key.to_owned(), shape(field, false)?));
             }
             Shape::Object(members)
         }

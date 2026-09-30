@@ -1672,6 +1672,36 @@ fn capability_templates_refuse_exported_functions() {
 }
 
 #[test]
+fn a_grant_of_the_declared_template_is_accepted() {
+    // Keys no script can read as members, one not UTF-8 and one with a
+    // space, are left out of the declaration, so a grant need not match
+    // them either; granting the very template must pass.
+    for nested in [false, true] {
+        let object = Value::object(vec![
+            (vec![0xff, 0xfe], Value::int(1)),
+            (b"with space".to_vec(), Value::int(2)),
+            (b"run".to_vec(), method().value()),
+        ]);
+        let template = if nested {
+            Value::object(vec![(b"inner".to_vec(), object)])
+        } else {
+            object
+        };
+        let mut engine = Engine::new();
+        engine
+            .declare_capability(&Capability::from_value("cap", template.clone()))
+            .unwrap();
+        let options = CallOptions {
+            capabilities: vec![Capability::from_value("cap", template)],
+            ..CallOptions::default()
+        };
+        let script = if nested { "cap.inner.run" } else { "cap.run" };
+        let value = engine.compile(script).unwrap().run(options).unwrap().value;
+        assert_eq!(value.to_string(), "true", "{script}");
+    }
+}
+
+#[test]
 fn a_grant_keeps_nested_host_methods_callable() {
     // An object nested in a template that holds a host method is declared,
     // and checked, as a namespace, so a grant must keep the method callable.

@@ -141,13 +141,7 @@ pub(crate) fn binding(name: &str, value: &Value) -> Item {
                 .data
                 .iter()
                 .filter_map(|(key, field)| {
-                    // A script reads a member by name, so a data key such as
-                    // `"with space"` names nothing to declare.
-                    let key = std::str::from_utf8(key.as_bytes()?).ok()?;
-                    let stem = key.strip_suffix(['?', '!']).unwrap_or(key);
-                    if !crate::syntax::identifier(stem) {
-                        return None;
-                    }
+                    let key = member_key(key.as_bytes()?)?;
                     Some(match binding(key, field) {
                         Item::Function(function) => Member::Function(function),
                         Item::Module(module) => Member::Module(module),
@@ -168,6 +162,14 @@ pub(crate) fn binding(name: &str, value: &Value) -> Item {
             ty: value_type(value, 0),
         }),
     }
+}
+
+/// The member an object's key declares: none for a key no script can read
+/// as a member, such as one not UTF-8 or the data key `"with space"`.
+pub(crate) fn member_key(key: &[u8]) -> Option<&str> {
+    let key = std::str::from_utf8(key).ok()?;
+    let stem = key.strip_suffix(['?', '!']).unwrap_or(key);
+    crate::syntax::identifier(stem).then_some(key)
 }
 
 /// Whether `value` is a host method, or an object holding one at any depth.
