@@ -623,3 +623,72 @@ fn a_required_files_parse_counts_toward_the_check() {
         "{required} steps requiring it, {checked} checking it"
     );
 }
+
+#[test]
+fn diagnostics_spell_out_bounded_lists_and_types() {
+    // An unknown symbol for, and a `case` missing, members of a wide enum
+    // name the first members and count the rest.
+    let members = if cfg!(target_os = "wasi") {
+        20_000
+    } else {
+        100_000
+    };
+    let source = format!(
+        "enum E\n{}end\ndef f(e: E) -> int\n  case e\n  when E::M0 then 0\n  end\nend\np(f(:nope))\n",
+        (0..members)
+            .map(|i| format!("  M{i}\n"))
+            .collect::<String>()
+    );
+    // A quota that admits the enum itself.
+    let options = CallOptions {
+        limits: Limits {
+            steps: None,
+            memory_bytes: Some(64 << 20),
+            ..Limits::default()
+        },
+        ..CallOptions::default()
+    };
+    let error = Engine::new()
+        .compile_with_options(&source, &options)
+        .err()
+        .unwrap();
+    assert_eq!(error.kind, ErrorKind::Type, "{error}");
+    let messages: Vec<&str> = error
+        .diagnostics()
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect();
+    assert_eq!(messages.len(), 3, "{messages:?}");
+    assert!(messages[0].ends_with(&format!(
+        "`E::M20` and {} more; add a `when` for each, or an `else`",
+        members - 21
+    )));
+    assert!(messages[2].ends_with(&format!(":m19 and {} more", members - 20)));
+    // A shape whose fields are shapes, through aliases, is spelled out up to
+    // a bound rather than 8^6 times over.
+    let mut source = format!(
+        "type T0 = {{ {} }}\n",
+        (0..8)
+            .map(|i| format!("x{i}: int"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    for depth in 1..7 {
+        source.push_str(&format!(
+            "type T{depth} = {{ {} }}\n",
+            (0..8)
+                .map(|i| format!("f{i}: T{}", depth - 1))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    source.push_str("x: T6 = 1\n");
+    let error = Engine::new()
+        .compile_with_options(&source, &CallOptions::default())
+        .err()
+        .unwrap();
+    assert_eq!(error.kind, ErrorKind::Type, "{error}");
+    let message = &error.diagnostics()[0].message;
+    assert!(message.len() < 64 << 10, "{} bytes", message.len());
+    assert!(message.contains("..."), "{message}");
+}

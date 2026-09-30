@@ -14,6 +14,10 @@ pub const MAX_ALTERNATIVES: usize = 1024;
 /// bounds shape writes has 6,003, the most in the corpora.
 pub const MAX_FIELDS: usize = 16_384;
 
+/// The most of a type a diagnostic spells out, in bytes: a shape whose
+/// fields are shapes, through aliases, repeats them in full at each level.
+const SPELLED: usize = 16 << 10;
+
 /// Entries the assignability memo holds before it starts over, so the memo
 /// stays small however many pairs a check compares.
 const MEMO: usize = 1 << 16;
@@ -918,14 +922,13 @@ impl Types {
         }
     }
 
-    /// The type as an annotation writes it.
     /// `ty` as an annotation writes it, or `any` when no annotation can
-    /// name it, such as for a class used as a value or a required file.
+    /// name it, such as for a class used as a value or a required file, or
+    /// one too large to spell out.
     pub fn annotation(&self, ty: Ty) -> String {
-        if self.nameable(ty) {
-            self.display(ty)
-        } else {
-            "any".to_owned()
+        match self.spell(ty) {
+            (text, false) if self.nameable(ty) => text,
+            _ => "any".to_owned(),
         }
     }
 
@@ -958,13 +961,35 @@ impl Types {
         }
     }
 
+    /// `ty` as a diagnostic writes it, cut short with `...` after
+    /// [`SPELLED`] bytes.
     pub fn display(&self, ty: Ty) -> String {
-        let mut out = String::new();
-        self.write(ty, &mut out);
-        out
+        self.spell(ty).0
     }
 
+    /// [`Self::display`], and whether it was cut short.
+    fn spell(&self, ty: Ty) -> (String, bool) {
+        let mut out = String::new();
+        self.write(ty, &mut out);
+        if out.len() <= SPELLED {
+            return (out, false);
+        }
+        let mut end = SPELLED;
+        while !out.is_char_boundary(end) {
+            end -= 1;
+        }
+        out.truncate(end);
+        out.push_str("...");
+        (out, true)
+    }
+
+    /// Writes `ty` to `out`, stopping once `out` holds more than
+    /// [`SPELLED`] bytes, which a shape nested through aliases reaches
+    /// however few bytes spell its declarations.
     fn write(&self, ty: Ty, out: &mut String) {
+        if out.len() > SPELLED {
+            return;
+        }
         match self.kind(ty) {
             Kind::Error => out.push_str("unknown"),
             Kind::Never => out.push_str("never"),
@@ -1002,6 +1027,9 @@ impl Types {
                 }
                 out.push_str("{ ");
                 for (index, field) in fields.iter().enumerate() {
+                    if out.len() > SPELLED {
+                        return;
+                    }
                     if index > 0 {
                         out.push_str(", ");
                     }
@@ -1023,6 +1051,9 @@ impl Types {
             Kind::Tuple(items) => {
                 out.push('[');
                 for (index, &item) in items.iter().enumerate() {
+                    if out.len() > SPELLED {
+                        return;
+                    }
                     if index > 0 {
                         out.push_str(", ");
                     }
@@ -1034,15 +1065,23 @@ impl Types {
                 let nil = members.contains(&Ty::NIL);
                 let others: Vec<Ty> = members.iter().copied().filter(|&m| m != Ty::NIL).collect();
                 let number = others.contains(&Ty::INT) && others.contains(&Ty::FLOAT);
-                let mut parts: Vec<String> = others
-                    .iter()
-                    .filter(|&&m| !number || (m != Ty::INT && m != Ty::FLOAT))
-                    .map(|&m| {
-                        let mut text = String::new();
-                        self.write(m, &mut text);
-                        text
-                    })
-                    .collect();
+                // Past the bytes left to spell, the display is cut, so the
+                // alternatives after them are not written.
+                let room = SPELLED.saturating_sub(out.len());
+                let mut written = 0;
+                let mut parts: Vec<String> = Vec::new();
+                for &m in &others {
+                    if number && (m == Ty::INT || m == Ty::FLOAT) {
+                        continue;
+                    }
+                    if written > room {
+                        break;
+                    }
+                    let mut text = String::new();
+                    self.write(m, &mut text);
+                    written += text.len() + 3;
+                    parts.push(text);
+                }
                 if number {
                     parts.push("number".to_owned());
                 }

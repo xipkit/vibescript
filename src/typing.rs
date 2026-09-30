@@ -121,8 +121,9 @@ pub struct Checked {
     /// The top-level locals a host script assigns on every path, in name
     /// order, each with its declared type as an annotation writes it, or
     /// `any` where no annotation can name the type, such as a class used as
-    /// a value. A host continuing a session, as `vibes repl` does, declares
-    /// them for the next script.
+    /// a value, or it takes more than 16 KiB to spell out. A host
+    /// continuing a session, as `vibes repl` does, declares them for the
+    /// next script.
     pub locals: Vec<(String, String)>,
     /// The type of the value the top-level statements produce, which
     /// `Script::run` returns, written the same way; `None` for a required
@@ -391,6 +392,35 @@ impl fmt::Display for ReceiverType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.name)
     }
+}
+
+/// The most items of a list a diagnostic names; it counts the others.
+const LISTED: usize = 20;
+
+/// The `items` a diagnostic lists, each written by `write` after a `, `,
+/// up to [`LISTED`] of them and then how many more there are, as in
+/// `:a, :b and 3 more`, and how many there are in all. The items past
+/// those it names are only counted, so a list of any length costs one
+/// short string.
+fn listed<T>(
+    items: impl IntoIterator<Item = T>,
+    mut write: impl FnMut(&mut String, T),
+) -> (String, usize) {
+    let mut out = String::new();
+    let mut count = 0;
+    for item in items {
+        if count < LISTED {
+            if count > 0 {
+                out.push_str(", ");
+            }
+            write(&mut out, item);
+        }
+        count += 1;
+    }
+    if count > LISTED {
+        out.push_str(&format!(" and {} more", count - LISTED));
+    }
+    (out, count)
 }
 
 /// Checks one parsed source.

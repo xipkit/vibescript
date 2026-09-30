@@ -627,11 +627,12 @@ impl<'a> Checker<'a> {
         if unassigned.is_empty() {
             return;
         }
-        let missing: Vec<String> = unassigned
-            .indices()
-            .into_iter()
-            .map(|place| format!("@{}", roster[place]))
-            .collect();
+        let places = unassigned.indices();
+        self.transient(super::meter::vec(&places));
+        let (missing, count) = super::listed(places, |out, place| {
+            out.push('@');
+            out.push_str(&roster[place]);
+        });
         // Report each variable once per function.
         self.frame.flow.untrack();
         self.frame.initialize = None;
@@ -650,10 +651,9 @@ impl<'a> Checker<'a> {
             Code::UNINITIALIZED_IVAR,
             span,
             format!(
-                "`initialize` does not assign {} on every path; assign {} or give {} a default in the class body",
-                missing.join(", "),
-                if missing.len() == 1 { "it" } else { "them" },
-                if missing.len() == 1 { "it" } else { "them" },
+                "`initialize` does not assign {missing} on every path; assign {} or give {} a default in the class body",
+                if count == 1 { "it" } else { "them" },
+                if count == 1 { "it" } else { "them" },
             ),
         ));
     }

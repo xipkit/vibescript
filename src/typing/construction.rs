@@ -377,11 +377,10 @@ impl<'a> Checker<'a> {
     /// Reports a read of variables `ivars` of an instance being built
     /// before they are assigned, which reads `nil` whatever their types.
     fn unassigned_read(&mut self, site: &Site, ivars: &[String]) {
-        let names = ivars
-            .iter()
-            .map(|ivar| format!("@{ivar}"))
-            .collect::<Vec<_>>()
-            .join(", ");
+        let (names, _) = super::listed(ivars, |out, ivar| {
+            out.push('@');
+            out.push_str(ivar);
+        });
         let (they, them, are, reads) = if ivars.len() == 1 {
             ("it", "it", "is", "reads")
         } else {

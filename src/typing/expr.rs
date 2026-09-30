@@ -262,12 +262,13 @@ impl<'a> Checker<'a> {
         if let [id] = enums[..] {
             let decl = std::sync::Arc::clone(&self.program.enums[id as usize]);
             self.types.work(decl.symbols.len());
-            let members = decl
-                .symbols
-                .iter()
-                .map(|s| format!(":{s}"))
-                .collect::<Vec<_>>()
-                .join(", ");
+            if self.over_budget() {
+                return Ty::ERROR;
+            }
+            let (members, _) = super::listed(&decl.symbols, |out, symbol| {
+                out.push(':');
+                out.push_str(symbol);
+            });
             let enum_name = decl.name.clone();
             let span = self.spans.expr(expr);
             self.report(Diagnostic::error(
@@ -682,13 +683,14 @@ impl<'a> Checker<'a> {
                         }
                     }
                 }
-                let missing: Vec<String> = fields
-                    .iter()
-                    .zip(&present)
-                    .filter(|(field, present)| !field.optional && !**present)
-                    .map(|(field, _)| format!("`{}`", field.name))
-                    .collect();
-                if missing.is_empty() {
+                let (missing, count) = super::listed(
+                    fields
+                        .iter()
+                        .zip(&present)
+                        .filter(|(field, present)| !field.optional && !**present),
+                    |out, (field, _)| out.push_str(&format!("`{}`", field.name)),
+                );
+                if count == 0 {
                     self.release(held);
                 } else {
                     let span = self.spans.expr(expr);
@@ -709,10 +711,7 @@ impl<'a> Checker<'a> {
                         Diagnostic::error(
                             Code::TYPE_MISMATCH,
                             span,
-                            format!(
-                                "this hash lacks {} that {shape} requires",
-                                missing.join(", ")
-                            ),
+                            format!("this hash lacks {missing} that {shape} requires"),
                         )
                         .with_types(shape, found),
                     );
@@ -1899,7 +1898,7 @@ impl<'a> Checker<'a> {
         let covered: std::collections::HashSet<&str> = covered.iter().map(String::as_str).collect();
         self.transient(super::meter::set(&covered));
         // The values the `case` misses, as their `when`s name them.
-        let (missing, name): (Vec<String>, &str) = match *self.types.kind(subject) {
+        let (missing, name): (String, &str) = match *self.types.kind(subject) {
             Kind::EnumValue(id) => {
                 let decl = std::sync::Arc::clone(&self.program.enums[id as usize]);
                 // Counting the members it covers takes time that grows
@@ -1915,23 +1914,30 @@ impl<'a> Checker<'a> {
                     return false;
                 }
                 self.types.work(decl.symbols.len());
-                let missing = decl
-                    .symbols
-                    .iter()
-                    .zip(&decl.members)
-                    .filter(|(symbol, _)| !covered.contains(symbol.as_str()))
-                    .map(|(_, member)| format!("`{}::{member}`", decl.name))
-                    .collect();
+                if self.over_budget() {
+                    return false;
+                }
+                let (missing, _) = super::listed(
+                    decl.symbols
+                        .iter()
+                        .zip(&decl.members)
+                        .filter(|(symbol, _)| !covered.contains(symbol.as_str())),
+                    |out, (_, member)| {
+                        out.push_str(&format!("`{}::{member}`", decl.name));
+                    },
+                );
                 let span = self.spans.token(expr.offset as usize);
                 self.non_exhaustive(span, &decl.name, missing);
                 return false;
             }
             Kind::Bool => (
-                ["true", "false"]
-                    .into_iter()
-                    .filter(|value| !covered.contains(value))
-                    .map(|value| format!("`{value}`"))
-                    .collect(),
+                super::listed(
+                    ["true", "false"]
+                        .into_iter()
+                        .filter(|value| !covered.contains(value)),
+                    |out, value| out.push_str(&format!("`{value}`")),
+                )
+                .0,
                 "bool",
             ),
             _ => return false,
@@ -1948,12 +1954,11 @@ impl<'a> Checker<'a> {
 
     /// Reports a `case` over `name` that does not handle the `missing`
     /// values.
-    fn non_exhaustive(&mut self, span: crate::diagnostic::Span, name: &str, missing: Vec<String>) {
-        let list = missing.join(", ");
+    fn non_exhaustive(&mut self, span: crate::diagnostic::Span, name: &str, missing: String) {
         self.report(Diagnostic::error(
             Code::NON_EXHAUSTIVE_CASE,
             span,
-            format!("this `case` over {name} does not handle {list}; add a `when` for each, or an `else`"),
+            format!("this `case` over {name} does not handle {missing}; add a `when` for each, or an `else`"),
         ));
     }
 

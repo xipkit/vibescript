@@ -224,6 +224,40 @@ fn adversarial() -> Vec<(String, String)> {
             join(members, &|i| format!("  M{i}\n"), "")
         ),
     ));
+    programs.push((
+        "a 100,000-member enum given an unknown symbol and an incomplete case".to_owned(),
+        format!(
+            "enum E\n{}end\ndef f(e: E) -> int\n  case e\n  when E::M0 then 0\n  end\nend\np(f(:nope))\n",
+            join(members, &|i| format!("  M{i}\n"), "")
+        ),
+    ));
+    let variables = scale(20_000);
+    programs.push((
+        "a class whose initialize leaves 20,000 variables unassigned".to_owned(),
+        format!(
+            "class C\n{}  def initialize\n  end\nend\n",
+            join(variables, &|i| format!("  @v{i}: int\n"), "")
+        ),
+    ));
+    // Each level's fields are the level below, so a mismatch spelling
+    // the type out in full would repeat the innermost 8^5 times.
+    let nested = (1..6).fold(
+        vec![format!(
+            "type T0 = {{ {} }}",
+            join(8, &|i| format!("x{i}: int"), ", ")
+        )],
+        |mut lines, depth| {
+            lines.push(format!(
+                "type T{depth} = {{ {} }}",
+                join(8, &|i| format!("f{i}: T{}", depth - 1), ", ")
+            ));
+            lines
+        },
+    );
+    programs.push((
+        "a mismatch with a shape nested six deep through aliases".to_owned(),
+        format!("{}\nx: T5 = 1\n", nested.join("\n")),
+    ));
     let levels = if small { 100 } else { 900 };
     programs.push((
         "nested begins around many assignments".to_owned(),
