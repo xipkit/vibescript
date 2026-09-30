@@ -894,7 +894,7 @@ impl<'a> Checker<'a> {
     /// a top-level local the body has not assigned yet, which reads nil or
     /// is undefined.
     fn check_file_calls(&mut self) {
-        let uses = std::mem::take(&mut self.program.file_uses);
+        let mut uses = std::mem::take(&mut self.program.file_uses);
         // Taken from the program, the table is held while it is read.
         let Some(taken) = self.hold(super::meter::map(&uses)) else {
             return;
@@ -915,6 +915,12 @@ impl<'a> Checker<'a> {
             self.release(taken);
             return;
         }
+        // A function called many times reads the same variables at every
+        // call, so each caller's callees are taken once each.
+        for (_, callees) in uses.values_mut() {
+            callees.sort_unstable();
+            callees.dedup();
+        }
         // Checking each call charged for the first pass over the calls.
         let mut again = false;
         let mut changed = true;
@@ -925,30 +931,36 @@ impl<'a> Checker<'a> {
                     self.release(taken);
                     return;
                 }
+                // The caller's variables are set aside while each callee's
+                // are added to them, which are read in place rather than
+                // copied, as only the names the caller lacks are.
+                let mut entry = reads.remove(&caller).unwrap_or_default();
                 for callee in callees {
                     if self.meter.charge(u64::from(again)) {
                         self.release(taken);
                         return;
                     }
-                    let Some(read) = reads.get(callee).cloned() else {
+                    let Some(read) = reads.get(callee) else {
                         continue;
                     };
                     if self.meter.charge(read.len() as u64) {
                         self.release(taken);
                         return;
                     }
-                    let entry = reads.entry(caller).or_default();
                     for name in read {
-                        let bytes = super::meter::btree_entry(entry) + name.len();
-                        if entry.insert(name) {
-                            changed = true;
-                            if self.grow(bytes) {
-                                self.release(taken);
-                                return;
-                            }
+                        if entry.contains(name) {
+                            continue;
+                        }
+                        let bytes = super::meter::btree_entry(&entry) + name.len();
+                        entry.insert(name.clone());
+                        changed = true;
+                        if self.grow(bytes) {
+                            self.release(taken);
+                            return;
                         }
                     }
                 }
+                reads.insert(caller, entry);
             }
             again = true;
         }

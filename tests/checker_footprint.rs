@@ -985,6 +985,20 @@ fn shapes() -> Vec<Shape> {
             let body = "a = 1\n".repeat(n * 4);
             (Vec::new(), format!("begin\n{body}rescue\n  c = 1\nend\n"))
         }),
+        ("a required file calling a wide reader many times", |n| {
+            // The reader reads every top-level local, and each call adds
+            // what it reads to what the caller reads.
+            let locals = lines(n, |i| format!("x{i} = {i}\n"));
+            let reads = lines(n, |i| format!("  x{i}\n"));
+            let calls = "  r\n".repeat(n);
+            let file = format!(
+                "{locals}def r -> int\n{reads}  0\nend\ndef c -> int\n{calls}  0\nend\nc\n"
+            );
+            (
+                vec![("big.vibe".to_owned(), file)],
+                "require(\"big\")\np(1)\n".to_owned(),
+            )
+        }),
         ("a wide self-call graph", |n| {
             // Each method calls itself, a cycle of one for each of them in
             // the graph of the calls construction checks follow.
