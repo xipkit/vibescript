@@ -8,7 +8,7 @@ mod storage;
 mod table;
 mod tasks;
 mod types;
-pub(crate) use buffer::Buffer;
+pub(crate) use buffer::{Buffer, IntoIter};
 pub(crate) use diagnostics::{error, formatted};
 pub(crate) use name::Name;
 pub(crate) use storage::{Boxed, Bytes, Text};
