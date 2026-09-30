@@ -41,8 +41,10 @@ pub(crate) struct Additions {
 
 impl Parser<'_> {
     /// Records the type aliases, classes and enums declared anywhere in the
-    /// source. The scan is linear in tokens the lexer already charged for.
-    pub(super) fn with_type_names(mut self) -> Self {
+    /// source. The scan is linear in tokens the lexer already charged for;
+    /// the names it keeps, and their tables, are charged to the parse's
+    /// work, as the parser's other tables are.
+    pub(super) fn with_type_names(mut self) -> Result<Self> {
         for index in 0..self.tokens.len().saturating_sub(2) {
             let Token::Word(word) = &self.tokens[index].token else {
                 continue;
@@ -57,15 +59,13 @@ impl Parser<'_> {
             if alias && self.tokens[index + 2].token != Token::Op("=") {
                 continue;
             }
-            let Ok(name) = Name::new(&(), name) else {
-                continue;
-            };
+            let name = Name::new(self.work, name)?;
             if alias {
-                let _ = self.alias_names.insert(&(), name.clone(), ());
+                self.alias_names.insert(self.work, name.clone(), ())?;
             }
-            let _ = self.type_names.insert(&(), name, ());
+            self.type_names.insert(self.work, name, ())?;
         }
-        self
+        Ok(self)
     }
 
     /// Whether `name` is a type alias the source declares.

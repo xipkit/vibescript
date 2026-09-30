@@ -846,6 +846,8 @@ mod tests {
         ("syntax.rs", "fn canonical_syntax("),
         ("source.rs", "fn parse_error("),
         ("loading.rs", "pub fn source("),
+        // Every parse the checker starts records the source's type names.
+        ("syntax/typed.rs", "fn with_type_names("),
     ];
 
     /// The lines of the function of `text` whose signature starts with

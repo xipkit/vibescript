@@ -803,14 +803,14 @@ pub(crate) struct Outline {
 }
 
 fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result<Parser<'a>> {
-    Ok(parser_from_tokens(
-        source,
-        work,
-        Tokens::new(lex(source, work)?, work)?,
-    ))
+    parser_from_tokens(source, work, Tokens::new(lex(source, work)?, work)?)
 }
 
-fn parser_from_tokens<'a>(source: &'a str, work: &'a dyn Work, tokens: Tokens<'a>) -> Parser<'a> {
+fn parser_from_tokens<'a>(
+    source: &'a str,
+    work: &'a dyn Work,
+    tokens: Tokens<'a>,
+) -> Result<Parser<'a>> {
     Parser::with_type_names(Parser {
         work,
         source,

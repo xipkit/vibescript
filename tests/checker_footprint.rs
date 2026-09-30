@@ -999,6 +999,12 @@ fn shapes() -> Vec<Shape> {
                 "require(\"big\")\np(1)\n".to_owned(),
             )
         }),
+        ("many type aliases of long names", |n| {
+            // The parser records each alias's name before it parses them.
+            let pad = "Ab".repeat(100);
+            let aliases = lines(n / 10 + 1, |i| format!("type T{pad}{i} = int\n"));
+            (Vec::new(), format!("{aliases}p(1)\n"))
+        }),
         ("a wide self-call graph", |n| {
             // Each method calls itself, a cycle of one for each of them in
             // the graph of the calls construction checks follow.
