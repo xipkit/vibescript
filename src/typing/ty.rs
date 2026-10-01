@@ -1280,12 +1280,15 @@ impl Types {
         if self.stopped() {
             return (String::new(), false);
         }
+        // One byte past what the display spells, so a display that uses
+        // it all was cut.
+        let mut room = SPELLED + 1;
         let mut out = String::new();
-        self.write(ty, &mut out);
-        if out.len() <= SPELLED {
+        self.write(ty, &mut out, &mut room);
+        if room > 0 {
             return (out, false);
         }
-        let mut end = SPELLED;
+        let mut end = SPELLED.min(out.len());
         while !out.is_char_boundary(end) {
             end -= 1;
         }
@@ -1294,159 +1297,150 @@ impl Types {
         (out, true)
     }
 
-    /// Writes `ty` to `out`, stopping once `out` holds more than
-    /// [`SPELLED`] bytes, which a shape nested through aliases reaches
-    /// however few bytes spell its declarations.
-    fn write(&self, ty: Ty, out: &mut String) {
-        if out.len() > SPELLED {
+    /// Writes `ty` to `out`, taking each byte it writes from `room`, which
+    /// every part of the display shares, however deep it nests, and
+    /// stopping once the room is used up. The alternatives of a union are
+    /// each written apart, to be put in order, and then moved into `out`,
+    /// which takes no more room.
+    fn write(&self, ty: Ty, out: &mut String, room: &mut usize) {
+        if *room == 0 {
             return;
         }
         match self.kind(ty) {
-            Kind::Error => out.push_str("unknown"),
-            Kind::Never => out.push_str("never"),
-            Kind::Any => out.push_str("any"),
-            Kind::Nil => out.push_str("nil"),
-            Kind::Bool => out.push_str("bool"),
-            Kind::Int => out.push_str("int"),
-            Kind::Float => out.push_str("float"),
-            Kind::String => out.push_str("string"),
-            Kind::Symbol => out.push_str("symbol"),
-            Kind::Duration => out.push_str("duration"),
-            Kind::Time => out.push_str("time"),
-            Kind::Money => out.push_str("money"),
-            Kind::Range => out.push_str("range"),
-            Kind::Regex => out.push_str("regex"),
-            Kind::MatchData => out.push_str("match_data"),
-            Kind::ErrorValue => out.push_str("error"),
-            Kind::EmptyHash => out.push_str("{}"),
-            Kind::AnyEnum => out.push_str("enum_value"),
-            Kind::AnyEnumType => out.push_str("enum_type"),
+            Kind::Error => put(out, "unknown", room),
+            Kind::Never => put(out, "never", room),
+            Kind::Any => put(out, "any", room),
+            Kind::Nil => put(out, "nil", room),
+            Kind::Bool => put(out, "bool", room),
+            Kind::Int => put(out, "int", room),
+            Kind::Float => put(out, "float", room),
+            Kind::String => put(out, "string", room),
+            Kind::Symbol => put(out, "symbol", room),
+            Kind::Duration => put(out, "duration", room),
+            Kind::Time => put(out, "time", room),
+            Kind::Money => put(out, "money", room),
+            Kind::Range => put(out, "range", room),
+            Kind::Regex => put(out, "regex", room),
+            Kind::MatchData => put(out, "match_data", room),
+            Kind::ErrorValue => put(out, "error", room),
+            Kind::EmptyHash => put(out, "{}", room),
+            Kind::AnyEnum => put(out, "enum_value", room),
+            Kind::AnyEnumType => put(out, "enum_type", room),
             Kind::Array(element) => {
-                out.push_str("array<");
-                self.write(*element, out);
-                out.push('>');
+                put(out, "array<", room);
+                self.write(*element, out, room);
+                put(out, ">", room);
             }
             Kind::Hash(value) => {
-                out.push_str("hash<string, ");
-                self.write(*value, out);
-                out.push('>');
+                put(out, "hash<string, ", room);
+                self.write(*value, out, room);
+                put(out, ">", room);
             }
             Kind::Shape(fields, open) => {
                 if fields.is_empty() && !open {
-                    out.push_str("{}");
+                    put(out, "{}", room);
                     return;
                 }
-                out.push_str("{ ");
+                put(out, "{ ", room);
                 for (index, field) in fields.iter().enumerate() {
-                    if out.len() > SPELLED {
+                    if *room == 0 {
                         return;
                     }
                     if index > 0 {
-                        out.push_str(", ");
+                        put(out, ", ", room);
                     }
-                    write_field_name(&field.name, out);
+                    write_field_name(&field.name, out, room);
                     if field.optional {
-                        out.push('?');
+                        put(out, "?", room);
                     }
-                    out.push_str(": ");
-                    self.write(field.ty, out);
+                    put(out, ": ", room);
+                    self.write(field.ty, out, room);
                 }
                 if *open {
                     if !fields.is_empty() {
-                        out.push_str(", ");
+                        put(out, ", ", room);
                     }
-                    out.push_str("...");
+                    put(out, "...", room);
                 }
-                out.push_str(" }");
+                put(out, " }", room);
             }
             Kind::Tuple(items) => {
-                out.push('[');
+                put(out, "[", room);
                 for (index, &item) in items.iter().enumerate() {
-                    if out.len() > SPELLED {
+                    if *room == 0 {
                         return;
                     }
                     if index > 0 {
-                        out.push_str(", ");
+                        put(out, ", ", room);
                     }
-                    self.write(item, out);
+                    self.write(item, out, room);
                 }
-                out.push(']');
+                put(out, "]", room);
             }
             Kind::Union(members) => {
                 let nil = members.contains(&Ty::NIL);
-                let others: Vec<Ty> = members.iter().copied().filter(|&m| m != Ty::NIL).collect();
-                let number = others.contains(&Ty::INT) && others.contains(&Ty::FLOAT);
-                // Past the bytes left to spell, the display is cut, so the
-                // alternatives after them are not written.
-                let room = SPELLED.saturating_sub(out.len());
-                let mut written = 0;
+                let others = || members.iter().copied().filter(|&m| m != Ty::NIL);
+                let number = members.contains(&Ty::INT) && members.contains(&Ty::FLOAT);
+                // Each alternative is written apart, while the room lasts;
+                // past it the display is cut, so the alternatives after
+                // are not written.
                 let mut parts: Vec<String> = Vec::new();
-                for &m in &others {
+                for m in others() {
                     if number && (m == Ty::INT || m == Ty::FLOAT) {
                         continue;
                     }
-                    if written > room {
+                    if *room == 0 {
                         break;
                     }
                     let mut text = String::new();
-                    self.write(m, &mut text);
-                    written += text.len() + 3;
+                    self.write(m, &mut text, room);
                     parts.push(text);
                 }
                 if number {
-                    parts.push("number".to_owned());
+                    let mut text = String::new();
+                    put(&mut text, "number", room);
+                    parts.push(text);
                 }
                 parts.sort_unstable();
                 if nil && parts.len() == 1 {
-                    let single = others.len() == 1 || number;
+                    let single = others().nth(1).is_none() || number;
                     if single {
                         out.push_str(&parts[0]);
-                        out.push('?');
+                        put(out, "?", room);
                         return;
                     }
                 }
                 if nil {
-                    parts.push("nil".to_owned());
+                    let mut text = String::new();
+                    put(&mut text, "nil", room);
+                    parts.push(text);
                 }
-                out.push_str(&parts.join(" | "));
+                for (index, part) in parts.iter().enumerate() {
+                    if index > 0 {
+                        put(out, " | ", room);
+                    }
+                    out.push_str(part);
+                }
             }
-            Kind::Instance(id) | Kind::Namespace(id) => out.push_str(
-                self.names
-                    .namespaces
-                    .get(*id as usize)
-                    .map_or("?", String::as_str),
-            ),
-            Kind::EnumValue(id) | Kind::EnumType(id) => out.push_str(
-                self.names
-                    .enums
-                    .get(*id as usize)
-                    .map_or("?", String::as_str),
-            ),
-            Kind::Builtin(id) => out.push_str(
-                self.names
-                    .builtins
-                    .get(*id as usize)
-                    .map_or("?", String::as_str),
-            ),
+            Kind::Instance(id) | Kind::Namespace(id) => {
+                put(out, name_of(&self.names.namespaces, *id), room)
+            }
+            Kind::EnumValue(id) | Kind::EnumType(id) => {
+                put(out, name_of(&self.names.enums, *id), room)
+            }
+            Kind::Builtin(id) => put(out, name_of(&self.names.builtins, *id), room),
             Kind::TypeLit(described) => {
-                out.push_str("type<");
-                self.write(*described, out);
-                out.push('>');
+                put(out, "type<", room);
+                self.write(*described, out, room);
+                put(out, ">", room);
             }
-            Kind::Var(index) => {
-                out.push_str(&format!("T{index}"));
-            }
+            Kind::Var(index) => put(out, &format!("T{index}"), room),
             Kind::SymbolLit(name) => {
-                out.push(':');
-                out.push_str(name);
+                put(out, ":", room);
+                put(out, name, room);
             }
-            Kind::Exports(_) => out.push_str("module"),
-            Kind::Host(id) => out.push_str(
-                self.names
-                    .hosts
-                    .get(*id as usize)
-                    .map_or("?", String::as_str),
-            ),
+            Kind::Exports(_) => put(out, "module", room),
+            Kind::Host(id) => put(out, name_of(&self.names.hosts, *id), room),
         }
     }
 
@@ -1498,7 +1492,7 @@ impl Types {
     }
 }
 
-fn write_field_name(name: &str, out: &mut String) {
+fn write_field_name(name: &str, out: &mut String, room: &mut usize) {
     let plain = !name.is_empty()
         && name
             .chars()
@@ -1506,17 +1500,36 @@ fn write_field_name(name: &str, out: &mut String) {
             .is_some_and(|c| c == '_' || c.is_alphabetic())
         && name.chars().all(|c| c == '_' || c.is_alphanumeric());
     if plain {
-        out.push_str(name);
+        put(out, name, room);
     } else {
-        out.push('"');
+        put(out, "\"", room);
         for c in name.chars() {
-            if c == '"' || c == '\\' {
-                out.push('\\');
+            if *room == 0 {
+                return;
             }
-            out.push(c);
+            if c == '"' || c == '\\' {
+                put(out, "\\", room);
+            }
+            put(out, c.encode_utf8(&mut [0; 4]), room);
         }
-        out.push('"');
+        put(out, "\"", room);
     }
+}
+
+/// The name of `id` in `list`, or `?` for one it lacks.
+fn name_of(list: &[String], id: u32) -> &str {
+    list.get(id as usize).map_or("?", String::as_str)
+}
+
+/// Writes as much of `text` to `out` as `room` has left, on a character
+/// boundary, and takes it from the room, which a text it cuts uses up.
+fn put(out: &mut String, text: &str, room: &mut usize) {
+    let mut end = text.len().min(*room);
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    out.push_str(&text[..end]);
+    *room = if end < text.len() { 0 } else { *room - end };
 }
 
 #[cfg(test)]

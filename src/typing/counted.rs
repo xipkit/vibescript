@@ -1546,7 +1546,7 @@ mod tests {
         ("modules.rs", [0, 0, 0, 10]),
         ("program.rs", [0, 0, 0, 15]),
         ("sigs.rs", [0, 1, 9, 0]),
-        ("ty.rs", [10, 4, 0, 1]),
+        ("ty.rs", [10, 3, 0, 1]),
     ];
 
     #[test]
@@ -1633,8 +1633,9 @@ mod tests {
         ("program.rs", [2, 0, 1]),
         // The builtin signatures' index, and a signature's variables.
         ("sigs.rs", [1, 10, 0]),
-        // A display's parts; a union's index, counted before it is built.
-        ("ty.rs", [5, 3, 2]),
+        // A display's text and parts, which share one room; a union's
+        // index, counted before it is built.
+        ("ty.rs", [5, 5, 2]),
         // The walk's stack, paced with what the walker holds.
         ("walk.rs", [0, 0, 1]),
     ];
@@ -1723,7 +1724,7 @@ mod tests {
         ("expr.rs", [2, 0, 0]),
         ("modules.rs", [0, 2, 2]),
         ("program.rs", [0, 2, 6]),
-        ("ty.rs", [11, 0, 0]),
+        ("ty.rs", [9, 0, 0]),
     ];
 
     #[test]
