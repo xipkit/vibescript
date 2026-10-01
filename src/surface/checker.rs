@@ -57,7 +57,7 @@ fn walk<'s>(
     calls: &CallTypes,
     afford: &mut dyn FnMut() -> bool,
     stop: parse::Stop<'s>,
-    room: &Room,
+    room: &Room<'_>,
 ) -> Option<Vec<Diagnostic>> {
     match parse::parse_tokens(source, tokens, NESTING, stop) {
         Ok(tree) => diagnostics(source, &tree, calls, stop, room),
@@ -178,15 +178,11 @@ pub(crate) fn add_to(
 ) {
     let read = u64::try_from(tokens.len() + interpolated + entries(tokens)).unwrap_or(u64::MAX);
     checked.steps += read;
-    let charged = checked.steps;
-    // The sorts the pass makes are charged as they are made, with the rest.
-    let room = Room::new(room);
-    let stop = || !within(charged + room.steps());
-    let mut steps = checked.steps;
-    let mut afford = || {
-        steps = steps.saturating_add(read);
-        within(steps)
-    };
+    // The room keeps the steps the pass charges, its sorts' with them, each
+    // sort charged before it is made, once the budget is asked.
+    let room = Room::new(room, within, checked.steps);
+    let stop = || !room.within();
+    let mut afford = || room.charge(read);
     // A compilation stopped since the check last asked reads nothing.
     if stop() {
         checked.stopped = true;
@@ -203,12 +199,12 @@ pub(crate) fn add_to(
         // rules report it. A source they cannot read must parse without
         // it, so that removed syntax never compiles.
         let affordable = afford();
-        checked.steps = steps + room.steps();
+        checked.steps = room.total();
         if !affordable {
             checked.stopped = true;
             return;
         }
-        let Some(error) = canonical(source, steps) else {
+        let Some(error) = canonical(source, room.charged()) else {
             checked.stopped = true;
             return;
         };
@@ -230,7 +226,7 @@ pub(crate) fn add_to(
         }
         return;
     };
-    checked.steps = steps + room.steps();
+    checked.steps = room.total();
     if surface.is_empty() {
         return;
     }
@@ -238,8 +234,9 @@ pub(crate) fn add_to(
     // and putting the two lists in order, is a step for each diagnostic,
     // taken only within the budget.
     let merging = (checked.diagnostics.len() + surface.len()) as u64;
-    checked.steps = checked.steps.saturating_add(merging);
-    if !within(checked.steps) {
+    let affordable = room.charge(merging);
+    checked.steps = room.total();
+    if !affordable {
         checked.stopped = true;
         return;
     }
@@ -262,13 +259,13 @@ pub(crate) fn add_to(
     checked.diagnostics.extend(surface);
     // Put in order, keeping those of a span in the order found, with the
     // copy the sort keeps for a moment taken from the room.
-    let (held, sorting) = (room.peak(), room.steps());
+    let held = room.peak();
     let sorted = room.sort_by(&mut checked.diagnostics, |a, b| {
         (a.span.start, a.span.end).cmp(&(b.span.start, b.span.end))
     });
     checked.surface_bytes += room.peak() - held;
-    checked.steps += room.steps() - sorting;
-    if !sorted || !within(checked.steps) {
+    checked.steps = room.total();
+    if !sorted || !room.within() {
         checked.stopped = true;
     }
 }
@@ -279,7 +276,7 @@ fn deep<'s>(
     tokens: &[tooling::Token],
     calls: &CallTypes,
     stop: parse::Stop<'s>,
-    room: &Room,
+    room: &Room<'_>,
 ) -> Option<Vec<Diagnostic>> {
     std::thread::scope(|scope| {
         std::thread::Builder::new()
@@ -303,7 +300,7 @@ fn deep(
     _: &[tooling::Token],
     _: &CallTypes,
     _: parse::Stop<'_>,
-    _: &Room,
+    _: &Room<'_>,
 ) -> Option<Vec<Diagnostic>> {
     None
 }
@@ -316,7 +313,7 @@ fn diagnostics<'s>(
     tree: &syntax::Tree,
     calls: &CallTypes,
     stop: parse::Stop<'s>,
-    room: &Room,
+    room: &Room<'_>,
 ) -> Option<Vec<Diagnostic>> {
     let mut checker = Checker {
         surface: Surface::new(source, tree, stop)?,
@@ -472,7 +469,7 @@ pub(super) struct Checker<'a> {
     /// text it copies outgrew its room.
     stopped: bool,
     /// What the text the walk copies and renders may hold.
-    room: &'a Room,
+    room: &'a Room<'a>,
 }
 
 impl Checker<'_> {

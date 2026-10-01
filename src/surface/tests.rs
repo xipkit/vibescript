@@ -1009,6 +1009,34 @@ fn an_abutting_index_continues_an_expression_spanning_lines() {
     }
 }
 
+/// A sort the pass makes is charged and the budget asked before it is
+/// made: one the budget has run out for leaves the list as it was.
+#[test]
+fn a_sort_past_the_budget_is_not_made() {
+    let asked = std::sync::atomic::AtomicU64::new(0);
+    let within = |steps: u64| {
+        asked.store(steps, std::sync::atomic::Ordering::Relaxed);
+        steps <= 100
+    };
+    let room = super::edits::Room::new(None, &within, 100);
+    let mut list: Vec<u32> = (0..1_000).rev().collect();
+    assert!(!room.sort_unstable_by(&mut list, Ord::cmp));
+    assert_eq!(list[0], 999, "the list is left as it was");
+    assert!(!room.sort_by(&mut list, Ord::cmp));
+    assert_eq!(list[0], 999, "the list is left as it was");
+    // Each was charged before it was refused, a step for each 64 of the
+    // comparisons it may make.
+    assert_eq!(
+        asked.load(std::sync::atomic::Ordering::Relaxed),
+        100 + 2 * 156
+    );
+    assert_eq!(room.total(), 100 + 2 * 156);
+    // A list too short to charge a step is sorted.
+    let mut short = vec![3, 1, 2];
+    assert!(room.sort_unstable_by(&mut short, Ord::cmp));
+    assert_eq!(short, [1, 2, 3]);
+}
+
 /// The compiler's parser keeps no node for parentheses, so a grouped
 /// receiver or callee decides as a bare one does in the rules' parser too:
 /// the rules read these sources, as their `size` diagnostics show.

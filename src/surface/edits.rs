@@ -11,23 +11,38 @@ use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering::Relaxed};
 /// cannot know in advance. Each copy takes its bytes before it is made,
 /// and gives them back once it is dropped; a copy that would pass what is
 /// left is refused, which stops the pass. It records the most the copies
-/// held at once.
-#[derive(Debug, Default)]
-pub(crate) struct Room {
+/// held at once. It also keeps the pass's steps, and asks the budget
+/// whether they are within it before each sort the pass makes.
+#[derive(Default)]
+pub(crate) struct Room<'b> {
     /// What the pass may hold, or `None` for as much as it needs.
     left: Option<usize>,
     held: AtomicUsize,
     peak: AtomicUsize,
     full: AtomicBool,
-    /// The steps of the sorts the pass made, which it charges with the
-    /// rest of its work.
-    steps: AtomicU64,
+    /// The steps the pass was charged other than its sorts'.
+    charged: AtomicU64,
+    /// The steps of the sorts the pass made.
+    sorted: AtomicU64,
+    /// Whether the steps that bring the check to a total are within its
+    /// budget, deadline and cancellation; `None` for a pass without a
+    /// budget.
+    within: Option<Within<'b>>,
 }
 
-impl Room {
-    pub fn new(left: Option<usize>) -> Self {
+/// Whether steps that bring a pass to a total are within its budget,
+/// deadline and cancellation.
+pub(crate) type Within<'b> = &'b (dyn Fn(u64) -> bool + Sync);
+
+impl<'b> Room<'b> {
+    /// A room of `left` bytes, or as many as the pass needs when `None`,
+    /// for a check charged `charged` steps when the pass starts, whose
+    /// `within` says whether a total of steps is within its budget.
+    pub fn new(left: Option<usize>, within: Within<'b>, charged: u64) -> Self {
         Self {
             left,
+            charged: AtomicU64::new(charged),
+            within: Some(within),
             ..Self::default()
         }
     }
@@ -64,38 +79,73 @@ impl Room {
         self.peak.load(Relaxed)
     }
 
-    /// The steps of the sorts the pass made.
-    pub fn steps(&self) -> u64 {
-        self.steps.load(Relaxed)
+    /// The steps the check was charged when the pass started, and those
+    /// the pass charged since other than its sorts'.
+    pub fn charged(&self) -> u64 {
+        self.charged.load(Relaxed)
     }
 
-    /// Sorts `list` as `sort_unstable_by` does, counting its steps, a step
-    /// for each 64 of the comparisons it may make, which the pass charges
-    /// and asks the budget about with the rest of its work.
+    /// The steps the check has been charged, with the pass's sorts'.
+    pub fn total(&self) -> u64 {
+        self.charged().saturating_add(self.sorted.load(Relaxed))
+    }
+
+    /// Whether the steps the check has been charged are within its
+    /// budget, which also asks its deadline and cancellation.
+    pub fn within(&self) -> bool {
+        self.within.is_none_or(|within| within(self.total()))
+    }
+
+    /// Charges `steps` of the pass's work, before it does it; whether they
+    /// are within the budget.
+    pub fn charge(&self, steps: u64) -> bool {
+        self.charged.fetch_add(steps, Relaxed);
+        self.within()
+    }
+
+    /// Charges a sort of `length` elements, a step for each 64 of the
+    /// comparisons it may make, and asks the budget, before it is made;
+    /// whether it may be.
+    fn charge_sort(&self, length: usize) -> bool {
+        let steps = sort_steps(length);
+        if steps == 0 {
+            return true;
+        }
+        self.sorted.fetch_add(steps, Relaxed);
+        self.within()
+    }
+
+    /// Sorts `list` as `sort_unstable_by` does, once its steps are charged
+    /// and the budget asked; whether it did, leaving the list as it was
+    /// when the budget has run out, which stops the pass.
+    #[must_use = "a sort the budget refuses leaves the list unsorted, and stops the pass"]
     pub fn sort_unstable_by<T>(
         &self,
         list: &mut [T],
         compare: impl FnMut(&T, &T) -> std::cmp::Ordering,
-    ) {
-        self.steps.fetch_add(sort_steps(list.len()), Relaxed);
+    ) -> bool {
+        if !self.charge_sort(list.len()) {
+            return false;
+        }
         list.sort_unstable_by(compare);
+        true
     }
 
     /// Sorts `list` as `sort_by` does, keeping equal elements in order,
-    /// counting its steps as [`Self::sort_unstable_by`] does and taking the
-    /// scratch a stable sort keeps for a moment; whether the room had it,
-    /// leaving the list as it was when it did not.
-    #[must_use = "a sort the room refuses leaves the list unsorted, and stops the pass"]
+    /// once its steps are charged and the budget asked, as
+    /// [`Self::sort_unstable_by`] does, and the scratch a stable sort keeps
+    /// for a moment taken; whether it did, leaving the list as it was when
+    /// the budget has run out or the room did not have the scratch.
+    #[must_use = "a sort the budget or the room refuses leaves the list unsorted, and stops the pass"]
     pub fn sort_by<T>(
         &self,
         list: &mut [T],
         compare: impl FnMut(&T, &T) -> std::cmp::Ordering,
     ) -> bool {
         let scratch = std::mem::size_of_val(list);
-        if !self.take(scratch) {
+        if !self.charge_sort(list.len()) || !self.take(scratch) {
             return false;
         }
-        self.steps.fetch_add(sort_steps(list.len()), Relaxed);
         list.sort_by(compare);
         self.give_back(scratch);
         true
@@ -113,11 +163,11 @@ fn sort_steps(length: usize) -> u64 {
 /// the room refuses a piece, it writes nothing more.
 pub(crate) struct Written<'r> {
     text: String,
-    room: &'r Room,
+    room: &'r Room<'r>,
 }
 
 impl<'r> Written<'r> {
-    pub fn new(room: &'r Room) -> Self {
+    pub fn new(room: &'r Room<'r>) -> Self {
         Self {
             text: String::new(),
             room,
@@ -247,13 +297,16 @@ impl Edits {
         &self,
         source: &str,
         members: &[usize],
-        room: &Room,
+        room: &Room<'_>,
     ) -> Option<Vec<(Span, String)>> {
         let mut edits: Vec<&Edit> = members.iter().map(|&index| &self.edits[index]).collect();
         // Each edit's place among them is its own, so the order is total.
-        room.sort_unstable_by(&mut edits, |a, b| {
+        let sorted = room.sort_unstable_by(&mut edits, |a, b| {
             (a.span.start, a.span.end, a.order).cmp(&(b.span.start, b.span.end, b.order))
         });
+        if !sorted {
+            return None;
+        }
         let mut clusters: Vec<(Span, Vec<&Edit>)> = Vec::new();
         for edit in edits {
             match clusters.last_mut() {
@@ -266,7 +319,9 @@ impl Edits {
         }
         let mut flattened = Vec::with_capacity(clusters.len());
         for (extent, mut members) in clusters {
-            room.sort_unstable_by(&mut members, |a, b| a.order.cmp(&b.order));
+            if !room.sort_unstable_by(&mut members, |a, b| a.order.cmp(&b.order)) {
+                return None;
+            }
             // Padding keeps every edit inside the rendered text, so none
             // spans all of it and insertions at either end stay in. Its
             // copy, and the pieces copied for the edits, are dropped once
@@ -371,9 +426,9 @@ impl Edits {
 
     /// Renders `source` with every edit applied, writing the text through
     /// `room`; `None` once the room refuses it.
-    pub fn apply_in(&mut self, source: &str, room: &Room) -> Option<String> {
+    pub fn apply_in(&mut self, source: &str, room: &Room<'_>) -> Option<String> {
         // Each edit's order is its own, so the order is total.
-        room.sort_unstable_by(&mut self.edits, |a, b| {
+        let sorted = room.sort_unstable_by(&mut self.edits, |a, b| {
             a.span
                 .start
                 .cmp(&b.span.start)
@@ -381,6 +436,9 @@ impl Edits {
                 .then(b.span.end.cmp(&a.span.end))
                 .then(a.order.cmp(&b.order))
         });
+        if !sorted {
+            return None;
+        }
         let mut out = Written::new(room);
         let whole = Span {
             start: 0,
