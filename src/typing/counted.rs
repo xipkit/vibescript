@@ -445,6 +445,15 @@ impl<T: Owned> ScratchVec<T> {
         Ok(())
     }
 
+    /// Adds `value`, or, when the budget refuses it room, drops it: the
+    /// check has stopped, and its caller unwinds without reading the list.
+    pub fn add(&mut self, value: T) {
+        // A refusal stops the check, which the caller's next check reads.
+        if self.push(value).is_err() {
+            debug_assert!(self.meter.stopped());
+        }
+    }
+
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
     pub fn extend_from_slice(&mut self, values: &[T]) -> Result<(), Refused>
     where

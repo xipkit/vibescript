@@ -940,24 +940,46 @@ impl Types {
 
     /// The alternatives of `declared` that a value of `ty` may be: those
     /// some alternative of `ty` fits, found through `declared`'s index.
+    /// Each pair of an alternative of `ty` and a candidate of `declared` is
+    /// charged, as [`Self::candidates`] charges them and as each relation
+    /// not decided before is, and the budget is asked for each alternative
+    /// of `ty`.
     pub fn meet(&mut self, declared: Ty, ty: Ty) -> Vec<Ty> {
         let values = self.members(ty);
-        let mut kept = Vec::new();
+        // The alternatives kept, in a list counted while it lives, put in
+        // order and made distinct whenever they pass twice as many as the
+        // last time, so they never hold many more than `declared`'s
+        // alternatives, which are at most 1,024, however many pairs fit.
+        let mut kept = ScratchVec::new(&self.meter);
+        let mut next = 2 * (MAX_ALTERNATIVES + 1);
         for value in values {
+            if self.poll() {
+                return Vec::new();
+            }
             if !matches!(self.kind(declared), Kind::Union(_)) {
                 if self.assignable(value, declared) {
-                    kept.push(declared);
+                    kept.add(declared);
                 }
                 continue;
             }
             if matches!(self.kind(declared), Kind::Union(alternatives) if alternatives.binary_search(&value).is_ok())
             {
-                kept.push(value);
+                kept.add(value);
             }
             for candidate in self.candidates(declared, value) {
                 if candidate != value && self.assignable(value, candidate) {
-                    kept.push(candidate);
+                    kept.add(candidate);
                 }
+            }
+            if self.stopped() {
+                return Vec::new();
+            }
+            if kept.len() > next {
+                if super::counted::sort_unstable_by(&self.meter, &mut kept, Ord::cmp).is_err() {
+                    return Vec::new();
+                }
+                kept.dedup();
+                next = next.max(2 * kept.len());
             }
         }
         // A check the sort stops meets nothing.
@@ -965,7 +987,7 @@ impl Types {
             return Vec::new();
         }
         kept.dedup();
-        kept
+        kept.into_vec()
     }
 
     /// The field of a shape's `fields` named `name`, by binary search:
