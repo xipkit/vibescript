@@ -3385,6 +3385,10 @@ impl<'a> Checker<'a> {
                 if let Some(&id) = self.program.enum_names.get(base) {
                     self.types.intern(Kind::EnumValue(id))
                 } else {
+                    // A pass over the namespaces, a step for each 64.
+                    if self.types.work(self.program.namespaces.len()) {
+                        return None;
+                    }
                     let ns = self.program.namespaces.iter().position(|ns| {
                         ns.is_class && ns.module.is_some_and(|module| module.name == base)
                     })?;
