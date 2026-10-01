@@ -437,6 +437,12 @@ impl<'a> Checker<'a> {
     pub(super) fn copied(&self, text: &str) -> String {
         self.written(format_args!("{text}"))
     }
+
+    /// Text written in pieces through the room, each taken as
+    /// [`Self::written`] takes it.
+    pub(super) fn writer(&self) -> Written<'a> {
+        Written::new(self.room)
+    }
 }
 
 /// How many statements, expressions or diagnostics the walk for removed

@@ -612,29 +612,32 @@ impl<'a> Checker<'a> {
             && !def.params[..index]
                 .iter()
                 .any(|param| param.kind == ParamKind::Rest);
-        let mut canonical = Vec::new();
-        for (param, ty) in old.iter().zip(&types) {
+        // The parameters in their new form, whose defaults the source
+        // sizes, written through the room.
+        let mut canonical = self.writer();
+        if star {
+            canonical.push_str("*, ");
+        }
+        for (at, (param, ty)) in old.iter().zip(&types).enumerate() {
+            if at > 0 {
+                canonical.push_str(", ");
+            }
+            canonical.push_str(&param.name);
             let ty = match &param.ty {
                 Some(ty) => Some(self.text(ty.span)),
                 None => ty.as_deref(),
             };
-            let mut text = param.name.clone();
             if let Some(ty) = ty {
-                text.push_str(": ");
-                text.push_str(ty);
+                canonical.push_str(": ");
+                canonical.push_str(ty);
             }
             if let Some(default) = &param.default {
-                text.push_str(" = ");
-                text.push_str(self.text(default.span));
+                canonical.push_str(" = ");
+                canonical.push_str(self.text(default.span));
             }
-            canonical.push(text);
         }
-        let canonical = written!(
-            self,
-            "{}{}",
-            if star { "*, " } else { "" },
-            canonical.join(", ")
-        );
+        // A refusal leaves the room full, which stops the walk.
+        let canonical = canonical.finish().unwrap_or_default();
         let removed = excerpt(self.text(span));
         let advice = written!(
             self,
