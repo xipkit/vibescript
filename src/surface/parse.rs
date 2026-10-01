@@ -1181,9 +1181,9 @@ impl<'s> Parser<'s> {
         self.nested(Self::unnested_declaration)
     }
 
-    /// Runs `parse` one level deeper, failing past the nesting limit or once
-    /// the compilation has stopped.
-    fn nested<T>(&mut self, parse: impl FnOnce(&mut Self) -> Result<T>) -> Result<T> {
+    /// Counts a construct read, asking every [`POLL`] of them whether the
+    /// compilation has stopped, and fails once it has.
+    fn poll(&mut self) -> Result<()> {
         if !self.stopped {
             self.unpolled += 1;
             if self.unpolled >= POLL {
@@ -1194,6 +1194,13 @@ impl<'s> Parser<'s> {
         if self.stopped {
             return self.fail("stopped");
         }
+        Ok(())
+    }
+
+    /// Runs `parse` one level deeper, failing past the nesting limit or once
+    /// the compilation has stopped.
+    fn nested<T>(&mut self, parse: impl FnOnce(&mut Self) -> Result<T>) -> Result<T> {
+        self.poll()?;
         if self.depth >= self.limit {
             self.too_deep.get_or_insert(self.start());
             return self.fail("nesting too deep");
@@ -4022,6 +4029,9 @@ impl<'s> Parser<'s> {
     }
 
     fn type_atom(&mut self, depth: usize) -> Result<TypeExpr> {
+        // A type's parts, a shape's fields above all, are as many as the
+        // source writes, each a construct read.
+        self.poll()?;
         let start = self.start();
         // As in the compiler's parser, a bracket in a type is always a
         // tuple, whose elements may be shapes or tuples themselves.
