@@ -1259,6 +1259,23 @@ mod budget_tests {
     }
 
     #[test]
+    fn a_shape_annotation_past_the_limit_is_refused_before_its_fields_are_typed() {
+        // Each field names an unknown type, which typing it would report.
+        let fields = (0..20_000)
+            .map(|i| format!("f{i}: Nope"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let source = format!("def f(x: {{ {fields} }}) -> int\n  1\nend\np(1)\n");
+        let checked = checked(&source, Budget::default());
+        let codes: Vec<String> = checked
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.code.to_string())
+            .collect();
+        assert_eq!(codes, ["V0124"]);
+    }
+
+    #[test]
     fn interpolations_parse_again_within_the_step_quota() {
         // Fifty strings, each interpolating a 2,000-element literal, which
         // the spans parse again before the check starts.

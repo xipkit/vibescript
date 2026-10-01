@@ -1158,6 +1158,14 @@ impl<'a> Checker<'a> {
                 self.types.hash(value)
             }
             TypeKind::Shape(fields, open) => {
+                // An annotation names each field once, so one of more fields
+                // than a shape may have is too large before its fields are
+                // typed and sorted.
+                if fields.len() > super::ty::MAX_FIELDS {
+                    self.types.too_large.get_or_insert(("shape", fields.len()));
+                    self.too_large(offset);
+                    return Ty::ERROR;
+                }
                 // Counted before they are listed; the table counts them from
                 // when it takes them.
                 let Some(held) = self.hold(
