@@ -5,7 +5,7 @@
 use super::{
     Checker, ReceiverType,
     check::{Context, Purpose, Want},
-    counted::CountedVec,
+    counted::{CountedVec, ScratchVec},
     program::{FnId, NsId},
     sigs::{self, BlockSig, ParamKind, Sig},
     ty::{Kind, Ty, Types},
@@ -17,6 +17,10 @@ use crate::{
 use std::rc::Rc;
 
 pub(super) use super::check::BreakTo;
+
+/// The parameters past which a call's keywords are found by search among
+/// the signature's in name order, rather than by a pass over them.
+const INDEXED_PARAMS: usize = 16;
 
 /// One call site's arguments.
 #[derive(Clone, Copy)]
@@ -2036,6 +2040,47 @@ impl<'a> Checker<'a> {
 
     fn check_keywords(&mut self, call: &Call<'a, '_>, sig: &Sig, bindings: &mut [Option<Ty>]) {
         let function = sig.name.as_str();
+        // The call reads the signature's parameters, a step for each 64 of
+        // them. Of a signature of many, the keyword parameters are put in
+        // name order, in a list counted while it lives, and each keyword
+        // given is found by search rather than by a pass over them.
+        if self.types.work(sig.params.len()) {
+            return;
+        }
+        let keywords = call.args.iter().any(|arg| {
+            matches!(
+                arg.kind,
+                ArgumentKind::Keyword(_) | ArgumentKind::KeywordSplat
+            )
+        });
+        let indexed = keywords && sig.params.len() > INDEXED_PARAMS;
+        let mut by_name = ScratchVec::new(&self.meter);
+        if indexed {
+            if by_name.reserve(sig.params.len()).is_err() {
+                return;
+            }
+            for (at, param) in sig.params.iter().enumerate() {
+                if param.kind == ParamKind::Keyword {
+                    by_name.add((param.name.as_str(), at));
+                }
+            }
+            if super::counted::sort_unstable_by(&self.meter, &mut by_name, Ord::cmp).is_err() {
+                return;
+            }
+        }
+        // The first parameter of the name, as a pass over them finds it.
+        let keyword = |name: &str| {
+            if indexed {
+                let at = by_name.partition_point(|&(other, _)| other < name);
+                by_name
+                    .get(at)
+                    .filter(|&&(other, _)| other == name)
+                    .map(|&(_, at)| sig.params[at].ty)
+            } else {
+                sig.keyword(name).map(|param| param.ty)
+            }
+        };
+        let rest = sig.keyword_rest().map(|param| param.ty);
         // The keywords given, kept while their values are checked.
         let mut given = Vec::new();
         let mut held = 0;
@@ -2048,10 +2093,8 @@ impl<'a> Checker<'a> {
                     };
                     held += bytes;
                     given.push(self.copy(name));
-                    let param = sig.keyword(name).map(|p| p.ty).or_else(|| {
-                        sig.keyword_rest()
-                            .map(|p| self.types.hash_value(p.ty).unwrap_or(Ty::ANY))
-                    });
+                    let param = keyword(name)
+                        .or_else(|| rest.map(|ty| self.types.hash_value(ty).unwrap_or(Ty::ANY)));
                     match param {
                         Some(param_ty) => {
                             let purpose = Purpose::Keyword {
@@ -2096,9 +2139,8 @@ impl<'a> Checker<'a> {
                                 held += bytes;
                                 given.push(self.copy(&field.name));
                             }
-                            let expected = sig.keyword(&field.name).map(|p| p.ty).or_else(|| {
-                                sig.keyword_rest()
-                                    .map(|p| self.types.hash_value(p.ty).unwrap_or(Ty::ANY))
+                            let expected = keyword(&field.name).or_else(|| {
+                                rest.map(|ty| self.types.hash_value(ty).unwrap_or(Ty::ANY))
                             });
                             if let Some(expected) = expected {
                                 self.spread_argument(
