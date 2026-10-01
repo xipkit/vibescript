@@ -1345,6 +1345,24 @@ mod tests {
         assert_eq!(meter.unmeasured(), 0);
     }
 
+    #[test]
+    fn a_scratch_map_gives_back_what_its_entries_own() {
+        let meter = meter(None);
+        {
+            let mut texts = ScratchMap::new(&meter);
+            texts.insert(1_u32, "a".repeat(100)).unwrap();
+            texts.insert(2, "b".repeat(200)).unwrap();
+            // A value given way to gives back what it owned.
+            texts.insert(1, "c".repeat(300)).unwrap();
+            assert_eq!(texts[&1].len(), 300);
+            assert_eq!(
+                meter.unmeasured(),
+                super::super::meter::map(&texts.map.0) + 500
+            );
+        }
+        assert_eq!(meter.unmeasured(), 0);
+    }
+
     /// The lists and maps in the checker's state that are not tables its
     /// check grows, by the item that holds them and its field: each is made
     /// once at the size it takes and counted before it is kept, or bounded
