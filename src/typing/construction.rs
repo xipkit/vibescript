@@ -383,26 +383,24 @@ impl<'a> Checker<'a> {
     /// Records which instance methods' results the checker proves: those
     /// of the classes whose instances no method can observe unassigned.
     pub(super) fn finish_construction(&mut self) {
-        // At most every namespace, counted before the set is made.
+        // The classes not proven, at most every namespace: held at that
+        // size, at which the set is made, so that the classes the sites
+        // add later fit without growing it, while the analysis runs.
         let namespaces = self.program.namespaces.len();
-        if self.transient(super::meter::table::<NsId>(namespaces)) {
+        let Some(set_held) = self.hold(super::meter::table::<NsId>(namespaces)) else {
             return;
-        }
-        let mut unproven: HashSet<NsId> = (0..namespaces as NsId)
-            .filter(|&ns| !self.initializes(ns))
-            .collect();
-        if self.transient(super::meter::set(&unproven)) {
-            return;
-        }
+        };
+        let mut unproven: HashSet<NsId> = HashSet::with_capacity(namespaces);
+        unproven.extend((0..namespaces as NsId).filter(|&ns| !self.initializes(ns)));
         let (reads, reads_held) = self.method_reads();
         let sites = std::mem::take(&mut self.construction.sites);
         // Taken from the records, the sites are held while they are read,
         // as the methods' reads are.
         let Some(sites_held) = self.hold(super::meter::vec(sites.as_vec())) else {
-            self.release(reads_held);
+            self.release(reads_held + set_held);
             return;
         };
-        let taken = reads_held + sites_held;
+        let taken = reads_held + sites_held + set_held;
         for site in sites {
             if self.over_budget() {
                 self.release(taken);
@@ -448,7 +446,6 @@ impl<'a> Checker<'a> {
                 self.unassigned_read(&site, &observed);
             }
         }
-        self.release(taken);
         for decl in &self.program.fns {
             if let (Some(def), Some(owner), true) = (decl.def, decl.owner, decl.instance) {
                 if !unproven.contains(&owner) && !self.facts.record_result(self.meter.tables(), def)
@@ -457,6 +454,7 @@ impl<'a> Checker<'a> {
                 }
             }
         }
+        self.release(taken);
     }
 
     /// Reports a read of variables `ivars` of an instance being built
