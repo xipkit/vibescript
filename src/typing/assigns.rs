@@ -295,6 +295,11 @@ fn key(body: &[Stmt]) -> (usize, usize) {
 /// statements and expressions.
 const PACE: u64 = 64;
 
+/// The most entries the stack of expressions to visit takes for one: what
+/// an expression's children add, three at most, and what taking the next
+/// one adds, one at most.
+const ROOM: usize = 4;
+
 /// One walk, which lists the assignments of every statement a body
 /// contains, however deep in its expressions.
 struct Walk<'a, 'w> {
@@ -315,6 +320,16 @@ struct Walk<'a, 'w> {
 }
 
 impl<'a> Walk<'a, '_> {
+    /// Makes room on the stack of expressions to visit for what an
+    /// expression and the next one taken add, the moment it grows checked
+    /// against the budget first. Returns whether the walk should stop.
+    fn room(&mut self) -> bool {
+        if !self.stopped && super::walk::room(&mut self.pending.stack, ROOM, self.meter, 0) {
+            self.stopped = true;
+        }
+        self.stopped
+    }
+
     /// Counts a statement or an expression, charging the meter for each
     /// [`PACE`] of them. Returns whether the walk should stop.
     fn visit(&mut self) -> bool {
@@ -500,9 +515,14 @@ impl<'a> Walk<'a, '_> {
     /// `begin`s and compound statements anywhere inside it.
     fn expr(&mut self, expr: &'a Expr) {
         let base = self.pending.len();
+        if self.room() {
+            return;
+        }
         self.pending.push(expr);
         while let Some(expr) = self.pending.pop(base) {
-            if self.visit() {
+            // An expression adds at most a few entries, and taking one adds
+            // at most one more, room for which is made first.
+            if self.visit() || self.room() {
                 self.pending.truncate(base);
                 return;
             }

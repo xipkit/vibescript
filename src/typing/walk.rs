@@ -82,6 +82,9 @@ impl Next<'_> {
 pub(super) struct Walk<'a, 'm, T: Copy = ()> {
     stack: Vec<(Next<'a>, T)>,
     meter: &'m Meter,
+    /// What the walker last said it keeps beside the stack, which the
+    /// budget bounds with the stack as it grows.
+    held: usize,
     /// The items visited since the meter was last charged, which it is
     /// charged when the walk ends.
     visited: u64,
@@ -96,16 +99,23 @@ impl<'a, 'm, T: Copy> Walk<'a, 'm, T> {
         Self {
             stack: Vec::new(),
             meter,
+            held: 0,
             visited: 0,
             stopped: meter.stopped(),
         }
     }
 
-    /// Adds `next`, whose items carry `tag`, to what the walk visits.
+    /// Adds `next`, whose items carry `tag`, to what the walk visits; a
+    /// walk the budget stops as the stack grows adds nothing more.
     pub fn push(&mut self, next: Next<'a>, tag: T) {
-        if !self.stopped && !next.empty() {
-            self.stack.push((next, tag));
+        if self.stopped || next.empty() {
+            return;
         }
+        if room(&mut self.stack, 1, self.meter, self.held) {
+            self.stopped = true;
+            return;
+        }
+        self.stack.push((next, tag));
     }
 
     /// Adds a body's statements.
@@ -127,6 +137,7 @@ impl<'a, 'm, T: Copy> Walk<'a, 'm, T> {
     /// been or the check has stopped. `held` is what the walker keeps
     /// beside the walk's own stack, which the budget bounds with it.
     pub fn next(&mut self, held: usize) -> Option<(Item<'a>, T)> {
+        self.held = held;
         loop {
             if self.stopped {
                 return None;
@@ -198,6 +209,7 @@ impl<'a, 'm, T: Copy> Walk<'a, 'm, T> {
         if self.stopped {
             return true;
         }
+        self.held = held;
         self.visited += 1;
         if self.visited == PACE {
             self.visited = 0;
@@ -320,6 +332,28 @@ impl<T: Copy> Drop for Walk<'_, '_, T> {
         // the meter keeps it for the check.
         let _ = self.meter.charge(self.visited);
     }
+}
+
+/// Makes room on a walk's `stack` for `additional` more entries, doubling
+/// it once it is full: the moment it moves, which holds the old storage and
+/// the new with `held` beside them, is checked against the budget first.
+/// Returns whether the check has stopped, and then makes none.
+#[must_use = "a stack the budget refuses room for takes no more"]
+pub(super) fn room<E>(stack: &mut Vec<E>, additional: usize, meter: &Meter, held: usize) -> bool {
+    let (length, capacity) = (stack.len(), stack.capacity());
+    let needed = length.saturating_add(additional);
+    if needed <= capacity {
+        return false;
+    }
+    let target = needed.max(capacity.saturating_mul(2)).max(4);
+    let moment = capacity
+        .saturating_add(target)
+        .saturating_mul(std::mem::size_of::<E>());
+    if meter.scratch(held.saturating_add(moment)) {
+        return true;
+    }
+    stack.reserve_exact(target - length);
+    false
 }
 
 #[cfg(test)]
