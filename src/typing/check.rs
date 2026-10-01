@@ -364,7 +364,6 @@ impl<'a> Checker<'a> {
                         aside.add(name);
                     }
                 }
-                shared.extend(aside.into_vec());
                 if written.reserve(names.len()).is_err() {
                     return;
                 }
@@ -373,6 +372,9 @@ impl<'a> Checker<'a> {
                         written.add(name);
                     }
                 }
+                // The parameters' names are the file's again once its names
+                // are kept.
+                shared.extend(aside.into_vec());
             }
             // The names move into the program's set, which, with them, is
             // counted before it is made.

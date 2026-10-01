@@ -134,6 +134,29 @@ fn required_functions_read_their_files_top_level_locals() {
     std::fs::remove_dir_all(directory).unwrap();
 }
 
+/// A function's parameter is its own, not the file's local of its name:
+/// assigning it leaves the local as it was narrowed.
+#[test]
+fn a_functions_parameter_is_not_the_files_local_of_its_name() {
+    let source =
+        "x: int? = 1\ndef f(x: int) -> int\n  x = 2\n  x\nend\nx = 5\nf(0)\ny: int = x + 1\n";
+    let (engine, directory) = engine(&[("params.vibe", source)]);
+    let found = errors_with(&engine, "require(\"params\")\n");
+    assert!(found.is_empty(), "{found:?}");
+    // A function that assigns the file's local itself still widens it.
+    std::fs::write(
+        directory.join("params.vibe"),
+        source.replace(
+            "def f(x: int) -> int\n  x = 2\n  x",
+            "def f(z: int) -> int\n  x = nil\n  z",
+        ),
+    )
+    .unwrap();
+    let found = errors_with(&engine, "require(\"params\")\n");
+    assert_eq!(found.len(), 1, "{found:?}");
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
 #[test]
 fn relative_requires_use_the_requiring_files_origin() {
     let source = "other = require(\"./relative_target\")\ndef run -> int\n  other.double(3)\nend\n";
