@@ -2147,8 +2147,11 @@ impl<'a> Checker<'a> {
                 _ => (),
             }
         }
-        // Sorted, so each required keyword is found by search.
-        given.sort_unstable();
+        // Sorted, so each required keyword is found by search; a check the
+        // sort stops looks for none.
+        if super::counted::sort_unstable_by(&self.meter, &mut given, Ord::cmp).is_err() {
+            return;
+        }
         for param in &sig.params {
             if param.kind == ParamKind::Keyword
                 && !param.optional

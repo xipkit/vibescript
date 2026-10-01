@@ -284,7 +284,10 @@ impl Flow {
             .map(|branch| branch.changes.iter().copied().collect())
             .collect();
         let mut ids: Vec<LocalId> = finals.iter().flat_map(|map| map.keys().copied()).collect();
-        ids.sort_unstable();
+        // A check the sort stops joins none of them.
+        if super::counted::sort_unstable_by(&self.meter, &mut ids, Ord::cmp).is_err() {
+            return;
+        }
         ids.dedup();
         for id in ids {
             // A union below can stop the check, which then reads no more.

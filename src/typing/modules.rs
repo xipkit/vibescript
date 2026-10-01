@@ -247,7 +247,12 @@ impl<'a> Checker<'a> {
         let Some(held) = self.hold(super::meter::vec(&requests) + found) else {
             return;
         };
-        requests.sort_unstable_by_key(|request| request.2);
+        if super::counted::sort_unstable_by(&self.meter, &mut requests, |a, b| a.2.cmp(&b.2))
+            .is_err()
+        {
+            self.release(held);
+            return;
+        }
         for (path, alias, offset) in requests {
             // A check past its budget loads no more files.
             if self.over_budget() {
@@ -632,7 +637,9 @@ impl<'a> Checker<'a> {
         functions + enums + classes
     }
 
-    pub(super) fn export(&mut self) -> Exported {
+    /// `None` when a sort the budget refuses stops the check, which then
+    /// exports nothing.
+    pub(super) fn export(&mut self) -> Option<Exported> {
         // Each list is made at the length it takes, which
         // [`Self::export_bytes`] counted.
         let program = &self.program;
@@ -646,7 +653,7 @@ impl<'a> Checker<'a> {
                 .filter(|&(_, &id)| public(id))
                 .map(|(name, &id)| ((*name).to_owned(), (*program.fns[id].sig).clone())),
         );
-        functions.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+        super::counted::sort_unstable_by(&self.meter, &mut functions, |a, b| a.0.cmp(&b.0)).ok()?;
         // The file's own enums come first; imported ones follow.
         let enums = program.enums[..self.parsed.enums.len()].to_vec();
         let class = |namespace: &Namespace<'_>| namespace.module.is_some() && namespace.is_class;
@@ -673,19 +680,20 @@ impl<'a> Checker<'a> {
                         (name.clone(), (*decl.sig).clone(), decl.visibility)
                     }),
             );
-            methods.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+            super::counted::sort_unstable_by(&self.meter, &mut methods, |a, b| a.0.cmp(&b.0))
+                .ok()?;
             classes.push(ExportedClass {
                 id: ns as NsId,
                 name: namespace.name.clone(),
                 methods,
             });
         }
-        Exported {
+        Some(Exported {
             types: std::mem::replace(&mut self.types, Types::new()),
             functions,
             enums,
             classes,
-        }
+        })
     }
 
     /// Imports what a required file exports: its enums, bound by name

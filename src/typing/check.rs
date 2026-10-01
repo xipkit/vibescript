@@ -432,8 +432,11 @@ impl<'a> Checker<'a> {
         }
         namespace.checked = true;
         let mut children: Vec<NsId> = namespace.children.values().copied().collect();
-        // Popped from the end, so checked in ascending order.
-        children.sort_unstable_by(|a, b| b.cmp(a));
+        // Popped from the end, so checked in ascending order; a check the
+        // sort stops checks none of them.
+        if super::counted::sort_unstable_by(&self.meter, &mut children, |a, b| b.cmp(a)).is_err() {
+            return;
+        }
         let tallest = namespace
             .module
             .filter(|module| namespace.parent.is_none() && super::too_tall(module.height()));
@@ -608,7 +611,12 @@ impl<'a> Checker<'a> {
                 unassigned.push(name.clone());
             }
         }
-        unassigned.sort_unstable();
+        if super::counted::sort_unstable_by(&self.meter, &mut unassigned, Ord::cmp).is_err() {
+            self.release(held);
+            self.leave_frame(body);
+            self.leave_frame(previous);
+            return;
+        }
         let roster: super::construction::Roster = unassigned.into();
         // Each default sees the same set, less what the ones before it
         // assign, shared with the uses of `self` in them rather than copied.
@@ -841,7 +849,12 @@ impl<'a> Checker<'a> {
                 .filter(|(_, ivar)| !ivar.default)
                 .map(|(name, ivar)| (name.clone(), ivar.ty)),
         );
-        required.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+        if super::counted::sort_unstable_by(&self.meter, &mut required, |a, b| a.0.cmp(&b.0))
+            .is_err()
+        {
+            self.release(held);
+            return;
+        }
         let mut roster = Vec::with_capacity(count);
         let mut first = None;
         for (name, ty) in required {
@@ -978,8 +991,9 @@ impl<'a> Checker<'a> {
             let mut assigned: Vec<String> = Vec::with_capacity(count);
             assigned.extend(self.assigned_locals().map(|(name, _)| name.clone()));
             // Sorted, so each name the callee reads is found by search.
-            assigned.sort_unstable();
-            if self.meter.charge(assigned.len() as u64) {
+            if super::counted::sort_unstable_by(&self.meter, &mut assigned, Ord::cmp).is_err()
+                || self.meter.charge(assigned.len() as u64)
+            {
                 return;
             }
             let bytes = assigned.heap();
@@ -1087,7 +1101,10 @@ impl<'a> Checker<'a> {
         // A function called many times reads the same variables at every
         // call, so each caller's callees are taken once each.
         for (_, callees) in uses.values_mut() {
-            callees.sort_unstable();
+            if super::counted::sort_unstable_by(&self.meter, callees, Ord::cmp).is_err() {
+                self.release(taken);
+                return;
+            }
             callees.dedup();
         }
         // Checking each call charged for the first pass over the calls.

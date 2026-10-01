@@ -412,8 +412,9 @@ impl CallTypes {
         self.entries.is_empty()
     }
 
+    /// The calls `entries` records, in order of their offsets: the first
+    /// recorded at an offset is kept.
     pub(crate) fn from_entries(mut entries: Vec<(usize, ReceiverType)>) -> Self {
-        entries.sort_by_key(|(offset, _)| *offset);
         entries.dedup_by_key(|(offset, _)| *offset);
         Self { entries }
     }
@@ -616,24 +617,32 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     // which the budget bounds with the rest before they are made.
     let stopped = checker.halted() || (input.file && meter.scratch(checker.export_bytes()));
     // A check past its budget exports nothing: its caller stops too.
-    let exported = (input.file && !stopped).then(|| std::sync::Arc::new(checker.export()));
+    let exported = (input.file && !stopped).then(|| checker.export().map(std::sync::Arc::new));
+    // A sort an export refuses stops the check, which exports nothing.
+    let exported = exported.flatten().filter(|_| !meter.stopped());
+    let stopped = stopped || meter.stopped();
     let (mut locals, result, stopped) = match checker.session.take().filter(|_| input.annotate) {
         Some(session) if !stopped => annotated(&mut checker.types, &meter, session),
         _ => (Vec::new(), None, stopped),
     };
-    locals.sort_unstable();
+    let stopped = stopped || counted::sort_unstable_by(&meter, &mut locals, Ord::cmp).is_err();
     let too_deep = checker.too_deep;
     let mut diagnostics = checker.diagnostics.into_vec();
     let mut calls = checker.calls.into_vec();
-    // Sorting the diagnostics and the calls in order keeps a copy of each.
-    let stopped = stopped || meter.scratch(meter::vec(&diagnostics) + meter::vec(&calls));
+    // The diagnostics and the calls are put in order, keeping those of an
+    // offset in the order they were found; a check past its budget fails,
+    // whatever it found, so what it found is dropped rather than put in
+    // order, which copies it.
+    let in_order = |a: &Diagnostic, b: &Diagnostic| {
+        (a.span.start, a.span.end).cmp(&(b.span.start, b.span.end))
+    };
+    let stopped = stopped
+        || counted::sort_by(&meter, &mut diagnostics, in_order).is_err()
+        || counted::sort_by(&meter, &mut calls, |a, b| a.0.cmp(&b.0)).is_err();
     if stopped {
-        // A check past its budget fails, whatever it found, so what it
-        // found is dropped rather than put in order, which copies it.
         diagnostics = Vec::new();
         calls = Vec::new();
     } else {
-        diagnostics.sort_by_key(|d| (d.span.start, d.span.end));
         diagnostics.dedup_by(|a, b| a.code == b.code && a.span == b.span && a.message == b.message);
     }
     let mut checked = Checked {

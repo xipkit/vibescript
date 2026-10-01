@@ -519,12 +519,17 @@ impl Types {
         let Some(held) = self.hold(fields.heap()) else {
             return Ty::ERROR;
         };
+        // Sorted, once the sort's steps and the copy a stable sort keeps
+        // are counted; the limit counts the distinct names, which a later
+        // field of a name already given does not add to.
         fields.reverse();
-        fields.sort_by(|a, b| a.name.cmp(&b.name));
-        // Sorting them in order kept a copy of them for a moment.
-        let sorted = self.transient(fields.capacity() * std::mem::size_of::<Field>());
+        let sorted = super::counted::sort_by(&self.meter, &mut fields, |a, b| a.name.cmp(&b.name));
+        if sorted.is_err() {
+            self.release(held);
+            return Ty::ERROR;
+        }
         fields.dedup_by(|a, b| a.name == b.name);
-        if sorted || self.work(fields.len()) {
+        if self.work(fields.len()) {
             self.release(held);
             return Ty::ERROR;
         }
@@ -564,7 +569,9 @@ impl Types {
         // Each distinct type once, so that many of one wide union flatten
         // it once rather than once each.
         let mut distinct = types.to_vec();
-        distinct.sort_unstable();
+        if super::counted::sort_unstable_by(&self.meter, &mut distinct, Ord::cmp).is_err() {
+            return Ty::ERROR;
+        }
         distinct.dedup();
         let mut absorbed = false;
         for &ty in &distinct {
@@ -609,12 +616,16 @@ impl Types {
                 return Ty::ERROR;
             }
             if members.len() > next {
-                members.sort_unstable();
+                if super::counted::sort_unstable_by(&self.meter, &mut members, Ord::cmp).is_err() {
+                    return Ty::ERROR;
+                }
                 members.dedup();
                 next = next.max(2 * members.len());
             }
         }
-        members.sort_unstable();
+        if super::counted::sort_unstable_by(&self.meter, &mut members, Ord::cmp).is_err() {
+            return Ty::ERROR;
+        }
         members.dedup();
         if members.len() > MAX_ALTERNATIVES {
             self.too_large.get_or_insert(("union", members.len()));
@@ -949,7 +960,10 @@ impl Types {
                 }
             }
         }
-        kept.sort_unstable();
+        // A check the sort stops meets nothing.
+        if super::counted::sort_unstable_by(&self.meter, &mut kept, Ord::cmp).is_err() {
+            return Vec::new();
+        }
         kept.dedup();
         kept
     }

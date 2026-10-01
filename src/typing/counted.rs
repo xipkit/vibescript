@@ -273,6 +273,58 @@ impl Kept {
     }
 }
 
+/// The steps of sorting `length` elements: a step for each 64 of the
+/// comparisons a sort may make, about the length times its logarithm, as
+/// the type table charges its work.
+fn sort_steps(length: usize) -> u64 {
+    let comparisons = length.saturating_mul((usize::BITS - length.leading_zeros()) as usize);
+    (comparisons / 64) as u64
+}
+
+/// Charges sorting `length` elements, and asks the deadline and the
+/// cancellation once the steps are many, and admits the `scratch` a
+/// stable sort takes beside the list for a moment; refused when that stops
+/// the check.
+fn pace_sort(meter: &Meter, length: usize, scratch: usize) -> Result<(), Refused> {
+    let steps = sort_steps(length);
+    if steps > 0 && (meter.charge(steps) || meter.budget().interrupted()) {
+        meter.stop();
+        return Err(Refused);
+    }
+    if scratch > 0 && meter.admit(scratch).is_none() {
+        return Err(Refused);
+    }
+    Ok(())
+}
+
+/// Sorts `list` as `sort_unstable_by` does, once its steps are charged and
+/// the deadline and the cancellation asked; refused, leaving the list as
+/// it was, when that stops the check.
+#[must_use = "a refusal stops the check, whose list is then left unsorted"]
+pub(crate) fn sort_unstable_by<T>(
+    meter: &Meter,
+    list: &mut [T],
+    compare: impl FnMut(&T, &T) -> std::cmp::Ordering,
+) -> Result<(), Refused> {
+    pace_sort(meter, list.len(), 0)?;
+    list.sort_unstable_by(compare);
+    Ok(())
+}
+
+/// Sorts `list` as `sort_by` does, keeping equal elements in order, once
+/// its steps and the scratch a stable sort takes, as long as the list, are
+/// counted; refused, leaving the list as it was, when that stops the check.
+#[must_use = "a refusal stops the check, whose list is then left unsorted"]
+pub(crate) fn sort_by<T>(
+    meter: &Meter,
+    list: &mut [T],
+    compare: impl FnMut(&T, &T) -> std::cmp::Ordering,
+) -> Result<(), Refused> {
+    pace_sort(meter, list.len(), std::mem::size_of_val(list))?;
+    list.sort_by(compare);
+    Ok(())
+}
+
 /// Text written through the meter, such as a diagnostic's message: each
 /// piece is counted before the string grows to take it, with its old and
 /// new storage while it grows, and while it is written, as a scratch
@@ -1555,6 +1607,58 @@ mod tests {
         assert!(
             found.is_empty(),
             "write the checker's text through the meter, or say here which kind it is:\n{}",
+            found.join("\n")
+        );
+    }
+
+    /// The sorts each file of the checker makes itself rather than through
+    /// [`sort_unstable_by`] or [`sort_by`], by file: each sorts a few
+    /// elements, such as a union's alternatives, at most 1,024, or charges
+    /// its steps first itself, as an enum's members are.
+    const SORTED: &[(&str, usize)] = &[("program.rs", 1), ("ty.rs", 2)];
+
+    #[test]
+    fn the_checker_sorts_through_the_meter() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut sources = vec![root.join("typing.rs")];
+        for entry in std::fs::read_dir(root.join("typing")).unwrap() {
+            sources.push(entry.unwrap().path());
+        }
+        let mut found = Vec::new();
+        for path in sources {
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            if name == "counted.rs" {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).unwrap();
+            let code = text.split("#[cfg(test)]").next().unwrap();
+            let sorted = code
+                .lines()
+                .filter(|line| !line.trim_start().starts_with("//"))
+                .filter(|line| {
+                    [
+                        ".sort(",
+                        ".sort_by(",
+                        ".sort_by_key(",
+                        ".sort_unstable(",
+                        ".sort_unstable_by(",
+                        ".sort_unstable_by_key(",
+                    ]
+                    .iter()
+                    .any(|site| line.contains(site))
+                })
+                .count();
+            let allowed = SORTED
+                .iter()
+                .find(|(file, _)| *file == name)
+                .map_or(0, |(_, count)| *count);
+            if sorted != allowed {
+                found.push(format!("{name}: {sorted} sorts, {allowed} allowed"));
+            }
+        }
+        assert!(
+            found.is_empty(),
+            "sort through the meter, or say here why a sort need not be:\n{}",
             found.join("\n")
         );
     }

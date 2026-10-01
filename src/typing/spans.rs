@@ -145,8 +145,12 @@ impl<'a> Spans<'a> {
             owned = super::meter::Heap::heap(tokens);
             // Sorting them in order keeps a copy of them for a moment, which
             // is counted first; a check that it stops never reads them.
-            if !hold(owned + tokens.len() * size) {
-                tokens.sort_by_key(|token| token.span.start);
+            if !hold(owned + tokens.len() * size)
+                && super::counted::sort_by(&meter, tokens, |a, b| a.span.start.cmp(&b.span.start))
+                    .is_err()
+            {
+                // The budget stopped the check, which never reads them.
+                debug_assert!(meter.stopped());
             }
         }
         Self {

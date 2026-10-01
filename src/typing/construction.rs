@@ -547,7 +547,9 @@ impl<'a> Checker<'a> {
             return (HashMap::new(), 0);
         }
         let mut ids: Vec<FnId> = self.construction.methods.keys().copied().collect();
-        ids.sort_unstable();
+        if super::counted::sort_unstable_by(&self.meter, &mut ids, Ord::cmp).is_err() {
+            return (HashMap::new(), 0);
+        }
         let place: HashMap<FnId, usize> =
             ids.iter().enumerate().map(|(at, &id)| (id, at)).collect();
         let calls: Vec<Vec<usize>> = ids
