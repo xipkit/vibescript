@@ -320,13 +320,20 @@ const SCRATCH: usize = 4096;
 
 /// The bytes a hash table of `capacity` entries of type `T` allocates:
 /// its buckets, a power of two that keeps it at most seven eighths full,
-/// each with a control byte.
+/// each with a control byte. An estimate past what `usize` holds, as an
+/// estimate from a count can be on 32 bits, is `usize::MAX`, which no
+/// budget admits.
 pub(crate) fn table<T>(capacity: usize) -> usize {
     if capacity == 0 {
         return 0;
     }
-    let buckets = (capacity * 8 / 7).next_power_of_two().max(4);
-    buckets * (size_of::<T>() + 1) + 16
+    let buckets = (capacity.saturating_mul(8) / 7)
+        .checked_next_power_of_two()
+        .unwrap_or(usize::MAX)
+        .max(4);
+    buckets
+        .saturating_mul(size_of::<T>() + 1)
+        .saturating_add(16)
 }
 
 macro_rules! plain {
@@ -450,7 +457,7 @@ pub(crate) fn btree_storage<T>(length: usize) -> usize {
     if length == 0 {
         0
     } else {
-        (1 + length / 5) * btree_node::<T>()
+        (1 + length / 5).saturating_mul(btree_node::<T>())
     }
 }
 
@@ -817,6 +824,17 @@ impl<'a> super::Checker<'a> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn size_estimates_saturate_rather_than_overflow() {
+        // On 32 bits a count can give an estimate past what `usize` holds,
+        // which is then the most it holds, refused by any budget, rather
+        // than wrapping to a small one or panicking.
+        assert_eq!(super::table::<u64>(usize::MAX), usize::MAX);
+        assert_eq!(super::table::<u64>(usize::MAX / 7 * 2), usize::MAX);
+        assert_eq!(super::btree_storage::<u64>(usize::MAX), usize::MAX);
+        assert_eq!(super::table::<u64>(7), 8 * 9 + 16);
+    }
+
     /// Swaps of state the account counts while it is set aside: the memo,
     /// the frame, its flow and the facts.
     const SWAPS: &[&str] = &[

@@ -360,7 +360,7 @@ impl<'m> Text<'m> {
         let (length, capacity) = (self.text.len(), self.text.capacity());
         let needed = length.saturating_add(piece.len());
         if needed > capacity {
-            let target = needed.max(2 * capacity).max(16);
+            let target = needed.max(capacity.saturating_mul(2)).max(16);
             if self.ledger.admit(capacity.saturating_add(target)).is_err() {
                 self.refused = true;
                 return;
@@ -612,9 +612,10 @@ impl<T> CountedVec<T> {
         if needed <= capacity {
             return ledger.keep(owned).map(drop);
         }
-        let target = needed.max(2 * capacity).max(4);
+        let target = needed.max(capacity.saturating_mul(2)).max(4);
         let size = size_of::<T>();
-        let moment = (capacity + target)
+        let moment = capacity
+            .saturating_add(target)
             .saturating_mul(size)
             .saturating_add(owned);
         let peak = ledger.admit(moment)?;
@@ -785,7 +786,7 @@ impl<K: Eq + Hash, V> CountedMap<K, V> {
             return ledger.keep(owned).map(drop);
         }
         let before = map(&self.0);
-        let most = table::<(K, V)>(needed.max(capacity + 1));
+        let most = table::<(K, V)>(needed.max(capacity.saturating_add(1)));
         let peak = ledger.admit(before.saturating_add(most).saturating_add(owned))?;
         self.0.reserve(additional);
         ledger.grew(map(&self.0).saturating_sub(before) + owned, peak);
@@ -974,7 +975,7 @@ impl<T: Eq + Hash> CountedSet<T> {
             return ledger.keep(owned).map(drop);
         }
         let before = set(&self.0);
-        let most = table::<T>(needed.max(capacity + 1));
+        let most = table::<T>(needed.max(capacity.saturating_add(1)));
         let peak = ledger.admit(before.saturating_add(most).saturating_add(owned))?;
         self.0.reserve(additional);
         ledger.grew(set(&self.0).saturating_sub(before) + owned, peak);
