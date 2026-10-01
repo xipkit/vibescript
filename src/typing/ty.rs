@@ -232,6 +232,75 @@ pub(crate) struct Field {
     pub optional: bool,
 }
 
+/// What a field owns: its name.
+impl super::counted::Owned for Field {
+    fn owned(&self) -> usize {
+        self.name.len()
+    }
+}
+
+/// A type's alternatives, as [`Types::members`] gives them: a union's,
+/// shared with its kind, or the type alone.
+pub(crate) struct Members {
+    kind: Arc<Kind>,
+    single: Ty,
+}
+
+impl std::ops::Deref for Members {
+    type Target = [Ty];
+
+    fn deref(&self) -> &[Ty] {
+        match &*self.kind {
+            Kind::Union(members) => members,
+            _ => std::slice::from_ref(&self.single),
+        }
+    }
+}
+
+impl IntoIterator for Members {
+    type Item = Ty;
+    type IntoIter = MembersIter;
+
+    fn into_iter(self) -> MembersIter {
+        MembersIter {
+            members: self,
+            at: 0,
+        }
+    }
+}
+
+impl<'m> IntoIterator for &'m Members {
+    type Item = &'m Ty;
+    type IntoIter = std::slice::Iter<'m, Ty>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+/// The alternatives of a [`Members`], in order.
+pub(crate) struct MembersIter {
+    members: Members,
+    at: usize,
+}
+
+impl Iterator for MembersIter {
+    type Item = Ty;
+
+    fn next(&mut self) -> Option<Ty> {
+        let member = self.members.get(self.at).copied();
+        self.at += 1;
+        member
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let left = self.members.len().saturating_sub(self.at);
+        (left, Some(left))
+    }
+}
+
+impl ExactSizeIterator for MembersIter {}
+
 /// The names of script classes and enums, for rendering types.
 #[derive(Default)]
 pub(crate) struct Names {
@@ -485,10 +554,12 @@ impl Types {
         }
         match &*self.shared(ty) {
             Kind::Shape(fields, open) => {
-                let mut values: Vec<Ty> =
-                    fields.iter().map(|field| self.rekeyed(field.ty)).collect();
+                let types = fields.iter().map(|field| field.ty);
+                let Some(mut values) = self.mapped(types, fields.len() + 1, Self::rekeyed) else {
+                    return Ty::ERROR;
+                };
                 if *open {
-                    values.push(Ty::ANY);
+                    values.add(Ty::ANY);
                 }
                 let value = self.union(&values);
                 self.hash(value)
@@ -502,15 +573,37 @@ impl Types {
                 self.array(element)
             }
             Kind::Tuple(items) => {
-                let items = items.iter().map(|&item| self.rekeyed(item)).collect();
-                self.tuple(items)
+                match self.mapped(items.iter().copied(), items.len(), Self::rekeyed) {
+                    Some(items) => self.tuple(items.into_vec()),
+                    None => Ty::ERROR,
+                }
             }
             Kind::Union(members) => {
-                let members: Vec<Ty> = members.iter().map(|&member| self.rekeyed(member)).collect();
-                self.union(&members)
+                match self.mapped(members.iter().copied(), members.len(), Self::rekeyed) {
+                    Some(members) => self.union(&members),
+                    None => Ty::ERROR,
+                }
             }
             _ => ty,
         }
+    }
+
+    /// `map` of each of `types`, in a list made at `room` places and
+    /// counted while it lives, since mapping one maps the types nested in
+    /// it in turn, beside the list; `None` once the check stops.
+    fn mapped(
+        &mut self,
+        types: impl Iterator<Item = Ty>,
+        room: usize,
+        mut map: impl FnMut(&mut Self, Ty) -> Ty,
+    ) -> Option<ScratchVec<Ty>> {
+        let mut mapped = ScratchVec::new(&self.meter);
+        mapped.reserve(room).ok()?;
+        for ty in types {
+            let ty = map(self, ty);
+            mapped.add(ty);
+        }
+        Some(mapped)
     }
 
     /// A shape from fields in any order; a later field of the same name wins.
@@ -639,10 +732,13 @@ impl Types {
     }
 
     /// The alternatives of a union, or the type itself.
-    pub fn members(&self, ty: Ty) -> Vec<Ty> {
-        match self.kind(ty) {
-            Kind::Union(members) => members.to_vec(),
-            _ => vec![ty],
+    /// The alternatives of `ty`, a union's or `ty` alone, shared with the
+    /// table's kind rather than copied, so that one held while others are
+    /// read holds nothing more.
+    pub fn members(&self, ty: Ty) -> Members {
+        Members {
+            kind: self.shared(ty),
+            single: ty,
         }
     }
 
@@ -795,23 +891,24 @@ impl Types {
         }
         let candidates = self.candidates(to, value);
         candidates
-            .into_iter()
-            .any(|candidate| self.assignable(value, candidate))
+            .iter()
+            .any(|&candidate| self.assignable(value, candidate))
     }
 
     /// The alternatives of the union `union` that a value of `value`'s kind
-    /// may fit, by the union's index.
-    fn candidates(&mut self, union: Ty, value: Ty) -> Vec<Ty> {
+    /// may fit, by the union's index, in a list counted while it lives,
+    /// since comparing a value with each compares nested types in turn.
+    fn candidates(&mut self, union: Ty, value: Ty) -> ScratchVec<Ty> {
         let index = match self.index.get(&union) {
             Some(index) => Arc::clone(index),
             None => {
                 let Kind::Union(alternatives) = self.kind(union) else {
-                    return Vec::new();
+                    return ScratchVec::new(&self.meter);
                 };
                 // Charged before it is built.
                 let count = alternatives.len();
                 if self.work(count) {
-                    return Vec::new();
+                    return ScratchVec::new(&self.meter);
                 }
                 if self.indexed + count > INDEXED {
                     self.index.clear();
@@ -828,10 +925,10 @@ impl Types {
                     + 6 * count * std::mem::size_of::<Ty>()
                     + 2 * std::mem::size_of::<usize>();
                 if ledger.keep(most).is_err() || self.index.reserve(ledger, 1).is_err() {
-                    return Vec::new();
+                    return ScratchVec::new(&self.meter);
                 }
                 let Kind::Union(alternatives) = self.kind(union) else {
-                    return Vec::new();
+                    return ScratchVec::new(&self.meter);
                 };
                 let mut index: HashMap<Head, Vec<Ty>> = HashMap::new();
                 for &alternative in alternatives.iter() {
@@ -847,14 +944,21 @@ impl Types {
                 index
             }
         };
-        let mut found = Vec::new();
+        // Charged, and counted, before it is listed.
+        let count: usize = targets(self.kind(value))
+            .iter()
+            .filter_map(|target| index.get(target).map(Vec::len))
+            .sum();
+        let mut found = ScratchVec::new(&self.meter);
+        if self.work(count) || found.reserve(count).is_err() {
+            return ScratchVec::new(&self.meter);
+        }
         for target in targets(self.kind(value)) {
             if let Some(alternatives) = index.get(&target) {
-                found.extend_from_slice(alternatives);
+                for &alternative in alternatives {
+                    found.add(alternative);
+                }
             }
-        }
-        if self.work(found.len()) {
-            return Vec::new();
         }
         found
     }
@@ -973,7 +1077,7 @@ impl Types {
             {
                 kept.add(value);
             }
-            for candidate in self.candidates(declared, value) {
+            for &candidate in self.candidates(declared, value).iter() {
                 if candidate != value && self.assignable(value, candidate) {
                     kept.add(candidate);
                 }
@@ -1041,23 +1145,35 @@ impl Types {
                 self.type_lit(t)
             }
             Kind::Shape(fields, open) => {
-                let fields = fields
-                    .iter()
-                    .map(|field| Field {
+                // The fields, with copies of their names, are listed at
+                // their number, in a list counted while it lives.
+                let mut copied = ScratchVec::new(&self.meter);
+                if copied.reserve(fields.len()).is_err() {
+                    return Ty::ERROR;
+                }
+                for field in fields.iter() {
+                    let ty = self.subst(field.ty, bindings);
+                    copied.add(Field {
                         name: field.name.clone(),
-                        ty: self.subst(field.ty, bindings),
+                        ty,
                         optional: field.optional,
-                    })
-                    .collect();
-                self.shape(fields, *open)
+                    });
+                }
+                self.shape(copied.into_vec(), *open)
             }
             Kind::Tuple(items) => {
-                let items = items.iter().map(|&t| self.subst(t, bindings)).collect();
-                self.tuple(items)
+                let subst = |types: &mut Self, t| types.subst(t, bindings);
+                match self.mapped(items.iter().copied(), items.len(), subst) {
+                    Some(items) => self.tuple(items.into_vec()),
+                    None => Ty::ERROR,
+                }
             }
             Kind::Union(items) => {
-                let items: Vec<Ty> = items.iter().map(|&t| self.subst(t, bindings)).collect();
-                self.union(&items)
+                let subst = |types: &mut Self, t| types.subst(t, bindings);
+                match self.mapped(items.iter().copied(), items.len(), subst) {
+                    Some(items) => self.union(&items),
+                    None => Ty::ERROR,
+                }
             }
             _ => ty,
         }
@@ -1359,8 +1475,8 @@ impl Types {
     pub fn bases(&self, ty: Ty) -> Vec<String> {
         let mut bases: Vec<String> = self
             .members(ty)
-            .into_iter()
-            .map(|member| match self.kind(member) {
+            .iter()
+            .map(|&member| match self.kind(member) {
                 Kind::Array(_) | Kind::Tuple(_) => "array".to_owned(),
                 Kind::Hash(_) | Kind::Shape(..) | Kind::EmptyHash => "hash".to_owned(),
                 Kind::TypeLit(_) => "type".to_owned(),
