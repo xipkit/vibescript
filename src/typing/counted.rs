@@ -1669,11 +1669,9 @@ mod tests {
         // Bindings of signatures without type variables, and the members
         // of a host or builtin namespace of one name, a few.
         ("calls.rs", [21, 2, 0]),
-        // A union's alternatives an `is_a?` keeps; the file's shared and
-        // written names and each function's, counted before they are
-        // copied; and the defaults by class, counted before they are
-        // indexed at the most they take.
-        ("check.rs", [9, 1, 5]),
+        // A union's alternatives an `is_a?` keeps, and the defaults by
+        // class, counted before they are indexed at the most they take.
+        ("check.rs", [9, 1, 2]),
         // The cycle search's stack, cycles and their members, counted
         // before the search starts.
         ("construction.rs", [10, 0, 3]),
@@ -1777,7 +1775,7 @@ mod tests {
     /// above all, is written through the meter with `text!` or `copy`.
     const WRITTEN: &[(&str, [usize; 3])] = &[
         ("calls.rs", [2, 0, 0]),
-        ("check.rs", [2, 5, 0]),
+        ("check.rs", [2, 5, 1]),
         ("construction.rs", [0, 1, 0]),
         ("expr.rs", [2, 0, 0]),
         ("modules.rs", [0, 2, 2]),

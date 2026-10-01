@@ -325,30 +325,34 @@ impl<'a> Checker<'a> {
     /// Checks every function and namespace body.
     pub(super) fn check_all(&mut self) {
         if self.program.file {
-            // The file's own locals, which its functions and methods share.
-            let mut shared = Vec::new();
+            // The file's own locals, which its functions and methods share,
+            // in a list counted while it lives.
+            let mut shared = ScratchVec::new(&self.meter);
             for decl in self.program.fns.iter().filter(|decl| decl.main) {
                 if let Some(def) = decl.def {
                     let scratch = assigned_names(&self.meter, &def.body, &mut shared);
-                    if self.transient(scratch + shared.heap()) {
+                    if self.transient(scratch) {
                         return;
                     }
                 }
             }
             // The names move into a set, counted before it is made.
-            if self.transient(shared.heap() + super::meter::table::<String>(shared.len())) {
+            if self.transient(super::meter::table::<String>(shared.len())) {
                 return;
             }
-            let mut shared: std::collections::HashSet<String> = shared.into_iter().collect();
-            let mut written = Vec::new();
+            let mut shared: std::collections::HashSet<String> =
+                shared.into_vec().into_iter().collect();
+            // The names the functions assign, and each function's, in lists
+            // counted while they live.
+            let mut written = ScratchVec::new(&self.meter);
             for decl in self.program.fns.iter().filter(|decl| !decl.main) {
                 if self.halted() {
                     return;
                 }
                 let Some(def) = decl.def else { continue };
-                let mut names = Vec::new();
+                let mut names = ScratchVec::new(&self.meter);
                 let scratch = assigned_names(&self.meter, &def.body, &mut names);
-                if self.transient(scratch + names.heap() + shared.heap() + written.heap()) {
+                if self.transient(scratch + shared.heap()) {
                     return;
                 }
                 // Its parameters are its own, not the file's: the names
@@ -360,9 +364,15 @@ impl<'a> Checker<'a> {
                         aside.add(name);
                     }
                 }
-                names.retain(|name| shared.contains(name));
                 shared.extend(aside.into_vec());
-                written.extend(names);
+                if written.reserve(names.len()).is_err() {
+                    return;
+                }
+                for name in names.into_vec() {
+                    if shared.contains(&name) {
+                        written.add(name);
+                    }
+                }
             }
             // The names move into the program's set, which, with them, is
             // counted before it is made.
@@ -379,7 +389,7 @@ impl<'a> Checker<'a> {
             {
                 return;
             }
-            for name in written {
+            for name in written.into_vec() {
                 self.program.file_written.insert_kept(&mut kept, name);
             }
             if self.declared() {
@@ -3527,19 +3537,23 @@ fn mentions<'s>(
 /// charging the walk that finds them to `meter`.
 /// Returns the bytes of the index it built to find them.
 pub(super) fn assigned_names(
-    meter: &super::meter::Meter,
+    meter: &std::sync::Arc<super::meter::Meter>,
     body: &[Stmt],
-    names: &mut Vec<String>,
+    names: &mut ScratchVec<String>,
 ) -> usize {
     let mut assigns = super::assigns::Assigns::default();
     let span = assigns.body(meter, body);
-    // The names and their copies, counted before they are made.
-    let held = assigns.bytes() + names.heap();
-    let found = assigns.distinct(span, |count, bytes| {
-        let copies = count * (std::mem::size_of::<&str>() + std::mem::size_of::<String>()) + bytes;
-        !meter.pace(0, held + copies)
+    // The list of the names is counted before it is made; their copies are
+    // counted, with the list they go in, as it takes them.
+    let held = assigns.bytes();
+    let found = assigns.distinct(span, |count, _| {
+        !meter.pace(0, held + count * std::mem::size_of::<&str>())
     });
-    names.extend(found.into_iter().map(str::to_owned));
+    if names.reserve(found.len()).is_ok() {
+        for name in found {
+            names.add(name.to_owned());
+        }
+    }
     assigns.bytes()
 }
 
