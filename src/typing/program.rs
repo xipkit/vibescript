@@ -4,7 +4,7 @@
 
 use super::{
     Checker,
-    counted::{CountedBTreeSet, CountedMap, CountedSet, CountedVec, ScratchVec},
+    counted::{CountedBTreeSet, CountedMap, CountedSet, CountedVec, ScratchSet, ScratchVec},
     meter::{Heap, map, vec},
     sigs::{self, BlockSig, Param, ParamKind, Sig},
     ty::{Field, Kind, Ty},
@@ -771,23 +771,29 @@ impl<'a> Checker<'a> {
             let Some(module) = self.program.namespaces[ns].module else {
                 continue;
             };
-            let at = |index: usize, def: &crate::syntax::Definition| {
+            // Only an alias can repeat an earlier method's name. The aliases
+            // are listed in the order of the methods they add, so each is
+            // found by search, and the names before each method are kept in
+            // a set, counted while it lives.
+            if module.aliases.is_empty() {
+                continue;
+            }
+            let alias = |index: usize| {
                 module
                     .aliases
-                    .iter()
-                    .find(|(alias, _)| *alias == index)
-                    .map_or(def.offset, |(_, offset)| *offset) as usize
+                    .binary_search_by_key(&index, |&(alias, _)| alias)
+                    .ok()
+                    .map(|at| module.aliases[at].1 as usize)
             };
+            let mut earlier = ScratchSet::new(&self.meter);
             for (index, (def, _)) in module.instance_methods.iter().enumerate() {
-                if def.accessor.is_some() {
-                    continue;
+                let repeated = def.accessor.is_none() && earlier.contains(def.name.as_str());
+                let offset = if repeated { alias(index) } else { None };
+                if earlier.insert(def.name.as_str()).is_err() {
+                    return;
                 }
-                let alias = module.aliases.iter().any(|(alias, _)| *alias == index);
-                let earlier = module.instance_methods[..index]
-                    .iter()
-                    .any(|(other, _)| other.name == def.name);
-                if alias && earlier {
-                    let span = self.spans.word_after(at(index, def), &def.name);
+                if let Some(offset) = offset {
+                    let span = self.spans.word_after(offset, &def.name);
                     self.report(Diagnostic::error(
                         Code::DUPLICATE_NAME,
                         span,
