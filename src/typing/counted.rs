@@ -361,7 +361,9 @@ impl<'m> Text<'m> {
         let needed = length.saturating_add(piece.len());
         if needed > capacity {
             let target = needed.max(capacity.saturating_mul(2)).max(16);
-            if self.ledger.admit(capacity.saturating_add(target)).is_err() {
+            // The old text, counted already, stays while the new storage
+            // is taken.
+            if self.ledger.admit(target).is_err() {
                 self.refused = true;
                 return;
             }
@@ -666,10 +668,9 @@ impl<T> CountedVec<T> {
         }
         let target = needed.max(capacity.saturating_mul(2)).max(4);
         let size = size_of::<T>();
-        let moment = capacity
-            .saturating_add(target)
-            .saturating_mul(size)
-            .saturating_add(owned);
+        // The old storage, which the check holds already, stays while the
+        // new is taken, so the new is all the moment adds.
+        let moment = target.saturating_mul(size).saturating_add(owned);
         let peak = ledger.admit(moment)?;
         self.0.reserve_exact(target - self.0.len());
         // The allocator is asked for exactly this much; anything more it
@@ -838,8 +839,10 @@ impl<K: Eq + Hash, V> CountedMap<K, V> {
             return ledger.keep(owned).map(drop);
         }
         let before = map(&self.0);
+        // The old table, which the check holds already, stays while the
+        // new is taken, so the new is all the moment adds.
         let most = table::<(K, V)>(needed.max(capacity.saturating_add(1)));
-        let peak = ledger.admit(before.saturating_add(most).saturating_add(owned))?;
+        let peak = ledger.admit(most.saturating_add(owned))?;
         self.0.reserve(additional);
         ledger.grew(map(&self.0).saturating_sub(before) + owned, peak);
         Ok(())
@@ -1027,8 +1030,10 @@ impl<T: Eq + Hash> CountedSet<T> {
             return ledger.keep(owned).map(drop);
         }
         let before = set(&self.0);
+        // The old table, which the check holds already, stays while the
+        // new is taken, so the new is all the moment adds.
         let most = table::<T>(needed.max(capacity.saturating_add(1)));
-        let peak = ledger.admit(before.saturating_add(most).saturating_add(owned))?;
+        let peak = ledger.admit(most.saturating_add(owned))?;
         self.0.reserve(additional);
         ledger.grew(set(&self.0).saturating_sub(before) + owned, peak);
         Ok(())
@@ -1316,6 +1321,43 @@ mod tests {
         let before = meter.unmeasured();
         names.push_kept(&mut kept, "y".repeat(100));
         assert_eq!(meter.unmeasured(), before);
+    }
+
+    #[test]
+    fn a_table_that_grows_counts_its_old_storage_once() {
+        use super::super::meter::{map, table, vec};
+        // The old storage, which the check holds already, stays while the
+        // new is taken: a budget with room for both beside the rest admits
+        // the growth, though not for the old storage twice.
+        let list = |budget: usize| {
+            let meter = meter(Some(budget));
+            let mut list: CountedVec<u64> = CountedVec::new();
+            list.reserve(meter.tables(), 1_024).unwrap();
+            for i in 0..1_024 {
+                list.push(meter.tables(), i).unwrap();
+            }
+            (meter, list)
+        };
+        let (counted, full) = list(usize::MAX);
+        let (held, old) = (counted.unmeasured(), vec(full.as_vec()));
+        let (counted, mut full) = list(held + 2 * old + old / 2);
+        assert!(full.push(counted.tables(), 1_024).is_ok());
+        assert!(!counted.stopped());
+        let entries = |budget: usize| {
+            let meter = meter(Some(budget));
+            let mut entries: CountedMap<u64, u64> = CountedMap::new();
+            entries.reserve(meter.tables(), 1_024).unwrap();
+            for i in 0..entries.capacity() as u64 {
+                entries.insert(meter.tables(), i, i).unwrap();
+            }
+            (meter, entries)
+        };
+        let (counted, full) = entries(usize::MAX);
+        let held = counted.unmeasured();
+        let (old, new) = (map(&full.0), table::<(u64, u64)>(full.capacity() + 1));
+        let (counted, mut full) = entries(held + new + old / 2);
+        assert!(full.insert(counted.tables(), u64::MAX, 0).is_ok());
+        assert!(!counted.stopped());
     }
 
     #[test]
