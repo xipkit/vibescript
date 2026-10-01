@@ -65,7 +65,12 @@ impl<'a> Checker<'a> {
             (1, _) => Access::Update,
             _ => Access::Destructure,
         };
+        // Each target, and each value, is a step the walk counts, as each
+        // list it goes over is.
         for target in &assign.targets {
+            if self.halt() {
+                return;
+            }
             self.target_with(target, access);
         }
         for value in &assign.values {
@@ -105,6 +110,9 @@ impl<'a> Checker<'a> {
             }
             Target::Group(_, parts) => {
                 for part in parts {
+                    if self.halt() {
+                        return;
+                    }
                     self.target(part);
                 }
             }
@@ -206,6 +214,9 @@ impl<'a> Checker<'a> {
         self.scopes.push(scope);
         self.keyword_params(def);
         for param in &def.params {
+            if self.halt() {
+                return;
+            }
             if let Some(ty) = &param.ty {
                 self.type_names(ty);
             }
@@ -249,6 +260,9 @@ impl<'a> Checker<'a> {
                 Member::Def(def) => self.def(def, Some(class)),
                 Member::Property(property) => {
                     for ty in property.names.iter().filter_map(|(_, ty)| ty.as_ref()) {
+                        if self.halt() {
+                            return;
+                        }
                         self.type_names(ty);
                     }
                 }
@@ -305,6 +319,9 @@ impl<'a> Checker<'a> {
             }
             ExprKind::Hash(entries) => {
                 for entry in entries {
+                    if self.halt() {
+                        return;
+                    }
                     if !entry.shorthand {
                         self.expr(&entry.value, Place::Loose);
                     }
@@ -381,6 +398,9 @@ impl<'a> Checker<'a> {
     pub(super) fn args(&mut self, args: &'a Args) {
         let command = args.parens.is_none();
         for (index, arg) in args.items.iter().enumerate() {
+            if self.halt() {
+                return;
+            }
             let place = if command && index == 0 {
                 Place::Tight
             } else {
@@ -453,12 +473,17 @@ impl<'a> Checker<'a> {
         };
         for param in &block.params {
             param.names(&mut |name, _| {
-                scope.locals.insert(name.to_owned());
+                if !self.halt() {
+                    scope.locals.insert(name.to_owned());
+                }
             });
         }
         collect_locals(&block.body, &mut scope, &mut || self.halt());
         self.scopes.push(scope);
         for param in &block.params {
+            if self.halt() {
+                return;
+            }
             self.target(param);
         }
         self.statements(&block.body);

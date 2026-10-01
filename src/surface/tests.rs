@@ -1162,7 +1162,7 @@ const STARTED: &[(&str, [usize; 4])] = &[
     // A definition's missing parameters and a named type's missing
     // arguments; the syntax tree, and the parser's locals, journal,
     // ternaries and type names.
-    ("parse.rs", [3, 27, 0, 0]),
+    ("parse.rs", [3, 26, 0, 0]),
     // A template's pieces.
     ("patterns.rs", [0, 0, 2, 0]),
     // A call's missing arguments; the keywords a pattern takes, and the

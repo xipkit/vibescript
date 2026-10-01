@@ -270,6 +270,9 @@ impl<'a> Surface<'a> {
                 }
                 Member::Property(property) => {
                     for (tok, _) in &property.names {
+                        if stopped() {
+                            return None;
+                        }
                         let name = self.token_text(*tok);
                         self.declared.methods.insert(name.to_owned());
                         self.declared.methods.insert(format!("{name}="));
@@ -290,6 +293,9 @@ impl<'a> Surface<'a> {
                         .or_else(|| text.strip_prefix("protected "))
                     {
                         for name in names.split(',') {
+                            if stopped() {
+                                return None;
+                            }
                             let name = name.trim().trim_start_matches(':');
                             self.declared.private_methods.insert(name.to_owned());
                         }
@@ -548,6 +554,9 @@ pub fn collect_locals(body: &[Stmt], scope: &mut Scope<'_>, halt: Halt<'_>) {
 /// Gathers the names a function's rescue clauses bind.
 pub fn collect_rescued(rescued: &Rescued, scope: &mut Scope<'_>, halt: Halt<'_>) {
     for clause in &rescued.rescues {
+        if halt() {
+            return;
+        }
         if let Some(name) = &clause.binding {
             scope.locals.insert(name.clone());
             scope.rescues.insert(name.clone());
@@ -562,12 +571,18 @@ pub fn collect_rescued(rescued: &Rescued, scope: &mut Scope<'_>, halt: Halt<'_>)
 fn collect_stmt(stmt: &Stmt, scope: &mut Scope<'_>, halt: Halt<'_>) {
     match &stmt.kind {
         StmtKind::Assign(assign) => {
+            // A name the walk has stopped by is not gathered, nor any after.
             for target in &assign.targets {
                 target.names(&mut |name, _| {
-                    scope.locals.insert(name.to_owned());
+                    if !halt() {
+                        scope.locals.insert(name.to_owned());
+                    }
                 });
             }
             for value in &assign.values {
+                if halt() {
+                    return;
+                }
                 collect_expr(value, scope, halt);
             }
         }
@@ -579,7 +594,9 @@ fn collect_stmt(stmt: &Stmt, scope: &mut Scope<'_>, halt: Halt<'_>) {
         }
         StmtKind::For(node) => {
             node.target.names(&mut |name, _| {
-                scope.locals.insert(name.to_owned());
+                if !halt() {
+                    scope.locals.insert(name.to_owned());
+                }
             });
             collect_expr(&node.iterable, scope, halt);
             collect_locals(&node.body, scope, halt);
@@ -591,6 +608,9 @@ fn collect_stmt(stmt: &Stmt, scope: &mut Scope<'_>, halt: Halt<'_>) {
         StmtKind::Flow(_, Some(value)) => collect_expr(value, scope, halt),
         StmtKind::Raise(_, value, message) => {
             for expr in value.iter().chain(message) {
+                if halt() {
+                    return;
+                }
                 collect_expr(expr, scope, halt);
             }
         }
@@ -600,6 +620,9 @@ fn collect_stmt(stmt: &Stmt, scope: &mut Scope<'_>, halt: Halt<'_>) {
 
 fn collect_if(node: &If, scope: &mut Scope<'_>, halt: Halt<'_>) {
     for (condition, body) in &node.branches {
+        if halt() {
+            return;
+        }
         collect_expr(condition, scope, halt);
         collect_locals(body, scope, halt);
     }
@@ -623,6 +646,9 @@ pub fn collect_expr(expr: &Expr, scope: &mut Scope<'_>, halt: Halt<'_>) {
                 collect_expr(subject, scope, halt);
             }
             for when in &node.whens {
+                if halt() {
+                    return;
+                }
                 collect_expr(&when.result, scope, halt);
             }
             if let Some((_, alternate)) = &node.alternate {
@@ -639,6 +665,9 @@ pub fn collect_expr(expr: &Expr, scope: &mut Scope<'_>, halt: Halt<'_>) {
                 collect_expr(receiver, scope, halt);
             }
             for arg in call.args.iter().flat_map(|args| &args.items) {
+                if halt() {
+                    return;
+                }
                 collect_expr(&arg.value, scope, halt);
             }
             // Blocks see the enclosing locals and may assign them.

@@ -321,6 +321,9 @@ impl<'a> Checker<'a> {
         if !rest.is_empty() {
             pieces.push(Piece::Text("(".into()));
             for (index, arg) in rest.iter().enumerate() {
+                if self.halt() {
+                    return;
+                }
                 if index > 0 {
                     pieces.push(Piece::Text(", ".into()));
                 }
@@ -447,6 +450,9 @@ impl<'a> Checker<'a> {
             return;
         };
         for arg in &args.items {
+            if self.halt() {
+                return;
+            }
             if matches!(arg.value.kind, ExprKind::Symbol)
                 && let TokenKind::Symbol { name, .. } =
                     &self.tokens[self.token_at(arg.value.span.start)].kind
@@ -729,16 +735,25 @@ impl<'a> Checker<'a> {
                     }
                 }
                 for arg in args {
+                    if self.halt() {
+                        return;
+                    }
                     self.type_names(arg);
                 }
             }
             TypeKind::Shape(fields, _) => {
                 for (_, field) in fields {
+                    if self.halt() {
+                        return;
+                    }
                     self.type_names(field);
                 }
             }
             TypeKind::Union(options) | TypeKind::Tuple(options) => {
                 for option in options {
+                    if self.halt() {
+                        return;
+                    }
                     self.type_names(option);
                 }
             }
@@ -1295,6 +1310,9 @@ impl<'a> Checker<'a> {
                 },
                 TemplatePiece::Rest => {
                     for (index, span) in captures.rest.iter().enumerate() {
+                        if self.halt() {
+                            return true;
+                        }
                         let separated = matches!(out.last(), Some(Piece::Text(t))
                             if t.ends_with('(') || t.ends_with('[') || t.ends_with(", "));
                         if index > 0 || !separated {
@@ -1309,6 +1327,9 @@ impl<'a> Checker<'a> {
         let mut pieces = Vec::new();
         // Tidy `name()` left by an empty `...` into `name`, and `(, ` into `(`.
         for piece in out {
+            if self.halt() {
+                return true;
+            }
             match piece {
                 Piece::Text(text) => text_only.push_str(&text),
                 Piece::Source(span) => {
@@ -1323,6 +1344,9 @@ impl<'a> Checker<'a> {
             pieces.push(Piece::Text(text_only));
         }
         for piece in &mut pieces {
+            if self.halt() {
+                return true;
+            }
             if let Piece::Text(text) = piece {
                 *text = text.replace("(, ", "(").replace("()", "");
             }

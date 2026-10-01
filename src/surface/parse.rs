@@ -1691,12 +1691,14 @@ impl<'s> Parser<'s> {
     }
 
     fn declare_target(&mut self, target: &Target) {
-        let mut names = Vec::new();
-        target.names(&mut |name, _| names.push(name.to_owned()));
-        for name in names {
-            self.declared_it |= name == "it";
-            self.declare_local(name);
-        }
+        // Each name is a construct read, and a parse the compilation
+        // stopped declares no more, nor fails again for each.
+        target.names(&mut |name, _| {
+            if !self.stopped && self.poll().is_ok() {
+                self.declared_it |= name == "it";
+                self.declare_local(name.to_owned());
+            }
+        });
     }
 
     /// Parses a destructuring target list; a tuple comes back as a group
@@ -1707,6 +1709,8 @@ impl<'s> Parser<'s> {
         let mut tuple = false;
         let start = self.start();
         loop {
+            // Each part is a construct read, as a level of nesting is.
+            self.poll()?;
             let star = self.pos;
             let rest = self.at_op("*");
             let mut anonymous = false;

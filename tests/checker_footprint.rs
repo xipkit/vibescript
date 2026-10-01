@@ -1920,6 +1920,76 @@ fn a_cancellation_anywhere_in_a_wide_function_stops_it_promptly() {
     );
 }
 
+#[test]
+fn a_cancellation_anywhere_in_a_wide_expression_stops_it_promptly() {
+    let _serial = SERIAL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    // A call's arguments, an array's elements, a hash's entries, a
+    // string's interpolations and an assignment's targets, in a function
+    // whose locals the surface pass gathers before it walks the body, as
+    // the checker and the walk do after: every pass over them asks the
+    // budget as it goes. Unoptimized builds, and WASI, check smaller
+    // ones, in time.
+    let (count, points) = if cfg!(any(debug_assertions, target_os = "wasi")) {
+        (8_000, 16)
+    } else {
+        (200_000, 64)
+    };
+    let body = |line: String| {
+        format!("def f(*xs: array<int>) -> int\n  1\nend\ndef g -> int\n{line}  1\nend\n")
+    };
+    let sources = [
+        (
+            format!("a call of {count} arguments"),
+            body(format!(
+                "  f({})\n",
+                listed(count, |_| "1".to_owned(), ", ")
+            )),
+        ),
+        (
+            format!("an array of {count} elements"),
+            body(format!(
+                "  x = [{}]\n",
+                listed(count, |_| "1".to_owned(), ", ")
+            )),
+        ),
+        (
+            format!("a hash of {count} entries"),
+            body(format!(
+                "  x = {{ {} }}\n",
+                listed(count, |i| format!("a{i}: 1"), ", ")
+            )),
+        ),
+        (
+            format!("a string of {count} interpolations"),
+            body(format!(
+                "  x = \"{}\"\n",
+                lines(count, |_| "#{1}".to_owned())
+            )),
+        ),
+        (
+            format!("an assignment to {count} targets"),
+            body(format!(
+                "  {} = []\n",
+                listed(count, |i| format!("a{i}"), ", ")
+            )),
+        ),
+    ];
+    let mut failures = Vec::new();
+    for (name, source) in sources {
+        for failure in cancelled_late(&source, points) {
+            failures.push(format!("{name}, {failure}"));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} compilations went on after they were cancelled:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
 /// The cancellations, at `points` places evenly through compiling `source`,
 /// after which the compilation went on past [`AFTER_CANCEL_ALLOCATIONS`]
 /// allocations or [`AFTER_CANCEL_BYTES`] bytes, each described.
