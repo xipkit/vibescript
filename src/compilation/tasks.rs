@@ -35,7 +35,8 @@ impl<C, T> Tasks<C, T> {
     }
 
     /// Runs `call`, starting it and every nested call with `start`, and
-    /// charging each task's frame to `work` while it runs.
+    /// charging each task's frame to `work` while it runs, and the stack's
+    /// storage while it holds it.
     pub fn run<'a>(
         &self,
         call: C,
@@ -46,7 +47,23 @@ impl<C, T> Tasks<C, T> {
             let held = work.reserve(std::mem::size_of_val(&*task))?;
             Ok((task, held))
         };
-        let mut stack = vec![frame(start(call))?];
+        // The stack's own storage is reserved before it grows, with its
+        // old storage and its new while it does, and for as long as it
+        // keeps it.
+        let entry = std::mem::size_of::<(Task<'a, T>, Option<Charge>)>();
+        let mut stack = Vec::new();
+        let mut storage: Option<Charge> = None;
+        let mut push = |stack: &mut Vec<_>, task| -> Result<()> {
+            if stack.len() == stack.capacity() {
+                let capacity = (2 * stack.capacity()).max(4);
+                let held = work.reserve(capacity * entry)?;
+                stack.reserve_exact(capacity - stack.len());
+                storage = held;
+            }
+            stack.push(task);
+            Ok(())
+        };
+        push(&mut stack, frame(start(call))?)?;
         let mut context = Context::from_waker(Waker::noop());
         loop {
             let (task, _) = stack.last_mut().unwrap();
@@ -61,7 +78,7 @@ impl<C, T> Tasks<C, T> {
                 Poll::Pending => {
                     let call = self.call.take();
                     let task = start(call.expect("a suspended task names its nested work"));
-                    stack.push(frame(task)?);
+                    push(&mut stack, frame(task)?)?;
                 }
             }
         }
@@ -112,4 +129,43 @@ pub(crate) fn framed<'a, T, F: Future<Output = Result<T>> + 'a>(
         future: Box::pin(future),
         _held: held,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{CallOptions, budget::CallContext, compilation::Meter};
+
+    #[test]
+    fn the_task_stack_reserves_its_own_storage() {
+        let depth = 2_000;
+        let mut context = CallContext::new(CallOptions::default());
+        let (frame, entry) = {
+            let work = Meter(RefCell::new(&mut context));
+            let tasks: Tasks<usize, usize> = Tasks::new();
+            let start = |n: usize| -> Task<'_, usize> {
+                let tasks = &tasks;
+                Box::pin(async move {
+                    if n == 0 {
+                        return Ok(0);
+                    }
+                    Ok(tasks.call(n - 1).await? + 1)
+                })
+            };
+            let frame = std::mem::size_of_val(&*start(0));
+            assert_eq!(tasks.run(depth, start, &work).unwrap(), depth);
+            (
+                frame,
+                std::mem::size_of::<(Task<'_, usize>, Option<Charge>)>(),
+            )
+        };
+        // Every frame is held at the deepest point, beside the stack that
+        // lists them, which holds at least an entry for each.
+        let peak = context.stats().peak_memory_bytes;
+        let frames = (depth + 1) * frame;
+        assert!(
+            peak >= frames + (depth + 1) * entry,
+            "{peak} bytes at the peak, {frames} of them the frames"
+        );
+    }
 }
