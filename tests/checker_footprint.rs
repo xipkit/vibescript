@@ -1225,6 +1225,33 @@ fn shapes() -> Vec<Shape> {
                 ),
             )
         }),
+        // A required file's exported signature is copied into the checker
+        // that requires it, its parameters' names with it.
+        ("a required file exporting long parameter names", |n| {
+            let params = listed(64, |i| format!("p{i}{}: int", "a".repeat(n * 4)), ", ");
+            (
+                vec![(
+                    "wide.vibe".to_owned(),
+                    format!("def f({params}) -> int\n  1\nend\n"),
+                )],
+                "require(\"wide\")\np(1)\n".to_owned(),
+            )
+        }),
+        // And the types of its parameters, a shape's fields' names with
+        // them.
+        (
+            "a required file exporting a shape of long field names",
+            |n| {
+                let fields = listed(64, |i| format!("f{i}{}: int", "a".repeat(n * 4)), ", ");
+                (
+                    vec![(
+                        "shaped.vibe".to_owned(),
+                        format!("def f(x: {{ {fields} }}) -> int\n  1\nend\n"),
+                    )],
+                    "require(\"shaped\")\np(1)\n".to_owned(),
+                )
+            },
+        ),
         // A literal's fields are sorted by name.
         ("a wide hash literal", |n| {
             let entries = listed(n * 16, |i| format!("k{i}: 1"), ", ");
@@ -1715,5 +1742,219 @@ fn a_stopped_compilation_stops_promptly() {
         "{} compilations went on after they stopped:\n{}",
         failures.len(),
         failures.join("\n")
+    );
+}
+
+#[test]
+fn a_cancellation_anywhere_in_a_source_of_many_tokens_stops_it_promptly() {
+    let _serial = SERIAL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    // Each string literal's payload is copied in each pass over the tokens
+    // that lists them, the surface pass's before it parses among them, and
+    // cancellations at many points along the way land in every one.
+    let (count, points) = if cfg!(any(debug_assertions, target_os = "wasi")) {
+        (1_000, 64)
+    } else {
+        (4_000, 256)
+    };
+    let strings = listed(32, |_| "\"s\"".to_owned(), ", ");
+    let source = lines(count, |i| format!("x{i} = [{strings}]\n"));
+    let engine = Engine::new();
+    let _ = engine.compile_with_options(&source, &limited(None, None));
+    let before = ALLOCATIONS.load(Relaxed);
+    let _ = engine.compile_with_options(&source, &limited(None, None));
+    let allocations = ALLOCATIONS.load(Relaxed) - before;
+    let mut failures = Vec::new();
+    for point in 0..points {
+        let at = allocations * point / points;
+        let token = vibescript::CancellationToken::new();
+        let options = vibescript::CallOptions {
+            cancellation: token.clone(),
+            ..limited(None, None)
+        };
+        *CANCEL.lock().unwrap() = Some(token);
+        CANCELLED_ALLOCATIONS.store(usize::MAX, Relaxed);
+        CANCEL_AT.store(ALLOCATIONS.load(Relaxed) + at, Relaxed);
+        let result = engine
+            .compile_with_options(&source, &options)
+            .map(drop)
+            .map_err(|error| error.kind);
+        CANCEL_AT.store(usize::MAX, Relaxed);
+        *CANCEL.lock().unwrap() = None;
+        let cancelled = CANCELLED_ALLOCATIONS.load(Relaxed);
+        if cancelled == usize::MAX {
+            continue;
+        }
+        let after = ALLOCATIONS.load(Relaxed) - cancelled;
+        let bytes = ALLOCATED.load(Relaxed) - CANCELLED_ALLOCATED.load(Relaxed);
+        if after > AFTER_CANCEL_ALLOCATIONS || bytes > AFTER_CANCEL_BYTES {
+            failures.push(format!(
+                "a cancellation at allocation {at}: {after} allocations of {bytes} bytes after it ({result:?})"
+            ));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} compilations went on after they were cancelled:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
+/// When the checker started and when it finished, of the last check
+/// [`timed`] observed.
+static CHECK_TIMES: Mutex<(Option<std::time::Instant>, Option<std::time::Instant>)> =
+    Mutex::new((None, None));
+
+fn timed(observed: Observed) {
+    let mut times = CHECK_TIMES.lock().unwrap();
+    match observed {
+        Observed::Checking => times.0 = Some(std::time::Instant::now()),
+        Observed::Surfacing => times.1 = Some(std::time::Instant::now()),
+        _ => (),
+    }
+}
+
+/// How long the checker takes on `source`, with the files `modules` it
+/// requires, for each step it is charged, in nanoseconds: the least of
+/// three tries, from when it starts to when the surface pass does.
+fn time_per_step(modules: Vec<(String, String)>, source: &str) -> f64 {
+    let engine = engine_with(modules).expect("the files load");
+    let mut least = std::time::Duration::MAX;
+    let mut steps = 0;
+    for _ in 0..3 {
+        let checked = engine
+            .type_check_with(source, timed)
+            .expect("the source parses");
+        let (Some(start), Some(end)) = *CHECK_TIMES.lock().unwrap() else {
+            panic!("the check was observed");
+        };
+        least = least.min(end - start);
+        steps = checked.steps;
+    }
+    least.as_nanos() as f64 / steps.max(1) as f64
+}
+
+#[test]
+fn the_checkers_time_per_step_stays_flat_as_names_and_parameters_grow() {
+    let _serial = SERIAL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let shapes: [Shape; 3] = [
+        // Each keyword a call gives is found among the signature's.
+        ("a call giving every keyword of a wide signature", |n| {
+            let params = listed(n, |i| format!("k{i}: int = 0"), ", ");
+            let args = listed(n, |i| format!("k{i}: 1"), ", ");
+            (
+                Vec::new(),
+                format!("def f(*, {params}) -> int\n  1\nend\np(f({args}))\n"),
+            )
+        }),
+        // Each alias's name is looked for among the class's methods before
+        // it.
+        ("a class with an alias for each of its methods", |n| {
+            let methods = lines(n, |i| format!("  def m{i}\n    1\n  end\n"));
+            let aliases = lines(n, |i| format!("  alias a{i} m{i}\n"));
+            (
+                Vec::new(),
+                format!("class C\n{methods}{aliases}end\np(1)\n"),
+            )
+        }),
+        // A required file's function declares the file's locals but those
+        // its parameters name, and shares those it assigns.
+        (
+            "a required file's function whose parameters are its locals",
+            |n| {
+                let locals = lines(n, |i| format!("x{i} = 1\n"));
+                let params = listed(n, |i| format!("x{i}: int"), ", ");
+                let assigns = lines(n, |i| format!("  x{i} = 2\n"));
+                (
+                    vec![(
+                        "m.vibe".to_owned(),
+                        format!("{locals}def g({params}) -> int\n{assigns}  1\nend\n"),
+                    )],
+                    "require(\"m\")\np(1)\n".to_owned(),
+                )
+            },
+        ),
+    ];
+    let (small, large) = if cfg!(debug_assertions) {
+        (250, 2_000)
+    } else {
+        (1_000, 16_000)
+    };
+    let mut failures = Vec::new();
+    for (name, shape) in shapes {
+        let time = |n: usize| {
+            let (modules, source) = shape(n);
+            time_per_step(modules, &source)
+        };
+        let (narrow, wide) = (time(small), time(large));
+        if wide > 1.5 * narrow {
+            failures.push(format!(
+                "{name}: {narrow:.0} ns a step at {small}, and {wide:.0} at {large}"
+            ));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "the checker's time per step grew with its input:\n{}",
+        failures.join("\n")
+    );
+}
+
+#[test]
+fn a_step_quota_that_runs_out_while_a_signature_is_imported_stops_it_promptly() {
+    let _serial = SERIAL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    // A required file exports a function of many parameters, each name of
+    // which the requiring check copies; every quota from the least the
+    // compilation needs down through the import trips while it is made.
+    let (params, quotas) = if cfg!(any(debug_assertions, target_os = "wasi")) {
+        (100, 600)
+    } else {
+        (1_000, 4_000)
+    };
+    let params = listed(params, |i| format!("p{i}: int"), ", ");
+    let engine = engine_with(vec![(
+        "wide.vibe".to_owned(),
+        format!("def f({params}) -> int\n  1\nend\n"),
+    )])
+    .expect("the file loads");
+    let source = "require(\"wide\")\np(1)\n";
+    let compiles = |steps: u64| {
+        engine
+            .compile_with_options(source, &limited(Some(steps), None))
+            .is_ok()
+    };
+    let (mut least, mut most) = (1u64, 1 << 32);
+    while least < most {
+        let middle = least + (most - least) / 2;
+        if compiles(middle) {
+            most = middle;
+        } else {
+            least = middle + 1;
+        }
+    }
+    let mut failures = Vec::new();
+    for quota in least.saturating_sub(quotas)..least {
+        let (after, result) = after_trip(&engine, source, &limited(Some(quota), None));
+        let Some((allocations, bytes)) = after else {
+            continue;
+        };
+        if allocations > AFTER_TRIP_ALLOCATIONS || bytes > AFTER_TRIP_BYTES {
+            failures.push(format!(
+                "{quota} steps: {allocations} allocations of {bytes} bytes after it stopped ({result:?})"
+            ));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} compilations went on after they stopped, of {} quotas below the least of {least}:\n{}",
+        failures.len(),
+        quotas,
+        failures[..failures.len().min(8)].join("\n")
     );
 }
