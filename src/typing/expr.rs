@@ -598,6 +598,14 @@ impl<'a> Checker<'a> {
             }
         }
         let candidates = if exact.is_empty() { loose } else { exact };
+        // Each candidate is compared with each other, a step for each 64
+        // comparisons, since a relation decided before is charged nothing.
+        if self
+            .types
+            .work(candidates.len().saturating_mul(candidates.len()))
+        {
+            return Vec::new();
+        }
         let widest = candidates.iter().copied().find(|&wide| {
             candidates
                 .iter()
@@ -973,9 +981,16 @@ impl<'a> Checker<'a> {
                 // negating `==` is a `bool`. Each instance the left operand
                 // may be runs its class's method with the right operand, a
                 // `nil` too, as in a nil test of an optional instance.
+                // The alternatives are a step for each 64 of them, and each
+                // method they run is checked once, found in a set of those
+                // checked, counted while it lives.
+                let alternatives = self.types.members(lt);
+                if self.types.work(alternatives.len()) {
+                    return Ty::ERROR;
+                }
                 let mut results = Vec::new();
-                let mut checked = Vec::new();
-                for alternative in self.types.members(lt) {
+                let mut checked = super::counted::ScratchSet::new(&self.meter);
+                for alternative in alternatives {
                     let Kind::Instance(ns) = *self.types.kind(alternative) else {
                         results.push(Ty::BOOL);
                         continue;
@@ -991,10 +1006,13 @@ impl<'a> Checker<'a> {
                             continue;
                         }
                     };
-                    if !checked.contains(&id) {
-                        checked.push(id);
-                        let span = self.spans.operator(expr.offset as usize);
-                        self.operator_operand(id, rt, span);
+                    match checked.insert(id) {
+                        Ok(true) => {
+                            let span = self.spans.operator(expr.offset as usize);
+                            self.operator_operand(id, rt, span);
+                        }
+                        Ok(false) => (),
+                        Err(_) => return Ty::ERROR,
                     }
                     results.push(result);
                 }

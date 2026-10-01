@@ -1619,10 +1619,10 @@ mod tests {
         // The cycle search's stack, cycles and their members, counted
         // before the search starts.
         ("construction.rs", [10, 0, 3]),
-        // A hint's enums and shapes, and the instances an operator's
-        // alternatives call; the `when` values covered and the branches
+        // A hint's enums and shapes, and the results of an operator's
+        // alternatives; the `when` values covered and the branches
         // explored, held as each is kept.
-        ("expr.rs", [2, 5, 4]),
+        ("expr.rs", [3, 4, 4]),
         // A stopped check's branches.
         ("flow.rs", [4, 0, 0]),
         // The size of an empty node.
