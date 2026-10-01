@@ -1892,8 +1892,9 @@ impl<'a> Checker<'a> {
         want: Want,
     ) -> Ty {
         let subject_ty = subject.map(|subject| self.expr(subject, None));
-        // The values the `when`s name, kept while the rest are checked, in a
-        // list counted, with the names, while it lives.
+        // The places of the values the `when`s name, among the enum's
+        // members or the bools, kept while the rest are checked, in a list
+        // counted while it lives.
         let mut covered = ScratchVec::new(&self.meter);
         // The branches' values, in a list counted while it lives.
         let mut results = super::counted::ScratchVec::new(&self.meter);
@@ -1908,8 +1909,8 @@ impl<'a> Checker<'a> {
                         let hint = (!matches!(self.types.kind(subject), Kind::EnumValue(_)))
                             .then_some(subject);
                         let ty = self.expr(value, hint);
-                        if let Some(name) = self.covered_value(value, ty, subject) {
-                            covered.add(name);
+                        if let Some(place) = self.covered_value(value, ty, subject) {
+                            covered.add(place);
                         }
                     }
                     None => {
@@ -1967,8 +1968,10 @@ impl<'a> Checker<'a> {
         self.types.union(&results)
     }
 
-    /// The enum member or bool a `when` value names, for exhaustiveness.
-    fn covered_value(&mut self, value: &Expr, ty: Ty, subject: Ty) -> Option<String> {
+    /// The place of the enum member or bool a `when` value names, for
+    /// exhaustiveness: the member's among its enum's, or 1 for `true` and
+    /// 0 for `false`. Finding it is part of checking the value.
+    fn covered_value(&mut self, value: &Expr, ty: Ty, subject: Ty) -> Option<u32> {
         match *self.types.kind(subject) {
             Kind::EnumValue(id) => {
                 if let (Node::Literal(v), true) = (&value.node, ty == Ty::SYMBOL) {
@@ -1980,7 +1983,9 @@ impl<'a> Checker<'a> {
                         "a `when` over it never matches a symbol",
                     );
                     // The fix makes it the member, so it counts as covered.
-                    return Some(symbol);
+                    return self.program.enums[id as usize]
+                        .symbol(&symbol)
+                        .map(|place| place as u32);
                 }
                 if self.types.kind(ty) != &Kind::EnumValue(id) {
                     if ty != Ty::ERROR && !self.types.assignable(ty, subject) {
@@ -1989,18 +1994,16 @@ impl<'a> Checker<'a> {
                     }
                     return None;
                 }
-                match &value.node {
-                    Node::Literal(v) => super::symbol_text(v),
-                    Node::Scope(_, name, None) => {
-                        let decl = &self.program.enums[id as usize];
-                        let index = decl.member(name)?;
-                        Some(decl.symbols[index].clone())
-                    }
-                    _ => None,
-                }
+                let decl = &self.program.enums[id as usize];
+                let place = match &value.node {
+                    Node::Literal(v) => decl.symbol(&super::symbol_text(v)?)?,
+                    Node::Scope(_, name, None) => decl.member(name)?,
+                    _ => return None,
+                };
+                Some(place as u32)
             }
             Kind::Bool => match &value.node {
-                Node::Literal(v) if v.type_name() == "bool" => Some(v.truthy().to_string()),
+                Node::Literal(v) if v.type_name() == "bool" => Some(u32::from(v.truthy())),
                 _ => None,
             },
             _ => None,
@@ -2038,75 +2041,70 @@ impl<'a> Checker<'a> {
     }
 
     /// Reports a `case` over an enum or bool that misses a value; returns
-    /// whether it covers every value.
-    fn exhaustive(
-        &mut self,
-        expr: &Expr,
-        subject: Ty,
-        covered: &[String],
-        alternate: bool,
-    ) -> bool {
-        // A check past its budget reports nothing more.
-        if self.transient(super::meter::table::<&str>(covered.len())) {
+    /// whether it covers every value. `covered` holds the places of the
+    /// values its `when`s name, as [`Self::covered_value`] finds them.
+    fn exhaustive(&mut self, expr: &Expr, subject: Ty, covered: &[u32], alternate: bool) -> bool {
+        let decl = match *self.types.kind(subject) {
+            Kind::EnumValue(id) => Some(std::sync::Arc::clone(&self.program.enums[id as usize])),
+            Kind::Bool => None,
+            _ => return false,
+        };
+        let count = decl.as_ref().map_or(2, |decl| decl.members.len());
+        // A bit for each value, set for each place covered, in a list
+        // counted while it lives, and a step for each 64 values, as a pass
+        // over them takes; a check past its budget reports nothing more.
+        let words = count.div_ceil(64);
+        let mut seen = ScratchVec::new(&self.meter);
+        if self.types.work(count) || seen.reserve(words).is_err() {
             return true;
         }
-        let covered: std::collections::HashSet<&str> = covered.iter().map(String::as_str).collect();
-        if self.transient(super::meter::set(&covered)) {
+        for _ in 0..words {
+            seen.add(0_u64);
+        }
+        for &place in covered {
+            seen[place as usize / 64] |= 1 << (place % 64);
+        }
+        let known: usize = seen.iter().map(|word| word.count_ones() as usize).sum();
+        if known == count {
             return true;
         }
+        if alternate {
+            return false;
+        }
+        let missed = |place: usize| seen[place / 64] & (1 << (place % 64)) == 0;
         // The values the `case` misses, as their `when`s name them.
-        let (missing, name): (String, &str) = match *self.types.kind(subject) {
-            Kind::EnumValue(id) => {
-                let decl = std::sync::Arc::clone(&self.program.enums[id as usize]);
-                // Counting the members it covers takes time that grows
-                // with the `when`s alone, not with the enum.
-                let known = covered
-                    .iter()
-                    .filter(|symbol| decl.symbol(symbol).is_some())
-                    .count();
-                if known == decl.symbols.len() {
-                    return true;
-                }
-                if alternate {
-                    return false;
-                }
-                if self.types.work(decl.symbols.len()) || self.over_budget() {
+        let (missing, name): (String, &str) = match &decl {
+            Some(decl) => {
+                if self.types.work(count) || self.over_budget() {
                     return false;
                 }
                 let (missing, _) = super::listed(
                     &self.meter,
-                    decl.symbols
+                    decl.members
                         .iter()
-                        .zip(&decl.members)
-                        .filter(|(symbol, _)| !covered.contains(symbol.as_str())),
+                        .enumerate()
+                        .filter(|&(place, _)| missed(place)),
                     |out, (_, member)| {
                         out.write(format_args!("`{}::{member}`", decl.name));
                     },
                 );
-                let span = self.spans.token(expr.offset as usize);
-                self.non_exhaustive(span, &decl.name, missing);
-                return false;
+                (missing, &decl.name)
             }
-            Kind::Bool => (
+            None => (
                 super::listed(
                     &self.meter,
-                    ["true", "false"]
+                    [("true", 1), ("false", 0)]
                         .into_iter()
-                        .filter(|value| !covered.contains(value)),
-                    |out, value| out.write(format_args!("`{value}`")),
+                        .filter(|&(_, place)| missed(place)),
+                    |out, (value, _)| out.write(format_args!("`{value}`")),
                 )
                 .0,
                 "bool",
             ),
-            _ => return false,
         };
-        if missing.is_empty() {
-            return true;
-        }
-        if !alternate {
-            let span = self.spans.token(expr.offset as usize);
-            self.non_exhaustive(span, name, missing);
-        }
+        drop(seen);
+        let span = self.spans.token(expr.offset as usize);
+        self.non_exhaustive(span, name, missing);
         false
     }
 

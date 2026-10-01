@@ -1935,7 +1935,19 @@ fn the_checkers_time_per_step_stays_flat_as_names_and_parameters_grow() {
     let _serial = SERIAL
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let shapes: [Shape; 3] = [
+    let shapes: [Shape; 4] = [
+        // Each `when` names a member of the enum, which the `case` then
+        // covers whole.
+        ("a case over every member of an enum", |n| {
+            let members = lines(n, |i| format!("  M{i}\n"));
+            let whens = lines(n, |i| format!("  when E::M{i} then 0\n"));
+            (
+                Vec::new(),
+                format!(
+                    "enum E\n{members}end\ndef f(e: E) -> int\n  case e\n{whens}  end\nend\np(1)\n"
+                ),
+            )
+        }),
         // Each keyword a call gives is found among the signature's.
         ("a call giving every keyword of a wide signature", |n| {
             let params = listed(n, |i| format!("k{i}: int = 0"), ", ");
@@ -1985,6 +1997,9 @@ fn the_checkers_time_per_step_stays_flat_as_names_and_parameters_grow() {
             time_per_step(modules, &source)
         };
         let (narrow, wide) = (time(small), time(large));
+        if std::env::var_os("VIBES_FOOTPRINT").is_some() {
+            println!("{name}: {narrow:.0} ns a step at {small}, and {wide:.0} at {large}");
+        }
         if wide > 1.5 * narrow {
             failures.push(format!(
                 "{name}: {narrow:.0} ns a step at {small}, and {wide:.0} at {large}"
