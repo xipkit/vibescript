@@ -170,9 +170,10 @@ impl Code {
             // check stopped for memory, which it does not charge.
             return Err(work.allocation_error("memory quota exceeded while checking types"));
         }
-        // The checker's tables, by its own account, held this much at most
-        // while it ran, which counts toward the call's peak and its quota.
-        drop(work.reserve(checked.peak_bytes + checked.surface_bytes)?);
+        // The checker's tables, and the surface pass beside them, by their
+        // own account, held this much at most at once while they ran, which
+        // counts toward the call's peak and its quota.
+        drop(work.reserve(checked.peak())?);
         // What the check found stays while the compiler reads it.
         let _found = work.reserve(checked.bytes())?;
         if checked.diagnostics.iter().any(|d| d.is_error()) {

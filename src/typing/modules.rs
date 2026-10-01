@@ -499,9 +499,9 @@ impl<'a> Checker<'a> {
         };
         let checked = super::check_nested(&input, self.modules.depth + 1);
         let charged = self.meter.charge(checked.steps);
-        // What the file's check held beside this one's tables, and at most
-        // its surface pass's too.
-        self.observed(held + checked.peak_bytes + checked.surface_bytes);
+        // What the file's check held at most beside this one's tables, its
+        // surface pass's with it.
+        self.observed(held + checked.peak());
         // The file's steps are checked against the budget, and its memory
         // too, before its exports are imported.
         if checked.stopped || charged || self.over_budget() {

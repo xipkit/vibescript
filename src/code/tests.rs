@@ -437,3 +437,56 @@ fn metered_compilation_stops_at_limits_and_matches_unmetered_results() {
         assert_eq!(metered, engine.compile(broken).err().unwrap());
     }
 }
+
+/// A required file's check, whose checker peaks before its surface pass
+/// starts beside less than that, counts toward the compilation's quota
+/// what it held at most at once, not its checker's peak and its surface
+/// pass's together.
+#[test]
+fn a_required_files_check_counts_its_peak_or_its_surface_pass_not_both() {
+    // An index into a union sets records aside, which the checker holds
+    // at its peak and lets go before the surface pass, whose footprint the
+    // wide literals make large. WASI checks syntax at most 128 levels tall.
+    let (depth, width) = if cfg!(target_os = "wasi") {
+        (20, 500)
+    } else {
+        (50, 400)
+    };
+    let wide = format!("[{}].length", vec!["1"; width].join(", "));
+    let mut index = "0".to_owned();
+    for _ in 0..depth {
+        index = format!("u[{wide} + g({index})]");
+    }
+    let file = format!(
+        "def g(v: int | float | nil) -> int\n  0\nend\ndef f(u: array<int> | array<float>) -> int\n  x = {index}\n  0\nend\n"
+    );
+    let alone = Engine::new().type_check(&file).unwrap();
+    let apart = alone.peak_bytes + alone.surface_bytes - alone.peak();
+    assert!(
+        apart > 256 << 10,
+        "the checker's peak, {}, and the surface pass's, {} beside {}, are held apart",
+        alone.peak_bytes,
+        alone.surface_bytes,
+        alone.surfaced
+    );
+    let mut engine = Engine::new();
+    engine
+        .set_module_sources(std::collections::BTreeMap::from([(
+            "big.vibe".to_owned(),
+            file,
+        )]))
+        .unwrap();
+    let source = "require(\"big\")\np(1)\n";
+    let peak = engine.type_check(source).unwrap().peak_bytes;
+    // Counting the file's peaks together would take `apart` more than the
+    // check holds; the compilation fits within half that.
+    let options = CallOptions {
+        limits: Limits {
+            steps: None,
+            memory_bytes: Some(peak + apart / 2),
+            ..Limits::default()
+        },
+        ..CallOptions::default()
+    };
+    engine.compile_with_options(source, &options).unwrap();
+}

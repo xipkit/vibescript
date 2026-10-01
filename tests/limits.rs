@@ -595,11 +595,19 @@ fn nested_union_indexes_count_the_records_they_set_aside() {
             least = middle;
         }
     }
-    // A quota that leaves the plain source an eighth of its check to
-    // spare still stops the union's.
+    // The records count toward the union's checker peak, which passes
+    // before the surface pass starts; the pass, whose footprint the wide
+    // literals make larger than the records, holds as much beside either
+    // source's tables. A quota that leaves the plain source an eighth of
+    // its check to spare fits the union's too, as it fits what the union
+    // holds at once, and its checker peak stays within it.
     let quota = quota + alone / 8;
     assert_eq!(compiles(&plain, quota), Ok(()));
-    assert_eq!(compiles(&union, quota), Err(ErrorKind::Memory));
+    assert!(
+        nested < quota,
+        "{nested} at the checker's peak, {quota} allowed"
+    );
+    assert_eq!(compiles(&union, quota), Ok(()));
 }
 
 #[test]

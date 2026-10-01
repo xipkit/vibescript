@@ -160,6 +160,9 @@ pub struct Checked {
     /// beside the checker's tables, which the quota bounds with them; 0
     /// when it did not run.
     pub surface_bytes: usize,
+    /// What the checker's tables held, by its account, while the pass over
+    /// the canonical surface ran beside them; 0 when it did not run.
+    pub(crate) surfaced: usize,
     /// What the sources and file names the diagnostics of required files
     /// keep hold, each counted once however many keep it, which last as
     /// long as the diagnostics do.
@@ -347,6 +350,16 @@ fn key<T>(node: &T) -> usize {
 }
 
 impl Checked {
+    /// The most memory the check held at once, by its account: the
+    /// checker's peak, or what its tables held while the pass over the
+    /// canonical surface ran beside them with the most the pass held,
+    /// whichever is more. The checker's peak may pass before the pass
+    /// starts, so the two are not held at once.
+    pub(crate) fn peak(&self) -> usize {
+        self.peak_bytes
+            .max(self.surfaced.saturating_add(self.surface_bytes))
+    }
+
     /// What the check's findings hold, which last while the compiler reads
     /// them: the facts, the diagnostics with the sources and file names
     /// they keep, the call types and the locals.
@@ -663,6 +676,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         stopped,
         peak_bytes: meter.peak(),
         surface_bytes: 0,
+        surfaced: 0,
         // A check that stopped keeps no diagnostics.
         retained: if stopped { 0 } else { checker.modules.kept },
     };
@@ -715,6 +729,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
                 observe(Observed::Surfacing);
             }
             checked.surface_bytes = surface;
+            checked.surfaced = checker_held;
             let budget = &input.budget;
             crate::surface::add_to(
                 &mut checked,
