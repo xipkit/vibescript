@@ -286,10 +286,19 @@ fn interpolated(
                     }
                 }
                 Level::Tokens(tokens) => match tokens.next().map(|lexeme| &lexeme.token) {
-                    Some(Token::Bytes(bytes)) => found.bytes += bytes.len(),
                     Some(Token::Word(word)) => found.words += word.len(),
                     Some(Token::Template(parts)) => levels.push(Level::Parts(parts.iter(), true)),
-                    Some(_) => (),
+                    Some(token) => {
+                        found.bytes += payload(token, &mut pace)?;
+                        if let Token::Words(words) = token {
+                            found.entries += words.entries.len();
+                            found.rewritten += words
+                                .entries
+                                .iter()
+                                .filter_map(|entry| text_length(entry))
+                                .sum::<usize>();
+                        }
+                    }
                     None => {
                         levels.pop();
                     }
@@ -299,6 +308,47 @@ fn interpolated(
     }
     pace.finish()?;
     Ok(found)
+}
+
+/// What `token`'s payload holds once the tooling lists it: a symbol's
+/// name, a string's bytes, a template's spans, or a percent literal's
+/// entries, each charged to `pace` as it is read.
+fn payload(token: &super::lexer::Token<'_>, pace: &mut Pace<'_>) -> Result<usize> {
+    use super::lexer::{Part, Token};
+    Ok(match token {
+        Token::Symbol(name) => name.len(),
+        Token::QuotedSymbol(name) => name.len(),
+        Token::Bytes(bytes) => bytes.len(),
+        Token::Template(parts) => parts.len() * std::mem::size_of::<std::ops::Range<usize>>(),
+        Token::Words(words) => {
+            let mut held = 0;
+            for entry in words.entries.iter() {
+                pace.read()?;
+                held += std::mem::size_of::<Option<Vec<u8>>>()
+                    + entry
+                        .iter()
+                        .map(|part| match part {
+                            Part::Text(bytes) => bytes.len(),
+                            Part::Expr(..) => 0,
+                        })
+                        .sum::<usize>();
+            }
+            held
+        }
+        _ => 0,
+    })
+}
+
+/// The length of a percent literal's entry, or `None` when it holds an
+/// interpolation, as the tooling lists its text.
+fn text_length(entry: &[super::lexer::Part<'_>]) -> Option<usize> {
+    entry
+        .iter()
+        .map(|part| match part {
+            super::lexer::Part::Text(bytes) => Some(bytes.len()),
+            super::lexer::Part::Expr(..) => None,
+        })
+        .sum()
 }
 
 /// The tokens the parser finally read, as the tooling lists them, with
@@ -316,28 +366,7 @@ fn token_list(
     let mut payloads = 0;
     for lexeme in parser.tokens.range(0..parser.tokens.len()) {
         pace.read()?;
-        payloads += match &lexeme.token {
-            Token::Symbol(name) => name.len(),
-            Token::QuotedSymbol(name) => name.len(),
-            Token::Bytes(bytes) => bytes.len(),
-            Token::Template(parts) => parts.len() * std::mem::size_of::<std::ops::Range<usize>>(),
-            Token::Words(words) => {
-                let mut held = 0;
-                for entry in words.entries.iter() {
-                    pace.read()?;
-                    held += std::mem::size_of::<Option<Vec<u8>>>()
-                        + entry
-                            .iter()
-                            .map(|part| match part {
-                                Part::Text(bytes) => bytes.len(),
-                                Part::Expr(..) => 0,
-                            })
-                            .sum::<usize>();
-                }
-                held
-            }
-            _ => 0,
-        };
+        payloads += payload(&lexeme.token, &mut pace)?;
     }
     pace.finish()?;
     let held = work

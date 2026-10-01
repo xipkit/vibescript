@@ -670,6 +670,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         let interpolated = input.parsed.interpolated;
         let tokens = (input.tokens.len()
             + interpolated.tokens
+            + interpolated.entries
             + crate::surface::entries(input.tokens)) as u64;
         let names = checker
             .program
@@ -699,7 +700,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
                 &mut checked,
                 input.source,
                 input.tokens,
-                interpolated.tokens,
+                interpolated.tokens + interpolated.entries,
                 &|steps| {
                     let within =
                         !(budget.steps.is_some_and(|left| steps > left) || budget.interrupted());

@@ -787,11 +787,17 @@ pub(crate) struct Declarations {
 pub(crate) struct Interpolated {
     /// The tokens inside them, each one's end among them.
     pub tokens: usize,
-    /// The bytes of the strings among those tokens, and of the spans of
-    /// the interpolations nested in them.
+    /// What the payloads of those tokens hold once the tooling lists them,
+    /// as an ordinary token's do: strings, symbols' names and percent
+    /// literals' entries; and the spans of the interpolations nested in
+    /// them.
     pub bytes: usize,
     /// The bytes of the identifiers among those tokens.
     pub words: usize,
+    /// The entries of the percent literals among those tokens.
+    pub entries: usize,
+    /// The bytes of those entries without interpolations of their own.
+    pub rewritten: usize,
 }
 
 /// A top-level declaration's kind, name and source byte range, in source order.

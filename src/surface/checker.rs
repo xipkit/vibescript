@@ -134,18 +134,21 @@ pub(crate) fn footprint(
         .filter(|token| token.kind == tooling::TokenKind::Word)
         .map(|token| token.span.len())
         .sum();
+    // An interpolation's tokens hold what the source's own do, which the
+    // pass keeps beside them once it lexes the interpolation again.
     (tokens.len() + interpolated.tokens) * PER_TOKEN
-        + entries(tokens) * PER_ENTRY
+        + (entries(tokens) + interpolated.entries) * PER_ENTRY
         + payloads
         + (words + interpolated.words) * WORD_COPIES
-        + rewritten * REWRITE_COPIES
+        + (rewritten + interpolated.rewritten) * REWRITE_COPIES
         + interpolated.bytes
         + names * NAME_COPIES
 }
 
 /// Adds the removed spellings in `source` to a static check's diagnostics,
-/// in source order, charging a step for each of its tokens and of the
-/// `interpolated` ones inside its interpolations, which it lexes again.
+/// in source order, charging a step for each of its tokens and each entry
+/// of its percent literals, and for each of the `interpolated` tokens and
+/// entries inside its interpolations, which it lexes again.
 ///
 /// A static checker's diagnostic inside a removed spelling, such as the
 /// unknown member `nil?` or the missing block of `reduce(:+)`, is left
