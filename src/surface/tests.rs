@@ -1073,6 +1073,95 @@ fn the_text_the_rules_write_is_in_their_room_or_of_a_kind() {
     );
 }
 
+/// The empty lists, maps, sets and strings each file of the rules' pass
+/// starts, with a `Vec::new()`, `HashMap::new()`, `String::new()` or the
+/// like, or an `.or_default()`, which then grow by `push` or `insert`, by
+/// file and in four kinds: one returned, passed or kept empty, which
+/// nothing grows here; one of the syntax tree, the parser's or the walk's
+/// records, or the edits and diagnostics, a few for each token, which the
+/// pass's footprint counts; one of the patterns' own; and one that takes
+/// from the room as it grows. Text the source sizes otherwise, such as a
+/// copy of a span, is written through the room.
+const STARTED: &[(&str, [usize; 4])] = &[
+    // A finding's suggestion, which a rule sets whole.
+    ("surface.rs", [1, 0, 0, 0]),
+    // The walk's findings and the diagnostics of its rewrites.
+    ("checker.rs", [0, 2, 0, 0]),
+    // The walk's scopes and records.
+    ("context.rs", [0, 6, 0, 0]),
+    // The edits by rewrite, a group's clusters and the conflicts; the
+    // writer's text.
+    ("edits.rs", [0, 3, 0, 1]),
+    // A definition's missing parameters and a named type's missing
+    // arguments; the syntax tree, and the parser's locals, journal,
+    // ternaries and type names.
+    ("parse.rs", [3, 27, 0, 0]),
+    // A template's pieces.
+    ("patterns.rs", [0, 0, 2, 0]),
+    // A call's missing arguments; the keywords a pattern takes, and the
+    // pieces of a rename, a few for each argument; the template's text.
+    ("rules.rs", [5, 3, 1, 0]),
+    // The interpolations' first tokens.
+    ("syntax.rs", [0, 1, 0, 0]),
+];
+
+/// How many empty lists, maps, sets and strings `line` starts.
+fn started(line: &str) -> usize {
+    let mut count = line.matches(".or_default()").count();
+    for kind in [
+        "Vec", "HashMap", "HashSet", "BTreeMap", "BTreeSet", "String",
+    ] {
+        for made in ["::new()", "::default()"] {
+            let site = format!("{kind}{made}");
+            count += line
+                .match_indices(&site)
+                .filter(|&(at, _)| {
+                    !line[..at]
+                        .chars()
+                        .next_back()
+                        .is_some_and(|c| c == '_' || c.is_alphanumeric())
+                })
+                .count();
+        }
+    }
+    count
+}
+
+#[test]
+fn the_empty_lists_the_rules_start_are_each_of_a_kind() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut sources = vec![root.join("surface.rs")];
+    for entry in std::fs::read_dir(root.join("surface")).unwrap() {
+        sources.push(entry.unwrap().path());
+    }
+    let mut found = Vec::new();
+    for path in sources {
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        if name == "tests.rs" {
+            continue;
+        }
+        let text = std::fs::read_to_string(&path).unwrap();
+        let code = text.split("#[cfg(test)]\nmod tests {").next().unwrap();
+        let count: usize = code
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("//"))
+            .map(started)
+            .sum();
+        let kinds = STARTED
+            .iter()
+            .find(|(file, _)| *file == name)
+            .map_or(0, |(_, kinds)| kinds.iter().sum());
+        if count != kinds {
+            found.push(format!("{name}: {count} started, {kinds} of a kind"));
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "say here which kind each empty list or map these files start is, or write its text through the room:\n{}",
+        found.join("\n")
+    );
+}
+
 #[test]
 fn the_rules_sort_through_their_room() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
