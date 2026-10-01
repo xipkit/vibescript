@@ -560,6 +560,58 @@ impl<T> Deref for ScratchSet<T> {
     }
 }
 
+/// A map an operation builds and drops, counted as a [`ScratchSet`] is:
+/// its table and what its entries own, while it lives.
+pub(crate) struct ScratchMap<K, V> {
+    map: CountedMap<K, V>,
+    /// What its keys and values own.
+    owned: usize,
+    meter: Arc<Meter>,
+}
+
+impl<K: Eq + Hash + Owned, V: Owned> ScratchMap<K, V> {
+    pub fn new(meter: &Arc<Meter>) -> Self {
+        Self {
+            map: CountedMap::new(),
+            owned: 0,
+            meter: Arc::clone(meter),
+        }
+    }
+
+    /// Stores `value` under `key`, in place of any value the key had.
+    #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
+    pub fn insert(&mut self, key: K, value: V) -> Result<(), Refused> {
+        // A key the map has keeps its entry, and what the value it gives
+        // way to owned is given back.
+        if let Some(slot) = self.map.0.get_mut(&key) {
+            let owned = value.owned();
+            self.meter.scratch_lists().keep(owned)?;
+            let replaced = std::mem::replace(slot, value).owned();
+            self.meter.dropped(replaced);
+            self.owned = self.owned - replaced + owned;
+            return Ok(());
+        }
+        let owned = key.owned() + value.owned();
+        self.map.insert(self.meter.scratch_lists(), key, value)?;
+        self.owned += owned;
+        Ok(())
+    }
+}
+
+impl<K, V> Deref for ScratchMap<K, V> {
+    type Target = HashMap<K, V>;
+
+    fn deref(&self) -> &HashMap<K, V> {
+        &self.map
+    }
+}
+
+impl<K, V> Drop for ScratchMap<K, V> {
+    fn drop(&mut self) {
+        self.meter.dropped(map(&self.map.0) + self.owned);
+    }
+}
+
 impl<T> Drop for ScratchSet<T> {
     fn drop(&mut self) {
         self.meter.dropped(set(&self.set.0) + self.owned);
@@ -1610,9 +1662,8 @@ mod tests {
     /// type's parts kept while nested work that makes more runs, is a
     /// scratch list, counted while it lives.
     const STARTED: &[(&str, [usize; 3])] = &[
-        // The frame's name, the results of a stopped check, and the
-        // annotations, checked against the budget as each is written.
-        ("typing.rs", [6, 0, 1]),
+        // The frame's name, and the results of a stopped check.
+        ("typing.rs", [6, 0, 0]),
         // A stopped walk's results, and a root without assignments.
         ("assigns.rs", [3, 0, 0]),
         // Bindings of signatures without type variables; the members of a
@@ -1637,8 +1688,9 @@ mod tests {
         ("marks.rs", [1, 0, 0]),
         // A namespace's signature without type variables.
         ("modules.rs", [1, 0, 0]),
-        // The aliases' texts, checked against the budget as each is kept.
-        ("program.rs", [2, 0, 1]),
+        // An enum's members a stopped check skips, and a signature's
+        // variables.
+        ("program.rs", [2, 0, 0]),
         // The builtin signatures' index, and a signature's variables.
         ("sigs.rs", [1, 10, 0]),
         // A display's text and parts, which share one room; a union's

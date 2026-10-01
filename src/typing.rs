@@ -831,22 +831,21 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
 /// whether the check has stopped, which keeps none of them.
 fn annotated(
     types: &mut ty::Types,
-    meter: &meter::Meter,
+    meter: &std::sync::Arc<meter::Meter>,
     session: Session,
 ) -> (Vec<(String, String)>, Option<String>, bool) {
     let stopped = (Vec::new(), None, true);
-    let mut written: HashMap<ty::Ty, String> = HashMap::new();
-    let mut bytes = 0;
+    // Each type's annotation, written once, in a map counted, with the
+    // text, while it lives.
+    let mut written = counted::ScratchMap::new(meter);
     for &(_, ty) in &session.locals {
         if written.contains_key(&ty) {
             continue;
         }
         let text = types.annotation(ty);
-        bytes += meter::table::<(ty::Ty, String)>(written.len() + 1) + text.capacity();
-        if meter.scratch(bytes) {
+        if written.insert(ty, text).is_err() {
             return stopped;
         }
-        written.insert(ty, text);
     }
     let copies = session.locals.len() * size_of::<(String, String)>()
         + session
@@ -854,7 +853,7 @@ fn annotated(
             .iter()
             .map(|(name, ty)| name.capacity() + written[ty].len())
             .sum::<usize>();
-    if meter.scratch(bytes + copies) {
+    if meter.scratch(copies) {
         return stopped;
     }
     let result = types.annotation(session.result);

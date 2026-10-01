@@ -4,7 +4,9 @@
 
 use super::{
     Checker,
-    counted::{CountedBTreeSet, CountedMap, CountedSet, CountedVec, ScratchSet, ScratchVec},
+    counted::{
+        CountedBTreeSet, CountedMap, CountedSet, CountedVec, ScratchMap, ScratchSet, ScratchVec,
+    },
     meter::{Heap, map, vec},
     sigs::{self, BlockSig, Param, ParamKind, Sig},
     ty::{Field, Kind, Ty},
@@ -260,8 +262,25 @@ impl<'a> Checker<'a> {
         {
             return;
         }
+        // Each alias's text is written a step a byte into a list counted
+        // before it grows and while it lives, which stops once the check
+        // does, and kept by name in a map counted while it lives.
+        let mut aliases = ScratchMap::new(&self.meter);
+        for (scope, alias) in &parsed.additions.aliases {
+            if scope.is_none() {
+                let mut text = AliasText {
+                    text: ScratchVec::new(&self.meter),
+                    meter: &self.meter,
+                };
+                if crate::shapes::format(&alias.ty, &mut text).is_err()
+                    || aliases.insert(alias.name.as_str(), text.text).is_err()
+                {
+                    return;
+                }
+            }
+        }
         // The tables of what the source declares, counted before they are
-        // made, and the aliases' texts as they are written.
+        // made.
         let outline = parsed.outline.len();
         let tables =
             super::meter::table::<(&str, &str)>(outline) + super::meter::table::<&str>(outline);
@@ -284,27 +303,7 @@ impl<'a> Checker<'a> {
             .filter(|declaration| declaration.kind != crate::DeclarationKind::Function)
             .map(|declaration| declaration.name.as_str())
             .collect();
-        // Each alias's text is written a step a byte into a list counted
-        // before it grows and while it lives, which stops once the check
-        // does.
-        let mut aliases = std::collections::HashMap::new();
-        for (scope, alias) in &parsed.additions.aliases {
-            if scope.is_none() {
-                let mut text = AliasText {
-                    text: ScratchVec::new(&self.meter),
-                    meter: &self.meter,
-                };
-                if crate::shapes::format(&alias.ty, &mut text).is_err()
-                    || self.transient(
-                        tables + super::meter::table::<(&str, ScratchVec<u8>)>(aliases.len() + 1),
-                    )
-                {
-                    return;
-                }
-                aliases.insert(alias.name.as_str(), text.text);
-            }
-        }
-        if self.transient(map(&carried) + nominal.heap() + map(&aliases)) {
+        if self.transient(map(&carried) + nominal.heap()) {
             return;
         }
         for (name, declaration) in declared {
