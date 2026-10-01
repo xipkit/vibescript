@@ -1396,7 +1396,7 @@ impl Types {
                     self.write(m, &mut text, room);
                     parts.push(text);
                 }
-                if number {
+                if number && *room > 0 {
                     let mut text = String::new();
                     put(&mut text, "number", room);
                     parts.push(text);
@@ -1410,13 +1410,19 @@ impl Types {
                         return;
                     }
                 }
-                if nil {
+                if nil && *room > 0 {
                     let mut text = String::new();
                     put(&mut text, "nil", room);
                     parts.push(text);
                 }
+                // Once the room is used up, the display is cut where it
+                // was, so the parts after are not written, which keeps it
+                // a prefix of the display in full.
                 for (index, part) in parts.iter().enumerate() {
                     if index > 0 {
+                        if *room == 0 {
+                            break;
+                        }
                         put(out, " | ", room);
                     }
                     out.push_str(part);
