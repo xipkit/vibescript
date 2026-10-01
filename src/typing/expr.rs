@@ -1841,7 +1841,7 @@ impl<'a> Checker<'a> {
     fn conditional(&mut self, branches: &'a [(Expr, Expr)], alternate: &'a Expr, want: Want) -> Ty {
         // The branches' values, in a list counted while it lives.
         let mut results = super::counted::ScratchVec::new(&self.meter);
-        let mut explored = Vec::new();
+        let mut explored = ScratchVec::new(&self.meter);
         let entry = self.frame.flow.mark();
         for (condition, value) in branches {
             let narrow = self.condition(condition);
@@ -1897,7 +1897,7 @@ impl<'a> Checker<'a> {
         let mut held = 0;
         // The branches' values, in a list counted while it lives.
         let mut results = super::counted::ScratchVec::new(&self.meter);
-        let mut explored = Vec::new();
+        let mut explored = ScratchVec::new(&self.meter);
         let entry = self.frame.flow.mark();
         for when in whens {
             for (value, _splat) in when.values.iter() {
@@ -2162,7 +2162,7 @@ impl<'a> Checker<'a> {
         } else if self.frame.flow.live {
             results.add(body);
         }
-        let mut explored = Vec::new();
+        let mut explored = ScratchVec::new(&self.meter);
         let branch = self.frame.flow.rollback(entry);
         self.explore(&mut explored, branch);
         if !attempt.rescues.is_empty() {
@@ -2202,7 +2202,7 @@ impl<'a> Checker<'a> {
     /// and applies what the ensure proves on the way out: a local it assigns
     /// has the state it leaves, and any other the state both the join and
     /// the ensure's guards and exits prove.
-    fn ensure(&mut self, ensure: &'a [Stmt], explored: Vec<Branch>, spans: TrySpans) {
+    fn ensure(&mut self, ensure: &'a [Stmt], explored: ScratchVec<Branch>, spans: TrySpans) {
         let mark = self.frame.flow.mark();
         self.widen(spans.ensured());
         self.stmts(ensure, Want::Discard);

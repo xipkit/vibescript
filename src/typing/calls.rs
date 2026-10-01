@@ -731,7 +731,7 @@ impl<'a> Checker<'a> {
         let mark = self.frame.flow.mark();
         let first = self.member(call, first);
         results.add(first);
-        let mut branches = Vec::new();
+        let mut branches = ScratchVec::new(&self.meter);
         let branch = self.frame.flow.rollback(mark);
         self.explore(&mut branches, branch);
         // Reuse evaluated argument types, but check every receiver's contract.

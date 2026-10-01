@@ -1405,29 +1405,18 @@ impl<'a> Checker<'a> {
         }
     }
 
-    /// Keeps `branch`, one end of a construct's branches, in `explored`
-    /// until [`Self::join_explored`] joins them, counting it with the
-    /// tables meanwhile.
-    pub(super) fn explore(&mut self, explored: &mut Vec<Branch>, branch: Branch) {
+    /// Keeps `branch`, one end of a construct's branches, in `explored`, a
+    /// list counted, its storage and what each branch owns, while it lives,
+    /// until [`Self::join_explored`] joins them.
+    pub(super) fn explore(&mut self, explored: &mut ScratchVec<Branch>, branch: Branch) {
         // A check past its budget unwinds without keeping branches, which
-        // its joins would not read.
-        if self
-            .hold(std::mem::size_of::<Branch>() + branch.heap())
-            .is_none()
-        {
-            return;
-        }
-        explored.push(branch);
+        // its joins would not read; a refusal stops it.
+        explored.add(branch);
     }
 
     /// Joins the branches [`Self::explore`] kept.
-    pub(super) fn join_explored(&mut self, explored: Vec<Branch>) {
-        let held: usize = explored
-            .iter()
-            .map(|branch| std::mem::size_of::<Branch>() + branch.heap())
-            .sum();
-        self.release(held);
-        self.join(explored);
+    pub(super) fn join_explored(&mut self, explored: ScratchVec<Branch>) {
+        self.join(explored.into_vec());
     }
 
     pub(super) fn join(&mut self, branches: Vec<Branch>) {
@@ -1633,7 +1622,7 @@ impl<'a> Checker<'a> {
     ) -> Ty {
         // The branches' values, in a list counted while it lives.
         let mut results = super::counted::ScratchVec::new(&self.meter);
-        let mut explored = Vec::new();
+        let mut explored = ScratchVec::new(&self.meter);
         let entry = self.frame.flow.mark();
         for (condition, body) in branches {
             let narrow = self.condition(condition);

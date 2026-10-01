@@ -301,6 +301,22 @@ fn adversarial() -> Vec<(String, String)> {
             join(scale(200_000), &|_| "1".to_owned(), ", ")
         ),
     ));
+    // Each branch's end is kept until the construct joins them all.
+    let branches = scale(200_000);
+    programs.push((
+        "a case of 200,000 whens".to_owned(),
+        format!(
+            "def f(x: int) -> int\n  case x\n{}  else -1\n  end\nend\n",
+            join(branches, &|i| format!("  when {i} then {i}\n"), "")
+        ),
+    ));
+    programs.push((
+        "an if of 200,000 elsifs".to_owned(),
+        format!(
+            "def f(x: int) -> int\n  if x == 0\n    0\n{}  else\n    -1\n  end\nend\n",
+            join(branches, &|i| format!("  elsif x == {i}\n    {i}\n"), "")
+        ),
+    ));
     let wide = join(scale(200_000), &|_| "1".to_owned(), ", ");
     programs.push((
         "a module body holding a 200,000-element array".to_owned(),
