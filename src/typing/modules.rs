@@ -797,9 +797,9 @@ impl<'a> Checker<'a> {
                 if self.halted() {
                     break;
                 }
-                let sig = Rc::new(self.import_sig(&exported.types, sig, &imports));
-                // The method, its name and room for it in both tables are
-                // counted before either changes.
+                // The method, its name, its copy of the signature, which
+                // holds no more than the file's, and room for it in both
+                // tables are counted before any is made.
                 let declarations = self.meter.declarations();
                 let methods = &mut self.program.namespaces[owner as usize].methods;
                 let Ok(mut kept) = declarations.keep(name.len() + sig.heap()) else {
@@ -810,6 +810,10 @@ impl<'a> Checker<'a> {
                 {
                     break;
                 }
+                let Some(sig) = self.import_sig(&exported.types, sig, &imports) else {
+                    break;
+                };
+                let sig = Rc::new(sig);
                 let id = self.program.fns.len();
                 self.program.fns.push_within(FnDecl {
                     def: None,
@@ -831,12 +835,19 @@ impl<'a> Checker<'a> {
             if self.halted() {
                 break;
             }
-            let sig = Rc::new(self.import_sig(&exported.types, sig, &imports));
-            // Its signature is counted before it is kept, and its name, with
-            // its room in the table, as the table takes it.
+            // Its copy of the signature, which holds no more than the
+            // file's, is counted before it is made, and its name, with its
+            // room in the table, as the table takes it.
+            if self.meter.declarations().keep(sig.heap()).is_err() {
+                break;
+            }
+            let Some(sig) = self.import_sig(&exported.types, sig, &imports) else {
+                break;
+            };
             let declarations = self.meter.declarations();
-            if declarations.keep(sig.heap()).is_err()
-                || functions.insert(declarations, name.clone(), sig).is_err()
+            if functions
+                .insert(declarations, name.clone(), Rc::new(sig))
+                .is_err()
             {
                 break;
             }
@@ -847,82 +858,107 @@ impl<'a> Checker<'a> {
         (functions, enums)
     }
 
-    /// A required file's signature in this check's types.
-    fn import_sig(&mut self, from: &Types, sig: &Sig, imports: &Imports) -> Sig {
-        let params = sig
-            .params
-            .iter()
-            .map(|param| Param {
-                ty: self.import_ty(from, param.ty, imports),
+    /// A required file's signature in this check's types, which its caller
+    /// counts before it is made; `None` once the check stops, which makes
+    /// no more of it.
+    fn import_sig(&mut self, from: &Types, sig: &Sig, imports: &Imports) -> Option<Sig> {
+        let mut params = Vec::with_capacity(sig.params.len());
+        for param in &sig.params {
+            let ty = self.import_ty(from, param.ty, imports)?;
+            params.push(Param {
+                ty,
                 ..param.clone()
-            })
-            .collect();
-        let block = sig.block.as_ref().map(|block| BlockSig {
-            params: block
-                .params
-                .iter()
-                .map(|&ty| self.import_ty(from, ty, imports))
-                .collect(),
-            rest: block.rest.map(|ty| self.import_ty(from, ty, imports)),
-            result: block.result.map(|ty| self.import_ty(from, ty, imports)),
-            optional: block.optional,
-        });
-        Sig {
+            });
+        }
+        let block = match &sig.block {
+            Some(block) => Some(BlockSig {
+                params: self.import_all(from, &block.params, imports)?,
+                rest: self.import_some(from, block.rest, imports)?,
+                result: self.import_some(from, block.result, imports)?,
+                optional: block.optional,
+            }),
+            None => None,
+        };
+        Some(Sig {
             name: sig.name.clone(),
             params,
-            result: sig.result.map(|ty| self.import_ty(from, ty, imports)),
+            result: self.import_some(from, sig.result, imports)?,
             block,
             vars: Vec::new(),
             breaks: sig.breaks,
             converts: sig.converts,
             id: None,
+        })
+    }
+
+    /// [`Self::import_ty`] of each of `types`, in a list made at their
+    /// length; `None` once the check stops.
+    fn import_all(&mut self, from: &Types, types: &[Ty], imports: &Imports) -> Option<Vec<Ty>> {
+        let mut imported = Vec::with_capacity(types.len());
+        for &ty in types {
+            imported.push(self.import_ty(from, ty, imports)?);
+        }
+        Some(imported)
+    }
+
+    /// [`Self::import_ty`] of a type that may be absent; `None` once the
+    /// check stops.
+    fn import_some(
+        &mut self,
+        from: &Types,
+        ty: Option<Ty>,
+        imports: &Imports,
+    ) -> Option<Option<Ty>> {
+        match ty {
+            Some(ty) => self.import_ty(from, ty, imports).map(Some),
+            None => Some(None),
         }
     }
 
     /// A type of a required file's table in this check's: its enums and
     /// classes become the ones imported from it, and a type the file could
     /// not resolve, or one of a file it requires in turn, becomes `any`.
-    fn import_ty(&mut self, from: &Types, ty: Ty, imports: &Imports) -> Ty {
+    /// The list a shape's, a tuple's or a union's parts are copied into is
+    /// held, with the names it copies, before it is made. `None` once the
+    /// check stops, which imports no more of it.
+    fn import_ty(&mut self, from: &Types, ty: Ty, imports: &Imports) -> Option<Ty> {
         if self.meter.charge(1) {
-            return Ty::ANY;
+            return None;
         }
-        match &*from.shared(ty) {
+        let imported = match &*from.shared(ty) {
             Kind::Error | Kind::Namespace(_) | Kind::Exports(_) => Ty::ANY,
             Kind::Array(element) => {
-                let element = self.import_ty(from, *element, imports);
+                let element = self.import_ty(from, *element, imports)?;
                 self.types.array(element)
             }
             Kind::Hash(value) => {
-                let value = self.import_ty(from, *value, imports);
+                let value = self.import_ty(from, *value, imports)?;
                 self.types.hash(value)
             }
             Kind::Shape(fields, open) => {
-                let fields = fields
-                    .iter()
-                    .map(|field| Field {
-                        name: field.name.clone(),
-                        ty: self.import_ty(from, field.ty, imports),
-                        optional: field.optional,
-                    })
-                    .collect();
-                self.types.shape(fields, *open)
+                let names: usize = fields.iter().map(|field| field.name.len()).sum();
+                let held = self.hold(std::mem::size_of_val(&**fields) + names)?;
+                let copied = self.import_fields(from, fields, imports);
+                let shape = copied.map(|fields| self.types.shape(fields, *open));
+                self.release(held);
+                shape?
             }
             Kind::Tuple(items) => {
-                let items = items
-                    .iter()
-                    .map(|&item| self.import_ty(from, item, imports))
-                    .collect();
-                self.types.tuple(items)
+                let held = self.hold(std::mem::size_of_val(&**items))?;
+                let copied = self.import_all(from, items, imports);
+                let tuple = copied.map(|items| self.types.tuple(items));
+                self.release(held);
+                tuple?
             }
             Kind::Union(items) => {
-                let items: Vec<Ty> = items
-                    .iter()
-                    .map(|&item| self.import_ty(from, item, imports))
-                    .collect();
-                self.types.union(&items)
+                let held = self.hold(std::mem::size_of_val(&**items))?;
+                let copied = self.import_all(from, items, imports);
+                let union = copied.map(|items| self.types.union(&items));
+                self.release(held);
+                union?
             }
             Kind::TypeLit(described) => {
-                let described = self.import_ty(from, *described, imports);
+                let described = self.import_ty(from, *described, imports)?;
                 self.types.type_lit(described)
             }
             Kind::Instance(ns) => match imports.classes.get(ns) {
@@ -931,7 +967,7 @@ impl<'a> Checker<'a> {
             },
             Kind::EnumValue(id) | Kind::EnumType(id) => {
                 let Some(&imported) = imports.enums.get(*id as usize) else {
-                    return Ty::ANY;
+                    return Some(Ty::ANY);
                 };
                 let kind = match from.kind(ty) {
                     Kind::EnumValue(_) => Kind::EnumValue(imported),
@@ -949,7 +985,28 @@ impl<'a> Checker<'a> {
             // Scalars, builtin namespaces, type variables and symbols mean
             // the same in both tables.
             kind => self.types.intern(kind.clone()),
+        };
+        // A check the table stopped as it took the type imports no more.
+        (!self.halted()).then_some(imported)
+    }
+
+    /// [`Self::import_ty`] of each of a shape's `fields`, with a copy of each
+    /// name, in a list made at their length; `None` once the check stops.
+    fn import_fields(
+        &mut self,
+        from: &Types,
+        fields: &[Field],
+        imports: &Imports,
+    ) -> Option<Vec<Field>> {
+        let mut imported = Vec::with_capacity(fields.len());
+        for field in fields {
+            imported.push(Field {
+                name: field.name.clone(),
+                ty: self.import_ty(from, field.ty, imports)?,
+                optional: field.optional,
+            });
         }
+        Some(imported)
     }
 
     /// `receiver.name(...)` on the object `require` returned.

@@ -1543,7 +1543,7 @@ mod tests {
         ("flow.rs", [0, 0, 0, 6]),
         ("foreign.rs", [1, 0, 0, 0]),
         ("marks.rs", [2, 0, 0, 1]),
-        ("modules.rs", [0, 5, 0, 7]),
+        ("modules.rs", [0, 0, 0, 10]),
         ("program.rs", [0, 0, 0, 15]),
         ("sigs.rs", [0, 1, 9, 0]),
         ("ty.rs", [11, 11, 0, 1]),
