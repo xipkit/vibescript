@@ -341,11 +341,30 @@ fn adversarial() -> Vec<(String, String)> {
         "percent literals of long entries".to_owned(),
         format!("x = %w[{entry} a]\ny = %i[{entry} b]\n"),
     ));
+    // Every pair of the two unions fits, so narrowing a local of one to a
+    // value of the other keeps an alternative for each pair.
+    programs.push((
+        "two 1,024-arm unions whose every pair fits".to_owned(),
+        format!(
+            "type D = {}\ntype V = {}\ndef f(v: V) -> int\n  x: D = v\n  1\nend\np(1)\n",
+            join(1_024, &|i| format!("{{ d{i}?: int, ... }}"), " | "),
+            join(1_024, &|i| format!("{{ v{i}: int }}"), " | ")
+        ),
+    ));
     // Rendering a rewrite's fix copies the source it captures, several
     // times over.
     programs.push((
         "a string of a megabyte read with nil?".to_owned(),
         format!("x = \"{}\".nil?\np(x)\n", "a".repeat(scale(1_000_000))),
+    ));
+    // The fix's advice spells the parameters in their new form, with
+    // their defaults.
+    programs.push((
+        "a removed keyword parameter with a default of a megabyte".to_owned(),
+        format!(
+            "def f(a: int, name: \"{}\") -> int\n  a\nend\np(f(1))\n",
+            "a".repeat(scale(1_000_000))
+        ),
     ));
     // Each read before initialize assigns the variable keeps its name.
     let ivar = format!("v{}", "v".repeat(scale(64_000)));
@@ -1182,6 +1201,30 @@ fn shapes() -> Vec<Shape> {
                 )
             },
         ),
+        // Every pair of the two unions fits, so narrowing a local of one to
+        // a value of the other keeps an alternative for each pair.
+        ("two wide unions whose every pair fits", |n| {
+            let arms = (n / 4).clamp(1, 1_024);
+            let declared = listed(arms, |i| format!("{{ d{i}?: int, ... }}"), " | ");
+            let value = listed(arms, |i| format!("{{ v{i}: int }}"), " | ");
+            (
+                Vec::new(),
+                format!(
+                    "type D = {declared}\ntype V = {value}\ndef f(v: V) -> int\n  x: D = v\n  1\nend\np(1)\n"
+                ),
+            )
+        }),
+        // The fix's advice spells the parameters in their new form, with
+        // their defaults.
+        ("a removed keyword parameter with a long default", |n| {
+            (
+                Vec::new(),
+                format!(
+                    "def f(a: int, name: \"{}\") -> int\n  a\nend\np(f(1))\n",
+                    "a".repeat(n * 64)
+                ),
+            )
+        }),
         // A literal's fields are sorted by name.
         ("a wide hash literal", |n| {
             let entries = listed(n * 16, |i| format!("k{i}: 1"), ", ");
