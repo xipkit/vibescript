@@ -1633,9 +1633,9 @@ mod tests {
         ("program.rs", [2, 0, 1]),
         // The builtin signatures' index, and a signature's variables.
         ("sigs.rs", [1, 10, 0]),
-        // A union's candidates for a value, a shape's field pairs and a
-        // display's parts; a union's index, counted before it is built.
-        ("ty.rs", [10, 5, 2]),
+        // A union's candidates for a value and a display's parts; a
+        // union's index, counted before it is built.
+        ("ty.rs", [10, 4, 2]),
         // The walk's stack, paced with what the walker holds.
         ("walk.rs", [0, 0, 1]),
     ];

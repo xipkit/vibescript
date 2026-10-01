@@ -877,7 +877,14 @@ impl Types {
         let (Kind::Shape(a, _), Kind::Shape(b, _)) = (self.kind(from), self.kind(to)) else {
             return false;
         };
-        let mut pairs = Vec::new();
+        // The fields both declare, whose types are compared once the names
+        // are, in a list counted while it lives: comparing them compares
+        // nested shapes' fields in turn, beside it. A check that stops
+        // relates no more types, and takes every one as assignable.
+        let mut pairs = ScratchVec::new(&self.meter);
+        if pairs.reserve(a.len().min(b.len())).is_err() {
+            return true;
+        }
         let (mut i, mut j) = (0, 0);
         while i < a.len() || j < b.len() {
             let order = match (a.get(i), b.get(j)) {
@@ -890,7 +897,7 @@ impl Types {
                     if a[i].optional && !b[j].optional {
                         return false;
                     }
-                    pairs.push((a[i].ty, b[j].ty));
+                    pairs.add((a[i].ty, b[j].ty));
                     i += 1;
                     j += 1;
                 }
@@ -910,7 +917,7 @@ impl Types {
                 }
             }
         }
-        pairs.into_iter().all(|(x, y)| self.assignable(x, y))
+        pairs.iter().all(|&(x, y)| self.assignable(x, y))
     }
 
     /// Charges `units` of work that grows with a type's size, a step for
