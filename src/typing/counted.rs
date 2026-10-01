@@ -1527,12 +1527,16 @@ mod tests {
 
     /// The lists and maps each file of the checker makes for an operation,
     /// with a `.collect()`, `with_capacity`, `to_vec` or `vec!`, by file and
-    /// in four kinds: a few elements, or one for each level of syntax the
-    /// parser allows; a type's or a signature's parts, which the type table
-    /// or the declarations count already; the builtin signatures', which
-    /// the engine bounds; and those counted, held or checked against the
+    /// in four kinds: a few elements, a number the code fixes; a type's or
+    /// a signature's parts, at most a union's 1,024 alternatives or a
+    /// shape's 16,384 fields, which the type table or the declarations
+    /// count already, none of which is kept while work that could make
+    /// another runs beneath it, so that such lists never pile up through
+    /// nesting, aliases or repetition; the builtin signatures', which the
+    /// engine bounds; and those counted, held or checked against the
     /// budget before they are made, at the lengths they take. A list the
-    /// source sizes otherwise is a scratch list, counted while it lives.
+    /// source sizes otherwise, or a type's parts kept while nested work
+    /// that makes more runs, is a scratch list, counted while it lives.
     const MADE: &[(&str, [usize; 4])] = &[
         ("typing.rs", [0, 0, 0, 1]),
         ("assigns.rs", [0, 0, 0, 2]),
@@ -1594,13 +1598,16 @@ mod tests {
     /// `insert` where [`MADE`] does not see them, by file and in three
     /// kinds: one returned, passed or kept empty, or one a field starts
     /// with and a counted table replaces whole, which nothing grows here;
-    /// one the source does not size: a union's alternatives, at most 1,024,
-    /// a type's or a signature's parts, which the type table or the
-    /// declarations count already, the builtin signatures' or the host's,
-    /// or a type's display, cut at `SPELLED` bytes; and one counted before
-    /// it is made at the most it takes, held or checked against the budget
-    /// as it grows, or paced by a walk. A list the source sizes otherwise
-    /// is a scratch list, counted while it lives.
+    /// one bounded without the source: a few of the builtin signatures' or
+    /// the host's, a type's display, whose parts share `SPELLED` bytes
+    /// however deep it nests, or a union's alternatives, at most 1,024,
+    /// none of which is kept while work that could make another runs
+    /// beneath it, so that such lists never pile up through nesting,
+    /// aliases or repetition; and one counted before it is made at the
+    /// most it takes, held or checked against the budget as it grows, or
+    /// paced by a walk. A list the source sizes otherwise, or one of a
+    /// type's parts kept while nested work that makes more runs, is a
+    /// scratch list, counted while it lives.
     const STARTED: &[(&str, [usize; 3])] = &[
         // The frame's name, the results of a stopped check, and the
         // annotations, checked against the budget as each is written.
