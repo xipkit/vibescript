@@ -60,12 +60,10 @@ impl<'x> Compiling<'_, 'x> {
                 } else {
                     (None, false, None)
                 };
-                let (bindings, held) = c.statement_bindings(&clause.body)?.into_parts();
+                let (mut locals, held) = c.statement_bindings(&clause.body)?.into_parts();
                 crate::budget::Charge::merge(&mut c.handler_locals, held);
-                let locals = bindings
-                    .into_iter()
-                    .filter(|slot| Some(*slot) != binding)
-                    .collect();
+                // Filtered in place, in the storage charged for them.
+                locals.retain(|slot| Some(*slot) != binding);
                 let start = c.code.len();
                 (saved_offset, previous, parameter, binding, locals, start)
             };
