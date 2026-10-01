@@ -116,13 +116,9 @@ impl<'a> Checker<'a> {
         // A percent literal after a command name is an argument, which an
         // array literal after a space is as well.
         let _ = place;
-        let literal = format!("[{}]", items.join(", "));
-        let previous = self.enter(
-            Rule::PercentLiteral,
-            expr.span,
-            removed,
-            format!("use the array literal `{}`", excerpt(&literal)),
-        );
+        let literal = written!(self, "[{}]", items.join(", "));
+        let advice = written!(self, "use the array literal `{}`", excerpt(&literal));
+        let previous = self.enter(Rule::PercentLiteral, expr.span, removed, advice);
         let group = self.rewrites.len() - 1;
         self.words.insert(expr.span, group);
         self.edits.text(expr.span, literal);
@@ -150,7 +146,7 @@ impl<'a> Checker<'a> {
         let removed = self.text(selector.span);
         match string_literal(name) {
             Some(literal) => {
-                let advice = format!("hash keys are strings: `{literal}`");
+                let advice = written!(self, "hash keys are strings: `{literal}`");
                 let previous = self.enter(Rule::SymbolKey, selector.span, removed, advice);
                 self.edits.text(selector.span, literal);
                 self.leave(previous);
@@ -230,15 +226,13 @@ impl<'a> Checker<'a> {
             start: self.tokens[*open].start,
             end: self.tokens[*close].end,
         };
-        let previous = self.enter(
-            Rule::EmptyParentheses,
-            span,
-            format!("{}()", call.name),
-            format!(
-                "a call without arguments has no parentheses: `{}`",
-                call.name
-            ),
+        let removed = written!(self, "{}()", call.name);
+        let advice = written!(
+            self,
+            "a call without arguments has no parentheses: `{}`",
+            call.name
         );
+        let previous = self.enter(Rule::EmptyParentheses, span, removed, advice);
         self.edits.text(span, "");
         self.leave(previous);
     }
@@ -295,13 +289,13 @@ impl<'a> Checker<'a> {
             self.report(Finding::new(Rule::Dispatch, span, &call.name, direct));
             return;
         };
-        let call_directly = format!("call `{name}` directly");
+        let call_directly = written!(self, "call `{name}` directly");
         if self.declared.private_methods.contains(&name) {
             self.report(Finding::new(
                 Rule::Dispatch,
                 span,
                 &call.name,
-                format!("{name} is private; call it from inside its class"),
+                written!(self, "{name} is private; call it from inside its class"),
             ));
             return;
         }
@@ -318,13 +312,10 @@ impl<'a> Checker<'a> {
         }
         let mut pieces = vec![
             Piece::Source(receiver.span),
-            Piece::Text(
-                self.text(Span {
-                    start: receiver.span.end,
-                    end: self.tokens[call.name_tok].start,
-                })
-                .to_owned(),
-            ),
+            Piece::Text(self.copied(self.text(Span {
+                start: receiver.span.end,
+                end: self.tokens[call.name_tok].start,
+            }))),
             Piece::Text(name),
         ];
         if !rest.is_empty() {
@@ -419,11 +410,12 @@ impl<'a> Checker<'a> {
         }
         let span = self.token_span(operator);
         let receiver = excerpt(self.text(receiver.span));
-        let advice = format!(
+        let advice = written!(
+            self,
             "use `{receiver}.{}`; `::` names only constants, nested types and enum members",
             call.name
         );
-        let removed = format!("{receiver}::{}", call.name);
+        let removed = written!(self, "{receiver}::{}", call.name);
         let previous = self.enter(Rule::ScopedCall, span, removed, advice);
         self.edits.text(span, ".");
         self.leave(previous);
@@ -465,7 +457,7 @@ impl<'a> Checker<'a> {
                     ArgKind::Keyword(name) if name == "as" => "alias",
                     _ => "module",
                 };
-                let advice = format!("name the {what} with the string `{literal}`");
+                let advice = written!(self, "name the {what} with the string `{literal}`");
                 let previous = self.enter(Rule::Require, arg.value.span, removed, advice);
                 self.edits.text(arg.value.span, literal);
                 self.leave(previous);
@@ -527,9 +519,9 @@ impl<'a> Checker<'a> {
             start: self.tokens[operator].start,
             end: self.tokens[call.name_tok].end,
         };
-        let removed = self.text(span).to_owned();
+        let removed = self.copied(self.text(span));
         let receiver_text = excerpt(self.text(receiver.span));
-        let indexed = format!("`{receiver_text}[{key}]`");
+        let indexed = written!(self, "`{receiver_text}[{key}]`");
         // The index joins its receiver, so nothing but space may part them.
         let between = self.text(Span {
             start: receiver.span.end,
@@ -563,21 +555,25 @@ impl<'a> Checker<'a> {
                 Rule::FieldAccess,
                 span,
                 removed,
-                format!("hash fields are indexed, as in {indexed}, once the value is a hash"),
+                written!(
+                    self,
+                    "hash fields are indexed, as in {indexed}, once the value is a hash"
+                ),
             ));
             return true;
         }
-        let advice = format!("hash fields are indexed: {indexed}");
+        let advice = written!(self, "hash fields are indexed: {indexed}");
         let previous = self.enter(Rule::FieldAccess, span, removed, advice);
         if wrap {
             self.edits.wrap(receiver.span, "(", ")");
         }
+        let index = written!(self, "[{key}]");
         self.edits.text(
             Span {
                 start: receiver.span.end,
                 end: span.end,
             },
-            format!("[{key}]"),
+            index,
         );
         self.leave(previous);
         true
@@ -633,9 +629,15 @@ impl<'a> Checker<'a> {
             }
             canonical.push(text);
         }
-        let canonical = format!("{}{}", if star { "*, " } else { "" }, canonical.join(", "));
+        let canonical = written!(
+            self,
+            "{}{}",
+            if star { "*, " } else { "" },
+            canonical.join(", ")
+        );
         let removed = excerpt(self.text(span));
-        let advice = format!(
+        let advice = written!(
+            self,
             "keyword parameters follow a bare `*`: `{}`",
             excerpt(&canonical)
         );
@@ -646,7 +648,7 @@ impl<'a> Checker<'a> {
         for (param, ty) in old.iter().zip(types) {
             let colon = self.token_span(param.keyword_colon.expect("a removed keyword form"));
             let name_end = self.tokens[param.name_tok].end;
-            let declared = ty.map(|ty| format!(": {ty}")).unwrap_or_default();
+            let declared = ty.map(|ty| written!(self, ": {ty}")).unwrap_or_default();
             match (&param.ty, &param.default) {
                 (Some(ty), _) => self.edits.text(
                     Span {
@@ -655,13 +657,16 @@ impl<'a> Checker<'a> {
                     },
                     "",
                 ),
-                (None, Some(default)) => self.edits.text(
-                    Span {
-                        start: name_end,
-                        end: default.span.start,
-                    },
-                    format!("{declared} = "),
-                ),
+                (None, Some(default)) => {
+                    let text = written!(self, "{declared} = ");
+                    self.edits.text(
+                        Span {
+                            start: name_end,
+                            end: default.span.start,
+                        },
+                        text,
+                    );
+                }
                 (None, None) => self.edits.text(
                     Span {
                         start: name_end,
@@ -700,10 +705,11 @@ impl<'a> Checker<'a> {
                         let advice = if lower == "object" {
                             "use `hash`".to_owned()
                         } else {
-                            format!("type names are lowercase: `{canonical}`")
+                            written!(self, "type names are lowercase: `{canonical}`")
                         };
                         let previous = self.enter(Rule::TypeName, span, name, advice);
-                        self.edits.text(span, format!("{canonical}{suffix}"));
+                        let text = written!(self, "{canonical}{suffix}");
+                        self.edits.text(span, text);
                         self.leave(previous);
                     }
                 }
@@ -755,18 +761,19 @@ impl<'a> Checker<'a> {
             {
                 let wrap = |text: &str, expr: &Expr| {
                     if super::context::primary(expr) {
-                        text.to_owned()
+                        self.copied(text)
                     } else {
-                        format!("({text})")
+                        written!(self, "({text})")
                     }
                 };
-                let mut text = format!(
+                let mut text = written!(
+                    self,
                     "{} == {}",
                     wrap(self.text(receiver.span), receiver),
                     wrap(self.text(arg.value.span), &arg.value)
                 );
                 if place == Place::Tight {
-                    text = format!("({text})");
+                    text = written!(self, "({text})");
                 }
                 finding.suggestion = vec![(expr.span, text)];
             }
@@ -930,7 +937,7 @@ impl<'a> Checker<'a> {
                             Rule::Name,
                             span,
                             &call.name,
-                            format!(
+                            written!(self,
                                 "it is removed for some of the receiver's types ({}) but not others; call a member every type has",
                                 kinds.join(", ")
                             ),
@@ -972,7 +979,7 @@ impl<'a> Checker<'a> {
                 if !same {
                     let choices: Vec<String> = matched
                         .iter()
-                        .map(|(p, _)| format!("{} on {}", p.advice(), p.receiver))
+                        .map(|(p, _)| written!(self, "{} on {}", p.advice(), p.receiver))
                         .collect();
                     self.report(Finding::new(
                         Rule::Name,
@@ -1033,7 +1040,7 @@ impl<'a> Checker<'a> {
                     let value = positional.get(next)?;
                     next += 1;
                     if !matches!(value.value.kind, ExprKind::Symbol)
-                        || self.text(value.value.span) != format!(":{symbol}")
+                        || self.text(value.value.span) != written!(self, ":{symbol}")
                     {
                         return None;
                     }
@@ -1163,7 +1170,7 @@ impl<'a> Checker<'a> {
                 rule,
                 span,
                 &pattern.name,
-                format!("{advice}, where it behaves the same"),
+                written!(self, "{advice}, where it behaves the same"),
             ));
             return false;
         }
@@ -1172,7 +1179,10 @@ impl<'a> Checker<'a> {
                 rule,
                 span,
                 &pattern.name,
-                format!("{advice} with an index, a start and a length, or a range"),
+                written!(
+                    self,
+                    "{advice} with an index, a start and a length, or a range"
+                ),
             ));
             return false;
         }
@@ -1181,7 +1191,7 @@ impl<'a> Checker<'a> {
                 rule,
                 span,
                 &pattern.name,
-                format!("{advice}, binding the receiver to a local first"),
+                written!(self, "{advice}, binding the receiver to a local first"),
             ));
             return false;
         }
@@ -1198,7 +1208,7 @@ impl<'a> Checker<'a> {
                 rule,
                 span,
                 &pattern.name,
-                format!("{advice}, where it behaves the same"),
+                written!(self, "{advice}, where it behaves the same"),
             ));
             return false;
         }
@@ -1382,7 +1392,7 @@ impl<'a> Checker<'a> {
                 .iter()
                 .map(|piece| match piece {
                     Piece::Text(text) => text.clone(),
-                    Piece::Source(span) => self.text(*span).to_owned(),
+                    Piece::Source(span) => self.copied(self.text(*span)),
                 })
                 .collect();
             self.edits.insert(previous, text);
@@ -1453,7 +1463,7 @@ impl<'a> Checker<'a> {
                     .next_back()
                     .is_some_and(|c| c.is_alphanumeric() || matches!(c, '_' | '?' | '!'));
                 let text = if glued {
-                    format!(" {flipped}")
+                    written!(self, " {flipped}")
                 } else {
                     flipped.to_owned()
                 };

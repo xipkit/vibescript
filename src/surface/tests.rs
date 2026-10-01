@@ -1005,7 +1005,70 @@ fn a_source_only_the_compiler_reads_fails_a_debug_build() {
     // Tokens the rules' parser cannot read, for a source that compiles.
     let mut tokens = crate::tooling::tokens(source).unwrap();
     tokens[1].kind = crate::tooling::TokenKind::Punct(')');
-    super::add_to(&mut checked, source, &tokens, 0, &|_| true, &|source, _| {
-        Some(crate::syntax::canonical_error(source, &()))
-    });
+    super::add_to(
+        &mut checked,
+        source,
+        &tokens,
+        0,
+        &|_| true,
+        &|source, _| Some(crate::syntax::canonical_error(source, &())),
+        None,
+    );
+}
+
+/// The text each file of the rules' pass writes outside its room, with a
+/// `format!`, `to_string`, `to_owned` or `String::from`, by file and in
+/// three kinds: fixed text, an excerpt or the patterns' own, which is
+/// short; a copy of a name the pass's footprint counts for each word,
+/// class or percent literal it reads; and a copy the room takes before it
+/// is made. Any other text, and above all a copy of a span of the source,
+/// is written through the room with `written!` or `copied`.
+const WRITTEN: &[(&str, [usize; 3])] = &[
+    ("checker.rs", [1, 0, 0]),
+    ("context.rs", [1, 9, 0]),
+    ("edits.rs", [2, 0, 1]),
+    ("parse.rs", [11, 22, 0]),
+    ("patterns.rs", [12, 0, 0]),
+    ("rules.rs", [7, 0, 0]),
+    ("walk.rs", [1, 2, 0]),
+];
+
+#[test]
+fn the_text_the_rules_write_is_in_their_room_or_of_a_kind() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut sources = vec![root.join("surface.rs")];
+    for entry in std::fs::read_dir(root.join("surface")).unwrap() {
+        sources.push(entry.unwrap().path());
+    }
+    let mut found = Vec::new();
+    for path in sources {
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        if name == "tests.rs" {
+            continue;
+        }
+        let text = std::fs::read_to_string(&path).unwrap();
+        // The tests at the end are cut; a test's own helper earlier stays.
+        let code = text.split("#[cfg(test)]\nmod tests {").next().unwrap();
+        let written = code
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("//"))
+            .filter(|line| {
+                ["format!(", ".to_string()", ".to_owned()", "String::from("]
+                    .iter()
+                    .any(|site| line.contains(site))
+            })
+            .count();
+        let kinds = WRITTEN
+            .iter()
+            .find(|(file, _)| *file == name)
+            .map_or(0, |(_, kinds)| kinds.iter().sum());
+        if written != kinds {
+            found.push(format!("{name}: {written} written, {kinds} of a kind"));
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "write the rules' text through their room, or say here which kind it is:\n{}",
+        found.join("\n")
+    );
 }

@@ -1,7 +1,12 @@
 //! The compiler's use of the rules: every removed spelling in a source as
 //! a `V04xx` diagnostic, with the rewrite as its fix.
 
-use super::{Finding, Rule, context::Surface, parse, syntax};
+use super::{
+    Finding, Rule,
+    context::Surface,
+    edits::{Room, Written},
+    parse, syntax,
+};
 use crate::{
     diagnostic::{Code, Diagnostic, Edit, Fix, Span},
     tooling,
@@ -32,6 +37,7 @@ pub fn check(source: &str) -> crate::Result<Vec<Diagnostic>> {
         &CallTypes::default(),
         &mut || true,
         &|| false,
+        &mut Room::default(),
     )
     .unwrap_or_default())
 }
@@ -43,18 +49,20 @@ pub fn check(source: &str) -> crate::Result<Vec<Diagnostic>> {
 /// [`NESTING`] is parsed again without the limit only if `afford`, which
 /// charges that parse, allows it. A parse, and the walk that finds the
 /// removed spellings, give up, and the walk reads nothing, once `stop`
-/// says the compilation has stopped.
+/// says the compilation has stopped, or once the text the walk copies and
+/// renders would pass its `room`.
 fn walk<'s>(
     source: &'s str,
     tokens: &[tooling::Token],
     calls: &CallTypes,
     afford: &mut dyn FnMut() -> bool,
     stop: parse::Stop<'s>,
+    room: &mut Room,
 ) -> Option<Vec<Diagnostic>> {
     match parse::parse_tokens(source, tokens, NESTING, stop) {
-        Ok(tree) => diagnostics(source, &tree, calls, stop),
+        Ok(tree) => diagnostics(source, &tree, calls, stop, room),
         // A parse that never reached the limit fails the same way without it.
-        Err(fail) if fail.too_deep && afford() => deep(source, tokens, calls, stop),
+        Err(fail) if fail.too_deep && afford() => deep(source, tokens, calls, stop, room),
         Err(_) => None,
     }
 }
@@ -151,7 +159,11 @@ pub(crate) fn footprint(
 /// since, as a deadline or a cancellation does, and gives up if it has.
 /// The compiler's own parse of a source the rules cannot read runs through
 /// `canonical`, given the steps charged so far, which gives its first
-/// syntax error, if any, or `None` once the budget stops it.
+/// syntax error, if any, or `None` once the budget stops it. The text the
+/// pass copies from the source and renders for its fixes may hold `room`
+/// bytes beyond its footprint, or any amount when `None`; one that would
+/// hold more stops the check, and what it held adds to the pass's
+/// footprint.
 pub(crate) fn add_to(
     checked: &mut crate::typing::Checked,
     source: &str,
@@ -159,6 +171,7 @@ pub(crate) fn add_to(
     interpolated: usize,
     within: &(dyn Fn(u64) -> bool + Sync),
     canonical: &dyn Fn(&str, u64) -> Option<Option<crate::Error>>,
+    room: Option<usize>,
 ) {
     let read = u64::try_from(tokens.len() + interpolated + entries(tokens)).unwrap_or(u64::MAX);
     checked.steps += read;
@@ -174,7 +187,20 @@ pub(crate) fn add_to(
         checked.stopped = true;
         return;
     }
-    let walked = walk(source, tokens, &checked.calls, &mut afford, &stop);
+    let mut room = Room::new(room);
+    let walked = walk(
+        source,
+        tokens,
+        &checked.calls,
+        &mut afford,
+        &stop,
+        &mut room,
+    );
+    checked.surface_bytes += room.peak();
+    if room.full() {
+        checked.stopped = true;
+        return;
+    }
     let Some(surface) = walked else {
         // The compiler's grammar reads the removed syntax only so that these
         // rules report it. A source they cannot read must parse without
@@ -248,6 +274,7 @@ fn deep<'s>(
     tokens: &[tooling::Token],
     calls: &CallTypes,
     stop: parse::Stop<'s>,
+    room: &mut Room,
 ) -> Option<Vec<Diagnostic>> {
     std::thread::scope(|scope| {
         std::thread::Builder::new()
@@ -255,7 +282,7 @@ fn deep<'s>(
             .spawn_scoped(scope, || {
                 parse::parse_tokens(source, tokens, usize::MAX, stop)
                     .ok()
-                    .and_then(|tree| diagnostics(source, &tree, calls, stop))
+                    .and_then(|tree| diagnostics(source, &tree, calls, stop, room))
             })
             .ok()
             .and_then(|thread| thread.join().ok())
@@ -271,6 +298,7 @@ fn deep(
     _: &[tooling::Token],
     _: &CallTypes,
     _: parse::Stop<'_>,
+    _: &mut Room,
 ) -> Option<Vec<Diagnostic>> {
     None
 }
@@ -283,6 +311,7 @@ fn diagnostics<'s>(
     tree: &syntax::Tree,
     calls: &CallTypes,
     stop: parse::Stop<'s>,
+    room: &mut Room,
 ) -> Option<Vec<Diagnostic>> {
     let mut checker = Checker {
         surface: Surface::new(source, tree),
@@ -291,72 +320,122 @@ fn diagnostics<'s>(
         stop,
         visits: 0,
         stopped: false,
+        room: std::mem::take(room),
     };
-    checker.program(&tree.body);
-    if checker.stopped {
-        return None;
-    }
-    let groups = checker.surface.edits.groups(checker.surface.rewrites.len());
-    let mut diagnostics = Vec::new();
-    for (group, rewrite) in checker.surface.rewrites.iter().enumerate() {
-        if group % POLL == 0 && stop() {
+    let found = checker.found(source, tree, stop);
+    *room = std::mem::take(&mut checker.room);
+    found
+}
+
+impl<'a> Checker<'a> {
+    /// The removed spellings in `tree` as diagnostics, or `None` once the
+    /// walk stops. The text each diagnostic copies takes from the room.
+    fn found(
+        &mut self,
+        source: &str,
+        tree: &'a syntax::Tree,
+        stop: parse::Stop<'_>,
+    ) -> Option<Vec<Diagnostic>> {
+        self.program(&tree.body);
+        if self.stopped || self.room.full() {
             return None;
         }
-        let code = rewrite.rule.code();
-        let edits: Vec<Edit> = checker
-            .surface
-            .edits
-            .flatten_group(source, &groups[group])
-            .into_iter()
-            .map(|(at, replacement)| Edit {
-                span: span(at),
-                replacement,
-            })
-            .filter(|edit| edit.span.start < edit.span.end || !edit.replacement.is_empty())
-            .collect();
-        let message = match rewrite.rule {
-            Rule::Require => format!(
-                "`require` names modules and aliases with string literals, not `{}`; {}",
-                rewrite.removed, rewrite.advice
-            ),
-            _ => format!("`{}` was removed; {}", rewrite.removed, rewrite.advice),
-        };
-        let mut diagnostic = Diagnostic::error(code, span(rewrite.span), message);
-        let fix = Fix::edits(rewrite.advice.clone(), edits);
-        if !fix.edits.is_empty() && fix.applies(source) {
-            diagnostic = diagnostic.with_fix(fix);
-        }
-        diagnostics.push(diagnostic);
-    }
-    for (index, finding) in checker.findings.iter().enumerate() {
-        if index % POLL == 0 && stop() {
-            return None;
-        }
-        let code = finding.rule.code();
-        let message = format!("`{}` was removed; {}", finding.removed, finding.advice);
-        let mut diagnostic = Diagnostic::error(code, span(finding.span), message);
-        if !finding.suggestion.is_empty() {
-            let edits = finding
-                .suggestion
-                .iter()
+        let groups = self.surface.edits.groups(self.surface.rewrites.len());
+        let mut diagnostics = Vec::new();
+        for (group, rewrite) in self.surface.rewrites.iter().enumerate() {
+            if group % POLL == 0 && stop() {
+                return None;
+            }
+            let code = rewrite.rule.code();
+            let edits: Vec<Edit> = self
+                .surface
+                .edits
+                .flatten_group(source, &groups[group], &self.room)?
+                .into_iter()
                 .map(|(at, replacement)| Edit {
-                    span: span(*at),
-                    replacement: replacement.clone(),
+                    span: span(at),
+                    replacement,
                 })
+                .filter(|edit| edit.span.start < edit.span.end || !edit.replacement.is_empty())
                 .collect();
-            let fix = Fix::edits(finding.advice.clone(), edits).suggestion();
-            if fix.applies(source) {
+            let mut message = Written::new(&self.room);
+            match rewrite.rule {
+                Rule::Require => message.write(format_args!(
+                    "`require` names modules and aliases with string literals, not `{}`; {}",
+                    rewrite.removed, rewrite.advice
+                )),
+                _ => message.write(format_args!(
+                    "`{}` was removed; {}",
+                    rewrite.removed, rewrite.advice
+                )),
+            }
+            let message = message.finish()?;
+            if !self.room.take(rewrite.advice.len()) {
+                return None;
+            }
+            let mut diagnostic = Diagnostic::error(code, span(rewrite.span), message);
+            let fix = Fix::edits(rewrite.advice.clone(), edits);
+            if !fix.edits.is_empty() && fix.applies(source) {
                 diagnostic = diagnostic.with_fix(fix);
             }
+            diagnostics.push(diagnostic);
         }
-        diagnostics.push(diagnostic);
+        for (index, finding) in self.findings.iter().enumerate() {
+            if index % POLL == 0 && stop() {
+                return None;
+            }
+            let code = finding.rule.code();
+            let mut message = Written::new(&self.room);
+            message.write(format_args!(
+                "`{}` was removed; {}",
+                finding.removed, finding.advice
+            ));
+            let message = message.finish()?;
+            let mut diagnostic = Diagnostic::error(code, span(finding.span), message);
+            if !finding.suggestion.is_empty() {
+                let mut edits = Vec::with_capacity(finding.suggestion.len());
+                for (at, replacement) in &finding.suggestion {
+                    if !self.room.take(replacement.len()) {
+                        return None;
+                    }
+                    edits.push(Edit {
+                        span: span(*at),
+                        replacement: replacement.clone(),
+                    });
+                }
+                if !self.room.take(finding.advice.len()) {
+                    return None;
+                }
+                let fix = Fix::edits(finding.advice.clone(), edits).suggestion();
+                if fix.applies(source) {
+                    diagnostic = diagnostic.with_fix(fix);
+                }
+            }
+            diagnostics.push(diagnostic);
+        }
+        if self.stopped || stop() {
+            return None;
+        }
+        diagnostics.sort_by_key(|diagnostic| {
+            (diagnostic.span.start, diagnostic.span.end, diagnostic.code)
+        });
+        Some(diagnostics)
     }
-    if checker.stopped || stop() {
-        return None;
+
+    /// `args` written out through the room, as `format!` writes them;
+    /// empty once the room refuses them, which stops the walk.
+    pub(super) fn written(&self, args: std::fmt::Arguments<'_>) -> String {
+        let mut text = Written::new(&self.room);
+        text.write(args);
+        // A refusal leaves the room full, which stops the walk.
+        text.finish().unwrap_or_default()
     }
-    diagnostics
-        .sort_by_key(|diagnostic| (diagnostic.span.start, diagnostic.span.end, diagnostic.code));
-    Some(diagnostics)
+
+    /// A copy of `text`, the source's or the walk's, taken from the room
+    /// as [`Self::written`] takes it.
+    pub(super) fn copied(&self, text: &str) -> String {
+        self.written(format_args!("{text}"))
+    }
 }
 
 /// How many statements, expressions or diagnostics the walk for removed
@@ -376,15 +455,21 @@ pub(super) struct Checker<'a> {
     /// [`POLL`] statements and expressions.
     stop: parse::Stop<'a>,
     visits: usize,
-    /// Whether the walk gave up because the compilation stopped.
+    /// Whether the walk gave up because the compilation stopped, or the
+    /// text it copies outgrew its room.
     stopped: bool,
+    /// What the text the walk copies and renders may hold.
+    room: Room,
 }
 
 impl Checker<'_> {
     /// Counts a statement or an expression the walk visits, asking every
     /// [`POLL`] of them whether the compilation has stopped. Returns
-    /// whether the walk should give up.
+    /// whether the walk should give up, as it does once its room is full.
     pub(super) fn halt(&mut self) -> bool {
+        if self.room.full() {
+            self.stopped = true;
+        }
         if !self.stopped {
             self.visits += 1;
             if self.visits % POLL == 0 {
@@ -452,7 +537,7 @@ impl<'a> Checker<'a> {
                     | "time" | "duration" | "money" | "range" | "regex" | "match_data"
                     | "error" | "any" | "type" | "namespace" => base.clone(),
                     name if self.declared.enums.contains_key(name) => "enum".to_owned(),
-                    name => format!("class {name}"),
+                    name => written!(self, "class {name}"),
                 })
                 .collect(),
         )

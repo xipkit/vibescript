@@ -4,6 +4,120 @@
 //! another rule has rewritten something inside `x`.
 
 use super::syntax::Span;
+use std::cell::Cell;
+
+/// The memory the rules' pass may hold beyond what its footprint counts:
+/// the text it copies from the source and renders, which the footprint
+/// cannot know in advance. Each copy takes its bytes before it is made,
+/// and gives them back once it is dropped; a copy that would pass what is
+/// left is refused, which stops the pass. It records the most the copies
+/// held at once.
+#[derive(Debug, Default)]
+pub(crate) struct Room {
+    /// What the pass may hold, or `None` for as much as it needs.
+    left: Option<usize>,
+    held: Cell<usize>,
+    peak: Cell<usize>,
+    full: Cell<bool>,
+}
+
+impl Room {
+    pub fn new(left: Option<usize>) -> Self {
+        Self {
+            left,
+            ..Self::default()
+        }
+    }
+
+    /// Takes `bytes` a copy is about to hold; whether they fit.
+    #[must_use = "a copy the room refuses must not be made"]
+    pub fn take(&self, bytes: usize) -> bool {
+        if self.full.get() {
+            return false;
+        }
+        let held = self.held.get().saturating_add(bytes);
+        if self.left.is_some_and(|left| held > left) {
+            self.full.set(true);
+            return false;
+        }
+        self.held.set(held);
+        self.peak.set(self.peak.get().max(held));
+        true
+    }
+
+    /// Gives back `bytes` a copy held, once it is dropped.
+    pub fn give_back(&self, bytes: usize) {
+        self.held.set(self.held.get().saturating_sub(bytes));
+    }
+
+    /// Whether a copy was refused, which stops the pass.
+    pub fn full(&self) -> bool {
+        self.full.get()
+    }
+
+    /// The most the copies held at once.
+    pub fn peak(&self) -> usize {
+        self.peak.get()
+    }
+}
+
+/// Text the pass writes, taking from its [`Room`] before the string grows
+/// to take each piece, with its old and new storage while it grows. Once
+/// the room refuses a piece, it writes nothing more.
+pub(crate) struct Written<'r> {
+    text: String,
+    room: &'r Room,
+}
+
+impl<'r> Written<'r> {
+    pub fn new(room: &'r Room) -> Self {
+        Self {
+            text: String::new(),
+            room,
+        }
+    }
+
+    pub fn push_str(&mut self, piece: &str) {
+        if self.room.full() {
+            return;
+        }
+        let (length, capacity) = (self.text.len(), self.text.capacity());
+        let needed = length.saturating_add(piece.len());
+        if needed > capacity {
+            let target = needed.max(2 * capacity).max(16);
+            if !self.room.take(target) {
+                return;
+            }
+            self.text.reserve_exact(target - length);
+            self.room.give_back(capacity);
+        }
+        self.text.push_str(piece);
+    }
+
+    /// Writes `args`, as `write!` writes them; a refusal stops the writing.
+    pub fn write(&mut self, args: std::fmt::Arguments<'_>) {
+        // A refused piece leaves the room full, which `finish` reads.
+        if std::fmt::Write::write_fmt(self, args).is_err() {
+            debug_assert!(self.room.full());
+        }
+    }
+
+    /// The text, which keeps what it took from the room; `None` once the
+    /// room refused a piece.
+    pub fn finish(self) -> Option<String> {
+        (!self.room.full()).then_some(self.text)
+    }
+}
+
+impl std::fmt::Write for Written<'_> {
+    fn write_str(&mut self, piece: &str) -> std::fmt::Result {
+        self.push_str(piece);
+        if self.room.full() {
+            return Err(std::fmt::Error);
+        }
+        Ok(())
+    }
+}
 
 /// Part of an edit's replacement.
 #[derive(Clone, Debug)]
@@ -54,7 +168,8 @@ impl Edits {
         let members: Vec<usize> = (0..self.edits.len())
             .filter(|&index| self.edits[index].group == Some(group))
             .collect();
-        self.flatten_group(source, &members)
+        self.flatten_group(source, &members, &Room::default())
+            .unwrap()
     }
 
     /// The edits of each of `count` rewrites, by the order they were made,
@@ -72,8 +187,16 @@ impl Edits {
     /// The edits `members` lists, which [`Self::groups`] gives for a
     /// rewrite, applied on their own, as non-overlapping replacements of
     /// `source`: edits that nest, overlap or meet are rendered together, the
-    /// later seeing the earlier as when every edit is applied.
-    pub fn flatten_group(&self, source: &str, members: &[usize]) -> Vec<(Span, String)> {
+    /// later seeing the earlier as when every edit is applied. The source
+    /// each copies and the text each renders take from `room` before they
+    /// are made, and the replacements keep what they took; `None` once the
+    /// room refuses one.
+    pub fn flatten_group(
+        &self,
+        source: &str,
+        members: &[usize],
+        room: &Room,
+    ) -> Option<Vec<(Span, String)>> {
         let mut edits: Vec<&Edit> = members.iter().map(|&index| &self.edits[index]).collect();
         edits.sort_by_key(|edit| (edit.span.start, edit.span.end));
         let mut clusters: Vec<(Span, Vec<&Edit>)> = Vec::new();
@@ -86,38 +209,63 @@ impl Edits {
                 _ => clusters.push((edit.span, vec![edit])),
             }
         }
-        clusters
-            .into_iter()
-            .map(|(extent, mut members)| {
-                members.sort_by_key(|edit| edit.order);
-                // Padding keeps every edit inside the rendered text, so none
-                // spans all of it and insertions at either end stay in.
-                let text = format!(" {} ", &source[extent.start..extent.end]);
-                let local = |span: Span| Span {
-                    start: span.start - extent.start + 1,
-                    end: span.end - extent.start + 1,
-                };
-                let mut edits = Edits::default();
-                for member in members {
-                    let pieces = member
-                        .pieces
-                        .iter()
-                        .map(|piece| match piece {
-                            Piece::Source(span)
-                                if span.start >= extent.start && span.end <= extent.end =>
-                            {
-                                Piece::Source(local(*span))
+        let mut flattened = Vec::with_capacity(clusters.len());
+        for (extent, mut members) in clusters {
+            members.sort_by_key(|edit| edit.order);
+            // Padding keeps every edit inside the rendered text, so none
+            // spans all of it and insertions at either end stay in. Its
+            // copy, and the pieces copied for the edits, are dropped once
+            // the text is rendered.
+            let padded = extent.end - extent.start + 2;
+            if !room.take(padded) {
+                return None;
+            }
+            let mut text = String::with_capacity(padded);
+            text.push(' ');
+            text.push_str(&source[extent.start..extent.end]);
+            text.push(' ');
+            let local = |span: Span| Span {
+                start: span.start - extent.start + 1,
+                end: span.end - extent.start + 1,
+            };
+            let mut copied = 0;
+            let mut edits = Edits::default();
+            for member in members {
+                let mut pieces = Vec::with_capacity(member.pieces.len());
+                for piece in &member.pieces {
+                    pieces.push(match piece {
+                        Piece::Source(span)
+                            if span.start >= extent.start && span.end <= extent.end =>
+                        {
+                            Piece::Source(local(*span))
+                        }
+                        Piece::Source(span) => {
+                            copied += span.end - span.start;
+                            if !room.take(span.end - span.start) {
+                                return None;
                             }
-                            Piece::Source(span) => Piece::Text(source[span.range()].to_owned()),
-                            Piece::Text(text) => Piece::Text(text.clone()),
-                        })
-                        .collect();
-                    edits.replace(local(member.span), pieces);
+                            Piece::Text(source[span.range()].to_owned())
+                        }
+                        Piece::Text(text) => {
+                            copied += text.len();
+                            if !room.take(text.len()) {
+                                return None;
+                            }
+                            Piece::Text(text.clone())
+                        }
+                    });
                 }
-                let rendered = edits.apply(&text);
-                (extent, rendered[1..rendered.len() - 1].to_owned())
-            })
-            .collect()
+                edits.replace(local(member.span), pieces);
+            }
+            let mut rendered = edits.apply_in(&text, room)?;
+            room.give_back(padded + copied);
+            // The padding is taken off in place, rather than copying what
+            // it pads.
+            rendered.pop();
+            rendered.remove(0);
+            flattened.push((extent, rendered));
+        }
+        Some(flattened)
     }
 
     /// Replaces `span`. Edits of the same span stack: a later one sees the
@@ -161,7 +309,14 @@ impl Edits {
     }
 
     /// Renders `source` with every edit applied.
+    #[cfg(test)]
     pub fn apply(&mut self, source: &str) -> String {
+        self.apply_in(source, &Room::default()).unwrap()
+    }
+
+    /// Renders `source` with every edit applied, writing the text through
+    /// `room`; `None` once the room refuses it.
+    pub fn apply_in(&mut self, source: &str, room: &Room) -> Option<String> {
         self.edits.sort_by(|a, b| {
             a.span
                 .start
@@ -170,7 +325,7 @@ impl Edits {
                 .then(b.span.end.cmp(&a.span.end))
                 .then(a.order.cmp(&b.order))
         });
-        let mut out = String::with_capacity(source.len());
+        let mut out = Written::new(room);
         let whole = Span {
             start: 0,
             end: source.len(),
@@ -181,7 +336,7 @@ impl Edits {
         };
         self.render(source, whole, None, &mut out, &mut state);
         self.conflicts = state.conflicts;
-        out
+        out.finish()
     }
 
     /// Renders `span`, where `limit` bounds which edits of exactly this span
@@ -191,7 +346,7 @@ impl Edits {
         source: &str,
         span: Span,
         limit: Option<usize>,
-        out: &mut String,
+        out: &mut Written<'_>,
         state: &mut State,
     ) {
         let whole = span.start == 0 && span.end == source.len() && limit.is_none();

@@ -724,7 +724,14 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
                     }
                     Some(error)
                 },
+                // The text its fixes copy and render may take what the
+                // memory leaves beside the check and the pass's footprint;
+                // more stops the check.
+                budget.memory.map(|left| left.saturating_sub(held)),
             );
+            if checked.stopped {
+                meter.stop();
+            }
         }
     }
     checked
