@@ -447,26 +447,22 @@ impl<'a> Checker<'a> {
 
     /// Collects the declarations and resolves every signature.
     pub(super) fn declare_program(&mut self, parsed: &'a Declarations) {
-        // Every enum is declared, since the file's enums are found by
-        // their places, but a check that stops declares the rest without
-        // members.
-        let mut stopped = self.halted();
+        // Each enum, with its members, is counted before it is declared,
+        // and a check that stops declares no more of them: an enum's name,
+        // the enum and its name in the type table take their places
+        // together, so each name found has its enum.
         for (index, (name, members)) in parsed.enums.iter().enumerate() {
-            // Its places are kept however the budget stands, and counted:
-            // its names as the tables take them, and the enum an `Arc`
-            // shares here.
+            if self.halted() || !self.enum_fits(members) {
+                return;
+            }
+            // Its places are kept once it fits, and counted: its names as
+            // the tables take them, and the enum an `Arc` shares here.
             let always = self.meter.declarations().regardless();
             always.kept(name.len() + std::mem::size_of::<Enum>() + 16);
             self.program
                 .enum_names
                 .insert_regardless(always, name.to_string(), index as u32);
-            // A check past its budget declares the enum without members,
-            // which it never reads.
-            let members = if !stopped && self.enum_fits(members) {
-                members.iter().map(|m| m.to_string()).collect()
-            } else {
-                Vec::new()
-            };
+            let members = members.iter().map(|m| m.to_string()).collect();
             let always = self.meter.declarations().regardless();
             self.program
                 .enums
@@ -475,7 +471,9 @@ impl<'a> Checker<'a> {
                 .names
                 .enums
                 .push_regardless(always, name.to_string());
-            stopped = self.declaring();
+            if self.declaring() {
+                return;
+            }
         }
         // A check that runs out of its budget stops declaring.
         for (index, module) in parsed.modules.iter().enumerate() {

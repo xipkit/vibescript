@@ -1807,9 +1807,8 @@ mod tests {
         ("marks.rs", [1, 0, 0]),
         // A namespace's signature without type variables.
         ("modules.rs", [1, 0, 0]),
-        // An enum's members a stopped check skips, and a signature's
-        // variables.
-        ("program.rs", [2, 0, 0]),
+        // A signature's variables.
+        ("program.rs", [1, 0, 0]),
         // The builtin signatures' index, and a signature's variables.
         ("sigs.rs", [1, 10, 0]),
         // A display's text and parts, which share one room; a union's

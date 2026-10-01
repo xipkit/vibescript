@@ -804,6 +804,14 @@ fn listed(n: usize, item: impl Fn(usize) -> String, separator: &str) -> String {
 /// required files, construction checks and diagnostics.
 fn shapes() -> Vec<Shape> {
     vec![
+        // Each enum takes its places in three tables once it fits the
+        // budget, and a check that stops declares no more.
+        ("enums of a member each", |n| {
+            (
+                Vec::new(),
+                lines(n * 4, |i| format!("enum E{i}\n  A{i}\nend\n")),
+            )
+        }),
         ("a wide enum", |n| {
             let members = lines(n, |i| format!("  M{i}\n"));
             (Vec::new(), format!("enum E\n{members}end\np(E::M0)\n"))
