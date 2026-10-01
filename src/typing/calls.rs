@@ -2095,18 +2095,13 @@ impl<'a> Checker<'a> {
             }
         };
         let rest = sig.keyword_rest().map(|param| param.ty);
-        // The keywords given, kept while their values are checked.
-        let mut given = Vec::new();
-        let mut held = 0;
+        // The keywords given, kept while their values are checked, in a
+        // list counted, with the copies of their names, while it lives.
+        let mut given = ScratchVec::new(&self.meter);
         for arg in call.args {
             match &arg.kind {
                 ArgumentKind::Keyword(name) => {
-                    let Some(bytes) = self.hold(std::mem::size_of::<String>() + name.len()) else {
-                        self.release(held);
-                        return;
-                    };
-                    held += bytes;
-                    given.push(self.copy(name));
+                    given.add(self.copy(name));
                     let param = keyword(name)
                         .or_else(|| rest.map(|ty| self.types.hash_value(ty).unwrap_or(Ty::ANY)));
                     match param {
@@ -2117,7 +2112,6 @@ impl<'a> Checker<'a> {
                             };
                             let Some(purpose_held) = self.hold(super::meter::Heap::heap(&purpose))
                             else {
-                                self.release(held);
                                 return;
                             };
                             self.argument(&arg.value, param_ty, bindings, &purpose);
@@ -2138,20 +2132,9 @@ impl<'a> Checker<'a> {
                 ArgumentKind::KeywordSplat => {
                     let ty = self.expr(&arg.value, None);
                     if let Kind::Shape(fields, _) = &*self.types.shared(ty) {
-                        let Some(bytes) = self.hold(fields.len() * std::mem::size_of::<String>())
-                        else {
-                            self.release(held);
-                            return;
-                        };
-                        held += bytes;
                         for field in fields.iter() {
                             if !field.optional {
-                                let Some(bytes) = self.hold(field.name.len()) else {
-                                    self.release(held);
-                                    return;
-                                };
-                                held += bytes;
-                                given.push(self.copy(&field.name));
+                                given.add(self.copy(&field.name));
                             }
                             let expected = keyword(&field.name).or_else(|| {
                                 rest.map(|ty| self.types.hash_value(ty).unwrap_or(Ty::ANY))
@@ -2220,7 +2203,6 @@ impl<'a> Checker<'a> {
                 ));
             }
         }
-        self.release(held);
     }
 
     /// The type of a member call's result. Iterating members return their

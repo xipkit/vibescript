@@ -1892,9 +1892,9 @@ impl<'a> Checker<'a> {
         want: Want,
     ) -> Ty {
         let subject_ty = subject.map(|subject| self.expr(subject, None));
-        // The values the `when`s name, kept while the rest are checked.
-        let mut covered: Vec<String> = Vec::new();
-        let mut held = 0;
+        // The values the `when`s name, kept while the rest are checked, in a
+        // list counted, with the names, while it lives.
+        let mut covered = ScratchVec::new(&self.meter);
         // The branches' values, in a list counted while it lives.
         let mut results = super::counted::ScratchVec::new(&self.meter);
         let mut explored = ScratchVec::new(&self.meter);
@@ -1909,15 +1909,7 @@ impl<'a> Checker<'a> {
                             .then_some(subject);
                         let ty = self.expr(value, hint);
                         if let Some(name) = self.covered_value(value, ty, subject) {
-                            let Some(bytes) = self.hold(std::mem::size_of::<String>() + name.len())
-                            else {
-                                self.release(held);
-                                self.frame.flow.rollback(entry);
-                                self.join_explored(explored);
-                                return Ty::ERROR;
-                            };
-                            held += bytes;
-                            covered.push(name);
+                            covered.add(name);
                         }
                     }
                     None => {
@@ -1928,7 +1920,6 @@ impl<'a> Checker<'a> {
             let mark = self.frame.flow.mark();
             let ty = self.branch_value(&when.result, want);
             if self.halted() {
-                self.release(held);
                 self.frame.flow.rollback(entry);
                 self.join_explored(explored);
                 return Ty::ERROR;
@@ -1944,7 +1935,6 @@ impl<'a> Checker<'a> {
             None => false,
         };
         drop(covered);
-        self.release(held);
         match alternate {
             Some(alternate) => {
                 let ty = self.branch_value(alternate, want);

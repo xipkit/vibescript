@@ -1666,10 +1666,9 @@ mod tests {
         ("typing.rs", [6, 0, 0]),
         // A stopped walk's results, and a root without assignments.
         ("assigns.rs", [3, 0, 0]),
-        // Bindings of signatures without type variables; the members of a
-        // host or builtin namespace of one name, a few; and the keywords
-        // given, held as each is kept.
-        ("calls.rs", [21, 2, 1]),
+        // Bindings of signatures without type variables, and the members
+        // of a host or builtin namespace of one name, a few.
+        ("calls.rs", [21, 2, 0]),
         // A union's alternatives an `is_a?` keeps; the file's shared and
         // written names and each function's, counted before they are
         // copied; and the defaults by class, counted before they are
@@ -1679,9 +1678,8 @@ mod tests {
         // before the search starts.
         ("construction.rs", [10, 0, 3]),
         // A hint's enums, and the results of an operator's alternatives,
-        // which relate types but check no syntax; and the `when` values
-        // covered, held as each is kept.
-        ("expr.rs", [1, 2, 1]),
+        // which relate types but check no syntax.
+        ("expr.rs", [1, 2, 0]),
         // A stopped check's branches.
         ("flow.rs", [4, 0, 0]),
         // The size of an empty node.
