@@ -13,7 +13,7 @@ impl<'a> Checker<'a> {
     /// Walks a whole program.
     pub(super) fn program(&mut self, body: &'a [Stmt]) {
         let mut scope = Scope::default();
-        collect_locals(body, &mut scope);
+        collect_locals(body, &mut scope, &mut || self.halt());
         self.scopes.push(scope);
         self.statements(body);
         self.scopes.pop();
@@ -188,15 +188,20 @@ impl<'a> Checker<'a> {
             class,
             ..Scope::default()
         };
+        // Each parameter is a step the pass charged up front, and the walk
+        // asks now and then whether the compilation has stopped.
         for param in &def.params {
+            if self.halt() {
+                return;
+            }
             scope.locals.insert(param.name.clone());
             if let Some(default) = &param.default {
-                collect_expr(default, &mut scope);
+                collect_expr(default, &mut scope, &mut || self.halt());
             }
         }
-        collect_locals(&def.body, &mut scope);
+        collect_locals(&def.body, &mut scope, &mut || self.halt());
         if let Some(rescued) = &def.rescue {
-            collect_rescued(rescued, &mut scope);
+            collect_rescued(rescued, &mut scope, &mut || self.halt());
         }
         self.scopes.push(scope);
         self.keyword_params(def);
@@ -259,7 +264,7 @@ impl<'a> Checker<'a> {
                         class: Some(class),
                         ..Scope::default()
                     };
-                    collect_locals(std::slice::from_ref(stmt), &mut scope);
+                    collect_locals(std::slice::from_ref(stmt), &mut scope, &mut || self.halt());
                     self.scopes.push(scope);
                     self.stmt(stmt);
                     self.scopes.pop();
@@ -451,7 +456,7 @@ impl<'a> Checker<'a> {
                 scope.locals.insert(name.to_owned());
             });
         }
-        collect_locals(&block.body, &mut scope);
+        collect_locals(&block.body, &mut scope, &mut || self.halt());
         self.scopes.push(scope);
         for param in &block.params {
             self.target(param);

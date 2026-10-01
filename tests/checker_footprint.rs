@@ -1854,10 +1854,69 @@ fn a_cancellation_anywhere_in_a_source_of_many_tokens_stops_it_promptly() {
     };
     let strings = listed(32, |_| "\"s\"".to_owned(), ", ");
     let source = lines(count, |i| format!("x{i} = [{strings}]\n"));
+    let failures = cancelled_late(&source, points);
+    assert!(
+        failures.is_empty(),
+        "{} compilations went on after they were cancelled:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
+#[test]
+fn a_cancellation_anywhere_in_a_wide_function_stops_it_promptly() {
+    let _serial = SERIAL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    // A function's parameters, declared one by one, written in a removed
+    // keyword form whose rewrite edits each, which the fix then sorts and
+    // flattens, and a function's assignments, each a local the surface
+    // pass gathers before it walks the body: every pass over them asks
+    // the budget as it goes. Unoptimized builds, and WASI, check smaller
+    // functions, in time.
+    let (params, assignments, points) = if cfg!(any(debug_assertions, target_os = "wasi")) {
+        (8_000, 8_000, 16)
+    } else {
+        (100_000, 150_000, 64)
+    };
+    let sources = [
+        (
+            format!("a removed keyword form of {params} parameters"),
+            format!(
+                "def f({}) -> int\n  1\nend\np(1)\n",
+                listed(params, |i| format!("k{i}: 1"), ", ")
+            ),
+        ),
+        (
+            format!("a function of {assignments} assignments"),
+            format!(
+                "def f -> int\n{}  1\nend\np(1)\n",
+                lines(assignments, |i| format!("  x{i} = 1\n"))
+            ),
+        ),
+    ];
+    let mut failures = Vec::new();
+    for (name, source) in sources {
+        for failure in cancelled_late(&source, points) {
+            failures.push(format!("{name}, {failure}"));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} compilations went on after they were cancelled:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
+/// The cancellations, at `points` places evenly through compiling `source`,
+/// after which the compilation went on past [`AFTER_CANCEL_ALLOCATIONS`]
+/// allocations or [`AFTER_CANCEL_BYTES`] bytes, each described.
+fn cancelled_late(source: &str, points: usize) -> Vec<String> {
     let engine = Engine::new();
-    let _ = engine.compile_with_options(&source, &limited(None, None));
+    let _ = engine.compile_with_options(source, &limited(None, None));
     let before = ALLOCATIONS.load(Relaxed);
-    let _ = engine.compile_with_options(&source, &limited(None, None));
+    let _ = engine.compile_with_options(source, &limited(None, None));
     let allocations = ALLOCATIONS.load(Relaxed) - before;
     let mut failures = Vec::new();
     for point in 0..points {
@@ -1871,7 +1930,7 @@ fn a_cancellation_anywhere_in_a_source_of_many_tokens_stops_it_promptly() {
         CANCELLED_ALLOCATIONS.store(usize::MAX, Relaxed);
         CANCEL_AT.store(ALLOCATIONS.load(Relaxed) + at, Relaxed);
         let result = engine
-            .compile_with_options(&source, &options)
+            .compile_with_options(source, &options)
             .map(drop)
             .map_err(|error| error.kind);
         CANCEL_AT.store(usize::MAX, Relaxed);
@@ -1888,12 +1947,7 @@ fn a_cancellation_anywhere_in_a_source_of_many_tokens_stops_it_promptly() {
             ));
         }
     }
-    assert!(
-        failures.is_empty(),
-        "{} compilations went on after they were cancelled:\n{}",
-        failures.len(),
-        failures.join("\n")
-    );
+    failures
 }
 
 /// When the checker started and when it finished, of the last check

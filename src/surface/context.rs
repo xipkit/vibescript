@@ -529,28 +529,37 @@ pub fn symbol_literal(bytes: &[u8]) -> Option<String> {
     string_literal(bytes).map(|quoted| format!(":{quoted}"))
 }
 
-/// Gathers the names a body binds, without entering nested functions.
-pub fn collect_locals(body: &[Stmt], scope: &mut Scope<'_>) {
+/// Asks whether the walk has stopped, counting what it reads as the walk
+/// counts what it visits.
+pub type Halt<'h> = &'h mut dyn FnMut() -> bool;
+
+/// Gathers the names a body binds, without entering nested functions,
+/// asking `halt`, the walk's, at each statement whether the walk has
+/// stopped, and gathering no more once it has.
+pub fn collect_locals(body: &[Stmt], scope: &mut Scope<'_>, halt: Halt<'_>) {
     for stmt in body {
-        collect_stmt(stmt, scope);
+        if halt() {
+            return;
+        }
+        collect_stmt(stmt, scope, halt);
     }
 }
 
 /// Gathers the names a function's rescue clauses bind.
-pub fn collect_rescued(rescued: &Rescued, scope: &mut Scope<'_>) {
+pub fn collect_rescued(rescued: &Rescued, scope: &mut Scope<'_>, halt: Halt<'_>) {
     for clause in &rescued.rescues {
         if let Some(name) = &clause.binding {
             scope.locals.insert(name.clone());
             scope.rescues.insert(name.clone());
         }
-        collect_locals(&clause.body, scope);
+        collect_locals(&clause.body, scope, halt);
     }
     for body in rescued.alternate.iter().chain(&rescued.ensure) {
-        collect_locals(body, scope);
+        collect_locals(body, scope, halt);
     }
 }
 
-fn collect_stmt(stmt: &Stmt, scope: &mut Scope<'_>) {
+fn collect_stmt(stmt: &Stmt, scope: &mut Scope<'_>, halt: Halt<'_>) {
     match &stmt.kind {
         StmtKind::Assign(assign) => {
             for target in &assign.targets {
@@ -559,84 +568,84 @@ fn collect_stmt(stmt: &Stmt, scope: &mut Scope<'_>) {
                 });
             }
             for value in &assign.values {
-                collect_expr(value, scope);
+                collect_expr(value, scope, halt);
             }
         }
-        StmtKind::Expr(expr) => collect_expr(expr, scope),
-        StmtKind::If(node) => collect_if(node, scope),
+        StmtKind::Expr(expr) => collect_expr(expr, scope, halt),
+        StmtKind::If(node) => collect_if(node, scope, halt),
         StmtKind::While(node) => {
-            collect_expr(&node.condition, scope);
-            collect_locals(&node.body, scope);
+            collect_expr(&node.condition, scope, halt);
+            collect_locals(&node.body, scope, halt);
         }
         StmtKind::For(node) => {
             node.target.names(&mut |name, _| {
                 scope.locals.insert(name.to_owned());
             });
-            collect_expr(&node.iterable, scope);
-            collect_locals(&node.body, scope);
+            collect_expr(&node.iterable, scope, halt);
+            collect_locals(&node.body, scope, halt);
         }
         StmtKind::Modifier(node) => {
-            collect_stmt(&node.body, scope);
-            collect_expr(&node.condition, scope);
+            collect_stmt(&node.body, scope, halt);
+            collect_expr(&node.condition, scope, halt);
         }
-        StmtKind::Flow(_, Some(value)) => collect_expr(value, scope),
+        StmtKind::Flow(_, Some(value)) => collect_expr(value, scope, halt),
         StmtKind::Raise(_, value, message) => {
             for expr in value.iter().chain(message) {
-                collect_expr(expr, scope);
+                collect_expr(expr, scope, halt);
             }
         }
         _ => (),
     }
 }
 
-fn collect_if(node: &If, scope: &mut Scope<'_>) {
+fn collect_if(node: &If, scope: &mut Scope<'_>, halt: Halt<'_>) {
     for (condition, body) in &node.branches {
-        collect_expr(condition, scope);
-        collect_locals(body, scope);
+        collect_expr(condition, scope, halt);
+        collect_locals(body, scope, halt);
     }
     if let Some((_, body)) = &node.alternate {
-        collect_locals(body, scope);
+        collect_locals(body, scope, halt);
     }
 }
 
 /// Gathers the names an expression binds, such as locals assigned inside
 /// an `if` expression or a block.
-pub fn collect_expr(expr: &Expr, scope: &mut Scope<'_>) {
+pub fn collect_expr(expr: &Expr, scope: &mut Scope<'_>, halt: Halt<'_>) {
     match &expr.kind {
-        ExprKind::If(node) => collect_if(node, scope),
-        ExprKind::Loop(stmt) => collect_stmt(stmt, scope),
+        ExprKind::If(node) => collect_if(node, scope, halt),
+        ExprKind::Loop(stmt) => collect_stmt(stmt, scope, halt),
         ExprKind::Begin(node) => {
-            collect_locals(&node.body, scope);
-            collect_rescued(&node.rescued, scope);
+            collect_locals(&node.body, scope, halt);
+            collect_rescued(&node.rescued, scope, halt);
         }
         ExprKind::Case(node) => {
             if let Some(subject) = &node.subject {
-                collect_expr(subject, scope);
+                collect_expr(subject, scope, halt);
             }
             for when in &node.whens {
-                collect_expr(&when.result, scope);
+                collect_expr(&when.result, scope, halt);
             }
             if let Some((_, alternate)) = &node.alternate {
-                collect_expr(alternate, scope);
+                collect_expr(alternate, scope, halt);
             }
         }
-        ExprKind::Group(_, inner, _) => collect_expr(inner, scope),
+        ExprKind::Group(_, inner, _) => collect_expr(inner, scope, halt),
         ExprKind::Binary(_, left, right) => {
-            collect_expr(left, scope);
-            collect_expr(right, scope);
+            collect_expr(left, scope, halt);
+            collect_expr(right, scope, halt);
         }
         ExprKind::Call(call) => {
             if let Some(receiver) = &call.receiver {
-                collect_expr(receiver, scope);
+                collect_expr(receiver, scope, halt);
             }
             for arg in call.args.iter().flat_map(|args| &args.items) {
-                collect_expr(&arg.value, scope);
+                collect_expr(&arg.value, scope, halt);
             }
             // Blocks see the enclosing locals and may assign them.
             if let Some(block) = &call.block
                 && !scope.block
             {
-                collect_locals(&block.body, scope);
+                collect_locals(&block.body, scope, halt);
             }
         }
         _ => (),

@@ -596,13 +596,19 @@ impl<'a> Checker<'a> {
             start: first.span.start,
             end: last.span.end,
         };
-        let types: Vec<Option<String>> = old
-            .iter()
-            .map(|param| match (&param.ty, &param.default) {
+        // Each parameter is a step the pass charged up front, and the walk
+        // asks now and then whether the compilation has stopped, in each
+        // pass over them.
+        let mut types: Vec<Option<String>> = Vec::with_capacity(old.len());
+        for param in &old {
+            if self.halt() {
+                return;
+            }
+            types.push(match (&param.ty, &param.default) {
                 (None, Some(default)) => literal_type(self, default).map(str::to_owned),
                 _ => None,
-            })
-            .collect();
+            });
+        }
         let index = def
             .params
             .iter()
@@ -619,6 +625,9 @@ impl<'a> Checker<'a> {
             canonical.push_str("*, ");
         }
         for (at, (param, ty)) in old.iter().zip(&types).enumerate() {
+            if self.halt() {
+                return;
+            }
             if at > 0 {
                 canonical.push_str(", ");
             }
@@ -649,6 +658,9 @@ impl<'a> Checker<'a> {
             self.edits.insert(def.params[index].span.start, "*, ");
         }
         for (param, ty) in old.iter().zip(types) {
+            if self.halt() {
+                break;
+            }
             let colon = self.token_span(param.keyword_colon.expect("a removed keyword form"));
             let name_end = self.tokens[param.name_tok].end;
             let declared = ty.map(|ty| written!(self, ": {ty}")).unwrap_or_default();
