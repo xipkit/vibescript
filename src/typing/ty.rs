@@ -49,8 +49,9 @@ enum Head {
     Loose,
 }
 
-/// The head an alternative of `kind` files under.
-fn head(kind: &Kind) -> Head {
+/// The head an alternative of `kind` files under, a closed shape's by
+/// the number its keys hash to, `exact`.
+fn head(kind: &Kind, exact: u64) -> Head {
     match kind {
         Kind::Array(_) => Head::Array,
         Kind::Hash(_) => Head::Hash,
@@ -59,7 +60,7 @@ fn head(kind: &Kind) -> Head {
             if *open || fields.iter().any(|field| field.optional) {
                 Head::Loose
             } else {
-                Head::Exact(keys(fields))
+                Head::Exact(exact)
             }
         }
         Kind::Instance(id)
@@ -75,24 +76,25 @@ fn head(kind: &Kind) -> Head {
 }
 
 /// The heads of every alternative a value of `kind` may fit, besides itself:
-/// [`Types::assignable`]'s rules relate only these.
-fn targets(kind: &Kind) -> Vec<Head> {
+/// [`Types::assignable`]'s rules relate only these. A closed shape's keys
+/// hash to `exact`, as `{}`'s none do.
+fn targets(kind: &Kind, exact: u64) -> Vec<Head> {
     let plain = |kind: Kind| Head::Plain(std::mem::discriminant(&kind));
     match kind {
         Kind::Tuple(items) => vec![Head::Tuple(items.len()), Head::Array],
-        Kind::Shape(fields, open) => {
+        Kind::Shape(_, open) => {
             if *open {
                 vec![Head::Loose, Head::Hash]
             } else {
-                vec![Head::Exact(keys(fields)), Head::Loose, Head::Hash]
+                vec![Head::Exact(exact), Head::Loose, Head::Hash]
             }
         }
-        Kind::EmptyHash => vec![Head::Hash, Head::Loose, Head::Exact(keys(&[]))],
+        Kind::EmptyHash => vec![Head::Hash, Head::Loose, Head::Exact(exact)],
         Kind::Hash(_) => vec![Head::Hash, Head::Loose],
-        Kind::SymbolLit(_) => vec![head(kind), plain(Kind::Symbol)],
-        Kind::EnumValue(_) => vec![head(kind), plain(Kind::AnyEnum)],
-        Kind::EnumType(_) => vec![head(kind), plain(Kind::AnyEnumType)],
-        _ => vec![head(kind)],
+        Kind::SymbolLit(_) => vec![head(kind, exact), plain(Kind::Symbol)],
+        Kind::EnumValue(_) => vec![head(kind, exact), plain(Kind::AnyEnum)],
+        Kind::EnumType(_) => vec![head(kind, exact), plain(Kind::AnyEnumType)],
+        _ => vec![head(kind, exact)],
     }
 }
 
@@ -330,6 +332,9 @@ pub(crate) struct Types {
     index_bytes: usize,
     /// [`Self::plain`] of each type asked about.
     plain: CountedMap<Ty, bool>,
+    /// The number each closed shape's keys hash to, for the unions'
+    /// indexes: hashed once, as it is first asked for.
+    exact: CountedMap<Ty, u64>,
     pub names: Names,
     /// The check's work and memory account, which type operations charge
     /// and poll while they run.
@@ -351,6 +356,7 @@ impl Types {
             meter::map(&self.assignable),
             meter::map(&self.index),
             meter::map(&self.plain),
+            meter::map(&self.exact),
         ];
         let largest = tables.iter().copied().max().unwrap_or(0);
         meter::vec(self.kinds.as_vec())
@@ -377,6 +383,7 @@ impl Types {
             indexed: 0,
             index_bytes: 0,
             plain: CountedMap::new(),
+            exact: CountedMap::new(),
             names: Names::default(),
             meter,
             too_large: None,
@@ -927,13 +934,15 @@ impl Types {
                 if ledger.keep(most).is_err() || self.index.reserve(ledger, 1).is_err() {
                     return ScratchVec::new(&self.meter);
                 }
-                let Kind::Union(alternatives) = self.kind(union) else {
+                let kind = self.shared(union);
+                let Kind::Union(alternatives) = &*kind else {
                     return ScratchVec::new(&self.meter);
                 };
                 let mut index: HashMap<Head, Vec<Ty>> = HashMap::new();
                 for &alternative in alternatives.iter() {
+                    let exact = self.exact_keys(alternative);
                     index
-                        .entry(head(self.kind(alternative)))
+                        .entry(head(self.kind(alternative), exact))
                         .or_default()
                         .push(alternative);
                 }
@@ -945,7 +954,9 @@ impl Types {
             }
         };
         // Charged, and counted, before it is listed.
-        let count: usize = targets(self.kind(value))
+        let exact = self.exact_keys(value);
+        let targets = targets(self.kind(value), exact);
+        let count: usize = targets
             .iter()
             .filter_map(|target| index.get(target).map(Vec::len))
             .sum();
@@ -953,7 +964,7 @@ impl Types {
         if self.work(count) || found.reserve(count).is_err() {
             return ScratchVec::new(&self.meter);
         }
-        for target in targets(self.kind(value)) {
+        for target in targets {
             if let Some(alternatives) = index.get(&target) {
                 for &alternative in alternatives {
                     found.add(alternative);
@@ -961,6 +972,31 @@ impl Types {
             }
         }
         found
+    }
+
+    /// The number `ty`'s keys hash to, when it is a closed shape or `{}`,
+    /// for the unions' indexes: a shape's hashed once, as it is first asked
+    /// for, and kept, the bytes hashed charged as a step for each 64 of
+    /// them; `0` for any other type, or once the check stops.
+    fn exact_keys(&mut self, ty: Ty) -> u64 {
+        if let Some(&exact) = self.exact.get(&ty) {
+            return exact;
+        }
+        let kind = self.shared(ty);
+        let fields = match &*kind {
+            Kind::Shape(fields, false) => fields,
+            Kind::EmptyHash => return keys(&[]),
+            _ => return 0,
+        };
+        let bytes: usize = fields.iter().map(|field| field.name.len()).sum();
+        if self.work(bytes.saturating_add(fields.len())) {
+            return 0;
+        }
+        let exact = keys(fields);
+        if self.exact.insert(self.meter.types(), ty, exact).is_err() {
+            return 0;
+        }
+        exact
     }
 
     /// Whether the shape `from` fits the shape `to`, comparing their fields,

@@ -2070,7 +2070,20 @@ fn the_checkers_time_per_step_stays_flat_as_names_and_parameters_grow() {
     let _serial = SERIAL
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let shapes: [Shape; 5] = [
+    let shapes: [Shape; 6] = [
+        // Each assignment relates a shape of one long key to a union of it
+        // and a class, which an index files by the shape's keys.
+        ("a long-keyed shape assigned to unions of it", |n| {
+            let key = "k".repeat(n * 16);
+            let classes = lines(64, |i| format!("class C{i}\nend\n"));
+            let assigns = lines(64, |i| format!("  x{i}: B | C{i} = b\n"));
+            (
+                Vec::new(),
+                format!(
+                    "type B = {{ {key}: int }}\n{classes}def f(b: B) -> int\n{assigns}  1\nend\np(1)\n"
+                ),
+            )
+        }),
         // Each `when` names a symbol, which the subject's alternatives are
         // searched for in turn, and only the last one's enum has.
         (
