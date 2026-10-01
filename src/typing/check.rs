@@ -573,6 +573,8 @@ impl<'a> Checker<'a> {
                 break;
             };
             self.frame.flow.set(id, *state);
+            // Declared in turn, so listed in the order of their ids.
+            debug_assert!(self.frame.ambient.last().is_none_or(|&last| last < id));
             if self.frame.ambient.push(self.meter.tables(), id).is_err() {
                 break;
             }
@@ -1058,7 +1060,8 @@ impl<'a> Checker<'a> {
     /// Notes a read of local `id` in a required file's function or method,
     /// when it is one of the file's top-level locals.
     pub(super) fn shared_read(&mut self, id: LocalId, name: &str) {
-        if self.frame.shared.contains(&id) {
+        // The file's locals are listed in the order of their ids.
+        if self.frame.shared.binary_search(&id).is_ok() {
             if let Some(function) = self.frame.function {
                 // The function's entry, and the name with its room in the
                 // set, are counted before they are kept, and kept with the

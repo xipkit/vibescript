@@ -2626,7 +2626,8 @@ impl<'a> Checker<'a> {
         });
         for name in names {
             if let Some(id) = self.local(name) {
-                if self.frame.ambient.contains(&id)
+                // The enclosing locals are listed in the order of their ids.
+                if self.frame.ambient.binary_search(&id).is_ok()
                     && !name.chars().next().is_some_and(char::is_uppercase)
                 {
                     let ty = self.frame.locals[id as usize].declared;
