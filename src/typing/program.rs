@@ -952,6 +952,12 @@ impl<'a> Checker<'a> {
         )?;
         let mut params = Vec::with_capacity(def.params.len());
         for param in &def.params {
+            // A check its budget stops, which the scans for the parameters'
+            // names charge, declares no more of them.
+            if self.halted() {
+                self.release(held);
+                return None;
+            }
             let kind = match param.kind {
                 crate::syntax::ParamKind::Positional => ParamKind::Positional,
                 crate::syntax::ParamKind::Rest => ParamKind::Rest,
