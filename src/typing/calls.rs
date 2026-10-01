@@ -96,7 +96,10 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::NOT_CALLABLE,
                 span,
-                format!("`{name}` is a local, not a function; a local cannot be called"),
+                text!(
+                    self,
+                    "`{name}` is a local, not a function; a local cannot be called"
+                ),
             ));
             self.loose_args(&call);
             return Ty::ERROR;
@@ -145,12 +148,12 @@ impl<'a> Checker<'a> {
             if name.chars().next().is_some_and(char::is_uppercase)
                 && !self.program.functions.contains_key(name)
                 && !methods.contains_key(name)
-                && self.constants.contains_key(&(Some(ns), name.to_owned()))
+                && self.constants.contains_key(&(Some(ns), self.copy(name)))
             {
                 self.report(Diagnostic::error(
                     Code::NOT_CALLABLE,
                     call.name_span,
-                    format!("`{name}` is a namespace constant, not a function"),
+                    text!(self, "`{name}` is a namespace constant, not a function"),
                 ));
                 self.loose_args(&call);
                 return Ty::ERROR;
@@ -161,7 +164,10 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::NOT_CALLABLE,
                 call.name_span,
-                format!("`{name}` is a {found} the host declares, not a function"),
+                text!(
+                    self,
+                    "`{name}` is a {found} the host declares, not a function"
+                ),
             ));
             self.loose_args(&call);
             return Ty::ERROR;
@@ -250,11 +256,15 @@ impl<'a> Checker<'a> {
             return Ty::ANY;
         }
         let message = if bare {
-            format!(
+            text!(
+                self,
                 "`{name}` is not a local, function or builtin in scope, and the host declares no global or capability of that name"
             )
         } else {
-            format!("`{name}` is not a function, method or builtin in scope")
+            text!(
+                self,
+                "`{name}` is not a function, method or builtin in scope"
+            )
         };
         let diagnostic = Diagnostic::error(Code::UNDEFINED_NAME, call.name_span, message);
         self.foreign_call(expr, &call, diagnostic);
@@ -299,7 +309,10 @@ impl<'a> Checker<'a> {
                     self.report(Diagnostic::error(
                         Code::UNKNOWN_KEYWORD,
                         span,
-                        format!("`require` has no keyword `{name}`; its only keyword is `as`"),
+                        text!(
+                            self,
+                            "`require` has no keyword `{name}`; its only keyword is `as`"
+                        ),
                     ));
                     continue;
                 }
@@ -365,7 +378,10 @@ impl<'a> Checker<'a> {
                 self.report(Diagnostic::error(
                     Code::DUPLICATE_NAME,
                     span,
-                    format!("`require` alias `{alias}` is already defined; choose a free name"),
+                    text!(
+                        self,
+                        "`require` alias `{alias}` is already defined; choose a free name"
+                    ),
                 ));
             }
         }
@@ -416,7 +432,7 @@ impl<'a> Checker<'a> {
         self.report(Diagnostic::error(
             Code::NOT_CALLABLE,
             call.name_span,
-            format!("a value of type {found} cannot be called"),
+            text!(self, "a value of type {found} cannot be called"),
         ));
         Ty::ERROR
     }
@@ -677,7 +693,8 @@ impl<'a> Checker<'a> {
                 let mut diagnostic = Diagnostic::error(
                     Code::OPTIONAL_USE,
                     call.name_span,
-                    format!(
+                    text!(
+                        self,
                         "`{}` is not defined for nil, and this value is {found}; test it with `!= nil` first, or call through `&.`",
                         call.name
                     ),
@@ -747,7 +764,7 @@ impl<'a> Checker<'a> {
                 self.report(Diagnostic::error(
                     Code::ANY_USE,
                     call.name_span,
-                    format!(
+                    text!(self,
                         "this value has type any; narrow it with `is_type?`, `.as(T)` or `JSON.parse_as` before calling `{}`",
                         call.name
                     ),
@@ -835,7 +852,7 @@ impl<'a> Checker<'a> {
                 self.report(Diagnostic::error(
                     Code::FIELD_ACCESS,
                     span,
-                    format!(
+                    text!(self,
                         "`.{member}` in front of `{name}` updates the field `{member}` when the hash has one, not the result of `{member}`; index the field, `[\"{member}\"]`, or update a local holding the result"
                     ),
                 ));
@@ -887,7 +904,8 @@ impl<'a> Checker<'a> {
         let mut diagnostic = Diagnostic::error(
             Code::SHAPE_MUTATION,
             call.name_span,
-            format!(
+            text!(
+                self,
                 "a record keeps the fields its shape declares, but `{}` could {what}; assign it a new record, or declare a dictionary, `hash<string, V>`",
                 call.name
             ),
@@ -899,9 +917,9 @@ impl<'a> Checker<'a> {
                     let value_text = self.types.display(value);
                     let name_span = self.spans.token(local.offset);
                     diagnostic = diagnostic.with_fix(Fix::insert(
-                        format!("declare `{name}: hash<string, {value_text}>`"),
+                        text!(self, "declare `{name}: hash<string, {value_text}>`"),
                         name_span.end,
-                        format!(": hash<string, {value_text}>"),
+                        text!(self, ": hash<string, {value_text}>"),
                     ));
                 }
             }
@@ -917,7 +935,7 @@ impl<'a> Checker<'a> {
         self.report(Diagnostic::error(
             Code::UNKNOWN_MEMBER,
             call.name_span,
-            format!(
+            text!(self,
                 "{found} has no member `{}`; {what} renders through interpolation, `p` and `puts`, or define `def {} -> string`",
                 call.name, call.name
             ),
@@ -956,7 +974,7 @@ impl<'a> Checker<'a> {
                         None => {
                             // Counted before it is kept; a check that stops
                             // names no more modules.
-                            let name = format!("{}.{}", self.types.display(ty), module.name);
+                            let name = text!(self, "{}.{}", self.types.display(ty), module.name);
                             let declarations = self.meter.declarations();
                             let Ok(mut kept) = declarations.keep(name.capacity()) else {
                                 return Ty::ERROR;
@@ -988,7 +1006,8 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::UNKNOWN_MEMBER,
                 call.name_span,
-                format!(
+                text!(
+                    self,
                     "{} declares no member `{}`",
                     self.types.display(ty),
                     call.name
@@ -1005,7 +1024,7 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::NOT_CALLABLE,
                 call.name_span,
-                format!("`{}` is data, not a callable member", call.name),
+                text!(self, "`{}` is data, not a callable member", call.name),
             ));
         }
     }
@@ -1020,7 +1039,7 @@ impl<'a> Checker<'a> {
                 Some(id) => {
                     let sig = self.program.fns[id].sig.clone();
                     let mut sig = (*sig).clone();
-                    sig.name = format!("{}.new", self.program.namespaces[ns as usize].name);
+                    sig.name = text!(self, "{}.new", self.program.namespaces[ns as usize].name);
                     // A break out of the block is the value of `new`,
                     // unchecked by the initializer's result.
                     if sig.breaks == sigs::Breaks::Result {
@@ -1029,7 +1048,7 @@ impl<'a> Checker<'a> {
                     sig
                 }
                 None => Sig {
-                    name: format!("{}.new", self.program.namespaces[ns as usize].name),
+                    name: text!(self, "{}.new", self.program.namespaces[ns as usize].name),
                     params: Vec::new(),
                     result: None,
                     block: None,
@@ -1048,7 +1067,7 @@ impl<'a> Checker<'a> {
             return self.call_sigs(call, &[(sig, Vec::new())]);
         }
         if call.args.is_empty() && call.block.is_none() {
-            if let Some(&ty) = self.constants.get(&(Some(ns), call.name.to_owned())) {
+            if let Some(&ty) = self.constants.get(&(Some(ns), self.copy(call.name))) {
                 return ty;
             }
             if let Some(&child) = namespace.children.get(call.name) {
@@ -1180,7 +1199,7 @@ impl<'a> Checker<'a> {
         let mut diagnostic = Diagnostic::error(
             Code::UNKNOWN_MEMBER,
             call.name_span,
-            format!("{found} has no member `{}`", call.name),
+            text!(self, "{found} has no member `{}`", call.name),
         );
         let canonical = match (self.types.kind(ty), call.name) {
             (Kind::Array(_), "filter") => Some("select"),
@@ -1191,7 +1210,7 @@ impl<'a> Checker<'a> {
         if let Some(canonical) = canonical {
             diagnostic = diagnostic.with_fix(
                 Fix::replace(
-                    format!("the Vibescript member is `{canonical}`; check its arguments and block in `vibes prelude`"),
+                    text!(self, "the Vibescript member is `{canonical}`; check its arguments and block in `vibes prelude`"),
                     call.name_span,
                     canonical,
                 )
@@ -1204,11 +1223,11 @@ impl<'a> Checker<'a> {
     }
 
     fn removed_rename(&mut self, call: &Call<'a, '_>, canonical: &str) {
-        let advice = format!("use `{canonical}`");
+        let advice = text!(self, "use `{canonical}`");
         let mut diagnostic = Diagnostic::error(
             Code::REMOVED_NAME,
             call.name_span,
-            format!("`{}` was removed; {advice}", call.name),
+            text!(self, "`{}` was removed; {advice}", call.name),
         );
         if call.empty() {
             diagnostic = diagnostic.with_fix(Fix::replace(advice, call.name_span, canonical));
@@ -1227,12 +1246,12 @@ impl<'a> Checker<'a> {
         };
         let advice = match &rename.replacement {
             crate::signatures::Replacement::Manual(hint) => hint.clone(),
-            crate::signatures::Replacement::Rewrite(template) => format!("use `{template}`"),
+            crate::signatures::Replacement::Rewrite(template) => text!(self, "use `{template}`"),
         };
         self.report(Diagnostic::error(
             code,
             call.name_span,
-            format!("`{}` was removed; {advice}", call.name),
+            text!(self, "`{}` was removed; {advice}", call.name),
         ));
     }
 
@@ -1257,7 +1276,7 @@ impl<'a> Checker<'a> {
                     Diagnostic::error(
                         Code::TYPE_MISMATCH,
                         span,
-                        format!("`as` takes a type, found {found}"),
+                        text!(self, "`as` takes a type, found {found}"),
                     )
                     .with_types("type<T>", found),
                 );
@@ -1283,7 +1302,7 @@ impl<'a> Checker<'a> {
                 self.report(Diagnostic::error(
                     Code::CAST,
                     call.name_span,
-                    format!("a value of type {found} can never be {wanted}"),
+                    text!(self, "a value of type {found} can never be {wanted}"),
                 ));
             }
         }
@@ -1359,12 +1378,12 @@ impl<'a> Checker<'a> {
                 self.report(Diagnostic::error(
                     Code::UNKNOWN_ENUM_MEMBER,
                     call.name_span,
-                    format!("`{enum_name}` has no member `{name}`"),
+                    text!(self, "`{enum_name}` has no member `{name}`"),
                 ));
                 Ty::ERROR
             }
             Kind::Namespace(ns) if args.is_none() && block.is_none() => {
-                if let Some(&ty) = self.constants.get(&(Some(ns), name.to_owned())) {
+                if let Some(&ty) = self.constants.get(&(Some(ns), self.copy(name))) {
                     return ty;
                 }
                 if let Some(&child) = self.program.namespaces[ns as usize].children.get(name) {
@@ -1415,7 +1434,7 @@ impl<'a> Checker<'a> {
         value: &'a Expr,
         evaluate: bool,
     ) -> Ty {
-        let setter = format!("{name}=");
+        let setter = text!(self, "{name}=");
         let setter = setter.as_str();
         let ty = self.member_receiver(receiver, setter);
         let name_span = self.spans.member(receiver, name);
@@ -1456,7 +1475,8 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::UNKNOWN_MEMBER,
                 name_span.unwrap_or_else(|| self.spans.expr(expr)),
-                format!(
+                text!(
+                    self,
                     "{} has no writable data member `{name}`",
                     self.types.display(ty)
                 ),
@@ -1500,7 +1520,7 @@ impl<'a> Checker<'a> {
                     self.report(Diagnostic::error(
                         Code::UNKNOWN_MEMBER,
                         call.name_span,
-                        format!("{found} has no member `{setter}`"),
+                        text!(self, "{found} has no member `{setter}`"),
                     ));
                     break;
                 };
@@ -1561,31 +1581,35 @@ impl<'a> Checker<'a> {
         let (word, rule) = match visibility {
             Visibility::Private => (
                 "private",
-                format!("only `{class}`'s own methods can call it, without a receiver"),
+                text!(
+                    self,
+                    "only `{class}`'s own methods can call it, without a receiver"
+                ),
             ),
             _ if instance => (
                 "protected",
-                format!(
+                text!(
+                    self,
                     "only `{class}`'s instance methods can call it, on an instance of `{class}`"
                 ),
             ),
             _ if namespace.is_class => (
                 "protected",
-                format!("only `{class}`'s class methods can call it"),
+                text!(self, "only `{class}`'s class methods can call it"),
             ),
             _ => (
                 "protected",
-                format!("only `{class}`'s own methods can call it"),
+                text!(self, "only `{class}`'s own methods can call it"),
             ),
         };
         let mut diagnostic = Diagnostic::error(
             Code::VISIBILITY,
             span,
-            format!("`{name}` is {word} in `{class}`: {rule}"),
+            text!(self, "`{name}` is {word} in `{class}`: {rule}"),
         );
         if let Some(def) = self.program.fns[id].def {
             let declared = self.spans.token(def.offset as usize);
-            diagnostic = diagnostic.with_label(declared, format!("declared {word} here"));
+            diagnostic = diagnostic.with_label(declared, text!(self, "declared {word} here"));
         }
         self.report(diagnostic);
     }
@@ -1641,11 +1665,18 @@ impl<'a> Checker<'a> {
             self.select(call, candidates)
         };
         let Some(chosen) = chosen else {
-            let list = candidates
-                .iter()
-                .map(|(sig, _)| format!("`{}`", sig.describe(&self.types)))
-                .collect::<Vec<_>>()
-                .join(", ");
+            // Each written through the meter, which the parameters' names
+            // and types can make long.
+            let mut list = super::counted::Text::new(&self.meter);
+            for (index, (sig, _)) in candidates.iter().enumerate() {
+                if index > 0 {
+                    list.push_str(", ");
+                }
+                list.push('`');
+                sig.describe(&self.types, &mut list);
+                list.push('`');
+            }
+            let list = list.finish();
             let block = if call.block.is_some() {
                 " and a block"
             } else {
@@ -1654,7 +1685,8 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::NO_OVERLOAD,
                 call.name_span,
-                format!(
+                text!(
+                    self,
                     "no signature of `{}` takes {} positional argument(s){block}; it has {list}",
                     call.name,
                     call.positional()
@@ -1806,7 +1838,7 @@ impl<'a> Checker<'a> {
                 let break_to = match (sig.breaks, sig.result) {
                     (sigs::Breaks::Result | sigs::Breaks::Inside, Some(result)) => Some(BreakTo {
                         ty: self.types.close(result, &bindings),
-                        function: function.to_owned(),
+                        function: self.copy(function),
                         inside: sig.breaks == sigs::Breaks::Inside,
                     }),
                     _ => None,
@@ -1828,7 +1860,7 @@ impl<'a> Checker<'a> {
                     self.report(Diagnostic::error(
                         Code::MISSING_BLOCK,
                         call.name_span,
-                        format!("`{function}` needs a block"),
+                        text!(self, "`{function}` needs a block"),
                     ));
                 }
             }
@@ -1837,7 +1869,7 @@ impl<'a> Checker<'a> {
                 self.report(Diagnostic::error(
                     Code::UNEXPECTED_BLOCK,
                     span,
-                    format!("`{function}` takes no block"),
+                    text!(self, "`{function}` takes no block"),
                 ));
                 self.block(block, &[], Want::Discard);
             }
@@ -1915,7 +1947,7 @@ impl<'a> Checker<'a> {
                         Diagnostic::error(
                             Code::TYPE_MISMATCH,
                             span,
-                            format!("a splat spreads an array, found {found}"),
+                            text!(self, "a splat spreads an array, found {found}"),
                         )
                         .with_types("array<any>", found),
                     );
@@ -1941,7 +1973,7 @@ impl<'a> Checker<'a> {
                         self.report(Diagnostic::error(
                             Code::NO_OVERLOAD,
                             call.name_span,
-                            format!("the length of this splat is unknown; `{function}` must accept every possible argument count"),
+                            text!(self, "the length of this splat is unknown; `{function}` must accept every possible argument count"),
                         ));
                     }
                 }
@@ -1961,7 +1993,7 @@ impl<'a> Checker<'a> {
             let purpose = Purpose::Argument {
                 index,
                 name,
-                function: function.to_owned(),
+                function: self.copy(function),
             };
             // The names the purpose copies are held while the argument is
             // checked.
@@ -1985,14 +2017,17 @@ impl<'a> Checker<'a> {
             let (min, max) = sig.positional();
             if index < min || max.is_some_and(|max| index > max) {
                 let expected = match max {
-                    Some(max) if max == min => format!("{min}"),
-                    Some(max) => format!("{min} to {max}"),
-                    None => format!("at least {min}"),
+                    Some(max) if max == min => text!(self, "{min}"),
+                    Some(max) => text!(self, "{min} to {max}"),
+                    None => text!(self, "at least {min}"),
                 };
                 self.report(Diagnostic::error(
                     Code::NO_OVERLOAD,
                     call.name_span,
-                    format!("`{function}` takes {expected} positional argument(s), got {index}"),
+                    text!(
+                        self,
+                        "`{function}` takes {expected} positional argument(s), got {index}"
+                    ),
                 ));
             }
         }
@@ -2012,7 +2047,7 @@ impl<'a> Checker<'a> {
                         return;
                     };
                     held += bytes;
-                    given.push(name.to_string());
+                    given.push(self.copy(name));
                     let param = sig.keyword(name).map(|p| p.ty).or_else(|| {
                         sig.keyword_rest()
                             .map(|p| self.types.hash_value(p.ty).unwrap_or(Ty::ANY))
@@ -2020,8 +2055,8 @@ impl<'a> Checker<'a> {
                     match param {
                         Some(param_ty) => {
                             let purpose = Purpose::Keyword {
-                                name: name.to_string(),
-                                function: function.to_owned(),
+                                name: self.copy(name),
+                                function: self.copy(function),
                             };
                             let Some(purpose_held) = self.hold(super::meter::Heap::heap(&purpose))
                             else {
@@ -2038,7 +2073,7 @@ impl<'a> Checker<'a> {
                             self.report(Diagnostic::error(
                                 Code::UNKNOWN_KEYWORD,
                                 span,
-                                format!("`{function}` has no keyword `{name}:`"),
+                                text!(self, "`{function}` has no keyword `{name}:`"),
                             ));
                         }
                     }
@@ -2059,7 +2094,7 @@ impl<'a> Checker<'a> {
                                     return;
                                 };
                                 held += bytes;
-                                given.push(field.name.to_string());
+                                given.push(self.copy(&field.name));
                             }
                             let expected = sig.keyword(&field.name).map(|p| p.ty).or_else(|| {
                                 sig.keyword_rest()
@@ -2073,7 +2108,7 @@ impl<'a> Checker<'a> {
                                 self.report(Diagnostic::error(
                                     Code::UNKNOWN_KEYWORD,
                                     self.spans.expr(&arg.value),
-                                    format!("`{function}` has no keyword `{}:`", field.name),
+                                    text!(self, "`{function}` has no keyword `{}:`", field.name),
                                 ));
                             }
                         }
@@ -2092,7 +2127,7 @@ impl<'a> Checker<'a> {
                                     );
                                 }
                             } else {
-                                self.report(Diagnostic::error(Code::UNKNOWN_KEYWORD, self.spans.expr(&arg.value), format!("a dictionary splat has unknown keys; `{function}` needs a keyword rest parameter")));
+                                self.report(Diagnostic::error(Code::UNKNOWN_KEYWORD, self.spans.expr(&arg.value), text!(self, "a dictionary splat has unknown keys; `{function}` needs a keyword rest parameter")));
                             }
                         }
                     }
@@ -2103,7 +2138,7 @@ impl<'a> Checker<'a> {
                             Diagnostic::error(
                                 Code::TYPE_MISMATCH,
                                 span,
-                                format!("a keyword splat spreads a hash, found {found}"),
+                                text!(self, "a keyword splat spreads a hash, found {found}"),
                             )
                             .with_types("hash<string, any>", found),
                         );
@@ -2122,7 +2157,7 @@ impl<'a> Checker<'a> {
                 self.report(Diagnostic::error(
                     Code::MISSING_KEYWORD,
                     call.name_span,
-                    format!("`{function}` needs the keyword `{}:`", param.name),
+                    text!(self, "`{function}` needs the keyword `{}:`", param.name),
                 ));
             }
         }
@@ -2224,7 +2259,7 @@ impl<'a> Checker<'a> {
                 &Purpose::Argument {
                     index: 0,
                     name: "splat element".to_owned(),
-                    function: function.to_owned(),
+                    function: self.copy(function),
                 },
             );
         }
@@ -2235,7 +2270,7 @@ impl<'a> Checker<'a> {
         let span = self.spans.expr(value);
         let found = self.types.display(ty);
         let what = self.purpose_text(purpose, "a type");
-        let mut message = format!("{what}, found {found}");
+        let mut message = text!(self, "{what}, found {found}");
         if matches!(&value.node, Node::Hash(entries) if !entries.is_empty()) {
             message.push_str(
                 "; braces make a type only where every field names one, as in `{ status: Status }`",
@@ -2363,9 +2398,10 @@ impl<'a> Checker<'a> {
             let found = self.types.display(ty);
             let bound_text = self.types.display(bound);
             let reason = if single {
-                format!("{found} is not {bound_text}")
+                text!(self, "{found} is not {bound_text}")
             } else {
-                format!(
+                text!(
+                    self,
                     "{found} is a union, and `{}` needs one {bound_text} type",
                     call.name
                 )
@@ -2373,9 +2409,11 @@ impl<'a> Checker<'a> {
             let mut diagnostic = Diagnostic::error(
                 Code::BOUND,
                 call.name_span,
-                format!(
+                text!(
+                    self,
                     "`{}` needs {} to be {bound_text}: {reason}",
-                    call.name, var.name
+                    call.name,
+                    var.name
                 ),
             )
             .with_types(bound_text, found);
@@ -2406,22 +2444,23 @@ impl<'a> Checker<'a> {
             None
         };
         let example = match (zero, element == Ty::MONEY) {
-            (Some(zero), _) => format!("`sum({zero})`"),
+            (Some(zero), _) => text!(self, "`sum({zero})`"),
             (None, true) => "`sum(money_cents(0, \"USD\"))`".to_owned(),
             (None, false) => {
                 return diagnostic;
             }
         };
-        diagnostic.message.push_str(&format!(
+        diagnostic.message.push_str(&text!(
+            self,
             "; without a starting value `sum` begins at the int 0, so pass one, as in {example}"
         ));
         let end = call.name_span.end;
         let parenthesized = self.source[end..].trim_start().starts_with('(');
         if let (Some(zero), false) = (zero, parenthesized) {
             diagnostic = diagnostic.with_fix(Fix::insert(
-                format!("start the sum at `{zero}`"),
+                text!(self, "start the sum at `{zero}`"),
                 end,
-                format!("({zero})"),
+                text!(self, "({zero})"),
             ));
         }
         diagnostic
@@ -2590,7 +2629,7 @@ impl<'a> Checker<'a> {
                 }
             }
             for index in 0..9 {
-                let name = format!("_{}", index + 1);
+                let name = text!(self, "_{}", index + 1);
                 let ty = params.get(index).copied().or(rest).unwrap_or(Ty::NIL);
                 let Some(id) = self.declare(&name, ty, block.offset as usize, false) else {
                     break;
@@ -2621,7 +2660,8 @@ impl<'a> Checker<'a> {
                         self.report(Diagnostic::error(
                             Code::BLOCK_PARAMETERS,
                             span,
-                            format!(
+                            text!(
+                                self,
                                 "this block declares {} parameter(s), but it is given {}",
                                 targets.len(),
                                 params.len()
@@ -2695,7 +2735,7 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::UNDECLARED_BLOCK,
                 span,
-                format!(
+                text!(self,
                     "`{}` yields but declares no block; add a typed block parameter, as in `&block: (T) -> R`",
                     self.frame.name
                 ),
@@ -2727,7 +2767,8 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::NO_OVERLOAD,
                 span,
-                format!(
+                text!(
+                    self,
                     "the block takes {} argument(s), but `yield` passes {}",
                     block.params.len(),
                     args.len()

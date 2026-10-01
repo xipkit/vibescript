@@ -27,6 +27,18 @@ impl<'a> Checker<'a> {
     /// Checks that an expression's value is assignable to `expected`,
     /// reporting at the innermost expression that produces the value.
     pub(super) fn expr_against(&mut self, expr: &'a Expr, expected: Ty, purpose: &Purpose) -> Ty {
+        // The names its caller copied into the purpose are held while the
+        // value is checked.
+        let Some(held) = self.hold(super::meter::Heap::heap(purpose)) else {
+            return Ty::ERROR;
+        };
+        let ty = self.expr_against_held(expr, expected, purpose);
+        self.release(held);
+        ty
+    }
+
+    /// [`Self::expr_against`], once the purpose is held.
+    fn expr_against_held(&mut self, expr: &'a Expr, expected: Ty, purpose: &Purpose) -> Ty {
         match &expr.node {
             Node::Conditional(..) | Node::Case(..) | Node::Try(_) | Node::Compound(_) => {
                 // The purpose, and its room on the stack, are counted as it
@@ -121,10 +133,13 @@ impl<'a> Checker<'a> {
         let selector = self.spans.expr(&selectors[0]);
         let text = self.source.get(selector.start..selector.end)?;
         Some(Fix::edits(
-            format!("read it with `fetch({text})`, which raises when it is missing"),
+            text!(
+                self,
+                "read it with `fetch({text})`, which raises when it is missing"
+            ),
             vec![Edit {
                 span: brackets,
-                replacement: format!(".fetch({text})"),
+                replacement: text!(self, ".fetch({text})"),
             }],
         ))
     }
@@ -290,7 +305,7 @@ impl<'a> Checker<'a> {
             if self.types.work(decl.symbols.len()) || self.over_budget() {
                 return Ty::ERROR;
             }
-            let (members, _) = super::listed(&decl.symbols, |out, symbol| {
+            let (members, _) = super::listed(&self.meter, &decl.symbols, |out, symbol| {
                 out.push(':');
                 out.push_str(symbol);
             });
@@ -299,7 +314,10 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::UNKNOWN_ENUM_MEMBER,
                 span,
-                format!("`:{name}` is not a member of `{enum_name}`, whose members are {members}"),
+                text!(
+                    self,
+                    "`:{name}` is not a member of `{enum_name}`, whose members are {members}"
+                ),
             ));
             return Ty::ERROR;
         }
@@ -313,7 +331,7 @@ impl<'a> Checker<'a> {
             return self.self_type();
         }
         if name.starts_with("@@") {
-            let key = (self.frame.owner, name.to_owned());
+            let key = (self.frame.owner, self.copy(name));
             if let Some(&ty) = self.constants.get(&key) {
                 return ty;
             }
@@ -322,8 +340,8 @@ impl<'a> Checker<'a> {
                 Code::UNDECLARED_IVAR,
                 span,
                 if self.frame.owner.is_none() {
-                    format!("class variable `{name}` is outside a class")
-                } else { format!(
+                    text!(self, "class variable `{name}` is outside a class")
+                } else { text!(self,
                     "class variable `{name}` is not declared; declare it in the class body, as in `{name}: T = value`"
                 ) },
             ));
@@ -348,7 +366,10 @@ impl<'a> Checker<'a> {
                     Diagnostic::error(
                         Code::UNASSIGNED_LOCAL,
                         span,
-                        format!("`{name}` is not assigned on every path that reaches this read"),
+                        text!(
+                            self,
+                            "`{name}` is not assigned on every path that reaches this read"
+                        ),
                     )
                     .with_label(self.spans.token(declared), "first assigned here"),
                 );
@@ -368,7 +389,7 @@ impl<'a> Checker<'a> {
         }
         if is_constant(name) {
             if let Some(ns) = self.frame.owner {
-                if let Some(&ty) = self.constants.get(&(Some(ns), name.to_owned())) {
+                if let Some(&ty) = self.constants.get(&(Some(ns), self.copy(name))) {
                     return ty;
                 }
                 if let Some(&child) = self.program.namespaces[ns as usize].children.get(name) {
@@ -416,7 +437,7 @@ impl<'a> Checker<'a> {
     pub(super) fn constant(&mut self, name: &str, scope: Option<NsId>) -> Option<Ty> {
         let mut current = scope;
         while let Some(ns) = current {
-            if let Some(&ty) = self.constants.get(&(Some(ns), name.to_owned())) {
+            if let Some(&ty) = self.constants.get(&(Some(ns), self.copy(name))) {
                 return Some(ty);
             }
             if let Some(&child) = self.program.namespaces[ns as usize].children.get(name) {
@@ -433,7 +454,7 @@ impl<'a> Checker<'a> {
         if let Some(index) = sigs::index().module(name) {
             return Some(self.types.intern(Kind::Builtin(index)));
         }
-        self.constants.get(&(None, name.to_owned())).copied()
+        self.constants.get(&(None, self.copy(name))).copied()
     }
 
     // Literals ---------------------------------------------------------
@@ -722,18 +743,19 @@ impl<'a> Checker<'a> {
                                 self.report(Diagnostic::error(
                                     Code::UNKNOWN_FIELD,
                                     span,
-                                    format!("{shape} has no field `{key}`"),
+                                    text!(self, "{shape} has no field `{key}`"),
                                 ));
                             }
                         }
                     }
                 }
                 let (missing, count) = super::listed(
+                    &self.meter,
                     fields
                         .iter()
                         .zip(&present)
                         .filter(|(field, present)| !field.optional && !**present),
-                    |out, (field, _)| out.push_str(&format!("`{}`", field.name)),
+                    |out, (field, _)| out.write(format_args!("`{}`", field.name)),
                 );
                 if count == 0 {
                     self.release(held);
@@ -759,7 +781,7 @@ impl<'a> Checker<'a> {
                         Diagnostic::error(
                             Code::TYPE_MISMATCH,
                             span,
-                            format!("this hash lacks {missing} that {shape} requires"),
+                            text!(self, "this hash lacks {missing} that {shape} requires"),
                         )
                         .with_types(shape, found),
                     );
@@ -848,7 +870,7 @@ impl<'a> Checker<'a> {
                     Diagnostic::error(
                         Code::LOGICAL_NOT_BOOL,
                         span,
-                        format!("`!` takes a bool, found {found}"),
+                        text!(self, "`!` takes a bool, found {found}"),
                     )
                     .with_types("bool", found),
                 );
@@ -872,7 +894,7 @@ impl<'a> Checker<'a> {
             Diagnostic::error(
                 Code::NO_OPERATOR,
                 span,
-                format!("unary `{op}` is not defined for {found}"),
+                text!(self, "unary `{op}` is not defined for {found}"),
             )
             .with_types("number", found),
         );
@@ -895,7 +917,7 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::ANY_USE,
                 span,
-                format!(
+                text!(self,
                     "this value has type any; narrow it with `is_type?`, `.as(T)` or `JSON.parse_as` before {doing}"
                 ),
             ));
@@ -908,7 +930,10 @@ impl<'a> Checker<'a> {
             let mut diagnostic = Diagnostic::error(
                 Code::OPTIONAL_USE,
                 span,
-                format!("this value may be nil ({found}); test it with `!= nil` before {doing}"),
+                text!(
+                    self,
+                    "this value may be nil ({found}); test it with `!= nil` before {doing}"
+                ),
             );
             if let Some(fix) = self.fetch_fix(expr, ty, without) {
                 diagnostic = diagnostic.with_fix(fix);
@@ -1077,7 +1102,10 @@ impl<'a> Checker<'a> {
         self.report(Diagnostic::error(
             Code::NO_OPERATOR,
             span,
-            format!("`{op}` is not defined for {left_text} and {right_text}"),
+            text!(
+                self,
+                "`{op}` is not defined for {left_text} and {right_text}"
+            ),
         ));
         Ty::ERROR
     }
@@ -1097,7 +1125,7 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::NO_OPERATOR,
                 span,
-                format!("`{op}` is not defined for {left_text} and {right_text}; `{left_text}` defines no `{op}` method"),
+                text!(self, "`{op}` is not defined for {left_text} and {right_text}; `{left_text}` defines no `{op}` method"),
             ));
             return Ty::ERROR;
         };
@@ -1278,7 +1306,7 @@ impl<'a> Checker<'a> {
                         Diagnostic::error(
                             Code::TYPE_MISMATCH,
                             span,
-                            format!("`<<` appends to array<{expected}>, found {found}"),
+                            text!(self, "`<<` appends to array<{expected}>, found {found}"),
                         )
                         .with_types(expected, found),
                     );
@@ -1387,7 +1415,8 @@ impl<'a> Checker<'a> {
                             self.report(Diagnostic::error(
                                 Code::TUPLE_INDEX,
                                 span,
-                                format!(
+                                text!(
+                                    self,
                                     "{tuple} has {} elements; index {index} is outside it",
                                     items.len()
                                 ),
@@ -1428,7 +1457,7 @@ impl<'a> Checker<'a> {
                             self.report(Diagnostic::error(
                                 Code::UNKNOWN_FIELD,
                                 span,
-                                format!("{shape} has no field \"{name}\""),
+                                text!(self, "{shape} has no field \"{name}\""),
                             ));
                             Ty::ERROR
                         }
@@ -1521,7 +1550,8 @@ impl<'a> Checker<'a> {
                 self.report(Diagnostic::error(
                     Code::NOT_INDEXABLE,
                     span,
-                    format!(
+                    text!(
+                        self,
                         "{found} cannot be indexed with {} selector(s)",
                         selectors.len()
                     ),
@@ -1551,7 +1581,8 @@ impl<'a> Checker<'a> {
         let mut diagnostic = Diagnostic::error(
             Code::DYNAMIC_KEY,
             span,
-            format!(
+            text!(
+                self,
                 "{shape_text} is a record, not a dictionary: read its fields with literal keys, or declare it as `hash<string, V>`"
             ),
         );
@@ -1562,9 +1593,9 @@ impl<'a> Checker<'a> {
                     let value_text = self.types.display(value);
                     let name_span = self.spans.token(local.offset);
                     diagnostic = diagnostic.with_fix(Fix::insert(
-                        format!("declare `{name}: hash<string, {value_text}>`"),
+                        text!(self, "declare `{name}: hash<string, {value_text}>`"),
                         name_span.end,
-                        format!(": hash<string, {value_text}>"),
+                        text!(self, ": hash<string, {value_text}>"),
                     ));
                 }
             }
@@ -1592,7 +1623,7 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::UNKNOWN_MEMBER,
                 span,
-                format!("{found} has no member `[]=`"),
+                text!(self, "{found} has no member `[]=`"),
             ));
             return;
         };
@@ -1706,7 +1737,7 @@ impl<'a> Checker<'a> {
                         self.report(Diagnostic::error(
                             Code::UNKNOWN_FIELD,
                             span,
-                            format!("{shape} has no field \"{name}\""),
+                            text!(self, "{shape} has no field \"{name}\""),
                         ));
                         None
                     }
@@ -1742,7 +1773,7 @@ impl<'a> Checker<'a> {
                 self.report(Diagnostic::error(
                     Code::NOT_INDEXABLE,
                     span,
-                    format!("{found} cannot be assigned through an index"),
+                    text!(self, "{found} cannot be assigned through an index"),
                 ));
                 None
             }
@@ -1894,7 +1925,7 @@ impl<'a> Checker<'a> {
                             Diagnostic::error(
                                 Code::TYPE_MISMATCH,
                                 span,
-                                format!("this `case` gives nil when no `when` matches, but {expected_text} is expected; add an `else`"),
+                                text!(self, "this `case` gives nil when no `when` matches, but {expected_text} is expected; add an `else`"),
                             )
                             .with_types(expected_text, "nil"),
                         );
@@ -1960,14 +1991,17 @@ impl<'a> Checker<'a> {
         let mut diagnostic = Diagnostic::error(
             Code::TYPE_MISMATCH,
             span,
-            format!("`:{symbol}` is a symbol, not a member of `{enum_name}`, and {why}"),
+            text!(
+                self,
+                "`:{symbol}` is a symbol, not a member of `{enum_name}`, and {why}"
+            ),
         )
         .with_types(enum_name.clone(), "symbol");
         match member {
             Some(member) => {
-                let replacement = format!("{enum_name}::{member}");
+                let replacement = text!(self, "{enum_name}::{member}");
                 diagnostic = diagnostic.with_fix(Fix::replace(
-                    format!("name the member: `{replacement}`"),
+                    text!(self, "name the member: `{replacement}`"),
                     span,
                     replacement,
                 ));
@@ -2014,12 +2048,13 @@ impl<'a> Checker<'a> {
                     return false;
                 }
                 let (missing, _) = super::listed(
+                    &self.meter,
                     decl.symbols
                         .iter()
                         .zip(&decl.members)
                         .filter(|(symbol, _)| !covered.contains(symbol.as_str())),
                     |out, (_, member)| {
-                        out.push_str(&format!("`{}::{member}`", decl.name));
+                        out.write(format_args!("`{}::{member}`", decl.name));
                     },
                 );
                 let span = self.spans.token(expr.offset as usize);
@@ -2028,10 +2063,11 @@ impl<'a> Checker<'a> {
             }
             Kind::Bool => (
                 super::listed(
+                    &self.meter,
                     ["true", "false"]
                         .into_iter()
                         .filter(|value| !covered.contains(value)),
-                    |out, value| out.push_str(&format!("`{value}`")),
+                    |out, value| out.write(format_args!("`{value}`")),
                 )
                 .0,
                 "bool",
@@ -2054,7 +2090,7 @@ impl<'a> Checker<'a> {
         self.report(Diagnostic::error(
             Code::NON_EXHAUSTIVE_CASE,
             span,
-            format!("this `case` over {name} does not handle {missing}; add a `when` for each, or an `else`"),
+            text!(self, "this `case` over {name} does not handle {missing}; add a `when` for each, or an `else`"),
         ));
     }
 

@@ -300,7 +300,7 @@ impl<'a> Checker<'a> {
                 self.construction.held += bytes;
             }
         }
-        self.site(SiteKind::Read(name.to_owned()), span);
+        self.site(SiteKind::Read(self.copy(name)), span);
     }
 
     /// Records a call of method `callee` on `self` at `span`.
@@ -462,7 +462,7 @@ impl<'a> Checker<'a> {
     /// Reports a read of variables `ivars` of an instance being built
     /// before they are assigned, which reads `nil` whatever their types.
     fn unassigned_read(&mut self, site: &Site, ivars: &[&str]) {
-        let (names, _) = super::listed(ivars, |out, ivar| {
+        let (names, _) = super::listed(&self.meter, ivars, |out, ivar| {
             out.push('@');
             out.push_str(ivar);
         });
@@ -472,18 +472,21 @@ impl<'a> Checker<'a> {
             ("they", "them", "are", "read")
         };
         let message = match &site.kind {
-            SiteKind::Read(_) => format!(
+            SiteKind::Read(_) => text!(
+                self,
                 "{names} {are} read before `initialize` assigns {them}, and {they} {reads} as nil; assign {them} first or give {them} a default in the class body"
             ),
             SiteKind::Call(callee) => {
                 let method = self.program.fns[*callee]
                     .def
-                    .map_or_else(String::new, |def| def.name.to_string());
-                format!(
+                    .map_or_else(String::new, |def| self.copy(&def.name));
+                text!(
+                    self,
                     "`{method}` reads {names} before `initialize` assigns {them}, and {they} {reads} as nil; assign {them} before this call or give {them} a default in the class body"
                 )
             }
-            SiteKind::Escape => format!(
+            SiteKind::Escape => text!(
+                self,
                 "`self` is used before `initialize` assigns {names}, and {they} {reads} as nil; assign {them} first or give {them} a default in the class body"
             ),
         };

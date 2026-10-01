@@ -263,7 +263,10 @@ impl<'a> Checker<'a> {
                 self.report(Diagnostic::error(
                     Code::UNDEFINED_NAME,
                     self.spans.token(offset),
-                    format!("cannot statically resolve required module {path:?}: {reason}"),
+                    text!(
+                        self,
+                        "cannot statically resolve required module {path:?}: {reason}"
+                    ),
                 ));
             }
             if let (Ok(id), Some(alias)) = (id, alias) {
@@ -368,7 +371,8 @@ impl<'a> Checker<'a> {
 
     fn load_module_uncached(&mut self, path: &str) -> Result<u32, String> {
         if self.modules.depth >= DEPTH {
-            return Err(format!(
+            return Err(text!(
+                self,
                 "require nesting exceeds {DEPTH} files (possible circular require)"
             ));
         }
@@ -395,7 +399,7 @@ impl<'a> Checker<'a> {
             Err(error) if context.exhausted() => {
                 self.stopped = true;
                 self.meter.stop();
-                return Err(error.to_string());
+                return Err(text!(self, "{error}"));
             }
             Err(error) => return Err(error.message),
         };
@@ -433,7 +437,7 @@ impl<'a> Checker<'a> {
             {
                 self.stopped = true;
                 self.meter.stop();
-                return Err(error.to_string());
+                return Err(text!(self, "{error}"));
             }
             Err(error) => {
                 // The error is recovered and located within what the parse
@@ -454,7 +458,7 @@ impl<'a> Checker<'a> {
                     self.meter.stop();
                     return Err("the check ran out of its budget".into());
                 }
-                return Err(error.to_string());
+                return Err(text!(self, "{error}"));
             }
         };
         let Some(tree) = self.hold(source.len() + parsing.retained_memory_bytes) else {
@@ -956,7 +960,7 @@ impl<'a> Checker<'a> {
         self.report(Diagnostic::error(
             Code::UNKNOWN_MEMBER,
             span,
-            format!("the module \"{path}\" exports no function `{name}`"),
+            text!(self, "the module \"{path}\" exports no function `{name}`"),
         ));
     }
 

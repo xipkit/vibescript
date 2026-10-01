@@ -24,6 +24,14 @@ use crate::{capability::Registered, diagnostic::Diagnostic, syntax::Declarations
 use counted::{CountedMap, CountedSet, CountedVec, Ledger};
 use std::{collections::HashMap, fmt};
 
+/// A diagnostic's text, written as `format!` writes it, through the
+/// checker's meter ([`counted::text`]).
+macro_rules! text {
+    ($checker:expr, $($arg:tt)*) => {
+        $checker.text(format_args!($($arg)*))
+    };
+}
+
 mod assigns;
 mod calls;
 mod check;
@@ -470,10 +478,12 @@ const LISTED: usize = 20;
 /// those it names are only counted, so a list of any length costs one
 /// short string.
 fn listed<T>(
+    meter: &meter::Meter,
     items: impl IntoIterator<Item = T>,
-    mut write: impl FnMut(&mut String, T),
+    mut write: impl FnMut(&mut counted::Text<'_>, T),
 ) -> (String, usize) {
-    let mut out = String::new();
+    // Written through the meter, since the items named can be long.
+    let mut out = counted::Text::new(meter);
     let mut count = 0;
     for item in items {
         if count < LISTED {
@@ -485,9 +495,9 @@ fn listed<T>(
         count += 1;
     }
     if count > LISTED {
-        out.push_str(&format!(" and {} more", count - LISTED));
+        out.write(format_args!(" and {} more", count - LISTED));
     }
-    (out, count)
+    (out.finish(), count)
 }
 
 /// Checks one parsed source.

@@ -314,7 +314,8 @@ impl<'a> Checker<'a> {
         self.report(Diagnostic::error(
             Code::SYNTAX,
             span,
-            format!(
+            text!(
+                self,
                 "syntax nesting too deep to type check: on WASI the checker allows {} levels",
                 super::HEIGHT
             ),
@@ -696,7 +697,7 @@ impl<'a> Checker<'a> {
                     this.expr_against(
                         default,
                         declared.ty,
-                        &Purpose::Local(param.name.to_string()),
+                        &Purpose::Local(this.copy(&param.name)),
                     )
                 });
                 let evaluated = self.frame.flow.rollback(mark);
@@ -717,7 +718,7 @@ impl<'a> Checker<'a> {
             if let Some(ivar) = &param.ivar {
                 let span = self
                     .spans
-                    .word_after(def.offset as usize, &format!("@{ivar}"));
+                    .word_after(def.offset as usize, &text!(self, "@{ivar}"));
                 self.assign_ivar(ivar, declared.ty, span, accessor);
             }
         }
@@ -798,7 +799,8 @@ impl<'a> Checker<'a> {
                         Diagnostic::error(
                             Code::TYPE_MISMATCH,
                             span,
-                            format!(
+                            text!(
+                                self,
                                 "`{}` returns {expected}, but its body is empty and returns nil",
                                 def.name
                             ),
@@ -886,7 +888,7 @@ impl<'a> Checker<'a> {
             return;
         }
         let places = unassigned.indices();
-        let (missing, count) = super::listed(places, |out, place| {
+        let (missing, count) = super::listed(&self.meter, places, |out, place| {
             out.push('@');
             out.push_str(&roster[place]);
         });
@@ -907,7 +909,7 @@ impl<'a> Checker<'a> {
         self.report(Diagnostic::error(
             Code::UNINITIALIZED_IVAR,
             span,
-            format!(
+            text!(self,
                 "`initialize` does not assign {missing} on every path; assign {} or give {} a default in the class body",
                 if count == 1 { "it" } else { "them" },
                 if count == 1 { "it" } else { "them" },
@@ -1152,11 +1154,11 @@ impl<'a> Checker<'a> {
             };
             let callee = self.program.fns[call.callee]
                 .def
-                .map_or_else(String::new, |def| def.name.to_string());
+                .map_or_else(String::new, |def| self.copy(&def.name));
             self.report(Diagnostic::error(
                 Code::UNASSIGNED_LOCAL,
                 call.span,
-                format!(
+                text!(self,
                     "`{callee}` reads `{first}`, which the file has not assigned on every path that reaches this call; assign it first"
                 ),
             ));
@@ -1193,7 +1195,7 @@ impl<'a> Checker<'a> {
     /// the host declares as `declared`.
     fn global_write(&mut self, name: &str, declared: Ty, ty: Ty, span: Span) {
         if !self.types.assignable(ty, declared) {
-            self.mismatch(span, declared, ty, &Purpose::Global(name.to_owned()));
+            self.mismatch(span, declared, ty, &Purpose::Global(self.copy(name)));
         }
     }
 
@@ -1209,7 +1211,7 @@ impl<'a> Checker<'a> {
             Diagnostic::error(
                 Code::LOCAL_TYPE_CHANGED,
                 span,
-                format!(
+                text!(self,
                     "the host declares the global `{name}` as {first}, and assigning it writes the global, which keeps that type; assign it without a type"
                 ),
             )
@@ -1620,7 +1622,7 @@ impl<'a> Checker<'a> {
                         Diagnostic::error(
                             Code::TYPE_MISMATCH,
                             span,
-                            format!("{what}, but this `if` has no `else`, so it gives nil when no branch runs"),
+                            text!(self, "{what}, but this `if` has no `else`, so it gives nil when no branch runs"),
                         )
                         .with_types(expected_text, "nil"),
                     );
@@ -1660,14 +1662,16 @@ impl<'a> Checker<'a> {
         {
             (
                 Code::OPTIONAL_USE,
-                format!(
+                text!(
+                    self,
                     "{what}, but a loop that ends a body gives nil when no iteration reaches the end of its body; end the body with the value it should give"
                 ),
             )
         } else {
             (
                 Code::TYPE_MISMATCH,
-                format!(
+                text!(
+                    self,
                     "{what}, but a loop that ends a body gives the value its body had last, or nil when it never ran, so this one gives {found}; end the body with the value it should give"
                 ),
             )
@@ -1870,7 +1874,7 @@ impl<'a> Checker<'a> {
             Diagnostic::error(
                 Code::TYPE_MISMATCH,
                 span,
-                format!("`for` iterates an array, hash or range, not {found}"),
+                text!(self, "`for` iterates an array, hash or range, not {found}"),
             )
             .with_types("array | hash | range", found),
         );
@@ -1906,7 +1910,7 @@ impl<'a> Checker<'a> {
                     self.report(Diagnostic::error(
                         Code::RETURN_WITHOUT_TYPE,
                         span,
-                        format!(
+                        text!(self,
                             "`{}` declares no result type, so it returns nil; declare `-> {found}` to return this value",
                             self.frame.name
                         ),
@@ -1963,7 +1967,8 @@ impl<'a> Checker<'a> {
             Diagnostic::error(
                 Code::TYPE_MISMATCH,
                 span,
-                format!(
+                text!(
+                    self,
                     "`raise` takes a message, an error class or a rescued error, found {found}"
                 ),
             )
@@ -2034,18 +2039,23 @@ impl<'a> Checker<'a> {
                 let found = self.types.display(value);
                 let expected = self.types.display(to.ty);
                 let what = if to.inside {
-                    format!(
+                    text!(
+                        self,
                         "ends a loop or block inside `{}`, which takes {expected}",
                         to.function
                     )
                 } else {
-                    format!("returns from `{}`, which returns {expected}", to.function)
+                    text!(
+                        self,
+                        "returns from `{}`, which returns {expected}",
+                        to.function
+                    )
                 };
                 self.report(
                     Diagnostic::error(
                         Code::TYPE_MISMATCH,
                         span,
-                        format!(
+                        text!(self,
                             "a `break` out of the caller's block, a value of {found}, leaves this `yield` and {what}; move the `yield` out of the block, or give the functions results that fit"
                         ),
                     )
@@ -2132,7 +2142,7 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::SYNTAX,
                 self.spans.token(stmt.offset as usize),
-                format!("`{name}` is only valid inside a loop or block"),
+                text!(self, "`{name}` is only valid inside a loop or block"),
             ));
         }
     }
@@ -2199,7 +2209,7 @@ impl<'a> Checker<'a> {
                         Diagnostic::error(
                             Code::CONDITION_NOT_BOOL,
                             span,
-                            format!(
+                            text!(self,
                                 "`{op}` tests its target, which must be a bool, found {found}; assign under an explicit nil test instead"
                             ),
                         )
@@ -2269,7 +2279,8 @@ impl<'a> Checker<'a> {
         let mut diagnostic = Diagnostic::error(
             Code::OPTIONAL_USE,
             span,
-            format!(
+            text!(
+                self,
                 "this element may be nil ({found}), as it is when missing; read it with `fetch`, which raises when it is missing, or test it with `!= nil` first"
             ),
         );
@@ -2344,7 +2355,10 @@ impl<'a> Checker<'a> {
             },
             Edit {
                 span: Span::at(value_span.start),
-                replacement: format!("{receiver_text}.fetch({selector_text}) {operator} {open}"),
+                replacement: text!(
+                    self,
+                    "{receiver_text}.fetch({selector_text}) {operator} {open}"
+                ),
             },
         ];
         if !close.is_empty() {
@@ -2354,7 +2368,10 @@ impl<'a> Checker<'a> {
             });
         }
         Some(Fix::edits(
-            format!("read it with `{receiver_text}.fetch({selector_text})`"),
+            text!(
+                self,
+                "read it with `{receiver_text}.fetch({selector_text})`"
+            ),
             edits,
         ))
     }
@@ -2435,17 +2452,17 @@ impl<'a> Checker<'a> {
                     // A declaration writes the global too, whose type stays.
                     let span = self.spans.token(*offset as usize);
                     let purpose = if self.global_declaration(name, global, declared, span) {
-                        Purpose::Global(name.to_string())
+                        Purpose::Global(self.copy(name))
                     } else {
-                        Purpose::Local(name.to_string())
+                        Purpose::Local(self.copy(name))
                     };
                     return self.expr_against(value, declared, &purpose);
                 }
                 let ty = self.symbols(None, |this| {
-                    this.expr_against(value, declared, &Purpose::Local(name.to_string()))
+                    this.expr_against(value, declared, &Purpose::Local(this.copy(name)))
                 });
                 if self.frame.namespace_body && is_constant(name) {
-                    if self.keep_constant((self.frame.owner, name.to_string()), declared) {
+                    if self.keep_constant((self.frame.owner, self.copy(name)), declared) {
                         return Ty::ERROR;
                     }
                     return ty;
@@ -2461,7 +2478,7 @@ impl<'a> Checker<'a> {
                                 Diagnostic::error(
                                     Code::LOCAL_TYPE_CHANGED,
                                     span,
-                                    format!(
+                                    text!(self,
                                         "`{name}` is already declared as {first}; a local keeps the type of its first declaration"
                                     ),
                                 )
@@ -2484,14 +2501,14 @@ impl<'a> Checker<'a> {
             }
             Target::Value(expr) => match &expr.node {
                 Node::Var(name) if name.starts_with("@@") => {
-                    let key = (self.frame.owner, name.to_string());
+                    let key = (self.frame.owner, self.copy(name));
                     match self.constants.get(&key).copied() {
                         Some(declared) if self.frame.owner.is_some() => {
                             self.symbols(Some(CLASS_SYMBOL), |this| {
                                 this.expr_against(
                                     value,
                                     declared,
-                                    &Purpose::Ivar(name[1..].to_owned()),
+                                    &Purpose::Ivar(this.copy(&name[1..])),
                                 )
                             })
                         }
@@ -2507,11 +2524,11 @@ impl<'a> Checker<'a> {
                     let ivar = &name[1..];
                     let expected = self.ivar_type(ivar, span);
                     if matches!(&value.node, Node::Var(value) if value.as_str() == "self") {
-                        self.storing_self = Some(ivar.to_owned());
+                        self.storing_self = Some(self.copy(ivar));
                     }
                     let ty = match expected {
                         Some(expected) => self.symbols(None, |this| {
-                            this.expr_against(value, expected, &Purpose::Ivar(ivar.to_owned()))
+                            this.expr_against(value, expected, &Purpose::Ivar(this.copy(ivar)))
                         }),
                         None => self.expr(value, None),
                     };
@@ -2521,13 +2538,13 @@ impl<'a> Checker<'a> {
                 Node::Var(name) if self.frame.namespace_body && is_constant(name) => {
                     if let Some(declared) = self.declared_constant(name) {
                         return self.symbols(None, |this| {
-                            this.expr_against(value, declared, &Purpose::Local(name.to_string()))
+                            this.expr_against(value, declared, &Purpose::Local(this.copy(name)))
                         });
                     }
-                    let key = (self.frame.owner, name.to_string());
+                    let key = (self.frame.owner, self.copy(name));
                     if let Some(&declared) = self.constants.get(&key) {
                         self.symbols(Some(LOCAL_SYMBOL), |this| {
-                            this.expr_against(value, declared, &Purpose::Local(name.to_string()))
+                            this.expr_against(value, declared, &Purpose::Local(this.copy(name)))
                         })
                     } else {
                         let ty = self.expr(value, None);
@@ -2557,7 +2574,7 @@ impl<'a> Checker<'a> {
                         }
                         None if self.host_global(name).is_some() => {
                             let global = self.host_global(name).unwrap();
-                            self.expr_against(value, global, &Purpose::Global(name.to_string()))
+                            self.expr_against(value, global, &Purpose::Global(self.copy(name)))
                         }
                         None => {
                             let ty = self.expr(value, None);
@@ -2650,7 +2667,8 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::NEEDS_TYPE,
                 span,
-                format!(
+                text!(
+                    self,
                     "{what} does not say what `{name}` holds; declare it, as in `{name}: T = ...`"
                 ),
             ));
@@ -2711,7 +2729,10 @@ impl<'a> Checker<'a> {
             Diagnostic::error(
                 Code::LOCAL_TYPE_CHANGED,
                 span,
-                format!("`{name}` is {expected}, {how}; it cannot hold {found}"),
+                text!(
+                    self,
+                    "`{name}` is {expected}, {how}; it cannot hold {found}"
+                ),
             )
             .with_label(first, "declared here")
             .with_types(expected, found),
@@ -2757,7 +2778,12 @@ impl<'a> Checker<'a> {
                     let span = self.spans.expr(expr);
                     if let Some(expected) = self.ivar_type(&name[1..], span) {
                         if !self.types.assignable(ty, expected) {
-                            self.mismatch(span, expected, ty, &Purpose::Ivar(name[1..].to_owned()));
+                            self.mismatch(
+                                span,
+                                expected,
+                                ty,
+                                &Purpose::Ivar(self.copy(&name[1..])),
+                            );
                         }
                     }
                     self.mark_ivar_assigned(&name[1..]);
@@ -2853,7 +2879,7 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::LOCAL_TYPE_CHANGED,
                 self.spans.expr(expr),
-                format!("a function cannot assign capitalized name `{name}`; use a lowercase local or a declared class variable"),
+                text!(self, "a function cannot assign capitalized name `{name}`; use a lowercase local or a declared class variable"),
             ));
             return;
         }
@@ -2870,7 +2896,10 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::LOCAL_TYPE_CHANGED,
                 self.spans.expr(expr),
-                format!("`{name}` names a namespace or function and cannot be rebound"),
+                text!(
+                    self,
+                    "`{name}` names a namespace or function and cannot be rebound"
+                ),
             ));
         }
     }
@@ -2930,7 +2959,10 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::UNDECLARED_IVAR,
                 span,
-                format!("`@{name}` is outside any class; instance variables belong to a class"),
+                text!(
+                    self,
+                    "`@{name}` is outside any class; instance variables belong to a class"
+                ),
             ));
             return None;
         };
@@ -2942,7 +2974,7 @@ impl<'a> Checker<'a> {
         self.report(Diagnostic::error(
             Code::UNDECLARED_IVAR,
             span,
-            format!(
+            text!(self,
                 "`@{name}` is not declared in `{class}`; declare it in the class body, as in `@{name}: T`"
             ),
         ));
@@ -2971,15 +3003,15 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::UNDECLARED_IVAR,
                 self.spans.expr(target),
-                format!("class variable `{name}` is outside a class"),
+                text!(self, "class variable `{name}` is outside a class"),
             ));
             return;
         };
-        let key = (Some(ns), name.to_owned());
+        let key = (Some(ns), self.copy(name));
         if let Some(declared) = self.constants.get(&key).copied() {
             if !self.types.assignable(ty, declared) {
                 let span = self.spans.expr(value);
-                self.mismatch(span, declared, ty, &Purpose::Ivar(name[1..].to_owned()));
+                self.mismatch(span, declared, ty, &Purpose::Ivar(self.copy(&name[1..])));
             }
             return;
         }
@@ -2988,7 +3020,8 @@ impl<'a> Checker<'a> {
         let mut diagnostic = Diagnostic::error(
             Code::UNDECLARED_IVAR,
             span,
-            format!(
+            text!(
+                self,
                 "class variable `{name}` is not declared in `{class}`; declare it in the body, as in `{name}: T = value`"
             ),
         );
@@ -2997,9 +3030,9 @@ impl<'a> Checker<'a> {
         if nameable && self.frame.namespace_body && self.class_body_assignment(ns, target) {
             let written = self.types.display(ty);
             diagnostic = diagnostic.with_fix(Fix::insert(
-                format!("declare `{name}: {written}`"),
+                text!(self, "declare `{name}: {written}`"),
                 span.end,
-                format!(": {written}"),
+                text!(self, ": {written}"),
             ));
         }
         self.report(diagnostic);
@@ -3064,7 +3097,7 @@ impl<'a> Checker<'a> {
         if !accessor {
             if let Some(expected) = self.ivar_type(name, span) {
                 if !self.types.assignable(ty, expected) {
-                    self.mismatch(span, expected, ty, &Purpose::Ivar(name.to_owned()));
+                    self.mismatch(span, expected, ty, &Purpose::Ivar(self.copy(name)));
                 }
             }
         }
@@ -3075,7 +3108,7 @@ impl<'a> Checker<'a> {
         if let Some(expected) = self.ivar_type(name, span) {
             if !self.types.assignable(ty, expected) {
                 let span = self.spans.expr(value);
-                self.mismatch(span, expected, ty, &Purpose::Ivar(name.to_owned()));
+                self.mismatch(span, expected, ty, &Purpose::Ivar(self.copy(name)));
             }
         }
         self.mark_ivar_assigned(name);
@@ -3092,7 +3125,7 @@ impl<'a> Checker<'a> {
             let mut diagnostic = Diagnostic::error(
                 Code::CONDITION_NOT_BOOL,
                 span,
-                format!("a condition must be a bool, found {found}"),
+                text!(self, "a condition must be a bool, found {found}"),
             )
             .with_types("bool", found.clone());
             // A nil test keeps an optional value's meaning, unless it may be false.
@@ -3104,12 +3137,12 @@ impl<'a> Checker<'a> {
             {
                 let text = &self.source[span.start..span.end];
                 let replacement = if is_simple(expr) {
-                    format!("{text} != nil")
+                    text!(self, "{text} != nil")
                 } else {
-                    format!("({text}) != nil")
+                    text!(self, "({text}) != nil")
                 };
                 diagnostic = diagnostic.with_fix(Fix::replace(
-                    format!("test for nil: `{replacement}`"),
+                    text!(self, "test for nil: `{replacement}`"),
                     span,
                     replacement,
                 ));
@@ -3180,7 +3213,8 @@ impl<'a> Checker<'a> {
                         self.report(Diagnostic::warning(
                             Code::UNREACHABLE_NARROWING,
                             span,
-                            format!(
+                            text!(
+                                self,
                                 "`{name}` is {found}, never nil, so this test is always {always}"
                             ),
                         ));
@@ -3213,7 +3247,7 @@ impl<'a> Checker<'a> {
                         self.report(Diagnostic::warning(
                             Code::CAST,
                             span,
-                            format!("a value of type {found} is never {wanted}, so this test is always false"),
+                            text!(self, "a value of type {found} is never {wanted}, so this test is always false"),
                         ));
                     }
                     let otherwise = if current == Ty::ANY {
@@ -3247,7 +3281,7 @@ impl<'a> Checker<'a> {
             Diagnostic::error(
                 Code::LOGICAL_NOT_BOOL,
                 span,
-                format!("`{op}` takes bool operands, found {found}"),
+                text!(self, "`{op}` takes bool operands, found {found}"),
             )
             .with_types("bool", found),
         );
@@ -3505,35 +3539,43 @@ impl<'a> Checker<'a> {
     /// What a position expects, for messages: "`f` returns int".
     pub(super) fn purpose_text(&self, purpose: &Purpose, expected_text: &str) -> String {
         match purpose {
-            Purpose::Result => format!("`{}` returns {expected_text}", self.current_function()),
-            Purpose::BlockResult => format!("the block returns {expected_text}"),
-            Purpose::Local(name) => format!("`{name}` is {expected_text}"),
-            Purpose::Global(name) => format!(
+            Purpose::Result => text!(
+                self,
+                "`{}` returns {expected_text}",
+                self.current_function()
+            ),
+            Purpose::BlockResult => text!(self, "the block returns {expected_text}"),
+            Purpose::Local(name) => text!(self, "`{name}` is {expected_text}"),
+            Purpose::Global(name) => text!(
+                self,
                 "the host declares the global `{name}` as {expected_text}, and this writes it"
             ),
-            Purpose::Ivar(name) => format!("`@{name}` is {expected_text}"),
+            Purpose::Ivar(name) => text!(self, "`@{name}` is {expected_text}"),
             Purpose::Argument {
                 index,
                 name,
                 function,
             } => {
-                format!(
+                text!(
+                    self,
                     "argument {} (`{name}`) of `{function}` is {expected_text}",
                     index + 1
                 )
             }
             Purpose::Keyword { name, function } => {
-                format!("keyword `{name}:` of `{function}` is {expected_text}")
+                text!(self, "keyword `{name}:` of `{function}` is {expected_text}")
             }
-            Purpose::Element => format!("elements here are {expected_text}"),
-            Purpose::Field(name) => format!("field `{name}` is {expected_text}"),
-            Purpose::Annotation => format!("the annotation says {expected_text}"),
-            Purpose::Yield(index) => format!("block argument {} is {expected_text}", index + 1),
-            Purpose::Operand => format!("the operand must be {expected_text}"),
-            Purpose::Break(function, false) => format!(
+            Purpose::Element => text!(self, "elements here are {expected_text}"),
+            Purpose::Field(name) => text!(self, "field `{name}` is {expected_text}"),
+            Purpose::Annotation => text!(self, "the annotation says {expected_text}"),
+            Purpose::Yield(index) => text!(self, "block argument {} is {expected_text}", index + 1),
+            Purpose::Operand => text!(self, "the operand must be {expected_text}"),
+            Purpose::Break(function, false) => text!(
+                self,
                 "a `break` out of the block returns from `{function}`, which returns {expected_text}"
             ),
-            Purpose::Break(function, true) => format!(
+            Purpose::Break(function, true) => text!(
+                self,
                 "a `break` value out of this block ends a loop or block inside `{function}`, which takes it as a value of its result type, {expected_text}"
             ),
         }
@@ -3551,20 +3593,23 @@ impl<'a> Checker<'a> {
         let mut diagnostic = Diagnostic::error(
             Code::TYPE_MISMATCH,
             span,
-            format!("{what}, found {found_text}"),
+            text!(self, "{what}, found {found_text}"),
         )
         .with_types(expected_text.clone(), found_text);
         if found == Ty::ANY {
             diagnostic.code = Code::ANY_USE;
-            diagnostic.message = format!(
+            diagnostic.message = text!(
+                self,
                 "{what}, found any; narrow the value first with `is_type?`, `.as({expected_text})` or `JSON.parse_as`"
             );
         } else if self.types.has_nil(found) {
             let without = self.types.without_nil(found);
             if without != Ty::NEVER && self.types.assignable(without, expected) {
                 diagnostic.code = Code::OPTIONAL_USE;
-                diagnostic.message =
-                    format!("{what}, but this value may be nil; test it with `!= nil` first");
+                diagnostic.message = text!(
+                    self,
+                    "{what}, but this value may be nil; test it with `!= nil` first"
+                );
             }
         }
         self.report(diagnostic);

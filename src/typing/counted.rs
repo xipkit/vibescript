@@ -273,6 +273,94 @@ impl Kept {
     }
 }
 
+/// Text written through the meter, such as a diagnostic's message: each
+/// piece is counted before the string grows to take it, with its old and
+/// new storage while it grows, and while it is written, as a scratch
+/// list is. Once the budget refuses a piece, it writes nothing more, and
+/// the check has stopped.
+pub(crate) struct Text<'m> {
+    text: String,
+    ledger: Ledger<'m>,
+    refused: bool,
+}
+
+impl<'m> Text<'m> {
+    pub fn new(meter: &'m Meter) -> Self {
+        Self {
+            text: String::new(),
+            ledger: meter.scratch_lists(),
+            refused: false,
+        }
+    }
+
+    /// Writes `piece`, once it is counted.
+    pub fn push_str(&mut self, piece: &str) {
+        if self.refused {
+            return;
+        }
+        let (length, capacity) = (self.text.len(), self.text.capacity());
+        let needed = length.saturating_add(piece.len());
+        if needed > capacity {
+            let target = needed.max(2 * capacity).max(16);
+            if self.ledger.admit(capacity.saturating_add(target)).is_err() {
+                self.refused = true;
+                return;
+            }
+            self.text.reserve_exact(target - length);
+            // A text is scratch of a moment, recorded but not reported: the
+            // account's observer reads the check at its measures and its
+            // tables' growth.
+            self.ledger
+                .meter
+                .record(self.ledger.side, self.text.capacity() - capacity);
+        }
+        self.text.push_str(piece);
+    }
+
+    pub fn push(&mut self, c: char) {
+        self.push_str(c.encode_utf8(&mut [0; 4]));
+    }
+
+    /// Writes `args`, as `write!` writes them; a refusal stops the writing.
+    pub fn write(&mut self, args: std::fmt::Arguments<'_>) {
+        // A refusal is recorded, and writes nothing more.
+        if std::fmt::Write::write_fmt(self, args).is_err() {
+            self.refused = true;
+        }
+    }
+
+    /// The text, no longer counted here: whoever keeps it counts it. A
+    /// text the budget refused is empty.
+    pub fn finish(mut self) -> String {
+        self.ledger.meter.dropped(self.text.capacity());
+        if self.refused {
+            return String::new();
+        }
+        std::mem::take(&mut self.text)
+    }
+}
+
+impl std::fmt::Write for Text<'_> {
+    fn write_str(&mut self, piece: &str) -> std::fmt::Result {
+        self.push_str(piece);
+        if self.refused {
+            return Err(std::fmt::Error);
+        }
+        Ok(())
+    }
+}
+
+/// `args` written out through the meter, as [`Text`] writes; empty once the
+/// budget refuses it, which stops the check.
+pub(crate) fn text(meter: &Meter, args: std::fmt::Arguments<'_>) -> String {
+    let mut text = Text::new(meter);
+    // A refusal leaves the text empty, and the check stopped.
+    if std::fmt::write(&mut text, args).is_err() {
+        text.refused = true;
+    }
+    text.finish()
+}
+
 /// A list an operation builds and drops, whose storage and elements are
 /// counted before it takes them, as a table's are, and while it lives,
 /// since no measure counts it: they are taken back when it is dropped.
@@ -1411,6 +1499,62 @@ mod tests {
         assert!(
             found.is_empty(),
             "say here which kind each list or map these files make is, or make it in a scratch list:\n{}",
+            found.join("\n")
+        );
+    }
+
+    /// The text each file of the checker writes without the meter, with a
+    /// `format!`, `to_string`, `to_owned` or `String::from`, by file and in
+    /// three kinds: a fixed word or a number, which is short; a copy of a
+    /// name counted before it is made, which a table then takes, or which
+    /// is held while it lives; and a copy of a name a counted table takes,
+    /// which it counts as it takes it. Any other text, and a diagnostic's
+    /// above all, is written through the meter with `text!` or `copy`.
+    const WRITTEN: &[(&str, [usize; 3])] = &[
+        ("calls.rs", [2, 0, 0]),
+        ("check.rs", [2, 5, 0]),
+        ("construction.rs", [0, 1, 0]),
+        ("expr.rs", [2, 0, 0]),
+        ("modules.rs", [0, 2, 2]),
+        ("program.rs", [0, 2, 6]),
+        ("ty.rs", [11, 0, 0]),
+    ];
+
+    #[test]
+    fn the_text_the_checker_writes_is_metered_or_of_a_kind() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut sources = vec![root.join("typing.rs")];
+        for entry in std::fs::read_dir(root.join("typing")).unwrap() {
+            sources.push(entry.unwrap().path());
+        }
+        let mut found = Vec::new();
+        for path in sources {
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            if name == "counted.rs" {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).unwrap();
+            let code = text.split("#[cfg(test)]").next().unwrap();
+            let written = code
+                .lines()
+                .filter(|line| !line.trim_start().starts_with("//"))
+                .filter(|line| {
+                    ["format!(", ".to_string()", ".to_owned()", "String::from("]
+                        .iter()
+                        .any(|site| line.contains(site))
+                })
+                .count();
+            let kinds = WRITTEN
+                .iter()
+                .find(|(file, _)| *file == name)
+                .map_or(0, |(_, kinds)| kinds.iter().sum());
+            if written != kinds {
+                found.push(format!("{name}: {written} written, {kinds} of a kind"));
+            }
+        }
+        assert!(
+            found.is_empty(),
+            "write the checker's text through the meter, or say here which kind it is:\n{}",
             found.join("\n")
         );
     }

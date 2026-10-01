@@ -360,7 +360,7 @@ impl<'a> Checker<'a> {
             };
             if !valid {
                 self.report(Diagnostic::error(Code::TYPE_MISMATCH, crate::diagnostic::Span::at(0),
-                    format!("retained declaration `{name}` must keep its original declarations and enum members")));
+                    text!(self, "retained declaration `{name}` must keep its original declarations and enum members")));
             }
         }
     }
@@ -635,7 +635,7 @@ impl<'a> Checker<'a> {
                 continue;
             };
             let ty = self.annotation(&declared.ty, Some(ns), declared.offset as usize);
-            if self.keep_constant((Some(ns), declared.name.to_string()), ty) {
+            if self.keep_constant((Some(ns), self.copy(&declared.name)), ty) {
                 return;
             }
         }
@@ -661,7 +661,10 @@ impl<'a> Checker<'a> {
                     self.report(Diagnostic::error(
                         Code::MISSING_PARAMETER_TYPE,
                         span,
-                        format!("property `{name}` has no type; declare it as `{name}: T`"),
+                        text!(
+                            self,
+                            "property `{name}` has no type; declare it as `{name}: T`"
+                        ),
                     ));
                 }
                 let id = self.program.namespaces[ns].methods[def.name.as_str()];
@@ -703,7 +706,7 @@ impl<'a> Checker<'a> {
                             Diagnostic::error(
                                 Code::TYPE_MISMATCH,
                                 span,
-                                format!(
+                                text!(self,
                                     "the {what} `{name}` {how} {found}, but `@{name}` is {declared_text}; declare them with one type"
                                 ),
                             )
@@ -788,9 +791,11 @@ impl<'a> Checker<'a> {
                     self.report(Diagnostic::error(
                         Code::DUPLICATE_NAME,
                         span,
-                        format!(
+                        text!(
+                            self,
                             "`{}` is already a method of `{}`; an alias takes a new name",
-                            def.name, module.name
+                            def.name,
+                            module.name
                         ),
                     ));
                 }
@@ -958,9 +963,12 @@ impl<'a> Checker<'a> {
                         let mut diagnostic = Diagnostic::error(
                             Code::MISSING_PARAMETER_TYPE,
                             span,
-                            format!(
+                            text!(
+                                self,
                                 "parameter `{}` of `{}` has no type; declare it as `{}: T`",
-                                param.name, def.name, param.name
+                                param.name,
+                                def.name,
+                                param.name
                             ),
                         );
                         // A removed keyword form has a colon after the name,
@@ -969,9 +977,9 @@ impl<'a> Checker<'a> {
                         if literal != Ty::ERROR && !colon {
                             let ty = self.types.display(literal);
                             diagnostic = diagnostic.with_fix(Fix::insert(
-                                format!("declare `{}: {ty}`", param.name),
+                                text!(self, "declare `{}: {ty}`", param.name),
                                 span.end,
-                                format!(": {ty}"),
+                                text!(self, ": {ty}"),
                             ));
                         }
                         self.report(diagnostic);
@@ -1088,7 +1096,7 @@ impl<'a> Checker<'a> {
                     Diagnostic::error(
                         Code::TYPE_MISMATCH,
                         span,
-                        format!(
+                        text!(self,
                             "the command line passes strings, but `{}` of `{function}` is {declared}",
                             param.name
                         ),
@@ -1231,7 +1239,7 @@ impl<'a> Checker<'a> {
         self.report(Diagnostic::error(
             Code::TYPE_TOO_LARGE,
             span,
-            format!(
+            text!(self,
                 "this {what} has {size} {parts}, more than the {most} the checker relates; declare a wider type, such as a dictionary or an array of a smaller union"
             ),
         ));
@@ -1247,7 +1255,7 @@ impl<'a> Checker<'a> {
         self.report(Diagnostic::error(
             Code::UNKNOWN_TYPE,
             span,
-            format!("unknown type `{name}`"),
+            text!(self, "unknown type `{name}`"),
         ));
         Ty::ERROR
     }
@@ -1322,7 +1330,7 @@ impl<'a> Checker<'a> {
     }
 
     fn alias_type(&mut self, name: &str, scope: Option<NsId>, depth: usize) -> Option<Ty> {
-        let key = (scope, name.to_owned());
+        let key = (scope, self.copy(name));
         if let Some(&ty) = self.program.alias_types.get(&key) {
             return Some(ty);
         }

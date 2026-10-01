@@ -142,9 +142,10 @@ impl Sig {
         (!rest).then_some(first)
     }
 
-    /// Renders the parameter list for messages.
-    pub fn describe(&self, types: &Types) -> String {
-        let mut out = format!("{}(", self.name);
+    /// Renders the parameter list for messages into `out`.
+    pub fn describe(&self, types: &Types, out: &mut super::counted::Text<'_>) {
+        out.push_str(&self.name);
+        out.push('(');
         let star = self.keyword_star();
         for (index, param) in self.params.iter().enumerate() {
             if index > 0 {
@@ -172,7 +173,6 @@ impl Sig {
             out.push_str(if block.optional { "&block?" } else { "&block" });
         }
         out.push(')');
-        out
     }
 }
 

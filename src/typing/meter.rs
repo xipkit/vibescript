@@ -785,6 +785,21 @@ impl<'a> super::Checker<'a> {
         std::mem::replace(&mut self.memo.0, outer)
     }
 
+    /// `args` written out through the meter, for a diagnostic: empty once
+    /// the budget refuses it, which stops the check, whose diagnostic is
+    /// then not kept.
+    pub(super) fn text(&self, args: std::fmt::Arguments<'_>) -> String {
+        super::counted::text(&self.meter, args)
+    }
+
+    /// A copy of `name`, a name from the source, written through the meter
+    /// as [`Self::text`] writes it.
+    pub(super) fn copy(&self, name: &str) -> String {
+        let mut text = super::counted::Text::new(&self.meter);
+        text.push_str(name);
+        text.finish()
+    }
+
     /// Counts `bytes` more of what the checker keeps, before it keeps
     /// them, which the budget admits beside what the check holds, rather
     /// than at the next poll that measures, which may be many statements
