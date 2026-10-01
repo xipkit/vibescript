@@ -169,6 +169,11 @@ pub(crate) fn add_to(
         steps = steps.saturating_add(read);
         within(steps)
     };
+    // A compilation stopped since the check last asked reads nothing.
+    if stop() {
+        checked.stopped = true;
+        return;
+    }
     let walked = walk(source, tokens, &checked.calls, &mut afford, &stop);
     let Some(surface) = walked else {
         // The compiler's grammar reads the removed syntax only so that these

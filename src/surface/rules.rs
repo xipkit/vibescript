@@ -49,7 +49,9 @@ impl<'a> Checker<'a> {
             .or_else(|| {
                 patterns()
                     .iter()
-                    .find(|p| p.callee == Callee::Namespace(name.to_owned()))
+                    .find(
+                        |p| matches!(&p.callee, Callee::Namespace(namespace) if namespace == name),
+                    )
                     .filter(|_| table.module(name).is_none())
             });
             if let Some(pattern) = removed {
@@ -830,7 +832,7 @@ impl<'a> Checker<'a> {
             // renamed below.
             if let Some((pattern, captures)) = candidates
                 .iter()
-                .filter(|p| p.callee == Callee::Namespace(name.clone()))
+                .filter(|p| matches!(&p.callee, Callee::Namespace(namespace) if namespace == name))
                 .find_map(|p| self.match_args(call, p).map(|c| (*p, c)))
             {
                 return self.apply_pattern(expr, Some(call), pattern, &captures, place);
