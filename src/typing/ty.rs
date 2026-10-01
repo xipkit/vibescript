@@ -1146,14 +1146,16 @@ impl Types {
             }
             Kind::Shape(fields, open) => {
                 // The fields, with copies of their names, are listed at
-                // their number, in a list counted while it lives.
+                // their number, in a list counted while it lives, the
+                // copies counted before they are made.
                 let mut copied = ScratchVec::new(&self.meter);
-                if copied.reserve(fields.len()).is_err() {
+                let names = fields.iter().map(|field| field.name.len()).sum();
+                if copied.reserve_with(fields.len(), names).is_err() {
                     return Ty::ERROR;
                 }
                 for field in fields.iter() {
                     let ty = self.subst(field.ty, bindings);
-                    copied.add(Field {
+                    copied.push_within(Field {
                         name: field.name.clone(),
                         ty,
                         optional: field.optional,

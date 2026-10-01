@@ -44,9 +44,10 @@ impl<'a> Checker<'a> {
             Node::Conditional(..) | Node::Case(..) | Node::Try(_) | Node::Compound(_) => {
                 // The purpose, and its room on the stack, are counted as it
                 // is kept; a check the budget stops checks no more.
+                let owned = super::counted::Owned::owned(purpose);
                 if self
                     .purposes
-                    .push(self.meter.tables(), purpose.clone())
+                    .push_made(self.meter.tables(), owned, || purpose.clone())
                     .is_err()
                 {
                     return Ty::ERROR;

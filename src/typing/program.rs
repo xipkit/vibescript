@@ -722,7 +722,8 @@ impl<'a> Checker<'a> {
     }
 
     /// Declares method `name` of namespace `ns`, a static one when
-    /// `statics`, with a copy of its name, counted as the table takes it.
+    /// `statics`, with a copy of its name, counted with its room in the
+    /// table before it is made.
     /// Returns whether it did: a check the budget stops declares no more.
     fn declare_method(&mut self, ns: usize, name: &str, id: FnId, statics: bool) -> bool {
         let declarations = self.meter.declarations();
@@ -736,11 +737,14 @@ impl<'a> Checker<'a> {
             *entry = id;
             return true;
         }
-        table.insert(declarations, name.to_owned(), id).is_ok()
+        table
+            .insert_made(declarations, name.len(), || name.to_owned(), id)
+            .is_ok()
     }
 
     /// Declares instance variable `name` of namespace `ns`, with a copy of
-    /// its name, counted as the table takes it; one declared already is
+    /// its name, counted with its room before it is made; one declared
+    /// already is
     /// replaced when `replace`, and kept otherwise. Returns whether it did:
     /// a check the budget stops declares no more.
     fn declare_ivar(&mut self, ns: usize, name: &str, ivar: Ivar, replace: bool) -> bool {
@@ -752,7 +756,9 @@ impl<'a> Checker<'a> {
             }
             return true;
         }
-        ivars.insert(declarations, name.to_owned(), ivar).is_ok()
+        ivars
+            .insert_made(declarations, name.len(), || name.to_owned(), ivar)
+            .is_ok()
     }
 
     /// Reports a class alias that takes the name of a method the class
@@ -1385,7 +1391,7 @@ impl<'a> Checker<'a> {
         if self
             .program
             .alias_types
-            .insert(self.meter.tables(), key.clone(), Ty::ERROR)
+            .insert_made(self.meter.tables(), key.1.len(), || key.clone(), Ty::ERROR)
             .is_err()
         {
             return Some(Ty::ERROR);

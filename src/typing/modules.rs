@@ -292,7 +292,12 @@ impl<'a> Checker<'a> {
                     && self
                         .modules
                         .aliases
-                        .insert(self.meter.declarations(), alias.to_owned(), id)
+                        .insert_made(
+                            self.meter.declarations(),
+                            alias.len(),
+                            || alias.to_owned(),
+                            id,
+                        )
                         .is_err()
                 {
                     self.release(held);
@@ -365,7 +370,12 @@ impl<'a> Checker<'a> {
         if self
             .modules
             .by_path
-            .insert(self.meter.declarations(), path.to_owned(), circular)
+            .insert_made(
+                self.meter.declarations(),
+                path.len(),
+                || path.to_owned(),
+                circular,
+            )
             .is_err()
         {
             return Err("the check ran out of its budget".into());
@@ -572,7 +582,7 @@ impl<'a> Checker<'a> {
             if self
                 .modules
                 .published
-                .insert(declarations, name.clone(), Rc::clone(sig))
+                .insert_made(declarations, name.len(), || name.clone(), Rc::clone(sig))
                 .is_err()
             {
                 self.release(tree);
@@ -852,7 +862,7 @@ impl<'a> Checker<'a> {
             };
             let declarations = self.meter.declarations();
             if functions
-                .insert(declarations, name.clone(), Rc::new(sig))
+                .insert_made(declarations, name.len(), || name.clone(), Rc::new(sig))
                 .is_err()
             {
                 break;

@@ -454,6 +454,24 @@ impl<T: Owned> ScratchVec<T> {
         Ok(())
     }
 
+    /// Makes room for `additional` more elements, and counts the `owned`
+    /// bytes they will own, before any is made, for
+    /// [`Self::push_within`] to take.
+    #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
+    pub fn reserve_with(&mut self, additional: usize, owned: usize) -> Result<(), Refused> {
+        self.list.reserve(self.meter.scratch_lists(), additional)?;
+        self.meter.scratch_lists().keep(owned)?;
+        self.owned += owned;
+        Ok(())
+    }
+
+    /// Adds `value` in room [`Self::reserve_with`] made for it, which
+    /// counted what it owns.
+    pub fn push_within(&mut self, value: T) {
+        debug_assert!(self.list.len() < self.list.capacity(), "room is made first");
+        self.list.push_moved(value);
+    }
+
     /// Adds `value`, or, when the budget refuses it room, drops it: the
     /// check has stopped, and its caller unwinds without reading the list.
     pub fn add(&mut self, value: T) {
@@ -727,6 +745,24 @@ impl<T> CountedVec<T> {
         self.0.push(value);
     }
 
+    /// Adds the value `make` copies, room for it and the `bytes` it owns
+    /// counted before it is made; a value the budget refuses is not made.
+    #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
+    pub fn push_made(
+        &mut self,
+        ledger: Ledger<'_>,
+        bytes: usize,
+        make: impl FnOnce() -> T,
+    ) -> Result<(), Refused>
+    where
+        T: Owned,
+    {
+        self.reserve(ledger, 1)?;
+        let mut kept = ledger.keep(bytes)?;
+        self.push_kept(&mut kept, make());
+        Ok(())
+    }
+
     /// Adds `value` in room [`Self::reserve`] made for it, whose place it
     /// moved from counted what it owns until now, such as the state a loop
     /// was left in, taken from the loop once it ends.
@@ -902,6 +938,28 @@ impl<K: Eq + Hash, V> CountedMap<K, V> {
             "room is made first"
         );
         self.0.insert(key, value)
+    }
+
+    /// Stores `value` under the key `make` copies, which it does not have:
+    /// room for the entry, and the `bytes` the copy owns with what `value`
+    /// owns, are counted before the copy is made. A key the budget refuses
+    /// is not made, and `value` is dropped.
+    #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
+    pub fn insert_made(
+        &mut self,
+        ledger: Ledger<'_>,
+        bytes: usize,
+        make: impl FnOnce() -> K,
+        value: V,
+    ) -> Result<(), Refused>
+    where
+        K: Owned,
+        V: Owned,
+    {
+        self.reserve(ledger, 1)?;
+        let mut kept = ledger.keep(bytes.saturating_add(value.owned()))?;
+        self.insert_kept(&mut kept, make(), value);
+        Ok(())
     }
 
     /// Stores `value` under `key` however the budget stands, counting what
@@ -1885,6 +1943,128 @@ mod tests {
             "write the checker's text through the meter, or say here which kind it is:\n{}",
             found.join("\n")
         );
+    }
+
+    /// The copies each file of the checker makes in the arguments of an
+    /// `insert`, a `push` or an `add`, or of a `_regardless` one, with a
+    /// `to_owned`, `to_string`, `clone`, `format!`, `String::from` or
+    /// `to_vec`, by file and in three kinds: into a list or a set counted,
+    /// with the copy, before it is made; into a table whose entries have
+    /// fixed places, which it keeps however the budget stands; and a fixed
+    /// word, or one of the builtin signatures', which the engine bounds.
+    /// Any other copy a counted table takes is counted, with its room,
+    /// before it is made, as `insert_made`, `push_made` and `reserve_with`
+    /// count it, and is not made once the budget refuses it.
+    const COPIED: &[(&str, [usize; 3])] = &[
+        // The unassigned variables listed, and the reads a caller gathers;
+        // a fix's closing bracket.
+        ("check.rs", [2, 0, 1]),
+        // A required file's classes, signatures and fields, which its
+        // importer counts first.
+        ("modules.rs", [3, 0, 0]),
+        // A function's parameters; the builtin namespaces', and the
+        // enums' and their names, which keep their places.
+        ("program.rs", [1, 4, 0]),
+        // The builtin signatures' variables, names and bindings.
+        ("sigs.rs", [0, 0, 6]),
+    ];
+
+    /// How many calls in `code` take a copy in their arguments, as
+    /// [`COPIED`] counts them.
+    fn copied(code: &str) -> usize {
+        let calls = [
+            ".insert(",
+            ".push(",
+            ".add(",
+            ".insert_regardless(",
+            ".push_regardless(",
+            ".get_or_insert_with(",
+        ];
+        let copies = [
+            ".to_owned()",
+            ".to_string()",
+            ".clone()",
+            "format!(",
+            "String::from(",
+            ".to_vec()",
+        ];
+        let mut count = 0;
+        for call in calls {
+            for (at, _) in code.match_indices(call) {
+                let start = at + call.len();
+                let mut depth = 1;
+                let mut end = code.len();
+                for (offset, c) in code[start..].char_indices() {
+                    match c {
+                        '(' => depth += 1,
+                        ')' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                end = start + offset;
+                                break;
+                            }
+                        }
+                        _ => (),
+                    }
+                }
+                if copies.iter().any(|copy| code[start..end].contains(copy)) {
+                    count += 1;
+                }
+            }
+        }
+        count
+    }
+
+    #[test]
+    fn the_checker_counts_a_copy_before_a_table_takes_it() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut sources = vec![root.join("typing.rs")];
+        for entry in std::fs::read_dir(root.join("typing")).unwrap() {
+            sources.push(entry.unwrap().path());
+        }
+        let mut found = Vec::new();
+        for path in sources {
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            if name == "counted.rs" {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).unwrap();
+            let code: String = text
+                .split("#[cfg(test)]")
+                .next()
+                .unwrap()
+                .lines()
+                .filter(|line| !line.trim_start().starts_with("//"))
+                .flat_map(|line| [line, "\n"])
+                .collect();
+            let count = copied(&code);
+            let kinds = COPIED
+                .iter()
+                .find(|(file, _)| *file == name)
+                .map_or(0, |(_, kinds)| kinds.iter().sum());
+            if count != kinds {
+                found.push(format!("{name}: {count} copies taken, {kinds} of a kind"));
+            }
+        }
+        assert!(
+            found.is_empty(),
+            "count a copy before a table takes it, or say here which kind it is:\n{}",
+            found.join("\n")
+        );
+    }
+
+    #[test]
+    fn the_lint_of_copies_finds_them_in_a_calls_arguments() {
+        assert_eq!(copied("map.insert(ledger, name.to_owned(), id)"), 1);
+        assert_eq!(
+            copied("list\n    .push(\n        tables,\n        f(x.clone()),\n    )"),
+            1
+        );
+        assert_eq!(
+            copied("map.insert_made(ledger, n, || name.to_owned(), id)"),
+            0
+        );
+        assert_eq!(copied("list.push(ledger, Rc::clone(&sig))"), 0);
     }
 
     /// The sorts each file of the checker makes itself rather than through

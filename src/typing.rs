@@ -608,7 +608,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
             || checker
                 .program
                 .hosts
-                .insert(declarations, (*name).clone(), sig)
+                .insert_made(declarations, name.len(), || (*name).clone(), sig)
                 .is_err()
         {
             break;

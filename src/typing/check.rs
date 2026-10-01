@@ -1169,13 +1169,15 @@ impl<'a> Checker<'a> {
                         if entry.contains(name) {
                             continue;
                         }
+                        // The copy, and its room in the set, are counted
+                        // before it is made.
                         let bytes = super::meter::btree_entry(&entry) + name.len();
-                        entry.insert(name.clone());
-                        changed = true;
                         if self.grow(bytes) {
                             self.release(taken);
                             return;
                         }
+                        entry.insert(name.clone());
+                        changed = true;
                     }
                 }
                 reads.insert(caller, entry);
@@ -3554,9 +3556,11 @@ pub(super) fn assigned_names(
     let found = assigns.distinct(span, |count, _| {
         !meter.pace(0, held + count * std::mem::size_of::<&str>())
     });
-    if names.reserve(found.len()).is_ok() {
+    // The copies are counted, with room for them, before they are made.
+    let bytes = found.iter().map(|name| name.len()).sum();
+    if names.reserve_with(found.len(), bytes).is_ok() {
         for name in found {
-            names.add(name.to_owned());
+            names.push_within(name.to_owned());
         }
     }
     assigns.bytes()
