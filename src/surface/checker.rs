@@ -37,7 +37,7 @@ pub fn check(source: &str) -> crate::Result<Vec<Diagnostic>> {
         &CallTypes::default(),
         &mut || true,
         &|| false,
-        &mut Room::default(),
+        &Room::default(),
     )
     .unwrap_or_default())
 }
@@ -57,7 +57,7 @@ fn walk<'s>(
     calls: &CallTypes,
     afford: &mut dyn FnMut() -> bool,
     stop: parse::Stop<'s>,
-    room: &mut Room,
+    room: &Room,
 ) -> Option<Vec<Diagnostic>> {
     match parse::parse_tokens(source, tokens, NESTING, stop) {
         Ok(tree) => diagnostics(source, &tree, calls, stop, room),
@@ -176,7 +176,9 @@ pub(crate) fn add_to(
     let read = u64::try_from(tokens.len() + interpolated + entries(tokens)).unwrap_or(u64::MAX);
     checked.steps += read;
     let charged = checked.steps;
-    let stop = move || !within(charged);
+    // The sorts the pass makes are charged as they are made, with the rest.
+    let room = Room::new(room);
+    let stop = || !within(charged + room.steps());
     let mut steps = checked.steps;
     let mut afford = || {
         steps = steps.saturating_add(read);
@@ -187,15 +189,7 @@ pub(crate) fn add_to(
         checked.stopped = true;
         return;
     }
-    let mut room = Room::new(room);
-    let walked = walk(
-        source,
-        tokens,
-        &checked.calls,
-        &mut afford,
-        &stop,
-        &mut room,
-    );
+    let walked = walk(source, tokens, &checked.calls, &mut afford, &stop, &room);
     checked.surface_bytes += room.peak();
     if room.full() {
         checked.stopped = true;
@@ -206,7 +200,7 @@ pub(crate) fn add_to(
         // rules report it. A source they cannot read must parse without
         // it, so that removed syntax never compiles.
         let affordable = afford();
-        checked.steps = steps;
+        checked.steps = steps + room.steps();
         if !affordable {
             checked.stopped = true;
             return;
@@ -233,7 +227,7 @@ pub(crate) fn add_to(
         }
         return;
     };
-    checked.steps = steps;
+    checked.steps = steps + room.steps();
     if surface.is_empty() {
         return;
     }
@@ -263,9 +257,17 @@ pub(crate) fn add_to(
         before == 0 || reach[before - 1].1 < diagnostic.span.end
     });
     checked.diagnostics.extend(surface);
-    checked
-        .diagnostics
-        .sort_by_key(|diagnostic| (diagnostic.span.start, diagnostic.span.end));
+    // Put in order, keeping those of a span in the order found, with the
+    // copy the sort keeps for a moment taken from the room.
+    let (held, sorting) = (room.peak(), room.steps());
+    let sorted = room.sort_by(&mut checked.diagnostics, |a, b| {
+        (a.span.start, a.span.end).cmp(&(b.span.start, b.span.end))
+    });
+    checked.surface_bytes += room.peak() - held;
+    checked.steps += room.steps() - sorting;
+    if !sorted || !within(checked.steps) {
+        checked.stopped = true;
+    }
 }
 
 #[cfg(not(target_os = "wasi"))]
@@ -274,7 +276,7 @@ fn deep<'s>(
     tokens: &[tooling::Token],
     calls: &CallTypes,
     stop: parse::Stop<'s>,
-    room: &mut Room,
+    room: &Room,
 ) -> Option<Vec<Diagnostic>> {
     std::thread::scope(|scope| {
         std::thread::Builder::new()
@@ -298,7 +300,7 @@ fn deep(
     _: &[tooling::Token],
     _: &CallTypes,
     _: parse::Stop<'_>,
-    _: &mut Room,
+    _: &Room,
 ) -> Option<Vec<Diagnostic>> {
     None
 }
@@ -311,7 +313,7 @@ fn diagnostics<'s>(
     tree: &syntax::Tree,
     calls: &CallTypes,
     stop: parse::Stop<'s>,
-    room: &mut Room,
+    room: &Room,
 ) -> Option<Vec<Diagnostic>> {
     let mut checker = Checker {
         surface: Surface::new(source, tree),
@@ -320,11 +322,9 @@ fn diagnostics<'s>(
         stop,
         visits: 0,
         stopped: false,
-        room: std::mem::take(room),
+        room,
     };
-    let found = checker.found(source, tree, stop);
-    *room = std::mem::take(&mut checker.room);
-    found
+    checker.found(source, tree, stop)
 }
 
 impl<'a> Checker<'a> {
@@ -350,7 +350,7 @@ impl<'a> Checker<'a> {
             let edits: Vec<Edit> = self
                 .surface
                 .edits
-                .flatten_group(source, &groups[group], &self.room)?
+                .flatten_group(source, &groups[group], self.room)?
                 .into_iter()
                 .map(|(at, replacement)| Edit {
                     span: span(at),
@@ -358,7 +358,7 @@ impl<'a> Checker<'a> {
                 })
                 .filter(|edit| edit.span.start < edit.span.end || !edit.replacement.is_empty())
                 .collect();
-            let mut message = Written::new(&self.room);
+            let mut message = Written::new(self.room);
             match rewrite.rule {
                 Rule::Require => message.write(format_args!(
                     "`require` names modules and aliases with string literals, not `{}`; {}",
@@ -385,7 +385,7 @@ impl<'a> Checker<'a> {
                 return None;
             }
             let code = finding.rule.code();
-            let mut message = Written::new(&self.room);
+            let mut message = Written::new(self.room);
             message.write(format_args!(
                 "`{}` was removed; {}",
                 finding.removed, finding.advice
@@ -416,16 +416,17 @@ impl<'a> Checker<'a> {
         if self.stopped || stop() {
             return None;
         }
-        diagnostics.sort_by_key(|diagnostic| {
-            (diagnostic.span.start, diagnostic.span.end, diagnostic.code)
+        // Diagnostics of a span and code keep the order they were found in.
+        let sorted = self.room.sort_by(&mut diagnostics, |a, b| {
+            (a.span.start, a.span.end, a.code).cmp(&(b.span.start, b.span.end, b.code))
         });
-        Some(diagnostics)
+        sorted.then_some(diagnostics)
     }
 
     /// `args` written out through the room, as `format!` writes them;
     /// empty once the room refuses them, which stops the walk.
     pub(super) fn written(&self, args: std::fmt::Arguments<'_>) -> String {
-        let mut text = Written::new(&self.room);
+        let mut text = Written::new(self.room);
         text.write(args);
         // A refusal leaves the room full, which stops the walk.
         text.finish().unwrap_or_default()
@@ -459,7 +460,7 @@ pub(super) struct Checker<'a> {
     /// text it copies outgrew its room.
     stopped: bool,
     /// What the text the walk copies and renders may hold.
-    room: Room,
+    room: &'a Room,
 }
 
 impl Checker<'_> {

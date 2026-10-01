@@ -1072,3 +1072,47 @@ fn the_text_the_rules_write_is_in_their_room_or_of_a_kind() {
         found.join("\n")
     );
 }
+
+#[test]
+fn the_rules_sort_through_their_room() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut sources = vec![root.join("surface.rs")];
+    for entry in std::fs::read_dir(root.join("surface")).unwrap() {
+        sources.push(entry.unwrap().path());
+    }
+    let mut found = Vec::new();
+    for path in sources {
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        if name == "tests.rs" {
+            continue;
+        }
+        let text = std::fs::read_to_string(&path).unwrap();
+        let code = text.split("#[cfg(test)]\nmod tests {").next().unwrap();
+        let sorted = code
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("//") && !line.contains("room."))
+            .filter(|line| {
+                [
+                    ".sort(",
+                    ".sort_by(",
+                    ".sort_by_key(",
+                    ".sort_unstable(",
+                    ".sort_unstable_by(",
+                    ".sort_unstable_by_key(",
+                ]
+                .iter()
+                .any(|site| line.contains(site))
+            })
+            .count();
+        // The room's own two sorts, which charge their steps.
+        let allowed = if name == "edits.rs" { 2 } else { 0 };
+        if sorted != allowed {
+            found.push(format!("{name}: {sorted} sorts, {allowed} allowed"));
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "sort through the room, which charges the steps:\n{}",
+        found.join("\n")
+    );
+}

@@ -4,7 +4,7 @@
 //! another rule has rewritten something inside `x`.
 
 use super::syntax::Span;
-use std::cell::Cell;
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering::Relaxed};
 
 /// The memory the rules' pass may hold beyond what its footprint counts:
 /// the text it copies from the source and renders, which the footprint
@@ -16,9 +16,12 @@ use std::cell::Cell;
 pub(crate) struct Room {
     /// What the pass may hold, or `None` for as much as it needs.
     left: Option<usize>,
-    held: Cell<usize>,
-    peak: Cell<usize>,
-    full: Cell<bool>,
+    held: AtomicUsize,
+    peak: AtomicUsize,
+    full: AtomicBool,
+    /// The steps of the sorts the pass made, which it charges with the
+    /// rest of its work.
+    steps: AtomicU64,
 }
 
 impl Room {
@@ -32,33 +35,77 @@ impl Room {
     /// Takes `bytes` a copy is about to hold; whether they fit.
     #[must_use = "a copy the room refuses must not be made"]
     pub fn take(&self, bytes: usize) -> bool {
-        if self.full.get() {
+        if self.full() {
             return false;
         }
-        let held = self.held.get().saturating_add(bytes);
+        let held = self.held.load(Relaxed).saturating_add(bytes);
         if self.left.is_some_and(|left| held > left) {
-            self.full.set(true);
+            self.full.store(true, Relaxed);
             return false;
         }
-        self.held.set(held);
-        self.peak.set(self.peak.get().max(held));
+        self.held.store(held, Relaxed);
+        self.peak.fetch_max(held, Relaxed);
         true
     }
 
     /// Gives back `bytes` a copy held, once it is dropped.
     pub fn give_back(&self, bytes: usize) {
-        self.held.set(self.held.get().saturating_sub(bytes));
+        let held = self.held.load(Relaxed);
+        self.held.store(held.saturating_sub(bytes), Relaxed);
     }
 
     /// Whether a copy was refused, which stops the pass.
     pub fn full(&self) -> bool {
-        self.full.get()
+        self.full.load(Relaxed)
     }
 
     /// The most the copies held at once.
     pub fn peak(&self) -> usize {
-        self.peak.get()
+        self.peak.load(Relaxed)
     }
+
+    /// The steps of the sorts the pass made.
+    pub fn steps(&self) -> u64 {
+        self.steps.load(Relaxed)
+    }
+
+    /// Sorts `list` as `sort_unstable_by` does, counting its steps, a step
+    /// for each 64 of the comparisons it may make, which the pass charges
+    /// and asks the budget about with the rest of its work.
+    pub fn sort_unstable_by<T>(
+        &self,
+        list: &mut [T],
+        compare: impl FnMut(&T, &T) -> std::cmp::Ordering,
+    ) {
+        self.steps.fetch_add(sort_steps(list.len()), Relaxed);
+        list.sort_unstable_by(compare);
+    }
+
+    /// Sorts `list` as `sort_by` does, keeping equal elements in order,
+    /// counting its steps as [`Self::sort_unstable_by`] does and taking the
+    /// scratch a stable sort keeps for a moment; whether the room had it,
+    /// leaving the list as it was when it did not.
+    #[must_use = "a sort the room refuses leaves the list unsorted, and stops the pass"]
+    pub fn sort_by<T>(
+        &self,
+        list: &mut [T],
+        compare: impl FnMut(&T, &T) -> std::cmp::Ordering,
+    ) -> bool {
+        let scratch = std::mem::size_of_val(list);
+        if !self.take(scratch) {
+            return false;
+        }
+        self.steps.fetch_add(sort_steps(list.len()), Relaxed);
+        list.sort_by(compare);
+        self.give_back(scratch);
+        true
+    }
+}
+
+/// The steps of sorting `length` elements, as the checker counts them.
+fn sort_steps(length: usize) -> u64 {
+    let comparisons = length.saturating_mul((usize::BITS - length.leading_zeros()) as usize);
+    (comparisons / 64) as u64
 }
 
 /// Text the pass writes, taking from its [`Room`] before the string grows
@@ -198,7 +245,10 @@ impl Edits {
         room: &Room,
     ) -> Option<Vec<(Span, String)>> {
         let mut edits: Vec<&Edit> = members.iter().map(|&index| &self.edits[index]).collect();
-        edits.sort_by_key(|edit| (edit.span.start, edit.span.end));
+        // Each edit's place among them is its own, so the order is total.
+        room.sort_unstable_by(&mut edits, |a, b| {
+            (a.span.start, a.span.end, a.order).cmp(&(b.span.start, b.span.end, b.order))
+        });
         let mut clusters: Vec<(Span, Vec<&Edit>)> = Vec::new();
         for edit in edits {
             match clusters.last_mut() {
@@ -211,7 +261,7 @@ impl Edits {
         }
         let mut flattened = Vec::with_capacity(clusters.len());
         for (extent, mut members) in clusters {
-            members.sort_by_key(|edit| edit.order);
+            room.sort_unstable_by(&mut members, |a, b| a.order.cmp(&b.order));
             // Padding keeps every edit inside the rendered text, so none
             // spans all of it and insertions at either end stay in. Its
             // copy, and the pieces copied for the edits, are dropped once
@@ -317,7 +367,8 @@ impl Edits {
     /// Renders `source` with every edit applied, writing the text through
     /// `room`; `None` once the room refuses it.
     pub fn apply_in(&mut self, source: &str, room: &Room) -> Option<String> {
-        self.edits.sort_by(|a, b| {
+        // Each edit's order is its own, so the order is total.
+        room.sort_unstable_by(&mut self.edits, |a, b| {
             a.span
                 .start
                 .cmp(&b.span.start)
