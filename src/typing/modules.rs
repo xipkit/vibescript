@@ -60,8 +60,14 @@ impl Exported {
             + super::meter::table::<(NsId, NsId)>(self.classes.len())
     }
 
+    /// What the file's type table, which the exports took from its check,
+    /// holds.
+    pub(super) fn types_bytes(&self) -> usize {
+        self.types.bytes()
+    }
+
     /// What the file's exports hold while an importer reads them.
-    fn bytes(&self) -> usize {
+    pub(super) fn bytes(&self) -> usize {
         let classes: usize = self
             .classes
             .iter()

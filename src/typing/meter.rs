@@ -1333,6 +1333,48 @@ mod budget_tests {
     }
 
     #[test]
+    fn a_required_files_surface_pass_runs_within_the_memory_its_exports_leave() {
+        // A file's exports hold its type table, which its surface pass
+        // runs beside: the least memory the check of the file fits within
+        // is that of the same source checked as a script, which exports
+        // nothing, and its exports beside it.
+        let types: String = (0..500)
+            .map(|i| format!("type T{i} = {{ a{i}: int, b{i}: string }}\ndef f{i}(x: T{i}) -> int\n  1\nend\n"))
+            .collect();
+        let source = format!("{types}x = [{}1]\n", "1, ".repeat(2_000));
+        let least = |file| {
+            let full = checked_as(&source, Budget::default(), file);
+            assert!(!full.stopped);
+            let fits = |memory| {
+                let budget = Budget {
+                    memory: Some(memory),
+                    ..Budget::default()
+                };
+                !checked_as(&source, budget, file).stopped
+            };
+            let (mut least, mut most) = (0, 4 * (full.peak_bytes + full.surface_bytes));
+            while least < most {
+                let middle = least + (most - least) / 2;
+                if fits(middle) {
+                    most = middle;
+                } else {
+                    least = middle + 1;
+                }
+            }
+            let exported = full
+                .exported
+                .as_ref()
+                .map_or(0, |exported| exported.bytes());
+            (least, exported)
+        };
+        let ((script, _), (file, exported)) = (least(false), least(true));
+        assert!(
+            file >= script + exported / 2,
+            "the file fits in {file} bytes, as a script in {script}, though its exports hold {exported}"
+        );
+    }
+
+    #[test]
     fn the_check_stops_within_its_budget() {
         for source in [nested_begins(60, 300), loose_unions(200)] {
             let full = checked(&source, Budget::default());
