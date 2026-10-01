@@ -509,12 +509,17 @@ impl<'a> Checker<'a> {
         };
         let checked = super::check_nested(&input, self.modules.depth + 1);
         let charged = self.meter.charge(checked.steps);
+        let (peak, stopped) = (checked.peak(), checked.stopped);
+        // This check keeps the file's diagnostics and imports its exports;
+        // the rest of what the file's check found, its facts and its
+        // receivers, goes before this one measures again.
+        let (diagnostics, exported) = checked.into_kept();
         // What the file's check held at most beside this one's tables, its
         // surface pass's with it.
-        self.observed(held + checked.peak());
+        self.observed(held + peak);
         // The file's steps are checked against the budget, and its memory
         // too, before its exports are imported.
-        if checked.stopped || charged || self.over_budget() {
+        if stopped || charged || self.over_budget() {
             // The file's check stopped at the budget this one shares, or
             // its steps took this one past it, so this one stops too,
             // without its findings or exports.
@@ -523,14 +528,30 @@ impl<'a> Checker<'a> {
             self.release(tree);
             return Err("the check ran out of its budget".into());
         }
+        // The diagnostics, until each is kept, and the exports, with what
+        // importing them builds, are held from here; a check that holding
+        // them stops keeps and imports none of them.
+        let found = super::meter::vec(&diagnostics)
+            + diagnostics
+                .iter()
+                .map(super::meter::Heap::heap)
+                .sum::<usize>()
+            + exported
+                .as_ref()
+                .map_or(0, |exported| exported.bytes() + exported.imports());
+        let Some(found) = self.hold(found) else {
+            self.release(tree);
+            return Err("the check ran out of its budget".into());
+        };
         // The copy of the source the file's diagnostics share is made only
         // for a first diagnostic that needs it, and counted before it is,
         // while the source it copies is held as well.
         let mut shared: Option<Arc<str>> = None;
-        for mut diagnostic in checked.diagnostics.into_iter().filter(Diagnostic::is_error) {
+        for mut diagnostic in diagnostics.into_iter().filter(Diagnostic::is_error) {
             if diagnostic.source.is_none() {
                 if shared.is_none() {
                     if self.transient(source.len()) {
+                        self.release(found);
                         self.release(tree);
                         return Err("the check ran out of its budget".into());
                     }
@@ -546,23 +567,18 @@ impl<'a> Checker<'a> {
             // The source and the file name it keeps outlive the file's
             // check, and its reservation of them.
             if self.retain(&diagnostic) {
+                self.release(found);
                 self.release(tree);
                 return Err("the check ran out of its budget".into());
             }
             self.report(diagnostic);
         }
-        let (functions, enums) = match &checked.exported {
+        let (functions, enums) = match &exported {
             Some(exported) => {
-                // A check that holding the exports stops imports none of
-                // them.
-                let Some(held) = self.hold(exported.bytes() + exported.imports()) else {
-                    self.release(tree);
-                    return Err("the check ran out of its budget".into());
-                };
                 let imported = self.import(exported);
-                self.release(held);
                 // A check that importing them stops publishes none of them.
                 if self.halted() {
+                    self.release(found);
                     self.release(tree);
                     return Err("the check ran out of its budget".into());
                 }
@@ -570,6 +586,9 @@ impl<'a> Checker<'a> {
             }
             None => (CountedMap::new(), CountedMap::new()),
         };
+        // The exports are let go once imported.
+        drop(exported);
+        self.release(found);
         // Each function published by a new name, with its copy of its name
         // and room for it, is counted as the table takes it; the file's
         // exports and its origin, with their copies of their names and

@@ -639,6 +639,29 @@ fn required_file() -> String {
     source
 }
 
+/// A file whose calls on a union of classes inside a class of a long name
+/// keep receiver records, each listing every class's name, which hold far
+/// more than what the file exports.
+fn recording_file() -> String {
+    let (classes, calls) = if cfg!(target_os = "wasi") {
+        (8, 8)
+    } else {
+        (32, 32)
+    };
+    let members: String = (0..classes)
+        .map(|i| format!("  class C{i}\n    def m -> int\n      1\n    end\n  end\n"))
+        .collect();
+    let union = (0..classes)
+        .map(|i| format!("C{i}"))
+        .collect::<Vec<_>>()
+        .join(" | ");
+    let sum = vec!["x.m"; calls].join(" + ");
+    format!(
+        "class M{}\n{members}  type U = {union}\n  def self.f(x: U) -> int\n    {sum}\n  end\nend\ndef g -> int\n  1\nend\n",
+        "m".repeat(16_000)
+    )
+}
+
 /// Every site and upstream program, and a sample of the language corpus.
 fn corpora() -> Vec<(String, String)> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -691,6 +714,18 @@ fn the_checkers_account_covers_its_peak_memory() {
         "a required file's calls and chained reads".to_owned(),
         "require(\"big\")\np(1)\n".to_owned(),
     );
+    let mut recording = Engine::new();
+    recording
+        .set_module_sources(BTreeMap::from([(
+            "records.vibe".to_owned(),
+            recording_file(),
+        )]))
+        .unwrap();
+    let recorded = (
+        &recording,
+        "a required file's receiver records".to_owned(),
+        "require(\"records\")\np(1)\n".to_owned(),
+    );
     let log = std::env::var_os("VIBES_FOOTPRINT").is_some();
     let mut failures = Vec::new();
     let mut ratios = [
@@ -706,7 +741,7 @@ fn the_checkers_account_covers_its_peak_memory() {
     let programs = adversarial().into_iter().chain(corpora());
     for (engine, name, source) in programs
         .map(|(name, source)| (&engine, name, source))
-        .chain([required])
+        .chain([required, recorded])
     {
         let measured = measure(engine, &source);
         let passes = [measured.checker, measured.surface, measured.interval];
