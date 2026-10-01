@@ -1588,6 +1588,128 @@ mod tests {
         );
     }
 
+    /// The empty lists, maps, sets and strings each file of the checker
+    /// starts, with a `Vec::new()`, `HashMap::new()`, `String::new()` or
+    /// the like, or an `.or_default()`, which then grow by `push` or
+    /// `insert` where [`MADE`] does not see them, by file and in three
+    /// kinds: one returned, passed or kept empty, or one a field starts
+    /// with and a counted table replaces whole, which nothing grows here;
+    /// one the source does not size: a union's alternatives, at most 1,024,
+    /// a type's or a signature's parts, which the type table or the
+    /// declarations count already, the builtin signatures' or the host's,
+    /// or a type's display, cut at `SPELLED` bytes; and one counted before
+    /// it is made at the most it takes, held or checked against the budget
+    /// as it grows, or paced by a walk. A list the source sizes otherwise
+    /// is a scratch list, counted while it lives.
+    const STARTED: &[(&str, [usize; 3])] = &[
+        // The frame's name, the results of a stopped check, and the
+        // annotations, checked against the budget as each is written.
+        ("typing.rs", [6, 0, 1]),
+        // A stopped walk's results, and a root without assignments.
+        ("assigns.rs", [3, 0, 0]),
+        // Bindings of signatures without type variables; a receiver's
+        // alternatives and those its members answer; the members of a host
+        // or builtin namespace of one name; and the branches explored and
+        // keywords given, held as each is kept.
+        ("calls.rs", [22, 4, 2]),
+        // A union's alternatives an `is_a?` keeps; the file's shared and
+        // written names and each function's, counted before they are
+        // copied; the defaults by class and the branches explored, held.
+        ("check.rs", [9, 1, 6]),
+        // The cycle search's stack, cycles and their members, counted
+        // before the search starts.
+        ("construction.rs", [10, 0, 3]),
+        // A hint's enums and shapes, and the instances an operator's
+        // alternatives call; the `when` values covered and the branches
+        // explored, held as each is kept.
+        ("expr.rs", [2, 5, 4]),
+        // A stopped check's branches.
+        ("flow.rs", [4, 0, 0]),
+        // The size of an empty node.
+        ("marks.rs", [1, 0, 0]),
+        // A namespace's signature without type variables.
+        ("modules.rs", [1, 0, 0]),
+        // The aliases' texts, checked against the budget as each is kept.
+        ("program.rs", [2, 0, 1]),
+        // The builtin signatures' index, and a signature's variables.
+        ("sigs.rs", [1, 10, 0]),
+        // A union's candidates for a value, a shape's field pairs and a
+        // display's parts; a union's index, counted before it is built.
+        ("ty.rs", [10, 5, 2]),
+        // The walk's stack, paced with what the walker holds.
+        ("walk.rs", [0, 0, 1]),
+    ];
+
+    /// How many empty lists, maps, sets and strings `line` starts: those
+    /// [`STARTED`] lists, and not the counted ones, such as a
+    /// `ScratchVec::new`.
+    fn started(line: &str) -> usize {
+        let mut count = line.matches(".or_default()").count();
+        for kind in [
+            "Vec", "HashMap", "HashSet", "BTreeMap", "BTreeSet", "String",
+        ] {
+            for made in ["::new()", "::default()"] {
+                let site = format!("{kind}{made}");
+                count += line
+                    .match_indices(&site)
+                    .filter(|&(at, _)| {
+                        !line[..at]
+                            .chars()
+                            .next_back()
+                            .is_some_and(|c| c == '_' || c.is_alphanumeric())
+                    })
+                    .count();
+            }
+        }
+        count
+    }
+
+    #[test]
+    fn the_empty_lists_an_operation_starts_are_each_of_a_kind() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut sources = vec![root.join("typing.rs")];
+        for entry in std::fs::read_dir(root.join("typing")).unwrap() {
+            sources.push(entry.unwrap().path());
+        }
+        let mut found = Vec::new();
+        for path in sources {
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            if name == "counted.rs" {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).unwrap();
+            let code = text.split("#[cfg(test)]").next().unwrap();
+            let count: usize = code
+                .lines()
+                .filter(|line| !line.trim_start().starts_with("//"))
+                .map(started)
+                .sum();
+            let kinds = STARTED
+                .iter()
+                .find(|(file, _)| *file == name)
+                .map_or(0, |(_, kinds)| kinds.iter().sum());
+            if count != kinds {
+                found.push(format!("{name}: {count} started, {kinds} of a kind"));
+            }
+        }
+        assert!(
+            found.is_empty(),
+            "say here which kind each empty list or map these files start is, or start it as a scratch list:\n{}",
+            found.join("\n")
+        );
+    }
+
+    #[test]
+    fn the_lint_of_empty_lists_skips_counted_ones() {
+        assert_eq!(started("let mut kept = Vec::new();"), 1);
+        assert_eq!(started("(Vec::new(), Vec::new(), false)"), 2);
+        assert_eq!(started("let names = std::collections::HashSet::new();"), 1);
+        assert_eq!(started("map.entry(key).or_default().push(value);"), 1);
+        assert_eq!(started("let kept = ScratchVec::new(&self.meter);"), 0);
+        assert_eq!(started("let kept = CountedVec::new();"), 0);
+        assert_eq!(started("let mut out = String::default();"), 1);
+    }
+
     /// The text each file of the checker writes without the meter, with a
     /// `format!`, `to_string`, `to_owned` or `String::from`, by file and in
     /// three kinds: a fixed word or a number, which is short; a copy of a
