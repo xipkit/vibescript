@@ -375,6 +375,46 @@ fn adversarial() -> Vec<(String, String)> {
             "class C\n  @{ivar}: int\n  def initialize\n    x = [{reads}]\n    @{ivar} = 1\n  end\nend\n"
         ),
     ));
+    // A display writes a union's alternatives apart before it puts them
+    // in order: each level of a nested display shares one room.
+    let fields = listed(140, |i| format!("f{i}{}: int", "a".repeat(52)), ", ");
+    let chain = lines(400, |k| match k {
+        0 => "type T0 = S | array<int>\n".to_owned(),
+        _ => format!("type T{k} = S | array<T{}>\n", k - 1),
+    });
+    programs.push((
+        "a mismatch displaying a wide shape in unions 400 deep".to_owned(),
+        format!("type S = {{ {fields} }}\n{chain}def f(x: T399) -> int\n  x\nend\np(1)\n"),
+    ));
+    // A member called on a union calls it on each alternative, whose
+    // arguments may call it on the union again.
+    {
+        let classes = lines(1_024, |i| {
+            format!("class C{i}\n  def f(x: int) -> int\n    x\n  end\nend\n")
+        });
+        let union = listed(1_024, |i| format!("C{i}"), " | ");
+        let mut call = "1".to_owned();
+        for _ in 0..200 {
+            call = format!("u.f({call})");
+        }
+        programs.push((
+            "calls on a union of 1,024 classes nested 200 deep".to_owned(),
+            format!("{classes}def g(u: {union}) -> int\n  {call}\nend\np(1)\n"),
+        ));
+    }
+    // The surface pass lexes each interpolation again, copying the
+    // payloads of its tokens, which it keeps with the others', and
+    // rewrites each percent literal in them.
+    let symbol = "a".repeat(10_000);
+    programs.push((
+        "100 interpolations each of a 10,000-byte quoted symbol".to_owned(),
+        lines(100, |i| format!("x{i} = \"#{{:\"{symbol}\"}}\"\n")),
+    ));
+    let entries = "a ".repeat(5_000);
+    programs.push((
+        "100 interpolations each of a percent literal of 5,000 entries".to_owned(),
+        lines(100, |i| format!("x{i} = \"#{{%w[{entries}]}}\"\n")),
+    ));
     // Each entry the pass rewrites is a quoted copy and its separators.
     programs.push((
         "a percent literal of 1,000,000 short entries".to_owned(),
@@ -1154,6 +1194,44 @@ fn shapes() -> Vec<Shape> {
             )
         }),
         // The surface pass rewrites each entry.
+        // Comparing two shapes compares their fields' types in turn, a
+        // nested shape's fields while the outer's are listed.
+        ("two deep chains of wide shapes compared", |n| {
+            let width = n.min(16_384);
+            let chain = |name: &str, optional: &str| {
+                lines(28, |level| {
+                    let inner = if level == 0 {
+                        "int".to_owned()
+                    } else {
+                        format!("{name}{}", level - 1)
+                    };
+                    let fields = listed(width - 1, |i| format!("f{i}{optional}: int"), ", ");
+                    format!("type {name}{level} = {{ a{optional}: {inner}, {fields} }}\n")
+                })
+            };
+            (
+                Vec::new(),
+                format!(
+                    "{}{}def f(x: A27) -> int\n  y: B27 = x\n  1\nend\np(1)\n",
+                    chain("A", ""),
+                    chain("B", "?")
+                ),
+            )
+        }),
+        ("interpolations of long quoted symbols", |n| {
+            let symbol = "a".repeat(1_000);
+            (
+                Vec::new(),
+                lines(n / 8 + 1, |i| format!("x{i} = \"#{{:\"{symbol}\"}}\"\n")),
+            )
+        }),
+        ("interpolations of percent literals", |n| {
+            let entries = "a ".repeat(500);
+            (
+                Vec::new(),
+                lines(n / 8 + 1, |i| format!("x{i} = \"#{{%w[{entries}]}}\"\n")),
+            )
+        }),
         ("a percent literal of many short entries", |n| {
             (
                 Vec::new(),
