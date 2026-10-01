@@ -481,7 +481,14 @@ impl<'a> Checker<'a> {
                 return;
             }
         }
-        for (scope, alias) in &parsed.additions.aliases {
+        // Each alias is a step, and the budget is checked as a walk checks
+        // it, while they are declared.
+        let pace = super::walk::PACE as usize;
+        let aliases = &parsed.additions.aliases;
+        for (index, (scope, alias)) in aliases.iter().enumerate() {
+            if index % pace == pace - 1 && self.meter.pace(pace as u64, 0) {
+                return;
+            }
             let scope = scope.and_then(|offset| self.program.by_offset.get(&offset).copied());
             let declarations = self.meter.declarations();
             if self
@@ -493,8 +500,12 @@ impl<'a> Checker<'a> {
                 return;
             }
         }
+        // A check that stops declares nothing more.
+        if self.meter.charge((aliases.len() % pace) as u64) || self.halted() {
+            return;
+        }
         // The builtin namespaces' names have their places, which are kept
-        // however the budget stands.
+        // however the budget stands once the check reaches them.
         for (index, (name, _)) in sigs::index().modules.iter().enumerate() {
             debug_assert_eq!(self.types.names.builtins.len(), index);
             let always = self.meter.declarations().regardless();
