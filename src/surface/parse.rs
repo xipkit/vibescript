@@ -2086,6 +2086,9 @@ impl<'s> Parser<'s> {
 
     fn parameters(&mut self, parenthesized: bool) -> Result<Vec<Param>> {
         let mut params: Vec<Param> = Vec::new();
+        // Whether a rest parameter came before, after which the parameters
+        // are keyword parameters.
+        let mut rest = false;
         loop {
             // A bare `*` makes the parameters after it keyword parameters.
             if self.at_op("*") && self.is_p(self.significant(self.pos + 1), ',') {
@@ -2133,10 +2136,10 @@ impl<'s> Parser<'s> {
             }
             let strict = self.keyword_star.is_some();
             let mut param = self.parameter(parenthesized, strict)?;
-            let rest = params.iter().any(|param| param.kind == ParamKind::Rest);
             if (strict || rest) && param.kind == ParamKind::Positional {
                 param.kind = ParamKind::Keyword;
             }
+            rest |= param.kind == ParamKind::Rest;
             self.declare_local(param.name.clone());
             self.declared_it |= param.name == "it";
             params.push(param);
