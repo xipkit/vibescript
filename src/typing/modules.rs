@@ -394,8 +394,13 @@ impl<'a> Checker<'a> {
                 return Err("the check ran out of its budget".into());
             }
         }
+        // The placeholder gives back what it owned once the result takes
+        // its place.
         if let Some(entry) = self.modules.by_path.get_mut(path) {
-            *entry = result.clone();
+            let placeholder = std::mem::replace(entry, result.clone());
+            self.grown = self
+                .grown
+                .saturating_sub(super::counted::Owned::owned(&placeholder));
         }
         result
     }
