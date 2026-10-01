@@ -2894,6 +2894,11 @@ impl<'a> Checker<'a> {
                 let count = parts.len();
                 let splat = parts.iter().position(|(_, rest)| *rest);
                 for (index, (part, rest)) in parts.iter().enumerate() {
+                    // A check its budget stops binds no more of them, and
+                    // the budget is checked as a walk checks it.
+                    if self.paced(index) {
+                        return;
+                    }
                     let Some(part) = part else {
                         continue;
                     };

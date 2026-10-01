@@ -821,7 +821,7 @@ impl<'a> Checker<'a> {
     /// they charge themselves, as a walk does: the steps, the deadline and
     /// the cancellation. Returns whether the check has stopped.
     #[must_use = "the budget may have stopped the check, which must then do no more work"]
-    fn paced(&self, count: usize) -> bool {
+    pub(super) fn paced(&self, count: usize) -> bool {
         let pace = super::walk::PACE as usize;
         (count % pace == pace - 1 && self.meter.pace(0, 0)) || self.halted()
     }
@@ -951,10 +951,10 @@ impl<'a> Checker<'a> {
                 + qualified,
         )?;
         let mut params = Vec::with_capacity(def.params.len());
-        for param in &def.params {
-            // A check its budget stops, which the scans for the parameters'
-            // names charge, declares no more of them.
-            if self.halted() {
+        for (index, param) in def.params.iter().enumerate() {
+            // A check its budget stops declares no more of them, and the
+            // budget is checked as a walk checks it.
+            if self.paced(index) {
                 self.release(held);
                 return None;
             }
