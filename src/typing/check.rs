@@ -339,7 +339,7 @@ impl<'a> Checker<'a> {
             if self.transient(shared.heap() + super::meter::table::<String>(shared.len())) {
                 return;
             }
-            let shared: std::collections::HashSet<String> = shared.into_iter().collect();
+            let mut shared: std::collections::HashSet<String> = shared.into_iter().collect();
             let mut written = Vec::new();
             for decl in self.program.fns.iter().filter(|decl| !decl.main) {
                 if self.halted() {
@@ -351,9 +351,17 @@ impl<'a> Checker<'a> {
                 if self.transient(scratch + names.heap() + shared.heap() + written.heap()) {
                     return;
                 }
-                names.retain(|name| {
-                    shared.contains(name) && !def.params.iter().any(|param| param.name == *name)
-                });
+                // Its parameters are its own, not the file's: the names
+                // they take are set aside while its names are kept, in a
+                // list counted while it lives, so each name is one search.
+                let mut aside = ScratchVec::new(&self.meter);
+                for param in def.params.iter() {
+                    if let Some(name) = shared.take(param.name.as_str()) {
+                        aside.add(name);
+                    }
+                }
+                names.retain(|name| shared.contains(name));
+                shared.extend(aside.into_vec());
                 written.extend(names);
             }
             // The names move into the program's set, which, with them, is
@@ -682,24 +690,27 @@ impl<'a> Checker<'a> {
                 self.leave_frame(previous);
                 return;
             }
-            let locals = self.program.file_locals.clone().into_map();
+            let mut locals = self.program.file_locals.clone().into_map();
             // Each function declares every one of the file's locals, a step
-            // each.
+            // each, but those its parameters name, which are its own.
             if self.meter.charge(locals.len() as u64) {
                 self.leave_frame(previous);
                 return;
             }
+            for param in def.params.iter() {
+                locals.remove(param.name.as_str());
+            }
             for (name, (ty, offset)) in locals {
-                if !def.params.iter().any(|param| param.name == name) {
-                    let Some(id) = self.declare(&name, ty, offset, true) else {
-                        self.leave_frame(previous);
-                        return;
-                    };
-                    self.assign_local(id, ty);
-                    if self.frame.shared.push(self.meter.tables(), id).is_err() {
-                        self.leave_frame(previous);
-                        return;
-                    }
+                let Some(id) = self.declare(&name, ty, offset, true) else {
+                    self.leave_frame(previous);
+                    return;
+                };
+                self.assign_local(id, ty);
+                // Declared in turn, so listed in the order of their ids.
+                debug_assert!(self.frame.shared.last().is_none_or(|&last| last < id));
+                if self.frame.shared.push(self.meter.tables(), id).is_err() {
+                    self.leave_frame(previous);
+                    return;
                 }
             }
         }
