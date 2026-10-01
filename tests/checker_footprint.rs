@@ -341,6 +341,21 @@ fn adversarial() -> Vec<(String, String)> {
         "percent literals of long entries".to_owned(),
         format!("x = %w[{entry} a]\ny = %i[{entry} b]\n"),
     ));
+    // Rendering a rewrite's fix copies the source it captures, several
+    // times over.
+    programs.push((
+        "a string of a megabyte read with nil?".to_owned(),
+        format!("x = \"{}\".nil?\np(x)\n", "a".repeat(scale(1_000_000))),
+    ));
+    // Each read before initialize assigns the variable keeps its name.
+    let ivar = format!("v{}", "v".repeat(scale(64_000)));
+    let reads = join(64, &|_| format!("@{ivar}"), ", ");
+    programs.push((
+        "long instance variables read before initialize assigns them".to_owned(),
+        format!(
+            "class C\n  @{ivar}: int\n  def initialize\n    x = [{reads}]\n    @{ivar} = 1\n  end\nend\n"
+        ),
+    ));
     // Each entry the pass rewrites is a quoted copy and its separators.
     programs.push((
         "a percent literal of 1,000,000 short entries".to_owned(),
@@ -1142,6 +1157,36 @@ fn shapes() -> Vec<Shape> {
                 )
             },
         ),
+        // Rendering a rewrite's fix copies the source it captures.
+        ("a long string literal read with nil?", |n| {
+            (
+                Vec::new(),
+                format!("x = \"{}\".nil?\np(x)\n", "a".repeat(n * 64)),
+            )
+        }),
+        // A diagnostic's message names the name.
+        ("a long unresolved name", |n| {
+            (Vec::new(), format!("p({})\n", "n".repeat(n * 64)))
+        }),
+        // Each read before initialize assigns the variable keeps its name.
+        (
+            "long instance variables read before initialize assigns them",
+            |n| {
+                let name = format!("v{}", "v".repeat(n * 8));
+                let reads = listed(64, |_| format!("@{name}"), ", ");
+                (
+                    Vec::new(),
+                    format!(
+                        "class C\n  @{name}: int\n  def initialize\n    x = [{reads}]\n    @{name} = 1\n  end\nend\n"
+                    ),
+                )
+            },
+        ),
+        // A literal's fields are sorted by name.
+        ("a wide hash literal", |n| {
+            let entries = listed(n * 16, |i| format!("k{i}: 1"), ", ");
+            (Vec::new(), format!("x = {{{entries}}}\np(x)\n"))
+        }),
         // A required file's methods call each other in a cycle, which
         // gathers every variable they read, each name copied.
         (
