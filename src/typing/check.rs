@@ -2,7 +2,7 @@
 
 use super::{
     Checker,
-    counted::{CountedMap, CountedVec},
+    counted::{CountedMap, CountedVec, ScratchVec},
     flow::{Branch, Flow, LocalId, Mark, VarState},
     meter::Heap,
     program::{FnId, NsId},
@@ -409,7 +409,9 @@ impl<'a> Checker<'a> {
     /// namespaces nested in it. The walk keeps its place on the heap, since
     /// namespaces nest as deep as the parser allows.
     fn check_namespace_body(&mut self, ns: NsId) {
-        let mut pending = Vec::new();
+        // The namespaces left at each level of nesting, in lists counted
+        // while they live.
+        let mut pending = ScratchVec::new(&self.meter);
         self.enter_namespace(ns, &mut pending);
         while let Some((ns, children)) = pending.last_mut() {
             let ns = *ns;
@@ -425,13 +427,19 @@ impl<'a> Checker<'a> {
 
     /// Marks `ns` checked and queues it with its children, unless it was
     /// checked already.
-    fn enter_namespace(&mut self, ns: NsId, pending: &mut Vec<(NsId, Vec<NsId>)>) {
+    fn enter_namespace(&mut self, ns: NsId, pending: &mut ScratchVec<(NsId, ScratchVec<NsId>)>) {
         let namespace = &mut self.program.namespaces[ns as usize];
         if namespace.checked {
             return;
         }
         namespace.checked = true;
-        let mut children: Vec<NsId> = namespace.children.values().copied().collect();
+        let mut children = ScratchVec::new(&self.meter);
+        if children.reserve(namespace.children.len()).is_err() {
+            return;
+        }
+        for &child in namespace.children.values() {
+            children.add(child);
+        }
         // Popped from the end, so checked in ascending order; a check the
         // sort stops checks none of them.
         if super::counted::sort_unstable_by(&self.meter, &mut children, |a, b| b.cmp(a)).is_err() {
@@ -444,7 +452,7 @@ impl<'a> Checker<'a> {
             let span = self.spans.token(module.offset as usize);
             self.too_deep(span);
         }
-        pending.push((ns, children));
+        pending.add((ns, children));
     }
 
     /// The instance-variable defaults of the class at `offset`, in order,
@@ -517,9 +525,9 @@ impl<'a> Checker<'a> {
         // Only the enclosing locals the body names can matter to it, and
         // copying every one into each of many namespaces would take their
         // number times the namespaces.
-        let mut mentioned = std::collections::HashSet::new();
+        let mut mentioned = super::counted::ScratchSet::new(&self.meter);
         let scratch = mentions(&self.meter, &module.body, &mut mentioned);
-        if self.transient(scratch + super::meter::set(&mentioned)) {
+        if self.transient(scratch) {
             self.leave_frame(previous);
             return;
         }
@@ -1607,7 +1615,8 @@ impl<'a> Checker<'a> {
         alternate: &'a [Stmt],
         want: Want,
     ) -> Ty {
-        let mut results = Vec::new();
+        // The branches' values, in a list counted while it lives.
+        let mut results = super::counted::ScratchVec::new(&self.meter);
         let mut explored = Vec::new();
         let entry = self.frame.flow.mark();
         for (condition, body) in branches {
@@ -1622,7 +1631,7 @@ impl<'a> Checker<'a> {
                 return Ty::ERROR;
             }
             if self.frame.flow.live {
-                results.push(ty);
+                results.add(ty);
             }
             let branch = self.frame.flow.rollback(mark);
             self.explore(&mut explored, branch);
@@ -1650,7 +1659,7 @@ impl<'a> Checker<'a> {
             self.stmts(alternate, want)
         };
         if self.frame.flow.live {
-            results.push(ty);
+            results.add(ty);
         }
         let branch = self.frame.flow.rollback(entry);
         self.explore(&mut explored, branch);
@@ -3306,13 +3315,19 @@ impl<'a> Checker<'a> {
 
     /// Narrowings that hold on either of two paths.
     fn join_narrowings(&mut self, a: &[(LocalId, Ty)], b: &[(LocalId, Ty)]) -> Vec<(LocalId, Ty)> {
-        let mut joined = Vec::new();
+        // Each narrowing of one is compared with the other's, which is
+        // charged first, and the joined ones are kept in a list counted
+        // while it lives.
+        if self.types.work(a.len().saturating_mul(b.len())) {
+            return Vec::new();
+        }
+        let mut joined = super::counted::ScratchVec::new(&self.meter);
         for &(id, ty) in a {
             if let Some(&(_, other)) = b.iter().rev().find(|(other, _)| *other == id) {
-                joined.push((id, self.types.union(&[ty, other])));
+                joined.add((id, self.types.union(&[ty, other])));
             }
         }
-        joined
+        joined.into_vec()
     }
 
     /// The local an expression reads, if narrowing may apply to it.
@@ -3463,20 +3478,24 @@ fn target_expr(target: &Target) -> Option<&Expr> {
 fn mentions<'s>(
     meter: &super::meter::Meter,
     body: &'s [Stmt],
-    names: &mut std::collections::HashSet<&'s str>,
+    names: &mut super::counted::ScratchSet<&'s str>,
 ) -> usize {
     use super::walk::{Item, Walk};
     let mut walk = Walk::new(meter);
-    // The body is a visit, empty or not.
+    // The body is a visit, empty or not; the names count themselves.
     walk.visit(0);
     walk.stmts(body, ());
-    while let Some((item, ())) = walk.next(super::meter::set(names)) {
+    while let Some((item, ())) = walk.next(0) {
         if let Item::Expr(Expr {
             node: Node::Var(name) | Node::Call(name, _, _),
             ..
         }) = item
         {
-            names.insert(name);
+            // A name the budget refuses room for stops the check, which
+            // the walk reads.
+            if names.insert(name.as_str()).is_err() {
+                break;
+            }
         }
         walk.children(item, ());
     }

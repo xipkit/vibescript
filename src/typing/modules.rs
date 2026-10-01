@@ -3,7 +3,7 @@
 
 use super::{
     Checker, Input, Modules,
-    counted::{CountedMap, CountedSet, CountedVec},
+    counted::{CountedMap, CountedSet, CountedVec, ScratchVec},
     meter::Heap,
     program::{Enum, FnDecl, FnId, Namespace, NsId},
     sigs::{BlockSig, Param, Sig},
@@ -213,7 +213,9 @@ impl<'a> Checker<'a> {
         if self.modules.resolve.is_none() {
             return;
         }
-        let mut requests = Vec::new();
+        // The requests found, in a list counted, with the paths and aliases
+        // they copy, while it lives.
+        let mut requests = ScratchVec::new(&self.meter);
         // What the paths and aliases found hold.
         let mut found = 0;
         let mut walk = Walk::new(&self.meter);
@@ -241,9 +243,10 @@ impl<'a> Checker<'a> {
         drop(walk);
         // A check past its budget loads no files. The requests, with the
         // paths and aliases they copy, are held while the files load.
-        if self.transient(scratch + super::meter::vec(&requests) + found) {
+        if self.transient(scratch) {
             return;
         }
+        let mut requests = requests.into_vec();
         let Some(held) = self.hold(super::meter::vec(&requests) + found) else {
             return;
         };
@@ -983,15 +986,15 @@ impl<'a> Checker<'a> {
 fn requires<'x>(
     walk: &mut Walk<'x, '_>,
     body: &'x [Stmt],
-    out: &mut Vec<(String, Option<String>, usize)>,
+    out: &mut ScratchVec<(String, Option<String>, usize)>,
     found: &mut usize,
 ) {
-    // The body is a visit, empty or not.
-    if walk.visit(super::meter::vec(out) + *found) {
+    // The body is a visit, empty or not; the requests count themselves.
+    if walk.visit(0) {
         return;
     }
     walk.stmts(body, ());
-    while let Some((item, ())) = walk.next(super::meter::vec(out) + *found) {
+    while let Some((item, ())) = walk.next(0) {
         match item {
             Item::Stmt(stmt) => match &stmt.node {
                 Statement::Expr(e)
@@ -1022,7 +1025,7 @@ fn requires<'x>(
 fn visit<'x>(
     expr: &'x Expr,
     walk: &mut Walk<'x, '_>,
-    out: &mut Vec<(String, Option<String>, usize)>,
+    out: &mut ScratchVec<(String, Option<String>, usize)>,
     found: &mut usize,
 ) {
     match &expr.node {
@@ -1050,7 +1053,7 @@ fn visit<'x>(
                     });
                 if let Some(path) = path {
                     *found += path.capacity() + alias.as_ref().map_or(0, String::capacity);
-                    out.push((path, alias, expr.offset as usize));
+                    out.add((path, alias, expr.offset as usize));
                 }
             }
             walk.push(Next::Arguments(args.iter()), ());

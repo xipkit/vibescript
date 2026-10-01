@@ -1805,7 +1805,8 @@ impl<'a> Checker<'a> {
     // Conditionals, case and rescue ------------------------------------
 
     fn conditional(&mut self, branches: &'a [(Expr, Expr)], alternate: &'a Expr, want: Want) -> Ty {
-        let mut results = Vec::new();
+        // The branches' values, in a list counted while it lives.
+        let mut results = super::counted::ScratchVec::new(&self.meter);
         let mut explored = Vec::new();
         let entry = self.frame.flow.mark();
         for (condition, value) in branches {
@@ -1820,7 +1821,7 @@ impl<'a> Checker<'a> {
                 return Ty::ERROR;
             }
             if self.frame.flow.live {
-                results.push(ty);
+                results.add(ty);
             }
             let branch = self.frame.flow.rollback(mark);
             self.explore(&mut explored, branch);
@@ -1828,7 +1829,7 @@ impl<'a> Checker<'a> {
         }
         let ty = self.branch_value(alternate, want);
         if self.frame.flow.live {
-            results.push(ty);
+            results.add(ty);
         }
         let branch = self.frame.flow.rollback(entry);
         self.explore(&mut explored, branch);
@@ -1860,7 +1861,8 @@ impl<'a> Checker<'a> {
         // The values the `when`s name, kept while the rest are checked.
         let mut covered: Vec<String> = Vec::new();
         let mut held = 0;
-        let mut results = Vec::new();
+        // The branches' values, in a list counted while it lives.
+        let mut results = super::counted::ScratchVec::new(&self.meter);
         let mut explored = Vec::new();
         let entry = self.frame.flow.mark();
         for when in whens {
@@ -1898,7 +1900,7 @@ impl<'a> Checker<'a> {
                 return Ty::ERROR;
             }
             if self.frame.flow.live {
-                results.push(ty);
+                results.add(ty);
             }
             let branch = self.frame.flow.rollback(mark);
             self.explore(&mut explored, branch);
@@ -1913,7 +1915,7 @@ impl<'a> Checker<'a> {
             Some(alternate) => {
                 let ty = self.branch_value(alternate, want);
                 if self.frame.flow.live {
-                    results.push(ty);
+                    results.add(ty);
                 }
             }
             None if !exhaustive => {
@@ -1931,7 +1933,7 @@ impl<'a> Checker<'a> {
                         );
                     }
                 }
-                results.push(Ty::NIL);
+                results.add(Ty::NIL);
             }
             None => (),
         }
@@ -2109,7 +2111,8 @@ impl<'a> Checker<'a> {
         } else {
             Want::Discard
         };
-        let mut results = Vec::new();
+        // The branches' values, in a list counted while it lives.
+        let mut results = super::counted::ScratchVec::new(&self.meter);
         let body = self.stmts(&attempt.body, body_want);
         // A check past its budget skips the rescues and the ensure, and
         // the work of joining them.
@@ -2120,10 +2123,10 @@ impl<'a> Checker<'a> {
         if !attempt.alternate.is_empty() {
             let alternate = self.stmts(&attempt.alternate, want);
             if self.frame.flow.live {
-                results.push(alternate);
+                results.add(alternate);
             }
         } else if self.frame.flow.live {
-            results.push(body);
+            results.add(body);
         }
         let mut explored = Vec::new();
         let branch = self.frame.flow.rollback(entry);
@@ -2145,7 +2148,7 @@ impl<'a> Checker<'a> {
             let mark = self.frame.flow.mark();
             let ty = self.stmts(&rescue.body, want);
             if self.frame.flow.live {
-                results.push(ty);
+                results.add(ty);
             }
             let branch = self.frame.flow.rollback(mark);
             self.explore(&mut explored, branch);

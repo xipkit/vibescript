@@ -2,7 +2,7 @@
 //! parser's tokens give each node's end.
 
 use super::{
-    counted::{CountedMap, Refused},
+    counted::{CountedMap, Owned, Refused, ScratchVec},
     walk::{Item, Next, Walk},
 };
 use crate::{
@@ -13,11 +13,18 @@ use crate::{
 
 /// What follows a node's rightmost child in the source, which the tree
 /// does not locate.
+#[derive(Clone, Copy)]
 enum Trail<'e> {
     /// Nothing: the child ends the node.
     None,
     /// A member name after `.`, `&.` or `::`, and whether `()` follows it.
     Member(&'e str, bool),
+}
+
+impl Owned for Trail<'_> {
+    fn owned(&self) -> usize {
+        0
+    }
 }
 
 pub(crate) struct Spans<'a> {
@@ -431,7 +438,9 @@ impl<'a> Spans<'a> {
     /// down to one the tree locates, and each member name on it is found
     /// in the tokens after its receiver.
     fn last(&self, expr: &Expr) -> usize {
-        let mut path: Vec<(&Expr, Trail<'_>)> = Vec::new();
+        // The path, in a list counted while it lives, since a chain of
+        // members is as long as the source makes it.
+        let mut path: ScratchVec<(&Expr, Trail<'_>)> = ScratchVec::new(&self.meter);
         let mut current = expr;
         let mut position = loop {
             let key = std::ptr::from_ref(current) as usize;
@@ -467,12 +476,12 @@ impl<'a> Spans<'a> {
                 Node::Range(_, Some(end), _) => (&**end, Trail::None),
                 _ => break self.furthest(Item::Expr(current), true),
             };
-            path.push((current, trail));
+            path.add((current, trail));
             current = next;
         };
         let key = std::ptr::from_ref(current) as usize;
         self.remember(&self.lasts, key, position);
-        for (node, trail) in path.into_iter().rev() {
+        for &(node, trail) in path.iter().rev() {
             if let Trail::Member(name, parenthesized) = trail {
                 position = self.name_after(position, name, parenthesized);
             }

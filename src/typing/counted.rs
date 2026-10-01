@@ -255,6 +255,13 @@ impl<T> Owned for CountedBTreeSet<T> {
     }
 }
 
+/// A scratch list counts itself.
+impl<T> Owned for ScratchVec<T> {
+    fn owned(&self) -> usize {
+        0
+    }
+}
+
 /// What [`Ledger::keep`] counted for the elements a caller copies before
 /// it stores them, which the `_kept` methods of the tables take from as
 /// they store them.
@@ -473,6 +480,15 @@ impl<T: Owned> ScratchVec<T> {
         self.list.dedup();
     }
 
+    /// Takes the last element, giving back what it owns.
+    pub fn pop(&mut self) -> Option<T> {
+        let value = self.list.pop()?;
+        let owned = value.owned();
+        self.meter.dropped(owned);
+        self.owned -= owned;
+        Some(value)
+    }
+
     /// The list, no longer counted here: whoever keeps it counts it.
     pub fn into_vec(mut self) -> Vec<T> {
         self.give_back();
@@ -533,6 +549,14 @@ impl<T: Eq + Hash + Owned> ScratchSet<T> {
         let added = self.set.insert(self.meter.scratch_lists(), value)?;
         self.owned += owned;
         Ok(added)
+    }
+}
+
+impl<T> Deref for ScratchSet<T> {
+    type Target = HashSet<T>;
+
+    fn deref(&self) -> &HashSet<T> {
+        &self.set
     }
 }
 
@@ -1513,7 +1537,7 @@ mod tests {
         ("typing.rs", [0, 0, 0, 1]),
         ("assigns.rs", [0, 0, 0, 2]),
         ("calls.rs", [0, 3, 4, 5]),
-        ("check.rs", [4, 1, 0, 11]),
+        ("check.rs", [4, 1, 0, 10]),
         ("construction.rs", [1, 0, 0, 15]),
         ("expr.rs", [3, 5, 0, 13]),
         ("flow.rs", [0, 0, 0, 6]),
