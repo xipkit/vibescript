@@ -568,7 +568,7 @@ impl<'a> Checker<'a> {
         let shapes = if crate::bytecode::mutating_member(name) && self.place(receiver) {
             self.shapes(ty)
         } else {
-            Vec::new()
+            ScratchVec::new(&self.meter)
         };
         if name == "replace" && !shapes.is_empty() {
             return self.shape_replace(&call, receiver, ty, safe, &shapes);
@@ -679,19 +679,27 @@ impl<'a> Checker<'a> {
             return self.member(call, ty);
         }
         // `nil` must answer the member too, or the value needs a nil test.
-        let mut others: Vec<Ty> = Vec::new();
+        // The alternatives, and the results of the member on each, are
+        // listed in lists counted while they live, since checking the
+        // member on one checks its arguments, which may hold more.
+        let mut others = ScratchVec::new(&self.meter);
+        let mut results = ScratchVec::new(&self.meter);
+        if others.reserve(alternatives.len()).is_err()
+            || results.reserve(alternatives.len()).is_err()
+        {
+            return Ty::ERROR;
+        }
         let mut nil = false;
         for &alternative in &alternatives {
             if alternative == Ty::NIL {
                 nil = true;
             } else {
-                others.push(alternative);
+                others.add(alternative);
             }
         }
-        let mut results = Vec::new();
         if nil {
             if self.answers(Ty::NIL, call.name) {
-                others.push(Ty::NIL);
+                others.add(Ty::NIL);
             } else {
                 let found = self.types.display(ty);
                 let mut diagnostic = Diagnostic::error(
@@ -721,7 +729,8 @@ impl<'a> Checker<'a> {
         };
         let outer = self.set_memo(Some(super::Memo::default()));
         let mark = self.frame.flow.mark();
-        results.push(self.member(call, first));
+        let first = self.member(call, first);
+        results.add(first);
         let mut branches = Vec::new();
         let branch = self.frame.flow.rollback(mark);
         self.explore(&mut branches, branch);
@@ -729,7 +738,8 @@ impl<'a> Checker<'a> {
         self.memo.get_mut().unwrap().replay = true;
         for &alternative in rest {
             let mark = self.frame.flow.mark();
-            results.push(self.member(call, alternative));
+            let result = self.member(call, alternative);
+            results.add(result);
             let branch = self.frame.flow.rollback(mark);
             self.explore(&mut branches, branch);
         }
@@ -866,13 +876,17 @@ impl<'a> Checker<'a> {
         }
     }
 
-    /// The shapes among `ty`'s alternatives.
-    fn shapes(&self, ty: Ty) -> Vec<Ty> {
-        self.types
-            .members(ty)
-            .into_iter()
-            .filter(|&ty| matches!(self.types.kind(ty), Kind::Shape(..)))
-            .collect()
+    /// The shapes among `ty`'s alternatives, in a list counted while it
+    /// lives, since the call it is for checks arguments, which may hold
+    /// more.
+    fn shapes(&self, ty: Ty) -> ScratchVec<Ty> {
+        let mut shapes = ScratchVec::new(&self.meter);
+        for alternative in self.types.members(ty) {
+            if matches!(self.types.kind(alternative), Kind::Shape(..)) {
+                shapes.add(alternative);
+            }
+        }
+        shapes
     }
 
     /// Whether `name`, a hash member that removes keys, could remove a field

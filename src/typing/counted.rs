@@ -1536,10 +1536,10 @@ mod tests {
     const MADE: &[(&str, [usize; 4])] = &[
         ("typing.rs", [0, 0, 0, 1]),
         ("assigns.rs", [0, 0, 0, 2]),
-        ("calls.rs", [0, 3, 4, 5]),
-        ("check.rs", [4, 1, 0, 10]),
+        ("calls.rs", [0, 1, 4, 6]),
+        ("check.rs", [3, 0, 0, 11]),
         ("construction.rs", [1, 0, 0, 15]),
-        ("expr.rs", [3, 5, 0, 13]),
+        ("expr.rs", [2, 6, 0, 11]),
         ("flow.rs", [0, 0, 0, 6]),
         ("foreign.rs", [1, 0, 0, 0]),
         ("marks.rs", [2, 0, 0, 1]),
@@ -1607,11 +1607,10 @@ mod tests {
         ("typing.rs", [6, 0, 1]),
         // A stopped walk's results, and a root without assignments.
         ("assigns.rs", [3, 0, 0]),
-        // Bindings of signatures without type variables; a receiver's
-        // alternatives and those its members answer; the members of a host
-        // or builtin namespace of one name; and the branches explored and
-        // keywords given, held as each is kept.
-        ("calls.rs", [22, 4, 2]),
+        // Bindings of signatures without type variables; the members of a
+        // host or builtin namespace of one name, a few; and the branches
+        // explored and keywords given, held as each is kept.
+        ("calls.rs", [21, 2, 2]),
         // A union's alternatives an `is_a?` keeps; the file's shared and
         // written names and each function's, counted before they are
         // copied; the defaults by class and the branches explored, held.
@@ -1619,10 +1618,10 @@ mod tests {
         // The cycle search's stack, cycles and their members, counted
         // before the search starts.
         ("construction.rs", [10, 0, 3]),
-        // A hint's enums and shapes, and the results of an operator's
-        // alternatives; the `when` values covered and the branches
-        // explored, held as each is kept.
-        ("expr.rs", [3, 4, 4]),
+        // A hint's enums, and the results of an operator's alternatives,
+        // which relate types but check no syntax; the `when` values
+        // covered and the branches explored, held as each is kept.
+        ("expr.rs", [1, 2, 4]),
         // A stopped check's branches.
         ("flow.rs", [4, 0, 0]),
         // The size of an empty node.

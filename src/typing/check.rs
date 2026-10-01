@@ -3216,8 +3216,8 @@ impl<'a> Checker<'a> {
                 self.frame.flow.rollback(mark);
                 let mut then = ln.then.clone();
                 then.extend(rn.then.iter().copied());
-                let otherwise =
-                    self.join_narrowings(&ln.otherwise, &merge(&ln.then, &rn.otherwise));
+                let otherwise = self
+                    .join_narrowings(&ln.otherwise, &merge(&self.meter, &ln.then, &rn.otherwise));
                 (Ty::BOOL, Narrow { then, otherwise })
             }
             Node::Binary("||", left, right) => {
@@ -3230,7 +3230,8 @@ impl<'a> Checker<'a> {
                 self.frame.flow.rollback(mark);
                 let mut otherwise = ln.otherwise.clone();
                 otherwise.extend(rn.otherwise.iter().copied());
-                let then = self.join_narrowings(&ln.then, &merge(&ln.otherwise, &rn.then));
+                let then =
+                    self.join_narrowings(&ln.then, &merge(&self.meter, &ln.otherwise, &rn.then));
                 (Ty::BOOL, Narrow { then, otherwise })
             }
             Node::Binary(op @ ("==" | "!="), left, right) => {
@@ -3453,9 +3454,20 @@ fn literal_without_type(expr: &Expr) -> bool {
     }
 }
 
-fn merge(a: &[(LocalId, Ty)], b: &[(LocalId, Ty)]) -> Vec<(LocalId, Ty)> {
-    let mut merged = a.to_vec();
-    merged.extend_from_slice(b);
+/// The narrowings of `a` and then `b`, in a list counted while it lives;
+/// none once the budget refuses it room, which stops the check.
+fn merge(
+    meter: &std::sync::Arc<super::meter::Meter>,
+    a: &[(LocalId, Ty)],
+    b: &[(LocalId, Ty)],
+) -> ScratchVec<(LocalId, Ty)> {
+    let mut merged = ScratchVec::new(meter);
+    if merged.reserve(a.len() + b.len()).is_err() {
+        return merged;
+    }
+    for &narrowing in a.iter().chain(b) {
+        merged.add(narrowing);
+    }
     merged
 }
 

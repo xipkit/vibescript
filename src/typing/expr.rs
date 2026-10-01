@@ -5,6 +5,7 @@ use super::{
     Checker,
     assigns::TrySpans,
     check::{Purpose, Want, is_constant},
+    counted::ScratchVec,
     flow::{Branch, VarState},
     program::{FnId, NsId},
     sigs,
@@ -470,32 +471,38 @@ impl<'a> Checker<'a> {
 
     fn array_literal(&mut self, items: &'a [Expr], hint: Option<Ty>) -> Ty {
         if let Some(hint) = hint {
-            let alternatives: Vec<Ty> = self
-                .types
-                .members(hint)
-                .into_iter()
-                .filter(|&ty| matches!(self.types.kind(ty), Kind::Array(_) | Kind::Tuple(_)))
-                .collect();
+            // The hint's lists, in a list counted while it lives, since
+            // checking the items against them checks what they hold.
+            let mut alternatives = ScratchVec::new(&self.meter);
+            for ty in self.types.members(hint) {
+                if matches!(self.types.kind(ty), Kind::Array(_) | Kind::Tuple(_)) {
+                    alternatives.add(ty);
+                }
+            }
             if alternatives.len() > 1 {
                 let Some(held) = self.hold(2 * types_bytes(items.len())) else {
                     return Ty::ERROR;
                 };
                 let mut values = Vec::with_capacity(items.len());
                 for (index, item) in items.iter().enumerate() {
-                    let hints: Vec<Ty> = alternatives
-                        .iter()
-                        .filter_map(|&ty| match self.types.kind(ty) {
-                            Kind::Array(element) => Some(*element),
-                            Kind::Tuple(elements) => elements.get(index).copied(),
-                            _ => None,
-                        })
-                        .collect();
-                    let element = self.types.union(&hints);
+                    // The item's hints are dropped before it is checked.
+                    let element = {
+                        let hints: Vec<Ty> = alternatives
+                            .iter()
+                            .filter_map(|&ty| match self.types.kind(ty) {
+                                Kind::Array(element) => Some(*element),
+                                Kind::Tuple(elements) => elements.get(index).copied(),
+                                _ => None,
+                            })
+                            .collect();
+                        self.types.union(&hints)
+                    };
                     values.push(self.expr(item, Some(element)));
                 }
                 let tuple = self.types.tuple(values.clone());
                 let fitting = alternatives
-                    .into_iter()
+                    .iter()
+                    .copied()
                     .find(|&alternative| self.types.assignable(tuple, alternative));
                 let result = match fitting {
                     Some(alternative) => alternative,
@@ -566,15 +573,17 @@ impl<'a> Checker<'a> {
     /// be checked against: those whose fields its keys fit, preferring
     /// those that declare no field the literal leaves out, and of them the
     /// widest, which accepts the values the others do, when there is one.
+    /// They are listed in a list counted while it lives, since checking
+    /// the literal against them checks what its entries hold.
     fn fitting_shapes(
         &mut self,
         entries: &[(crate::compilation::Bytes, Expr)],
         hint: Option<Ty>,
-    ) -> Vec<Ty> {
-        let mut exact = Vec::new();
-        let mut loose = Vec::new();
+    ) -> ScratchVec<Ty> {
+        let mut exact = ScratchVec::new(&self.meter);
+        let mut loose = ScratchVec::new(&self.meter);
         let Some(hint) = hint else {
-            return Vec::new();
+            return exact;
         };
         for alternative in self.types.members(hint) {
             let shared = self.types.shared(alternative);
@@ -592,9 +601,9 @@ impl<'a> Checker<'a> {
                 continue;
             }
             if given.iter().all(|&given| given) {
-                exact.push(alternative);
+                exact.add(alternative);
             } else {
-                loose.push(alternative);
+                loose.add(alternative);
             }
         }
         let candidates = if exact.is_empty() { loose } else { exact };
@@ -604,7 +613,7 @@ impl<'a> Checker<'a> {
             .types
             .work(candidates.len().saturating_mul(candidates.len()))
         {
-            return Vec::new();
+            return ScratchVec::new(&self.meter);
         }
         let widest = candidates.iter().copied().find(|&wide| {
             candidates
@@ -612,7 +621,11 @@ impl<'a> Checker<'a> {
                 .all(|&other| self.types.assignable(other, wide))
         });
         match widest {
-            Some(widest) => vec![widest],
+            Some(widest) => {
+                let mut widest_only = ScratchVec::new(&self.meter);
+                widest_only.add(widest);
+                widest_only
+            }
             None => candidates,
         }
     }
@@ -658,14 +671,17 @@ impl<'a> Checker<'a> {
         };
         let mut fields = Vec::with_capacity(entries.len());
         for (key, entry) in entries {
-            let hints: Vec<Ty> = shapes
-                .iter()
-                .filter_map(|&shape| match self.types.kind(shape) {
-                    Kind::Shape(fields, _) => Types::field(fields, key).map(|field| field.ty),
-                    _ => None,
-                })
-                .collect();
-            let hint = (!hints.is_empty()).then(|| self.types.union(&hints));
+            // The entry's hints are dropped before it is checked.
+            let hint = {
+                let hints: Vec<Ty> = shapes
+                    .iter()
+                    .filter_map(|&shape| match self.types.kind(shape) {
+                        Kind::Shape(fields, _) => Types::field(fields, key).map(|field| field.ty),
+                        _ => None,
+                    })
+                    .collect();
+                (!hints.is_empty()).then(|| self.types.union(&hints))
+            };
             let ty = self.expr(entry, hint);
             fields.push(Field {
                 name: String::from_utf8_lossy(key).as_ref().into(),
