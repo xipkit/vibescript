@@ -1935,7 +1935,25 @@ fn the_checkers_time_per_step_stays_flat_as_names_and_parameters_grow() {
     let _serial = SERIAL
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let shapes: [Shape; 4] = [
+    let shapes: [Shape; 5] = [
+        // Each `when` names a symbol, which the subject's alternatives are
+        // searched for in turn, and only the last one's enum has.
+        (
+            "a case over a union of enums naming the last one's member",
+            |n| {
+                let count = n / 16;
+                let enums = lines(count, |i| format!("enum E{i}\n  A{i}\nend\n"));
+                let union = listed(count, |i| format!("E{i}"), " | ");
+                let last = count - 1;
+                let whens = lines(n, |_| format!("  when :a{last} then 0\n"));
+                (
+                    Vec::new(),
+                    format!(
+                        "{enums}type U = {union}\ndef f(x: U) -> int\n  case x\n{whens}  else 1\n  end\nend\np(1)\n"
+                    ),
+                )
+            },
+        ),
         // Each `when` names a member of the enum, which the `case` then
         // covers whole.
         ("a case over every member of an enum", |n| {

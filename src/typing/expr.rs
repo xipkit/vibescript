@@ -283,13 +283,22 @@ impl<'a> Checker<'a> {
         let Some(hint) = hint else {
             return Ty::SYMBOL;
         };
+        // The hint's alternatives are a step for each 64 of them, and each
+        // enum's members, searched for the symbol, a step more, charged
+        // before the search, which may end at any of them.
         let alternatives = self.types.members(hint);
+        if self.types.work(alternatives.len()) {
+            return Ty::ERROR;
+        }
         let mut enums = Vec::new();
         for &alternative in &alternatives {
             match &*self.types.shared(alternative) {
                 Kind::SymbolLit(literal) if &**literal == name => return alternative,
                 Kind::Symbol | Kind::Any => return Ty::SYMBOL,
                 Kind::EnumValue(id) => {
+                    if self.meter.charge(1) {
+                        return Ty::ERROR;
+                    }
                     if self.program.enums[*id as usize].symbol(name).is_some() {
                         if let Some(why) = self.symbols_stay {
                             self.enum_symbol(expr, *id, name, why);
