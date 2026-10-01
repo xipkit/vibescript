@@ -692,3 +692,24 @@ fn diagnostics_spell_out_bounded_lists_and_types() {
     assert!(message.len() < 64 << 10, "{} bytes", message.len());
     assert!(message.contains("..."), "{message}");
 }
+
+#[test]
+fn a_long_chain_of_aliases_is_checked_within_the_stack() {
+    // The checker resolves an alias through the alias it names, so a long
+    // chain of them recursed as deep as it is long, past the stack a WASI
+    // build checks on; it now resolves no deeper than the compiler accepts,
+    // and the rest is unknown.
+    let renames: String = (1..4_000)
+        .map(|k| format!("type R{k} = R{}\n", k - 1))
+        .collect();
+    let nested: String = (1..1_000)
+        .map(|k| format!("type N{k} = {{ a: int }} | array<N{}>\n", k - 1))
+        .collect();
+    let source = format!(
+        "type R0 = int\n{renames}type N0 = int\n{nested}def f(x: R3999, y: N999) -> int\n  y\nend\np(1)\n"
+    );
+    let checked = Engine::new()
+        .type_check(&source)
+        .expect("the source parses");
+    assert!(!checked.diagnostics.is_empty(), "{:?}", checked.diagnostics);
+}

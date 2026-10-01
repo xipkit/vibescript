@@ -568,6 +568,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         construction: construction::Construction::default(),
         self_receiver: false,
         symbols_stay: None,
+        annotating: 0,
         storing_self: None,
         assigns: assigns::Assigns::default(),
         meter: std::sync::Arc::clone(&meter),
@@ -803,6 +804,7 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
         construction: construction::Construction::default(),
         self_receiver: false,
         symbols_stay: None,
+        annotating: 0,
         storing_self: None,
         assigns: assigns::Assigns::default(),
         meter: std::sync::Arc::clone(&meter),
@@ -915,6 +917,9 @@ pub(crate) struct Checker<'a> {
     /// does: no typed boundary between it and where it is stored or used
     /// turns it into the enum member its expected type names.
     symbols_stay: Option<&'static str>,
+    /// How many levels of an annotation the checker is resolving, through
+    /// its parts and the aliases it names.
+    annotating: u32,
     /// The instance variable that `self` itself is being stored into, as in
     /// `@next = self`, which the store assigns rather than lets escape.
     storing_self: Option<String>,

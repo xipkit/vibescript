@@ -1114,7 +1114,10 @@ impl<'a> Checker<'a> {
     }
 
     /// Resolves an annotation in the scope of namespace `scope`, reporting
-    /// unknown names at `offset`.
+    /// unknown names at `offset`. An annotation that nests deeper than
+    /// [`ANNOTATED`] levels, through its parts and the aliases it names,
+    /// is unknown, and on WASI one taller than the syntax the checker
+    /// descends into is refused as that syntax is.
     pub(super) fn annotation(
         &mut self,
         ty: &compilation::Type,
@@ -1126,6 +1129,27 @@ impl<'a> Checker<'a> {
         if self.halted() {
             return Ty::ERROR;
         }
+        if super::too_tall(self.annotating) {
+            let span = self.spans.token(offset);
+            self.too_deep(span);
+            return Ty::ERROR;
+        }
+        if self.annotating >= ANNOTATED {
+            return Ty::ERROR;
+        }
+        self.annotating += 1;
+        let resolved = self.annotation_within(ty, scope, offset);
+        self.annotating -= 1;
+        resolved
+    }
+
+    /// [`Self::annotation`], one level deeper.
+    fn annotation_within(
+        &mut self,
+        ty: &compilation::Type,
+        scope: Option<NsId>,
+        offset: usize,
+    ) -> Ty {
         let base = match &ty.kind {
             TypeKind::Scalar(scalar) => match scalar {
                 Scalar::Any => Ty::ANY,
@@ -1381,6 +1405,14 @@ impl<'a> Checker<'a> {
         self.annotation(ty, scope, 0)
     }
 }
+
+/// How deep the checker resolves an annotation, through its parts and the
+/// aliases it names, each a level. The compiler refuses a chain of more
+/// than 64 aliases, and a type that nests deeper than 128 levels once they
+/// are expanded, so an annotation it compiles stays well within this; a
+/// deeper one is unknown here, and the compiler reports it. The bound keeps
+/// the checker's recursion through aliases off the end of its stack.
+const ANNOTATED: u32 = 512;
 
 /// The type of a literal default value, or unknown for any other default.
 fn literal_type(expr: &crate::syntax::Expr) -> Ty {
