@@ -1222,9 +1222,11 @@ impl<'a> Checker<'a> {
     /// The declared type of the host global a write to `name` updates:
     /// one the host declares, which no local, parameter or block parameter
     /// of the name shadows. The runtime writes the global's binding, which
-    /// every function then reads, so the write keeps the declared type.
+    /// every function then reads, so the write keeps the declared type. A
+    /// required file reads the globals but never writes them: its writes
+    /// bind the file's own variables, which shadow them.
     pub(super) fn host_global(&self, name: &str) -> Option<Ty> {
-        if name.starts_with('@') || self.local(name).is_some() {
+        if self.program.file || name.starts_with('@') || self.local(name).is_some() {
             return None;
         }
         self.program.declared.get(name).copied()

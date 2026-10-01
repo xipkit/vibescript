@@ -1798,6 +1798,42 @@ fn required_files_read_receiving_globals_and_keep_private_assignments() {
 }
 
 #[test]
+fn a_required_files_assignment_of_a_host_globals_name_binds_its_own_variable() {
+    // The runtime binds the file's own variable, which shadows the global,
+    // so the checker types it by the value assigned, not the global's
+    // declared type.
+    let files = Files::new();
+    files.write(
+        "private.vibe",
+        "payload=[\"local\"];def read -> array<string>;payload;end",
+    );
+    files.write(
+        "mistyped.vibe",
+        "payload=[\"local\"];def read -> array<int>;payload;end",
+    );
+    let mut engine = files.engine();
+    engine.declare_global("payload", "array<int>").unwrap();
+    let opts = CallOptions {
+        globals: [("payload".to_owned(), Value::array(vec![Value::int(1)]))]
+            .into_iter()
+            .collect(),
+        ..CallOptions::default()
+    };
+    let script = engine
+        .compile("p=require(\"private\");[p.read,payload]")
+        .unwrap();
+    assert_eq!(
+        json(&script.run(opts).unwrap().value),
+        serde_json::json!([["local"], [1]])
+    );
+    let error = engine
+        .compile("p=require(\"mistyped\");p.read")
+        .err()
+        .expect("the file's variable holds strings");
+    assert!(error.to_string().contains("array<string>"), "{error}");
+}
+
+#[test]
 fn receiving_module_aliases_do_not_replace_foreign_static_call_targets() {
     // An instance of another script's class is `any` and never called, so a
     // required file's function and method call their own `helper`.
