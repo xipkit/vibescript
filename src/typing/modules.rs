@@ -224,23 +224,30 @@ impl<'a> Checker<'a> {
         let mut requests = ScratchVec::new(&self.meter);
         // What the paths and aliases found hold.
         let mut found = 0;
+        // A walk the budget stops visits no more declarations.
         let mut walk = Walk::new(&self.meter);
         for function in parsed.functions.iter() {
+            if self.halted() {
+                return;
+            }
             requires(&mut walk, &function.body, &mut requests, &mut found);
         }
         // What is left of the namespaces at each level of nesting, whose
         // bodies and methods are walked in turn.
         let mut levels = vec![parsed.modules.iter().chain([].iter())];
         while let Some(level) = levels.last_mut() {
+            if self.halted() {
+                return;
+            }
             let Some(module) = level.next() else {
                 levels.pop();
                 continue;
             };
             requires(&mut walk, &module.body, &mut requests, &mut found);
-            for (def, _) in module.methods.iter() {
-                requires(&mut walk, &def.body, &mut requests, &mut found);
-            }
-            for (def, _) in module.instance_methods.iter() {
+            for (def, _) in module.methods.iter().chain(module.instance_methods.iter()) {
+                if self.halted() {
+                    return;
+                }
                 requires(&mut walk, &def.body, &mut requests, &mut found);
             }
             levels.push(module.modules.iter().chain(module.inner.iter()));
