@@ -9,6 +9,19 @@ use std::{
 /// A suspended piece of nested compiler work.
 pub(crate) type Task<'a, T> = Pin<Box<dyn Future<Output = Result<T>> + 'a>>;
 
+/// A task with the reservation of its frame, which it holds while it runs.
+pub(crate) type Frame<'a, T> = (Task<'a, T>, Option<Charge>);
+
+/// Boxes `future` as a task, reserving its frame from `work` before the box
+/// is made.
+pub(crate) fn task<'a, T, F: Future<Output = Result<T>> + 'a>(
+    work: &dyn super::Work,
+    future: F,
+) -> Result<Frame<'a, T>> {
+    let held = work.reserve(std::mem::size_of::<F>())?;
+    Ok((Box::pin(future), held))
+}
+
 /// Runs recursive compiler passes on a heap stack instead of the native stack.
 ///
 /// Source nesting is bounded by the syntax depth limit rather than by the
@@ -34,23 +47,20 @@ impl<C, T> Tasks<C, T> {
         }
     }
 
-    /// Runs `call`, starting it and every nested call with `start`, and
-    /// charging each task's frame to `work` while it runs, and the stack's
-    /// storage while it holds it.
+    /// Runs `call`, starting it and every nested call with `start`, which
+    /// makes each task with [`task`], reserving its frame from `work` before
+    /// it is made and while it runs; and charging the stack's storage to
+    /// `work` while it holds it.
     pub fn run<'a>(
         &self,
         call: C,
-        start: impl Fn(C) -> Task<'a, T>,
+        start: impl Fn(C) -> Result<Frame<'a, T>>,
         work: &dyn super::Work,
     ) -> Result<T> {
-        let frame = |task: Task<'a, T>| -> Result<(Task<'a, T>, Option<Charge>)> {
-            let held = work.reserve(std::mem::size_of_val(&*task))?;
-            Ok((task, held))
-        };
         // The stack's own storage is reserved before it grows, with its
         // old storage and its new while it does, and for as long as it
         // keeps it.
-        let entry = std::mem::size_of::<(Task<'a, T>, Option<Charge>)>();
+        let entry = std::mem::size_of::<Frame<'a, T>>();
         let mut stack = Vec::new();
         let mut storage: Option<Charge> = None;
         let mut push = |stack: &mut Vec<_>, task| -> Result<()> {
@@ -63,7 +73,7 @@ impl<C, T> Tasks<C, T> {
             stack.push(task);
             Ok(())
         };
-        push(&mut stack, frame(start(call))?)?;
+        push(&mut stack, start(call)?)?;
         let mut context = Context::from_waker(Waker::noop());
         loop {
             let (task, _) = stack.last_mut().unwrap();
@@ -77,8 +87,8 @@ impl<C, T> Tasks<C, T> {
                 }
                 Poll::Pending => {
                     let call = self.call.take();
-                    let task = start(call.expect("a suspended task names its nested work"));
-                    push(&mut stack, frame(task)?)?;
+                    let task = start(call.expect("a suspended task names its nested work"))?;
+                    push(&mut stack, task)?;
                 }
             }
         }
@@ -143,21 +153,18 @@ mod tests {
         let (frame, entry) = {
             let work = Meter(RefCell::new(&mut context));
             let tasks: Tasks<usize, usize> = Tasks::new();
-            let start = |n: usize| -> Task<'_, usize> {
+            let start = |n: usize| -> Result<Frame<'_, usize>> {
                 let tasks = &tasks;
-                Box::pin(async move {
+                task(&work, async move {
                     if n == 0 {
                         return Ok(0);
                     }
                     Ok(tasks.call(n - 1).await? + 1)
                 })
             };
-            let frame = std::mem::size_of_val(&*start(0));
+            let frame = std::mem::size_of_val(&*start(0).unwrap().0);
             assert_eq!(tasks.run(depth, start, &work).unwrap(), depth);
-            (
-                frame,
-                std::mem::size_of::<(Task<'_, usize>, Option<Charge>)>(),
-            )
+            (frame, std::mem::size_of::<Frame<'_, usize>>())
         };
         // Every frame is held at the deepest point, beside the stack that
         // lists them, which holds at least an entry for each.

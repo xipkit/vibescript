@@ -1,6 +1,6 @@
 use crate::{
     Error, Result, Value,
-    compilation::{Boxed, Buffer, Bytes, Name, Table, Task, Tasks, Text, Work, framed},
+    compilation::{Boxed, Buffer, Bytes, Frame, Name, Table, Tasks, Text, Work, framed, task},
 };
 use std::cell::{RefCell, RefMut};
 
@@ -1107,27 +1107,34 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
         self.tasks.run(call, |call| self.start(call), self.work)
     }
 
-    fn start(&self, call: Call) -> Task<'_, Parsed> {
+    fn start(&self, call: Call) -> Result<Frame<'_, Parsed>> {
+        let work = self.work;
         match call {
-            Call::Program => Box::pin(async { Ok(Parsed::Program(self.program().await?)) }),
-            Call::Interpolation => Box::pin(async { Ok(Parsed::Expr(self.interpolated().await?)) }),
-            Call::Expr(min) => {
-                Box::pin(async move { Ok(Parsed::Expr(self.expression(min).await?)) })
+            Call::Program => task(work, async { Ok(Parsed::Program(self.program().await?)) }),
+            Call::Interpolation => {
+                task(work, async { Ok(Parsed::Expr(self.interpolated().await?)) })
             }
-            Call::Tail(lhs, suffix, min) => Box::pin(async move {
+            Call::Expr(min) => task(work, async move {
+                Ok(Parsed::Expr(self.expression(min).await?))
+            }),
+            Call::Tail(lhs, suffix, min) => task(work, async move {
                 let result = self.expr_tail(lhs, min, Some(suffix), None, false).await;
                 self.p().depth -= 1;
                 Ok(Parsed::Expr(result?))
             }),
-            Call::Block(stop) => {
-                Box::pin(async move { Ok(Parsed::Body(self.block_task(stop).await?)) })
-            }
-            Call::Target(typed) => Box::pin(async move {
+            Call::Block(stop) => task(work, async move {
+                Ok(Parsed::Body(self.block_task(stop).await?))
+            }),
+            Call::Target(typed) => task(work, async move {
                 let (target, tuple) = self.target(Place::Group(typed)).await?;
                 Ok(Parsed::Target(target, tuple))
             }),
-            Call::Class => Box::pin(async { Ok(Parsed::Module(self.class_like(false).await?)) }),
-            Call::Module => Box::pin(async { Ok(Parsed::Module(self.class_like(true).await?)) }),
+            Call::Class => task(work, async {
+                Ok(Parsed::Module(self.class_like(false).await?))
+            }),
+            Call::Module => task(work, async {
+                Ok(Parsed::Module(self.class_like(true).await?))
+            }),
         }
     }
 

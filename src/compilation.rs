@@ -13,7 +13,7 @@ pub(crate) use diagnostics::{error, formatted};
 pub(crate) use name::Name;
 pub(crate) use storage::{Boxed, Bytes, Text};
 pub(crate) use table::Table;
-pub(crate) use tasks::{Task, Tasks, framed};
+pub(crate) use tasks::{Frame, Tasks, framed, task};
 pub(crate) use types::{Field, Type, TypeKind};
 
 /// What compilation may still spend, as a copy another thread can check

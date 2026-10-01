@@ -1,7 +1,7 @@
 use crate::{
     Result, Value,
     builtin::{Builtin, Global},
-    compilation::{Buffer, Name, Table, Task, Tasks, framed},
+    compilation::{Buffer, Frame, Name, Table, Tasks, framed},
     syntax::{
         self, Argument, ArgumentKind, Block, CallForm, Expr, Node, ParamKind, Statement, Stmt,
         Target,
@@ -1884,16 +1884,17 @@ impl<'a, 'x> Compiling<'a, 'x> {
         self.tasks.run(call, |call| self.start(call), self.work)
     }
 
-    fn start(&self, call: Call<'x>) -> Task<'_, ()> {
+    fn start(&self, call: Call<'x>) -> Result<Frame<'_, ()>> {
+        use crate::compilation::task;
         match call {
             Call::Function(def, binds_parameters, additions) => {
-                Box::pin(self.function(def, binds_parameters, additions))
+                task(self.work, self.function(def, binds_parameters, additions))
             }
-            Call::Expr(e) => Box::pin(self.expr_task(e)),
-            Call::Block(body) => Box::pin(self.block_task(body)),
-            Call::Assign(target) => Box::pin(self.assign_value(target)),
-            Call::Address(receiver) => Box::pin(self.address(receiver)),
-            Call::AssignmentAddress(receiver) => Box::pin(self.assignment_address(receiver)),
+            Call::Expr(e) => task(self.work, self.expr_task(e)),
+            Call::Block(body) => task(self.work, self.block_task(body)),
+            Call::Assign(target) => task(self.work, self.assign_value(target)),
+            Call::Address(receiver) => task(self.work, self.address(receiver)),
+            Call::AssignmentAddress(receiver) => task(self.work, self.assignment_address(receiver)),
         }
     }
 

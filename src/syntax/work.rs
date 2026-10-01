@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{
     Result,
-    compilation::{Boxed, Buffer, Name, Task, Tasks, Work, framed},
+    compilation::{Boxed, Buffer, Frame, Name, Tasks, Work, framed, task},
 };
 
 // Alias declarations own separate syntax containers while sharing immutable literals.
@@ -44,20 +44,21 @@ struct Copying<'w, 'x> {
 }
 
 impl<'x> Copying<'_, 'x> {
-    fn start(&self, call: Call<'x>) -> Task<'_, Copied> {
+    fn start(&self, call: Call<'x>) -> Result<Frame<'_, Copied>> {
+        let work = self.work;
         match call {
-            Call::Definition(value) => {
-                Box::pin(async move { Ok(Copied::Definition(self.definition(value).await?)) })
-            }
-            Call::Expr(value) => {
-                Box::pin(async move { Ok(Copied::Expr(self.expression(value).await?)) })
-            }
-            Call::Stmt(value) => {
-                Box::pin(async move { Ok(Copied::Stmt(self.statement(value).await?)) })
-            }
-            Call::Target(value) => {
-                Box::pin(async move { Ok(Copied::Target(self.target(value).await?)) })
-            }
+            Call::Definition(value) => task(work, async move {
+                Ok(Copied::Definition(self.definition(value).await?))
+            }),
+            Call::Expr(value) => task(work, async move {
+                Ok(Copied::Expr(self.expression(value).await?))
+            }),
+            Call::Stmt(value) => task(work, async move {
+                Ok(Copied::Stmt(self.statement(value).await?))
+            }),
+            Call::Target(value) => task(work, async move {
+                Ok(Copied::Target(self.target(value).await?))
+            }),
         }
     }
 
