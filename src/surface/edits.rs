@@ -220,15 +220,20 @@ impl Edits {
     }
 
     /// The edits of each of `count` rewrites, by the order they were made,
-    /// found in one pass over them all rather than one for each rewrite.
-    pub fn groups(&self, count: usize) -> Vec<Vec<usize>> {
+    /// found in one pass over them all rather than one for each rewrite;
+    /// `None` once `stop`, which it asks every [`POLL`](super::parse::POLL)
+    /// edits, says the compilation has stopped.
+    pub fn groups(&self, count: usize, stop: super::parse::Stop<'_>) -> Option<Vec<Vec<usize>>> {
         let mut groups = vec![Vec::new(); count];
         for (index, edit) in self.edits.iter().enumerate() {
+            if index % super::parse::POLL as usize == 0 && stop() {
+                return None;
+            }
             if let Some(members) = edit.group.and_then(|group| groups.get_mut(group)) {
                 members.push(index);
             }
         }
-        groups
+        Some(groups)
     }
 
     /// The edits `members` lists, which [`Self::groups`] gives for a

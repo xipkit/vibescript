@@ -125,8 +125,10 @@ pub struct Surface<'a> {
 }
 
 impl<'a> Surface<'a> {
-    /// Prepares to walk `tree`, parsed from `source`.
-    pub fn new(source: &'a str, tree: &'a Tree) -> Self {
+    /// Prepares to walk `tree`, parsed from `source`; `None` once `stop`,
+    /// which it asks every [`parse::POLL`] tokens and declarations it
+    /// reads, says the compilation has stopped.
+    pub fn new(source: &'a str, tree: &'a Tree, stop: parse::Stop<'_>) -> Option<Self> {
         let mut surface = Self {
             source,
             tokens: &tree.tokens,
@@ -141,14 +143,23 @@ impl<'a> Surface<'a> {
             words: HashMap::new(),
             negation: None,
         };
+        let poll = parse::POLL as usize;
         for (index, token) in tree.tokens.iter().enumerate() {
+            if index % poll == 0 && stop() {
+                return None;
+            }
             if matches!(token.kind, TokenKind::Operator("&&" | "||")) {
                 let offset = surface.operator_offset(index);
                 surface.short_circuits.insert(offset);
             }
         }
-        surface.declare(&tree.body, "");
-        surface
+        let mut read = 0;
+        let mut stopped = || {
+            read += 1;
+            read % poll == 0 && stop()
+        };
+        surface.declare(&tree.body, "", &mut stopped)?;
+        Some(surface)
     }
 
     /// The source text of `span`.
@@ -200,8 +211,16 @@ impl<'a> Surface<'a> {
         self.edits.enter(previous);
     }
 
-    fn declare(&mut self, body: &'a [Stmt], prefix: &str) {
+    fn declare(
+        &mut self,
+        body: &'a [Stmt],
+        prefix: &str,
+        stopped: &mut dyn FnMut() -> bool,
+    ) -> Option<()> {
         for stmt in body {
+            if stopped() {
+                return None;
+            }
             match &stmt.kind {
                 StmtKind::Def(def) => {
                     self.declared.methods.insert(def.name.clone());
@@ -211,7 +230,7 @@ impl<'a> Surface<'a> {
                         self.declared.functions.insert(def.name.clone(), def);
                     }
                 }
-                StmtKind::Class(class) => self.declare_class(class, prefix),
+                StmtKind::Class(class) => self.declare_class(class, prefix, stopped)?,
                 StmtKind::Enum(declared) => {
                     self.declared
                         .enums
@@ -220,9 +239,15 @@ impl<'a> Surface<'a> {
                 _ => (),
             }
         }
+        Some(())
     }
 
-    fn declare_class(&mut self, class: &'a Class, prefix: &str) {
+    fn declare_class(
+        &mut self,
+        class: &'a Class,
+        prefix: &str,
+        stopped: &mut dyn FnMut() -> bool,
+    ) -> Option<()> {
         let name = if prefix.is_empty() {
             class.name.clone()
         } else {
@@ -231,6 +256,9 @@ impl<'a> Surface<'a> {
         self.declared.classes.insert(name.clone(), class);
         let mut private = false;
         for member in &class.members {
+            if stopped() {
+                return None;
+            }
             match member {
                 Member::Def(def) => {
                     self.declared.methods.insert(def.name.clone());
@@ -247,7 +275,7 @@ impl<'a> Surface<'a> {
                         self.declared.methods.insert(format!("{name}="));
                     }
                 }
-                Member::Class(inner) => self.declare_class(inner, &name),
+                Member::Class(inner) => self.declare_class(inner, &name, stopped)?,
                 Member::Ivar(..) | Member::ClassVar(..) => (),
                 Member::Other(span) => {
                     // `send` reaches private and protected methods, which a
@@ -270,6 +298,7 @@ impl<'a> Surface<'a> {
                 Member::Stmt(_) => (),
             }
         }
+        Some(())
     }
 
     /// Whether a class or enum of that dotted name is declared here.

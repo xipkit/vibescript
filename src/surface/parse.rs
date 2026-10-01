@@ -33,7 +33,7 @@ pub fn parse(source: &str) -> Result<Tree> {
         message: error.to_string(),
         too_deep: false,
     })?;
-    let starts = Starts::new(&tokens);
+    let starts = Starts::new(&tokens, &|| false).expect("never stopped");
     let mut parser = Parser::new(source, tokens, starts, &|| false);
     parser.declare_types();
     let body = parser.program()?;
@@ -47,25 +47,31 @@ pub fn parse(source: &str) -> Result<Tree> {
 /// Parses `source` from the tokens the compiler read, refusing nesting
 /// deeper than `limit` statements and expressions. The parser recurses once
 /// per level, so the limit bounds the stack it needs. It gives up once
-/// `stop`, which it asks now and then, says the compilation has stopped.
+/// `stop`, which it and each pass over the tokens before it ask now and
+/// then, says the compilation has stopped.
 pub fn parse_tokens<'s>(
     source: &'s str,
     tokens: &[tooling::Token],
     limit: usize,
     stop: Stop<'s>,
 ) -> Result<Tree> {
-    let tokens = convert(source, tokens, 0);
-    let starts = Starts::new(&tokens);
+    let stopped = || Fail {
+        offset: 0,
+        message: "stopped".to_owned(),
+        too_deep: false,
+    };
+    let tokens = convert(source, tokens, 0, stop).ok_or_else(stopped)?;
+    let starts = Starts::new(&tokens, stop).ok_or_else(stopped)?;
     let mut parser = Parser::new(source, tokens, starts, stop);
     parser.declare_types();
     parser.limit = limit;
-    let body = parser.program();
+    let body = if parser.stopped {
+        Err(stopped())
+    } else {
+        parser.program()
+    };
     if parser.stopped {
-        return Err(Fail {
-            offset: 0,
-            message: "stopped".to_owned(),
-            too_deep: false,
-        });
+        return Err(stopped());
     }
     // A speculative parse that failed at the limit may have been retried
     // another way, so any refusal refuses the source.
@@ -86,7 +92,7 @@ pub fn parse_tokens<'s>(
 
 #[cfg(test)]
 fn lex(source: &str, base: usize) -> crate::Result<Vec<Token>> {
-    Ok(convert(source, &tooling::tokens(source)?, base))
+    Ok(convert(source, &tooling::tokens(source)?, base, &|| false).expect("never stopped"))
 }
 
 /// Lexes an interpolation's `source`, which starts at `base` in the whole
@@ -97,11 +103,13 @@ fn lex_until(source: &str, base: usize, stop: Stop<'_>) -> crate::Result<Vec<Tok
         stop,
         calls: std::cell::Cell::new(0),
     };
-    Ok(convert(
+    convert(
         source,
         &crate::syntax::record::tokens_within(source, &work)?,
         base,
-    ))
+        stop,
+    )
+    .ok_or_else(|| crate::Error::new(crate::ErrorKind::Cancelled, "stopped"))
 }
 
 /// The unmetered work of lexing an interpolation, which the pass charged
@@ -149,17 +157,29 @@ impl crate::compilation::Work for Stopping<'_> {
     }
 }
 
-fn convert(source: &str, tokens: &[tooling::Token], base: usize) -> Vec<Token> {
-    tokens
-        .iter()
-        .map(|token| Token {
+/// The compiler's `tokens` of `source`, which starts at `base` in the whole
+/// source, as the parser reads them; `None` once `stop`, which it asks
+/// every [`POLL`] tokens, says the compilation has stopped.
+fn convert(
+    source: &str,
+    tokens: &[tooling::Token],
+    base: usize,
+    stop: Stop<'_>,
+) -> Option<Vec<Token>> {
+    let mut converted = Vec::with_capacity(tokens.len());
+    for (index, token) in tokens.iter().enumerate() {
+        if index % POLL as usize == 0 && stop() {
+            return None;
+        }
+        converted.push(Token {
             kind: token.kind.clone(),
             start: token.span.start + base,
             end: token.span.end + base,
             line: token.line,
             end_line: token.line + source[token.span.clone()].matches('\n').count(),
-        })
-        .collect()
+        });
+    }
+    Some(converted)
 }
 
 const KEYWORDS: [&str; 34] = [
@@ -321,9 +341,9 @@ struct Parser<'s> {
 /// Whether the compilation a parse is part of has stopped.
 pub type Stop<'s> = &'s (dyn Fn() -> bool + Sync);
 
-/// How many levels of nesting the parser enters between asking whether the
-/// compilation has stopped.
-const POLL: u32 = 256;
+/// How many levels of nesting the parser enters, or tokens a pass over
+/// them reads, between asking whether the compilation has stopped.
+pub(super) const POLL: u32 = 256;
 
 /// Parser state that a speculative parse restores.
 struct Saved {
@@ -377,10 +397,15 @@ impl<'s> Parser<'s> {
 
     /// Records the type aliases, classes and enums the source declares, as
     /// the compiler's parser does, which read as types where a default
-    /// value could also be meant.
+    /// value could also be meant. It asks every [`POLL`] tokens whether the
+    /// compilation has stopped, and gives up, recording none, once it has.
     fn declare_types(&mut self) {
         let mut names = HashSet::new();
         for index in 0..self.tokens.len().saturating_sub(2) {
+            if index % POLL as usize == 0 && (self.stop)() {
+                self.stopped = true;
+                return;
+            }
             let Some(word) = self.word_at(index) else {
                 continue;
             };
@@ -2932,7 +2957,10 @@ impl<'s> Parser<'s> {
         };
         let base = self.tokens.len();
         self.tokens.extend(tokens);
-        self.starts.extend(&self.tokens, base);
+        if self.starts.extend(&self.tokens, base, self.stop).is_none() {
+            self.stopped = true;
+            return None;
+        }
         let mut parser = Parser::new(
             self.source,
             std::mem::take(&mut self.tokens),

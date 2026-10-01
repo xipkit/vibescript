@@ -867,6 +867,45 @@ fn the_rules_parser_reads_safe_reads_in_selectors_and_receivers() {
     }
 }
 
+/// How long the rules' parse of `source`, and the walk's preparation of
+/// its tree, take to give up once the compilation has stopped already: the
+/// least of three tries each.
+fn stopping(source: &str) -> (std::time::Duration, std::time::Duration) {
+    let tokens = crate::tooling::tokens(source).unwrap();
+    let stopped: super::parse::Stop<'_> = &|| true;
+    let least = |run: &dyn Fn()| {
+        (0..3)
+            .map(|_| {
+                let start = std::time::Instant::now();
+                run();
+                start.elapsed()
+            })
+            .min()
+            .unwrap()
+    };
+    let parse = least(&|| {
+        assert!(super::parse::parse_tokens(source, &tokens, usize::MAX, stopped).is_err());
+    });
+    let tree = super::parse::parse_tokens(source, &tokens, usize::MAX, &|| false).unwrap();
+    let prepare = least(&|| {
+        assert!(super::context::Surface::new(source, &tree, stopped).is_none());
+    });
+    (parse, prepare)
+}
+
+#[test]
+fn the_rules_pass_stops_in_its_passes_over_the_tokens() {
+    // Many short statements, each a few tokens, which the passes before
+    // the parse and before the walk would each read in full.
+    let lines = |count| "x = 1 && 1\n".repeat(count);
+    let (small, large) = (stopping(&lines(1_000)), stopping(&lines(100_000)));
+    let bound = |small: std::time::Duration| 4 * small + std::time::Duration::from_millis(1);
+    assert!(
+        large.0 < bound(small.0) && large.1 < bound(small.1),
+        "stopped in {small:?} for a thousand lines and {large:?} for a hundred thousand"
+    );
+}
+
 #[test]
 fn removed_spellings_are_reported_however_they_are_written() {
     for (source, code) in [

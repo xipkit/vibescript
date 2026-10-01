@@ -5,6 +5,7 @@
 //! yet, so new rules need no parser changes.
 #![allow(dead_code)]
 
+use super::parse::{POLL, Stop};
 use crate::tooling::TokenKind;
 use std::ops::Range;
 
@@ -42,26 +43,40 @@ pub struct Starts {
 }
 
 impl Starts {
-    pub fn new(tokens: &[Token]) -> Self {
-        let end = tokens
-            .iter()
-            .position(|token| token.kind == TokenKind::Eof)
-            .map_or(tokens.len(), |eof| eof + 1);
+    /// Where `tokens` start; `None` once `stop`, which it asks every
+    /// [`POLL`] tokens, says the compilation has stopped.
+    pub fn new(tokens: &[Token], stop: Stop<'_>) -> Option<Self> {
+        let mut end = tokens.len();
+        for (index, token) in tokens.iter().enumerate() {
+            if index % POLL as usize == 0 && stop() {
+                return None;
+            }
+            if token.kind == TokenKind::Eof {
+                end = index + 1;
+                break;
+            }
+        }
         let mut starts = Self {
             end,
             tail: std::collections::HashMap::new(),
         };
-        starts.extend(tokens, end);
-        starts
+        starts.extend(tokens, end, stop)?;
+        Some(starts)
     }
 
-    /// Adds the tokens from `from`, which an interpolation appended.
-    pub fn extend(&mut self, tokens: &[Token], from: usize) {
+    /// Adds the tokens from `from`, which an interpolation appended; `None`
+    /// once `stop`, which it asks every [`POLL`] tokens, says the
+    /// compilation has stopped.
+    pub fn extend(&mut self, tokens: &[Token], from: usize, stop: Stop<'_>) -> Option<()> {
         for (index, token) in tokens.iter().enumerate().skip(from) {
+            if (index - from) % POLL as usize == 0 && stop() {
+                return None;
+            }
             if token.kind != TokenKind::Eof {
                 self.tail.entry(token.start).or_insert(index);
             }
         }
+        Some(())
     }
 
     /// The token of `tokens` that starts at `offset`, or the nearest one

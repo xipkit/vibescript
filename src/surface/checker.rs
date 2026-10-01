@@ -316,7 +316,7 @@ fn diagnostics<'s>(
     room: &Room,
 ) -> Option<Vec<Diagnostic>> {
     let mut checker = Checker {
-        surface: Surface::new(source, tree),
+        surface: Surface::new(source, tree, stop)?,
         calls,
         findings: Vec::new(),
         stop,
@@ -340,7 +340,10 @@ impl<'a> Checker<'a> {
         if self.stopped || self.room.full() {
             return None;
         }
-        let groups = self.surface.edits.groups(self.surface.rewrites.len());
+        let groups = self
+            .surface
+            .edits
+            .groups(self.surface.rewrites.len(), stop)?;
         let mut diagnostics = Vec::new();
         for (group, rewrite) in self.surface.rewrites.iter().enumerate() {
             if group % POLL == 0 && stop() {
