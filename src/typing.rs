@@ -611,7 +611,6 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
             checker.check_all();
         }
     }
-    let steps = checker.total_steps();
     checker.held();
     // A required file's exports copy its public declarations beside them,
     // which the budget bounds with the rest before they are made.
@@ -648,7 +647,9 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     let mut checked = Checked {
         diagnostics,
         calls: CallTypes::from_entries(calls),
-        steps,
+        // Every step charged, the exports', the annotations' and the sorts'
+        // with the check's.
+        steps: meter.steps(),
         exported,
         locals,
         result,
@@ -681,7 +682,11 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         let surface =
             crate::surface::footprint(input.tokens, interpolated, names) + checker.spans.parsing();
         let held = meter.held(checker.types.bytes()) + surface;
-        if input.budget.steps.is_some_and(|left| steps + tokens > left) {
+        if input
+            .budget
+            .steps
+            .is_some_and(|left| checked.steps + tokens > left)
+        {
             // Compilation fails charging them, and a check that requires
             // this file stops with it rather than import what it exports.
             checked.steps += tokens;

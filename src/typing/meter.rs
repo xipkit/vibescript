@@ -1303,6 +1303,36 @@ mod budget_tests {
     }
 
     #[test]
+    fn a_check_returns_the_steps_it_charges_once_it_ends() {
+        // Writing out the locals' annotations, after the check proper, puts
+        // the locals in order, a sort the check charges and returns.
+        let source: String = (0..2_000).map(|i| format!("x{i} = {i}\n")).collect();
+        let (parsed, tokens, _) = crate::syntax::parse_with_tokens(&source, &()).unwrap();
+        let declared = crate::declared::Declarations::new();
+        let steps = |annotate| {
+            super::super::check(&super::super::Input {
+                source: &source,
+                parsed: &parsed,
+                tokens: &tokens,
+                hosts: Vec::new(),
+                declared: &declared,
+                file: false,
+                origin: None,
+                modules: None,
+                budget: Budget::default(),
+                observe: None,
+                annotate,
+            })
+            .steps
+        };
+        let (plain, annotated) = (steps(false), steps(true));
+        assert!(
+            annotated > plain,
+            "{annotated} steps with the locals annotated, {plain} without"
+        );
+    }
+
+    #[test]
     fn the_check_stops_within_its_budget() {
         for source in [nested_begins(60, 300), loose_unions(200)] {
             let full = checked(&source, Budget::default());
