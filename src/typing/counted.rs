@@ -1587,9 +1587,10 @@ mod tests {
     /// another runs beneath it, so that such lists never pile up through
     /// nesting, aliases or repetition; the builtin signatures', which the
     /// engine bounds; and those counted, held or checked against the
-    /// budget before they are made, at the lengths they take. A list the
-    /// source sizes otherwise, or a type's parts kept while nested work
-    /// that makes more runs, is a scratch list, counted while it lives.
+    /// budget before they are made, at the most they take, which they
+    /// never grow past. A list the source sizes otherwise, or a type's
+    /// parts kept while nested work that makes more runs, is a scratch
+    /// list, counted while it lives.
     const MADE: &[(&str, [usize; 4])] = &[
         ("typing.rs", [0, 0, 0, 1]),
         ("assigns.rs", [0, 0, 0, 2]),
@@ -1657,10 +1658,14 @@ mod tests {
     /// none of which is kept while work that could make another runs
     /// beneath it, so that such lists never pile up through nesting,
     /// aliases or repetition; and one counted before it is made at the
-    /// most it takes, held or checked against the budget as it grows, or
-    /// paced by a walk. A list the source sizes otherwise, or one of a
-    /// type's parts kept while nested work that makes more runs, is a
-    /// scratch list, counted while it lives.
+    /// most it takes, with the room its growth makes and the old room it
+    /// moves from, or paced by a walk with its capacity. A hold, a `keep`
+    /// or a check of each element as the list takes it is none of these:
+    /// it counts the elements, not the spare room a list grows by or the
+    /// moment it moves, so a list that grows under one is a scratch list.
+    /// A list the source sizes otherwise, or one of a type's parts kept
+    /// while nested work that makes more runs, is a scratch list too,
+    /// counted while it lives.
     const STARTED: &[(&str, [usize; 3])] = &[
         // The frame's name, and the results of a stopped check.
         ("typing.rs", [6, 0, 0]),
