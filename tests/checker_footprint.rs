@@ -233,6 +233,17 @@ fn adversarial() -> Vec<(String, String)> {
             "type Wide = {arms}\ndef f(x: Wide?) -> Wide?\n  begin\n    1\n  ensure\n    return nil if x == nil\n  end\n  x\nend\n"
         ),
     ));
+    // Each class's name is spelled with its enclosing class's, a long one,
+    // so the receiver's base names, one for each arm, are each as long.
+    let classes = join(1_024, &|i| format!("  class C{i}\n  end\n"), "");
+    let union = join(1_024, &|i| format!("C{i}"), " | ");
+    programs.push((
+        "a call on a 1,024-arm union of classes in a long-named class".to_owned(),
+        format!(
+            "class M{}\n{classes}  type U = {union}\n  def f(x: U) -> string\n    x.to_s\n  end\nend\n",
+            "m".repeat(16_000)
+        ),
+    ));
     let loose =
         |prefix: &str, extra: &str| join(500, &|i| format!("{{{prefix}{i}?: int{extra}}}"), " | ");
     programs.push((

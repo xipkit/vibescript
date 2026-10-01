@@ -1472,29 +1472,80 @@ impl Types {
         plain
     }
 
-    pub fn bases(&self, ty: Ty) -> Vec<String> {
-        let mut bases: Vec<String> = self
-            .members(ty)
-            .iter()
-            .map(|&member| match self.kind(member) {
-                Kind::Array(_) | Kind::Tuple(_) => "array".to_owned(),
-                Kind::Hash(_) | Kind::Shape(..) | Kind::EmptyHash => "hash".to_owned(),
-                Kind::TypeLit(_) => "type".to_owned(),
-                Kind::Namespace(_)
-                | Kind::EnumType(_)
-                | Kind::Builtin(_)
-                | Kind::AnyEnumType
-                | Kind::Exports(_) => "namespace".to_owned(),
-                Kind::Instance(_) | Kind::EnumValue(_) => self.display(member),
-                Kind::Host(_) => "host".to_owned(),
-                Kind::AnyEnum => "enum_value".to_owned(),
-                Kind::Error => "unknown".to_owned(),
-                _ => self.display(member),
-            })
-            .collect();
-        bases.sort();
+    /// The base type name of each alternative of `ty`, for
+    /// [`super::ReceiverType`], sorted and without repeats, its pass over
+    /// the alternatives a step for each 64 of them. The names are put in a
+    /// list counted while it is built, each name a display spells counted
+    /// before it is spelled, and in order through the meter; `None` once
+    /// the budget refuses them, which stops the check.
+    pub fn bases(&self, ty: Ty) -> Option<Vec<String>> {
+        let members = self.members(ty);
+        if members.len() >= 64 && (self.charge((members.len() / 64) as u64) || self.poll()) {
+            return None;
+        }
+        let mut bases = ScratchVec::new(&self.meter);
+        if bases.reserve(members.len()).is_err() {
+            return None;
+        }
+        for &member in members.iter() {
+            let base = match base_word(self.kind(member)) {
+                Some(word) => word.to_owned(),
+                None => {
+                    self.meter.admit(self.spelled(member))?;
+                    self.display(member)
+                }
+            };
+            if bases.push(base).is_err() {
+                return None;
+            }
+        }
+        if super::counted::sort_unstable_by(&self.meter, &mut bases, Ord::cmp).is_err() {
+            return None;
+        }
         bases.dedup();
-        bases
+        Some(bases.into_vec())
+    }
+
+    /// The one base of all `ty`'s alternatives when it is one the runtime
+    /// binds builtins to, the only one their [`Self::bases`] name, found
+    /// without spelling any, its pass over them a step for each 64; `None`
+    /// when there is none, or once the check stops.
+    pub fn direct_base(&self, ty: Ty) -> Option<crate::members::direct::Base> {
+        use crate::members::direct::Base;
+        let members = self.members(ty);
+        if members.len() >= 64 && (self.charge((members.len() / 64) as u64) || self.poll()) {
+            return None;
+        }
+        let mut found = None;
+        for &member in members.iter() {
+            let base = match self.kind(member) {
+                Kind::Array(_) | Kind::Tuple(_) => Base::Array,
+                Kind::Hash(_) | Kind::Shape(..) | Kind::EmptyHash => Base::Hash,
+                Kind::String => Base::String,
+                Kind::Int => Base::Int,
+                Kind::Float => Base::Float,
+                _ => return None,
+            };
+            if found.is_some_and(|other| other != base) {
+                return None;
+            }
+            found = Some(base);
+        }
+        found
+    }
+
+    /// The bytes [`Self::display`] spells for `member`, an alternative
+    /// [`Self::bases`] names by its display, at most what a display cut
+    /// short takes.
+    fn spelled(&self, member: Ty) -> usize {
+        let length = match self.kind(member) {
+            Kind::Instance(id) => name_of(&self.names.namespaces, *id).len(),
+            Kind::EnumValue(id) => name_of(&self.names.enums, *id).len(),
+            Kind::SymbolLit(name) => 1 + name.len(),
+            Kind::Var(index) => 2 + index.checked_ilog10().unwrap_or(0) as usize,
+            _ => "match_data".len(),
+        };
+        length.min(SPELLED + "...".len())
     }
 }
 
@@ -1523,6 +1574,41 @@ fn write_field_name(name: &str, out: &mut String, room: &mut usize) {
 }
 
 /// The name of `id` in `list`, or `?` for one it lacks.
+/// The base [`Types::bases`] names an alternative of `kind` by, when it is
+/// a word rather than the alternative's display: a class's or an enum's
+/// name, a symbol literal or a type variable.
+fn base_word(kind: &Kind) -> Option<&'static str> {
+    Some(match kind {
+        Kind::Array(_) | Kind::Tuple(_) => "array",
+        Kind::Hash(_) | Kind::Shape(..) | Kind::EmptyHash => "hash",
+        Kind::TypeLit(_) => "type",
+        Kind::Namespace(_)
+        | Kind::EnumType(_)
+        | Kind::Builtin(_)
+        | Kind::AnyEnumType
+        | Kind::Exports(_) => "namespace",
+        Kind::Host(_) => "host",
+        Kind::AnyEnum => "enum_value",
+        Kind::Error => "unknown",
+        Kind::Never => "never",
+        Kind::Any => "any",
+        Kind::Nil => "nil",
+        Kind::Bool => "bool",
+        Kind::Int => "int",
+        Kind::Float => "float",
+        Kind::String => "string",
+        Kind::Symbol => "symbol",
+        Kind::Duration => "duration",
+        Kind::Time => "time",
+        Kind::Money => "money",
+        Kind::Range => "range",
+        Kind::Regex => "regex",
+        Kind::MatchData => "match_data",
+        Kind::ErrorValue => "error",
+        _ => return None,
+    })
+}
+
 fn name_of(list: &[String], id: u32) -> &str {
     list.get(id as usize).map_or("?", String::as_str)
 }
@@ -1541,6 +1627,32 @@ fn put(out: &mut String, text: &str, room: &mut usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_receivers_bases_and_its_direct_base_agree() {
+        use crate::members::direct::Base;
+        let mut types = Types::new();
+        let array = types.array(Ty::INT);
+        let tuple = types.tuple(vec![Ty::INT, Ty::STRING]);
+        let hash = types.hash(Ty::INT);
+        let arrays = types.union(&[array, tuple]);
+        let optional = types.optional(Ty::STRING);
+        let mixed = types.union(&[hash, Ty::INT, Ty::NIL]);
+        let symbol = types.intern(Kind::SymbolLit("name".into()));
+        let cases = [
+            (arrays, vec!["array"], Some(Base::Array)),
+            (hash, vec!["hash"], Some(Base::Hash)),
+            (Ty::FLOAT, vec!["float"], Some(Base::Float)),
+            (optional, vec!["nil", "string"], None),
+            (mixed, vec!["hash", "int", "nil"], None),
+            (Ty::ANY, vec!["any"], None),
+            (symbol, vec![":name"], None),
+        ];
+        for (ty, bases, base) in cases {
+            assert_eq!(types.bases(ty).unwrap(), bases, "{}", types.display(ty));
+            assert_eq!(types.direct_base(ty), base, "{}", types.display(ty));
+        }
+    }
 
     #[test]
     fn unions_flatten_sort_and_render_optionals() {

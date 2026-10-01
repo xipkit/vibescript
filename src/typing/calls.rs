@@ -502,7 +502,7 @@ impl<'a> Checker<'a> {
         }
         if ty != Ty::ERROR && block.is_none() {
             let called = if safe { self.types.without_nil(ty) } else { ty };
-            let base = crate::members::direct::Base::of(&self.types.bases(called));
+            let base = self.types.direct_base(called);
             self.facts.record_base(self.meter.tables(), expr, base);
             let class = match self.types.kind(called) {
                 Kind::Instance(ns) => {
@@ -521,8 +521,10 @@ impl<'a> Checker<'a> {
             if ty != Ty::ERROR {
                 // A safe call runs the member on the value without nil.
                 let called = if safe { self.types.without_nil(ty) } else { ty };
-                let mut receiver_type =
-                    ReceiverType::new(self.types.display(called), self.types.bases(called));
+                let Some(bases) = self.types.bases(called) else {
+                    return Ty::ERROR;
+                };
+                let mut receiver_type = ReceiverType::new(self.types.display(called), bases);
                 receiver_type.user_method = self.types.members(called).iter().all(|&ty| match self
                     .types
                     .kind(ty)
@@ -1457,7 +1459,10 @@ impl<'a> Checker<'a> {
         let ty = self.member_receiver(receiver, setter);
         let name_span = self.spans.member(receiver, name);
         if let (Some(span), false) = (name_span, ty == Ty::ERROR) {
-            let receiver_type = ReceiverType::new(self.types.display(ty), self.types.bases(ty));
+            let Some(bases) = self.types.bases(ty) else {
+                return Ty::ERROR;
+            };
+            let receiver_type = ReceiverType::new(self.types.display(ty), bases);
             // A check that counting it stops keeps no more receivers; one
             // it keeps is counted, with what it owns, as it is kept, and by
             // the measures after.

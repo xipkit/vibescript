@@ -1622,7 +1622,7 @@ mod tests {
         ("modules.rs", [0, 0, 0, 10]),
         ("program.rs", [0, 0, 0, 15]),
         ("sigs.rs", [0, 1, 9, 0]),
-        ("ty.rs", [10, 3, 0, 1]),
+        ("ty.rs", [10, 2, 0, 1]),
     ];
 
     #[test]
@@ -1803,7 +1803,7 @@ mod tests {
         ("expr.rs", [1, 0, 0]),
         ("modules.rs", [0, 2, 2]),
         ("program.rs", [0, 2, 6]),
-        ("ty.rs", [9, 0, 0]),
+        ("ty.rs", [3, 0, 0]),
     ];
 
     #[test]
@@ -1849,7 +1849,7 @@ mod tests {
     /// [`sort_unstable_by`] or [`sort_by`], by file: each sorts a few
     /// elements, such as a union's alternatives, at most 1,024, or charges
     /// its steps first itself, as an enum's members are.
-    const SORTED: &[(&str, usize)] = &[("program.rs", 1), ("ty.rs", 2)];
+    const SORTED: &[(&str, usize)] = &[("program.rs", 1), ("ty.rs", 1)];
 
     #[test]
     fn the_checker_sorts_through_the_meter() {
