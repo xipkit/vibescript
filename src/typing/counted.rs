@@ -2095,7 +2095,7 @@ mod tests {
         ("foreign.rs", [1, 0, 0, 0]),
         ("marks.rs", [2, 0, 0, 1]),
         ("modules.rs", [0, 0, 0, 9]),
-        ("program.rs", [0, 0, 0, 14]),
+        ("program.rs", [0, 0, 0, 11]),
         ("sigs.rs", [0, 1, 9, 0]),
         ("ty.rs", [10, 2, 0, 1]),
     ];

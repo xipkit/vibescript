@@ -279,32 +279,21 @@ impl<'a> Checker<'a> {
                 }
             }
         }
-        // The tables of what the source declares, counted before they are
-        // made.
-        let outline = parsed.outline.len();
-        let tables =
-            super::meter::table::<(&str, &str)>(outline) + super::meter::table::<&str>(outline);
-        if self.transient(tables) {
-            return;
-        }
-        let carried: std::collections::HashMap<_, _> = parsed
-            .outline
-            .iter()
-            .map(|declaration| {
-                (
-                    declaration.name.as_str(),
-                    &self.source[declaration.start..declaration.end],
-                )
-            })
-            .collect();
-        let nominal: std::collections::HashSet<_> = parsed
-            .outline
-            .iter()
-            .filter(|declaration| declaration.kind != crate::DeclarationKind::Function)
-            .map(|declaration| declaration.name.as_str())
-            .collect();
-        if self.transient(map(&carried) + nominal.heap()) {
-            return;
+        let mut carried = ScratchMap::new(&self.meter);
+        let mut nominal = ScratchSet::new(&self.meter);
+        for declaration in &parsed.outline {
+            if self.meter.charge(1)
+                || carried
+                    .insert(
+                        declaration.name.as_str(),
+                        &self.source[declaration.start..declaration.end],
+                    )
+                    .is_err()
+                || (declaration.kind != crate::DeclarationKind::Function
+                    && nominal.insert(declaration.name.as_str()).is_err())
+            {
+                return;
+            }
         }
         for (name, declaration) in declared {
             let Some((value, retained)) = declaration.retained() else {
@@ -610,22 +599,15 @@ impl<'a> Checker<'a> {
                 }
             }
         }
+        drop(blocks);
         self.release(blocks_held);
-        // Which instance variables have defaults, found by class and offset
-        // rather than by scanning every default for each variable.
-        if self.transient(super::meter::table::<(u32, u32)>(
-            parsed.additions.defaults.len(),
-        )) {
-            return;
-        }
-        let defaults: std::collections::HashSet<(u32, u32)> = parsed
-            .additions
-            .defaults
-            .iter()
-            .map(|(owner, stmt)| (*owner, stmt.offset))
-            .collect();
-        if self.transient(super::meter::set(&defaults)) {
-            return;
+        self.held();
+        // Defaults remain live while annotations and properties are declared.
+        let mut defaults = ScratchSet::new(&self.meter);
+        for (owner, stmt) in &parsed.additions.defaults {
+            if self.meter.charge(1) || defaults.insert((*owner, stmt.offset)).is_err() {
+                return;
+            }
         }
         for (class, ivar) in &parsed.additions.ivars {
             let Some(&ns) = self.program.by_offset.get(class) else {
