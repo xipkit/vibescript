@@ -495,12 +495,22 @@ fn listed<T>(
     // Written through the meter, since the items named can be long.
     let mut out = counted::Text::new(meter);
     let mut count = 0;
-    for item in items {
+    let mut items = items.into_iter();
+    loop {
+        if meter.charge(1) {
+            break;
+        }
+        let Some(item) = items.next() else {
+            break;
+        };
         if count < LISTED {
             if count > 0 {
                 out.push_str(", ");
             }
             write(&mut out, item);
+            if meter.stopped() {
+                break;
+            }
         }
         count += 1;
     }
@@ -988,5 +998,51 @@ fn symbol_text(value: &crate::Value) -> Option<String> {
             Some(String::from_utf8_lossy(&symbol.data).into_owned())
         }
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod budget_review_tests {
+    use super::*;
+    use std::cell::Cell;
+
+    #[test]
+    fn diagnostic_list_stops_counting_when_its_budget_stops() {
+        let meter = meter::Meter::new(
+            crate::compilation::Budget {
+                steps: Some(32),
+                ..Default::default()
+            },
+            None,
+        );
+        let visited = Cell::new(0);
+        listed(
+            &meter,
+            (0..100_000).inspect(|_| visited.set(visited.get() + 1)),
+            |_, _| {},
+        );
+        assert!(meter.stopped());
+        assert!(visited.get() <= 34, "visited {} items", visited.get());
+    }
+
+    #[test]
+    fn diagnostic_list_stops_after_a_refused_name() {
+        let meter = meter::Meter::new(
+            crate::compilation::Budget {
+                memory: Some(16),
+                ..Default::default()
+            },
+            None,
+        );
+        let visited = Cell::new(0);
+        listed(
+            &meter,
+            (0..100_000).inspect(|_| visited.set(visited.get() + 1)),
+            |out, _| {
+                out.push_str("this name exceeds the entire memory budget");
+            },
+        );
+        assert!(meter.stopped());
+        assert_eq!(visited.get(), 1);
     }
 }

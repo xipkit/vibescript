@@ -332,7 +332,10 @@ impl<'a> Checker<'a> {
                 out.push(':');
                 out.push_str(symbol);
             });
-            let enum_name = decl.name.clone();
+            if self.halted() {
+                return Ty::ERROR;
+            }
+            let enum_name = &decl.name;
             let span = self.spans.expr(expr);
             self.report(Diagnostic::error(
                 Code::UNKNOWN_ENUM_MEMBER,
@@ -811,9 +814,14 @@ impl<'a> Checker<'a> {
                     fields
                         .iter()
                         .zip(&present)
+                        .take_while(|_| !self.meter.charge(1))
                         .filter(|(field, present)| !field.optional && !**present),
                     |out, (field, _)| out.write(format_args!("`{}`", field.name)),
                 );
+                if self.halted() {
+                    self.release(held);
+                    return Ty::ERROR;
+                }
                 if count == 0 {
                     self.release(held);
                 } else {
@@ -2116,6 +2124,7 @@ impl<'a> Checker<'a> {
                     decl.members
                         .iter()
                         .enumerate()
+                        .take_while(|_| !self.meter.charge(1))
                         .filter(|&(place, _)| missed(place)),
                     |out, (_, member)| {
                         out.write(format_args!("`{}::{member}`", decl.name));
@@ -2136,6 +2145,9 @@ impl<'a> Checker<'a> {
             ),
         };
         drop(seen);
+        if self.halted() {
+            return false;
+        }
         let span = self.spans.token(expr.offset as usize);
         self.non_exhaustive(span, name, missing);
         false

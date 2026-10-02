@@ -464,6 +464,9 @@ impl<'a> Checker<'a> {
             out.push('@');
             out.push_str(ivar);
         });
+        if self.halted() {
+            return;
+        }
         let (they, them, are, reads) = if ivars.len() == 1 {
             ("it", "it", "is", "reads")
         } else {

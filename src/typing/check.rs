@@ -1030,6 +1030,9 @@ impl<'a> Checker<'a> {
             out.push('@');
             out.push_str(&roster[place]);
         });
+        if self.halted() {
+            return;
+        }
         // Report each variable once per function.
         self.frame.flow.untrack();
         self.frame.initialize = None;
