@@ -697,13 +697,20 @@ impl Types {
             self.release(held);
             return Ty::ERROR;
         }
-        let ty = if fields.len() > MAX_FIELDS {
+        if fields.len() > MAX_FIELDS {
             self.too_large.get_or_insert(("shape", fields.len()));
-            Ty::ERROR
-        } else {
-            self.intern(Kind::Shape(fields.into(), open))
-        };
+            self.release(held);
+            return Ty::ERROR;
+        }
+        // The names move into the type, which the table counts as it takes
+        // it; only the list they move out of is held while it does.
+        let list = fields.capacity() * std::mem::size_of::<Field>();
         self.release(held);
+        let Some(list) = self.hold(list) else {
+            return Ty::ERROR;
+        };
+        let ty = self.intern(Kind::Shape(fields.into(), open));
+        self.release(list);
         ty
     }
 
