@@ -57,7 +57,7 @@ pub(crate) struct Input<'a> {
     pub parsed: &'a Declarations,
     /// The tokens the parser read, for exact spans.
     pub tokens: &'a [crate::tooling::Token],
-    pub hosts: Vec<(&'a String, &'a Registered)>,
+    pub hosts: &'a [(&'a String, &'a Registered)],
     /// The globals and capabilities the host declares for every call.
     pub declared: &'a crate::declared::Declarations,
     /// Whether the source is a required file rather than a host script.
@@ -599,7 +599,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         scratch: 0,
         defaults: None,
     };
-    for (name, host) in &input.hosts {
+    for (name, host) in input.hosts {
         let function = crate::signatures::host::function(name, host);
         let sig = std::rc::Rc::new(
             checker

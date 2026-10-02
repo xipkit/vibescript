@@ -131,7 +131,7 @@ struct Imports {
 pub(crate) struct Required<'a> {
     resolve: Option<&'a Modules<'a>>,
     origin: Option<&'a crate::loading::Origin>,
-    hosts: Vec<(&'a String, &'a Registered)>,
+    hosts: &'a [(&'a String, &'a Registered)],
     declared: &'a crate::declared::Declarations,
     depth: usize,
     pub loaded: CountedVec<Exports>,
@@ -171,8 +171,7 @@ impl Heap for Required<'_> {
             .sum();
         // The published signatures are the loaded modules' own.
         let published: usize = self.published.keys().map(Heap::heap).sum();
-        super::meter::vec(&self.hosts)
-            + self.loaded.heap()
+        self.loaded.heap()
             // The paths and reasons it keeps are counted as they are kept.
             + map(&self.by_path)
             + map(&self.by_origin)
@@ -189,7 +188,7 @@ impl<'a> Required<'a> {
         Self {
             resolve: input.modules,
             origin: input.origin,
-            hosts: input.hosts.clone(),
+            hosts: input.hosts,
             declared: input.declared,
             depth,
             loaded: CountedVec::new(),
@@ -521,7 +520,7 @@ impl<'a> Checker<'a> {
             source: &source,
             parsed: &parsed,
             tokens: &tokens,
-            hosts: self.modules.hosts.clone(),
+            hosts: self.modules.hosts,
             declared: self.modules.declared,
             file: true,
             origin: Some(&origin),

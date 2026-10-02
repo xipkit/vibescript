@@ -148,7 +148,7 @@ impl Code {
             source,
             parsed: &parsed,
             tokens: &tokens,
-            hosts: registered.clone().collect(),
+            hosts: &registered.clone().collect::<Vec<_>>(),
             declared,
             file,
             origin: origin.as_ref(),
