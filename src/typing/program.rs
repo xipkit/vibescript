@@ -191,7 +191,7 @@ pub(crate) struct Program<'a> {
     pub enum_names: CountedMap<String, u32>,
     /// Type aliases by declaring namespace (none at the top level) and name.
     pub aliases: CountedMap<(Option<NsId>, &'a str), &'a compilation::Type>,
-    alias_types: CountedMap<(Option<NsId>, String), Ty>,
+    alias_types: CountedMap<(Option<NsId>, usize), Ty>,
     /// Namespaces by the offset of their `class` or `module` keyword.
     pub by_offset: CountedMap<u32, NsId>,
     /// Host functions registered on the engine.
@@ -1390,24 +1390,20 @@ impl<'a> Checker<'a> {
     }
 
     fn alias_type(&mut self, name: &str, scope: Option<NsId>, depth: usize) -> Option<Ty> {
-        let key = (scope, self.copy(name));
+        let ty = *self.program.aliases.get(&(scope, name))?;
+        let key = (scope, std::ptr::from_ref(ty) as usize);
         if let Some(&ty) = self.program.alias_types.get(&key) {
             return Some(ty);
         }
-        let ty = *self.program.aliases.get(&(scope, name))?;
-        // A self-referential alias resolves to an unknown type once. Its
-        // name, and room for it in the table, are counted as it is kept,
-        // and by the measures after with the checker's growth.
-        let bytes = key.1.capacity();
+        // The declaration's identity stays stable through recursive resolution.
         if self
             .program
             .alias_types
-            .insert_made(self.meter.tables(), key.1.len(), || key.clone(), Ty::ERROR)
+            .insert(self.meter.tables(), key, Ty::ERROR)
             .is_err()
         {
             return Some(Ty::ERROR);
         }
-        self.grown += bytes;
         let resolved = self.annotation_depth(ty, scope, depth + 1);
         if let Some(entry) = self.program.alias_types.get_mut(&key) {
             *entry = resolved;
