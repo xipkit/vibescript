@@ -4670,13 +4670,28 @@ fn duplicate_parameter(work: &dyn Work, name: &str, at: usize, width: usize) -> 
         at,
         format_args!("duplicate parameter {}", source_text(name)),
     );
-    let span = crate::diagnostic::Span::new(at, at + width);
-    let diagnostic = crate::diagnostic::Diagnostic::error(
-        crate::diagnostic::Code::DUPLICATE_NAME,
-        span,
-        &error.message,
-    );
-    error.with_diagnostic(diagnostic)
+    if error.kind != crate::ErrorKind::Syntax {
+        return error;
+    }
+    let build = || {
+        let mut error = error;
+        let (message, mut held) =
+            crate::compilation::formatted(work, format_args!("{}", error.message))?;
+        // The diagnostic's box and Arc<Extra>: its slice pointer, enum
+        // discriminant, and two reference counts.
+        crate::budget::Charge::merge(
+            &mut held,
+            work.reserve(size_of::<crate::diagnostic::Diagnostic>() + 5 * size_of::<usize>())?,
+        );
+        error.retain(work, held)?;
+        let diagnostic = crate::diagnostic::Diagnostic::error(
+            crate::diagnostic::Code::DUPLICATE_NAME,
+            crate::diagnostic::Span::new(at, at + width),
+            message,
+        );
+        Ok::<_, Error>(error.with_diagnostic(diagnostic))
+    };
+    build().unwrap_or_else(|error| error)
 }
 
 /// Whether a block parameter binds `name`, charging a step for each part of
@@ -4789,6 +4804,29 @@ mod walk_tests {
     use super::{Statement, Target};
     use crate::{CallContext, CallOptions, compilation::Meter};
     use std::cell::RefCell;
+
+    #[test]
+    fn duplicate_parameter_keeps_a_budget_refusal_unchanged() {
+        let mut context = CallContext::new(CallOptions::default());
+        context.options.limits.memory_bytes = Some(0);
+        let error = super::duplicate_parameter(&Meter(RefCell::new(&mut context)), "x", 0, 1);
+        assert_eq!(error.kind, crate::ErrorKind::Memory);
+        assert!(error.diagnostics().is_empty());
+    }
+
+    #[test]
+    fn duplicate_parameter_owns_and_releases_its_diagnostic_storage() {
+        let mut context = CallContext::new(CallOptions::default());
+        let error = super::duplicate_parameter(&Meter(RefCell::new(&mut context)), "x", 0, 1);
+        let diagnostic = &error.diagnostics()[0];
+        assert_eq!(diagnostic.message, "duplicate parameter x");
+        assert!(
+            context.stats().retained_memory_bytes
+                >= 2 * error.message.len() + size_of::<crate::diagnostic::Diagnostic>()
+        );
+        drop(error);
+        assert_eq!(context.stats().retained_memory_bytes, 0);
+    }
 
     #[test]
     fn a_rest_target_excerpt_never_builds_its_full_spelling() {
