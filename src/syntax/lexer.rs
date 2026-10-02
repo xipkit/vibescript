@@ -1120,12 +1120,13 @@ impl<'a, 'w> Lexer<'a, 'w> {
             // Unlike Go, a spaced colon after a keyword such as `then` or
             // `else` starts a symbol, and so does one on a later line than a
             // label outside brackets, where a line ends a statement.
+            if self.label_follows_bracket() {
+                return true;
+            }
             if !last.ends || (last.end_line != line && nesting.brackets.is_empty()) {
                 return false;
             }
-            return self.label_follows_bracket()
-                || self.label_follows_callee()
-                || self.label_follows_comma();
+            return self.label_follows_callee() || self.label_follows_comma();
         }
         last.string
             && nesting

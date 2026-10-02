@@ -315,3 +315,25 @@ fn separators_and_parenless_calls_keep_their_meaning() {
         assert_eq!(value.as_int(), Some(expected), "{source}");
     }
 }
+
+#[test]
+fn spaced_colons_after_keyword_hash_labels_keep_their_values() {
+    for key in ["if", "then", "else", "rescue", "begin", "ensure", "when"] {
+        let source = format!("def run -> int?; h = {{ {key} :1 }}; h[\"{key}\"]; end");
+        let checked = Engine::new().type_check(&source).unwrap();
+        assert!(
+            checked.diagnostics.is_empty(),
+            "{source}: {:?}",
+            checked.diagnostics
+        );
+        assert_eq!(result(&source), serde_json::json!(1));
+    }
+}
+
+#[test]
+fn spaced_colons_after_control_keywords_start_symbols() {
+    assert_eq!(
+        result("def run -> symbol; case 1; when 1 then :a; else :b; end; end"),
+        serde_json::json!("a")
+    );
+}
