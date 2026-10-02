@@ -358,13 +358,11 @@ impl Types {
             meter::map(&self.plain),
             meter::map(&self.exact),
         ];
-        let largest = tables.iter().copied().max().unwrap_or(0);
         meter::vec(self.kinds.as_vec())
             + tables.iter().sum::<usize>()
             + self.payload
             + self.index_bytes
             + self.scratch
-            + meter::growth(largest)
     }
 
     /// A type table with an account of its own.
