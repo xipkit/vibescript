@@ -91,8 +91,9 @@ impl<'a> Checker<'a> {
             return;
         };
         let removed = excerpt(self.text(expr.span));
-        let mut items = Vec::with_capacity(entries.len());
-        for entry in entries {
+        let mut literal = self.writer();
+        literal.push_str("[");
+        for (index, entry) in entries.iter().enumerate() {
             // Each entry is a step the pass charged up front, and the walk
             // asks now and then whether the compilation has stopped.
             if self.halt() {
@@ -120,12 +121,21 @@ impl<'a> Checker<'a> {
                 ));
                 return;
             };
-            items.push(item);
+            if index > 0 {
+                literal.push_str(", ");
+            }
+            literal.push_str(&item);
+            let capacity = item.capacity();
+            drop(item);
+            self.room.give_back(capacity);
         }
+        literal.push_str("]");
+        let Some(literal) = literal.finish() else {
+            return;
+        };
         // A percent literal after a command name is an argument, which an
         // array literal after a space is as well.
         let _ = place;
-        let literal = written!(self, "[{}]", items.join(", "));
         let advice = written!(self, "use the array literal `{}`", excerpt(&literal));
         let previous = self.enter(Rule::PercentLiteral, expr.span, removed, advice);
         let group = self.rewrites.len() - 1;

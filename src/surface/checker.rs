@@ -83,18 +83,6 @@ const NAME_COPIES: usize = 3;
 /// methods.
 const WORD_COPIES: usize = 4;
 
-/// The copies the pass holds at once of each byte of a percent literal's
-/// entries, which it always rewrites as an array literal, beyond its copy
-/// of the token: the entries quoted, the array literal, and the edits and
-/// renderings of the fix, measured over percent literals of long entries.
-const REWRITE_COPIES: usize = 6;
-
-/// The most the rules' pass holds for each entry of a percent literal
-/// beyond its bytes: its quoted copy's place in the list of them, and its
-/// separator in the array literal and in the fix's copies of it, measured
-/// over percent literals of many short entries.
-const PER_ENTRY: usize = 40;
-
 /// The entries of the percent literals among `tokens`, each of which the
 /// rules' pass rewrites, a step each.
 pub(crate) fn entries(tokens: &[tooling::Token], stop: parse::Stop<'_>) -> Option<usize> {
@@ -117,14 +105,13 @@ pub(crate) fn footprint(
     names: usize,
     stop: parse::Stop<'_>,
 ) -> Option<usize> {
-    let (mut payloads, mut rewritten, mut words, mut count) = (0, 0, 0, 0);
+    let (mut payloads, mut words) = (0, 0);
     for token in tokens {
         if stop() {
             return None;
         }
         match &token.kind {
             tooling::TokenKind::Words { entries, .. } => {
-                count += entries.len();
                 payloads += entries.capacity() * size_of::<Option<Vec<u8>>>();
                 for entry in entries {
                     if stop() {
@@ -132,7 +119,6 @@ pub(crate) fn footprint(
                     }
                     if let Some(entry) = entry {
                         payloads += entry.capacity();
-                        rewritten += entry.len();
                     }
                 }
             }
@@ -142,10 +128,8 @@ pub(crate) fn footprint(
     }
     Some(
         (tokens.len() + interpolated.tokens) * PER_TOKEN
-            + (count + interpolated.entries) * PER_ENTRY
             + payloads
             + (words + interpolated.words) * WORD_COPIES
-            + (rewritten + interpolated.rewritten) * REWRITE_COPIES
             + interpolated.bytes
             + names * NAME_COPIES,
     )
