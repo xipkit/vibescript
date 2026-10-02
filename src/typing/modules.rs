@@ -383,19 +383,20 @@ impl<'a> Checker<'a> {
         // is kept, and by the measures after.
         let circular: Result<u32, String> = Err(CIRCULAR.into());
         let bytes = path.len() + super::counted::Owned::owned(&circular);
+        let Ok(mut kept) = self.meter.tables().keep(bytes) else {
+            return Err("the check ran out of its budget".into());
+        };
         if self
             .modules
             .by_path
-            .insert_made(
-                self.meter.declarations(),
-                path.len(),
-                || path.to_owned(),
-                circular,
-            )
+            .reserve(self.meter.declarations(), 1)
             .is_err()
         {
             return Err("the check ran out of its budget".into());
         }
+        self.modules
+            .by_path
+            .insert_kept(&mut kept, path.to_owned(), circular);
         self.grown += bytes;
         let result = self.load_module_uncached(path);
         if let Err(reason) = &result {
