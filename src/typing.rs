@@ -743,14 +743,28 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
             checked.surface_bytes = surface;
             checked.surfaced = checker_held;
             let budget = &input.budget;
+            let asked = std::sync::atomic::AtomicU32::new(0);
             crate::surface::add_to(
                 &mut checked,
                 input.source,
                 input.tokens,
                 interpolated.tokens + interpolated.entries,
                 &|steps| {
+                    // The pass asks at every statement and expression it
+                    // visits: the cancellation token each time, and the
+                    // deadline, whose clock costs more, every 64th.
+                    let cancelled = budget
+                        .cancellation
+                        .as_ref()
+                        .is_some_and(crate::CancellationToken::is_cancelled);
+                    let count = asked.load(std::sync::atomic::Ordering::Relaxed);
+                    asked.store(count.wrapping_add(1), std::sync::atomic::Ordering::Relaxed);
+                    let late = count % 64 == 63
+                        && budget
+                            .deadline
+                            .is_some_and(|deadline| std::time::Instant::now() >= deadline);
                     let within =
-                        !(budget.steps.is_some_and(|left| steps > left) || budget.interrupted());
+                        !(budget.steps.is_some_and(|left| steps > left) || cancelled || late);
                     if !within {
                         meter.stop();
                     }

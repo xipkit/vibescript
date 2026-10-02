@@ -29,7 +29,16 @@ pub(crate) struct Room<'b> {
     /// budget, deadline and cancellation; `None` for a pass without a
     /// budget.
     within: Option<Within<'b>>,
+    /// The total it was last asked about, and the asks since, which ask it
+    /// again only for steps charged since, or every [`ASK`]th time, for
+    /// the deadline and the cancellation.
+    asked: AtomicU64,
+    asks: AtomicU64,
 }
+
+/// How many times the room answers whether the pass may go on, with no
+/// steps charged since it last asked the budget, before it asks it again.
+const ASK: u64 = 64;
 
 /// Whether steps that bring a pass to a total are within its budget,
 /// deadline and cancellation.
@@ -44,6 +53,8 @@ impl<'b> Room<'b> {
             left,
             charged: AtomicU64::new(charged),
             within: Some(within),
+            // No total has been asked about yet, so the first ask is made.
+            asked: AtomicU64::new(u64::MAX),
             ..Self::default()
         }
     }
@@ -149,7 +160,21 @@ impl<'b> Room<'b> {
         if self.full() || self.stopped.load(Relaxed) {
             return false;
         }
-        if self.within.is_some_and(|within| !within(self.total())) {
+        let Some(within) = self.within else {
+            return true;
+        };
+        // Steps charged since the budget was last asked are always asked
+        // about; with none, the deadline and the cancellation are asked
+        // every `ASK` times, as they cost more than the room's own counts.
+        let total = self.total();
+        let asks = self.asks.load(Relaxed);
+        if total == self.asked.load(Relaxed) && asks % ASK != ASK - 1 {
+            self.asks.store(asks + 1, Relaxed);
+            return true;
+        }
+        self.asks.store(0, Relaxed);
+        self.asked.store(total, Relaxed);
+        if !within(total) {
             self.stopped.store(true, Relaxed);
             return false;
         }
@@ -159,7 +184,9 @@ impl<'b> Room<'b> {
     /// Charges `steps` of the pass's work, before it does it; whether they
     /// are within the budget.
     pub fn charge(&self, steps: u64) -> bool {
-        self.charged.fetch_add(steps, Relaxed);
+        // One pass charges its room at a time.
+        let charged = self.charged.load(Relaxed);
+        self.charged.store(charged.saturating_add(steps), Relaxed);
         self.within()
     }
 
