@@ -733,7 +733,45 @@ impl Gen {
             self.indent -= 1;
             self.line("end");
         }
+        if self.library_state && self.rng.chance(50) {
+            self.shadows();
+        }
         self.take_lines()
+    }
+
+    /// Functions whose parameters take the names of the file's locals,
+    /// which are the functions' own, and calls between them: assigning one
+    /// leaves the local as the file narrowed it, while a function that
+    /// assigns the local itself widens it, after which the unsound form
+    /// uses it as narrowed.
+    fn shadows(&mut self) {
+        let shadowed = if self.rng.chance(70) {
+            "limit"
+        } else {
+            "count"
+        };
+        self.line(format!(
+            "def s0({shadowed}: int) -> int\n  {shadowed} = {shadowed} + 1\n  count += 1\n  {shadowed}\nend"
+        ));
+        let relay = if self.rng.chance(50) {
+            "limit"
+        } else {
+            "count"
+        };
+        self.line(format!(
+            "def s1({relay}: int, step: int = 1) -> int\n  {relay} = s0({relay} + step)\n  {relay}\nend"
+        ));
+        let value = self.rng.below(9);
+        self.line(format!("limit = {value}"));
+        for _ in 0..1 + self.rng.below(3) {
+            let call = if self.rng.chance(50) { "s0" } else { "s1" };
+            let argument = self.rng.below(9);
+            self.line(format!("{call}({argument})"));
+        }
+        if self.rng.chance(20) && self.unsound() {
+            self.line("reset_limit");
+        }
+        self.line("held = limit + 1");
     }
 
     // ----- Declarations -----
