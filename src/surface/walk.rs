@@ -64,17 +64,11 @@ impl<'a> Checker<'a> {
                     return;
                 }
                 self.statements(&node.body);
-                if self.halt() {
-                    return;
-                }
             }
             StmtKind::Modifier(node) => self.modifier(node),
             StmtKind::Flow(_, value) => {
                 if let Some(value) = value {
                     self.expr(value, Place::Loose);
-                    if self.halt() {
-                        return;
-                    }
                 }
             }
             StmtKind::Raise(_, value, message) => {
@@ -132,9 +126,6 @@ impl<'a> Checker<'a> {
             return;
         }
         self.target_with(target, Access::Destructure);
-        if self.halt() {
-            return;
-        }
     }
 
     /// Walks what an assignment target reads, where a field it names with a
@@ -172,9 +163,6 @@ impl<'a> Checker<'a> {
                         }
                     }
                     self.field_access(expr, call, access);
-                    if self.halt() {
-                        return;
-                    }
                 }
                 _ => (),
             },
@@ -185,9 +173,6 @@ impl<'a> Checker<'a> {
                     return;
                 }
                 self.type_names(ty);
-                if self.halt() {
-                    return;
-                }
             }
             Target::Group(_, parts) => {
                 for part in parts {
@@ -238,9 +223,6 @@ impl<'a> Checker<'a> {
         }
         if let Some((_, body)) = &node.alternate {
             self.statements(body);
-            if self.halt() {
-                return;
-            }
         }
     }
 
@@ -262,9 +244,6 @@ impl<'a> Checker<'a> {
             }
         }
         self.statements(&node.body);
-        if self.halt() {
-            return;
-        }
     }
 
     /// Walks a statement with an `if`, `unless`, `while` or `until` modifier.
@@ -280,15 +259,9 @@ impl<'a> Checker<'a> {
             ModifierKind::If | ModifierKind::While => self.condition(&node.condition),
             ModifierKind::Unless => {
                 self.negated(Rule::Unless, node.keyword, "if", &node.condition);
-                if self.halt() {
-                    return;
-                }
             }
             ModifierKind::Until => {
                 self.negated(Rule::Until, node.keyword, "while", &node.condition);
-                if self.halt() {
-                    return;
-                }
             }
         }
     }
@@ -538,9 +511,6 @@ impl<'a> Checker<'a> {
                     return;
                 }
                 self.expr(right, Place::Tight);
-                if self.halt() {
-                    return;
-                }
             }
             ExprKind::Range(left, _, right) => {
                 for operand in left.iter().chain(right) {
@@ -563,9 +533,6 @@ impl<'a> Checker<'a> {
                     return;
                 }
                 self.expr(no, Place::Loose);
-                if self.halt() {
-                    return;
-                }
             }
             ExprKind::Call(call) => self.call(expr, call, place),
             ExprKind::Computed(callee, args) => {
@@ -574,9 +541,6 @@ impl<'a> Checker<'a> {
                     return;
                 }
                 self.args(args);
-                if self.halt() {
-                    return;
-                }
             }
             ExprKind::BlockCall(callee, block) => {
                 self.expr(callee, Place::Tight);
@@ -584,9 +548,6 @@ impl<'a> Checker<'a> {
                     return;
                 }
                 self.block(block, None, callee.span.end);
-                if self.halt() {
-                    return;
-                }
             }
             ExprKind::Index(receiver, _, selectors, _) => {
                 self.expr(receiver, Place::Tight);
@@ -610,9 +571,6 @@ impl<'a> Checker<'a> {
             ExprKind::Yield(_, args) => {
                 if let Some(args) = args {
                     self.args(args);
-                    if self.halt() {
-                        return;
-                    }
                 }
             }
             ExprKind::Group(_, inner, _) => self.expr(inner, Place::Loose),
@@ -625,9 +583,6 @@ impl<'a> Checker<'a> {
                     return;
                 }
                 self.rescued(&node.rescued);
-                if self.halt() {
-                    return;
-                }
             }
             ExprKind::Rescue(body, _, fallback) => {
                 self.expr(body, Place::Tight);
@@ -635,9 +590,6 @@ impl<'a> Checker<'a> {
                     return;
                 }
                 self.expr(fallback, Place::Tight);
-                if self.halt() {
-                    return;
-                }
             }
         }
     }
@@ -673,9 +625,6 @@ impl<'a> Checker<'a> {
         }
         if let Some((_, alternate)) = &node.alternate {
             self.expr(alternate, Place::Loose);
-            if self.halt() {
-                return;
-            }
         }
     }
 
@@ -769,9 +718,6 @@ impl<'a> Checker<'a> {
             return;
         }
         self.require(call);
-        if self.halt() {
-            return;
-        }
     }
 
     /// Walks a call's receiver. A builtin namespace, such as `Regexp` in
@@ -786,9 +732,6 @@ impl<'a> Checker<'a> {
             return;
         }
         self.expr(receiver, Place::Tight);
-        if self.halt() {
-            return;
-        }
     }
 
     /// Walks a block, then converts it to braces when written `do ... end`.
@@ -831,9 +774,6 @@ impl<'a> Checker<'a> {
         }
         self.scopes.pop();
         self.braces(block, owner, callee_end);
-        if self.halt() {
-            return;
-        }
     }
 
     /// Walks a condition.
@@ -842,9 +782,6 @@ impl<'a> Checker<'a> {
             return;
         }
         self.condition_with(expr, false);
-        if self.halt() {
-            return;
-        }
     }
 
     /// Walks a condition, negating it for `unless` and `until`.
@@ -870,9 +807,6 @@ impl<'a> Checker<'a> {
                     self.edits.enter(previous);
                 } else {
                     self.condition_with(right, false);
-                    if self.halt() {
-                        return;
-                    }
                 }
             }
             ExprKind::Unary(op, operand) if self.token_text(*op) == "!" => {
@@ -887,14 +821,8 @@ impl<'a> Checker<'a> {
                     self.edits.text(span, "");
                     self.edits.enter(previous);
                     self.expr(operand, Place::Loose);
-                    if self.halt() {
-                        return;
-                    }
                 } else {
                     self.expr(operand, Place::Tight);
-                    if self.halt() {
-                        return;
-                    }
                 }
             }
             _ => {
@@ -904,9 +832,6 @@ impl<'a> Checker<'a> {
                 }
                 if negate {
                     self.negate_condition(expr);
-                    if self.halt() {
-                        return;
-                    }
                 }
             }
         }
