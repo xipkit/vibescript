@@ -258,11 +258,11 @@ fn interpolated(
     let mut pace = Pace::new(work);
     // One entry for each level of nesting, which the lexer bounds, so a
     // string of many interpolations is read one at a time.
-    let mut levels = Vec::new();
+    let mut levels = crate::compilation::Buffer::new();
     for lexeme in parser.tokens.range(0..parser.tokens.len()) {
         pace.read()?;
         if let Token::Template(parts) = &lexeme.token {
-            levels.push(Level::Parts(parts.iter(), false));
+            levels.push(work, Level::Parts(parts.iter(), false))?;
         }
         while let Some(level) = levels.last_mut() {
             pace.read()?;
@@ -275,7 +275,7 @@ fn interpolated(
                             if nested {
                                 found.bytes += std::mem::size_of::<std::ops::Range<usize>>();
                             }
-                            levels.push(Level::Tokens(tokens.iter()));
+                            levels.push(work, Level::Tokens(tokens.iter()))?;
                         }
                         Some(Part::Text(_)) => (),
                         None => {
@@ -285,7 +285,9 @@ fn interpolated(
                 }
                 Level::Tokens(tokens) => match tokens.next().map(|lexeme| &lexeme.token) {
                     Some(Token::Word(word)) => found.words += word.len(),
-                    Some(Token::Template(parts)) => levels.push(Level::Parts(parts.iter(), true)),
+                    Some(Token::Template(parts)) => {
+                        levels.push(work, Level::Parts(parts.iter(), true))?
+                    }
                     Some(token) => {
                         found.bytes += payload(token, &mut pace)?;
                         if let Token::Words(words) = token {

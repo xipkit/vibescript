@@ -1848,9 +1848,6 @@ mod tests {
         // A set's nodes left to visit: at most 16 for each level of a tree
         // of 16-way nodes over the set's indices, a few levels.
         ("marks.rs", "pending"),
-        // Two levels for each interpolation nested in another, which the
-        // lexer stops at 8.
-        ("record.rs", "levels"),
         // A configured root's path parts, which the host gives, not a
         // script.
         ("root.rs", "pending"),
