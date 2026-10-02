@@ -639,6 +639,13 @@ fn adversarial() -> Vec<(String, String)> {
             "f(1)\n".repeat(scale(2_000))
         ),
     ));
+    // The surface pass copies a string that labels a hash pair again as
+    // the pair's name.
+    let key = "k".repeat(scale(600_000));
+    programs.push((
+        "a hash labelled by a 600,000-byte string".to_owned(),
+        format!("x = {{ \"{key}\": 1 }}\np(1)\n"),
+    ));
     // Each `new` takes the constructor's signature, with its parameters'
     // long names, for as long as its arguments are checked, and the
     // arguments are calls of `new` nested deep.

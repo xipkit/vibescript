@@ -803,9 +803,19 @@ fn surface_setup(
 ) -> Option<(u64, usize)> {
     use crate::tooling::TokenKind;
     use meter::Heap;
-    for token in tokens {
+    for (at, token) in tokens.iter().enumerate() {
         if meter.pace(1, 0) {
             return None;
+        }
+        // A string that labels a hash pair is copied again as the pair's
+        // name, beside the token's copy.
+        if let TokenKind::String(bytes) = &token.kind {
+            if tokens
+                .get(at + 1)
+                .is_some_and(|next| next.kind == TokenKind::Punct(':'))
+            {
+                totals.bytes += bytes.len();
+            }
         }
         totals.tokens += 1;
         // One token's entries, which this loop paces.
