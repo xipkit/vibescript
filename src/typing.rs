@@ -695,18 +695,18 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         // checker keeps, and for a moment the syntax of each interpolation
         // it parses again.
         let interpolated = input.parsed.interpolated;
-        let tokens = (input.tokens.len()
-            + interpolated.tokens
-            + interpolated.entries
-            + crate::surface::entries(input.tokens)) as u64;
-        let names = checker
-            .program
-            .namespaces
-            .iter()
-            .map(|ns| ns.name.len())
-            .sum();
-        let surface =
-            crate::surface::footprint(input.tokens, interpolated, names) + checker.spans.parsing();
+        let Some((tokens, surface)) = surface_setup(
+            &meter,
+            input.tokens,
+            interpolated,
+            checker.program.namespaces.iter().map(|ns| ns.name.len()),
+        ) else {
+            checked.stopped = true;
+            checked.steps = meter.steps();
+            return checked;
+        };
+        checked.steps = meter.steps();
+        let surface = surface + checker.spans.parsing();
         // A required file's exports hold its type table, which the pass
         // runs beside, and copies of its public declarations; with them the
         // check holds what its peak, which then counts them, holds at least.
@@ -786,6 +786,53 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         }
     }
     checked
+}
+
+/// Counts surface metadata without an uninterruptible pass over token payloads.
+fn surface_setup(
+    meter: &meter::Meter,
+    tokens: &[crate::tooling::Token],
+    mut totals: crate::syntax::Interpolated,
+    names: impl Iterator<Item = usize>,
+) -> Option<(u64, usize)> {
+    use crate::tooling::TokenKind;
+    use meter::Heap;
+    for token in tokens {
+        if meter.pace(1, 0) {
+            return None;
+        }
+        totals.tokens += 1;
+        totals.entries += crate::surface::entries(std::slice::from_ref(token));
+        match &token.kind {
+            TokenKind::Words { entries, .. } => {
+                totals.bytes += entries.capacity() * size_of::<Option<Vec<u8>>>();
+                for entry in entries {
+                    if meter.charge(1) {
+                        return None;
+                    }
+                    if let Some(entry) = entry {
+                        totals.bytes += entry.capacity();
+                        totals.rewritten += entry.len();
+                    }
+                }
+            }
+            _ => totals.bytes += token.heap(),
+        }
+        if token.kind == TokenKind::Word {
+            totals.words += token.span.len();
+        }
+    }
+    let mut qualified = 0;
+    for length in names {
+        if meter.charge(1) {
+            return None;
+        }
+        qualified += length;
+    }
+    Some((
+        (totals.tokens + totals.entries) as u64,
+        crate::surface::footprint(&[], totals, qualified),
+    ))
 }
 
 /// Checks that the command line can call `function` with `count` arguments,
