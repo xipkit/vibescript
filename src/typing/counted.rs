@@ -2098,7 +2098,7 @@ mod tests {
         ("program.rs", [0, 0, 0, 8]),
         ("sigs.rs", [0, 1, 9, 0]),
         ("spans.rs", [0, 0, 0, 1]),
-        ("ty.rs", [10, 2, 0, 1]),
+        ("ty.rs", [10, 0, 0, 1]),
     ];
 
     #[test]
@@ -2189,7 +2189,7 @@ mod tests {
         ("sigs.rs", [1, 10, 0]),
         // A display's text and parts, which share one room; a union's
         // index, counted before it is built.
-        ("ty.rs", [5, 5, 0]),
+        ("ty.rs", [6, 0, 0]),
         // The walk's stack, paced with what the walker holds.
         ("walk.rs", [0, 0, 1]),
     ];
@@ -2447,7 +2447,7 @@ mod tests {
     /// [`sort_unstable_by`] or [`sort_by`], by file: each sorts a few
     /// elements, such as a union's alternatives, at most 1,024, or charges
     /// its steps first itself, as an enum's members are.
-    const SORTED: &[(&str, usize)] = &[("ty.rs", 1)];
+    const SORTED: &[(&str, usize)] = &[];
 
     #[test]
     fn the_checker_sorts_through_the_meter() {

@@ -2,7 +2,7 @@
 //! comparing two types compares ids.
 
 use super::{
-    counted::{CountedMap, CountedVec, ScratchVec},
+    counted::{CountedMap, CountedVec, ScratchVec, Text},
     meter::{self, Heap, Meter},
 };
 use std::sync::Arc;
@@ -828,10 +828,13 @@ impl Types {
             return ty;
         }
         let members = self.members(ty);
-        let kept: Vec<Ty> = members
-            .into_iter()
-            .filter(|&member| member == Ty::ANY || !self.assignable(member, removed))
-            .collect();
+        let mut kept = ScratchVec::new(&self.meter);
+        for member in members {
+            let keep = member == Ty::ANY || !self.assignable(member, removed);
+            if self.stopped() || (keep && kept.push(member).is_err()) {
+                return Ty::ERROR;
+            }
+        }
         self.union(&kept)
     }
 
@@ -1379,7 +1382,12 @@ impl Types {
                 if *open {
                     return Some(Ty::ANY);
                 }
-                let types: Vec<Ty> = fields.iter().map(|f| f.ty).collect();
+                let mut types = ScratchVec::new(&self.meter);
+                for field in fields {
+                    if self.meter.charge(1) || types.push(field.ty).is_err() {
+                        return Some(Ty::ERROR);
+                    }
+                }
                 Some(self.union(&types))
             }
             _ => None,
@@ -1440,18 +1448,24 @@ impl Types {
         // One byte past what the display spells, so a display that uses
         // it all was cut.
         let mut room = SPELLED + 1;
-        let mut out = String::new();
+        let mut out = Text::new(&self.meter);
         self.write(ty, &mut out, &mut room);
+        let out = out.finish();
         if room > 0 {
             return (out, false);
         }
-        let mut end = SPELLED.min(out.len());
-        while !out.is_char_boundary(end) {
+        let mut held = ScratchVec::new(&self.meter);
+        if held.push(out).is_err() {
+            return (String::new(), true);
+        }
+        let mut end = SPELLED.min(held[0].len());
+        while !held[0].is_char_boundary(end) {
             end -= 1;
         }
-        out.truncate(end);
-        out.push_str("...");
-        (out, true)
+        let mut cut = Text::new(&self.meter);
+        cut.push_str(&held[0][..end]);
+        cut.push_str("...");
+        (cut.finish(), true)
     }
 
     /// Writes `ty` to `out`, taking each byte it writes from `room`, which
@@ -1459,7 +1473,7 @@ impl Types {
     /// stopping once the room is used up. The alternatives of a union are
     /// each written apart, to be put in order, and then moved into `out`,
     /// which takes no more room.
-    fn write(&self, ty: Ty, out: &mut String, room: &mut usize) {
+    fn write(&self, ty: Ty, out: &mut Text<'_>, room: &mut usize) {
         if *room == 0 || self.meter.charge(1) {
             return;
         }
@@ -1544,7 +1558,7 @@ impl Types {
                 // Each alternative is written apart, while the room lasts;
                 // past it the display is cut, so the alternatives after
                 // are not written.
-                let mut parts: Vec<String> = Vec::new();
+                let mut parts = ScratchVec::new(&self.meter);
                 for m in others() {
                     if number && (m == Ty::INT || m == Ty::FLOAT) {
                         continue;
@@ -1552,16 +1566,22 @@ impl Types {
                     if *room == 0 {
                         break;
                     }
-                    let mut text = String::new();
+                    let mut text = Text::new(&self.meter);
                     self.write(m, &mut text, room);
-                    parts.push(text);
+                    if parts.push(text.finish()).is_err() {
+                        return;
+                    }
                 }
                 if number && *room > 0 {
-                    let mut text = String::new();
+                    let mut text = Text::new(&self.meter);
                     put(&mut text, "number", room);
-                    parts.push(text);
+                    if parts.push(text.finish()).is_err() {
+                        return;
+                    }
                 }
-                parts.sort_unstable();
+                if super::counted::sort_unstable_by(&self.meter, &mut parts, Ord::cmp).is_err() {
+                    return;
+                }
                 if nil && parts.len() == 1 {
                     let single = others().nth(1).is_none() || number;
                     if single {
@@ -1571,9 +1591,11 @@ impl Types {
                     }
                 }
                 if nil && *room > 0 {
-                    let mut text = String::new();
+                    let mut text = Text::new(&self.meter);
                     put(&mut text, "nil", room);
-                    parts.push(text);
+                    if parts.push(text.finish()).is_err() {
+                        return;
+                    }
                 }
                 // Once the room is used up, the display is cut where it
                 // was, so the parts after are not written, which keeps it
@@ -1634,15 +1656,15 @@ impl Types {
             return None;
         }
         for &member in members.iter() {
-            let base = match base_word(self.kind(member)) {
-                Some(word) => word.to_owned(),
-                None => {
-                    self.meter.admit(self.spelled(member))?;
-                    self.display(member)
+            if let Some(word) = base_word(self.kind(member)) {
+                bases.reserve_with(1, word.len()).ok()?;
+                bases.push_within(word.to_owned());
+            } else {
+                let base = self.display(member);
+                if self.stopped() {
+                    return None;
                 }
-            };
-            if bases.push(base).is_err() {
-                return None;
+                bases.push(base).ok()?;
             }
         }
         if super::counted::sort_unstable_by(&self.meter, &mut bases, Ord::cmp).is_err() {
@@ -1679,23 +1701,9 @@ impl Types {
         }
         found
     }
-
-    /// The bytes [`Self::display`] spells for `member`, an alternative
-    /// [`Self::bases`] names by its display, at most what a display cut
-    /// short takes.
-    fn spelled(&self, member: Ty) -> usize {
-        let length = match self.kind(member) {
-            Kind::Instance(id) => name_of(&self.names.namespaces, *id).len(),
-            Kind::EnumValue(id) => name_of(&self.names.enums, *id).len(),
-            Kind::SymbolLit(name) => 1 + name.len(),
-            Kind::Var(index) => 2 + index.checked_ilog10().unwrap_or(0) as usize,
-            _ => "match_data".len(),
-        };
-        length.min(SPELLED + "...".len())
-    }
 }
 
-fn write_field_name(name: &str, out: &mut String, room: &mut usize) {
+fn write_field_name(name: &str, out: &mut Text<'_>, room: &mut usize) {
     let plain = !name.is_empty()
         && name
             .chars()
@@ -1761,7 +1769,7 @@ fn name_of(list: &[String], id: u32) -> &str {
 
 /// Writes as much of `text` to `out` as `room` has left, on a character
 /// boundary, and takes it from the room, which a text it cuts uses up.
-fn put(out: &mut String, text: &str, room: &mut usize) {
+fn put(out: &mut Text<'_>, text: &str, room: &mut usize) {
     let mut end = text.len().min(*room);
     while !text.is_char_boundary(end) {
         end -= 1;
