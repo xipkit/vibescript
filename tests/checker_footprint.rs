@@ -1677,6 +1677,31 @@ fn a_file_required_at_run_time_keeps_to_the_quota() {
 }
 
 #[test]
+fn a_type_error_in_a_long_source_keeps_to_the_quota() {
+    let _serial = SERIAL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    // A long comment holds no token, so the source's syntax is small, but
+    // a type error's message locates it in the whole source, under a quota
+    // far smaller than the source.
+    let length = if cfg!(target_os = "wasi") {
+        1 << 20
+    } else {
+        6 << 20
+    };
+    let source = format!("#{}\nmissing_name\n", "x".repeat(length));
+    let engine = Engine::new();
+    let _ = engine.compile_with_options("missing_name\n", &limited(None, None));
+    let quota = 1 << 20;
+    let (peak, result) = compiled_peak(&engine, &source, &limited(None, Some(quota)));
+    let allowed = quota + quota / 8 + OVERSHOOT;
+    assert!(
+        peak <= allowed,
+        "{peak} bytes at the peak, {allowed} allowed ({result:?})"
+    );
+}
+
+#[test]
 fn require_paths_count_toward_the_quota() {
     let _serial = SERIAL
         .lock()

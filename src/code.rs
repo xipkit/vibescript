@@ -177,6 +177,20 @@ impl Code {
         // What the check found stays while the compiler reads it.
         let _found = work.reserve(checked.bytes())?;
         if checked.diagnostics.iter().any(|d| d.is_error()) {
+            // The copy of the source and its index of positions, which
+            // locate the first error, the list the error shares the
+            // diagnostics in and its message, are reserved before they are
+            // made, and while they live.
+            let message = checked
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.is_error())
+                .map_or(0, |diagnostic| diagnostic.message.len() + 64);
+            let _located = work.reserve(
+                crate::source::Source::bytes(source.len())
+                    .saturating_add(std::mem::size_of_val(checked.diagnostics.as_slice()))
+                    .saturating_add(message),
+            )?;
             let mut text = crate::source::Source::compile(source, work)?;
             text.filename = filename.clone();
             let diagnostics = checked

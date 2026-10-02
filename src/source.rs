@@ -23,6 +23,13 @@ pub(crate) struct Source {
 }
 
 impl Source {
+    /// What [`Self::compile`] makes of a text of `length` bytes at most:
+    /// its copy, and its index of positions while it grows.
+    pub fn bytes(length: usize) -> usize {
+        let checkpoints = (length / STRIDE + 1).next_power_of_two();
+        length.saturating_add(checkpoints.saturating_mul(3 * std::mem::size_of::<Checkpoint>()))
+    }
+
     #[cfg(test)]
     pub fn new(text: &str) -> Self {
         Self::compile(text, &()).expect("unmetered source indexing cannot fail")
