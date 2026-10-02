@@ -1032,36 +1032,97 @@ enum Place {
     Group(bool),
 }
 
-/// Writes a destructuring target as Go's `FormatDestructureTarget` does.
-fn target_text(target: &Target, out: &mut Vec<u8>) -> Result<()> {
+/// The prefix needed by `source_text`, including enough bytes to finish a
+/// UTF-8 character at its truncation boundary.
+struct TargetText<'w> {
+    work: &'w dyn Work,
+    bytes: [u8; 68],
+    len: usize,
+    clipped: bool,
+}
+
+impl TargetText<'_> {
+    fn text(&self) -> &str {
+        let bytes = &self.bytes[..self.len];
+        match std::str::from_utf8(bytes) {
+            Ok(text) => text,
+            Err(error) => std::str::from_utf8(&bytes[..error.valid_up_to()]).unwrap(),
+        }
+    }
+}
+
+impl crate::shapes::TypeWriter for TargetText<'_> {
+    fn node(&mut self) -> Result<()> {
+        self.work.checkpoint()?;
+        self.work.charge(1)?;
+        if self.len == self.bytes.len() {
+            self.clipped = true;
+            return Err(Error::new(crate::ErrorKind::Syntax, ""));
+        }
+        Ok(())
+    }
+
+    fn write(&mut self, bytes: &[u8]) -> Result<()> {
+        self.node()?;
+        let count = bytes.len().min(self.bytes.len() - self.len);
+        self.work.bytes(count)?;
+        self.bytes[self.len..self.len + count].copy_from_slice(&bytes[..count]);
+        self.len += count;
+        if count < bytes.len() {
+            self.clipped = true;
+            return Err(Error::new(crate::ErrorKind::Syntax, ""));
+        }
+        Ok(())
+    }
+}
+
+/// Writes only the diagnostic prefix of a destructuring target.
+fn target_text(target: &Target, out: &mut TargetText<'_>) -> Result<()> {
+    use crate::shapes::TypeWriter;
+    out.node()?;
     match target {
         Target::Value(Expr {
             node: Node::Var(name),
             ..
-        }) => out.extend_from_slice(name.as_bytes()),
+        }) => out.write(name.as_bytes())?,
         Target::Tuple(parts) => {
-            out.push(b'(');
+            out.write(b"(")?;
             for (index, (part, rest)) in parts.iter().enumerate() {
+                out.node()?;
                 if index > 0 {
-                    out.extend_from_slice(b", ");
+                    out.write(b", ")?;
                 }
                 if *rest {
-                    out.push(b'*');
+                    out.write(b"*")?;
                 }
                 if let Some(part) = part {
                     target_text(part, out)?;
                 }
             }
-            out.push(b')');
+            out.write(b")")?;
         }
         Target::Typed(target, ty) => {
             target_text(target, out)?;
-            out.extend_from_slice(b": ");
+            out.write(b": ")?;
             crate::shapes::format(ty, out)?;
         }
         Target::Value(_) => (),
     }
     Ok(())
+}
+
+fn target_excerpt<'w>(target: &Target, work: &'w dyn Work) -> Result<TargetText<'w>> {
+    let mut text = TargetText {
+        work,
+        bytes: [0; 68],
+        len: 0,
+        clipped: false,
+    };
+    let result = target_text(target, &mut text);
+    if !text.clipped {
+        result?;
+    }
+    Ok(text)
 }
 
 /// Recursive parsing steps that run as tasks instead of native calls.
@@ -1797,16 +1858,14 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
                 let start = p.tokens[p.pos].offset;
                 let ty = p.type_expr(1, false)?;
                 if rest && !ty.captures(false) {
-                    let mut text = Vec::new();
-                    target_text(value.as_ref().unwrap(), &mut text)?;
-                    work.bytes(text.len())?;
-                    let text = String::from_utf8_lossy(&text);
+                    let excerpt = target_excerpt(value.as_ref().unwrap(), work)?;
+                    let text = excerpt.text();
                     return Err(Error::syntax(
                         work,
                         start,
                         format_args!(
                             "rest destructuring target {} captures an array; annotate it as array<...> or any",
-                            source_text(if text.is_empty() { "*" } else { &text })
+                            source_text(if text.is_empty() { "*" } else { text })
                         ),
                     ));
                 }
@@ -4730,6 +4789,21 @@ mod walk_tests {
     use super::{Statement, Target};
     use crate::{CallContext, CallOptions, compilation::Meter};
     use std::cell::RefCell;
+
+    #[test]
+    fn a_rest_target_excerpt_never_builds_its_full_spelling() {
+        let source = format!("{} = 1", "x".repeat(1 << 20));
+        let parsed = super::parse(&source, &()).unwrap();
+        let Statement::Assign(target, _, _) = &parsed.functions[0].body[0].node else {
+            panic!("assignment")
+        };
+        let mut context = CallContext::new(CallOptions::default());
+        context.options.limits.steps = Some(8);
+        let work = Meter(RefCell::new(&mut context));
+        let text = super::target_excerpt(target, &work).unwrap();
+        assert_eq!(text.text().len(), 68);
+        assert_eq!(work.0.borrow().stats().peak_memory_bytes, 0);
+    }
 
     #[test]
     fn a_target_walk_stops_before_visiting_a_refused_part() {
