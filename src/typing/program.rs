@@ -1021,6 +1021,10 @@ impl<'a> Checker<'a> {
                 ParamKind::KeywordRest if param.ty.is_none() => self.types.hash(Ty::ERROR),
                 _ => ty,
             };
+            if self.halted() {
+                self.release(held);
+                return None;
+            }
             params.push(Param {
                 name: param.name.to_string(),
                 kind,
@@ -1033,19 +1037,36 @@ impl<'a> Checker<'a> {
             None if def.accessor.as_ref().is_some_and(|(_, setter)| !setter) => Some(Ty::ANY),
             None => None,
         };
-        let block_sig = block.map(|block| BlockSig {
-            params: block
-                .params
-                .iter()
-                .map(|ty| self.annotation(ty, owner, block.offset as usize))
-                .collect(),
-            rest: None,
-            result: block
+        if self.halted() {
+            self.release(held);
+            return None;
+        }
+        let mut block_sig = None;
+        if let Some(block) = block {
+            let mut params = Vec::with_capacity(block.params.len());
+            for ty in &block.params {
+                let ty = self.annotation(ty, owner, block.offset as usize);
+                if self.halted() {
+                    self.release(held);
+                    return None;
+                }
+                params.push(ty);
+            }
+            let result = block
                 .result
                 .as_ref()
-                .map(|ty| self.annotation(ty, owner, block.offset as usize)),
-            optional: block_optional(self.source, block),
-        });
+                .map(|ty| self.annotation(ty, owner, block.offset as usize));
+            if self.halted() {
+                self.release(held);
+                return None;
+            }
+            block_sig = Some(BlockSig {
+                params,
+                rest: None,
+                result,
+                optional: block_optional(self.source, block),
+            });
+        }
         let mut name = String::with_capacity(qualified);
         if let Some(ns) = owner {
             name.push_str(&self.program.namespaces[ns as usize].name);
@@ -1226,16 +1247,21 @@ impl<'a> Checker<'a> {
                 ) else {
                     return Ty::ERROR;
                 };
-                let fields = fields
-                    .iter()
-                    .map(|field| Field {
+                let mut copied = Vec::with_capacity(fields.len());
+                for field in fields {
+                    let ty = self.annotation(&field.ty, scope, offset);
+                    if self.halted() {
+                        self.release(held);
+                        return Ty::ERROR;
+                    }
+                    copied.push(Field {
                         name: String::from_utf8_lossy(&field.name).into(),
-                        ty: self.annotation(&field.ty, scope, offset),
+                        ty,
                         optional: field.optional,
-                    })
-                    .collect();
+                    });
+                }
                 self.release(held);
-                let shape = self.types.shape(fields, *open);
+                let shape = self.types.shape(copied, *open);
                 self.too_large(offset);
                 shape
             }
@@ -1245,12 +1271,17 @@ impl<'a> Checker<'a> {
                 let Some(held) = self.hold(options.len() * std::mem::size_of::<Ty>()) else {
                     return Ty::ERROR;
                 };
-                let options: Vec<Ty> = options
-                    .iter()
-                    .map(|option| self.annotation(option, scope, offset))
-                    .collect();
+                let mut copied = Vec::with_capacity(options.len());
+                for part in options {
+                    let ty = self.annotation(part, scope, offset);
+                    if self.halted() {
+                        self.release(held);
+                        return Ty::ERROR;
+                    }
+                    copied.push(ty);
+                }
+                let union = self.types.union(&copied);
                 self.release(held);
-                let union = self.types.union(&options);
                 self.too_large(offset);
                 union
             }
@@ -1259,12 +1290,17 @@ impl<'a> Checker<'a> {
                 let Some(held) = self.hold(elements.len() * std::mem::size_of::<Ty>()) else {
                     return Ty::ERROR;
                 };
-                let elements = elements
-                    .iter()
-                    .map(|element| self.annotation(element, scope, offset))
-                    .collect();
+                let mut copied = Vec::with_capacity(elements.len());
+                for part in elements {
+                    let ty = self.annotation(part, scope, offset);
+                    if self.halted() {
+                        self.release(held);
+                        return Ty::ERROR;
+                    }
+                    copied.push(ty);
+                }
                 self.release(held);
-                self.types.tuple(elements)
+                self.types.tuple(copied)
             }
             TypeKind::Literal(described) => {
                 let described = match described {
