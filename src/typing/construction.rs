@@ -552,10 +552,11 @@ impl<'a> Checker<'a> {
         for id in ids.iter() {
             let mut row = ScratchVec::new(&self.meter);
             for callee in self.construction.methods[id].calls.iter() {
-                if let Some(&at) = place.get(callee) {
-                    if row.push(at).is_err() {
-                        return (HashMap::new(), 0);
-                    }
+                let Some(&at) = place.get(callee) else {
+                    continue;
+                };
+                if row.push(at).is_err() {
+                    return (HashMap::new(), 0);
                 }
             }
             if calls.push(row).is_err() {
