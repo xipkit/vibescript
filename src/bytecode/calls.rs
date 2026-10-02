@@ -48,9 +48,10 @@ impl<'x> Compiling<'_, 'x> {
         {
             let mut c = self.c();
             let name = c.call_site(name, false).name;
-            c.emit(Op::RootCall(name, expanded(args)));
+            let listed = expanded(args, c.work)?;
+            c.emit(Op::RootCall(name, listed));
         }
-        let ip = if expanded(args) {
+        let ip = if expanded(args, self.c().work)? {
             self.argument_values(args).await?;
             self.c().emit(Op::InvokeRoot(target))
         } else {

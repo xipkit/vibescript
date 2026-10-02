@@ -1046,9 +1046,15 @@ fn local_names(
     Ok(names)
 }
 
-fn expanded(args: &[Argument]) -> bool {
-    args.iter()
-        .any(|a| !matches!(a.kind, ArgumentKind::Positional))
+fn expanded(args: &[Argument], work: &dyn crate::compilation::Work) -> Result<bool> {
+    for arg in args {
+        work.checkpoint()?;
+        work.charge(1)?;
+        if !matches!(arg.kind, ArgumentKind::Positional) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 struct Compiler<'a> {
@@ -3030,11 +3036,12 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 })
             });
             let site = c.call_site(name, form == CallForm::Auto);
+            let listed = expanded(args, c.work)?;
             let direct = direct.filter(|&base| {
                 !mutating
                     && name != "call"
                     && block.is_none()
-                    && !expanded(args)
+                    && !listed
                     && site.method.is_some_and(|method| {
                         crate::members::direct::serves(base, method, args.len())
                     })
@@ -3090,7 +3097,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             }
             return Ok(());
         }
-        if expanded(args)
+        if expanded(args, self.c().work)?
             || block.is_some()
             || crate::iteration::method(name)
             || name == "is_type?"
@@ -3199,7 +3206,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             site
         };
         let args = args.unwrap_or(&[]);
-        if expanded(args) || block.is_some() {
+        if expanded(args, self.c().work)? || block.is_some() {
             self.call_arguments(args).await?;
             let mut c = self.c();
             if let Some(block) = block {
@@ -3311,7 +3318,8 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 };
                 // A script function called with plain arguments takes them
                 // from the stack, without an argument list.
-                let listed = expanded(args) || !matches!(target, Some(Invocation::Function(_)));
+                let listed =
+                    expanded(args, c.work)? || !matches!(target, Some(Invocation::Function(_)));
                 if target.is_some() {
                     let name = c.call_site(name, false).name;
                     c.emit(Op::RootCall(name, listed));
@@ -3319,7 +3327,9 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 target
             }
         };
-        if let (Some(Invocation::Function(callee)), false) = (target, expanded(args)) {
+        if let (Some(Invocation::Function(callee)), false) =
+            (target, expanded(args, self.c().work)?)
+        {
             for arg in args {
                 self.expr(&arg.value).await?;
             }
