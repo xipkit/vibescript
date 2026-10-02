@@ -2084,7 +2084,7 @@ mod tests {
     const MADE: &[(&str, [usize; 4])] = &[
         ("typing.rs", [0, 0, 0, 1]),
         ("assigns.rs", [0, 0, 0, 2]),
-        ("calls.rs", [0, 1, 4, 6]),
+        ("calls.rs", [0, 1, 4, 5]),
         ("check.rs", [3, 0, 0, 11]),
         ("construction.rs", [1, 0, 0, 15]),
         ("expr.rs", [2, 6, 0, 10]),
@@ -2269,7 +2269,7 @@ mod tests {
     /// which it counts as it takes it. Any other text, and a diagnostic's
     /// above all, is written through the meter with `text!` or `copy`.
     const WRITTEN: &[(&str, [usize; 3])] = &[
-        ("calls.rs", [2, 0, 0]),
+        ("calls.rs", [2, 2, 0]),
         ("check.rs", [2, 6, 1]),
         ("construction.rs", [0, 1, 0]),
         ("expr.rs", [1, 0, 0]),

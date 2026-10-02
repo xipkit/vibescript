@@ -1936,11 +1936,12 @@ impl<'a> Checker<'a> {
 
     fn check_positional(&mut self, call: &Call<'a, '_>, sig: &Sig, bindings: &mut [Option<Ty>]) {
         let function = sig.name.as_str();
-        let positional_params: Vec<&sigs::Param> = sig
-            .params
-            .iter()
-            .filter(|p| p.kind == ParamKind::Positional)
-            .collect();
+        let mut positional_params = ScratchVec::new(&self.meter);
+        for param in &sig.params {
+            if param.kind == ParamKind::Positional && positional_params.push(param).is_err() {
+                return;
+            }
+        }
         // The rest parameter is found once, not for each argument it takes.
         let rest_param = sig.rest();
         let rest = rest_param.map(|p| p.ty);
@@ -1961,10 +1962,7 @@ impl<'a> Checker<'a> {
             .sum::<usize>()
             + call.selectors.len()
             + usize::from(call.extra.is_some());
-        let Some(held) = self.hold(
-            positional_params.capacity() * std::mem::size_of::<&sigs::Param>()
-                + count * std::mem::size_of::<(&Expr, bool)>(),
-        ) else {
+        let Some(held) = self.hold(count * std::mem::size_of::<(&Expr, bool)>()) else {
             return;
         };
         let mut arguments: Vec<(&'a Expr, bool)> = Vec::with_capacity(count);
@@ -2040,9 +2038,9 @@ impl<'a> Checker<'a> {
                 continue;
             }
             let (param_ty, name) = match positional_params.get(index) {
-                Some(param) => (param.ty, param.name.clone()),
+                Some(param) => (param.ty, param.name.as_str()),
                 None => match (rest_element, rest_param) {
-                    (Some(element), Some(param)) => (element, param.name.clone()),
+                    (Some(element), Some(param)) => (element, param.name.as_str()),
                     _ => {
                         self.expr(value, None);
                         index += 1;
@@ -2050,16 +2048,16 @@ impl<'a> Checker<'a> {
                     }
                 },
             };
-            let purpose = Purpose::Argument {
-                index,
-                name,
-                function: self.copy(function),
-            };
             // The names the purpose copies are held while the argument is
-            // checked.
-            let Some(argument_held) = self.hold(super::meter::Heap::heap(&purpose)) else {
+            // checked, and admitted before either copy is made.
+            let Some(argument_held) = self.hold(name.len() + function.len()) else {
                 self.release(held);
                 return;
+            };
+            let purpose = Purpose::Argument {
+                index,
+                name: name.to_owned(),
+                function: function.to_owned(),
             };
             let actual = self.argument(value, param_ty, bindings, &purpose);
             self.release(argument_held);

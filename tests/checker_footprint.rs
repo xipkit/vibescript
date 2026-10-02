@@ -1174,6 +1174,14 @@ fn shapes() -> Vec<Shape> {
             let targets = listed(n, |i| format!("a{i}"), ", ");
             (Vec::new(), format!("{targets} = []\np(a0)\n"))
         }),
+        ("a call of a wide positional signature", |n| {
+            let parameters = listed(n * 4, |i| format!("p{i}: int"), ", ");
+            let arguments = listed(n * 4, |_| "1".to_owned(), ", ");
+            (
+                Vec::new(),
+                format!("def f({parameters}) -> int\n  1\nend\np(f({arguments}))\n"),
+            )
+        }),
         ("a mismatch at a statement holding a wide array", |n| {
             let items = listed(n * 4, |_| "1".to_owned(), ", ");
             (
