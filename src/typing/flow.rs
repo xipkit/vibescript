@@ -187,19 +187,24 @@ impl Flow {
         while self.trail.len() > mark.trail {
             let (id, old) = self.trail.pop().unwrap();
             let current = self.vars[id as usize];
-            // A check this stops still undoes every change, but collects no
-            // more of them.
-            if !stopped {
-                stopped = self.meter.charge(1)
-                    || match seen.insert(id) {
-                        Ok(true) => changes.push((id, current)).is_err(),
-                        Ok(false) => false,
-                        Err(Refused) => true,
-                    };
+            // What undoing it copies of the set of assigned variables is
+            // counted first. A check this stops unwinds the rest without
+            // undoing it, as one stopped before it starts does: nothing
+            // reads the flow after the stop.
+            let cost = self.cost(id, current.assigned, old.assigned);
+            stopped = self.meter.charge(1)
+                || (cost > 0 && self.meter.tables().keep(cost).is_err())
+                || match seen.insert(id) {
+                    Ok(true) => changes.push((id, current)).is_err(),
+                    Ok(false) => false,
+                    Err(Refused) => true,
+                };
+            if stopped {
+                self.trail.truncate(mark.trail);
+                break;
             }
             self.vars[id as usize] = old;
-            let copied = self.note(id, current.assigned, old.assigned);
-            self.meter.tables().kept(copied);
+            self.note(id, current.assigned, old.assigned);
         }
         self.live = mark.live;
         Branch {
