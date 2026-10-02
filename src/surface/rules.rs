@@ -1108,12 +1108,14 @@ impl<'a> Checker<'a> {
                 ArgPattern::Keyword(name, expected) => {
                     let mut found = None;
                     for (index, arg) in args.iter().enumerate() {
-                        if !self.room.charge(1 + name.len().div_ceil(64) as u64) {
+                        if !self.room.charge(1) {
                             return None;
                         }
-                        if matches!(&arg.kind, ArgKind::Keyword(key) if key == name) {
-                            found = Some((index, arg));
-                            break;
+                        if let ArgKind::Keyword(key) = &arg.kind {
+                            if self.room.same_text(key, name)? {
+                                found = Some((index, arg));
+                                break;
+                            }
                         }
                     }
                     let (index, arg) = found?;
@@ -1662,12 +1664,14 @@ fn universal(name: &str) -> bool {
 
 fn defines(class: &Class, name: &str, room: &super::edits::Room<'_>) -> bool {
     for member in &class.members {
-        if !room.charge(1 + name.len().div_ceil(64) as u64) {
+        if !room.charge(1) {
             return false;
         }
         if let Member::Def(def) = member {
-            if def.name == name {
-                return true;
+            match room.same_text(&def.name, name) {
+                Some(true) => return true,
+                Some(false) => (),
+                None => return false,
             }
         }
     }

@@ -93,6 +93,29 @@ impl<'b> Room<'b> {
         true
     }
 
+    /// Compares source text in charged batches, stopping at a refusal.
+    pub fn same_text(&self, left: &str, right: &str) -> Option<bool> {
+        if !self.charge(1) {
+            return None;
+        }
+        if left.len() != right.len() {
+            return Some(false);
+        }
+        for (left, right) in left
+            .as_bytes()
+            .chunks(4096)
+            .zip(right.as_bytes().chunks(4096))
+        {
+            if !self.charge(left.len().div_ceil(64) as u64) {
+                return None;
+            }
+            if left != right {
+                return Some(false);
+            }
+        }
+        Some(true)
+    }
+
     /// Gives back `bytes` a copy held, once it is dropped.
     pub fn give_back(&self, bytes: usize) {
         let held = self.held.load(Relaxed);

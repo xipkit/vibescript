@@ -508,10 +508,7 @@ impl<'a> Checker<'a> {
                         let def = scope.def?;
                         let mut found = None;
                         for param in &def.params {
-                            if !self.room.charge(1 + name.len().div_ceil(64) as u64) {
-                                return None;
-                            }
-                            if param.name == *name {
+                            if self.room.same_text(&param.name, name)? {
                                 found = Some(param);
                                 break;
                             }
