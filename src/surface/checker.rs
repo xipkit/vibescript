@@ -97,52 +97,58 @@ const PER_ENTRY: usize = 40;
 
 /// The entries of the percent literals among `tokens`, each of which the
 /// rules' pass rewrites, a step each.
-pub(crate) fn entries(tokens: &[tooling::Token]) -> usize {
-    tokens
-        .iter()
-        .map(|token| match &token.kind {
-            tooling::TokenKind::Words { entries, .. } => entries.len(),
-            _ => 0,
-        })
-        .sum()
+pub(crate) fn entries(tokens: &[tooling::Token], stop: parse::Stop<'_>) -> Option<usize> {
+    let mut total = 0;
+    for token in tokens {
+        if stop() {
+            return None;
+        }
+        if let tooling::TokenKind::Words { entries, .. } = &token.kind {
+            total += entries.len();
+        }
+    }
+    Some(total)
 }
 
-/// About the most memory [`add_to`] holds while it reads a source with
-/// `tokens`, whose interpolations hold what `interpolated` says and whose
-/// classes and modules have qualified names of `names` bytes in all, which
-/// the checker's memory account adds to its own.
+/// The estimated storage of the surface pass, with each sizing visit paced.
 pub(crate) fn footprint(
     tokens: &[tooling::Token],
     interpolated: crate::syntax::Interpolated,
     names: usize,
-) -> usize {
-    // What the tokens hold, which the pass copies: strings, symbols' names,
-    // interpolations' spans and percent literals' entries.
-    let payloads: usize = tokens.iter().map(crate::typing::Heap::heap).sum();
-    let rewritten: usize = tokens
-        .iter()
-        .map(|token| match &token.kind {
+    stop: parse::Stop<'_>,
+) -> Option<usize> {
+    let (mut payloads, mut rewritten, mut words, mut count) = (0, 0, 0, 0);
+    for token in tokens {
+        if stop() {
+            return None;
+        }
+        match &token.kind {
             tooling::TokenKind::Words { entries, .. } => {
-                entries.iter().flatten().map(Vec::len).sum()
+                count += entries.len();
+                payloads += entries.capacity() * size_of::<Option<Vec<u8>>>();
+                for entry in entries {
+                    if stop() {
+                        return None;
+                    }
+                    if let Some(entry) = entry {
+                        payloads += entry.capacity();
+                        rewritten += entry.len();
+                    }
+                }
             }
-            _ => 0,
-        })
-        .sum();
-    // The identifiers, which the pass copies from the source.
-    let words: usize = tokens
-        .iter()
-        .filter(|token| token.kind == tooling::TokenKind::Word)
-        .map(|token| token.span.len())
-        .sum();
-    // An interpolation's tokens hold what the source's own do, which the
-    // pass keeps beside them once it lexes the interpolation again.
-    (tokens.len() + interpolated.tokens) * PER_TOKEN
-        + (entries(tokens) + interpolated.entries) * PER_ENTRY
-        + payloads
-        + (words + interpolated.words) * WORD_COPIES
-        + (rewritten + interpolated.rewritten) * REWRITE_COPIES
-        + interpolated.bytes
-        + names * NAME_COPIES
+            tooling::TokenKind::Word => words += token.span.len(),
+            _ => payloads += crate::typing::Heap::heap(token),
+        }
+    }
+    Some(
+        (tokens.len() + interpolated.tokens) * PER_TOKEN
+            + (count + interpolated.entries) * PER_ENTRY
+            + payloads
+            + (words + interpolated.words) * WORD_COPIES
+            + (rewritten + interpolated.rewritten) * REWRITE_COPIES
+            + interpolated.bytes
+            + names * NAME_COPIES,
+    )
 }
 
 /// Adds the removed spellings in `source` to a static check's diagnostics,
@@ -176,7 +182,11 @@ pub(crate) fn add_to(
     canonical: &dyn Fn(&str, u64) -> Option<Option<crate::Error>>,
     room: Option<usize>,
 ) {
-    let read = u64::try_from(tokens.len() + interpolated + entries(tokens)).unwrap_or(u64::MAX);
+    let Some(entries) = entries(tokens, &|| !within(checked.steps)) else {
+        checked.stopped = true;
+        return;
+    };
+    let read = u64::try_from(tokens.len() + interpolated + entries).unwrap_or(u64::MAX);
     checked.steps += read;
     // The room keeps the steps the pass charges, its sorts' with them, each
     // sort charged before it is made, once the budget is asked.
@@ -590,5 +600,35 @@ impl<'a> Checker<'a> {
     pub(super) fn receiver_owns_method(&self, _: &'a syntax::Expr, call: &'a syntax::Call) -> bool {
         self.calls
             .user_method_at(self.surface.tokens[call.name_tok].start)
+    }
+}
+
+#[cfg(test)]
+mod budget_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
+
+    #[test]
+    fn footprint_stops_inside_one_percent_token() {
+        let tokens = vec![tooling::Token {
+            kind: tooling::TokenKind::Words {
+                symbols: false,
+                entries: vec![Some(vec![b'x']); 10_000],
+            },
+            span: 0..1,
+            line: 1,
+        }];
+        let visits = AtomicUsize::new(0);
+        assert!(
+            footprint(
+                &tokens,
+                crate::syntax::Interpolated::default(),
+                0,
+                &|| visits.fetch_add(1, Relaxed) == 3
+            )
+            .is_none()
+        );
+        assert_eq!(visits.load(Relaxed), 4);
+        assert!(entries(&tokens, &|| true).is_none());
     }
 }

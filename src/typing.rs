@@ -808,7 +808,9 @@ fn surface_setup(
             return None;
         }
         totals.tokens += 1;
-        totals.entries += crate::surface::entries(std::slice::from_ref(token));
+        // One token's entries, which this loop paces.
+        totals.entries +=
+            crate::surface::entries(std::slice::from_ref(token), &|| false).unwrap_or(0);
         match &token.kind {
             TokenKind::Words { entries, .. } => {
                 totals.bytes += entries.capacity() * size_of::<Option<Vec<u8>>>();
@@ -837,7 +839,8 @@ fn surface_setup(
     }
     Some((
         (totals.tokens + totals.entries) as u64,
-        crate::surface::footprint(&[], totals, qualified),
+        // The totals are counted above; no token is left to pace.
+        crate::surface::footprint(&[], totals, qualified, &|| false)?,
     ))
 }
 
