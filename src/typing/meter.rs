@@ -1294,6 +1294,25 @@ mod budget_tests {
     }
 
     #[test]
+    fn a_findings_written_texts_are_counted_while_the_rest_is_written() {
+        // A fix reading a nil element with `fetch` spells the key in its
+        // message, then in its replacement, each written in room that
+        // doubles: the message is counted while the replacement grows.
+        let length = 1 << 18;
+        let source = format!(
+            "def f(h: hash<string, int>) -> int\n  h[\"{}\"]\nend\n",
+            "k".repeat(length)
+        );
+        let checked = checked(&source, Budget::default());
+        assert_eq!(checked.diagnostics[0].fixes.len(), 1);
+        assert!(
+            checked.peak() >= 11 * length / 2,
+            "{} bytes at the peak for a key of {length}",
+            checked.peak()
+        );
+    }
+
+    #[test]
     fn interpolations_parse_again_within_the_step_quota() {
         // Fifty strings, each interpolating a 2,000-element literal, which
         // the spans parse again before the check starts.

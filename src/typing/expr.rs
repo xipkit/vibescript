@@ -134,14 +134,20 @@ impl<'a> Checker<'a> {
         let brackets = self.spans.index_brackets(receiver, expr)?;
         let selector = self.spans.expr(&selectors[0]);
         let text = self.source.get(selector.start..selector.end)?;
+        // Each text spells the key; the message, once written, is held
+        // while the replacement is.
+        let message = text!(
+            self,
+            "read it with `fetch({text})`, which raises when it is missing"
+        );
+        let held = self.hold(message.capacity())?;
+        let replacement = text!(self, ".fetch({text})");
+        self.release(held);
         Some(Fix::edits(
-            text!(
-                self,
-                "read it with `fetch({text})`, which raises when it is missing"
-            ),
+            message,
             vec![Edit {
                 span: brackets,
-                replacement: text!(self, ".fetch({text})"),
+                replacement,
             }],
         ))
     }

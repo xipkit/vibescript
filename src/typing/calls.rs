@@ -2325,12 +2325,13 @@ impl<'a> Checker<'a> {
         let span = self.spans.expr(value);
         let found = self.types.display(ty);
         let what = self.purpose_text(purpose, "a type");
-        let mut message = text!(self, "{what}, found {found}");
-        if matches!(&value.node, Node::Hash(entries) if !entries.is_empty()) {
-            message.push_str(
-                "; braces make a type only where every field names one, as in `{ status: Status }`",
-            );
-        }
+        // The message is written once, in room counted as it grows.
+        let braces = if matches!(&value.node, Node::Hash(entries) if !entries.is_empty()) {
+            "; braces make a type only where every field names one, as in `{ status: Status }`"
+        } else {
+            ""
+        };
+        let message = text!(self, "{what}, found {found}{braces}");
         self.report(
             Diagnostic::error(Code::TYPE_MISMATCH, span, message).with_types("type<T>", found),
         );
@@ -2505,10 +2506,17 @@ impl<'a> Checker<'a> {
                 return diagnostic;
             }
         };
-        diagnostic.message.push_str(&text!(
+        // The longer message is written whole, in room counted as it grows,
+        // while the one it replaces is held.
+        let Some(held) = self.hold(diagnostic.message.capacity()) else {
+            return diagnostic;
+        };
+        diagnostic.message = text!(
             self,
-            "; without a starting value `sum` begins at the int 0, so pass one, as in {example}"
-        ));
+            "{}; without a starting value `sum` begins at the int 0, so pass one, as in {example}",
+            diagnostic.message
+        );
+        self.release(held);
         let end = call.name_span.end;
         let parenthesized = self.source[end..].trim_start().starts_with('(');
         if let (Some(zero), false) = (zero, parenthesized) {

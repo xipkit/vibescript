@@ -2375,7 +2375,7 @@ impl<'a> Checker<'a> {
 
     /// `x[i] = x.fetch(i) + v` in place of `x[i] += v`.
     fn fetch_assignment(
-        &self,
+        &mut self,
         target: &Expr,
         receiver: &Expr,
         selector: &Expr,
@@ -2405,6 +2405,18 @@ impl<'a> Checker<'a> {
                 | Node::Index(..)
         );
         let (open, close) = if grouped { ("", "") } else { ("(", ")") };
+        let replacement = text!(
+            self,
+            "{receiver_text}.fetch({selector_text}) {operator} {open}"
+        );
+        // The replacement, which spells the receiver and the selector, is
+        // held while the message that spells them again is written.
+        let held = self.hold(replacement.capacity())?;
+        let message = text!(
+            self,
+            "read it with `{receiver_text}.fetch({selector_text})`"
+        );
+        self.release(held);
         let mut edits = vec![
             Edit {
                 span: Span::new(at, at + op.len()),
@@ -2412,10 +2424,7 @@ impl<'a> Checker<'a> {
             },
             Edit {
                 span: Span::at(value_span.start),
-                replacement: text!(
-                    self,
-                    "{receiver_text}.fetch({selector_text}) {operator} {open}"
-                ),
+                replacement,
             },
         ];
         if !close.is_empty() {
@@ -2424,13 +2433,7 @@ impl<'a> Checker<'a> {
                 replacement: close.to_owned(),
             });
         }
-        Some(Fix::edits(
-            text!(
-                self,
-                "read it with `{receiver_text}.fetch({selector_text})`"
-            ),
-            edits,
-        ))
+        Some(Fix::edits(message, edits))
     }
 
     fn target_span(&self, target: &Target) -> Span {
@@ -3203,11 +3206,14 @@ impl<'a> Checker<'a> {
                 } else {
                     text!(self, "({text}) != nil")
                 };
-                diagnostic = diagnostic.with_fix(Fix::replace(
-                    text!(self, "test for nil: `{replacement}`"),
-                    span,
-                    replacement,
-                ));
+                // The replacement, which spells the condition, is held
+                // while the message that spells it again is written.
+                let Some(held) = self.hold(replacement.capacity()) else {
+                    return narrow;
+                };
+                let message = text!(self, "test for nil: `{replacement}`");
+                self.release(held);
+                diagnostic = diagnostic.with_fix(Fix::replace(message, span, replacement));
             }
             self.report(diagnostic);
         }
@@ -3696,28 +3702,42 @@ impl<'a> Checker<'a> {
         let expected_text = self.types.display(expected);
         let found_text = self.types.display(found);
         let what = self.purpose_text(purpose, &expected_text);
-        let mut diagnostic = Diagnostic::error(
-            Code::TYPE_MISMATCH,
-            span,
-            text!(self, "{what}, found {found_text}"),
-        )
-        .with_types(expected_text.clone(), found_text);
-        if found == Ty::ANY {
-            diagnostic.code = Code::ANY_USE;
-            diagnostic.message = text!(
-                self,
-                "{what}, found any; narrow the value first with `is_type?`, `.as({expected_text})` or `JSON.parse_as`"
-            );
-        } else if self.types.has_nil(found) {
+        // What the message spells, the purpose with its names and the
+        // types, is held while the message is written, once.
+        let Some(held) =
+            self.hold(what.capacity() + expected_text.capacity() + found_text.capacity())
+        else {
+            return;
+        };
+        let optional = found != Ty::ANY && self.types.has_nil(found) && {
             let without = self.types.without_nil(found);
-            if without != Ty::NEVER && self.types.assignable(without, expected) {
-                diagnostic.code = Code::OPTIONAL_USE;
-                diagnostic.message = text!(
+            without != Ty::NEVER && self.types.assignable(without, expected)
+        };
+        let (code, message) = if found == Ty::ANY {
+            (
+                Code::ANY_USE,
+                text!(
+                    self,
+                    "{what}, found any; narrow the value first with `is_type?`, `.as({expected_text})` or `JSON.parse_as`"
+                ),
+            )
+        } else if optional {
+            (
+                Code::OPTIONAL_USE,
+                text!(
                     self,
                     "{what}, but this value may be nil; test it with `!= nil` first"
-                );
-            }
-        }
+                ),
+            )
+        } else {
+            (
+                Code::TYPE_MISMATCH,
+                text!(self, "{what}, found {found_text}"),
+            )
+        };
+        self.release(held);
+        let diagnostic =
+            Diagnostic::error(code, span, message).with_types(expected_text, found_text);
         self.report(diagnostic);
     }
 }
