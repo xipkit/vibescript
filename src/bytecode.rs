@@ -892,6 +892,8 @@ impl Program {
     /// as the runtime would find them.
     fn prove_instance_variables(&mut self, work: &dyn crate::compilation::Work) -> Result<()> {
         for index in 0..self.functions.len() {
+            work.checkpoint()?;
+            work.charge(1)?;
             let function = &self.functions[index];
             let (true, Some(class)) = (function.instance, function.namespace) else {
                 continue;
@@ -911,7 +913,7 @@ impl Program {
                     || (raw.starts_with('@') && !raw.starts_with("@@"));
                 if checked
                     && self
-                        .instance_variable_type(class, field)
+                        .instance_variable_type(class, field, work)?
                         .is_none_or(|ty| !self.types[ty].unproven())
                 {
                     proven.insert(ip);
@@ -920,6 +922,8 @@ impl Program {
             self.functions[index].proven_ivars = proven;
             let layout = &self.field_layouts[&class];
             for op in &mut self.functions[index].code {
+                work.checkpoint()?;
+                work.charge(1)?;
                 let name = match *op {
                     Op::BindIvar(name, _) => self.members[name as usize].as_str(),
                     Op::NamespaceVariable(name, _)
@@ -933,12 +937,14 @@ impl Program {
                     }
                     _ => continue,
                 };
-                let slot = narrow(
-                    layout
-                        .iter()
-                        .position(|field| field == name)
-                        .expect("declared field"),
-                );
+                let mut slot = None;
+                for (index, field) in layout.iter().enumerate() {
+                    if same_name(work, field, name)? {
+                        slot = Some(narrow(index));
+                        break;
+                    }
+                }
+                let slot = slot.expect("declared field");
                 *op = match *op {
                     Op::BindIvar(_, local) => Op::BindField(slot, local),
                     Op::NamespaceVariable(..) => Op::InstanceField(slot),
@@ -954,42 +960,70 @@ impl Program {
     /// The type an instance of `class` checks its variable `name` against,
     /// as the runtime's `property_type` finds it: the declared type, or else
     /// the type of a generated setter's value or getter's result.
-    fn instance_variable_type(&self, class: usize, name: &str) -> Option<usize> {
-        if let Some(&(_, ty)) = self
-            .ivars
-            .get(&class)
-            .and_then(|ivars| ivars.iter().find(|(field, _)| field == name))
-        {
-            return Some(ty);
+    fn instance_variable_type(
+        &self,
+        class: usize,
+        name: &str,
+        work: &dyn crate::compilation::Work,
+    ) -> Result<Option<usize>> {
+        if let Some(ivars) = self.ivars.get(&class) {
+            for (field, ty) in ivars {
+                if same_name(work, field, name)? {
+                    return Ok(Some(*ty));
+                }
+            }
         }
         let methods = &self.namespaces[class].instance_methods;
         let mut getter = None;
         let mut setter = None;
         for method in methods {
-            if method.name.strip_suffix('=') == Some(name) {
-                setter = Some(method.function);
+            if let Some(field) = method.name.strip_suffix('=') {
+                if same_name(work, field, name)? {
+                    setter = Some(method.function);
+                }
             }
-            if method.name == name {
+            if same_name(work, &method.name, name)? {
                 getter = Some(method.function);
             }
         }
         if let Some(setter) = setter {
             let function = &self.functions[setter];
-            return function
+            return Ok(function
                 .accessor
                 .as_ref()
                 .filter(|(field, setter)| field == name && *setter)
-                .and_then(|_| function.params.first().and_then(|param| param.ty));
+                .and_then(|_| function.params.first().and_then(|param| param.ty)));
         }
-        getter.and_then(|getter| {
+        Ok(getter.and_then(|getter| {
             let function = &self.functions[getter];
             function
                 .accessor
                 .as_ref()
                 .filter(|(field, setter)| field == name && !setter)
                 .and(function.return_type)
-        })
+        }))
     }
+}
+
+/// Compares source names in bounded, charged pieces.
+fn same_name(work: &dyn crate::compilation::Work, left: &str, right: &str) -> Result<bool> {
+    work.checkpoint()?;
+    work.charge(1)?;
+    if left.len() != right.len() {
+        return Ok(false);
+    }
+    for (left, right) in left
+        .as_bytes()
+        .chunks(4096)
+        .zip(right.as_bytes().chunks(4096))
+    {
+        work.checkpoint()?;
+        work.bytes(left.len())?;
+        if left != right {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 fn local_names(
@@ -1661,18 +1695,22 @@ impl Compiler<'_> {
     /// The instance method `name` and its class, when the checker proved
     /// that `call` always calls it on an instance of a class this program
     /// declares.
-    fn method_of(&self, call: &Expr, name: &str) -> Option<(usize, usize)> {
-        let class = self.facts.class(call)?;
-        let index = self
-            .program
-            .namespaces
-            .iter()
-            .position(|definition| definition.name == class)?;
-        let method = self.program.namespaces[index]
-            .instance_methods
-            .iter()
-            .find(|method| method.name == name)?;
-        Some((method.function, index))
+    fn method_of(&self, call: &Expr, name: &str) -> Result<Option<(usize, usize)>> {
+        let Some(class) = self.facts.class(call) else {
+            return Ok(None);
+        };
+        for (index, definition) in self.program.namespaces.iter().enumerate() {
+            if !same_name(self.work, &definition.name, class)? {
+                continue;
+            }
+            for method in &definition.instance_methods {
+                if same_name(self.work, &method.name, name)? {
+                    return Ok(Some((method.function, index)));
+                }
+            }
+            break;
+        }
+        Ok(None)
     }
     /// Records that the value instruction `ip` leaves is plain.
     fn mark_plain(&mut self, ip: usize, plain: bool) {
@@ -3053,7 +3091,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             }
             let mut c = self.c();
             if !mutating {
-                if let Some((function, class)) = c.method_of(whole, name) {
+                if let Some((function, class)) = c.method_of(whole, name)? {
                     c.emit(Op::MethodOf(
                         narrow(function),
                         narrow(class),
@@ -3853,4 +3891,26 @@ pub(crate) fn mutating_member(name: &str) -> bool {
             | "fill"
             | "replace"
     )
+}
+
+#[cfg(test)]
+mod budget_tests {
+    use super::*;
+    use crate::{CallContext, CallOptions, ErrorKind, compilation::Meter};
+    use std::cell::RefCell;
+
+    #[test]
+    fn field_type_search_charges_each_candidate() {
+        let mut source = String::from("class Box\n");
+        for i in 0..256 {
+            source.push_str(&format!("@field{i}: int\n"));
+        }
+        source.push_str("end\n");
+        let program = compile(&source, Vec::new(), &()).unwrap();
+        let mut context = CallContext::new(CallOptions::default());
+        context.options.limits.steps = Some(8);
+        let result =
+            program.instance_variable_type(0, "field255", &Meter(RefCell::new(&mut context)));
+        assert_eq!(result.unwrap_err().kind, ErrorKind::Steps);
+    }
 }
