@@ -46,6 +46,8 @@ impl Parser<'_> {
     /// work, as the parser's other tables are.
     pub(super) fn with_type_names(mut self) -> Result<Self> {
         for index in 0..self.tokens.len().saturating_sub(2) {
+            self.work.checkpoint()?;
+            self.work.charge(1)?;
             let Token::Word(word) = &self.tokens[index].token else {
                 continue;
             };
@@ -107,18 +109,24 @@ impl Parser<'_> {
         let result = match parsed {
             Ok(_) if self.tokens[next].token == Token::Op("=") => true,
             Ok(ty) => {
-                matches!(self.token(), Token::EndLine | Token::Eof) && self.declared_leaves(&ty)
+                matches!(self.token(), Token::EndLine | Token::Eof) && self.declared_leaves(&ty)?
             }
             // A malformed type still declares when `=` follows on its line.
             Err(_) => {
-                self.tokens
-                    .from(start + 2)
-                    .try_fold(false, |_, lexeme| match lexeme.token {
-                        Token::Op("=") => Err(true),
-                        Token::EndLine | Token::Eof => Err(false),
-                        _ => Ok(false),
-                    })
-                    == Err(true)
+                let mut assigned = false;
+                for lexeme in self.tokens.from(start + 2) {
+                    self.work.checkpoint()?;
+                    self.work.charge(1)?;
+                    match lexeme.token {
+                        Token::Op("=") => {
+                            assigned = true;
+                            break;
+                        }
+                        Token::EndLine | Token::Eof => break,
+                        _ => (),
+                    }
+                }
+                assigned
             }
         };
         self.pos = start;
@@ -149,7 +157,7 @@ impl Parser<'_> {
         let result = match parsed {
             Ok(_) if self.token() == &Token::Op("=") => true,
             Ok(ty) => {
-                matches!(self.token(), Token::EndLine | Token::Eof) && self.declared_leaves(&ty)
+                matches!(self.token(), Token::EndLine | Token::Eof) && self.declared_leaves(&ty)?
             }
             Err(_) => false,
         };
@@ -305,21 +313,36 @@ impl Parser<'_> {
 
     /// Whether every leaf of a type an expression could also spell names a
     /// builtin type or one the source declares, so it reads as a type.
-    pub(super) fn declared_leaves(&self, ty: &Type) -> bool {
-        match &ty.kind {
-            TypeKind::Named => self.type_name(&ty.name),
-            TypeKind::Array(Some(element)) => self.declared_leaves(element),
+    pub(super) fn declared_leaves(&self, ty: &Type) -> Result<bool> {
+        self.work.checkpoint()?;
+        self.work.charge(1)?;
+        Ok(match &ty.kind {
+            TypeKind::Named => {
+                self.work.bytes(ty.name.len())?;
+                self.type_name(&ty.name)
+            }
+            TypeKind::Array(Some(element)) => self.declared_leaves(element)?,
             TypeKind::Hash(Some(pair)) => {
-                self.declared_leaves(&pair.0) && self.declared_leaves(&pair.1)
+                self.declared_leaves(&pair.0)? && self.declared_leaves(&pair.1)?
             }
             TypeKind::Shape(fields, _) => {
-                fields.iter().all(|field| self.declared_leaves(&field.ty))
+                for field in fields {
+                    if !self.declared_leaves(&field.ty)? {
+                        return Ok(false);
+                    }
+                }
+                true
             }
             TypeKind::Union(options) | TypeKind::Tuple(options) => {
-                options.iter().all(|option| self.declared_leaves(option))
+                for option in options {
+                    if !self.declared_leaves(option)? {
+                        return Ok(false);
+                    }
+                }
+                true
             }
             _ => true,
-        }
+        })
     }
 
     /// Refuses a reference to the enclosing function's block parameter, which
@@ -492,5 +515,23 @@ pub(crate) fn declared_local(target: &Target) -> Option<(&Name, &Type)> {
             _ => None,
         },
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{CallContext, CallOptions, ErrorKind, compilation::Meter};
+    use std::cell::RefCell;
+
+    #[test]
+    fn type_name_setup_charges_tokens_without_declarations() {
+        let source = "nil;".repeat(10_000);
+        let mut parser = crate::syntax::parser(&source, &()).unwrap();
+        let mut context = CallContext::new(CallOptions::default());
+        context.options.limits.steps = Some(0);
+        let work = Meter(RefCell::new(&mut context));
+        parser.work = &work;
+        let result = parser.with_type_names().map(|_| ());
+        assert_eq!(result.unwrap_err().kind, ErrorKind::Steps);
     }
 }
