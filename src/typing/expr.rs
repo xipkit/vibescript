@@ -2224,9 +2224,16 @@ impl<'a> Checker<'a> {
             {
                 self.frame.flow.set(id, state);
             } else {
+                // What the ensure does not assign by name keeps what the
+                // body or rescues leave, narrowed by the ensure's guards,
+                // and is assigned if either assigns it: a fact that is not
+                // a named local, such as whether `initialize` has assigned
+                // an instance variable, is assigned once the ensure, which
+                // every path through the `begin` runs, assigns it.
                 let joined = self.frame.flow.get(id);
                 let ty = self.both(joined.ty, state.ty);
-                self.frame.flow.set(id, VarState { ty, ..joined });
+                let assigned = joined.assigned || state.assigned;
+                self.frame.flow.set(id, VarState { ty, assigned });
             }
         }
         self.release(held);

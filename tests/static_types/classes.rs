@@ -48,6 +48,16 @@ fn initialize_assigns_every_instance_variable_without_a_default() {
     );
     clean("class C\n  @a: int?\n  def initialize\n  end\nend\n");
     clean("class C\n  property a: int\n  def initialize(@a: int)\n  end\nend\n");
+    // An ensure runs on every path through its `begin`, so what it assigns
+    // is assigned after it, as master's checker found.
+    clean(
+        "class C\n  @a: int\n  def initialize\n    begin\n      nil\n    ensure\n      @a = 1\n    end\n  end\n  def value -> int\n    @a\n  end\nend\np(C.new.value)\n",
+    );
+    error(
+        "class C\n  @a: int\n  def initialize(flag: bool)\n    begin\n      nil\n    ensure\n      @a = 1 if flag\n    end\n  end\nend\n",
+        "V0205",
+        "@a",
+    );
 }
 
 #[test]
