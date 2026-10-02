@@ -2224,7 +2224,7 @@ mod tests {
     /// above all, is written through the meter with `text!` or `copy`.
     const WRITTEN: &[(&str, [usize; 3])] = &[
         ("calls.rs", [2, 0, 0]),
-        ("check.rs", [2, 5, 1]),
+        ("check.rs", [2, 6, 1]),
         ("construction.rs", [0, 1, 0]),
         ("expr.rs", [1, 0, 0]),
         ("modules.rs", [0, 2, 2]),

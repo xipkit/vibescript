@@ -177,6 +177,10 @@ pub(crate) struct Frame {
     /// What the locals' names take, in the locals, the map of them by name
     /// and the scopes that record them.
     pub name_bytes: usize,
+    /// In a class or module body: the place in the body of each name its
+    /// annotated declarations declare, with what the copies of the names
+    /// take, made when the body first assigns a constant.
+    pub declared: Option<(CountedMap<String, u32>, usize)>,
 }
 
 impl Frame {
@@ -207,6 +211,7 @@ impl Frame {
             namespace_body: false,
             shared: CountedVec::new(),
             name_bytes: 0,
+            declared: None,
         }
     }
 }
@@ -233,6 +238,10 @@ impl Heap for Frame {
             + vec(self.shared.as_vec())
             + self.name.heap()
             + self.block.heap()
+            + self
+                .declared
+                .as_ref()
+                .map_or(0, |(declared, names)| map(declared) + names)
     }
 }
 
@@ -3080,14 +3089,44 @@ impl<'a> Checker<'a> {
     fn declared_constant(&mut self, name: &str) -> Option<Ty> {
         let ns = self.frame.owner?;
         let module = self.program.namespaces[ns as usize].module?;
-        let (ty, offset) = module.body.iter().find_map(|stmt| match &stmt.node {
-            Statement::Assign(target, "=", _) => {
-                let (declared, ty) = crate::syntax::typed::declared_local(target)?;
-                (declared == name).then_some((ty, stmt.offset))
+        // The body's declarations are found once, in a map counted as it
+        // grows, a step a statement, rather than searched for each
+        // assignment; the first declaration of a name is the one.
+        if self.frame.declared.is_none() {
+            if self.meter.charge(module.body.len() as u64) {
+                return None;
             }
-            _ => None,
-        })?;
-        Some(self.annotation(ty, Some(ns), offset as usize))
+            let tables = self.meter.tables();
+            let mut declared = CountedMap::new();
+            let mut names = 0;
+            for (index, stmt) in module.body.iter().enumerate() {
+                let Statement::Assign(target, "=", _) = &stmt.node else {
+                    continue;
+                };
+                let Some((name, _)) = crate::syntax::typed::declared_local(target) else {
+                    continue;
+                };
+                let name = name.as_str();
+                if declared.contains_key(name) {
+                    continue;
+                }
+                if declared
+                    .insert_made(tables, name.len(), || name.to_owned(), index as u32)
+                    .is_err()
+                {
+                    return None;
+                }
+                names += name.len();
+            }
+            self.frame.declared = Some((declared, names));
+        }
+        let &index = self.frame.declared.as_ref()?.0.get(name)?;
+        let stmt = &module.body[index as usize];
+        let Statement::Assign(target, "=", _) = &stmt.node else {
+            return None;
+        };
+        let (_, ty) = crate::syntax::typed::declared_local(target)?;
+        Some(self.annotation(ty, Some(ns), stmt.offset as usize))
     }
 
     /// Assigns a class variable, which its class or module body declares
@@ -3161,12 +3200,18 @@ impl<'a> Checker<'a> {
         let Some(module) = self.program.namespaces[ns as usize].module else {
             return false;
         };
-        module.body.iter().any(|stmt| match &stmt.node {
-            Statement::Assign(Target::Value(assigned), "=", _) => {
-                assigned.offset == target.offset && stmt.offset == target.offset
-            }
-            _ => false,
-        })
+        // The body's statements are in source order, so the one at the
+        // target's offset is found by search rather than by a scan.
+        let Ok(at) = module
+            .body
+            .binary_search_by_key(&target.offset, |stmt| stmt.offset)
+        else {
+            return false;
+        };
+        matches!(
+            &module.body[at].node,
+            Statement::Assign(Target::Value(assigned), "=", _) if assigned.offset == target.offset
+        )
     }
 
     pub(super) fn mark_ivar_assigned(&mut self, name: &str) {

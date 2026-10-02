@@ -2254,7 +2254,13 @@ fn the_checkers_time_per_step_stays_flat_as_names_and_parameters_grow() {
     let _serial = SERIAL
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let shapes: [Shape; 5] = [
+    let shapes: [Shape; 6] = [
+        // Each constant a module body assigns is looked for among the
+        // body's annotated declarations.
+        ("a module body assigning many constants", |n| {
+            let constants = lines(n, |i| format!("  C{i} = {i}\n"));
+            (Vec::new(), format!("module M\n{constants}end\np(1)\n"))
+        }),
         // Each assignment relates a shape of one long key to a union of it
         // and a class, which an index files by the shape's keys.
         ("a long-keyed shape assigned to unions of it", |n| {
