@@ -690,6 +690,10 @@ impl<'a> Checker<'a> {
         // exports and its origin, with their copies of their names and
         // room for them in the tables, before they are kept.
         for (name, sig) in &functions {
+            if self.meter.pace(1 + (name.len() / 64) as u64, 0) {
+                self.release(found + tree);
+                return Err("the check ran out of its budget".into());
+            }
             if self.modules.published.contains_key(name) {
                 continue;
             }
@@ -756,37 +760,40 @@ impl<'a> Checker<'a> {
     /// signatures. The type table moves rather than being copied.
     pub(super) fn export_bytes(&self) -> usize {
         use std::mem::size_of;
-        let functions: usize = self
-            .program
-            .functions
-            .iter()
-            .filter(|(_, id)| self.program.fns[**id].def.is_some_and(|def| !def.private))
-            .map(|(name, id)| {
-                size_of::<(String, Sig)>() + name.len() + self.program.fns[*id].sig.as_ref().heap()
-            })
-            .sum();
-        let enums = self.parsed.enums.len() * size_of::<Arc<Enum>>();
-        let classes: usize = self
-            .program
-            .namespaces
-            .iter()
-            .filter(|namespace| namespace.module.is_some() && namespace.is_class)
-            .map(|namespace| {
-                size_of::<ExportedClass>()
-                    + namespace.name.len()
-                    + namespace
-                        .methods
-                        .iter()
-                        .filter(|(name, _)| name.as_str() != "initialize")
-                        .map(|(name, &id)| {
-                            size_of::<(String, Sig, Visibility)>()
-                                + name.len()
-                                + self.program.fns[id].sig.as_ref().heap()
-                        })
-                        .sum::<usize>()
-            })
-            .sum();
-        functions + enums + classes
+        let mut bytes = self.parsed.enums.len() * size_of::<Arc<Enum>>();
+        for (name, &id) in &self.program.functions {
+            if self.meter.charge(1) {
+                return 0;
+            }
+            if self.program.fns[id].def.is_some_and(|def| !def.private) {
+                let Some(sig) = sig_bytes(&self.program.fns[id].sig, &self.meter) else {
+                    return 0;
+                };
+                bytes += size_of::<(String, Sig)>() + name.len() + sig;
+            }
+        }
+        for namespace in self.program.namespaces.iter() {
+            if self.meter.charge(1) {
+                return 0;
+            }
+            if namespace.module.is_none() || !namespace.is_class {
+                continue;
+            }
+            bytes += size_of::<ExportedClass>() + namespace.name.len();
+            for (name, &id) in &namespace.methods {
+                if self.meter.charge(1) {
+                    return 0;
+                }
+                if name == "initialize" {
+                    continue;
+                }
+                let Some(sig) = sig_bytes(&self.program.fns[id].sig, &self.meter) else {
+                    return 0;
+                };
+                bytes += size_of::<(String, Sig, Visibility)>() + name.len() + sig;
+            }
+        }
+        bytes
     }
 
     /// `None` when a sort the budget refuses stops the check, which then
@@ -796,42 +803,73 @@ impl<'a> Checker<'a> {
         // [`Self::export_bytes`] counted.
         let program = &self.program;
         let public = |id: FnId| program.fns[id].def.is_some_and(|def| !def.private);
-        let exported = program.functions.values().filter(|&&id| public(id)).count();
+        let exported = program
+            .functions
+            .values()
+            .take_while(|_| !self.meter.charge(1))
+            .filter(|&&id| public(id))
+            .count();
+        if self.meter.stopped() {
+            return None;
+        }
         let mut functions: Vec<(String, Sig)> = Vec::with_capacity(exported);
-        functions.extend(
-            program
-                .functions
-                .iter()
-                .filter(|&(_, &id)| public(id))
-                .map(|(name, &id)| ((*name).to_owned(), (*program.fns[id].sig).clone())),
-        );
+        for (name, &id) in &program.functions {
+            if self.meter.pace(1 + (name.len() / 64) as u64, 0) {
+                return None;
+            }
+            if public(id) {
+                let sig = copy_sig(&program.fns[id].sig, &self.meter)?;
+                functions.push(((*name).to_owned(), sig));
+            }
+        }
         super::counted::sort_unstable_by(&self.meter, &mut functions, |a, b| a.0.cmp(&b.0)).ok()?;
         // The file's own enums come first; imported ones follow.
+        if self.meter.pace(self.parsed.enums.len() as u64, 0) {
+            return None;
+        }
         let enums = program.enums[..self.parsed.enums.len()].to_vec();
         let class = |namespace: &Namespace<'_>| namespace.module.is_some() && namespace.is_class;
         let count = program
             .namespaces
             .iter()
+            .take_while(|_| !self.meter.charge(1))
             .filter(|&namespace| class(namespace))
             .count();
+        if self.meter.stopped() {
+            return None;
+        }
         let mut classes = Vec::with_capacity(count);
         for (ns, namespace) in program.namespaces.iter().enumerate() {
+            if self.meter.pace(1 + (namespace.name.len() / 64) as u64, 0) {
+                return None;
+            }
             if !class(namespace) {
                 continue;
             }
             let exported = |name: &&String| name.as_str() != "initialize";
-            let count = namespace.methods.keys().filter(exported).count();
+            let count = namespace
+                .methods
+                .keys()
+                .take_while(|_| !self.meter.charge(1))
+                .filter(exported)
+                .count();
+            if self.meter.stopped() {
+                return None;
+            }
             let mut methods: Vec<(String, Sig, Visibility)> = Vec::with_capacity(count);
-            methods.extend(
-                namespace
-                    .methods
-                    .iter()
-                    .filter(|(name, _)| exported(name))
-                    .map(|(name, &id)| {
-                        let decl = &program.fns[id];
-                        (name.clone(), (*decl.sig).clone(), decl.visibility)
-                    }),
-            );
+            for (name, &id) in &namespace.methods {
+                if self.meter.pace(1 + (name.len() / 64) as u64, 0) {
+                    return None;
+                }
+                if exported(&name) {
+                    let decl = &program.fns[id];
+                    methods.push((
+                        name.clone(),
+                        copy_sig(&decl.sig, &self.meter)?,
+                        decl.visibility,
+                    ));
+                }
+            }
             super::counted::sort_unstable_by(&self.meter, &mut methods, |a, b| a.0.cmp(&b.0))
                 .ok()?;
             classes.push(ExportedClass {
@@ -900,6 +938,9 @@ impl<'a> Checker<'a> {
             imports.enums.push(id);
         }
         for class in &exported.classes {
+            if self.meter.pace(1 + (class.name.len() / 64) as u64, 0) {
+                break;
+            }
             // The class, its two copies of its name and room for it in both
             // tables are counted before either changes.
             let declarations = self.meter.declarations();
@@ -1022,8 +1063,14 @@ impl<'a> Checker<'a> {
     /// counts before it is made; `None` once the check stops, which makes
     /// no more of it.
     fn import_sig(&mut self, from: &Types, sig: &Sig, imports: &Imports) -> Option<Sig> {
+        if self.meter.pace(1 + (sig.name.len() / 64) as u64, 0) {
+            return None;
+        }
         let mut params = Vec::with_capacity(sig.params.len());
         for param in &sig.params {
+            if self.meter.pace(1 + (param.name.len() / 64) as u64, 0) {
+                return None;
+            }
             let ty = self.import_ty(from, param.ty, imports)?;
             params.push(Param {
                 ty,
@@ -1160,9 +1207,13 @@ impl<'a> Checker<'a> {
     ) -> Option<Vec<Field>> {
         let mut imported = Vec::with_capacity(fields.len());
         for field in fields {
+            let ty = self.import_ty(from, field.ty, imports)?;
+            if self.meter.pace(1 + (field.name.len() / 64) as u64, 0) {
+                return None;
+            }
             imported.push(Field {
                 name: field.name.clone(),
-                ty: self.import_ty(from, field.ty, imports)?,
+                ty,
                 optional: field.optional,
             });
         }
@@ -1199,6 +1250,73 @@ impl<'a> Checker<'a> {
 }
 
 type Request<'a> = (&'a [u8], Option<&'a [u8]>, usize);
+
+/// The exact payload copied by an exported signature, paced while measured.
+fn sig_bytes(sig: &Sig, meter: &super::meter::Meter) -> Option<usize> {
+    if meter.pace(1 + (sig.name.len() / 64) as u64, 0) {
+        return None;
+    }
+    let mut bytes = sig.name.len()
+        + sig.params.len() * std::mem::size_of::<Param>()
+        + sig.vars.len() * std::mem::size_of::<super::sigs::Var>()
+        + sig
+            .block
+            .as_ref()
+            .map_or(0, |block| block.params.len() * std::mem::size_of::<Ty>());
+    for name in sig
+        .params
+        .iter()
+        .map(|param| &param.name)
+        .chain(sig.vars.iter().map(|var| &var.name))
+    {
+        if meter.pace(1 + (name.len() / 64) as u64, 0) {
+            return None;
+        }
+        bytes += name.len();
+    }
+    Some(bytes)
+}
+
+/// Copies a signature into space its exporter already holds.
+fn copy_sig(sig: &Sig, meter: &super::meter::Meter) -> Option<Sig> {
+    if meter.pace(1, 0) {
+        return None;
+    }
+    let mut params = Vec::with_capacity(sig.params.len());
+    for param in &sig.params {
+        if meter.pace(1 + (param.name.len() / 64) as u64, 0) {
+            return None;
+        }
+        params.push(param.clone());
+    }
+    let mut vars = Vec::with_capacity(sig.vars.len());
+    for var in &sig.vars {
+        if meter.pace(1 + (var.name.len() / 64) as u64, 0) {
+            return None;
+        }
+        vars.push(var.clone());
+    }
+    if meter.pace(
+        1 + (sig.name.len() / 64) as u64
+            + sig
+                .block
+                .as_ref()
+                .map_or(0, |block| block.params.len() as u64),
+        0,
+    ) {
+        return None;
+    }
+    Some(Sig {
+        name: sig.name.clone(),
+        params,
+        vars,
+        block: sig.block.clone(),
+        result: sig.result,
+        breaks: sig.breaks,
+        converts: sig.converts,
+        id: sig.id,
+    })
+}
 
 /// Adds the literal paths, and aliases, of the `require` calls in `body` to
 /// `out`, borrowing the literals while walking it with `walk`.

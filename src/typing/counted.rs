@@ -2094,7 +2094,7 @@ mod tests {
         ("flow.rs", [0, 0, 0, 6]),
         ("foreign.rs", [1, 0, 0, 0]),
         ("marks.rs", [2, 0, 0, 1]),
-        ("modules.rs", [0, 0, 0, 9]),
+        ("modules.rs", [0, 0, 0, 11]),
         ("program.rs", [0, 0, 0, 8]),
         ("sigs.rs", [0, 1, 9, 0]),
         ("spans.rs", [0, 0, 0, 1]),
@@ -2336,7 +2336,7 @@ mod tests {
         ("check.rs", [2, 0, 1]),
         // A required file's classes, signatures and fields, which its
         // importer counts first.
-        ("modules.rs", [3, 0, 0]),
+        ("modules.rs", [7, 0, 0]),
         // A function's parameters; the builtin namespaces', and the
         // enums' and their names, which keep their places.
         ("program.rs", [1, 1, 0]),
