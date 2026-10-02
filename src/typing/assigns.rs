@@ -410,6 +410,12 @@ impl<'a> Walk<'a, '_> {
             if self.visit() {
                 return self.span(start);
             }
+            // A statement too tall to check on this platform is refused
+            // where the checker reaches it, and is not entered here, where
+            // the walk recurses once for each statement nested in another.
+            if super::too_tall(stmt.height()) {
+                continue;
+            }
             match &stmt.node {
                 Statement::Assign(target, _, value) => {
                     self.target(target);

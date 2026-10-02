@@ -164,3 +164,39 @@ fn elsif_chains_and_deep_aliases_do_not_nest() {
         script.call("run", &[], CallOptions::default()).unwrap();
     }
 }
+
+#[test]
+fn every_form_reaches_the_reference_depth_in_a_required_file() {
+    // A required file's functions have their assignments listed before
+    // their bodies are checked, as deep as the parser allows, and listing
+    // them may not exhaust the checker's stack either.
+    // A host checks a short script on its own thread, which a required
+    // file's check shares; natively the test gives it the stack a long
+    // script's check takes, so on WASI, which has no threads, it shows
+    // what the host's stack holds.
+    let check = || {
+        for &(name, prefix, inner, suffix, depth) in FORMS {
+            let file = format!("x = 1\n{}", nested(prefix, inner, suffix, depth));
+            let mut engine = Engine::new();
+            engine
+                .set_module_sources(std::collections::BTreeMap::from([(
+                    "deep.vibe".to_owned(),
+                    file,
+                )]))
+                .unwrap();
+            if let Err(error) = engine.compile("require(\"deep\")\n") {
+                assert_eq!(error.kind, ErrorKind::Type, "{name}: {error}");
+            }
+        }
+    };
+    if cfg!(target_os = "wasi") {
+        check();
+    } else {
+        std::thread::Builder::new()
+            .stack_size(64 << 20)
+            .spawn(check)
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+}
