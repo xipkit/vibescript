@@ -730,7 +730,15 @@ impl<'a> Checker<'a> {
         }
         let roster: super::construction::Roster = unassigned.into();
         // Each default sees the same set, less what the ones before it
-        // assign, shared with the uses of `self` in them rather than copied.
+        // assign, shared with the uses of `self` in them rather than copied,
+        // whose nodes are held before they are made, while it lives.
+        let Some(set) = self.hold(super::marks::Marks::most(roster.len())) else {
+            self.release(held);
+            self.leave_frame(body);
+            self.leave_frame(previous);
+            return;
+        };
+        let held = held + set;
         let mut building = super::construction::Unassigned::all(roster);
         for (stmt, assigned) in defaults.iter() {
             self.frame.building = Some(building.clone());

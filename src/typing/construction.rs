@@ -334,7 +334,12 @@ impl<'a> Checker<'a> {
         let Some(mut unassigned) = self.unassigned() else {
             return;
         };
-        // The site counts the path the removal copies.
+        // The path the removal copies is held before it is made, until
+        // the site, which counts what it keeps, takes it.
+        let copied = stored.as_ref().map_or(0, |stored| unassigned.cost(stored));
+        let Some(held) = self.hold(copied) else {
+            return;
+        };
         if let Some(stored) = &stored {
             unassigned.remove(stored);
         }
@@ -346,6 +351,7 @@ impl<'a> Checker<'a> {
                 span,
             });
         }
+        self.release(held);
     }
 
     /// Checks `receiver` of a call of `member`. When it is `self` and the
