@@ -503,8 +503,15 @@ fn the_checkers_memory_counts_every_table_it_keeps() {
     );
     let engine = Engine::new();
     assert!(engine.type_check(&source).unwrap().peak_bytes > 16 << 20);
+    let options = CallOptions {
+        limits: Limits {
+            steps: None,
+            ..Limits::default()
+        },
+        ..CallOptions::default()
+    };
     let error = engine
-        .compile_with_options(&source, &CallOptions::default())
+        .compile_with_options(&source, &options)
         .err()
         .unwrap();
     assert_eq!(error.kind, ErrorKind::Memory);

@@ -476,6 +476,22 @@ impl Types {
         }
         // Hashing the kind walks it as far as measuring it does, and a
         // check that measure stops adds nothing.
+        let work = match &kind {
+            Kind::Shape(fields, _) => {
+                for field in fields {
+                    if self.meter.pace(1 + (field.name.len() / 64) as u64, 0) {
+                        return Ty::ERROR;
+                    }
+                }
+                0
+            }
+            Kind::Tuple(items) | Kind::Union(items) => items.len(),
+            Kind::SymbolLit(name) => name.len(),
+            _ => 0,
+        };
+        if self.work(work) {
+            return Ty::ERROR;
+        }
         let heap = kind.heap();
         if self.transient(heap) {
             return Ty::ERROR;
@@ -630,6 +646,16 @@ impl Types {
         // Sorted, once the sort's steps and the copy a stable sort keeps
         // are counted; the limit counts the distinct names, which a later
         // field of a name already given does not add to.
+        let rounds = usize::BITS - fields.len().leading_zeros();
+        for field in &fields {
+            if self.meter.pace(
+                1 + (field.name.len().saturating_mul(rounds as usize) / 64) as u64,
+                0,
+            ) {
+                self.release(held);
+                return Ty::ERROR;
+            }
+        }
         fields.reverse();
         let sorted = super::counted::sort_by(&self.meter, &mut fields, |a, b| a.name.cmp(&b.name));
         if sorted.is_err() {
@@ -1040,7 +1066,15 @@ impl Types {
         let (mut i, mut j) = (0, 0);
         while i < a.len() || j < b.len() {
             let order = match (a.get(i), b.get(j)) {
-                (Some(x), Some(y)) => x.name.cmp(&y.name),
+                (Some(x), Some(y)) => {
+                    if self
+                        .meter
+                        .pace(1 + (x.name.len().min(y.name.len()) / 64) as u64, 0)
+                    {
+                        return true;
+                    }
+                    x.name.cmp(&y.name)
+                }
                 (Some(_), None) => std::cmp::Ordering::Less,
                 _ => std::cmp::Ordering::Greater,
             };
@@ -1378,7 +1412,7 @@ impl Types {
     /// each written apart, to be put in order, and then moved into `out`,
     /// which takes no more room.
     fn write(&self, ty: Ty, out: &mut String, room: &mut usize) {
-        if *room == 0 {
+        if *room == 0 || self.meter.charge(1) {
             return;
         }
         match self.kind(ty) {
@@ -1423,6 +1457,9 @@ impl Types {
                     }
                     if index > 0 {
                         put(out, ", ", room);
+                    }
+                    if self.meter.pace(1 + (field.name.len() / 64) as u64, 0) {
+                        return;
                     }
                     write_field_name(&field.name, out, room);
                     if field.optional {
