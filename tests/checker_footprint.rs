@@ -660,6 +660,21 @@ fn adversarial() -> Vec<(String, String)> {
             ")".repeat(depth)
         ),
     ));
+    let reviewed = [
+        "a call of a wide positional signature",
+        "many construction methods with one call each",
+        "a shape hint checking a long literal field",
+        "a hash literal with a long non-UTF-8 key",
+        "an incomplete shape with a long non-UTF-8 key",
+        "an enum-symbol mismatch of long matching names",
+    ];
+    for (name, shape) in shapes() {
+        if reviewed.contains(&name) {
+            let (files, source) = shape(if small { 64 } else { 2_000 });
+            assert!(files.is_empty());
+            programs.push((name.to_owned(), source));
+        }
+    }
     programs
 }
 
@@ -1038,7 +1053,7 @@ fn shapes() -> Vec<Shape> {
             let key = "k".repeat(n * 64);
             (
                 Vec::new(),
-                format!("def f -> {{ {key}: int }}\n  {{\"{key}\" => 1}}\nend\np(1)\n"),
+                format!("def f -> {{ {key}: int }}\n  {{\"{key}\": 1}}\nend\np(1)\n"),
             )
         }),
         ("a wide union", |n| {
@@ -1199,9 +1214,7 @@ fn shapes() -> Vec<Shape> {
             )
         }),
         ("many construction methods with one call each", |n| {
-            let methods = lines(n, |i| {
-                format!("  def m{i} -> int\n    self.value\n  end\n")
-            });
+            let methods = lines(n, |i| format!("  def m{i} -> int\n    self.value\n  end\n"));
             (
                 Vec::new(),
                 format!(
@@ -1600,13 +1613,13 @@ fn shapes() -> Vec<Shape> {
         }),
         ("a hash literal with a long non-UTF-8 key", |n| {
             let key = "\\xff".repeat(n * 64);
-            (Vec::new(), format!("x = {{\"{key}\" => 1}}\np(1)\n"))
+            (Vec::new(), format!("x = {{\"{key}\": 1}}\np(1)\n"))
         }),
         ("an incomplete shape with a long non-UTF-8 key", |n| {
             let key = "\\xff".repeat(n * 64);
             (
                 Vec::new(),
-                format!("def f -> {{ a: int, ... }}\n  {{\"{key}\" => 1}}\nend\np(1)\n"),
+                format!("def f -> {{ a: int, ... }}\n  {{\"{key}\": 1}}\nend\np(1)\n"),
             )
         }),
         // A required file's methods call each other in a cycle, which
