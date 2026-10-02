@@ -855,7 +855,15 @@ impl<'a> Checker<'a> {
         if self.declaring() {
             return true;
         }
-        let mut levels = vec![(module.modules.iter().chain(module.inner.iter()), first)];
+        // The levels are counted, with their growth admitted first, while
+        // they live: a namespace's nested namespaces above its inner ones,
+        // so they are declared first.
+        let mut levels = ScratchVec::new(&self.meter);
+        if levels.push((module.inner.iter(), first)).is_err()
+            || levels.push((module.modules.iter(), first)).is_err()
+        {
+            return true;
+        }
         // The namespaces declared since the meter was last charged.
         let mut unpaced = 1;
         while let Some((level, parent)) = levels.last_mut() {
@@ -866,7 +874,7 @@ impl<'a> Checker<'a> {
             };
             if unpaced == 64 {
                 unpaced = 0;
-                if self.meter.pace(64, super::meter::vec(&levels)) {
+                if self.meter.pace(64, 0) {
                     break;
                 }
             }
@@ -877,7 +885,11 @@ impl<'a> Checker<'a> {
             if self.declaring() {
                 break;
             }
-            levels.push((module.modules.iter().chain(module.inner.iter()), id));
+            if levels.push((module.inner.iter(), id)).is_err()
+                || levels.push((module.modules.iter(), id)).is_err()
+            {
+                break;
+            }
         }
         self.meter.charge(unpaced) || self.halted()
     }

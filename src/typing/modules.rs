@@ -233,8 +233,13 @@ impl<'a> Checker<'a> {
             requires(&mut walk, &function.body, &mut requests, &mut found);
         }
         // What is left of the namespaces at each level of nesting, whose
-        // bodies and methods are walked in turn.
-        let mut levels = vec![parsed.modules.iter().chain([].iter())];
+        // bodies and methods are walked in turn, in a list counted, with
+        // its growth admitted first, while it lives: a namespace's nested
+        // namespaces, above its inner ones, so they are walked first.
+        let mut levels = ScratchVec::new(&self.meter);
+        if levels.push(parsed.modules.iter()).is_err() {
+            return;
+        }
         while let Some(level) = levels.last_mut() {
             if self.halted() {
                 return;
@@ -250,9 +255,14 @@ impl<'a> Checker<'a> {
                 }
                 requires(&mut walk, &def.body, &mut requests, &mut found);
             }
-            levels.push(module.modules.iter().chain(module.inner.iter()));
+            if levels.push(module.inner.iter()).is_err()
+                || levels.push(module.modules.iter()).is_err()
+            {
+                return;
+            }
         }
-        let scratch = walk.bytes() + super::meter::vec(&levels);
+        drop(levels);
+        let scratch = walk.bytes();
         drop(walk);
         // A check past its budget loads no files. The requests, with the
         // paths and aliases they copy, are held while the files load.

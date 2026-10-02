@@ -174,6 +174,14 @@ impl<T: ?Sized> Owned for &T {
     }
 }
 
+/// A cursor into a list another owns, such as what is left of a level of
+/// a walk.
+impl<T> Owned for std::slice::Iter<'_, T> {
+    fn owned(&self) -> usize {
+        0
+    }
+}
+
 impl<T: ?Sized> Owned for std::rc::Rc<T> {
     fn owned(&self) -> usize {
         0
@@ -1786,8 +1794,8 @@ mod tests {
         ("flow.rs", [0, 0, 0, 6]),
         ("foreign.rs", [1, 0, 0, 0]),
         ("marks.rs", [2, 0, 0, 1]),
-        ("modules.rs", [0, 0, 0, 10]),
-        ("program.rs", [0, 0, 0, 15]),
+        ("modules.rs", [0, 0, 0, 9]),
+        ("program.rs", [0, 0, 0, 14]),
         ("sigs.rs", [0, 1, 9, 0]),
         ("ty.rs", [10, 2, 0, 1]),
     ];
