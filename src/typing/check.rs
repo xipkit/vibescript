@@ -1212,10 +1212,13 @@ impl<'a> Checker<'a> {
             .iter()
             .map(|(&id, (read, _))| (id, (**read).clone()))
             .collect();
-        if self.grow(reads.heap()) {
+        // The copy, and the names added to it, are held while this runs,
+        // and given back with it.
+        let Some(copied) = self.hold(reads.heap()) else {
             self.release(taken);
             return;
-        }
+        };
+        let mut taken = taken + copied;
         // A function called many times reads the same variables at every
         // call, so each caller's callees are taken once each.
         for (_, callees) in uses.values_mut() {
@@ -1258,10 +1261,11 @@ impl<'a> Checker<'a> {
                         // The copy, and its room in the set, are counted
                         // before it is made.
                         let bytes = super::meter::btree_entry(&entry) + name.len();
-                        if self.grow(bytes) {
+                        let Some(added) = self.hold(bytes) else {
                             self.release(taken);
                             return;
-                        }
+                        };
+                        taken += added;
                         entry.insert(name.clone());
                         changed = true;
                     }
