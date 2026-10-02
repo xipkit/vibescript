@@ -90,6 +90,29 @@ pub(crate) struct Exits {
     pub nexts: CountedVec<Branch>,
     /// The types of the values `break` gives.
     pub values: CountedVec<Ty>,
+    /// What the states at the breaks and nexts own, kept as they are
+    /// recorded, so a measure of the exits takes no walk over them.
+    owned: usize,
+}
+
+impl Exits {
+    /// Records the state at a `break`, when `leaves`, or at a `next`,
+    /// counted with what it owns before it is kept.
+    pub fn record(
+        &mut self,
+        tables: super::counted::Ledger<'_>,
+        branch: Branch,
+        leaves: bool,
+    ) -> Result<(), super::counted::Refused> {
+        let owned = super::counted::Owned::owned(&branch);
+        if leaves {
+            self.breaks.push(tables, branch)?;
+        } else {
+            self.nexts.push(tables, branch)?;
+        }
+        self.owned += owned;
+        Ok(())
+    }
 }
 
 /// The type a `break` value out of a script function's block must have:
@@ -265,7 +288,11 @@ impl Heap for Context {
 
 impl Heap for Exits {
     fn heap(&self) -> usize {
-        self.breaks.heap() + self.nexts.heap() + super::meter::vec(self.values.as_vec())
+        use super::meter::vec;
+        vec(self.breaks.as_vec())
+            + vec(self.nexts.as_vec())
+            + self.owned
+            + vec(self.values.as_vec())
     }
 }
 
@@ -2162,7 +2189,7 @@ impl<'a> Checker<'a> {
         let tables = self.meter.tables();
         let exits = self.frame.contexts.last_mut().unwrap().exits();
         // A check the budget stops records neither.
-        if exits.values.reserve(tables, 1).is_ok() && exits.breaks.push(tables, branch).is_ok() {
+        if exits.values.reserve(tables, 1).is_ok() && exits.record(tables, branch, true).is_ok() {
             exits.values.push_within(value);
         }
     }
@@ -2178,11 +2205,7 @@ impl<'a> Checker<'a> {
         let branch = self.frame.flow.peek(context.mark());
         let tables = self.meter.tables();
         let exits = self.frame.contexts.last_mut().unwrap().exits();
-        let kept = if leaves {
-            exits.breaks.push(tables, branch)
-        } else {
-            exits.nexts.push(tables, branch)
-        };
+        let kept = exits.record(tables, branch, leaves);
         // A check the budget stops keeps no more of them.
         if kept.is_err() {
             self.frame.flow.live = false;

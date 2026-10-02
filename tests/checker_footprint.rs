@@ -2254,7 +2254,16 @@ fn the_checkers_time_per_step_stays_flat_as_names_and_parameters_grow() {
     let _serial = SERIAL
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let shapes: [Shape; 9] = [
+    let shapes: [Shape; 10] = [
+        // Each `break` a loop's body may take leaves its state with the
+        // loop, which every measure of what the check holds counts.
+        ("a loop of many conditional breaks", |n| {
+            let breaks = lines(4 * n, |_| "    if b\n      break\n    end\n".to_owned());
+            (
+                Vec::new(),
+                format!("def f(b: bool) -> int\n  while b\n{breaks}  end\n  1\nend\np(1)\n"),
+            )
+        }),
         // Each call of a method while one instance variable is left
         // unassigned reads which are, of many the constructor assigned.
         (
