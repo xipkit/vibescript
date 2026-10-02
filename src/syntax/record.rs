@@ -319,19 +319,19 @@ fn payload(token: &super::lexer::Token<'_>, pace: &mut Pace<'_>) -> Result<usize
         Token::Symbol(name) => name.len(),
         Token::QuotedSymbol(name) => name.len(),
         Token::Bytes(bytes) => bytes.len(),
-        Token::Template(parts) => parts.len() * std::mem::size_of::<std::ops::Range<usize>>(),
+        Token::Template(parts) => {
+            let mut count = 0;
+            for part in parts.iter() {
+                pace.read()?;
+                count += usize::from(matches!(part, Part::Expr(..)));
+            }
+            count * std::mem::size_of::<std::ops::Range<usize>>()
+        }
         Token::Words(words) => {
             let mut held = 0;
             for entry in words.entries.iter() {
                 pace.read()?;
-                held += std::mem::size_of::<Option<Vec<u8>>>()
-                    + entry
-                        .iter()
-                        .map(|part| match part {
-                            Part::Text(bytes) => bytes.len(),
-                            Part::Expr(..) => 0,
-                        })
-                        .sum::<usize>();
+                held += std::mem::size_of::<Option<Vec<u8>>>() + text_length(entry).unwrap_or(0);
             }
             held
         }
@@ -407,15 +407,19 @@ fn token_list(
             Token::Int(_) | Token::BigInt(..) => TokenKind::Integer,
             Token::Float(_) => TokenKind::Float,
             Token::Bytes(bytes) => TokenKind::String(bytes.as_ref().to_vec()),
-            Token::Template(parts) => TokenKind::Template(
-                parts
+            Token::Template(parts) => {
+                let count = parts
                     .iter()
-                    .filter_map(|part| match part {
-                        Part::Expr(_, (start, end)) => Some(*start as usize..*end as usize - 1),
-                        Part::Text(_) => None,
-                    })
-                    .collect(),
-            ),
+                    .filter(|part| matches!(part, Part::Expr(..)))
+                    .count();
+                let mut spans = Vec::with_capacity(count);
+                for part in parts.iter() {
+                    if let Part::Expr(_, (start, end)) = part {
+                        spans.push(*start as usize..*end as usize - 1);
+                    }
+                }
+                TokenKind::Template(spans)
+            }
             Token::Words(words) => TokenKind::Words {
                 symbols: words.symbol,
                 entries: words.entries.iter().map(|entry| text(entry)).collect(),
@@ -438,4 +442,33 @@ fn token_list(
     }
     pace.finish()?;
     Ok((tokens, held))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{CallContext, CallOptions, compilation::Meter, typing::Heap};
+    use std::cell::RefCell;
+
+    #[test]
+    fn recorded_payload_reserves_only_the_storage_it_builds() {
+        for source in [
+            format!("%W[{}#{{1}}]", "x".repeat(32_768)),
+            format!("\"{}\"", "#{1}".repeat(257)),
+        ] {
+            let parsing =
+                Parsing::<super::super::recovery::FailFast>::new(parser(&source, &()).unwrap());
+            parsing.run(Call::Program).unwrap();
+            let parser = parsing.parser.into_inner();
+            let mut context = CallContext::new(CallOptions::default());
+            let (tokens, held) =
+                token_list(&source, &parser, &Meter(RefCell::new(&mut context))).unwrap();
+            let actual = tokens.capacity() * size_of::<crate::tooling::Token>()
+                + tokens.iter().map(Heap::heap).sum::<usize>();
+            assert_eq!(context.stats().retained_memory_bytes, actual);
+            drop(tokens);
+            drop(held);
+            assert_eq!(context.stats().retained_memory_bytes, 0);
+        }
+    }
 }
