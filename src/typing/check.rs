@@ -280,11 +280,22 @@ impl Want {
     }
 }
 
-/// Narrowings a condition implies for locals, when it holds and when not.
-#[derive(Default, Clone)]
+/// Narrowings a condition implies for locals, when it holds and when not,
+/// each in a list counted while it lives, so a condition composed of many
+/// is counted at every level as its lists grow.
 pub(crate) struct Narrow {
-    pub then: Vec<(LocalId, Ty)>,
-    pub otherwise: Vec<(LocalId, Ty)>,
+    pub then: ScratchVec<(LocalId, Ty)>,
+    pub otherwise: ScratchVec<(LocalId, Ty)>,
+}
+
+impl Narrow {
+    /// None, in lists that count with `meter`.
+    pub fn new(meter: &std::sync::Arc<super::meter::Meter>) -> Self {
+        Self {
+            then: ScratchVec::new(meter),
+            otherwise: ScratchVec::new(meter),
+        }
+    }
 }
 
 impl<'a> Checker<'a> {
@@ -3224,10 +3235,15 @@ impl<'a> Checker<'a> {
                 let (rt, rn) = self.condition_parts(right);
                 self.require_bool(right, rt, "&&");
                 self.frame.flow.rollback(mark);
-                let mut then = ln.then.clone();
-                then.extend(rn.then.iter().copied());
-                let otherwise = self
-                    .join_narrowings(&ln.otherwise, &merge(&self.meter, &ln.then, &rn.otherwise));
+                let merged = merge(&self.meter, &ln.then, &rn.otherwise);
+                let otherwise = self.join_narrowings(&ln.otherwise, &merged);
+                drop(merged);
+                // The left's list takes the right's, its growth counted
+                // first; a refusal stops the check.
+                let mut then = ln.then;
+                if then.extend_from_slice(&rn.then).is_err() {
+                    return (Ty::ERROR, Narrow::new(&self.meter));
+                }
                 (Ty::BOOL, Narrow { then, otherwise })
             }
             Node::Binary("||", left, right) => {
@@ -3238,10 +3254,13 @@ impl<'a> Checker<'a> {
                 let (rt, rn) = self.condition_parts(right);
                 self.require_bool(right, rt, "||");
                 self.frame.flow.rollback(mark);
-                let mut otherwise = ln.otherwise.clone();
-                otherwise.extend(rn.otherwise.iter().copied());
-                let then =
-                    self.join_narrowings(&ln.then, &merge(&self.meter, &ln.otherwise, &rn.then));
+                let merged = merge(&self.meter, &ln.otherwise, &rn.then);
+                let then = self.join_narrowings(&ln.then, &merged);
+                drop(merged);
+                let mut otherwise = ln.otherwise;
+                if otherwise.extend_from_slice(&rn.otherwise).is_err() {
+                    return (Ty::ERROR, Narrow::new(&self.meter));
+                }
                 (Ty::BOOL, Narrow { then, otherwise })
             }
             Node::Binary(op @ ("==" | "!="), left, right) => {
@@ -3251,7 +3270,7 @@ impl<'a> Checker<'a> {
                     (Node::Literal(v), _) if v.type_name() == "nil" => Some(&**right),
                     _ => None,
                 };
-                let mut narrow = Narrow::default();
+                let mut narrow = Narrow::new(&self.meter);
                 if let Some(id) = subject.and_then(|subject| self.narrowable(subject)) {
                     let current = self.frame.flow.get(id).ty;
                     let without = self.types.without_nil(current);
@@ -3272,11 +3291,11 @@ impl<'a> Checker<'a> {
                     }
                     let nil = if optional { Ty::NIL } else { current };
                     if *op == "==" {
-                        narrow.then.push((id, nil));
-                        narrow.otherwise.push((id, without));
+                        narrow.then.add((id, nil));
+                        narrow.otherwise.add((id, without));
                     } else {
-                        narrow.then.push((id, without));
-                        narrow.otherwise.push((id, nil));
+                        narrow.then.add((id, without));
+                        narrow.otherwise.add((id, nil));
                     }
                 }
                 (ty, narrow)
@@ -3285,7 +3304,7 @@ impl<'a> Checker<'a> {
                 if name.as_str() == "is_type?" && args.len() == 1 =>
             {
                 let ty = self.expr(expr, None);
-                let mut narrow = Narrow::default();
+                let mut narrow = Narrow::new(&self.meter);
                 if let (Some(id), Some(tested)) =
                     (self.narrowable(receiver), self.type_atom(&args[0].value))
                 {
@@ -3306,19 +3325,19 @@ impl<'a> Checker<'a> {
                     } else {
                         self.types.without(current, tested)
                     };
-                    narrow.then.push((id, then));
-                    narrow.otherwise.push((id, otherwise));
+                    narrow.then.add((id, then));
+                    narrow.otherwise.add((id, otherwise));
                 }
                 (ty, narrow)
             }
             Node::Var(name) if name.as_str() == "block_given?" && self.local(name).is_none() => {
-                let mut narrow = Narrow::default();
+                let mut narrow = Narrow::new(&self.meter);
                 if let Some(id) = self.frame.block_given {
-                    narrow.then.push((id, Ty::BOOL));
+                    narrow.then.add((id, Ty::BOOL));
                 }
                 (Ty::BOOL, narrow)
             }
-            _ => (self.expr(expr, None), Narrow::default()),
+            _ => (self.expr(expr, None), Narrow::new(&self.meter)),
         }
     }
 
@@ -3339,20 +3358,24 @@ impl<'a> Checker<'a> {
     }
 
     /// Narrowings that hold on either of two paths.
-    fn join_narrowings(&mut self, a: &[(LocalId, Ty)], b: &[(LocalId, Ty)]) -> Vec<(LocalId, Ty)> {
+    fn join_narrowings(
+        &mut self,
+        a: &[(LocalId, Ty)],
+        b: &[(LocalId, Ty)],
+    ) -> ScratchVec<(LocalId, Ty)> {
         // Each narrowing of one is compared with the other's, which is
         // charged first, and the joined ones are kept in a list counted
         // while it lives.
+        let mut joined = ScratchVec::new(&self.meter);
         if self.types.work(a.len().saturating_mul(b.len())) {
-            return Vec::new();
+            return joined;
         }
-        let mut joined = super::counted::ScratchVec::new(&self.meter);
         for &(id, ty) in a {
             if let Some(&(_, other)) = b.iter().rev().find(|(other, _)| *other == id) {
                 joined.add((id, self.types.union(&[ty, other])));
             }
         }
-        joined.into_vec()
+        joined
     }
 
     /// The local an expression reads, if narrowing may apply to it.

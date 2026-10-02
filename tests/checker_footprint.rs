@@ -328,6 +328,31 @@ fn adversarial() -> Vec<(String, String)> {
             join(branches, &|i| format!("  elsif x == {i}\n    {i}\n"), "")
         ),
     ));
+    // A condition of nil tests joined in a balanced tree: each `&&` keeps
+    // the narrowings of both sides while it composes them.
+    let tests = scale(65_536);
+    let balanced = |count: usize| {
+        let mut terms: Vec<String> = (0..count).map(|i| format!("a{i} != nil")).collect();
+        while terms.len() > 1 {
+            terms = terms
+                .chunks(2)
+                .map(|pair| match pair {
+                    [left, right] => format!("({left} && {right})"),
+                    [one] => one.clone(),
+                    _ => unreachable!(),
+                })
+                .collect();
+        }
+        terms.pop().unwrap_or_default()
+    };
+    programs.push((
+        format!("a balanced condition of {tests} nil tests"),
+        format!(
+            "def f({}) -> int\n  if {}\n    1\n  else\n    0\n  end\nend\n",
+            join(tests, &|i| format!("a{i}: int?"), ", "),
+            balanced(tests)
+        ),
+    ));
     let wide = join(scale(200_000), &|_| "1".to_owned(), ", ");
     programs.push((
         "a module body holding a 200,000-element array".to_owned(),

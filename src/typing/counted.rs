@@ -1499,6 +1499,14 @@ mod tests {
     /// The lists and maps in the items the checker's state reaches, each
     /// with the item and the field that holds it.
     fn collections_in_state() -> Vec<(String, String, String)> {
+        collections(true)
+    }
+
+    /// The lists and maps in the checker's items, each with the item and the
+    /// field that holds it: those the checker's state reaches, when
+    /// `reached`, and the rest otherwise, values its operations build and
+    /// drop.
+    fn collections(reached: bool) -> Vec<(String, String, String)> {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
         let mut sources = vec![root.join("typing.rs")];
         for entry in std::fs::read_dir(root.join("typing")).unwrap() {
@@ -1522,25 +1530,28 @@ mod tests {
         }
         // What the checker's state reaches, through the types its fields
         // name.
-        let mut reached = vec!["Checker".to_owned()];
+        let mut state_reached = vec!["Checker".to_owned()];
         let mut at = 0;
-        while at < reached.len() {
-            let name = reached[at].clone();
+        while at < state_reached.len() {
+            let name = state_reached[at].clone();
             at += 1;
             for (_, fields) in items.iter().filter(|(item, _)| *item == name) {
                 for (_, ty) in fields {
                     for word in ty.split(|c: char| !c.is_alphanumeric() && c != '_') {
                         if items.iter().any(|(item, _)| item == word)
-                            && !reached.iter().any(|seen| seen == word)
+                            && !state_reached.iter().any(|seen| seen == word)
                         {
-                            reached.push(word.to_owned());
+                            state_reached.push(word.to_owned());
                         }
                     }
                 }
             }
         }
         let mut found = Vec::new();
-        for (item, fields) in items.iter().filter(|(item, _)| reached.contains(item)) {
+        for (item, fields) in items
+            .iter()
+            .filter(|(item, _)| state_reached.contains(item) == reached)
+        {
             for (field, ty) in fields {
                 for collection in [
                     "Vec<",
@@ -1678,6 +1689,62 @@ mod tests {
         parts
     }
 
+    /// The lists and maps in values the checker's operations build and
+    /// drop, outside its state, by the item that holds them and its field:
+    /// each is counted, held or checked against the budget before it is
+    /// made at the most it takes, or bounded by the engine. A value built
+    /// of others as an operation recurses, such as a condition's
+    /// narrowings, keeps its lists counted while they live, as a scratch
+    /// list does, rather than as plain ones only its last step sees.
+    const UNCOUNTED_VALUES: &[(&str, &str)] = &[
+        // What a check is given, and what it finds, which the checker
+        // counts as it finds them and its caller reserves.
+        ("Input", "hosts"),
+        ("Checked", "diagnostics"),
+        ("Checked", "locals"),
+        ("CallTypes", "entries"),
+        // The reads construction analysis finds for each method, held at
+        // the most it takes while it finds them.
+        ("Reads", "0"),
+        // A call's candidate signatures, a few of one name.
+        ("Candidate", "0"),
+        // The builtin signatures' index, made once for the engine.
+        ("Index", "globals"),
+        ("Index", "modules"),
+        ("Index", "classes"),
+        ("Index", "aliases"),
+        ("Index", "renames"),
+        // A required file's exports, counted before they are made, and the
+        // indexes importing them builds, held while it does.
+        ("Exported", "functions"),
+        ("Exported", "enums"),
+        ("Exported", "classes"),
+        ("ExportedClass", "methods"),
+        ("Imports", "enums"),
+        ("Imports", "classes"),
+        // The assignment index walk's stack, whose growth is checked
+        // against the budget as it grows.
+        ("Pending", "stack"),
+    ];
+
+    #[test]
+    fn the_checkers_values_keep_their_lists_counted() {
+        let found: Vec<String> = collections(false)
+            .into_iter()
+            .filter(|(item, field, _)| {
+                !UNCOUNTED_VALUES
+                    .iter()
+                    .any(|(allowed, name)| item == allowed && field == name)
+            })
+            .map(|(item, field, collection)| format!("{item}.{field}: {collection}"))
+            .collect();
+        assert!(
+            found.is_empty(),
+            "keep a value's lists counted while they live, or say here why a list or map need not be:\n{}",
+            found.join("\n")
+        );
+    }
+
     #[test]
     fn the_checkers_state_grows_only_through_counted_tables() {
         let found: Vec<String> = collections_in_state()
@@ -1794,7 +1861,7 @@ mod tests {
         ("calls.rs", [21, 2, 0]),
         // A union's alternatives an `is_a?` keeps, and the defaults by
         // class, counted before they are indexed at the most they take.
-        ("check.rs", [9, 1, 2]),
+        ("check.rs", [8, 1, 2]),
         // The cycle search's stack, cycles and their members, counted
         // before the search starts.
         ("construction.rs", [10, 0, 3]),
