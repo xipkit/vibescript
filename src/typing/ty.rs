@@ -605,8 +605,14 @@ impl Types {
         let mut mapped = ScratchVec::new(&self.meter);
         mapped.reserve(room).ok()?;
         for ty in types {
+            if self.stopped() {
+                return None;
+            }
             let ty = map(self, ty);
-            mapped.add(ty);
+            if self.stopped() {
+                return None;
+            }
+            mapped.push(ty).ok()?;
         }
         Some(mapped)
     }
@@ -817,7 +823,11 @@ impl Types {
                     unreachable!("a union stays one");
                 };
                 let member = members[index];
-                if !self.fits(member, to) {
+                let fits = self.fits(member, to);
+                if self.stopped() {
+                    return true;
+                }
+                if !fits {
                     return false;
                 }
             }
@@ -840,8 +850,8 @@ impl Types {
                 }
                 (0..count).all(|index| {
                     let item = self.tuple_item(from, index);
-                    self.assignable(item, element)
-                })
+                    self.assignable(item, element) && !self.stopped()
+                }) || self.stopped()
             }
             (Kind::Tuple(a), Kind::Tuple(b)) => {
                 let count = a.len();
@@ -853,8 +863,8 @@ impl Types {
                 }
                 (0..count).all(|index| {
                     let (x, y) = (self.tuple_item(from, index), self.tuple_item(to, index));
-                    self.assignable(x, y)
-                })
+                    self.assignable(x, y) && !self.stopped()
+                }) || self.stopped()
             }
             (Kind::EmptyHash, Kind::Hash(_)) => true,
             (Kind::EmptyHash, Kind::Shape(fields, _)) => fields.iter().all(|field| field.optional),
@@ -868,8 +878,8 @@ impl Types {
                 }
                 (0..count).all(|index| {
                     let field = self.field_type(from, index);
-                    self.assignable(field, value)
-                })
+                    self.assignable(field, value) && !self.stopped()
+                }) || self.stopped()
             }
             (Kind::Shape(..), Kind::Shape(..)) => self.shape_fits(from, to),
             (Kind::Hash(value), Kind::Shape(fields, true)) => {
@@ -1055,7 +1065,10 @@ impl Types {
                 }
             }
         }
-        pairs.iter().all(|&(x, y)| self.assignable(x, y))
+        pairs
+            .iter()
+            .all(|&(x, y)| self.assignable(x, y) && !self.stopped())
+            || self.stopped()
     }
 
     /// Charges `units` of work that grows with a type's size, a step for
@@ -1157,6 +1170,9 @@ impl Types {
 
     /// Replaces bound type variables; unbound ones stay.
     pub fn subst(&mut self, ty: Ty, bindings: &[Option<Ty>]) -> Ty {
+        if self.charge(1) {
+            return Ty::ERROR;
+        }
         if !self.has_var(ty) {
             return ty;
         }
@@ -1189,6 +1205,9 @@ impl Types {
                 }
                 for field in fields.iter() {
                     let ty = self.subst(field.ty, bindings);
+                    if self.stopped() {
+                        return Ty::ERROR;
+                    }
                     copied.push_within(Field {
                         name: field.name.clone(),
                         ty,
@@ -1663,6 +1682,23 @@ fn put(out: &mut String, text: &str, room: &mut usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mapping_stops_after_the_first_refused_child() {
+        let mut types = Types::new();
+        let mut visits = 0;
+        let mapped = types.mapped(
+            std::iter::repeat_n(Ty::INT, 100_000),
+            100_000,
+            |types, _| {
+                visits += 1;
+                types.meter.stop();
+                Ty::ERROR
+            },
+        );
+        assert!(mapped.is_none());
+        assert_eq!(visits, 1);
+    }
 
     #[test]
     fn a_receivers_bases_and_its_direct_base_agree() {
