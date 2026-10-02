@@ -316,7 +316,7 @@ fn deep(
 }
 
 /// The removed spellings in `tree` as diagnostics, or `None` once `stop`,
-/// which the walk and the loops after it ask every [`POLL`] statements,
+/// which the walk and the loops after it ask each of the statements,
 /// expressions or diagnostics, says the compilation has stopped.
 fn diagnostics<'s>(
     source: &'s str,
@@ -330,7 +330,6 @@ fn diagnostics<'s>(
         calls,
         findings: Vec::new(),
         stop,
-        visits: 0,
         stopped: false,
         room,
     };
@@ -356,7 +355,7 @@ impl<'a> Checker<'a> {
             .groups(self.surface.rewrites.len(), stop)?;
         let mut diagnostics = Vec::new();
         for (group, rewrite) in self.surface.rewrites.iter().enumerate() {
-            if group % POLL == 0 && stop() {
+            if stop() {
                 return None;
             }
             let code = rewrite.rule.code();
@@ -393,8 +392,8 @@ impl<'a> Checker<'a> {
             }
             diagnostics.push(diagnostic);
         }
-        for (index, finding) in self.findings.iter().enumerate() {
-            if index % POLL == 0 && stop() {
+        for finding in &self.findings {
+            if stop() {
                 return None;
             }
             let code = finding.rule.code();
@@ -460,7 +459,6 @@ impl<'a> Checker<'a> {
 
 /// How many statements, expressions or diagnostics the walk for removed
 /// spellings takes between asking whether the compilation has stopped.
-const POLL: usize = 1;
 
 fn span(span: syntax::Span) -> Span {
     Span::new(span.start, span.end)
@@ -471,10 +469,9 @@ pub(super) struct Checker<'a> {
     surface: Surface<'a>,
     calls: &'a CallTypes,
     findings: Vec<Finding>,
-    /// Whether the compilation has stopped, which the walk asks every
-    /// [`POLL`] statements and expressions.
+    /// Whether the compilation has stopped, which the walk asks at each
+    /// statement and expression.
     stop: parse::Stop<'a>,
-    visits: usize,
     /// Whether the walk gave up because the compilation stopped, or the
     /// text it copies outgrew its room.
     stopped: bool,
@@ -483,18 +480,11 @@ pub(super) struct Checker<'a> {
 }
 
 impl Checker<'_> {
-    /// Counts a statement or an expression the walk visits, asking every
-    /// [`POLL`] of them whether the compilation has stopped. Returns
+    /// Counts a statement or an expression the walk visits, asking whether the compilation has stopped. Returns
     /// whether the walk should give up, as it does once its room is full.
     pub(super) fn halt(&mut self) -> bool {
-        if self.room.full() {
-            self.stopped = true;
-        }
         if !self.stopped {
-            self.visits += 1;
-            if self.visits % POLL == 0 {
-                self.stopped = (self.stop)();
-            }
+            self.stopped = !self.room.within() || (self.stop)();
         }
         self.stopped
     }
@@ -697,7 +687,6 @@ mod tests {
             calls: &CallTypes::default(),
             findings: Vec::new(),
             stop: &|| false,
-            visits: 0,
             stopped: false,
             room: &room,
         };

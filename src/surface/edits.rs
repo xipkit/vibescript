@@ -6,9 +6,6 @@
 use super::syntax::Span;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering::Relaxed};
 
-/// How many edits flattening takes between asking the budget.
-const POLL: usize = super::parse::POLL as usize;
-
 /// The memory the rules' pass may hold beyond what its footprint counts:
 /// the text it copies from the source and renders, which the footprint
 /// cannot know in advance. Each copy takes its bytes before it is made,
@@ -347,11 +344,11 @@ impl Edits {
         if !sorted {
             return None;
         }
-        // The budget is asked before each sort, and every `POLL` edits, as
+        // The budget is asked before each sort, and before each edit, as
         // the walk asks it, as they are gathered and as they are rendered.
         let mut clusters: Vec<(Span, Vec<&Edit>)> = Vec::new();
-        for (index, edit) in edits.into_iter().enumerate() {
-            if index % POLL == POLL - 1 && !room.within() {
+        for edit in edits {
+            if !room.within() {
                 return None;
             }
             match clusters.last_mut() {
@@ -363,7 +360,6 @@ impl Edits {
             }
         }
         let mut flattened = Vec::with_capacity(clusters.len());
-        let mut taken = 0;
         for (extent, mut members) in clusters {
             if !room.sort_unstable_by(&mut members, |a, b| a.order.cmp(&b.order)) {
                 return None;
@@ -389,8 +385,7 @@ impl Edits {
             let mut copied = 0;
             let mut edits = Edits::default();
             for member in members {
-                taken += 1;
-                if taken % POLL == POLL - 1 && !room.within() {
+                if !room.within() {
                     return None;
                 }
                 let mut pieces = Vec::with_capacity(member.pieces.len());

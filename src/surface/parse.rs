@@ -99,10 +99,7 @@ fn lex(source: &str, base: usize) -> crate::Result<Vec<Token>> {
 /// source, as the compiler reads it, parsing it in full, and gives up once
 /// `stop` says the compilation has stopped.
 fn lex_until(source: &str, base: usize, stop: Stop<'_>) -> crate::Result<Vec<Token>> {
-    let work = Stopping {
-        stop,
-        calls: std::cell::Cell::new(0),
-    };
+    let work = Stopping { stop };
     convert(
         source,
         &crate::syntax::record::tokens_within(source, &work)?,
@@ -116,15 +113,12 @@ fn lex_until(source: &str, base: usize, stop: Stop<'_>) -> crate::Result<Vec<Tok
 /// in advance, asking now and then whether the compilation has stopped.
 struct Stopping<'s> {
     stop: Stop<'s>,
-    calls: std::cell::Cell<u32>,
 }
 
 impl Stopping<'_> {
     /// Fails, every [`POLL`] calls, once the compilation has stopped.
     fn ask(&self) -> crate::Result<()> {
-        let calls = self.calls.get().wrapping_add(1);
-        self.calls.set(calls);
-        if calls % POLL == 0 && (self.stop)() {
+        if (self.stop)() {
             return Err(crate::Error::new(crate::ErrorKind::Cancelled, "stopped"));
         }
         Ok(())
