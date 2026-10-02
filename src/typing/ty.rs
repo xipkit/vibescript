@@ -17,6 +17,16 @@ pub const MAX_ALTERNATIVES: usize = 1024;
 /// bounds shape writes has 6,003, the most in the corpora.
 pub const MAX_FIELDS: usize = 16_384;
 
+/// The deepest a type nests, a level each array, hash, tuple, shape,
+/// union or type literal around another, which the checker relates and
+/// displays by recursing as deep: twice as deep as the syntax it checks,
+/// on WASI, which checks on the host's stack, as deep as it descends into,
+/// and elsewhere as deep as the parser lets syntax nest, so every type a
+/// literal it checks spells fits. An inferred type can nest as deep as a
+/// chain of locals each wrapping the one before; one nesting deeper is
+/// refused.
+pub const MAX_DEPTH: u32 = if cfg!(target_os = "wasi") { 256 } else { 2048 };
+
 /// The most of a type a diagnostic spells out, in bytes: a shape whose
 /// fields are shapes, through aliases, repeats them in full at each level.
 const SPELLED: usize = 16 << 10;
@@ -357,8 +367,9 @@ pub(crate) struct Types {
     /// What the indexes hold.
     index_bytes: usize,
     /// [`Self::plain`] of each type asked about.
-    /// Variable presence and plainness, computed from already interned children.
-    properties: CountedVec<(bool, bool)>,
+    /// Variable presence, plainness and how deep it nests, computed from
+    /// already interned children.
+    properties: CountedVec<(bool, bool, u32)>,
     /// The number each closed shape's keys hash to, for the unions'
     /// indexes: hashed once, as it is first asked for.
     exact: CountedMap<Ty, u64>,
@@ -516,6 +527,13 @@ impl Types {
             _ => 0,
         };
         if self.work(work) {
+            return Ty::ERROR;
+        }
+        // A type nesting deeper than the checker relates is refused, and
+        // reported where the checker looks.
+        let depth = self.properties_of(&kind).2;
+        if depth > MAX_DEPTH {
+            self.too_large.get_or_insert(("nesting", depth as usize));
             return Ty::ERROR;
         }
         let heap = kind.heap();
@@ -1258,26 +1276,34 @@ impl Types {
         !self.stopped() && self.properties[ty.0 as usize].0
     }
 
-    fn properties_of(&self, kind: &Kind) -> (bool, bool) {
+    fn properties_of(&self, kind: &Kind) -> (bool, bool, u32) {
         let child = |ty: Ty| self.properties[ty.0 as usize];
-        let combine = |(vars, plain): (bool, bool), ty| {
-            let (more_vars, more_plain) = child(ty);
-            (vars || more_vars, plain && more_plain)
+        let combine = |(vars, plain, depth): (bool, bool, u32), ty| {
+            let (more_vars, more_plain, more_depth) = child(ty);
+            (
+                vars || more_vars,
+                plain && more_plain,
+                depth.max(more_depth),
+            )
         };
-        match kind {
-            Kind::Var(_) => (true, false),
-            Kind::Any | Kind::Error | Kind::Exports(_) | Kind::Host(_) => (false, false),
+        let (vars, plain, depth) = match kind {
+            Kind::Var(_) => (true, false, 0),
+            Kind::Any | Kind::Error | Kind::Exports(_) | Kind::Host(_) => (false, false, 0),
             Kind::Array(ty) | Kind::Hash(ty) => child(*ty),
-            Kind::TypeLit(ty) => (child(*ty).0, true),
+            Kind::TypeLit(ty) => {
+                let (vars, _, depth) = child(*ty);
+                (vars, true, depth)
+            }
             Kind::Shape(fields, _) => fields
                 .iter()
                 .map(|field| field.ty)
-                .fold((false, true), combine),
+                .fold((false, true, 0), combine),
             Kind::Tuple(items) | Kind::Union(items) => {
-                items.iter().copied().fold((false, true), combine)
+                items.iter().copied().fold((false, true, 0), combine)
             }
-            _ => (false, true),
-        }
+            _ => (false, true, 0),
+        };
+        (vars, plain, depth.saturating_add(1))
     }
 
     /// Replaces bound type variables; unbound ones stay.

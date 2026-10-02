@@ -728,3 +728,26 @@ fn a_long_chain_of_aliases_is_checked_within_the_stack() {
         .expect("the source parses");
     assert!(!checked.diagnostics.is_empty(), "{:?}", checked.diagnostics);
 }
+
+#[test]
+fn a_deeply_nested_inferred_type_is_refused_within_the_stack() {
+    // Each local wraps the one before it in an array, so the last one's
+    // inferred type nests as deep as the chain is long, though no line of
+    // the source is deeper than a few levels; relating and displaying it
+    // recursed as deep as it nests, past the stack a WASI build checks on.
+    // The checker now refuses a type nesting deeper than it relates.
+    let depth = 5_000;
+    let wraps: String = (1..=depth)
+        .map(|k| format!("a{k} = [a{}]\n", k - 1))
+        .collect();
+    let source = format!("a0 = 1\n{wraps}x: int = a{depth}\np(1)\n");
+    let checked = Engine::new()
+        .type_check(&source)
+        .expect("the source parses");
+    let codes: Vec<String> = checked
+        .diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.code.to_string())
+        .collect();
+    assert!(codes.iter().any(|code| code == "V0124"), "{codes:?}");
+}

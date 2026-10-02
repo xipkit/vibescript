@@ -1430,11 +1430,22 @@ impl<'a> Checker<'a> {
         let Some((what, size)) = self.types.too_large.take() else {
             return;
         };
+        let span = self.spans.token(offset);
+        if what == "nesting" {
+            let most = super::ty::MAX_DEPTH;
+            self.report(Diagnostic::error(
+                Code::TYPE_TOO_LARGE,
+                span,
+                text!(self,
+                    "this value's type nests {size} levels deep, more than the {most} the checker relates; declare a level of it, as `any` or a shallower type"
+                ),
+            ));
+            return;
+        }
         let (most, parts) = match what {
             "union" => (super::ty::MAX_ALTERNATIVES, "alternatives"),
             _ => (super::ty::MAX_FIELDS, "fields"),
         };
-        let span = self.spans.token(offset);
         self.report(Diagnostic::error(
             Code::TYPE_TOO_LARGE,
             span,
