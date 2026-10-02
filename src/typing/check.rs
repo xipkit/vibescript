@@ -348,68 +348,97 @@ impl<'a> Checker<'a> {
                     }
                 }
             }
-            // The names move into a set, counted before it is made.
-            if self.transient(super::meter::table::<String>(shared.len())) {
-                return;
-            }
-            let mut shared: std::collections::HashSet<String> =
-                shared.into_vec().into_iter().collect();
-            // The names the functions assign, and each function's, in lists
-            // counted while they live.
-            let mut written = ScratchVec::new(&self.meter);
-            for decl in self.program.fns.iter().filter(|decl| !decl.main) {
-                if self.halted() {
-                    return;
-                }
-                let Some(def) = decl.def else { continue };
-                let mut names = ScratchVec::new(&self.meter);
-                let scratch = assigned_names(&self.meter, &def.body, &mut names);
-                if self.transient(scratch + shared.heap()) {
-                    return;
-                }
-                // Its parameters are its own, not the file's: the names
-                // they take are set aside while its names are kept, in a
-                // list counted while it lives, so each name is one search.
-                let mut aside = ScratchVec::new(&self.meter);
-                for param in def.params.iter() {
-                    if let Some(name) = shared.take(param.name.as_str()) {
-                        aside.add(name);
-                    }
-                }
-                if written.reserve(names.len()).is_err() {
-                    return;
-                }
-                for name in names.into_vec() {
-                    if shared.contains(&name) {
-                        written.add(name);
-                    }
-                }
-                // The parameters' names are the file's again once its names
-                // are kept.
-                shared.extend(aside.into_vec());
-            }
-            // The names move into the program's set, which, with them, is
-            // counted before it is made.
-            let declarations = self.meter.declarations();
-            let names: usize = written.iter().map(String::capacity).sum();
-            let Ok(mut kept) = declarations.keep(names) else {
+            // The names move into a set, which, with them, is held from
+            // before it is made for as long as it lives, while each
+            // function's assignments are listed beside it.
+            let set = super::meter::table::<String>(shared.len())
+                + shared.iter().map(String::capacity).sum::<usize>();
+            let Some(held) = self.hold(set) else {
                 return;
             };
+            let mut shared: std::collections::HashSet<String> =
+                shared.into_vec().into_iter().collect();
+            let written = self.file_writes(&mut shared);
+            drop(shared);
+            self.release(held);
+            let Some(written) = written else {
+                return;
+            };
+            // The names move into the program's set, each counted, with the
+            // set's room, as the set takes it, but those it has already,
+            // once the list that counted them gives them up.
+            let tables = self.meter.declarations();
+            let written = written.into_vec();
             if self
                 .program
                 .file_written
-                .reserve(declarations, written.len())
+                .reserve(tables, written.len())
                 .is_err()
             {
                 return;
             }
-            for name in written.into_vec() {
+            for name in written {
+                if self.program.file_written.contains(&name) {
+                    continue;
+                }
+                let Ok(mut kept) = tables.keep(name.capacity()) else {
+                    return;
+                };
                 self.program.file_written.insert_kept(&mut kept, name);
             }
             if self.declared() {
                 return;
             }
         }
+        self.check_bodies();
+    }
+
+    /// The names of the file's locals `shared` that the file's functions
+    /// assign, in a list counted while it lives; `None` once the check
+    /// stops.
+    fn file_writes(
+        &mut self,
+        shared: &mut std::collections::HashSet<String>,
+    ) -> Option<ScratchVec<String>> {
+        // The names the functions assign, and each function's, in lists
+        // counted while they live.
+        let mut written = ScratchVec::new(&self.meter);
+        for decl in self.program.fns.iter().filter(|decl| !decl.main) {
+            if self.halted() {
+                return None;
+            }
+            let Some(def) = decl.def else { continue };
+            let mut names = ScratchVec::new(&self.meter);
+            let scratch = assigned_names(&self.meter, &def.body, &mut names);
+            if self.transient(scratch) {
+                return None;
+            }
+            // Its parameters are its own, not the file's: the names
+            // they take are set aside while its names are kept, in a
+            // list counted while it lives, so each name is one search.
+            let mut aside = ScratchVec::new(&self.meter);
+            for param in def.params.iter() {
+                if let Some(name) = shared.take(param.name.as_str()) {
+                    aside.add(name);
+                }
+            }
+            if written.reserve(names.len()).is_err() {
+                return None;
+            }
+            for name in names.into_vec() {
+                if shared.contains(&name) {
+                    written.add(name);
+                }
+            }
+            // The parameters' names are the file's again once its names
+            // are kept.
+            shared.extend(aside.into_vec());
+        }
+        Some(written)
+    }
+
+    /// Checks the main body, every namespace's and every function's.
+    fn check_bodies(&mut self) {
         if let Some(main) = self.program.fns.iter().position(|decl| decl.main) {
             self.check_function(main);
         }
