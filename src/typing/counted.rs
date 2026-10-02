@@ -338,6 +338,101 @@ pub(crate) fn sort_unstable_by<T>(
     Ok(())
 }
 
+/// Compares names in byte order, charging and polling each 64-byte piece
+/// before comparing it. A refused comparison does no more byte work.
+pub(crate) fn compare_names(
+    meter: &Meter,
+    a: &str,
+    b: &str,
+) -> Result<std::cmp::Ordering, Refused> {
+    if meter.charge(1) {
+        return Err(Refused);
+    }
+    for (a, b) in a.as_bytes().chunks(64).zip(b.as_bytes().chunks(64)) {
+        if meter.charge(1) {
+            return Err(Refused);
+        }
+        let order = a.cmp(b);
+        if order != std::cmp::Ordering::Equal {
+            return Ok(order);
+        }
+    }
+    Ok(a.len().cmp(&b.len()))
+}
+
+/// Sorts in place with comparisons that may stop at the budget. A
+/// refusal leaves a permutation of the input, whose order is unspecified.
+pub(crate) fn try_sort_unstable_by<T>(
+    meter: &Meter,
+    list: &mut [T],
+    mut compare: impl FnMut(&T, &T) -> Result<std::cmp::Ordering, Refused>,
+) -> Result<(), Refused> {
+    fn sift<T>(
+        meter: &Meter,
+        list: &mut [T],
+        mut root: usize,
+        compare: &mut impl FnMut(&T, &T) -> Result<std::cmp::Ordering, Refused>,
+    ) -> Result<(), Refused> {
+        while root < list.len() / 2 {
+            if meter.charge(1) {
+                return Err(Refused);
+            }
+            let mut child = root * 2 + 1;
+            if child + 1 < list.len()
+                && compare(&list[child], &list[child + 1])? == std::cmp::Ordering::Less
+            {
+                child += 1;
+            }
+            if compare(&list[root], &list[child])? != std::cmp::Ordering::Less {
+                break;
+            }
+            list.swap(root, child);
+            root = child;
+        }
+        Ok(())
+    }
+    for root in (0..list.len() / 2).rev() {
+        if meter.charge(1) {
+            return Err(Refused);
+        }
+        sift(meter, list, root, &mut compare)?;
+    }
+    for end in (1..list.len()).rev() {
+        if meter.charge(1) {
+            return Err(Refused);
+        }
+        list.swap(0, end);
+        sift(meter, &mut list[..end], 0, &mut compare)?;
+    }
+    Ok(())
+}
+
+/// Finds the first item of `wanted` in a list ordered by name, charging
+/// every compared byte piece and stopping at the first refused comparison.
+pub(crate) fn find_name<T>(
+    meter: &Meter,
+    list: &[T],
+    wanted: &str,
+    name: impl Fn(&T) -> &str,
+) -> Result<Option<usize>, Refused> {
+    let (mut left, mut right) = (0, list.len());
+    while left < right {
+        let middle = left + (right - left) / 2;
+        if compare_names(meter, name(&list[middle]), wanted)? == std::cmp::Ordering::Less {
+            left = middle + 1;
+        } else {
+            right = middle;
+        }
+    }
+    if left < list.len()
+        && compare_names(meter, name(&list[left]), wanted)? == std::cmp::Ordering::Equal
+    {
+        Ok(Some(left))
+    } else {
+        Ok(None)
+    }
+}
+
 /// Sorts `list` as `sort_by` does, keeping equal elements in order, once
 /// its steps and the scratch a stable sort takes, as long as the list, are
 /// counted; refused, leaving the list as it was, when that stops the check.
@@ -1304,6 +1399,74 @@ mod tests {
             },
             None,
         )
+    }
+
+    #[test]
+    fn name_comparisons_match_byte_order_and_stop_inside_long_prefixes() {
+        let meter = meter(None);
+        for (a, b) in [
+            ("", ""),
+            ("", "a"),
+            ("a", "ab"),
+            ("ab", "a"),
+            ("same", "same"),
+            ("é", "ê"),
+        ] {
+            assert_eq!(compare_names(&meter, a, b).unwrap(), a.cmp(b));
+        }
+        let prefix = "a".repeat(63);
+        let a = format!("{prefix}éz");
+        let b = format!("{prefix}êa");
+        assert_eq!(compare_names(&meter, &a, &b).unwrap(), a.cmp(&b));
+        let limited = Meter::new(
+            Budget {
+                steps: Some(10),
+                ..Budget::default()
+            },
+            None,
+        );
+        let name = "a".repeat(100_000);
+        assert_eq!(compare_names(&limited, &name, &name), Err(Refused));
+        assert_eq!(limited.steps(), 11);
+    }
+
+    #[test]
+    fn fallible_name_sort_and_search_preserve_first_matches() {
+        let meter = meter(None);
+        let mut values = [("z", 0), ("a", 3), ("", 1), ("a", 2), ("é", 4)];
+        let mut expected = values;
+        expected.sort_unstable();
+        try_sort_unstable_by(&meter, &mut values, |a, b| {
+            compare_names(&meter, a.0, b.0).map(|order| order.then_with(|| a.1.cmp(&b.1)))
+        })
+        .unwrap();
+        assert_eq!(values, expected);
+        assert_eq!(find_name(&meter, &values, "a", |item| item.0), Ok(Some(1)));
+        assert_eq!(
+            find_name(&meter, &values, "absent", |item| item.0),
+            Ok(None)
+        );
+        let token = crate::CancellationToken::new();
+        let cancelled = Meter::new(
+            Budget {
+                cancellation: Some(token.clone()),
+                ..Budget::default()
+            },
+            None,
+        );
+        let mut comparisons = 0;
+        let prefix = "a".repeat(1_000_000);
+        let mut names: Vec<_> = (0..32).rev().map(|i| format!("{prefix}{i}")).collect();
+        assert_eq!(
+            try_sort_unstable_by(&cancelled, &mut names, |a, b| {
+                comparisons += 1;
+                token.cancel();
+                compare_names(&cancelled, a, b)
+            }),
+            Err(Refused)
+        );
+        assert_eq!(comparisons, 1);
+        assert!(cancelled.stopped());
     }
 
     #[test]

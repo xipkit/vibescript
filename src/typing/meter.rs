@@ -1128,6 +1128,41 @@ mod budget_tests {
     }
 
     #[test]
+    fn repeated_keyword_calls_charge_their_shared_name_prefixes() {
+        let prefix = "a".repeat(4_096);
+        let params = (0..64)
+            .map(|i| format!("{prefix}{i}: int = 0"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let declaration = format!("def f(*, {params}) -> int\n  1\nend\n");
+        let before = checked(&declaration, Budget::default());
+        assert!(before.diagnostics.is_empty());
+        let source = declaration + &format!("f({prefix}0: 1)\n").repeat(100);
+        let full = checked(&source, Budget::default());
+        assert!(full.diagnostics.is_empty());
+        let minimum = 100 * 64 * (prefix.len() / 64) as u64;
+        assert!(
+            full.steps - before.steps > minimum,
+            "only {} steps for repeated name comparisons",
+            full.steps - before.steps
+        );
+        let quota = before.steps + minimum;
+        let stopped = checked(
+            &source,
+            Budget {
+                steps: Some(quota),
+                ..Budget::default()
+            },
+        );
+        assert!(stopped.stopped);
+        assert!(
+            stopped.steps < quota + 1_024,
+            "{} steps past quota {quota}",
+            stopped.steps
+        );
+    }
+
+    #[test]
     fn many_empty_declarations_are_charged_and_polled() {
         // Functions with nothing in them, which the walk for the files a
         // program requires visits even so, before anything else charges

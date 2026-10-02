@@ -1798,7 +1798,7 @@ impl<'a> Checker<'a> {
         let meter = std::sync::Arc::clone(&self.meter);
         let fits = |sig: &Sig, relaxed: bool| {
             let looks = keywords.len().saturating_mul(sig.params.len());
-            if looks >= 64 && meter.charge((looks / 64) as u64) {
+            if meter.stopped() || looks >= 64 && meter.charge((looks / 64) as u64) {
                 return false;
             }
             let (min, max) = sig.positional();
@@ -1808,14 +1808,22 @@ impl<'a> Checker<'a> {
                 } else {
                     max.is_none_or(|max| positional <= max)
                 };
-            let keyword_ok = keywords
+            let keyword_ok = keywords.iter().all(|name| {
+                sig.keyword(&meter, name)
+                    .is_ok_and(|param| param.is_some() || sig.keyword_rest().is_some())
+            }) && sig
+                .params
                 .iter()
-                .all(|name| sig.keyword(name).is_some() || sig.keyword_rest().is_some())
-                && sig
-                    .params
-                    .iter()
-                    .filter(|p| p.kind == ParamKind::Keyword && !p.optional)
-                    .all(|p| keywords.iter().any(|name| *name == p.name));
+                .filter(|p| p.kind == ParamKind::Keyword && !p.optional)
+                .all(|p| {
+                    keywords
+                        .iter()
+                        .take_while(|_| !meter.stopped())
+                        .any(|name| {
+                            super::counted::compare_names(&meter, name, &p.name)
+                                .is_ok_and(|order| order == std::cmp::Ordering::Equal)
+                        })
+                });
             let block_ok = match (&sig.block, declared) {
                 (None, None) => true,
                 (None, Some(_)) => false,
@@ -1835,6 +1843,9 @@ impl<'a> Checker<'a> {
                 .filter(|(_, (sig, _))| fits(sig, relaxed))
                 .map(|(index, _)| index)
                 .collect();
+            if meter.stopped() {
+                return Some(0);
+            }
             if let Some(&first) = fitting.first() {
                 if relaxed && declared.is_some() {
                     // Prefer the fewest block parameters that cover the block's.
@@ -2123,20 +2134,24 @@ impl<'a> Checker<'a> {
                     by_name.add((param.name.as_str(), at));
                 }
             }
-            if super::counted::sort_unstable_by(&self.meter, &mut by_name, Ord::cmp).is_err() {
+            if super::counted::try_sort_unstable_by(&self.meter, &mut by_name, |a, b| {
+                super::counted::compare_names(&self.meter, a.0, b.0)
+                    .map(|order| order.then_with(|| a.1.cmp(&b.1)))
+            })
+            .is_err()
+            {
                 return;
             }
         }
         // The first parameter of the name, as a pass over them finds it.
+        let meter = std::sync::Arc::clone(&self.meter);
         let keyword = |name: &str| {
             if indexed {
-                let at = by_name.partition_point(|&(other, _)| other < name);
-                by_name
-                    .get(at)
-                    .filter(|&&(other, _)| other == name)
-                    .map(|&(_, at)| sig.params[at].ty)
+                super::counted::find_name(&meter, &by_name, name, |&(name, _)| name)
+                    .map(|at| at.map(|at| sig.params[by_name[at].1].ty))
             } else {
-                sig.keyword(name).map(|param| param.ty)
+                sig.keyword(&meter, name)
+                    .map(|param| param.map(|param| param.ty))
             }
         };
         let rest = sig.keyword_rest().map(|param| param.ty);
@@ -2151,7 +2166,8 @@ impl<'a> Checker<'a> {
             match &arg.kind {
                 ArgumentKind::Keyword(name) => {
                     given.add(self.copy(name));
-                    let param = keyword(name)
+                    let Ok(param) = keyword(name) else { return };
+                    let param = param
                         .or_else(|| rest.map(|ty| self.types.hash_value(ty).unwrap_or(Ty::ANY)));
                     match param {
                         Some(param_ty) => {
@@ -2185,7 +2201,10 @@ impl<'a> Checker<'a> {
                             if !field.optional {
                                 given.add(self.copy(&field.name));
                             }
-                            let expected = keyword(&field.name).or_else(|| {
+                            let Ok(expected) = keyword(&field.name) else {
+                                return;
+                            };
+                            let expected = expected.or_else(|| {
                                 rest.map(|ty| self.types.hash_value(ty).unwrap_or(Ty::ANY))
                             });
                             if let Some(expected) = expected {
@@ -2242,14 +2261,26 @@ impl<'a> Checker<'a> {
         }
         // Sorted, so each required keyword is found by search; a check the
         // sort stops looks for none.
-        if super::counted::sort_unstable_by(&self.meter, &mut given, Ord::cmp).is_err() {
+        if super::counted::try_sort_unstable_by(&self.meter, &mut given, |a, b| {
+            super::counted::compare_names(&self.meter, a, b)
+        })
+        .is_err()
+        {
             return;
         }
         for param in &sig.params {
-            if param.kind == ParamKind::Keyword
-                && !param.optional
-                && given.binary_search(&param.name).is_err()
-            {
+            if self.halted() {
+                return;
+            }
+            if param.kind == ParamKind::Keyword && !param.optional {
+                let Ok(found) =
+                    super::counted::find_name(&self.meter, &given, &param.name, |name| name)
+                else {
+                    return;
+                };
+                if found.is_some() {
+                    continue;
+                }
                 self.report(Diagnostic::error(
                     Code::MISSING_KEYWORD,
                     call.name_span,

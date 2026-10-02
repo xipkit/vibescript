@@ -113,10 +113,25 @@ impl Sig {
         (min, max)
     }
 
-    pub fn keyword(&self, name: &str) -> Option<&Param> {
-        self.params
-            .iter()
-            .find(|p| p.kind == ParamKind::Keyword && p.name == name)
+    /// Finds the first parameter of `name`, counting the compared bytes;
+    /// a refused comparison stops the lookup without returning a match.
+    pub fn keyword(
+        &self,
+        meter: &super::meter::Meter,
+        name: &str,
+    ) -> Result<Option<&Param>, super::counted::Refused> {
+        for param in &self.params {
+            if meter.charge(1) {
+                return Err(super::counted::Refused);
+            }
+            if param.kind == ParamKind::Keyword
+                && super::counted::compare_names(meter, &param.name, name)?
+                    == std::cmp::Ordering::Equal
+            {
+                return Ok(Some(param));
+            }
+        }
+        Ok(None)
     }
 
     pub fn keyword_rest(&self) -> Option<&Param> {
