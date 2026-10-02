@@ -1881,6 +1881,130 @@ mod tests {
         );
     }
 
+    /// What a loop does to find whether the check has stopped, or to stop
+    /// it: ask, charge, pace or poll.
+    const HALTS: &[&str] = &[
+        "halted()",
+        "over_budget()",
+        "paced(",
+        "pace(",
+        "charge(",
+        "declaring()",
+        "declared()",
+        "visit()",
+        "poll()",
+        ".work(",
+    ];
+
+    /// What a loop over something the source sizes iterates: the program's
+    /// declarations, a required file's exports, a body's statements, the
+    /// calls between functions, and the like.
+    const SIZED: &[&str] = &[
+        "namespaces",
+        ".fns",
+        "exported.",
+        "parsed.",
+        "instance_methods",
+        ".methods",
+        "outline",
+        "additions",
+        "file_calls",
+        ".functions",
+        "classes",
+        "enums",
+        "uses",
+        "calls",
+        "sites",
+        "requests",
+        "diagnostics",
+        "body",
+        "stmts",
+        "reads",
+        "written",
+        "members",
+        "fields",
+        "entries",
+    ];
+
+    /// The loops over what the source sizes that hold another loop and ask
+    /// nothing of the budget themselves, by file and header: only what the
+    /// engine sizes.
+    const UNASKED_LOOPS: &[(&str, &str)] = &[
+        // A builtin class's members for a receiver, which the builtin
+        // signatures bound.
+        ("sigs.rs", "for &class in classes {"),
+    ];
+
+    #[test]
+    fn every_loop_over_the_source_around_another_asks_whether_the_check_stopped() {
+        let is_loop = |line: &str| {
+            (line.starts_with("for ") || line.starts_with("while ") || line == "loop {")
+                && line.ends_with('{')
+        };
+        let indent = |line: &str| line.len() - line.trim_start().len();
+        let mut found = Vec::new();
+        let mut used = Vec::new();
+        for path in sources(&["typing.rs", "typing"]) {
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            let text = std::fs::read_to_string(&path).unwrap();
+            let lines: Vec<&str> = text.split("#[cfg(test)]").next().unwrap().lines().collect();
+            // Where the block a line opens ends: the next line indented no
+            // deeper.
+            let end = |start: usize| {
+                (start + 1..lines.len())
+                    .find(|&at| {
+                        !lines[at].trim().is_empty() && indent(lines[at]) <= indent(lines[start])
+                    })
+                    .unwrap_or(lines.len())
+            };
+            for (start, line) in lines.iter().enumerate() {
+                let header = line.trim();
+                let Some((_, iterated)) = header
+                    .strip_prefix("for ")
+                    .and_then(|rest| rest.split_once(" in "))
+                else {
+                    continue;
+                };
+                if !header.ends_with('{') || !SIZED.iter().any(|sized| iterated.contains(sized)) {
+                    continue;
+                }
+                let close = end(start);
+                let inner: Vec<(usize, usize)> = (start + 1..close)
+                    .filter(|&at| is_loop(lines[at].trim()))
+                    .map(|at| (at, end(at)))
+                    .collect();
+                if inner.is_empty() {
+                    continue;
+                }
+                let asks = (start + 1..close)
+                    .filter(|&at| !inner.iter().any(|&(from, to)| (from..to).contains(&at)))
+                    .any(|at| HALTS.iter().any(|halt| lines[at].contains(halt)));
+                if asks {
+                    continue;
+                }
+                let allowed = UNASKED_LOOPS
+                    .iter()
+                    .find(|&&(file, allowed)| file == name && allowed == header);
+                if let Some(&entry) = allowed {
+                    used.push(entry);
+                } else {
+                    found.push(format!("{name}:{}: {header}", start + 1));
+                }
+            }
+        }
+        let stale: Vec<String> = UNASKED_LOOPS
+            .iter()
+            .filter(|entry| !used.contains(entry))
+            .map(|(file, header)| format!("{file}: {header}"))
+            .collect();
+        assert!(
+            found.is_empty() && stale.is_empty(),
+            "ask whether the check stopped at the top of the outer loop, or say here why it need not:\n{}\nno longer found:\n{}",
+            found.join("\n"),
+            stale.join("\n")
+        );
+    }
+
     #[test]
     fn the_checkers_state_grows_only_through_counted_tables() {
         let found: Vec<String> = collections_in_state()

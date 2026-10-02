@@ -647,8 +647,12 @@ impl<'a> Checker<'a> {
                 return;
             }
         }
-        // Properties declare their instance variables and their types.
+        // Properties declare their instance variables and their types; a
+        // check that stops declares no more of them.
         for ns in 0..self.program.namespaces.len() {
+            if self.halted() {
+                return;
+            }
             let Some(module) = self.program.namespaces[ns].module else {
                 continue;
             };
@@ -782,6 +786,10 @@ impl<'a> Checker<'a> {
             }
         }
         for ns in 0..self.program.namespaces.len() {
+            // A check that stops looks at no more namespaces.
+            if self.halted() {
+                return;
+            }
             let Some(module) = self.program.namespaces[ns].module else {
                 continue;
             };

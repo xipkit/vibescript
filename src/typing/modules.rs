@@ -846,6 +846,11 @@ impl<'a> Checker<'a> {
             imports.classes.insert(class.id, id);
         }
         for class in &exported.classes {
+            // A check that importing stops imports no more, and visits no
+            // more classes.
+            if self.halted() {
+                break;
+            }
             // A class the budget refused to import has no methods either.
             let Some(&owner) = imports.classes.get(&class.id) else {
                 break;
