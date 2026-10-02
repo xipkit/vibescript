@@ -2,7 +2,7 @@
 
 use super::{
     Checker,
-    counted::{CountedMap, CountedVec, ScratchVec},
+    counted::{CountedMap, CountedVec, ScratchMap, ScratchVec},
     flow::{Branch, Flow, LocalId, Mark, VarState},
     meter::Heap,
     program::{FnId, NsId},
@@ -3705,27 +3705,103 @@ fn mentions<'s>(
     walk.bytes()
 }
 
-/// The names of the locals a body may assign, including in nested blocks,
-/// charging the walk that finds them to `meter`. The index it builds to
-/// find them is counted as it grows, and gone once it returns, which the
-/// next measure finds.
+/// The enclosing locals a body may assign, excluding bindings shadowed by
+/// block parameters or rescue bindings. The walk and its scope index are
+/// counted as they grow.
 pub(super) fn assigned_names(
     meter: &std::sync::Arc<super::meter::Meter>,
     body: &[Stmt],
     names: &mut ScratchVec<String>,
 ) {
-    let mut assigns = super::assigns::Assigns::default();
-    let span = assigns.body(meter, body);
-    // The list of the names is counted before it is made, beside the
-    // index, which its growth counted already; their copies are counted,
-    // with the list they go in, as it takes them.
-    let found = assigns.distinct(span, |count, _| {
-        !meter.pace(0, count * std::mem::size_of::<&str>())
-    });
+    use super::walk::{Item, Next, Walk};
+    // Scope ids travel with the walk, so sibling bodies and a block's
+    // receiver retain their enclosing bindings without copying name sets.
+    let mut parents = ScratchVec::new(meter);
+    let mut shadowed = ScratchMap::new(meter);
+    let mut found = ScratchMap::new(meter);
+    let mut walk = Walk::new(meter);
+    walk.stmts(body, None);
+    while let Some((item, scope)) = walk.next(0) {
+        match item {
+            Item::Expr(Expr {
+                node: Node::BlockCall(call, block),
+                ..
+            }) => {
+                let inner = parents.len();
+                if parents.push(scope).is_err() {
+                    return;
+                }
+                // Assigning an implicit parameter name disables its
+                // implicit binding; only explicit parameters shadow writes.
+                if !block.implicit {
+                    let mut params = Walk::new(meter);
+                    params.push(Next::Targets(block.params.iter()), ());
+                    while let Some((param, ())) = params.next(0) {
+                        if let Item::Target(Target::Value(Expr {
+                            node: Node::Var(name),
+                            ..
+                        })) = param
+                        {
+                            if shadowed.insert((inner, name.as_str()), false).is_err() {
+                                return;
+                            }
+                        }
+                        params.children(param, ());
+                    }
+                }
+                walk.expr(call, scope);
+                walk.stmts(&block.body, Some(inner));
+            }
+            Item::Expr(Expr {
+                node: Node::Try(attempt),
+                ..
+            }) => {
+                walk.stmts(&attempt.body, scope);
+                walk.stmts(&attempt.alternate, scope);
+                walk.stmts(&attempt.ensure, scope);
+                for rescue in attempt.rescues.iter() {
+                    let inner = parents.len();
+                    if parents.push(scope).is_err() {
+                        return;
+                    }
+                    if let Some(name) = &rescue.binding {
+                        if shadowed.insert((inner, name.as_str()), false).is_err() {
+                            return;
+                        }
+                    }
+                    walk.stmts(&rescue.body, Some(inner));
+                }
+            }
+            Item::Target(Target::Value(Expr {
+                node: Node::Var(name),
+                ..
+            })) => {
+                let mut outer = scope;
+                let mut local = false;
+                while let Some(at) = outer {
+                    if meter.charge(1) {
+                        return;
+                    }
+                    if shadowed.contains_key(&(at, name.as_str())) {
+                        local = true;
+                        break;
+                    }
+                    outer = parents[at];
+                }
+                if !local && found.insert(name.as_str(), false).is_err() {
+                    return;
+                }
+            }
+            _ => walk.children(item, scope),
+        }
+    }
     // The copies are counted, with room for them, before they are made.
-    let bytes = found.iter().map(|name| name.len()).sum();
+    if meter.charge(found.len() as u64) {
+        return;
+    }
+    let bytes = found.keys().map(|name| name.len()).sum();
     if names.reserve_with(found.len(), bytes).is_ok() {
-        for name in found {
+        for &name in found.keys() {
             names.push_within(name.to_owned());
         }
     }
