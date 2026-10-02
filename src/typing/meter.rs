@@ -495,14 +495,6 @@ pub(crate) fn vec<T>(items: &Vec<T>) -> usize {
     items.capacity() * size_of::<T>()
 }
 
-/// What a hash table of `bytes` holds beside itself while it grows: its
-/// larger table is allocated before the old one, half the size, is freed.
-/// An account adds this for the largest of its growing tables, since
-/// only one grows at a time.
-pub(crate) fn growth(bytes: usize) -> usize {
-    bytes / 2
-}
-
 pub(crate) fn map<K, V, S>(entries: &HashMap<K, V, S>) -> usize {
     table::<(K, V)>(entries.capacity())
 }
