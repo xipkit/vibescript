@@ -331,7 +331,8 @@ pub(crate) struct Types {
     /// What the indexes hold.
     index_bytes: usize,
     /// [`Self::plain`] of each type asked about.
-    plain: CountedMap<Ty, bool>,
+    /// Variable presence and plainness, computed from already interned children.
+    properties: CountedVec<(bool, bool)>,
     /// The number each closed shape's keys hash to, for the unions'
     /// indexes: hashed once, as it is first asked for.
     exact: CountedMap<Ty, u64>,
@@ -355,7 +356,7 @@ impl Types {
             meter::map(&self.ids),
             meter::map(&self.assignable),
             meter::map(&self.index),
-            meter::map(&self.plain),
+            meter::vec(self.properties.as_vec()),
             meter::map(&self.exact),
         ];
         meter::vec(self.kinds.as_vec())
@@ -380,7 +381,7 @@ impl Types {
             index: CountedMap::new(),
             indexed: 0,
             index_bytes: 0,
-            plain: CountedMap::new(),
+            properties: CountedVec::new(),
             exact: CountedMap::new(),
             names: Names::default(),
             meter,
@@ -515,10 +516,13 @@ impl Types {
         let payload = 2 * std::mem::size_of::<usize>() + std::mem::size_of::<Kind>() + heap;
         ledger.keep(payload).ok()?;
         self.kinds.reserve(ledger, 1).ok()?;
+        self.properties.reserve(ledger, 1).ok()?;
         self.ids.reserve(ledger, 1).ok()?;
         let ty = Ty(self.kinds.len() as u32);
         self.payload += payload;
+        let properties = self.properties_of(&kind);
         let kind = Arc::new(kind);
+        self.properties.push_within(properties);
         self.kinds.push_within(Arc::clone(&kind));
         self.ids.insert_within(kind, ty);
         Some(ty)
@@ -1159,12 +1163,28 @@ impl Types {
 
     /// Whether the type mentions a signature's type variable.
     pub fn has_var(&self, ty: Ty) -> bool {
-        match self.kind(ty) {
-            Kind::Var(_) => true,
-            Kind::Array(t) | Kind::Hash(t) | Kind::TypeLit(t) => self.has_var(*t),
-            Kind::Shape(fields, _) => fields.iter().any(|f| self.has_var(f.ty)),
-            Kind::Tuple(items) | Kind::Union(items) => items.iter().any(|&t| self.has_var(t)),
-            _ => false,
+        !self.stopped() && self.properties[ty.0 as usize].0
+    }
+
+    fn properties_of(&self, kind: &Kind) -> (bool, bool) {
+        let child = |ty: Ty| self.properties[ty.0 as usize];
+        let combine = |(vars, plain): (bool, bool), ty| {
+            let (more_vars, more_plain) = child(ty);
+            (vars || more_vars, plain && more_plain)
+        };
+        match kind {
+            Kind::Var(_) => (true, false),
+            Kind::Any | Kind::Error | Kind::Exports(_) | Kind::Host(_) => (false, false),
+            Kind::Array(ty) | Kind::Hash(ty) => child(*ty),
+            Kind::TypeLit(ty) => (child(*ty).0, true),
+            Kind::Shape(fields, _) => fields
+                .iter()
+                .map(|field| field.ty)
+                .fold((false, true), combine),
+            Kind::Tuple(items) | Kind::Union(items) => {
+                items.iter().copied().fold((false, true), combine)
+            }
+            _ => (false, true),
         }
     }
 
@@ -1510,21 +1530,7 @@ impl Types {
     /// exported function. Only `any`, capabilities and required modules can,
     /// and so can a type the checker could not determine.
     pub fn plain(&mut self, ty: Ty) -> bool {
-        if let Some(&plain) = self.plain.get(&ty) {
-            return plain;
-        }
-        let plain = match &*self.shared(ty) {
-            Kind::Any | Kind::Error | Kind::Var(_) | Kind::Exports(_) | Kind::Host(_) => false,
-            Kind::Array(element) | Kind::Hash(element) => self.plain(*element),
-            Kind::Shape(fields, _) => fields.iter().all(|field| self.plain(field.ty)),
-            Kind::Tuple(items) | Kind::Union(items) => items.iter().all(|&item| self.plain(item)),
-            _ => true,
-        };
-        // A type the budget refuses room for is looked at again if asked.
-        if self.plain.insert(self.meter.types(), ty, plain).is_err() {
-            return true;
-        }
-        plain
+        self.stopped() || self.properties[ty.0 as usize].1
     }
 
     /// The base type name of each alternative of `ty`, for
@@ -1682,6 +1688,25 @@ fn put(out: &mut String, text: &str, room: &mut usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shared_type_properties_do_not_expand_the_graph() {
+        let mut types = Types::new();
+        let mut ty = Ty::INT;
+        for _ in 0..60 {
+            ty = types.tuple(vec![ty, ty]);
+        }
+        assert!(!types.has_var(ty));
+        assert!(types.plain(ty));
+        assert_eq!(types.close_result(ty, &[]), ty);
+        let variable = types.intern(Kind::Var(0));
+        let tuple = types.tuple(vec![variable, ty]);
+        assert!(types.has_var(tuple));
+        assert!(!types.plain(tuple));
+        let closed = types.subst(tuple, &[Some(Ty::STRING)]);
+        assert!(!types.has_var(closed));
+        assert!(types.plain(closed));
+    }
 
     #[test]
     fn mapping_stops_after_the_first_refused_child() {
