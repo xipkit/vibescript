@@ -2992,13 +2992,21 @@ impl<'s> Parser<'s> {
             TokenKind::Regex => ExprKind::Regex,
             TokenKind::String(_) => ExprKind::Str,
             TokenKind::Template(spans) => {
-                let spans = spans.clone();
-                ExprKind::Template(
-                    spans
-                        .into_iter()
-                        .map(|span| self.interpolation(span))
-                        .collect(),
-                )
+                let count = spans.len();
+                let mut parts = Vec::with_capacity(count);
+                for index in 0..count {
+                    self.poll()?;
+                    let TokenKind::Template(spans) = &self.tokens[tok].kind else {
+                        unreachable!()
+                    };
+                    let span = spans[index].clone();
+                    let part = self.interpolation(span);
+                    if self.stopped {
+                        return self.fail("stopped");
+                    }
+                    parts.push(part);
+                }
+                ExprKind::Template(parts)
             }
             TokenKind::Words { .. } => ExprKind::Words,
             TokenKind::Symbol { .. } => ExprKind::Symbol,
@@ -4327,6 +4335,16 @@ pub fn builtin_type(name: &str) -> bool {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
+
+    #[test]
+    fn a_stopped_template_does_not_finish_its_parts() {
+        let source = format!("\"{}\"", "#{1}".repeat(1000));
+        let tokens = lex(&source, 0).unwrap();
+        let starts = Starts::new(&tokens, &|| false).unwrap();
+        let mut parser = Parser::new(&source, tokens, starts, &|| true);
+        assert!(parser.leaf(0).is_err());
+        assert!(parser.stopped);
+    }
 
     #[test]
     fn conversion_stops_inside_a_percent_literal() {
