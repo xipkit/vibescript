@@ -285,7 +285,7 @@ impl<'a> Spans<'a> {
     /// The span of an expression, from its first token to its last,
     /// including the parentheses of a group it starts with.
     pub fn expr(&self, expr: &Expr) -> Span {
-        let start = first_offset(expr);
+        let start = first_offset(expr, &self.meter);
         let last = self.last(expr);
         let end = self.close(start, last);
         Span::new(self.open(start, end), end)
@@ -466,6 +466,9 @@ impl<'a> Spans<'a> {
         let mut path: ScratchVec<(&Expr, Trail<'_>)> = ScratchVec::new(&self.meter);
         let mut current = expr;
         let mut position = loop {
+            if self.step(1) {
+                return current.offset as usize;
+            }
             let key = std::ptr::from_ref(current) as usize;
             if let Some(&known) = self.lasts.borrow().get(&key) {
                 break known;
@@ -499,12 +502,17 @@ impl<'a> Spans<'a> {
                 Node::Range(_, Some(end), _) => (&**end, Trail::None),
                 _ => break self.furthest(Item::Expr(current), true),
             };
-            path.add((current, trail));
+            if path.push((current, trail)).is_err() {
+                return current.offset as usize;
+            }
             current = next;
         };
         let key = std::ptr::from_ref(current) as usize;
         self.remember(&self.lasts, key, position);
         for &(node, trail) in path.iter().rev() {
+            if self.step(1) {
+                break;
+            }
             if let Trail::Member(name, parenthesized) = trail {
                 position = self.name_after(position, name, parenthesized);
             }
@@ -573,6 +581,9 @@ impl<'a> Spans<'a> {
                 match &expr.node {
                     Node::Try(attempt) => {
                         for rescue in attempt.rescues.iter() {
+                            if self.step(1) {
+                                return last;
+                            }
                             last = last.max(rescue.offset as usize);
                         }
                     }
@@ -660,10 +671,13 @@ impl<'a> Spans<'a> {
 /// The start of an expression's first token. Binary operators, ranges,
 /// indexes and ternaries record their operator's position, so their span
 /// starts at their leftmost operand.
-pub(crate) fn first_offset(expr: &Expr) -> usize {
+fn first_offset(expr: &Expr, meter: &super::meter::Meter) -> usize {
     let mut first = expr.offset as usize;
     let mut current = expr;
     loop {
+        if meter.charge(1) {
+            break;
+        }
         current = match &current.node {
             Node::Binary(_, left, _) | Node::Range(Some(left), _, _) => left,
             Node::Index(receiver, _)
