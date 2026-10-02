@@ -1786,7 +1786,14 @@ impl<'a> Checker<'a> {
             }
             None => None,
         };
+        // Each candidate's keywords are looked for among the call's, and the
+        // call's among each candidate's, a step for each 64 looks.
+        let meter = std::sync::Arc::clone(&self.meter);
         let fits = |sig: &Sig, relaxed: bool| {
+            let looks = keywords.len().saturating_mul(sig.params.len());
+            if looks >= 64 && meter.charge((looks / 64) as u64) {
+                return false;
+            }
             let (min, max) = sig.positional();
             let count = positional >= min
                 && if splat {
@@ -1927,7 +1934,9 @@ impl<'a> Checker<'a> {
             .iter()
             .filter(|p| p.kind == ParamKind::Positional)
             .collect();
-        let rest = sig.rest().map(|p| p.ty);
+        // The rest parameter is found once, not for each argument it takes.
+        let rest_param = sig.rest();
+        let rest = rest_param.map(|p| p.ty);
         let rest_element = rest.map(|ty| self.types.element(ty).unwrap_or(Ty::ANY));
         let mut index = 0;
         let mut splatted = false;
@@ -1994,6 +2003,13 @@ impl<'a> Checker<'a> {
                         index += 1;
                     }
                 } else if let Some(element) = self.types.element(ty) {
+                    // A splat of unknown length spreads over every
+                    // parameter left, a step each.
+                    let left = positional_params.len().saturating_sub(index);
+                    if self.meter.charge(left as u64) {
+                        self.release(held);
+                        return;
+                    }
                     for param in positional_params.iter().skip(index) {
                         self.spread_argument(value, element, param.ty, bindings, function);
                     }
@@ -2013,7 +2029,7 @@ impl<'a> Checker<'a> {
             }
             let (param_ty, name) = match positional_params.get(index) {
                 Some(param) => (param.ty, param.name.clone()),
-                None => match (rest_element, sig.rest()) {
+                None => match (rest_element, rest_param) {
                     (Some(element), Some(param)) => (element, param.name.clone()),
                     _ => {
                         self.expr(value, None);
@@ -2036,6 +2052,11 @@ impl<'a> Checker<'a> {
             let actual = self.argument(value, param_ty, bindings, &purpose);
             self.release(argument_held);
             if splatted {
+                let left = positional_params.len().saturating_sub(index + 1);
+                if self.meter.charge(left as u64) {
+                    self.release(held);
+                    return;
+                }
                 for param in positional_params.iter().skip(index + 1) {
                     self.spread_argument(value, actual, param.ty, bindings, function);
                 }
@@ -2168,6 +2189,11 @@ impl<'a> Checker<'a> {
                     } else if let Some(element) = self.types.hash_value(ty) {
                         if ty != Ty::EMPTY_HASH {
                             if let Some(rest) = sig.keyword_rest() {
+                                // A dictionary of unknown keys spreads over
+                                // every keyword parameter, a step each.
+                                if self.meter.charge(sig.params.len() as u64) {
+                                    return;
+                                }
                                 let expected = self.types.hash_value(rest.ty).unwrap_or(Ty::ANY);
                                 self.spread_argument(
                                     &arg.value, element, expected, bindings, function,

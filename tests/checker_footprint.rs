@@ -2254,13 +2254,38 @@ fn the_checkers_time_per_step_stays_flat_as_names_and_parameters_grow() {
     let _serial = SERIAL
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let shapes: [Shape; 6] = [
+    let shapes: [Shape; 8] = [
+        // Each splat of unknown length spreads its elements over every
+        // parameter left.
+        ("a call splatting arrays over a wide signature", |n| {
+            let params = listed(n, |i| format!("p{i}: int"), ", ");
+            let splats = listed(n / 16, |_| "*xs".to_owned(), ", ");
+            (
+                Vec::new(),
+                format!(
+                    "def f({params}) -> int\n  1\nend\ndef g(xs: array<int>) -> int\n  f({splats})\nend\np(1)\n"
+                ),
+            )
+        }),
         // Each constant a module body assigns is looked for among the
         // body's annotated declarations.
         ("a module body assigning many constants", |n| {
             let constants = lines(n, |i| format!("  C{i} = {i}\n"));
             (Vec::new(), format!("module M\n{constants}end\np(1)\n"))
         }),
+        // Each argument past a signature's positional parameters is checked
+        // against its rest parameter.
+        (
+            "a call giving a rest parameter as many arguments as the rest",
+            |n| {
+                let params = listed(n, |i| format!("p{i}: int"), ", ");
+                let args = listed(2 * n, |i| i.to_string(), ", ");
+                (
+                    Vec::new(),
+                    format!("def f({params}, *tail: array<int>) -> int\n  1\nend\np(f({args}))\n"),
+                )
+            },
+        ),
         // Each assignment relates a shape of one long key to a union of it
         // and a class, which an index files by the shape's keys.
         ("a long-keyed shape assigned to unions of it", |n| {
