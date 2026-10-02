@@ -326,61 +326,6 @@ impl<'a> Surface<'a> {
             .any(|scope| scope.locals.contains(name))
     }
 
-    /// A receiver kind the syntax decides: a literal, a builtin namespace,
-    /// a rescued error or an annotated parameter.
-    pub fn static_kind(&self, receiver: &Expr) -> Option<String> {
-        Some(
-            match &receiver.kind {
-                ExprKind::Str | ExprKind::Template(_) => "string",
-                ExprKind::Symbol => "symbol",
-                ExprKind::Array(_) | ExprKind::Words => "array",
-                ExprKind::Hash(_) => "hash",
-                ExprKind::Integer => "int",
-                ExprKind::Float => "float",
-                ExprKind::Range(..) => "range",
-                ExprKind::Group(_, inner, _) => return self.static_kind(inner),
-                ExprKind::Name(name) => {
-                    if self.local(name) {
-                        let scope = self.scope();
-                        if scope.rescues.contains(name) {
-                            return Some("error".to_owned());
-                        }
-                        let def = scope.def?;
-                        let param = def.params.iter().find(|param| param.name == *name)?;
-                        let ty = param.ty.as_ref()?;
-                        if ty.nullable {
-                            return None;
-                        }
-                        let TypeKind::Named(tok, _) = &ty.kind else {
-                            return None;
-                        };
-                        let written = self.token_text(*tok).to_ascii_lowercase();
-                        return matches!(
-                            written.as_str(),
-                            "string"
-                                | "symbol"
-                                | "array"
-                                | "hash"
-                                | "int"
-                                | "float"
-                                | "money"
-                                | "duration"
-                                | "time"
-                                | "range"
-                        )
-                        .then(|| written.replace("object", "hash"));
-                    }
-                    if namespace_name(name) && !self.declared.classes.contains_key(name.as_str()) {
-                        return Some(name.clone());
-                    }
-                    return None;
-                }
-                _ => return None,
-            }
-            .to_owned(),
-        )
-    }
-
     /// Whether an expression starts from a name the script never binds,
     /// which the host supplies, such as a capability.
     pub fn host_rooted(&self, expr: &Expr) -> bool {

@@ -515,6 +515,66 @@ impl DerefMut for Checker<'_> {
 }
 
 impl<'a> Checker<'a> {
+    /// A receiver kind the syntax decides: a literal, a builtin namespace,
+    /// a rescued error or an annotated parameter.
+    pub(super) fn static_kind(&self, receiver: &syntax::Expr) -> Option<String> {
+        Some(
+            match &receiver.kind {
+                syntax::ExprKind::Str | syntax::ExprKind::Template(_) => "string",
+                syntax::ExprKind::Symbol => "symbol",
+                syntax::ExprKind::Array(_) | syntax::ExprKind::Words => "array",
+                syntax::ExprKind::Hash(_) => "hash",
+                syntax::ExprKind::Integer => "int",
+                syntax::ExprKind::Float => "float",
+                syntax::ExprKind::Range(..) => "range",
+                syntax::ExprKind::Group(_, inner, _) => return self.static_kind(inner),
+                syntax::ExprKind::Name(name) => {
+                    if self.local(name) {
+                        let scope = self.scope();
+                        if scope.rescues.contains(name) {
+                            return Some("error".to_owned());
+                        }
+                        let def = scope.def?;
+                        let mut found = None;
+                        for param in &def.params {
+                            if !self.room.charge(1 + name.len().div_ceil(64) as u64) {
+                                return None;
+                            }
+                            if param.name == *name {
+                                found = Some(param);
+                                break;
+                            }
+                        }
+                        let param = found?;
+                        let ty = param.ty.as_ref()?;
+                        if ty.nullable {
+                            return None;
+                        }
+                        let syntax::TypeKind::Named(tok, _) = &ty.kind else {
+                            return None;
+                        };
+                        let written = self.token_text(*tok);
+                        return [
+                            "string", "symbol", "array", "hash", "int", "float", "money",
+                            "duration", "time", "range",
+                        ]
+                        .into_iter()
+                        .find(|kind| kind.eq_ignore_ascii_case(written))
+                        .map(str::to_owned);
+                    }
+                    if super::context::namespace_name(name)
+                        && !self.declared.classes.contains_key(name.as_str())
+                    {
+                        return Some(name.clone());
+                    }
+                    return None;
+                }
+                _ => return None,
+            }
+            .to_owned(),
+        )
+    }
+
     /// The static checker's receiver type for a member call.
     fn receiver(&self, call: &syntax::Call) -> Option<&'a crate::typing::ReceiverType> {
         self.calls
@@ -604,9 +664,49 @@ impl<'a> Checker<'a> {
 }
 
 #[cfg(test)]
-mod budget_tests {
+mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
+
+    #[test]
+    fn parameter_kind_lookup_obeys_its_work_budget() {
+        let params = (0..256)
+            .map(|i| format!("p{i}: string"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let source = format!("def f({params}); p255.to_s(); end");
+        let tree = parse::parse(&source).unwrap();
+        let syntax::StmtKind::Def(def) = &tree.body[0].kind else {
+            panic!("function")
+        };
+        let syntax::StmtKind::Expr(expr) = &def.body[0].kind else {
+            panic!("expression")
+        };
+        let syntax::ExprKind::Call(call) = &expr.kind else {
+            panic!("call")
+        };
+        let room = Room::new(None, &|steps| steps <= 8, 0);
+        let mut checker = Checker {
+            surface: Surface::new(&source, &tree, &|| false).unwrap(),
+            calls: &CallTypes::default(),
+            findings: Vec::new(),
+            stop: &|| false,
+            visits: 0,
+            stopped: false,
+            room: &room,
+        };
+        checker.scopes.push(super::super::context::Scope {
+            def: Some(def),
+            locals: ["p255".to_owned()].into_iter().collect(),
+            ..Default::default()
+        });
+        assert!(
+            checker
+                .static_kind(call.receiver.as_ref().unwrap())
+                .is_none()
+        );
+        assert!(!room.within());
+    }
 
     #[test]
     fn footprint_stops_inside_one_percent_token() {
