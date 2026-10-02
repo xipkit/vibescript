@@ -420,7 +420,8 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         }
         let value = self.block_line_expr().await?;
         let offset = ivar.offset;
-        let assignment = Statement::Assign(Target::Value(variable), "=", value).at(offset);
+        let assignment =
+            Statement::Assign(Target::Value(variable), "=", value).at(self.work, offset)?;
         Ok((ivar, Some(assignment)))
     }
 }
@@ -473,7 +474,8 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         };
         let value = self.block_line_expr().await?;
         let offset = declared.offset;
-        let assignment = Statement::Assign(Target::Value(variable), "=", value).at(offset);
+        let assignment =
+            Statement::Assign(Target::Value(variable), "=", value).at(self.work, offset)?;
         Ok((declared, assignment))
     }
 }

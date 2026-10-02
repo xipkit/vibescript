@@ -171,7 +171,9 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 offset: definition.offset,
                 node: Statement::Unsupported,
             },
-            Declared::Class(class) => Statement::UnboundClass(class.name).at(class.offset),
+            Declared::Class(class) => {
+                Statement::UnboundClass(class.name).at(self.work, class.offset)?
+            }
             Declared::Enum(..) | Declared::Alias(..) | Declared::TypeAlias(..) => unreachable!(),
         })
     }
@@ -181,7 +183,8 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
     pub(super) async fn class_statement(&self) -> Result<(Stmt, Option<Module>)> {
         Ok(match self.declaration().await? {
             Declared::Class(class) => {
-                let stmt = Statement::UnboundClass(class.name.clone()).at(class.offset);
+                let stmt =
+                    Statement::UnboundClass(class.name.clone()).at(self.work, class.offset)?;
                 (stmt, Some(class))
             }
             Declared::Statement(stmt) => (stmt, None),
@@ -289,7 +292,10 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                             end,
                         },
                     )?;
-                    top.push(work, Statement::Module(module.name.clone()).at(offset))?;
+                    top.push(
+                        work,
+                        Statement::Module(module.name.clone()).at(work, offset)?,
+                    )?;
                     let index = modules.len();
                     order.push(Order::Module(index));
                     modules.push(work, module)?;

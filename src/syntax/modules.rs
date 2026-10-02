@@ -383,7 +383,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                     depth,
                     offset,
                 )?)
-                .at(offset)],
+                .at(work, offset)?],
             )?
         } else {
             self.p().expect_word("end")?;
@@ -736,16 +736,18 @@ impl Registry {
         module: &Module,
         work: &dyn crate::compilation::Work,
     ) -> Result<()> {
-        // Module nesting reaches the syntax depth limit, so the walk keeps its own stack.
-        let mut stack = vec![(module, module.name.clone(), 0usize)];
+        // Module nesting reaches the syntax depth limit, so the walk keeps
+        // its own stack, reserved from `work` as it grows.
+        let mut stack = Buffer::new();
+        stack.push(work, (module, module.name.clone(), 0usize))?;
         self.open(module, &module.name, work)?;
         while let Some((module, name, child)) = stack.pop() {
             work.charge(1)?;
             if let Some(nested) = module.modules.get(child) {
                 let qualified = Name::join(work, &[&name, "::", &nested.name])?;
-                stack.push((module, name, child + 1));
+                stack.push(work, (module, name, child + 1))?;
                 self.open(nested, &qualified, work)?;
-                stack.push((nested, qualified, 0));
+                stack.push(work, (nested, qualified, 0))?;
                 continue;
             }
             if let Some(missing) = &module.missing {
@@ -860,8 +862,11 @@ pub(super) fn directive_collisions(
     work: &dyn crate::compilation::Work,
 ) -> Result<()> {
     // What is left of each level's nested namespaces, rather than every one
-    // at once, and each visited is a step.
-    let mut levels = vec![std::slice::from_ref(module).iter().chain([].iter())];
+    // at once, in a list reserved from `work` as it grows: a namespace's
+    // nested namespaces above its inner ones, so they are visited first.
+    // Each visited is a step.
+    let mut levels = Buffer::new();
+    levels.push(work, std::slice::from_ref(module).iter())?;
     while let Some(level) = levels.last_mut() {
         let Some(module) = level.next() else {
             levels.pop();
@@ -881,7 +886,37 @@ pub(super) fn directive_collisions(
                 ));
             }
         }
-        levels.push(module.modules.iter().chain(module.inner.iter()));
+        levels.push(work, module.inner.iter())?;
+        levels.push(work, module.modules.iter())?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{CallContext, CallOptions, compilation::Meter};
+    use std::cell::RefCell;
+
+    #[test]
+    fn the_directive_walk_reserves_its_levels() {
+        // Namespaces nested as deep as the parser allows, whose walk keeps
+        // a level for each.
+        let depth = 1_000;
+        let opened: String = (0..depth).map(|i| format!("module M{i}\n")).collect();
+        let source = format!("{opened}X = 1\n{}", "end\n".repeat(depth));
+        let parsed = crate::syntax::parse(&source, &()).unwrap();
+        let mut context = CallContext::new(CallOptions::default());
+        super::directive_collisions(
+            &parsed.modules[0],
+            &super::Table::new(),
+            &Meter(RefCell::new(&mut context)),
+        )
+        .unwrap();
+        let level = std::mem::size_of::<std::slice::Iter<'static, super::Module>>();
+        let peak = context.stats().peak_memory_bytes;
+        assert!(
+            peak >= depth * level,
+            "{peak} bytes reserved for {depth} levels of {level}"
+        );
+    }
 }

@@ -163,7 +163,10 @@ impl Parser<'_> {
                     node: Node::Var(Name::join(self.work, &["@", &name])?),
                     depth: 1,
                 };
-                Buffer::from_array(self.work, [Statement::Return(Some(value)).at(offset)])
+                Buffer::from_array(
+                    self.work,
+                    [Statement::Return(Some(value)).at(self.work, offset)?],
+                )
             };
             if kind != "setter" {
                 class.instance_methods.push(

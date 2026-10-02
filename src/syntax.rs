@@ -582,18 +582,19 @@ impl Target {
     }
     // Destructuring nests as deeply as the syntax limit, so walk it without
     // recursion, in source order, keeping what is left of each level's
-    // parts rather than every part at once.
-    fn parts(&self, mut visit: impl FnMut(&Self, u32) -> bool) -> bool {
+    // parts rather than every part at once, in a list reserved from `work`
+    // as it grows.
+    fn parts(&self, work: &dyn Work, mut visit: impl FnMut(&Self, u32) -> bool) -> Result<bool> {
         // What is left of each level's parts, and its depth.
         type Level<'t> = (std::slice::Iter<'t, (Option<Target>, bool)>, u32);
-        let mut levels: Vec<Level<'_>> = Vec::new();
+        let mut levels: Buffer<Level<'_>> = Buffer::new();
         let mut next = Some((self, 0));
         loop {
             let (target, depth) = match next.take() {
                 Some(next) => next,
                 None => {
                     let Some((level, depth)) = levels.last_mut() else {
-                        return true;
+                        return Ok(true);
                     };
                     let depth = *depth;
                     match level.next() {
@@ -607,32 +608,32 @@ impl Target {
                 }
             };
             if !visit(target, depth) {
-                return false;
+                return Ok(false);
             }
             match target {
                 Self::Typed(target, _) => next = Some((target, depth)),
                 Self::Value(_) => (),
-                Self::Tuple(parts) => levels.push((parts.iter(), depth + 1)),
+                Self::Tuple(parts) => levels.push(work, (parts.iter(), depth + 1))?,
             }
         }
     }
-    fn is_binding(&self) -> bool {
-        self.parts(|target, _| match target {
+    fn is_binding(&self, work: &dyn Work) -> Result<bool> {
+        self.parts(work, |target, _| match target {
             Self::Value(e) => matches!(&e.node, Node::Var(name) if !name.starts_with('@')),
             _ => true,
         })
     }
-    fn depth(&self) -> u32 {
+    fn depth(&self, work: &dyn Work) -> Result<u32> {
         let mut deepest = 0;
-        self.parts(|target, depth| {
+        self.parts(work, |target, depth| {
             if let Self::Value(e) = target {
                 deepest = deepest.max(depth + e.depth);
             } else if let Self::Tuple(_) = target {
                 deepest = deepest.max(depth + 1);
             }
             true
-        });
-        deepest
+        })?;
+        Ok(deepest)
     }
 }
 #[derive(Debug)]
@@ -669,17 +670,18 @@ impl Stmt {
     }
 }
 impl Statement {
-    fn at(self, offset: u32) -> Stmt {
-        Stmt {
-            depth: self.depth(),
+    fn at(self, work: &dyn Work, offset: u32) -> Result<Stmt> {
+        Ok(Stmt {
+            depth: self.depth(work)?,
             node: self,
             offset,
-        }
+        })
     }
-    // Match Go's syntax tree height; children carry their own heights.
-    fn depth(&self) -> u32 {
+    // Match Go's syntax tree height; children carry their own heights. A
+    // target's height is found with a walk that `work` reserves for.
+    fn depth(&self, work: &dyn Work) -> Result<u32> {
         let body = |s: &[Stmt]| s.iter().map(|s| s.depth).max().unwrap_or(0);
-        match self {
+        Ok(match self {
             Statement::Module(_)
             | Statement::UnboundClass(_)
             | Statement::Retry
@@ -699,7 +701,7 @@ impl Statement {
                 ..
             }) if !attempt.modifier => *depth,
             Statement::Expr(e) => 1 + e.depth,
-            Statement::Assign(t, _, e) => 1 + t.depth().max(e.depth),
+            Statement::Assign(t, _, e) => 1 + t.depth(work)?.max(e.depth),
             Statement::If(branches, alternate, _) => {
                 let branches = branches.iter().enumerate().map(|(i, (condition, body_))| {
                     // Each elsif is its own node beside the first branch.
@@ -708,11 +710,11 @@ impl Statement {
                 1 + branches.max().unwrap_or(0).max(body(alternate))
             }
             Statement::While(e, b, _) => 1 + e.depth.max(body(b)),
-            Statement::For(t, e, b) => 1 + t.depth().max(e.depth).max(body(b)),
+            Statement::For(t, e, b) => 1 + t.depth(work)?.max(e.depth).max(body(b)),
             Statement::Return(e) | Statement::Break(e) | Statement::Next(e) => {
                 1 + e.as_ref().map_or(0, |e| e.depth)
             }
-        }
+        })
     }
 }
 #[derive(Debug)]
@@ -1276,7 +1278,10 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
             p.enter()?;
             p.tokens[p.pos].offset as u32
         };
-        let stmt = self.modified_statement(offset).await?.at(offset);
+        let stmt = self
+            .modified_statement(offset)
+            .await?
+            .at(self.work, offset)?;
         let mut p = self.p();
         p.expression_separator()?;
         p.check_depth(stmt.depth, stmt.offset)?;
@@ -1332,7 +1337,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
         if matches!(modifier.as_str(), "unless" | "until") {
             condition = p.negate(condition)?;
         }
-        let body = Buffer::from_array(work, [stmt.at(offset)])?;
+        let body = Buffer::from_array(work, [stmt.at(work, offset)?])?;
         Ok(if matches!(modifier.as_str(), "while" | "until") {
             Statement::While(condition, body, Some(keyword))
         } else {
@@ -1353,7 +1358,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
             if !p.statement_continues()? {
                 return Ok(stmt);
             }
-            let stmt = stmt.at(offset);
+            let stmt = stmt.at(p.work, offset)?;
             let depth = stmt.depth;
             p.make_at(Node::Compound(Boxed::new(p.work, stmt)?), depth, offset)?
         };
@@ -1649,7 +1654,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
         let (target, _) = self.target(Place::For).await?;
         let previous = {
             let mut p = self.p();
-            if !target.is_binding() {
+            if !target.is_binding(p.work)? {
                 let offset = target
                     .offset()
                     .map_or(p.position(p.pos), |offset| offset as usize);
@@ -1825,7 +1830,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
         };
         let p = self.p();
         let offset = target.offset().unwrap_or(p.tokens[p.pos].offset as u32);
-        p.check_depth(target.depth(), offset)?;
+        p.check_depth(target.depth(p.work)?, offset)?;
         Ok((target, tuple))
     }
 
@@ -2131,7 +2136,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
         } else {
             self.while_stmt(word == "until").await?
         };
-        let stmt = stmt.at(offset);
+        let stmt = stmt.at(self.work, offset)?;
         let depth = stmt.depth;
         let p = self.p();
         p.make(Node::Compound(Boxed::new(p.work, stmt)?), depth)
@@ -2383,12 +2388,10 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
             lhs = call.into_inner();
         }
         // Go counts the block literal as a node below its call.
-        let params = block
-            .params
-            .iter()
-            .map(|target| target.depth())
-            .max()
-            .unwrap_or(0);
+        let mut params = 0;
+        for target in block.params.iter() {
+            params = params.max(target.depth(self.work)?);
+        }
         let body = block.body.iter().map(|s| s.depth).max().unwrap_or(0);
         let depth = 1 + lhs.depth.max(1 + body.max(params));
         let p = self.p();
@@ -2703,7 +2706,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
         } else {
             Target::Tuple(Buffer::from_array(work, [(Some(target), false)])?)
         };
-        if !target.is_binding() {
+        if !target.is_binding(work)? {
             return Err(Error::syntax(
                 work,
                 open,
@@ -3373,7 +3376,7 @@ impl<'a> Parser<'a> {
         self.work.charge(1)?;
         let mut names = Buffer::new();
         let mut invalid = None;
-        target.parts(|part, _| {
+        target.parts(self.work, |part, _| {
             if let Target::Value(Expr {
                 node: Node::Var(name),
                 offset,
@@ -3388,7 +3391,7 @@ impl<'a> Parser<'a> {
             } else {
                 true
             }
-        });
+        })?;
         if let Some(error) = invalid {
             return Err(error);
         }
@@ -3409,7 +3412,7 @@ impl<'a> Parser<'a> {
         self.work.charge(1)?;
         let mut names = Buffer::new();
         let mut invalid = None;
-        target.parts(|part, _| {
+        target.parts(self.work, |part, _| {
             if let Target::Value(Expr {
                 node: Node::Var(name),
                 offset,
@@ -3424,7 +3427,7 @@ impl<'a> Parser<'a> {
             } else {
                 true
             }
-        });
+        })?;
         if let Some(error) = invalid {
             return Err(error);
         }
@@ -3444,7 +3447,7 @@ impl<'a> Parser<'a> {
                 repeated = binds(other, name, self.work)?;
             }
             if repeated {
-                let at = binding_offset(target, index);
+                let at = binding_offset(target, index, self.work)?;
                 return Err(duplicate_parameter(self.work, name, at, name.len()));
             }
         }
@@ -4620,7 +4623,7 @@ fn duplicate_parameter(work: &dyn Work, name: &str, at: usize, width: usize) -> 
 /// it looked at.
 fn binds(target: &Target, name: &str, work: &dyn Work) -> Result<bool> {
     let (mut found, mut visited) = (false, 0);
-    target.parts(|part, _| {
+    target.parts(work, |part, _| {
         visited += 1;
         if let Target::Value(Expr {
             node: Node::Var(bound),
@@ -4630,15 +4633,15 @@ fn binds(target: &Target, name: &str, work: &dyn Work) -> Result<bool> {
             found = bound == name;
         }
         !found
-    });
+    })?;
     work.charge(visited)?;
     Ok(found)
 }
 
 /// The offset of the name a block parameter binds `index`th.
-fn binding_offset(target: &Target, index: usize) -> usize {
+fn binding_offset(target: &Target, index: usize, work: &dyn Work) -> Result<usize> {
     let (mut seen, mut at) = (0, 0);
-    target.parts(|part, _| {
+    target.parts(work, |part, _| {
         if let Target::Value(Expr {
             node: Node::Var(_),
             offset,
@@ -4652,8 +4655,8 @@ fn binding_offset(target: &Target, index: usize) -> usize {
             seen += 1;
         }
         true
-    });
-    at
+    })?;
+    Ok(at)
 }
 
 /// Go's bound on source text quoted in a diagnostic: at most 64 bytes, cut at
@@ -4722,4 +4725,42 @@ pub(crate) fn keyword(w: &str) -> bool {
 }
 pub(crate) fn unsupported(work: &dyn Work, message: &str) -> Error {
     crate::compilation::error(work, None, format_args!("{message}"))
+}
+
+#[cfg(test)]
+mod walk_tests {
+    use super::{Statement, Target};
+    use crate::{CallContext, CallOptions, compilation::Meter};
+    use std::cell::RefCell;
+
+    #[test]
+    fn a_walk_over_a_deep_target_reserves_its_levels() {
+        // A target of pairs nested as deep as the parser allows, whose
+        // walk keeps a level for each.
+        let depth = 1_000;
+        let mut target = format!("a{}", depth - 1);
+        for i in (0..depth - 1).rev() {
+            target = format!("a{i}, ({target})");
+        }
+        let source = format!("def f(x: any)\n  {target} = x\nend\n");
+        let parsed = super::parse(&source, &()).unwrap();
+        let target = parsed
+            .functions
+            .iter()
+            .flat_map(|function| function.body.iter())
+            .find_map(|stmt| match &stmt.node {
+                Statement::Assign(target, _, _) => Some(target),
+                _ => None,
+            })
+            .unwrap();
+        let mut context = CallContext::new(CallOptions::default());
+        let found = super::binds(target, "absent", &Meter(RefCell::new(&mut context))).unwrap();
+        assert!(!found);
+        let level = std::mem::size_of::<(std::slice::Iter<'static, (Option<Target>, bool)>, u32)>();
+        let peak = context.stats().peak_memory_bytes;
+        assert!(
+            peak >= (depth - 1) * level,
+            "{peak} bytes reserved for {depth} levels of {level}"
+        );
+    }
 }
