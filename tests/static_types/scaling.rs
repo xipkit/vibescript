@@ -263,8 +263,11 @@ fn a_deep_nest_around_many_assignments_checks_in_linear_work() {
     // memory proportional to the depth times the assignments. The walks
     // that list them, find the files the program requires and whether a
     // function yields are each charged a step for each statement and
-    // expression, and on WASI, where the pass over the canonical surface
-    // cannot read syntax this deep, a parse of the source is charged again.
+    // expression, and sizing the pass over the canonical surface a step for
+    // each token. On WASI, where that pass cannot read syntax this deep, a
+    // parse of the source is charged again. All of it is linear in the
+    // source, a few steps a byte, where listing the assignments at every
+    // level took steps in proportion to the bytes times the depth.
     let levels = if cfg!(target_os = "wasi") { 100 } else { 900 };
     let source = format!(
         "x: int? = 1\nc = true\n{}{}{}",
@@ -274,7 +277,7 @@ fn a_deep_nest_around_many_assignments_checks_in_linear_work() {
     );
     let steps = steps(&source);
     assert!(
-        steps < 4 * source.len() as u64,
+        steps < 5 * source.len() as u64,
         "{steps} steps for {} bytes",
         source.len()
     );
