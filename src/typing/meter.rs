@@ -445,19 +445,28 @@ impl<T: Heap, S> Heap for HashSet<T, S> {
     }
 }
 
-/// The bytes of a B-tree node of `T`: up to eleven elements, with their
-/// edges when it is internal.
-fn btree_node<T>() -> usize {
-    11 * size_of::<T>() + 12 * size_of::<usize>() + 16
+/// The bytes of a B-tree leaf of `T`: up to eleven elements, with its
+/// parent, its place in it and its length.
+fn btree_leaf<T>() -> usize {
+    11 * size_of::<T>() + 16
 }
 
-/// The nodes a B-tree of `length` elements of `T` takes: every node but
-/// the root is at least half full.
+/// The nodes a B-tree of `length` elements of `T` takes at most: one leaf
+/// while they fit in it, and then, since every node but the root holds at
+/// least five of them, no more nodes than a fifth of them and the root,
+/// of which those with children, each with at least six, hold their
+/// twelve edges too.
 pub(crate) fn btree_storage<T>(length: usize) -> usize {
     if length == 0 {
         0
+    } else if length <= 11 {
+        btree_leaf::<T>()
     } else {
-        (1 + length / 5).saturating_mul(btree_node::<T>())
+        let nodes = 1 + length / 5;
+        let internal = 1 + nodes / 6;
+        nodes
+            .saturating_mul(btree_leaf::<T>())
+            .saturating_add(internal.saturating_mul(12 * size_of::<usize>()))
     }
 }
 
@@ -467,14 +476,10 @@ impl<T: Heap> Heap for BTreeSet<T> {
     }
 }
 
-/// What one more element takes in `set`, beside its own payload: the root
-/// for the first, and a fifth of a node for each after it.
+/// What one more element takes in `set`, beside its own payload: what the
+/// nodes of one more take beyond those of as many as it holds.
 pub(crate) fn btree_entry<T>(set: &BTreeSet<T>) -> usize {
-    if set.is_empty() {
-        btree_node::<T>()
-    } else {
-        btree_node::<T>() / 5
-    }
+    btree_storage::<T>(set.len() + 1) - btree_storage::<T>(set.len())
 }
 
 /// The bytes a table's own storage takes, without what its elements own,
