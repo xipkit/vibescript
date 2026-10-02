@@ -1385,15 +1385,19 @@ impl<'a> Checker<'a> {
         offset: usize,
         annotated: bool,
     ) -> Option<LocalId> {
-        // The local, its entry by name and its scope's record each copy its
-        // name. They, and room in each table they go in, are counted before
-        // any table changes, so a refusal leaves the frame as it was.
+        // The local copies its name, as do a new map entry and an open
+        // scope's record. Count only the copies they keep, and make room
+        // in each table before changing any binding, so a refusal leaves
+        // the frame as it was.
         let tables = self.meter.tables();
         let frame = &mut self.frame;
-        let mut kept = tables.keep(3 * name.len()).ok()?;
+        let new_name = !frame.names.contains_key(name);
+        let copies = 1 + usize::from(new_name) + usize::from(!frame.scopes.is_empty());
+        let bytes = copies * name.len();
+        let mut kept = tables.keep(bytes).ok()?;
         frame.flow.reserve().ok()?;
         frame.locals.reserve(tables, 1).ok()?;
-        if !frame.names.contains_key(name) {
+        if new_name {
             frame.names.reserve(tables, 1).ok()?;
         }
         if let Some(scope) = frame.scopes.last_mut() {
@@ -1412,8 +1416,12 @@ impl<'a> Checker<'a> {
                 dictionary: None,
             },
         );
-        let previous = frame.names.insert_kept(&mut kept, name.to_owned(), id);
-        frame.name_bytes += 3 * name.len();
+        let previous = if let Some(entry) = frame.names.get_mut(name) {
+            Some(std::mem::replace(entry, id))
+        } else {
+            frame.names.insert_kept(&mut kept, name.to_owned(), id)
+        };
+        frame.name_bytes += bytes;
         if let Some(scope) = frame.scopes.last_mut() {
             scope.push_kept(&mut kept, (name.to_owned(), previous));
         }
@@ -1490,6 +1498,7 @@ impl<'a> Checker<'a> {
         // A name a scope shadowed had its entry, which it gets back in
         // place.
         for (name, previous) in scope.into_iter().rev() {
+            self.frame.name_bytes -= name.len();
             match previous {
                 Some(id) => {
                     if let Some(entry) = self.frame.names.get_mut(&name) {
@@ -1498,6 +1507,7 @@ impl<'a> Checker<'a> {
                 }
                 None => {
                     self.frame.names.remove(&name);
+                    self.frame.name_bytes -= name.len();
                 }
             }
         }

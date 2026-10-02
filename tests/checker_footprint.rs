@@ -772,6 +772,63 @@ fn corpora() -> Vec<(String, String)> {
 }
 
 #[test]
+fn the_local_name_account_stays_close_to_the_allocated_peak() {
+    let _serial = SERIAL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let engine = Engine::new();
+    measure(&engine, "0\n");
+    let name = "n".repeat(8192);
+    let locals = (0..100)
+        .map(|i| format!("{name}{i} = 0\n"))
+        .collect::<String>();
+    let parameters = listed(100, |i| format!("{name}{i}: int"), ", ");
+    let blocks = format!("[1].each {{ |{name}: int| 0 }}\n").repeat(100);
+    let unshadowed = lines(100, |i| format!("[1].each {{ |{name}{i}: int| 0 }}\n"));
+    let cases = [
+        ("top-level locals", format!("{locals}0\n")),
+        (
+            "function parameters",
+            format!("def f({parameters}) -> int\n0\nend\n"),
+        ),
+        (
+            "successive blocks shadowing a local",
+            format!("{name} = 0\n{blocks}0\n"),
+        ),
+        (
+            "successive blocks declaring new names",
+            format!("{unshadowed}0\n"),
+        ),
+    ];
+    for (case, source) in cases {
+        let measured = measure(&engine, &source);
+        let (real, account) = measured.checker;
+        assert!(
+            real as f64 <= FACTOR * account as f64 + SLACK as f64,
+            "{case}: {real} real bytes, {account} accounted"
+        );
+        // These names dominate the heap, so charges for copies that do
+        // not exist cannot hide in the table estimates' small margin.
+        assert!(
+            account as f64 <= 1.25 * real as f64 + SLACK as f64,
+            "{case}: {account} accounted bytes exceed {real} allocated bytes"
+        );
+        let quota = 6 << 20;
+        let options = vibescript::CallOptions {
+            limits: vibescript::Limits {
+                steps: None,
+                memory_bytes: Some(quota),
+                ..vibescript::Limits::default()
+            },
+            ..vibescript::CallOptions::default()
+        };
+        if let Err(error) = engine.compile_with_options(&source, &options) {
+            panic!("{case} should fit in {quota} bytes: {error}");
+        }
+    }
+}
+
+#[test]
 fn the_checkers_account_covers_its_peak_memory() {
     let _serial = SERIAL
         .lock()
