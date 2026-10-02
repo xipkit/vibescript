@@ -490,12 +490,19 @@ impl Edits {
             start: 0,
             end: source.len(),
         };
+        let scratch = self.edits.len() * size_of::<bool>();
+        if !room.take(scratch) {
+            return None;
+        }
         let mut state = State {
             conflicts: Vec::new(),
             inserted: vec![false; self.edits.len()],
         };
-        self.render(source, whole, None, &mut out, &mut state);
+        let rendered = self.render(source, whole, None, &mut out, &mut state);
         self.conflicts = state.conflicts;
+        drop(state.inserted);
+        room.give_back(self.edits.len() * size_of::<bool>());
+        rendered?;
         out.finish()
     }
 
@@ -508,30 +515,47 @@ impl Edits {
         limit: Option<usize>,
         out: &mut Written<'_>,
         state: &mut State,
-    ) {
+    ) -> Option<()> {
+        if !out.room.charge(1) {
+            return None;
+        }
         let whole = span.start == 0 && span.end == source.len() && limit.is_none();
         let first = self
             .edits
             .partition_point(|edit| edit.span.start < span.start);
-        let own: Vec<usize> = (first..limit.unwrap_or(self.edits.len()))
-            .take_while(|&i| self.edits[i].span.start == span.start)
-            .filter(|&i| self.edits[i].span == span && span.end > span.start)
-            .collect();
-        if let Some(&top) = own.last() {
+        let mut top = None;
+        for i in first..limit.unwrap_or(self.edits.len()) {
+            if !out.room.charge(1) {
+                return None;
+            }
+            if self.edits[i].span.start != span.start {
+                break;
+            }
+            if self.edits[i].span == span && span.end > span.start {
+                top = Some(i);
+            }
+        }
+        if let Some(top) = top {
             for piece in &self.edits[top].pieces {
+                if !out.room.charge(1) {
+                    return None;
+                }
                 match piece {
                     Piece::Text(text) => out.push_str(text),
                     Piece::Source(inner) if *inner == span => {
-                        self.render(source, span, Some(top), out, state);
+                        self.render(source, span, Some(top), out, state)?;
                     }
-                    Piece::Source(inner) => self.render(source, *inner, None, out, state),
+                    Piece::Source(inner) => self.render(source, *inner, None, out, state)?,
                 }
             }
-            return;
+            return out.room.within().then_some(());
         }
         let mut position = span.start;
         let mut index = first;
         while index < self.edits.len() {
+            if !out.room.charge(1) {
+                return None;
+            }
             let edit = &self.edits[index];
             let past = edit.span.start > span.end
                 || (edit.span.start == span.end
@@ -554,10 +578,16 @@ impl Edits {
                 break;
             }
             out.push_str(&source[position..edit.span.start]);
+            if !out.room.within() {
+                return None;
+            }
             if empty {
                 if !state.inserted[index] {
                     state.inserted[index] = true;
                     for piece in &edit.pieces {
+                        if !out.room.charge(1) {
+                            return None;
+                        }
                         if let Piece::Text(text) = piece {
                             out.push_str(text);
                         }
@@ -567,11 +597,12 @@ impl Edits {
                 position = edit.span.start;
                 continue;
             }
-            self.render(source, edit.span, None, out, state);
+            self.render(source, edit.span, None, out, state)?;
             position = edit.span.end;
             index += 1;
         }
         out.push_str(&source[position..span.end]);
+        out.room.within().then_some(())
     }
 }
 
@@ -598,6 +629,17 @@ mod tests {
         out.push_str(&"x".repeat(100_000));
         assert!(out.finish().is_none());
         assert!(room.total() > 64);
+    }
+
+    #[test]
+    fn rendering_stops_between_replacement_pieces() {
+        let calls = AtomicUsize::new(0);
+        let within = |_| calls.fetch_add(1, Relaxed) < 4;
+        let room = Room::new(None, &within, 0);
+        let mut edits = Edits::default();
+        edits.replace(span(0, 1), vec![Piece::Text("x".into()); 10_000]);
+        assert!(edits.apply_in("a", &room).is_none());
+        assert!(calls.load(Relaxed) <= 6);
     }
 
     #[test]
