@@ -89,7 +89,7 @@ fn run() -> i32 {
             0
         }
         Some("run") => batch(&args[1..]),
-        Some("verdicts") => verdicts(&args[1..]),
+        Some("verdicts") => verdicts(&args[1..], case_for),
         Some("rejections") => rejections(&args[1..]),
         Some("minimize") => {
             let mut scratch = Scratch::new(&scratch_root(0));
@@ -136,7 +136,7 @@ fn option(args: &[String], name: &str) -> Option<String> {
 /// running it with every check kept ended: `ran`, `failed`, `limited` or
 /// `panicked`. A program whose check or run takes longer than two minutes
 /// ends the run with status 3.
-fn verdicts(args: &[String]) -> i32 {
+fn verdicts(args: &[String], make_case: fn(u64, &str) -> Case) -> i32 {
     use std::io::Write;
     let from: u64 = option(args, "--from")
         .and_then(|value| value.parse().ok())
@@ -174,9 +174,10 @@ fn verdicts(args: &[String]) -> i32 {
                         break;
                     }
                     current.lock().unwrap()[worker] = Some((seed, Instant::now()));
-                    let case = case_for(seed, &source);
+                    let case = make_case(seed, &source);
                     let outcome = harness::outcome(&case, &mut scratch);
-                    let _ = writeln!(output.lock().unwrap(), "{seed} {}", outcome.line());
+                    writeln!(output.lock().unwrap(), "{seed} {}", outcome.line())
+                        .expect("write a verdict");
                 }
                 current.lock().unwrap()[worker] = None;
                 let _ = std::fs::remove_dir_all(root);
@@ -203,9 +204,9 @@ fn verdicts(args: &[String]) -> i32 {
         }
     }
     for handle in handles {
-        let _ = handle.join();
+        handle.join().expect("verdict worker panicked");
     }
-    let _ = output.lock().unwrap().flush();
+    output.lock().unwrap().flush().expect("flush verdicts");
     0
 }
 
@@ -348,6 +349,21 @@ fn describe(verdict: &Verdict) -> String {
 
 /// Each worker's current seed and when it started, for the watchdog.
 type Watch = Arc<Mutex<Vec<Option<(u64, Instant)>>>>;
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn verdicts_fail_when_generating_a_case_panics() {
+        let args = ["--count", "1", "--jobs", "1"].map(str::to_owned);
+        let result = std::panic::catch_unwind(|| {
+            super::verdicts(&args, |_, _| panic!("case generation failed"))
+        });
+        assert!(
+            result.is_err(),
+            "a truncated verdict file must fail the command"
+        );
+    }
+}
 
 /// How many programs of each kind of finding a run writes.
 const KEEP: u64 = 200;
