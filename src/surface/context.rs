@@ -71,7 +71,7 @@ pub struct Declared<'a> {
     /// Classes by their dotted name, and the methods each defines.
     pub classes: HashMap<String, &'a Class>,
     /// Enums by name, with their members.
-    pub enums: HashMap<String, Vec<String>>,
+    pub enums: HashMap<String, &'a [String]>,
     /// Every method name a class or top-level function defines.
     pub methods: HashSet<String>,
     /// Methods a direct call from outside their class cannot reach.
@@ -234,7 +234,7 @@ impl<'a> Surface<'a> {
                 StmtKind::Enum(declared) => {
                     self.declared
                         .enums
-                        .insert(declared.name.clone(), declared.members.clone());
+                        .insert(declared.name.clone(), &declared.members);
                 }
                 _ => (),
             }
