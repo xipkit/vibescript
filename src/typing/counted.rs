@@ -1753,6 +1753,134 @@ mod tests {
         );
     }
 
+    /// The Rust files under `src` of `roots`, each a file or a directory
+    /// walked whole, but for those that hold only tests.
+    fn sources(roots: &[&str]) -> Vec<std::path::PathBuf> {
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut pending: Vec<std::path::PathBuf> =
+            roots.iter().map(|root| src.join(root)).collect();
+        let mut found = Vec::new();
+        while let Some(path) = pending.pop() {
+            if path.is_dir() {
+                for entry in std::fs::read_dir(&path).unwrap() {
+                    pending.push(entry.unwrap().path());
+                }
+            } else if path.extension().is_some_and(|extension| extension == "rs")
+                && !path.ends_with("tests.rs")
+                && !path.ends_with("test_support.rs")
+            {
+                found.push(path);
+            }
+        }
+        found.sort();
+        found
+    }
+
+    /// The names a walk's stack goes by.
+    const STACKS: &[&str] = &[
+        "stack", "stacks", "levels", "pending", "frames", "queue", "todo", "trail", "parents",
+    ];
+
+    /// The stacks the checker, the parser and the loader keep in plain
+    /// lists, by file and name: each made room for before it grows, counted
+    /// before the walk starts at the most it takes, or bounded without the
+    /// source. A walk's stack holds what is left of each level of what it
+    /// walks, which the source nests as deep as the parser allows, so any
+    /// other is counted as it grows: a scratch list in the checker, and a
+    /// buffer its work reserves in the parser and the loader.
+    const UNCOUNTED_STACKS: &[(&str, &str)] = &[
+        // The assignment index's walk and the checker's walks, each made
+        // room for, with what the walk holds beside it, before it grows.
+        ("assigns.rs", "stack"),
+        ("walk.rs", "stack"),
+        // The cycle search's stacks, counted before the search starts at
+        // the most they take, a node each.
+        ("construction.rs", "stack"),
+        ("construction.rs", "frames"),
+        // A set's nodes left to visit: at most 16 for each level of a tree
+        // of 16-way nodes over the set's indices, a few levels.
+        ("marks.rs", "pending"),
+        // Two levels for each interpolation nested in another, which the
+        // lexer stops at 8.
+        ("record.rs", "levels"),
+        // A configured root's path parts, which the host gives, not a
+        // script.
+        ("root.rs", "pending"),
+        // The drop of a syntax tree, which has no budget and frees more
+        // than its stack holds, a stack kept only as large as a thread
+        // keeps one.
+        ("teardown.rs", "pending"),
+    ];
+
+    #[test]
+    fn the_walks_count_their_stacks() {
+        let mut found = Vec::new();
+        let mut used = Vec::new();
+        for path in sources(&[
+            "typing.rs",
+            "typing",
+            "syntax.rs",
+            "syntax",
+            "loading.rs",
+            "loading",
+        ]) {
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            let text = std::fs::read_to_string(&path).unwrap();
+            let code = text.split("#[cfg(test)]").next().unwrap();
+            for line in code.lines().map(str::trim) {
+                if line.starts_with("//") {
+                    continue;
+                }
+                for stack in STACKS {
+                    let declared =
+                        line.strip_prefix("let mut ")
+                            .and_then(|rest| rest.strip_prefix(stack))
+                            .is_some_and(|rest| {
+                                let rest = rest.trim_start();
+                                (rest.starts_with(':') || rest.starts_with('='))
+                                    && ["vec![", "Vec::", "VecDeque::", "Vec<", "VecDeque<"]
+                                        .iter()
+                                        .any(|list| {
+                                            rest.match_indices(list).any(|(at, _)| {
+                                                !rest[..at].chars().next_back().is_some_and(|c| {
+                                                    c == '_' || c.is_alphanumeric()
+                                                })
+                                            })
+                                        })
+                            });
+                    let typed = line.match_indices(&format!("{stack}: ")).any(|(at, _)| {
+                        let before = line[..at].chars().next_back();
+                        let ty = line[at + stack.len() + 2..].trim_start_matches("&mut ");
+                        !before.is_some_and(|c| c == '_' || c.is_alphanumeric())
+                            && (ty.starts_with("Vec<") || ty.starts_with("VecDeque<"))
+                    });
+                    if !(declared || typed) {
+                        continue;
+                    }
+                    let allowed = UNCOUNTED_STACKS
+                        .iter()
+                        .find(|&&(file, allowed)| file == name && allowed == *stack);
+                    if let Some(&entry) = allowed {
+                        used.push(entry);
+                    } else {
+                        found.push(format!("{name}: {line}"));
+                    }
+                }
+            }
+        }
+        let stale: Vec<String> = UNCOUNTED_STACKS
+            .iter()
+            .filter(|entry| !used.contains(entry))
+            .map(|(file, stack)| format!("{file}: {stack}"))
+            .collect();
+        assert!(
+            found.is_empty() && stale.is_empty(),
+            "count a walk's stack as it grows, or say here why it need not be:\n{}\nno longer kept in a plain list:\n{}",
+            found.join("\n"),
+            stale.join("\n")
+        );
+    }
+
     #[test]
     fn the_checkers_state_grows_only_through_counted_tables() {
         let found: Vec<String> = collections_in_state()
