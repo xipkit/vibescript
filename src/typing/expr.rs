@@ -721,8 +721,9 @@ impl<'a> Checker<'a> {
                 optional: false,
             });
         }
-        let actual = self.types.shape(fields, false);
+        // The fields move into the type table, which holds them from here.
         self.release(held);
+        let actual = self.types.shape(fields, false);
         shapes
             .iter()
             .copied()
@@ -874,9 +875,9 @@ impl<'a> Checker<'a> {
                 optional: false,
             });
         }
-        let shape = self.types.shape(fields, false);
+        // The fields move into the type table, which holds them from here.
         self.release(held);
-        shape
+        self.types.shape(fields, false)
     }
 
     /// A braced group that is a type literal unless one of its names is a
