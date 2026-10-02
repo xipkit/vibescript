@@ -600,6 +600,7 @@ impl<'a> Checker<'a> {
         if receiver
             .bases()
             .iter()
+            .take_while(|_| self.room.charge(1))
             .any(|base| matches!(base.as_str(), "any" | "host"))
         {
             return None;
@@ -607,20 +608,23 @@ impl<'a> Checker<'a> {
         // An optional receiver must be narrowed before a call, which the
         // checker reports; the spelling is decided by what it narrows to.
         let bases = receiver.bases();
-        let present = bases.iter().any(|base| base != "nil");
-        Some(
-            bases
-                .iter()
-                .filter(|base| !present || *base != "nil")
-                .map(|base| match base.as_str() {
-                    "array" | "hash" | "int" | "float" | "string" | "bool" | "nil" | "symbol"
-                    | "time" | "duration" | "money" | "range" | "regex" | "match_data"
-                    | "error" | "any" | "type" | "namespace" => base.clone(),
-                    name if self.declared.enums.contains_key(name) => "enum".to_owned(),
-                    name => written!(self, "class {name}"),
-                })
-                .collect(),
-        )
+        let present = bases
+            .iter()
+            .take_while(|_| self.room.charge(1))
+            .any(|base| base != "nil");
+        let kinds = bases
+            .iter()
+            .take_while(|_| self.room.charge(1))
+            .filter(|base| !present || *base != "nil")
+            .map(|base| match base.as_str() {
+                "array" | "hash" | "int" | "float" | "string" | "bool" | "nil" | "symbol"
+                | "time" | "duration" | "money" | "range" | "regex" | "match_data" | "error"
+                | "any" | "type" | "namespace" => base.clone(),
+                name if self.declared.enums.contains_key(name) => "enum".to_owned(),
+                name => written!(self, "class {name}"),
+            })
+            .collect();
+        self.room.within().then_some(kinds)
     }
 
     /// Whether the receiver is known to be a value whose member of the
@@ -632,6 +636,7 @@ impl<'a> Checker<'a> {
                 && !receiver
                     .bases()
                     .iter()
+                    .take_while(|_| self.room.charge(1))
                     .any(|base| matches!(base.as_str(), "hash" | "nil" | "any" | "host"))
         })
     }
@@ -649,6 +654,7 @@ impl<'a> Checker<'a> {
                 receiver
                     .bases()
                     .iter()
+                    .take_while(|_| self.room.charge(1))
                     .any(|base| matches!(base.as_str(), "any" | "host")),
             );
         }

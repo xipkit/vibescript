@@ -1163,7 +1163,7 @@ const STARTED: &[(&str, [usize; 4])] = &[
     ("patterns.rs", [0, 0, 2, 0]),
     // A call's missing arguments; the keywords a pattern takes, and the
     // pieces of a rename, a few for each argument; the template's text.
-    ("rules.rs", [5, 3, 1, 0]),
+    ("rules.rs", [2, 3, 1, 0]),
     // The interpolations' first tokens.
     ("syntax.rs", [0, 1, 0, 0]),
 ];
