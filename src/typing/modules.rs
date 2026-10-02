@@ -865,7 +865,12 @@ impl<'a> Checker<'a> {
                 // tables are counted before any is made.
                 let declarations = self.meter.declarations();
                 let methods = &mut self.program.namespaces[owner as usize].methods;
-                let Ok(mut kept) = declarations.keep(name.len() + sig.heap()) else {
+                let Ok(mut kept) = declarations.keep(
+                    name.len()
+                        + sig.heap()
+                        + std::mem::size_of::<Sig>()
+                        + 2 * std::mem::size_of::<usize>(),
+                ) else {
                     break;
                 };
                 if methods.reserve(declarations, 1).is_err()
@@ -901,19 +906,22 @@ impl<'a> Checker<'a> {
             // Its copy of the signature, which holds no more than the
             // file's, is counted before it is made, and its name, with its
             // room in the table, as the table takes it.
-            if self.meter.declarations().keep(sig.heap()).is_err() {
+            let declarations = self.meter.declarations();
+            let Ok(mut kept) = declarations.keep(
+                name.len()
+                    + sig.heap()
+                    + std::mem::size_of::<Sig>()
+                    + 2 * std::mem::size_of::<usize>(),
+            ) else {
+                break;
+            };
+            if functions.reserve(declarations, 1).is_err() {
                 break;
             }
             let Some(sig) = self.import_sig(&exported.types, sig, &imports) else {
                 break;
             };
-            let declarations = self.meter.declarations();
-            if functions
-                .insert_made(declarations, name.len(), || name.clone(), Rc::new(sig))
-                .is_err()
-            {
-                break;
-            }
+            functions.insert_kept(&mut kept, name.clone(), Rc::new(sig));
         }
         if self.declaring() {
             return (CountedMap::new(), CountedMap::new());
