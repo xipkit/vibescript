@@ -671,7 +671,7 @@ impl<'a> Checker<'a> {
             .iter()
             .filter(|(_, id)| self.program.fns[**id].def.is_some_and(|def| !def.private))
             .map(|(name, id)| {
-                size_of::<(String, Sig)>() + name.len() + self.program.fns[*id].sig.heap()
+                size_of::<(String, Sig)>() + name.len() + self.program.fns[*id].sig.as_ref().heap()
             })
             .sum();
         let enums = self.parsed.enums.len() * size_of::<Arc<Enum>>();
@@ -690,7 +690,7 @@ impl<'a> Checker<'a> {
                         .map(|(name, &id)| {
                             size_of::<(String, Sig, Visibility)>()
                                 + name.len()
-                                + self.program.fns[id].sig.heap()
+                                + self.program.fns[id].sig.as_ref().heap()
                         })
                         .sum::<usize>()
             })

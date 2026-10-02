@@ -1181,10 +1181,10 @@ mod budget_tests {
         // Each export holds a copy of its name and one in its signature.
         let copies = 200 * 2 * long.len();
         assert!(
-            public.peak_bytes >= private.peak_bytes + copies,
-            "{} bytes at the peak with public functions, {} with private ones",
-            public.peak_bytes,
-            private.peak_bytes
+            public.surfaced >= private.surfaced + copies,
+            "{} bytes at the surface handoff with public functions, {} with private ones",
+            public.surfaced,
+            private.surfaced
         );
         // A budget the copies would pass stops the check before it makes
         // them, which then exports nothing.

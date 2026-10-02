@@ -634,12 +634,12 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     checker.held();
     // A required file's exports copy its public declarations beside them,
     // which the budget bounds with the rest before they are made.
-    let copies = if input.file {
+    let copies = if input.file && !checker.halted() {
         checker.export_bytes()
     } else {
         0
     };
-    let stopped = checker.halted() || (input.file && meter.scratch(copies));
+    let stopped = checker.halted() || meter.scratch_lists().keep(copies).is_err();
     // A check past its budget exports nothing: its caller stops too.
     let exported = (input.file && !stopped).then(|| checker.export().map(std::sync::Arc::new));
     // A sort an export refuses stops the check, which exports nothing.
@@ -713,7 +713,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         let exported = checked
             .exported
             .as_ref()
-            .map_or(0, |exported| exported.types_bytes() + copies);
+            .map_or(0, |exported| exported.types_bytes());
         let checker_held = meter.held(checker.types.bytes()) + exported;
         checked.peak_bytes = checked.peak_bytes.max(checker_held);
         let held = checker_held + surface;
