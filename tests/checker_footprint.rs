@@ -1182,6 +1182,17 @@ fn shapes() -> Vec<Shape> {
                 format!("def f({parameters}) -> int\n  1\nend\np(f({arguments}))\n"),
             )
         }),
+        ("many construction methods with one call each", |n| {
+            let methods = lines(n, |i| {
+                format!("  def m{i} -> int\n    self.value\n  end\n")
+            });
+            (
+                Vec::new(),
+                format!(
+                    "class C\n  @v: int\n  def initialize\n    m0\n    @v = 1\n  end\n  def value -> int\n    @v\n  end\n{methods}end\np(1)\n"
+                ),
+            )
+        }),
         ("a mismatch at a statement holding a wide array", |n| {
             let items = listed(n * 4, |_| "1".to_owned(), ", ");
             (

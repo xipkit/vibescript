@@ -16,7 +16,7 @@
 
 use super::{
     Checker,
-    counted::{CountedBTreeSet, CountedMap, CountedSet, CountedVec},
+    counted::{CountedBTreeSet, CountedMap, CountedSet, CountedVec, ScratchMap, ScratchVec},
     marks::Marks,
     meter::{Heap, btree_storage},
     program::{FnId, NsId},
@@ -530,51 +530,46 @@ impl<'a> Checker<'a> {
     /// for them, for the caller to release; a check the budget stops finds
     /// none.
     fn method_reads(&mut self) -> (Reads, usize) {
-        // The methods, their places and the calls between them, counted
-        // before they are listed: at most every call each method makes.
+        // The graph's lists and index admit their actual growth before
+        // allocating, including the minimum capacity of each short list.
         let methods = self.construction.methods.len();
-        let calls: usize = self
-            .construction
-            .methods
-            .values()
-            .map(|method| method.calls.len())
-            .sum();
-        if self.transient(
-            methods * std::mem::size_of::<FnId>()
-                + super::meter::table::<(FnId, usize)>(methods)
-                + methods * std::mem::size_of::<Vec<usize>>()
-                + calls * std::mem::size_of::<usize>(),
-        ) {
-            return (HashMap::new(), 0);
+        let mut ids = ScratchVec::new(&self.meter);
+        for &id in self.construction.methods.keys() {
+            if ids.push(id).is_err() {
+                return (HashMap::new(), 0);
+            }
         }
-        let mut ids: Vec<FnId> = self.construction.methods.keys().copied().collect();
         if super::counted::sort_unstable_by(&self.meter, &mut ids, Ord::cmp).is_err() {
             return (HashMap::new(), 0);
         }
-        let place: HashMap<FnId, usize> =
-            ids.iter().enumerate().map(|(at, &id)| (id, at)).collect();
-        let calls: Vec<Vec<usize>> = ids
-            .iter()
-            .map(|id| {
-                self.construction.methods[id]
-                    .calls
-                    .iter()
-                    .filter_map(|callee| place.get(callee).copied())
-                    .collect()
-            })
-            .collect();
-        // The graph is held while its cycles are found and their reads
-        // gathered, with what that builds, counted before it is built: the
+        let mut place = ScratchMap::new(&self.meter);
+        for (at, &id) in ids.iter().enumerate() {
+            if place.insert(id, at).is_err() {
+                return (HashMap::new(), 0);
+            }
+        }
+        let mut calls = ScratchVec::new(&self.meter);
+        for id in ids.iter() {
+            let mut row = ScratchVec::new(&self.meter);
+            for callee in self.construction.methods[id].calls.iter() {
+                if let Some(&at) = place.get(callee) {
+                    if row.push(at).is_err() {
+                        return (HashMap::new(), 0);
+                    }
+                }
+            }
+            if calls.push(row).is_err() {
+                return (HashMap::new(), 0);
+            }
+        }
+        // The counted graph stays while its cycles are found and their
+        // reads gathered, with what that builds counted before it is: the
         // search's scratch, and at most a cycle for each method, each with
         // its list of methods and its shared reads, and the reads by method.
-        let graph = super::meter::map(&place)
-            + super::meter::vec(&calls)
-            + calls.iter().map(super::meter::vec).sum::<usize>();
         // A cycle's reads themselves are counted as they are kept.
         let reads = std::mem::size_of::<Rc<Option<BTreeSet<String>>>>() + RC_COUNTS;
         let Some(held) = self.hold(
-            graph
-                + methods * (SEARCH_SCRATCH + CYCLE + reads)
+            methods * (SEARCH_SCRATCH + CYCLE + reads)
                 + super::meter::table::<(FnId, Rc<Option<BTreeSet<String>>>)>(methods),
         ) else {
             return (HashMap::new(), 0);
@@ -607,7 +602,7 @@ impl<'a> Checker<'a> {
                     self.release(held);
                     return (HashMap::new(), 0);
                 }
-                for &callee in &calls[member] {
+                for &callee in calls[member].iter() {
                     let other = cycle_of[callee];
                     if other == cycle {
                         continue;
@@ -703,7 +698,7 @@ const RC_COUNTS: usize = 2 * std::mem::size_of::<usize>();
 /// [`PACE`](super::walk::PACE) of them whether the check has stopped, and
 /// gives up, with `None`, if it has.
 fn cycles(
-    edges: &[Vec<usize>],
+    edges: &[impl std::ops::Deref<Target = [usize]>],
     meter: &super::meter::Meter,
 ) -> Option<(Vec<Vec<usize>>, Vec<usize>)> {
     use super::walk::PACE;

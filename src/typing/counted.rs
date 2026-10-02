@@ -2086,7 +2086,7 @@ mod tests {
         ("assigns.rs", [0, 0, 0, 2]),
         ("calls.rs", [0, 1, 4, 5]),
         ("check.rs", [3, 0, 0, 11]),
-        ("construction.rs", [1, 0, 0, 15]),
+        ("construction.rs", [1, 0, 0, 11]),
         ("expr.rs", [2, 6, 0, 10]),
         ("flow.rs", [0, 0, 0, 6]),
         ("foreign.rs", [1, 0, 0, 0]),
@@ -2170,7 +2170,7 @@ mod tests {
         ("check.rs", [8, 1, 2]),
         // The cycle search's stack, cycles and their members, counted
         // before the search starts.
-        ("construction.rs", [11, 0, 3]),
+        ("construction.rs", [14, 0, 3]),
         // A hint's enums, and the results of an operator's alternatives,
         // which relate types but check no syntax.
         ("expr.rs", [1, 2, 0]),
