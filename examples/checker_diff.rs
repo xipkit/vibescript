@@ -18,9 +18,10 @@
 //! `run` judges the programs of seeds N to N+M-1, writes each finding to
 //! DIR, and prints totals. `--source` picks them: `generated` programs,
 //! type-changing edits of the `corpus` programs, or both, `mixed`, where a
-//! fifth are edits. A program whose check or run takes longer than
-//! two minutes is written to DIR as a hang, and the process exits with
-//! status 3, so a driver can continue after it.
+//! fifth are edits, or `files`, programs of a required file whose locals
+//! its functions' parameters shadow. A program whose check or run takes
+//! longer than two minutes is written to DIR as a hang, and the process
+//! exits with status 3, so a driver can continue after it.
 //!
 //! `verdicts` prints how a build takes each program, a line a seed:
 //! whether the checker rejects it, with the code, or how running it, with
@@ -30,6 +31,8 @@
 
 #[path = "checker_diff/builtins.rs"]
 mod builtins;
+#[path = "checker_diff/files.rs"]
+mod files;
 #[path = "checker_diff/generate.rs"]
 mod generate;
 #[path = "checker_diff/harness.rs"]
@@ -145,7 +148,7 @@ fn verdicts(args: &[String]) -> i32 {
         .and_then(|value| value.parse().ok())
         .unwrap_or_else(|| std::thread::available_parallelism().map_or(1, |n| n.get()));
     let source = option(args, "--source").unwrap_or_else(|| "generated".to_owned());
-    if source != "generated" {
+    if matches!(source.as_str(), "corpus" | "mixed") {
         mutate::corpus();
     }
     let next = Arc::new(AtomicU64::new(from));
@@ -231,7 +234,7 @@ fn rejections(args: &[String]) -> i32 {
     let out =
         PathBuf::from(option(args, "--out").unwrap_or_else(|| "checker-rejections".to_owned()));
     std::fs::create_dir_all(&out).expect("create the rejections directory");
-    if source != "generated" {
+    if matches!(source.as_str(), "corpus" | "mixed") {
         mutate::corpus();
     }
     let mut changes: BTreeMap<(String, String), u64> = BTreeMap::new();
@@ -310,8 +313,13 @@ fn unnamed(message: &str) -> String {
     text.chars().take(160).collect()
 }
 
-/// The program of `seed` from `source`: `generated`, `corpus` or `mixed`.
+/// The program of `seed` from `source`: `generated`, `corpus` or `mixed`,
+/// or `files`, a required file whose locals its functions' parameters
+/// shadow.
 fn case_for(seed: u64, source: &str) -> Case {
+    if source == "files" {
+        return files::program(seed);
+    }
     let edit = match source {
         "corpus" => true,
         "mixed" => seed % 5 == 4,
@@ -385,7 +393,7 @@ fn batch(args: &[String]) -> i32 {
         .unwrap_or_else(|| std::thread::available_parallelism().map_or(1, |n| n.get()));
     let out = PathBuf::from(option("--out").unwrap_or_else(|| "checker-diff-findings".to_owned()));
     let source = option("--source").unwrap_or_else(|| "generated".to_owned());
-    if source != "generated" {
+    if matches!(source.as_str(), "corpus" | "mixed") {
         // Load the corpus once, before the workers need it.
         mutate::corpus();
     }
