@@ -227,19 +227,17 @@ impl<'w> Pace<'w> {
 
     /// Counts a token read, charging the step it completes.
     fn read(&mut self) -> Result<()> {
-        self.read += 1;
+        self.work.checkpoint()?;
         if self.read % PACED == 0 {
             self.work.charge(1)?;
         }
+        self.read += 1;
         Ok(())
     }
 
     /// Charges the step the tokens read since the last one began.
     fn finish(self) -> Result<()> {
-        if self.read % PACED != 0 {
-            self.work.charge(1)?;
-        }
-        Ok(())
+        self.work.checkpoint()
     }
 }
 
@@ -292,11 +290,10 @@ fn interpolated(
                         found.bytes += payload(token, &mut pace)?;
                         if let Token::Words(words) = token {
                             found.entries += words.entries.len();
-                            found.rewritten += words
-                                .entries
-                                .iter()
-                                .filter_map(|entry| text_length(entry))
-                                .sum::<usize>();
+                            for entry in words.entries.iter() {
+                                pace.read()?;
+                                found.rewritten += text_length(entry, &mut pace)?.unwrap_or(0);
+                            }
                         }
                     }
                     None => {
@@ -331,7 +328,8 @@ fn payload(token: &super::lexer::Token<'_>, pace: &mut Pace<'_>) -> Result<usize
             let mut held = 0;
             for entry in words.entries.iter() {
                 pace.read()?;
-                held += std::mem::size_of::<Option<Vec<u8>>>() + text_length(entry).unwrap_or(0);
+                held +=
+                    std::mem::size_of::<Option<Vec<u8>>>() + text_length(entry, pace)?.unwrap_or(0);
             }
             held
         }
@@ -341,14 +339,31 @@ fn payload(token: &super::lexer::Token<'_>, pace: &mut Pace<'_>) -> Result<usize
 
 /// The length of a percent literal's entry, or `None` when it holds an
 /// interpolation, as the tooling lists its text.
-fn text_length(entry: &[super::lexer::Part<'_>]) -> Option<usize> {
-    entry
-        .iter()
-        .map(|part| match part {
-            super::lexer::Part::Text(bytes) => Some(bytes.len()),
-            super::lexer::Part::Expr(..) => None,
-        })
-        .sum()
+fn text_length(entry: &[super::lexer::Part<'_>], pace: &mut Pace<'_>) -> Result<Option<usize>> {
+    let mut length = 0usize;
+    for part in entry {
+        pace.read()?;
+        match part {
+            super::lexer::Part::Text(bytes) => {
+                length = length
+                    .checked_add(bytes.len())
+                    .ok_or_else(|| pace.work.allocation_error("token payload size overflow"))?;
+            }
+            super::lexer::Part::Expr(..) => return Ok(None),
+        }
+    }
+    Ok(Some(length))
+}
+
+fn copy_bytes(bytes: &[u8], work: &dyn crate::compilation::Work) -> Result<Vec<u8>> {
+    work.checkpoint()?;
+    let mut copied = Vec::with_capacity(bytes.len());
+    for chunk in bytes.chunks(4096) {
+        work.checkpoint()?;
+        work.bytes(chunk.len())?;
+        copied.extend_from_slice(chunk);
+    }
+    Ok(copied)
 }
 
 /// The tokens the parser finally read, as the tooling lists them, with
@@ -373,22 +388,6 @@ fn token_list(
         .reserve(parser.tokens.len() * std::mem::size_of::<crate::tooling::Token>() + payloads)?;
     // An entry's text, built in place rather than from a copy of each
     // part, so a long entry is held once.
-    let text = |parts: &[Part<'_>]| {
-        let mut length = 0;
-        for part in parts {
-            match part {
-                Part::Text(bytes) => length += bytes.len(),
-                Part::Expr(..) => return None,
-            }
-        }
-        let mut text = Vec::with_capacity(length);
-        for part in parts {
-            if let Part::Text(bytes) = part {
-                text.extend_from_slice(bytes.as_ref());
-            }
-        }
-        Some(text)
-    };
     let mut tokens = Vec::with_capacity(parser.tokens.len());
     // Building them is a pass of its own, charged as it goes.
     let mut pace = Pace::new(work);
@@ -397,33 +396,59 @@ fn token_list(
         let kind = match &lexeme.token {
             Token::Word(_) => TokenKind::Word,
             Token::Symbol(name) => TokenKind::Symbol {
-                name: name.as_bytes().to_vec(),
+                name: copy_bytes(name.as_bytes(), work)?,
                 quoted: false,
             },
             Token::QuotedSymbol(name) => TokenKind::Symbol {
-                name: name.as_ref().to_vec(),
+                name: copy_bytes(name.as_ref(), work)?,
                 quoted: true,
             },
             Token::Int(_) | Token::BigInt(..) => TokenKind::Integer,
             Token::Float(_) => TokenKind::Float,
-            Token::Bytes(bytes) => TokenKind::String(bytes.as_ref().to_vec()),
+            Token::Bytes(bytes) => TokenKind::String(copy_bytes(bytes.as_ref(), work)?),
             Token::Template(parts) => {
-                let count = parts
-                    .iter()
-                    .filter(|part| matches!(part, Part::Expr(..)))
-                    .count();
+                let mut count = 0;
+                for part in parts.iter() {
+                    pace.read()?;
+                    count += usize::from(matches!(part, Part::Expr(..)));
+                }
                 let mut spans = Vec::with_capacity(count);
                 for part in parts.iter() {
+                    pace.read()?;
                     if let Part::Expr(_, (start, end)) = part {
                         spans.push(*start as usize..*end as usize - 1);
                     }
                 }
                 TokenKind::Template(spans)
             }
-            Token::Words(words) => TokenKind::Words {
-                symbols: words.symbol,
-                entries: words.entries.iter().map(|entry| text(entry)).collect(),
-            },
+            Token::Words(words) => {
+                let mut entries = Vec::with_capacity(words.entries.len());
+                for entry in words.entries.iter() {
+                    pace.read()?;
+                    let text = if let Some(length) = text_length(entry, &mut pace)? {
+                        work.checkpoint()?;
+                        let mut text = Vec::with_capacity(length);
+                        for part in entry.iter() {
+                            pace.read()?;
+                            if let Part::Text(bytes) = part {
+                                for chunk in bytes.as_ref().chunks(4096) {
+                                    work.checkpoint()?;
+                                    work.bytes(chunk.len())?;
+                                    text.extend_from_slice(chunk);
+                                }
+                            }
+                        }
+                        Some(text)
+                    } else {
+                        None
+                    };
+                    entries.push(text);
+                }
+                TokenKind::Words {
+                    symbols: words.symbol,
+                    entries,
+                }
+            }
             Token::Regex(..) => TokenKind::Regex,
             Token::P(c) => TokenKind::Punct(*c),
             Token::Op(op) => TokenKind::Operator(op),
