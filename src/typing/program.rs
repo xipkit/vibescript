@@ -1078,7 +1078,7 @@ impl<'a> Checker<'a> {
             self.release(held);
             return None;
         }
-        let sig = Rc::new(Sig {
+        let sig = Sig {
             name,
             params,
             result,
@@ -1087,16 +1087,21 @@ impl<'a> Checker<'a> {
             breaks,
             converts: true,
             id: Some(self.program.fns.len()),
-        });
+        };
         // The program counts them from here, and room for the function,
         // before they are let go.
         let declarations = self.meter.declarations();
-        let kept = declarations.keep(sig.heap()).is_ok()
+        let admitted = declarations
+            .keep(std::mem::size_of::<Sig>() + 2 * std::mem::size_of::<usize>())
+            .is_ok()
             && self.program.fns.reserve(declarations, 1).is_ok();
         self.release(held);
-        if !kept {
+        if !admitted {
             return None;
         }
+        self.held();
+        self.meter.declarations().kept(sig.heap());
+        let sig = Rc::new(sig);
         self.program.fns.push_within(FnDecl {
             def: Some(def),
             owner,
