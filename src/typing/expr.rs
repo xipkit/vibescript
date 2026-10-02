@@ -696,14 +696,13 @@ impl<'a> Checker<'a> {
         entries: &'a [(crate::compilation::Bytes, Expr)],
         shapes: &[Ty],
     ) -> Ty {
-        let Some(held) = self.hold(fields_bytes(entries)) else {
+        let mut fields = ScratchVec::new(&self.meter);
+        if fields.reserve(entries.len()).is_err() {
             return Ty::ERROR;
-        };
-        let mut fields = Vec::with_capacity(entries.len());
+        }
         for (key, entry) in entries {
             // A check an entry stops lists no more hints nor names.
             if self.halted() {
-                self.release(held);
                 return Ty::ERROR;
             }
             // The entry's hints are dropped before it is checked.
@@ -718,15 +717,14 @@ impl<'a> Checker<'a> {
                 (!hints.is_empty()).then(|| self.types.union(&hints))
             };
             let ty = self.expr(entry, hint);
-            fields.push(Field {
-                name: String::from_utf8_lossy(key).as_ref().into(),
+            fields.add(Field {
+                name: super::counted::lossy(key, &self.meter).into(),
                 ty,
                 optional: false,
             });
         }
         // The fields move into the type table, which holds them from here.
-        self.release(held);
-        let actual = self.types.shape(fields, false);
+        let actual = self.types.shape(fields.into_vec(), false);
         shapes
             .iter()
             .copied()
@@ -832,20 +830,23 @@ impl<'a> Checker<'a> {
                 } else {
                     let span = self.spans.expr(expr);
                     let shape = self.types.display(hint);
-                    if self.transient(fields_bytes(entries)) {
+                    let mut actual = ScratchVec::new(&self.meter);
+                    if actual.reserve(entries.len()).is_err() {
                         self.release(held);
                         return Ty::ERROR;
                     }
-                    let actual = entries
-                        .iter()
-                        .zip(types)
-                        .map(|((key, _), ty)| Field {
-                            name: String::from_utf8_lossy(key).as_ref().into(),
+                    for ((key, _), ty) in entries.iter().zip(types) {
+                        if self.halted() {
+                            self.release(held);
+                            return Ty::ERROR;
+                        }
+                        actual.add(Field {
+                            name: super::counted::lossy(key, &self.meter).into(),
                             ty,
                             optional: false,
-                        })
-                        .collect();
-                    let found = self.types.shape(actual, false);
+                        });
+                    }
+                    let found = self.types.shape(actual.into_vec(), false);
                     let found = self.types.display(found);
                     self.report(
                         Diagnostic::error(
@@ -872,25 +873,23 @@ impl<'a> Checker<'a> {
 
     /// The exact shape of a hash literal, checking each entry once.
     fn shape_of(&mut self, entries: &'a [(crate::compilation::Bytes, Expr)]) -> Ty {
-        let Some(held) = self.hold(fields_bytes(entries)) else {
+        let mut fields = ScratchVec::new(&self.meter);
+        if fields.reserve(entries.len()).is_err() {
             return Ty::ERROR;
-        };
-        let mut fields = Vec::with_capacity(entries.len());
+        }
         for (key, entry) in entries {
             if self.halted() {
-                self.release(held);
                 return Ty::ERROR;
             }
             let ty = self.expr(entry, None);
-            fields.push(Field {
-                name: String::from_utf8_lossy(key).into(),
+            fields.add(Field {
+                name: super::counted::lossy(key, &self.meter).into(),
                 ty,
                 optional: false,
             });
         }
         // The fields move into the type table, which holds them from here.
-        self.release(held);
-        self.types.shape(fields, false)
+        self.types.shape(fields.into_vec(), false)
     }
 
     /// A braced group that is a type literal unless one of its names is a
@@ -2311,12 +2310,6 @@ impl<'a> Checker<'a> {
 /// The bytes of a list of one type for each of `count` elements.
 fn types_bytes(count: usize) -> usize {
     count * std::mem::size_of::<Ty>()
-}
-
-/// The bytes of a literal's entries as a shape's fields, with their names.
-fn fields_bytes(entries: &[(crate::compilation::Bytes, Expr)]) -> usize {
-    entries.len() * std::mem::size_of::<Field>()
-        + entries.iter().map(|(key, _)| key.len()).sum::<usize>()
 }
 
 /// The integer a literal selector spells, including a negated one.

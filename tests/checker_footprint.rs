@@ -1589,6 +1589,17 @@ fn shapes() -> Vec<Shape> {
             let entries = listed(n * 16, |i| format!("k{i}: 1"), ", ");
             (Vec::new(), format!("x = {{{entries}}}\np(x)\n"))
         }),
+        ("a hash literal with a long non-UTF-8 key", |n| {
+            let key = "\\xff".repeat(n * 64);
+            (Vec::new(), format!("x = {{\"{key}\" => 1}}\np(1)\n"))
+        }),
+        ("an incomplete shape with a long non-UTF-8 key", |n| {
+            let key = "\\xff".repeat(n * 64);
+            (
+                Vec::new(),
+                format!("def f -> {{ a: int, ... }}\n  {{\"{key}\" => 1}}\nend\np(1)\n"),
+            )
+        }),
         // A required file's methods call each other in a cycle, which
         // gathers every variable they read, each name copied.
         (
