@@ -65,12 +65,12 @@ pub fn parse_tokens<'s>(
     let mut parser = Parser::new(source, tokens, starts, stop);
     parser.declare_types();
     parser.limit = limit;
-    let body = if parser.stopped {
+    let body = if parser.stopped.get() {
         Err(stopped())
     } else {
         parser.program()
     };
-    if parser.stopped {
+    if parser.stopped.get() {
         return Err(stopped());
     }
     // A speculative parse that failed at the limit may have been retried
@@ -391,9 +391,9 @@ struct Parser<'s> {
     /// [`POLL`] levels of nesting and before it lexes an interpolation.
     stop: Stop<'s>,
     /// The levels entered since the parser last asked [`Self::stop`].
-    unpolled: u32,
+    unpolled: std::cell::Cell<u32>,
     /// Whether the parser gave up because the compilation stopped.
-    stopped: bool,
+    stopped: std::cell::Cell<bool>,
 }
 
 /// Whether the compilation a parse is part of has stopped.
@@ -401,7 +401,7 @@ pub type Stop<'s> = &'s (dyn Fn() -> bool + Sync);
 
 /// How many levels of nesting the parser enters, or tokens a pass over
 /// them reads, between asking whether the compilation has stopped.
-pub(super) const POLL: u32 = 256;
+pub(super) const POLL: u32 = 1;
 
 /// Parser state that a speculative parse restores.
 struct Saved {
@@ -448,8 +448,8 @@ impl<'s> Parser<'s> {
             too_deep: None,
             type_names: std::rc::Rc::default(),
             stop,
-            unpolled: 0,
-            stopped: false,
+            unpolled: std::cell::Cell::new(0),
+            stopped: std::cell::Cell::new(false),
         }
     }
 
@@ -461,7 +461,7 @@ impl<'s> Parser<'s> {
         let mut names = HashSet::new();
         for index in 0..self.tokens.len().saturating_sub(2) {
             if index % POLL as usize == 0 && (self.stop)() {
-                self.stopped = true;
+                self.stopped.set(true);
                 return;
             }
             let Some(word) = self.word_at(index) else {
@@ -633,6 +633,9 @@ impl<'s> Parser<'s> {
 
     fn significant(&self, mut index: usize) -> usize {
         while index + 1 < self.tokens.len() && self.newline(index) {
+            if self.poll().is_err() {
+                return index;
+            }
             index += 1;
         }
         index
@@ -640,12 +643,18 @@ impl<'s> Parser<'s> {
 
     fn lines(&mut self) {
         while self.end_line(self.pos) {
+            if self.poll().is_err() {
+                return;
+            }
             self.pos += 1;
         }
     }
 
     fn line_breaks(&mut self) {
         while self.newline(self.pos) {
+            if self.poll().is_err() {
+                return;
+            }
             self.pos += 1;
         }
     }
@@ -653,6 +662,9 @@ impl<'s> Parser<'s> {
     fn previous_index(&self) -> usize {
         let mut index = self.pos;
         while index > self.floor {
+            if self.poll().is_err() {
+                return index;
+            }
             index -= 1;
             if !self.end_line(index) {
                 return index;
@@ -669,6 +681,9 @@ impl<'s> Parser<'s> {
     fn last_end(&self) -> usize {
         let mut index = self.pos;
         while index > self.floor {
+            if self.poll().is_err() {
+                return self.tokens[index].end;
+            }
             index -= 1;
             if !self.end_line(index) {
                 return self.tokens[index].end;
@@ -829,6 +844,9 @@ impl<'s> Parser<'s> {
     fn ternary_separator(&mut self) {
         let mut next = self.pos;
         while self.newline(next) {
+            if self.poll().is_err() {
+                return;
+            }
             next += 1;
         }
         if self.is_p(next, ':') {
@@ -861,6 +879,9 @@ impl<'s> Parser<'s> {
         let mut after_member_separator = false;
         let mut i = self.pos;
         while i < self.tokens.len() {
+            if self.poll().is_err() {
+                return false;
+            }
             match self.kind_at(i) {
                 // A group is skipped whole, to its closing bracket.
                 TokenKind::Punct('(' | '[' | '{') => match self.closer(i) {
@@ -875,7 +896,8 @@ impl<'s> Parser<'s> {
                         i += 1;
                         continue;
                     }
-                    let next = (i + 1..self.tokens.len()).find(|&j| !self.end_line(j));
+                    let next = (i + 1..self.tokens.len())
+                        .find(|&j| self.poll().is_err() || !self.end_line(j));
                     let continues = next.is_some_and(|j| {
                         self.is_p(j, '.')
                             || self.is_op(j, "&.")
@@ -916,6 +938,9 @@ impl<'s> Parser<'s> {
         let mut i = open + 1;
         let mut found = None;
         while i < self.tokens.len() {
+            if self.poll().is_err() {
+                return None;
+            }
             match self.kind_at(i) {
                 TokenKind::Punct('(' | '[' | '{') => match closers.get(&i) {
                     Some(&Some(close)) => {
@@ -939,6 +964,9 @@ impl<'s> Parser<'s> {
             i += 1;
         }
         for unclosed in open_groups {
+            if self.poll().is_err() {
+                return None;
+            }
             closers.insert(unclosed, None);
         }
         found
@@ -1005,6 +1033,9 @@ impl<'s> Parser<'s> {
         }
         let mut next = self.pos;
         while self.end_line(next) {
+            if self.poll().is_err() {
+                return None;
+            }
             if !self.newline(next) {
                 return None;
             }
@@ -1064,6 +1095,9 @@ impl<'s> Parser<'s> {
             || self.tokens[operand].start == self.tokens[previous].end;
         let mut comma = false;
         for i in start + 1..self.tokens.len() {
+            if self.poll().is_err() {
+                return false;
+            }
             let token = &self.tokens[i];
             if token.line > self.tokens[start].line + 64 {
                 return false;
@@ -1213,6 +1247,7 @@ impl<'s> Parser<'s> {
     fn program(&mut self) -> Result<Vec<Stmt>> {
         let mut body = Vec::new();
         loop {
+            self.poll()?;
             self.lines();
             if self.eof(self.pos) {
                 break;
@@ -1241,15 +1276,16 @@ impl<'s> Parser<'s> {
 
     /// Counts a construct read, asking every [`POLL`] of them whether the
     /// compilation has stopped, and fails once it has.
-    fn poll(&mut self) -> Result<()> {
-        if !self.stopped {
-            self.unpolled += 1;
-            if self.unpolled >= POLL {
-                self.unpolled = 0;
-                self.stopped = (self.stop)();
+    fn poll(&self) -> Result<()> {
+        if !self.stopped.get() {
+            let unpolled = self.unpolled.get() + 1;
+            self.unpolled.set(unpolled);
+            if unpolled >= POLL {
+                self.unpolled.set(0);
+                self.stopped.set((self.stop)());
             }
         }
-        if self.stopped {
+        if self.stopped.get() {
             return self.fail("stopped");
         }
         Ok(())
@@ -1335,6 +1371,7 @@ impl<'s> Parser<'s> {
         let line = self.tokens[self.pos].line;
         self.bump();
         for _ in 0..2 {
+            self.poll()?;
             self.pos = self.significant(self.pos);
             if self.tokens[self.pos].line == line
                 && (self.ident(self.pos) || matches!(self.kind(), TokenKind::Symbol { .. }))
@@ -1615,6 +1652,7 @@ impl<'s> Parser<'s> {
         self.line_breaks();
         let mut items = Vec::new();
         loop {
+            self.poll()?;
             let value = self.line_expr(0)?;
             items.push(Arg {
                 kind: ArgKind::Positional,
@@ -1677,6 +1715,7 @@ impl<'s> Parser<'s> {
         let start = first.span.start;
         let mut items = vec![first];
         while self.comma_on_line() {
+            self.poll()?;
             self.bump();
             self.line_breaks();
             items.push(self.line_expr(0)?);
@@ -1719,6 +1758,7 @@ impl<'s> Parser<'s> {
         let mut values = vec![first_value];
         if tuple && self.comma_follows() {
             loop {
+                self.poll()?;
                 let comma = self.pos - 1;
                 if self.ends_after(comma, self.tokens[comma].line) {
                     break;
@@ -1752,7 +1792,7 @@ impl<'s> Parser<'s> {
         // Each name is a construct read, and a parse the compilation
         // stopped declares no more, nor fails again for each.
         target.names(&mut |name, _| {
-            if !self.stopped && self.poll().is_ok() {
+            if !self.stopped.get() && self.poll().is_ok() {
                 self.declared_it |= name == "it";
                 self.declare_local(name.to_owned());
             }
@@ -1767,6 +1807,7 @@ impl<'s> Parser<'s> {
         let mut tuple = false;
         let start = self.start();
         loop {
+            self.poll()?;
             // Each part is a construct read, as a level of nesting is.
             self.poll()?;
             let star = self.pos;
@@ -1965,6 +2006,7 @@ impl<'s> Parser<'s> {
         let mut body = Vec::new();
         self.nesting += 1;
         loop {
+            self.poll()?;
             self.lines();
             if self.word_at(self.pos).is_some_and(|w| stop.contains(&w))
                 || (self.at_p('}') && stop.contains(&"}"))
@@ -2003,6 +2045,7 @@ impl<'s> Parser<'s> {
         let outer_journal = self.journal.len();
         if constants {
             for local in &outer_locals {
+                self.poll()?;
                 if local.chars().next().is_some_and(char::is_uppercase) {
                     self.locals.insert(local.clone());
                 }
@@ -2159,6 +2202,7 @@ impl<'s> Parser<'s> {
         // are keyword parameters.
         let mut rest = false;
         loop {
+            self.poll()?;
             // A bare `*` makes the parameters after it keyword parameters.
             if self.at_op("*") && self.is_p(self.significant(self.pos + 1), ',') {
                 if self.keyword_star.is_some()
@@ -2183,6 +2227,7 @@ impl<'s> Parser<'s> {
                 if self.take_p('(').is_some() {
                     self.line_breaks();
                     while self.take_p(')').is_none() {
+                        self.poll()?;
                         self.type_expr(1, false)?;
                         self.line_breaks();
                         self.take_p(',');
@@ -2452,6 +2497,9 @@ impl<'s> Parser<'s> {
     fn scoped_type_follows(&self, peek: usize, parenthesized: bool) -> bool {
         let mut last = peek;
         loop {
+            if self.poll().is_err() {
+                return false;
+            }
             let scope = self.significant(last + 1);
             if !self.is_op(scope, "::") {
                 break;
@@ -2539,6 +2587,7 @@ impl<'s> Parser<'s> {
         };
         let mut members = Vec::new();
         loop {
+            self.poll()?;
             self.lines();
             if self.eof(self.pos) || self.at_word("end") {
                 break;
@@ -2570,6 +2619,7 @@ impl<'s> Parser<'s> {
         self.nesting += 1;
         let mut members = Vec::new();
         loop {
+            self.poll()?;
             self.lines();
             if self.eof(self.pos) || self.at_word("end") {
                 break;
@@ -2676,6 +2726,7 @@ impl<'s> Parser<'s> {
             self.bump();
         }
         for index in 0..2 {
+            self.poll()?;
             self.line_breaks();
             if !matches!(self.kind(), TokenKind::Symbol { .. }) {
                 return self.fail("expected symbol");
@@ -2729,6 +2780,7 @@ impl<'s> Parser<'s> {
         {
             self.pos = next;
             loop {
+                self.poll()?;
                 self.bump();
                 let comma = self.significant(self.pos);
                 if !self.is_p(comma, ',') {
@@ -2747,6 +2799,7 @@ impl<'s> Parser<'s> {
         self.line_breaks();
         let mut names = Vec::new();
         loop {
+            self.poll()?;
             if !self.ident(self.pos) {
                 return self.fail("expected property name");
             }
@@ -2780,6 +2833,7 @@ impl<'s> Parser<'s> {
     fn rescue_tail(&mut self) -> Result<Rescued> {
         let mut rescues = Vec::new();
         while self.at_word("rescue") {
+            self.poll()?;
             let keyword = self.bump();
             let line = self.tokens[keyword].line;
             let binding = self.rescue_clause(line)?;
@@ -2831,6 +2885,7 @@ impl<'s> Parser<'s> {
                 self.line_breaks();
             }
             loop {
+                self.poll()?;
                 self.type_atom(1)?;
                 let pipe = self.significant(self.pos);
                 if !self.is_p(pipe, '|') {
@@ -3001,7 +3056,7 @@ impl<'s> Parser<'s> {
                     };
                     let span = spans[index].clone();
                     let part = self.interpolation(span);
-                    if self.stopped {
+                    if self.stopped.get() {
                         return self.fail("stopped");
                     }
                     parts.push(part);
@@ -3024,21 +3079,21 @@ impl<'s> Parser<'s> {
     fn interpolation(&mut self, span: std::ops::Range<usize>) -> Option<Expr> {
         // Lexing an interpolation parses it in full, so the parser asks
         // before each one whether the compilation has stopped.
-        if !self.stopped {
-            self.stopped = (self.stop)();
+        if !self.stopped.get() {
+            self.stopped.set((self.stop)());
         }
-        if self.stopped {
+        if self.stopped.get() {
             return None;
         }
         let text = &self.source[span.clone()];
         let Ok(tokens) = lex_until(text, span.start, self.stop) else {
-            self.stopped = (self.stop)();
+            self.stopped.set((self.stop)());
             return None;
         };
         let base = self.tokens.len();
         self.tokens.extend(tokens);
         if self.starts.extend(&self.tokens, base, self.stop).is_none() {
-            self.stopped = true;
+            self.stopped.set(true);
             return None;
         }
         let mut parser = Parser::new(
@@ -3059,7 +3114,7 @@ impl<'s> Parser<'s> {
         parser.lines();
         let complete = parser.eof(parser.pos);
         self.too_deep = self.too_deep.or(parser.too_deep);
-        self.stopped |= parser.stopped;
+        self.stopped.set(self.stopped.get() || parser.stopped.get());
         // What the interpolation declared stays in it.
         parser.undo_locals(0);
         self.locals = parser.locals;
@@ -3155,8 +3210,10 @@ impl<'s> Parser<'s> {
         self.lines();
         let mut whens = Vec::new();
         while let Some(when) = self.take_word("when") {
+            self.poll()?;
             let mut values = Vec::new();
             loop {
+                self.poll()?;
                 let splat = self.at_op("*");
                 if splat {
                     self.bump();
@@ -3206,6 +3263,7 @@ impl<'s> Parser<'s> {
         let line = self.previous().line;
         let mut next = self.pos;
         while self.newline(next) {
+            self.poll()?;
             next += 1;
         }
         if self.is_p(next, '(') {
@@ -3288,6 +3346,7 @@ impl<'s> Parser<'s> {
         self.line_breaks();
         if self.take_p('}').is_none() {
             loop {
+                self.poll()?;
                 let labeled = self.word_at(self.pos).is_some_and(|w| !w.starts_with('@'))
                     || matches!(self.kind(), TokenKind::String(_));
                 let colon = self.significant(self.pos + 1);
@@ -3358,6 +3417,7 @@ impl<'s> Parser<'s> {
         unlimited: bool,
     ) -> Result<Expr> {
         loop {
+            self.poll()?;
             let suffix = match next.take() {
                 Some(suffix) => Some(suffix),
                 None if unlimited => self.unlimited_suffix(&lhs, min),
@@ -3541,6 +3601,7 @@ impl<'s> Parser<'s> {
     fn command_arguments(&mut self) -> Result<Vec<Arg>> {
         let mut items = Vec::new();
         loop {
+            self.poll()?;
             items.push(self.call_argument(false, false)?);
             let last = self.previous().line;
             if !self.at_p(',')
@@ -3564,6 +3625,7 @@ impl<'s> Parser<'s> {
             return Ok(items);
         }
         loop {
+            self.poll()?;
             items.push(self.expr(0)?);
             self.line_breaks();
             if self.take_p(close).is_some() {
@@ -3591,6 +3653,7 @@ impl<'s> Parser<'s> {
             return Ok(items);
         }
         loop {
+            self.poll()?;
             items.push(self.call_argument(true, types)?);
             self.line_breaks();
             if self.take_p(')').is_some() {
@@ -3929,6 +3992,7 @@ impl<'s> Parser<'s> {
                 Some((open, close))
             } else {
                 loop {
+                    self.poll()?;
                     let target = self.block_parameter()?;
                     self.declare_target(&target);
                     params.push(target);
@@ -3949,6 +4013,7 @@ impl<'s> Parser<'s> {
         if pipes.is_none() {
             self.declare_local("it".to_owned());
             for n in ["_1", "_2", "_3", "_4", "_5", "_6", "_7", "_8", "_9"] {
+                self.poll()?;
                 self.declare_local(n.to_owned());
             }
         }
@@ -4061,6 +4126,7 @@ impl<'s> Parser<'s> {
         let first = self.type_atom(depth)?;
         let mut options = vec![first];
         loop {
+            self.poll()?;
             let boundary = self.pos;
             self.line_breaks();
             if !self.at_p('|') || (block && !self.block_type_continues(depth)) {
@@ -4111,6 +4177,7 @@ impl<'s> Parser<'s> {
             self.bump();
             let mut elements = Vec::new();
             loop {
+                self.poll()?;
                 self.line_breaks();
                 elements.push(self.type_expr(depth + 1, false)?);
                 self.line_breaks();
@@ -4155,6 +4222,7 @@ impl<'s> Parser<'s> {
             // A nested class or module, `Outer::Inner`.
             let mut names = vec![tok];
             loop {
+                self.poll()?;
                 let scope = self.significant(self.pos);
                 if !self.is_op(scope, "::") || self.text(*names.last().unwrap()).ends_with('?') {
                     break;
@@ -4208,6 +4276,7 @@ impl<'s> Parser<'s> {
         self.pos = open + 1;
         let mut arguments = Vec::new();
         loop {
+            self.poll()?;
             self.line_breaks();
             arguments.push(self.type_expr(depth + 1, false)?);
             self.pos = self.significant(self.pos);
@@ -4236,6 +4305,7 @@ impl<'s> Parser<'s> {
         self.line_breaks();
         if self.take_p('}').is_none() {
             loop {
+                self.poll()?;
                 if self.at_op("...") {
                     self.bump();
                     self.line_breaks();
@@ -4343,7 +4413,26 @@ mod tests {
         let starts = Starts::new(&tokens, &|| false).unwrap();
         let mut parser = Parser::new(&source, tokens, starts, &|| true);
         assert!(parser.leaf(0).is_err());
-        assert!(parser.stopped);
+        assert!(parser.stopped.get());
+    }
+
+    #[test]
+    fn flat_parameter_and_lookahead_loops_stop() {
+        let source = format!(
+            "def f({}); end",
+            (0..1000)
+                .map(|i| format!("p{i}"))
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+        let tokens = lex(&source, 0).unwrap();
+        let starts = Starts::new(&tokens, &|| false).unwrap();
+        let polls = AtomicUsize::new(0);
+        let stop = || polls.fetch_add(1, Relaxed) >= 5;
+        let mut parser = Parser::new(&source, tokens, starts, &stop);
+        assert!(parser.program().is_err());
+        assert!(parser.stopped.get());
+        assert!(polls.load(Relaxed) <= 6);
     }
 
     #[test]
