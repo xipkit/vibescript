@@ -735,6 +735,10 @@ impl<'a> Checker<'a> {
         for (stmt, assigned) in defaults.iter() {
             self.frame.building = Some(building.clone());
             self.stmt(stmt, Want::Discard);
+            // The frame's share goes before the variable is taken out, so
+            // taking it out copies only what the default's uses of `self`
+            // keep, which the copy then no longer shares.
+            self.frame.building = None;
             if let Some(name) = assigned {
                 // What taking it out copies is counted first, and kept with
                 // the checker's other growth.
@@ -744,7 +748,6 @@ impl<'a> Checker<'a> {
                 self.grown += building.remove(name);
             }
         }
-        self.frame.building = None;
         self.release(held);
         self.leave_frame(body);
         self.leave_frame(previous);
