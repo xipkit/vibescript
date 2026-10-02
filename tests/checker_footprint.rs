@@ -2254,7 +2254,15 @@ fn the_checkers_time_per_step_stays_flat_as_names_and_parameters_grow() {
     let _serial = SERIAL
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let shapes: [Shape; 10] = [
+    let shapes: [Shape; 11] = [
+        // A nil element's fix to read it with `fetch` spells the key twice.
+        ("a fetch fix spelling a long key", |n| {
+            let key = "k".repeat(n * 64);
+            (
+                Vec::new(),
+                format!("def f(h: hash<string, int>) -> int\n  h[\"{key}\"]\nend\np(1)\n"),
+            )
+        }),
         // Each `break` a loop's body may take leaves its state with the
         // loop, which every measure of what the check holds counts.
         ("a loop of many conditional breaks", |n| {

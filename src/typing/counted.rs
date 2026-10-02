@@ -361,6 +361,8 @@ pub(crate) struct Text<'m> {
     text: String,
     ledger: Ledger<'m>,
     refused: bool,
+    /// The bytes written since a step was last charged for them.
+    unpaced: usize,
 }
 
 impl<'m> Text<'m> {
@@ -369,12 +371,22 @@ impl<'m> Text<'m> {
             text: String::new(),
             ledger: meter.scratch_lists(),
             refused: false,
+            unpaced: 0,
         }
     }
 
-    /// Writes `piece`, once it is counted.
+    /// Writes `piece`, once it is counted, and a step for each 64 bytes
+    /// written, charged before they are; a check that has stopped, or
+    /// that the charge stops, writes nothing more.
     pub fn push_str(&mut self, piece: &str) {
         if self.refused {
+            return;
+        }
+        self.unpaced += piece.len();
+        let steps = self.unpaced / 64;
+        self.unpaced %= 64;
+        if (steps > 0 && self.ledger.meter.charge(steps as u64)) || self.ledger.meter.stopped() {
+            self.refused = true;
             return;
         }
         let (length, capacity) = (self.text.len(), self.text.capacity());
