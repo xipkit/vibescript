@@ -327,10 +327,16 @@ pub(crate) fn table<T>(capacity: usize) -> usize {
     if capacity == 0 {
         return 0;
     }
-    let buckets = (capacity.saturating_mul(8) / 7)
-        .checked_next_power_of_two()
-        .unwrap_or(usize::MAX)
-        .max(4);
+    // As the standard table sizes itself: four buckets for up to three
+    // entries and eight up to seven, then an eighth spare, rounded up to a
+    // power of two.
+    let buckets = match capacity {
+        1..=3 => 4,
+        4..=7 => 8,
+        _ => (capacity.saturating_mul(8) / 7)
+            .checked_next_power_of_two()
+            .unwrap_or(usize::MAX),
+    };
     buckets
         .saturating_mul(size_of::<T>() + 1)
         .saturating_add(16)
@@ -825,6 +831,20 @@ impl<'a> super::Checker<'a> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_tables_estimate_is_the_room_it_takes_for_as_many() {
+        // A table asked to hold `count` entries takes the buckets of the
+        // capacity it reports, which the estimate for `count` matches.
+        for count in 1..200 {
+            let made = std::collections::HashMap::<u64, u64>::with_capacity(count);
+            assert_eq!(
+                super::table::<(u64, u64)>(count),
+                super::table::<(u64, u64)>(made.capacity()),
+                "{count} entries"
+            );
+        }
+    }
+
     #[test]
     fn size_estimates_saturate_rather_than_overflow() {
         // On 32 bits a count can give an estimate past what `usize` holds,
