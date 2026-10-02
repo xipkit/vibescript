@@ -67,6 +67,17 @@ impl<'m> Ledger<'m> {
         self.meter.admit(moment).ok_or(Refused)
     }
 
+    /// Refused once the check has stopped, as an admission is, for a
+    /// change that takes no more room: a table keeps nothing more after
+    /// the stop, so a loop adding to it stops too.
+    fn open(self) -> Result<(), Refused> {
+        if self.regardless || !self.meter.stopped() {
+            Ok(())
+        } else {
+            Err(Refused)
+        }
+    }
+
     /// Records what a table grew by once it has, in a growth
     /// [`Self::admit`] found would hold `peak` bytes at once.
     fn grew(self, bytes: usize, peak: usize) {
@@ -85,6 +96,7 @@ impl<'m> Ledger<'m> {
     #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
     pub fn keep(self, bytes: usize) -> Result<Kept, Refused> {
         if bytes == 0 {
+            self.open()?;
             return Ok(Kept(0));
         }
         let peak = self.admit(bytes)?;
@@ -901,6 +913,7 @@ impl<K: Eq + Hash, V> CountedMap<K, V> {
         K: Owned,
         V: Owned,
     {
+        ledger.open()?;
         // A table with room takes it, new or not, without growing, and a
         // key it has already is counted as if it were new.
         if self.0.len() >= self.0.capacity() {
@@ -1112,6 +1125,7 @@ impl<T: Eq + Hash> CountedSet<T> {
     where
         T: Owned,
     {
+        ledger.open()?;
         let owned = value.owned();
         // A set with room takes it, new or not, without growing, and one
         // that owns nothing without a lookup.
@@ -1211,6 +1225,7 @@ impl<T: Ord> CountedBTreeSet<T> {
     /// Adds `value`, counting a new element's share of the nodes and
     /// `owned` bytes first.
     fn add(&mut self, ledger: Ledger<'_>, value: T, owned: usize) -> Result<bool, Refused> {
+        ledger.open()?;
         let length = self.0.len();
         let grown = btree_storage::<T>(length + 1) - btree_storage::<T>(length);
         // One that takes no more nodes, and owns nothing, is added, new or
@@ -1260,6 +1275,27 @@ mod tests {
             },
             None,
         )
+    }
+
+    #[test]
+    fn a_stopped_check_changes_no_table() {
+        // A change that takes no more room is refused once the check has
+        // stopped, as one that takes room is, so a loop that adds to a
+        // table stops with the check.
+        let meter = meter(None);
+        let mut set = CountedSet::new();
+        assert_eq!(set.insert(meter.tables(), 1usize), Ok(true));
+        let mut map = CountedMap::new();
+        assert!(map.insert(meter.tables(), 1usize, 1usize).is_ok());
+        let mut list = CountedVec::new();
+        assert!(list.reserve(meter.tables(), 4).is_ok());
+        meter.stop();
+        assert!(meter.tables().keep(0).is_err());
+        assert!(set.insert(meter.tables(), 1).is_err());
+        assert!(map.insert(meter.tables(), 1, 2).is_err());
+        assert!(list.push(meter.tables(), 1usize).is_err());
+        assert_eq!(map.get(&1), Some(&1));
+        assert!(list.is_empty());
     }
 
     #[test]
