@@ -555,17 +555,32 @@ impl<'a> Spans<'a> {
         // start: not below a statement, as a statement's parts are measured
         // afresh.
         let mut walk = Walk::new(&self.meter);
-        walk.push(Next::Item(root), memo);
+        walk.push(Next::Item(root), (memo, None));
         let mut first = true;
-        while let Some((item, remembered)) = walk.next(0) {
+        while let Some((item, (remembered, restore))) = walk.next(0) {
+            if self.meter.stopped() {
+                return last;
+            }
             let own = match item {
-                // A statement below the root is measured once, however many
-                // statements around it are.
-                Item::Stmt(stmt) if !first => {
-                    last = last.max(self.stmt_furthest(stmt));
+                Item::Stmt(stmt) => {
+                    let key = std::ptr::from_ref(stmt) as usize;
+                    if let Some(outer) = restore {
+                        self.remember(&self.furthest, key, last);
+                        last = last.max(outer);
+                        continue;
+                    }
+                    if let Some(&known) = self.furthest.borrow().get(&key) {
+                        last = last.max(known);
+                        continue;
+                    }
+                    // Cache the statement after all its children finish,
+                    // then restore the enclosing subtree's furthest offset.
+                    walk.push(Next::Item(item), (false, Some(last)));
+                    last = stmt.offset as usize;
+                    walk.children(item, (false, None));
+                    first = false;
                     continue;
                 }
-                Item::Stmt(stmt) => stmt.offset as usize,
                 Item::Expr(expr) => expr.offset as usize,
                 Item::Target(_) => 0,
             };
@@ -589,14 +604,14 @@ impl<'a> Spans<'a> {
                     }
                     Node::BlockCall(_, block) => {
                         last = last.max(block.offset as usize);
-                        walk.push(Next::Targets(block.params.iter()), false);
+                        walk.push(Next::Targets(block.params.iter()), (false, None));
                     }
                     _ => (),
                 }
             }
             first = false;
             let below = remembered && matches!(item, Item::Expr(_));
-            walk.children(item, below);
+            walk.children(item, (below, None));
         }
         last
     }
