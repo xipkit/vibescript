@@ -620,12 +620,19 @@ impl<'a> Checker<'a> {
             self.construction.held += read.heap() + std::mem::size_of::<Option<BTreeSet<String>>>();
             found.push(Rc::new(read));
         }
-        let reads = ids
+        let reads: Reads = ids
             .iter()
             .enumerate()
             .map(|(at, &id)| (id, Rc::clone(&found[cycle_of[at]])))
             .collect();
-        (reads, held)
+        // The graph, the search's scratch and the cycles go here; only the
+        // reads by method stay, held while the sites are read.
+        drop((place, calls, cycles, cycle_of, found));
+        self.release(held);
+        let Some(kept) = self.hold(super::meter::map(&reads)) else {
+            return (HashMap::new(), 0);
+        };
+        (reads, kept)
     }
 }
 

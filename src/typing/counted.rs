@@ -2172,7 +2172,7 @@ mod tests {
         ("check.rs", [8, 1, 2]),
         // The cycle search's stack, cycles and their members, counted
         // before the search starts.
-        ("construction.rs", [10, 0, 3]),
+        ("construction.rs", [11, 0, 3]),
         // A hint's enums, and the results of an operator's alternatives,
         // which relate types but check no syntax.
         ("expr.rs", [1, 2, 0]),
