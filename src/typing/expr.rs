@@ -794,7 +794,11 @@ impl<'a> Checker<'a> {
                     {
                         Ok(index) => {
                             let expected = fields[index].ty;
-                            types.push(self.expr_against_held(entry, expected, &Purpose::Field(key)));
+                            types.push(self.expr_against_held(
+                                entry,
+                                expected,
+                                &Purpose::Field(key),
+                            ));
                             present[index] = true;
                         }
                         Err(_) => {
@@ -2058,9 +2062,9 @@ impl<'a> Checker<'a> {
     /// Reports a symbol compared with a member of enum `id`, which the
     /// runtime never finds equal, offering the member it names.
     fn enum_symbol(&mut self, value: &Expr, id: u32, symbol: &str, why: &str) {
-        let decl = &self.program.enums[id as usize];
-        let enum_name = decl.name.clone();
-        let member = decl.symbol(symbol).map(|index| decl.members[index].clone());
+        let decl = std::sync::Arc::clone(&self.program.enums[id as usize]);
+        let enum_name = &decl.name;
+        let member = decl.symbol(symbol).map(|index| &decl.members[index]);
         let span = self.spans.expr(value);
         let mut diagnostic = Diagnostic::error(
             Code::TYPE_MISMATCH,
@@ -2069,11 +2073,28 @@ impl<'a> Checker<'a> {
                 self,
                 "`:{symbol}` is a symbol, not a member of `{enum_name}`, and {why}"
             ),
-        )
-        .with_types(enum_name.clone(), "symbol");
+        );
+        // Each part already written stays beside the writer of the next,
+        // until the completed diagnostic moves into the findings.
+        let Some(mut held) = self.hold(super::Heap::heap(&diagnostic)) else {
+            return;
+        };
+        diagnostic = diagnostic.with_types(self.copy(enum_name), "symbol");
+        let Some(types_held) = self
+            .hold(super::Heap::heap(&diagnostic.expected) + super::Heap::heap(&diagnostic.found))
+        else {
+            self.release(held);
+            return;
+        };
+        held += types_held;
         match member {
             Some(member) => {
                 let replacement = text!(self, "{enum_name}::{member}");
+                let Some(replacement_held) = self.hold(replacement.capacity()) else {
+                    self.release(held);
+                    return;
+                };
+                held += replacement_held;
                 diagnostic = diagnostic.with_fix(Fix::replace(
                     text!(self, "name the member: `{replacement}`"),
                     span,
@@ -2082,6 +2103,7 @@ impl<'a> Checker<'a> {
             }
             None => diagnostic.code = Code::UNKNOWN_ENUM_MEMBER,
         }
+        self.release(held);
         self.report(diagnostic);
     }
 

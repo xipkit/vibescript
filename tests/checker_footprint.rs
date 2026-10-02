@@ -958,6 +958,15 @@ fn shapes() -> Vec<Shape> {
             let member = "Aa".repeat(n * 64);
             (Vec::new(), format!("enum E\n  {member}\nend\np(1)\n"))
         }),
+        ("an enum-symbol mismatch of long matching names", |n| {
+            let tail = "a".repeat(n * 32);
+            (
+                Vec::new(),
+                format!(
+                    "enum E{tail}\n  M{tail}\nend\ndef f(e: E{tail}) -> bool\n  e == :m{tail}\nend\np(1)\n"
+                ),
+            )
+        }),
         (
             "nested required diagnostics keeping distinct source buffers",
             |n| {
