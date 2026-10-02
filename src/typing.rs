@@ -352,8 +352,14 @@ impl Checked {
 
     /// The diagnostics and the exports, which a check that requires the
     /// file keeps or imports, letting go of the rest of what it found.
-    pub(crate) fn into_kept(self) -> (Vec<Diagnostic>, Option<std::sync::Arc<modules::Exported>>) {
-        (self.diagnostics, self.exported)
+    pub(crate) fn into_kept(
+        self,
+    ) -> (
+        Vec<Diagnostic>,
+        Option<std::sync::Arc<modules::Exported>>,
+        usize,
+    ) {
+        (self.diagnostics, self.exported, self.retained)
     }
 
     /// What the check's findings hold, which last while the compiler reads

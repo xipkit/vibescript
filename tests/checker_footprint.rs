@@ -894,6 +894,18 @@ fn shapes() -> Vec<Shape> {
             let member = "Aa".repeat(n * 64);
             (Vec::new(), format!("enum E\n  {member}\nend\np(1)\n"))
         }),
+        (
+            "nested required diagnostics keeping distinct source buffers",
+            |n| {
+                let pad = "x".repeat(n * 32);
+                let mut files: Vec<_> = (0..4)
+                    .map(|i| (format!("c{i}.vibe"), format!("# {pad}\nmissing{i}()\n")))
+                    .collect();
+                let requires = lines(4, |i| format!("require(\"c{i}\")\n"));
+                files.push(("middle.vibe".to_owned(), requires));
+                (files, "require(\"middle\")\n".to_owned())
+            },
+        ),
         ("a wide enum", |n| {
             let members = lines(n, |i| format!("  M{i}\n"));
             (Vec::new(), format!("enum E\n{members}end\np(E::M0)\n"))

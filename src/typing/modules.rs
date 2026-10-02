@@ -127,6 +127,22 @@ struct Imports {
     classes: HashMap<NsId, NsId>,
 }
 
+/// The importer already holds the origin's shared name, and transfers that hold.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct SharedOrigin(crate::loading::Origin);
+
+impl std::borrow::Borrow<crate::loading::Origin> for SharedOrigin {
+    fn borrow(&self) -> &crate::loading::Origin {
+        &self.0
+    }
+}
+
+impl super::counted::Owned for SharedOrigin {
+    fn owned(&self) -> usize {
+        0
+    }
+}
+
 /// What the program requires.
 pub(crate) struct Required<'a> {
     resolve: Option<&'a Modules<'a>>,
@@ -136,7 +152,7 @@ pub(crate) struct Required<'a> {
     depth: usize,
     pub loaded: CountedVec<Exports>,
     by_path: CountedMap<String, Result<u32, String>>,
-    by_origin: CountedMap<crate::loading::Origin, u32>,
+    by_origin: CountedMap<SharedOrigin, u32>,
     /// Aliases `require(..., as:)` binds, to the exports they name.
     pub aliases: CountedMap<String, u32>,
     /// Exported functions, which `require` also publishes by name.
@@ -167,7 +183,8 @@ impl Heap for Required<'_> {
         let origins: usize = self
             .by_origin
             .keys()
-            .map(|origin| origin.name().len())
+            .filter(|origin| !self.retained.contains(&(origin.0.name().as_ptr() as usize)))
+            .map(|origin| origin.0.name().len())
             .sum();
         // The published signatures are the loaded modules' own.
         let published: usize = self.published.keys().map(Heap::heap).sum();
@@ -347,7 +364,7 @@ impl<'a> Checker<'a> {
     /// however many diagnostics keep it. Returns whether the check has
     /// stopped.
     #[must_use = "the budget may have stopped the check, which must then do no more work"]
-    fn retain(&mut self, diagnostic: &Diagnostic) -> bool {
+    fn retain(&mut self, diagnostic: &Diagnostic, pending: &mut usize) -> bool {
         let mut bytes = 0;
         let declarations = self.meter.declarations();
         let retained = &mut self.modules.retained;
@@ -370,8 +387,12 @@ impl<'a> Checker<'a> {
                 Err(_) => return true,
             }
         }
+        self.release(bytes);
+        *pending -= bytes;
         self.modules.kept += bytes;
-        self.grow(bytes)
+        self.grown += bytes;
+        self.held();
+        self.halted()
     }
 
     fn load_module(&mut self, path: &str) -> Result<u32, String> {
@@ -420,6 +441,7 @@ impl<'a> Checker<'a> {
                 .saturating_sub(super::counted::Owned::owned(&placeholder));
         }
         self.release(result_held);
+        self.held();
         result
     }
 
@@ -516,7 +538,7 @@ impl<'a> Checker<'a> {
                 return Err(text!(self, "{error}"));
             }
         };
-        let Some(tree) = self.hold(read + parsing.retained_memory_bytes) else {
+        let Some(mut tree) = self.hold(read + parsing.retained_memory_bytes) else {
             self.stopped = true;
             return Err("the check ran out of its budget".into());
         };
@@ -544,7 +566,7 @@ impl<'a> Checker<'a> {
         // This check keeps the file's diagnostics and imports its exports;
         // the rest of what the file's check found, its facts and its
         // receivers, goes before this one measures again.
-        let (diagnostics, exported) = checked.into_kept();
+        let (diagnostics, exported, retained) = checked.into_kept();
         // What the file's check held at most beside this one's tables, its
         // surface pass's with it.
         self.observed(held + peak);
@@ -559,10 +581,15 @@ impl<'a> Checker<'a> {
             self.release(tree);
             return Err("the check ran out of its budget".into());
         }
+        let Some(mut pending) = self.hold(retained) else {
+            self.release(tree);
+            return Err("the check ran out of its budget".into());
+        };
         // The diagnostics, until each is kept, and the exports, with what
         // importing them builds, are held from here; a check that holding
         // them stops keeps and imports none of them.
-        let found = super::meter::vec(&diagnostics)
+        let vector = super::meter::vec(&diagnostics);
+        let found = vector
             + diagnostics
                 .iter()
                 .map(super::meter::Heap::heap)
@@ -570,7 +597,8 @@ impl<'a> Checker<'a> {
             + exported
                 .as_ref()
                 .map_or(0, |exported| exported.bytes() + exported.imports());
-        let Some(found) = self.hold(found) else {
+        let Some(mut found) = self.hold(found) else {
+            self.release(pending);
             self.release(tree);
             return Err("the check ran out of its budget".into());
         };
@@ -578,32 +606,68 @@ impl<'a> Checker<'a> {
         // for a first diagnostic that needs it, and counted before it is,
         // while the source it copies is held as well.
         let mut shared: Option<Arc<str>> = None;
-        for mut diagnostic in diagnostics.into_iter().filter(Diagnostic::is_error) {
+        for mut diagnostic in diagnostics {
+            if self.meter.charge(1) {
+                self.release(found + pending + tree);
+                return Err("the check ran out of its budget".into());
+            }
+            let payload = diagnostic.heap();
+            if !diagnostic.is_error() {
+                self.release(payload);
+                found -= payload;
+                // The last discarded reference gives back its inherited source.
+                for (address, length, references) in [
+                    diagnostic
+                        .source
+                        .as_ref()
+                        .map(|s| (s.as_ptr() as usize, s.len(), Arc::strong_count(s))),
+                    diagnostic
+                        .file
+                        .as_ref()
+                        .map(|s| (s.as_ptr() as usize, s.len(), Arc::strong_count(s))),
+                ]
+                .into_iter()
+                .flatten()
+                {
+                    if references == 1 && !self.modules.retained.contains(&address) {
+                        self.release(length);
+                        pending -= length;
+                    }
+                }
+                continue;
+            }
             if diagnostic.source.is_none() {
                 if shared.is_none() {
-                    if self.transient(source.len()) {
-                        self.release(found);
-                        self.release(tree);
+                    let Some(bytes) = self.hold(source.len()) else {
+                        self.release(found + pending + tree);
                         return Err("the check ran out of its budget".into());
-                    }
+                    };
+                    pending += bytes;
                     shared = Some(Arc::from(source.as_str()));
                 }
                 diagnostic.source = shared.clone();
             }
-            let file = diagnostic
-                .file
-                .clone()
-                .or_else(|| Some(Arc::clone(&filename)));
-            let diagnostic = diagnostic.in_file(file);
-            // The source and the file name it keeps outlive the file's
-            // check, and its reservation of them.
-            if self.retain(&diagnostic) {
-                self.release(found);
-                self.release(tree);
+            if diagnostic.file.is_none() {
+                let address = filename.as_ptr() as usize;
+                if !self.modules.retained.contains(&address) {
+                    // The filename moves from the parse hold to the diagnostics.
+                    tree -= filename.len();
+                    pending += filename.len();
+                }
+                diagnostic.file = Some(Arc::clone(&filename));
+            }
+            if self.retain(&diagnostic, &mut pending) {
+                self.release(found + pending + tree);
                 return Err("the check ran out of its budget".into());
             }
+            self.release(payload);
+            found -= payload;
+            self.held();
             self.report(diagnostic);
         }
+        self.release(vector + pending);
+        found -= vector;
+        self.held();
         let (functions, enums) = match &exported {
             Some(exported) => {
                 let imported = self.import(exported);
@@ -617,9 +681,10 @@ impl<'a> Checker<'a> {
             }
             None => (CountedMap::new(), CountedMap::new()),
         };
-        // The exports are let go once imported.
-        drop(exported);
-        self.release(found);
+        let imports = exported.as_ref().map_or(0, |exported| exported.imports());
+        self.release(imports);
+        found -= imports;
+        self.held();
         // Each function published by a new name, with its copy of its name
         // and room for it, is counted as the table takes it; the file's
         // exports and its origin, with their copies of their names and
@@ -635,21 +700,32 @@ impl<'a> Checker<'a> {
                 .insert_made(declarations, name.len(), || name.clone(), Rc::clone(sig))
                 .is_err()
             {
-                self.release(tree);
+                self.release(found + tree);
                 return Err("the check ran out of its budget".into());
             }
         }
         let declarations = self.meter.declarations();
-        let kept = declarations.keep(path.len() + origin.name().len());
+        let kept = declarations.keep(path.len());
         let Ok(mut kept) = kept else {
-            self.release(tree);
+            self.release(found + tree);
             return Err("the check ran out of its budget".into());
         };
         if self.modules.loaded.reserve(declarations, 1).is_err()
             || self.modules.by_origin.reserve(declarations, 1).is_err()
         {
-            self.release(tree);
+            self.release(found + tree);
             return Err("the check ran out of its budget".into());
+        }
+        if !self
+            .modules
+            .retained
+            .contains(&(origin.name().as_ptr() as usize))
+        {
+            let bytes = origin.name().len();
+            self.release(bytes);
+            tree -= bytes;
+            self.held();
+            self.meter.declarations().kept(bytes);
         }
         let id = self.modules.loaded.len() as u32;
         self.modules.loaded.push_kept(
@@ -660,8 +736,15 @@ impl<'a> Checker<'a> {
                 enums,
             },
         );
-        self.modules.by_origin.insert_kept(&mut kept, origin, id);
-        self.release(tree);
+        self.modules
+            .by_origin
+            .insert_within(SharedOrigin(origin), id);
+        drop(exported);
+        drop((parsed, tokens, _tokens_held, source, filename));
+        self.release(found + tree);
+        if self.declared() {
+            return Err("the check ran out of its budget".into());
+        }
         Ok(id)
     }
 
@@ -791,7 +874,8 @@ impl<'a> Checker<'a> {
             let program = &mut self.program;
             let free = !program.enum_names.contains_key(&declared.name)
                 && !program.roots.contains_key(declared.name.as_str());
-            let Ok(mut kept) = declarations.keep(3 * declared.name.len()) else {
+            let Ok(mut kept) = declarations.keep((2 + usize::from(free)) * declared.name.len())
+            else {
                 break;
             };
             if program.enums.reserve(declarations, 1).is_err()
@@ -930,9 +1014,6 @@ impl<'a> Checker<'a> {
                 break;
             };
             functions.insert_kept(&mut kept, name.clone(), Rc::new(sig));
-        }
-        if self.declaring() {
-            return (CountedMap::new(), CountedMap::new());
         }
         (functions, enums)
     }
