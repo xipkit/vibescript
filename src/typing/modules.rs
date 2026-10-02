@@ -221,15 +221,13 @@ impl<'a> Checker<'a> {
         // The requests found, in a list counted, with the paths and aliases
         // they copy, while it lives.
         let mut requests = ScratchVec::new(&self.meter);
-        // What the paths and aliases found hold.
-        let mut found = 0;
         // A walk the budget stops visits no more declarations.
         let mut walk = Walk::new(&self.meter);
         for function in parsed.functions.iter() {
             if self.halted() {
                 return;
             }
-            requires(&mut walk, &function.body, &mut requests, &mut found);
+            requires(&mut walk, &function.body, &mut requests);
         }
         // What is left of the namespaces at each level of nesting, whose
         // bodies and methods are walked in turn, in a list counted, with
@@ -247,12 +245,12 @@ impl<'a> Checker<'a> {
                 levels.pop();
                 continue;
             };
-            requires(&mut walk, &module.body, &mut requests, &mut found);
+            requires(&mut walk, &module.body, &mut requests);
             for (def, _) in module.methods.iter().chain(module.instance_methods.iter()) {
                 if self.halted() {
                     return;
                 }
-                requires(&mut walk, &def.body, &mut requests, &mut found);
+                requires(&mut walk, &def.body, &mut requests);
             }
             if levels.push(module.inner.iter()).is_err()
                 || levels.push(module.modules.iter()).is_err()
@@ -261,48 +259,52 @@ impl<'a> Checker<'a> {
             }
         }
         drop(levels);
-        let scratch = walk.bytes();
         drop(walk);
-        // A check past its budget loads no files. The requests, with the
-        // paths and aliases they copy, are held while the files load.
-        if self.transient(scratch) {
-            return;
-        }
-        let mut requests = requests.into_vec();
-        let Some(held) = self.hold(super::meter::vec(&requests) + found) else {
-            return;
-        };
-        if super::counted::sort_unstable_by(&self.meter, &mut requests, |a, b| a.2.cmp(&b.2))
-            .is_err()
+        if self.halted()
+            || super::counted::sort_unstable_by(&self.meter, &mut requests, |a, b| a.2.cmp(&b.2))
+                .is_err()
         {
-            self.release(held);
             return;
         }
-        for (path, alias, offset) in requests {
-            // A check past its budget loads no more files.
+        for &(path, alias, offset) in requests.iter() {
             if self.over_budget() {
-                self.release(held);
                 return;
             }
-            let id = self.load_module(&path);
+            // Only the request being loaded needs owned lossy spellings.
+            let mut names = ScratchVec::new(&self.meter);
+            if names.push(lossy(path, &self.meter)).is_err() {
+                return;
+            }
+            if let Some(alias) = alias {
+                if names.push(lossy(alias, &self.meter)).is_err() {
+                    return;
+                }
+            }
+            let path = &names[0];
+            let id = self.load_module(path);
             if self.halted() {
-                self.release(held);
                 return;
             }
-            if let Err(reason) = &id {
-                self.report(Diagnostic::error(
-                    Code::UNDEFINED_NAME,
-                    self.spans.token(offset),
-                    text!(
-                        self,
-                        "cannot statically resolve required module {path:?}: {reason}"
-                    ),
-                ));
-            }
-            if let (Ok(id), Some(alias)) = (id, alias) {
-                // A new alias's copy of its name, and its room in the
-                // table, are counted as it is kept; a check that stops loads
-                // no more files.
+            let id = match id {
+                Ok(id) => id,
+                Err(reason) => {
+                    let mut reasons = ScratchVec::new(&self.meter);
+                    if reasons.push(reason).is_err() {
+                        return;
+                    }
+                    let reason = &reasons[0];
+                    self.report(Diagnostic::error(
+                        Code::UNDEFINED_NAME,
+                        self.spans.token(offset),
+                        text!(
+                            self,
+                            "cannot statically resolve required module {path:?}: {reason}"
+                        ),
+                    ));
+                    continue;
+                }
+            };
+            if let Some(alias) = names.get(1) {
                 let alias = alias.trim();
                 if !self.modules.aliases.contains_key(alias)
                     && self
@@ -316,12 +318,10 @@ impl<'a> Checker<'a> {
                         )
                         .is_err()
                 {
-                    self.release(held);
                     return;
                 }
             }
         }
-        self.release(held);
     }
 
     /// A context for work the check does through the compiler, such as
@@ -376,7 +376,10 @@ impl<'a> Checker<'a> {
 
     fn load_module(&mut self, path: &str) -> Result<u32, String> {
         if let Some(known) = self.modules.by_path.get(path) {
-            return known.clone();
+            return match known {
+                Ok(id) => Ok(*id),
+                Err(reason) => Err(self.copy(reason)),
+            };
         }
         // The table keeps a copy of the path, and of the reason a file did
         // not load, each counted, with the path's room in the table, as it
@@ -399,8 +402,12 @@ impl<'a> Checker<'a> {
             .insert_kept(&mut kept, path.to_owned(), circular);
         self.grown += bytes;
         let result = self.load_module_uncached(path);
+        let Some(result_held) = self.hold(result.as_ref().err().map_or(0, String::capacity)) else {
+            return Err("the check ran out of its budget".into());
+        };
         if let Err(reason) = &result {
             if self.grow(reason.len()) {
+                self.release(result_held);
                 return Err("the check ran out of its budget".into());
             }
         }
@@ -412,6 +419,7 @@ impl<'a> Checker<'a> {
                 .grown
                 .saturating_sub(super::counted::Owned::owned(&placeholder));
         }
+        self.release(result_held);
         result
     }
 
@@ -1095,7 +1103,7 @@ impl<'a> Checker<'a> {
 
     /// Reports an unknown export.
     pub(super) fn unknown_export(&mut self, id: u32, name: &str, span: crate::diagnostic::Span) {
-        let path = self.modules.loaded[id as usize].path.clone();
+        let path = &self.modules.loaded[id as usize].path;
         self.report(Diagnostic::error(
             Code::UNKNOWN_MEMBER,
             span,
@@ -1109,14 +1117,11 @@ impl<'a> Checker<'a> {
     }
 }
 
+type Request<'a> = (&'a [u8], Option<&'a [u8]>, usize);
+
 /// Adds the literal paths, and aliases, of the `require` calls in `body` to
-/// `out`, and what they hold to `found`, walking it with `walk`.
-fn requires<'x>(
-    walk: &mut Walk<'x, '_>,
-    body: &'x [Stmt],
-    out: &mut ScratchVec<(String, Option<String>, usize)>,
-    found: &mut usize,
-) {
+/// `out`, borrowing the literals while walking it with `walk`.
+fn requires<'x>(walk: &mut Walk<'x, '_>, body: &'x [Stmt], out: &mut ScratchVec<Request<'x>>) {
     // The body is a visit, empty or not; the requests count themselves.
     if walk.visit(0) {
         return;
@@ -1144,44 +1149,43 @@ fn requires<'x>(
                 }
                 _ => (),
             },
-            Item::Expr(expr) => visit(expr, walk, out, found),
+            Item::Expr(expr) => {
+                if visit(expr, walk, out) {
+                    return;
+                }
+            }
             Item::Target(_) => (),
         }
     }
 }
 
-fn visit<'x>(
-    expr: &'x Expr,
-    walk: &mut Walk<'x, '_>,
-    out: &mut ScratchVec<(String, Option<String>, usize)>,
-    found: &mut usize,
-) {
+fn visit<'x>(expr: &'x Expr, walk: &mut Walk<'x, '_>, out: &mut ScratchVec<Request<'x>>) -> bool {
     match &expr.node {
         Node::Call(name, args, _) => {
             if name.as_str() == "require" {
-                let path = args
-                    .iter()
-                    .find_map(|arg| match (&arg.kind, &arg.value.node) {
-                        (crate::syntax::ArgumentKind::Positional, Node::Literal(value)) => value
-                            .as_bytes()
-                            .map(|b| String::from_utf8_lossy(b).into_owned()),
-                        _ => None,
-                    });
-                let alias = args
-                    .iter()
-                    .find_map(|arg| match (&arg.kind, &arg.value.node) {
-                        (crate::syntax::ArgumentKind::Keyword(key), Node::Literal(value))
-                            if key.as_str() == "as" =>
-                        {
-                            value
-                                .as_bytes()
-                                .map(|b| String::from_utf8_lossy(b).into_owned())
+                let (mut path, mut alias) = (None, None);
+                for arg in args {
+                    if walk.visit(0) {
+                        return true;
+                    }
+                    if let Node::Literal(value) = &arg.value.node {
+                        match &arg.kind {
+                            crate::syntax::ArgumentKind::Positional if path.is_none() => {
+                                path = value.as_bytes()
+                            }
+                            crate::syntax::ArgumentKind::Keyword(key)
+                                if key.as_str() == "as" && alias.is_none() =>
+                            {
+                                alias = value.as_bytes()
+                            }
+                            _ => (),
                         }
-                        _ => None,
-                    });
+                    }
+                }
                 if let Some(path) = path {
-                    *found += path.capacity() + alias.as_ref().map_or(0, String::capacity);
-                    out.add((path, alias, expr.offset as usize));
+                    if out.push((path, alias, expr.offset as usize)).is_err() {
+                        return true;
+                    }
                 }
             }
             walk.push(Next::Arguments(args.iter()), ());
@@ -1224,5 +1228,38 @@ fn visit<'x>(
             walk.push(Next::Exprs(selectors.iter()), ());
         }
         _ => (),
+    }
+    false
+}
+
+/// Lossy UTF-8 with each scan and growing output admitted before work.
+fn lossy(bytes: &[u8], meter: &super::meter::Meter) -> String {
+    let mut text = super::counted::Text::new(meter);
+    if !meter.pace(1 + (bytes.len() / 64) as u64, 0) {
+        for chunk in bytes.utf8_chunks() {
+            if meter.stopped() {
+                break;
+            }
+            text.push_str(chunk.valid());
+            if !chunk.invalid().is_empty() {
+                text.push_str("\u{fffd}");
+            }
+        }
+    }
+    text.finish()
+}
+
+#[cfg(test)]
+mod budget_review_tests {
+    #[test]
+    fn requests_use_the_same_lossy_utf8_spelling() {
+        let meter = super::super::meter::Meter::new(Default::default(), None);
+        for bytes in [
+            &b"abc"[..],
+            &b"a\xffb\xe2\x82"[..],
+            &b"\xf0\x9f\x92\xa9"[..],
+        ] {
+            assert_eq!(super::lossy(bytes, &meter), String::from_utf8_lossy(bytes));
+        }
     }
 }
