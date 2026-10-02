@@ -180,13 +180,14 @@ The [differential tests](../../docs/checker-diff.md), extended to hosts, nested 
 
 ## Counter log
 
-- Scoped file-write analysis (2026-10-02): the metered lexical walk excludes
-  assignments to shadowed block parameters and rescue bindings while retaining
-  writes to captured file locals. Re-recorded the resulting 2–6 extra steps in
-  28 conformance and eight compatibility cases. Paired runs preserve all
-  127,504 successful cases' other counters and all stable observations. Only
-  these step deltas were applied, preserving existing path drift; peak and
-  retained bytes are unchanged.
+- Scoped assignment and cleanup tracking (2026-10-02): the assignment index
+  distinguishes captured writes from shadowed block parameters and rescue
+  bindings, and cleanup follows writes on live paths. Re-recorded 1–10 extra
+  steps in 28 conformance and eight compatibility cases. Eight host-block cases
+  also peak 136 or 304 bytes higher for the new flow facts. Paired runs preserve
+  all 127,504 successful cases' other stable counters and observations. Only
+  these deltas were applied, preserving existing path drift; retained bytes
+  are unchanged.
 - Callable-name scan accounting (2026-09-29): validation now checks cancellation
   and charges one step per started 64 key bytes before UTF-8 and spelling scans,
   through execution or compilation work as appropriate. This intentionally adds
