@@ -144,6 +144,8 @@ struct Observation {
     stdout: Vec<u8>,
     stderr: Vec<u8>,
     limited: bool,
+    /// Whether the run, or a call into it, ended with an error.
+    failed: bool,
     type_error: bool,
     /// An error of a kind the checker rules out in a program it accepts.
     unexpected: bool,
@@ -251,6 +253,64 @@ pub fn judge(case: &Case, scratch: &mut Scratch) -> Verdict {
         }
     }
     finding(kind, detail)
+}
+
+/// How a build takes a program: the checker's rejection, or how running it
+/// with every check kept ended.
+#[derive(Clone, Debug)]
+pub enum Outcome {
+    /// The checker rejected it: its first error's code, span and message.
+    Rejected(String),
+    /// It ran, and each call the host makes into it returned, without an
+    /// error.
+    Ran,
+    /// Its run, or a call into it, ended with an error.
+    Failed,
+    /// A limit stopped a run.
+    Limited,
+    /// Checking, compiling or running panicked.
+    Panicked,
+}
+
+impl Outcome {
+    /// The outcome as a line of a verdicts file: `ran`, `failed`,
+    /// `limited`, `panicked` or `rejected CODE`.
+    pub fn line(&self) -> String {
+        match self {
+            Outcome::Rejected(reason) => {
+                format!("rejected {}", reason.split(' ').next().unwrap_or_default())
+            }
+            Outcome::Ran => "ran".to_owned(),
+            Outcome::Failed => "failed".to_owned(),
+            Outcome::Limited => "limited".to_owned(),
+            Outcome::Panicked => "panicked".to_owned(),
+        }
+    }
+}
+
+/// Checks `case` and, once the checker accepts it, runs it once, with the
+/// host's calls into it, keeping every check the checker proves, so that a
+/// run the checker's proofs do not hold for fails.
+pub fn outcome(case: &Case, scratch: &mut Scratch) -> Outcome {
+    let directory = if case.modules.is_empty() {
+        None
+    } else {
+        match scratch.directory(&case.modules) {
+            Ok(path) => Some(path),
+            Err(error) => panic!("write required files: {error}"),
+        }
+    };
+    let compiled = match compile(case, directory.as_deref(), true) {
+        Ok(Ok(compiled)) => compiled,
+        Ok(Err(error)) => return Outcome::Rejected(first_code(&error)),
+        Err(_) => return Outcome::Panicked,
+    };
+    match observe(&compiled, &case.host) {
+        Ok(observation) if observation.limited => Outcome::Limited,
+        Ok(observation) if observation.failed => Outcome::Failed,
+        Ok(_) => Outcome::Ran,
+        Err(_) => Outcome::Panicked,
+    }
 }
 
 fn finding(kind: FindingKind, detail: String) -> Verdict {
@@ -392,6 +452,7 @@ fn observe(compiled: &Compiled, host: &Host) -> Result<Observation, String> {
         stdout: Vec::new(),
         stderr: Vec::new(),
         limited: false,
+        failed: false,
         type_error: false,
         unexpected: false,
     };
@@ -425,6 +486,7 @@ impl Observation {
                 .result
                 .push_str(&format!("ok {}", render(&outcome.value))),
             Err(error) => {
+                self.failed = true;
                 self.limited |= matches!(
                     error.kind,
                     ErrorKind::Steps
@@ -557,8 +619,13 @@ fn first_code(error: &Error) -> String {
         .iter()
         .find(|diagnostic| diagnostic.is_error())
         .map(|diagnostic| {
+            let file = diagnostic
+                .file
+                .as_deref()
+                .map(|file| format!(" in {}", String::from_utf8_lossy(file)))
+                .unwrap_or_default();
             format!(
-                "{} {:?}: {}",
+                "{} {:?}{file}: {}",
                 diagnostic.code, diagnostic.span, diagnostic.message
             )
         })

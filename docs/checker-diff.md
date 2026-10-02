@@ -50,11 +50,25 @@ target/gate/examples/checker_diff run --from 0 --count 1000000 --jobs 12 --out D
 checker_diff judge FILE...     # judge programs, such as findings
 checker_diff minimize FILE...  # remove lines while the finding stays, into FILE.min.vibe
 checker_diff generate SEED     # print a seed's program; add `corpus` for an edit
+checker_diff verdicts ...      # print how a build takes each seed's program
+checker_diff rejections A B    # compare two verdicts files: see Rejections
 ```
 
 A program's host comes first, one directive a line: `#@ global NAME: TYPE = JSON`, or `#@ global NAME = JSON` for an `any` global; `#@ capability NAME`, `store` or `loose`; and `#@ call FUNCTION {"args": [...], "keywords": {...}}`. Each required file follows under a `#@ file PATH` line, then the script under `#@ main`.
 
 A fixed finding becomes a regression program in `tests/checker-diff`, whose first line says what it must now do: `# expect: rejected CODE`, for a program the checker now rejects, or `# expect: agreed`.
+
+## Rejections
+
+The runs above find programs the checker accepts wrongly. The other half is programs it rejects wrongly, which a change to the checker can introduce without a runtime ever disagreeing. `verdicts` prints how a build takes each seed's program, a line a seed: `rejected CODE`, or how running it with every check kept ends, `ran`, `failed`, `limited` or `panicked`, so a run the first checker's proofs do not hold for, which it should have rejected, fails rather than runs. Built from two versions of the library with the same harness, it gives two files, and `rejections` compares them:
+
+```sh
+checker_diff verdicts --from 0 --count 2000000 --jobs 12 --source mixed > before.txt
+checker_diff verdicts --from 0 --count 2000000 --jobs 12 --source mixed > after.txt
+checker_diff rejections before.txt after.txt --source mixed --out DIR
+```
+
+It prints how many seeds went from each outcome to each other, and writes to `DIR` each program the second rejects that the first accepts and runs without an error, up to 200 of each kind, headed by its seed and the second's first error. Run by a build of the second version, it checks each such program again and counts them by that error's message, with names and numbers left out. Each is a regression, unless the second version means to reject it, as a new diagnostic or a limit does.
 
 ## Known disagreements
 

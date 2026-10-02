@@ -11,6 +11,8 @@
 //! checker_diff generate SEED           # print one generated program
 //! checker_diff run [--from N] [--count M] [--jobs J] [--out DIR] [--source S]
 //! checker_diff minimize FILE...        # reduce findings to FILE.min.vibe
+//! checker_diff verdicts [--from N] [--count M] [--jobs J] [--source S] > FILE
+//! checker_diff rejections BEFORE AFTER [--source S] [--out DIR]
 //! ```
 //!
 //! `run` judges the programs of seeds N to N+M-1, writes each finding to
@@ -19,6 +21,12 @@
 //! fifth are edits. A program whose check or run takes longer than
 //! two minutes is written to DIR as a hang, and the process exits with
 //! status 3, so a driver can continue after it.
+//!
+//! `verdicts` prints how a build takes each program, a line a seed:
+//! whether the checker rejects it, with the code, or how running it, with
+//! every check kept, ends. `rejections` compares two such files, from
+//! builds of two versions of the checker, and writes to DIR each program
+//! the second rejects that the first accepts and runs without an error.
 
 #[path = "checker_diff/builtins.rs"]
 mod builtins;
@@ -78,6 +86,8 @@ fn run() -> i32 {
             0
         }
         Some("run") => batch(&args[1..]),
+        Some("verdicts") => verdicts(&args[1..]),
+        Some("rejections") => rejections(&args[1..]),
         Some("minimize") => {
             let mut scratch = Scratch::new(&scratch_root(0));
             for path in &args[1..] {
@@ -108,6 +118,196 @@ fn run() -> i32 {
             2
         }
     }
+}
+
+/// The value of option `name` in `args`.
+fn option(args: &[String], name: &str) -> Option<String> {
+    args.iter()
+        .position(|arg| arg == name)
+        .and_then(|index| args.get(index + 1))
+        .cloned()
+}
+
+/// Prints how a build takes the programs of seeds N to N+M-1, a line a
+/// seed in the order they finish: the seed, then `rejected CODE`, or how
+/// running it with every check kept ended: `ran`, `failed`, `limited` or
+/// `panicked`. A program whose check or run takes longer than two minutes
+/// ends the run with status 3.
+fn verdicts(args: &[String]) -> i32 {
+    use std::io::Write;
+    let from: u64 = option(args, "--from")
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(0);
+    let count: u64 = option(args, "--count")
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(1000);
+    let jobs: usize = option(args, "--jobs")
+        .and_then(|value| value.parse().ok())
+        .unwrap_or_else(|| std::thread::available_parallelism().map_or(1, |n| n.get()));
+    let source = option(args, "--source").unwrap_or_else(|| "generated".to_owned());
+    if source != "generated" {
+        mutate::corpus();
+    }
+    let next = Arc::new(AtomicU64::new(from));
+    let end = from + count;
+    let output = Arc::new(Mutex::new(std::io::BufWriter::new(std::io::stdout())));
+    let current: Watch = Arc::new(Mutex::new(vec![None; jobs]));
+    let mut handles = Vec::new();
+    for worker in 0..jobs {
+        let (next, output, current, source) = (
+            next.clone(),
+            output.clone(),
+            current.clone(),
+            source.clone(),
+        );
+        let handle = std::thread::Builder::new()
+            .stack_size(256 << 20)
+            .spawn(move || {
+                let root = scratch_root(worker + 1);
+                let mut scratch = Scratch::new(&root);
+                loop {
+                    let seed = next.fetch_add(1, Ordering::Relaxed);
+                    if seed >= end {
+                        break;
+                    }
+                    current.lock().unwrap()[worker] = Some((seed, Instant::now()));
+                    let case = case_for(seed, &source);
+                    let outcome = harness::outcome(&case, &mut scratch);
+                    let _ = writeln!(output.lock().unwrap(), "{seed} {}", outcome.line());
+                }
+                current.lock().unwrap()[worker] = None;
+                let _ = std::fs::remove_dir_all(root);
+            })
+            .expect("spawn a worker");
+        handles.push(handle);
+    }
+    loop {
+        std::thread::sleep(Duration::from_millis(500));
+        if handles.iter().all(|handle| handle.is_finished()) {
+            break;
+        }
+        let stuck = current
+            .lock()
+            .unwrap()
+            .iter()
+            .flatten()
+            .find(|(_, since)| since.elapsed() > Duration::from_secs(120))
+            .copied();
+        if let Some((seed, _)) = stuck {
+            let _ = output.lock().unwrap().flush();
+            eprintln!("seed {seed} did not finish in two minutes");
+            std::process::exit(3);
+        }
+    }
+    for handle in handles {
+        let _ = handle.join();
+    }
+    let _ = output.lock().unwrap().flush();
+    0
+}
+
+/// Compares two files of [`verdicts`], from builds of two versions of the
+/// checker, by seed: prints how many seeds went from each outcome to each
+/// other, and writes to DIR, up to [`KEEP`] of each kind, each program the
+/// second rejects that the first accepts and runs without an error. Run by
+/// a build of the second version, it checks each such program again and
+/// sorts them by its first error's message, with the names in it left out.
+fn rejections(args: &[String]) -> i32 {
+    let read = |path: &String| -> BTreeMap<u64, String> {
+        let text = std::fs::read_to_string(path).expect("read a verdicts file");
+        text.lines()
+            .filter_map(|line| {
+                let (seed, outcome) = line.split_once(' ')?;
+                Some((seed.parse().ok()?, outcome.to_owned()))
+            })
+            .collect()
+    };
+    let (Some(before), Some(after)) = (args.first(), args.get(1)) else {
+        eprintln!("usage: checker_diff rejections BEFORE AFTER [--source S] [--out DIR]");
+        return 2;
+    };
+    let (before, after) = (read(before), read(after));
+    let source = option(args, "--source").unwrap_or_else(|| "generated".to_owned());
+    let out =
+        PathBuf::from(option(args, "--out").unwrap_or_else(|| "checker-rejections".to_owned()));
+    std::fs::create_dir_all(&out).expect("create the rejections directory");
+    if source != "generated" {
+        mutate::corpus();
+    }
+    let mut changes: BTreeMap<(String, String), u64> = BTreeMap::new();
+    let mut rejected: BTreeMap<String, u64> = BTreeMap::new();
+    let mut scratch = Scratch::new(&scratch_root(0));
+    let mut compared = 0;
+    for (seed, first) in &before {
+        let Some(second) = after.get(seed) else {
+            continue;
+        };
+        compared += 1;
+        if first == second {
+            continue;
+        }
+        let kind = |outcome: &String| outcome.split(' ').next().unwrap_or_default().to_owned();
+        *changes.entry((kind(first), kind(second))).or_default() += 1;
+        let Some(code) = second.strip_prefix("rejected ") else {
+            continue;
+        };
+        if first != "ran" {
+            continue;
+        }
+        let case = case_for(*seed, &source);
+        let message = match harness::outcome(&case, &mut scratch) {
+            harness::Outcome::Rejected(reason) => reason,
+            other => format!("{code}: {}", other.line()),
+        };
+        let kind = format!(
+            "{code} {}",
+            unnamed(
+                message
+                    .split(": ")
+                    .skip(1)
+                    .collect::<Vec<_>>()
+                    .join(": ")
+                    .as_str()
+            )
+        );
+        let count = rejected.entry(kind).or_default();
+        *count += 1;
+        if *count <= KEEP {
+            let path = out.join(format!("{code}-{seed}.vibe"));
+            let header = format!("# seed {seed}: ran before, rejected after: {message}\n");
+            let _ = std::fs::write(path, format!("{header}{}", case.render()));
+        }
+    }
+    let _ = std::fs::remove_dir_all(scratch_root(0));
+    println!("compared {compared} seeds");
+    for ((first, second), count) in &changes {
+        println!("  {first} -> {second}: {count}");
+    }
+    let mut kinds: Vec<(&String, &u64)> = rejected.iter().collect();
+    kinds.sort_by(|a, b| b.1.cmp(a.1));
+    for (kind, count) in kinds {
+        println!("  ran before, rejected after, {count}: {kind}");
+    }
+    println!("  programs in {}", out.display());
+    0
+}
+
+/// `message` with each name in backticks, and each number, left out, so
+/// that messages of one kind read alike.
+fn unnamed(message: &str) -> String {
+    let mut text = String::new();
+    let mut quoted = false;
+    for c in message.chars() {
+        if c == '`' {
+            quoted = !quoted;
+            if !quoted {
+                text.push_str("`_`");
+            }
+        } else if !quoted && !c.is_ascii_digit() {
+            text.push(c);
+        }
+    }
+    text.chars().take(160).collect()
 }
 
 /// The program of `seed` from `source`: `generated`, `corpus` or `mixed`.
