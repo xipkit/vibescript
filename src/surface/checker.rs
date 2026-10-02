@@ -460,7 +460,7 @@ impl<'a> Checker<'a> {
 
 /// How many statements, expressions or diagnostics the walk for removed
 /// spellings takes between asking whether the compilation has stopped.
-const POLL: usize = 256;
+const POLL: usize = 1;
 
 fn span(span: syntax::Span) -> Span {
     Span::new(span.start, span.end)

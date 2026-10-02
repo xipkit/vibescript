@@ -23,6 +23,7 @@ pub(crate) struct Room<'b> {
     held: AtomicUsize,
     peak: AtomicUsize,
     full: AtomicBool,
+    stopped: AtomicBool,
     /// The steps the pass was charged other than its sorts'.
     charged: AtomicU64,
     /// The steps of the sorts the pass made.
@@ -53,7 +54,7 @@ impl<'b> Room<'b> {
     /// Takes `bytes` a copy is about to hold; whether they fit.
     #[must_use = "a copy the room refuses must not be made"]
     pub fn take(&self, bytes: usize) -> bool {
-        if self.full() {
+        if self.full() || !self.within() {
             return false;
         }
         let held = self.held.load(Relaxed).saturating_add(bytes);
@@ -96,7 +97,14 @@ impl<'b> Room<'b> {
     /// Whether the steps the check has been charged are within its
     /// budget, which also asks its deadline and cancellation.
     pub fn within(&self) -> bool {
-        self.within.is_none_or(|within| within(self.total()))
+        if self.full() || self.stopped.load(Relaxed) {
+            return false;
+        }
+        if self.within.is_some_and(|within| !within(self.total())) {
+            self.stopped.store(true, Relaxed);
+            return false;
+        }
+        true
     }
 
     /// Charges `steps` of the pass's work, before it does it; whether they
@@ -111,9 +119,6 @@ impl<'b> Room<'b> {
     /// whether it may be.
     fn charge_sort(&self, length: usize) -> bool {
         let steps = sort_steps(length);
-        if steps == 0 {
-            return true;
-        }
         self.sorted.fetch_add(steps, Relaxed);
         self.within()
     }
@@ -178,7 +183,7 @@ impl<'r> Written<'r> {
     }
 
     pub fn push_str(&mut self, piece: &str) {
-        if self.room.full() {
+        if !self.room.within() {
             return;
         }
         let (length, capacity) = (self.text.len(), self.text.capacity());
@@ -198,21 +203,21 @@ impl<'r> Written<'r> {
     pub fn write(&mut self, args: std::fmt::Arguments<'_>) {
         // A refused piece leaves the room full, which `finish` reads.
         if std::fmt::Write::write_fmt(self, args).is_err() {
-            debug_assert!(self.room.full());
+            debug_assert!(!self.room.within());
         }
     }
 
     /// The text, which keeps what it took from the room; `None` once the
     /// room refused a piece.
     pub fn finish(self) -> Option<String> {
-        (!self.room.full()).then_some(self.text)
+        self.room.within().then_some(self.text)
     }
 }
 
 impl std::fmt::Write for Written<'_> {
     fn write_str(&mut self, piece: &str) -> std::fmt::Result {
         self.push_str(piece);
-        if self.room.full() {
+        if !self.room.within() {
             return Err(std::fmt::Error);
         }
         Ok(())
@@ -548,6 +553,14 @@ mod tests {
 
     fn span(start: usize, end: usize) -> Span {
         Span { start, end }
+    }
+
+    #[test]
+    fn admission_and_small_sorts_observe_a_stop() {
+        let room = Room::new(None, &|_| false, 0);
+        assert!(!room.take(1));
+        assert!(!room.sort_unstable_by(&mut [1], Ord::cmp));
+        assert!(!room.within());
     }
 
     #[test]
