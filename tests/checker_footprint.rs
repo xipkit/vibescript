@@ -639,6 +639,20 @@ fn adversarial() -> Vec<(String, String)> {
             "f(1)\n".repeat(scale(2_000))
         ),
     ));
+    // Each `new` takes the constructor's signature, with its parameters'
+    // long names, for as long as its arguments are checked, and the
+    // arguments are calls of `new` nested deep.
+    let pad = "p".repeat(scale(2_000));
+    let params = join(50, &|i| format!("{pad}{i}: int = 0"), ", ");
+    let depth = 50;
+    programs.push((
+        "constructors of long parameter names called nested 50 deep".to_owned(),
+        format!(
+            "class C\n  def initialize(first: any = nil, {params})\n  end\nend\np({}nil{})\n",
+            "C.new(".repeat(depth),
+            ")".repeat(depth)
+        ),
+    ));
     programs
 }
 

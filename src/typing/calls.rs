@@ -1055,6 +1055,15 @@ impl<'a> Checker<'a> {
         if call.name == "new" && namespace.is_class {
             let initialize = namespace.methods.get("initialize").copied();
             let instance = self.types.intern(Kind::Instance(ns));
+            // The copy of the initializer's signature `new` takes, with its
+            // parameters' names, and its own name, are held, before they
+            // are made, while the call is checked: calls of `new` nest.
+            let named = self.program.namespaces[ns as usize].name.len() + ".new".len();
+            let copied =
+                initialize.map_or(0, |id| super::meter::Heap::heap(&*self.program.fns[id].sig));
+            let Some(held) = self.hold(copied + named) else {
+                return Ty::ERROR;
+            };
             let sig = match initialize {
                 Some(id) => {
                     let sig = self.program.fns[id].sig.clone();
@@ -1079,6 +1088,7 @@ impl<'a> Checker<'a> {
                 },
             };
             let (_, breaks) = self.call_sigs_parts(call, &[(Rc::new(sig), Vec::new())]);
+            self.release(held);
             return self.with_breaks(instance, &breaks);
         }
         if let Some(&id) = namespace.statics.get(call.name) {
@@ -1854,7 +1864,6 @@ impl<'a> Checker<'a> {
         let mut breaks = Vec::new();
         match (&sig.block, call.block) {
             (Some(block_sig), Some(block)) => {
-                let block_sig = block_sig.clone();
                 // A script function returns a break value through its
                 // declared result, or, yielding inside a loop or a block,
                 // sees it there as a value of its result type.
@@ -1872,7 +1881,7 @@ impl<'a> Checker<'a> {
                     sigs::Breaks::Inside | sigs::Breaks::Never => false,
                 };
                 breaks = self.symbols(stay, |this| {
-                    this.call_block(block, &block_sig, &mut bindings, break_to)
+                    this.call_block(block, block_sig, &mut bindings, break_to)
                 });
                 if !call_value {
                     breaks.clear();
@@ -2775,7 +2784,14 @@ impl<'a> Checker<'a> {
     /// `yield args`, checked against the function's `&block` declaration.
     pub(super) fn yield_expr(&mut self, expr: &'a Expr, args: &'a [Expr], want: Want) -> Ty {
         let span = self.spans.token(expr.offset as usize);
-        let Some(block) = self.frame.block.clone() else {
+        // The block's parameters are read in place, one at a time, not
+        // copied: `yield`s nest.
+        let Some((arity, result)) = self
+            .frame
+            .block
+            .as_ref()
+            .map(|block| (block.params.len(), block.result))
+        else {
             for arg in args {
                 self.expr(arg, None);
             }
@@ -2799,8 +2815,13 @@ impl<'a> Checker<'a> {
             }
         }
         for (index, arg) in args.iter().enumerate() {
-            match block.params.get(index) {
-                Some(&param) => {
+            let param = self
+                .frame
+                .block
+                .as_ref()
+                .and_then(|block| block.params.get(index).copied());
+            match param {
+                Some(param) => {
                     self.symbols(None, |this| {
                         this.expr_against(arg, param, &Purpose::Yield(index))
                     });
@@ -2810,14 +2831,14 @@ impl<'a> Checker<'a> {
                 }
             }
         }
-        if args.len() != block.params.len() && !(args.len() == 1 && block.params.is_empty()) {
+        if args.len() != arity && !(args.len() == 1 && arity == 0) {
             self.report(Diagnostic::error(
                 Code::NO_OVERLOAD,
                 span,
                 text!(
                     self,
                     "the block takes {} argument(s), but `yield` passes {}",
-                    block.params.len(),
+                    arity,
                     args.len()
                 ),
             ));
@@ -2825,7 +2846,7 @@ impl<'a> Checker<'a> {
         self.yield_breaks(span);
         // The block may be the file's own, and assign its locals.
         self.script_called(None, span);
-        match block.result {
+        match result {
             Some(result) => result,
             None => {
                 if !matches!(want, Want::Discard) {

@@ -232,6 +232,7 @@ impl Heap for Frame {
             + vec(self.ambient.as_vec())
             + vec(self.shared.as_vec())
             + self.name.heap()
+            + self.block.heap()
     }
 }
 
