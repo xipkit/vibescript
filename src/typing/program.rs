@@ -893,6 +893,9 @@ impl<'a> Checker<'a> {
         let program = &mut self.program;
         let outer = parent.map(|parent| program.namespaces[parent as usize].name.as_str());
         let length = outer.map_or(0, |outer| outer.len() + 2) + module.name.len();
+        if self.meter.pace(1 + (2 * length / 64) as u64, 0) {
+            return None;
+        }
         let mut kept = declarations.keep(2 * length).ok()?;
         program.namespaces.reserve(declarations, 1).ok()?;
         self.types.names.namespaces.reserve(declarations, 1).ok()?;
