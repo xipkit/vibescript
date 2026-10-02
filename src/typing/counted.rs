@@ -2097,6 +2097,7 @@ mod tests {
         ("modules.rs", [0, 0, 0, 9]),
         ("program.rs", [0, 0, 0, 11]),
         ("sigs.rs", [0, 1, 9, 0]),
+        ("spans.rs", [0, 0, 0, 1]),
         ("ty.rs", [10, 2, 0, 1]),
     ];
 
@@ -2341,6 +2342,7 @@ mod tests {
         ("program.rs", [1, 4, 0]),
         // The builtin signatures' variables, names and bindings.
         ("sigs.rs", [0, 0, 6]),
+        ("spans.rs", [1, 0, 0]),
     ];
 
     /// How many calls in `code` take a copy in their arguments, as

@@ -102,7 +102,7 @@ impl<'a> Spans<'a> {
             let charged = meter.charge(used.steps);
             parsing = parsing.max(used.peak_memory_bytes);
             // A check the parse's work stops merges no more tokens.
-            if meter.scratch(merged + used.peak_memory_bytes) || charged {
+            if meter.scratch(used.peak_memory_bytes) || charged {
                 break;
             }
             match inner {
@@ -118,20 +118,48 @@ impl<'a> Spans<'a> {
                         std::borrow::Cow::Owned(list) => (list.len(), list.capacity(), payloads),
                     };
                     let added = super::meter::Heap::heap(inner.as_slice());
-                    let grown = 2 * (length + inner.len());
-                    if hold((before + grown) * size + copied + added) {
+                    let needed = length + inner.len();
+                    let capacity = if needed > before {
+                        needed.max(2 * before)
+                    } else {
+                        before
+                    };
+                    let relocating = if needed > before { capacity } else { 0 };
+                    if meter.pace((length + inner.len()) as u64, 0)
+                        || hold((before + relocating + inner.capacity()) * size + copied + added)
+                    {
                         break;
                     }
-                    payloads = copied + added;
-                    tokens
-                        .to_mut()
-                        .extend(inner.into_iter().filter_map(|mut token| {
-                            if token.kind == TokenKind::Eof {
-                                return None;
+                    if let std::borrow::Cow::Borrowed(list) = tokens {
+                        let mut merged = Vec::with_capacity(capacity);
+                        for token in list {
+                            if meter.pace(1 + (token.span.len() / 64) as u64, 0) {
+                                break;
                             }
+                            merged.push(token.clone());
+                        }
+                        tokens = std::borrow::Cow::Owned(merged);
+                    }
+                    if meter.stopped() {
+                        break;
+                    }
+                    let list = tokens.to_mut();
+                    if needed > list.capacity() {
+                        list.reserve_exact(capacity - list.len());
+                    }
+                    payloads = copied + added;
+                    for mut token in inner {
+                        if meter.charge(1) {
+                            break;
+                        }
+                        if token.kind != TokenKind::Eof {
                             token.span = token.span.start + start..token.span.end + start;
-                            Some(token)
-                        }));
+                            list.push(token);
+                        }
+                    }
+                    if hold(list.capacity() * size + payloads) {
+                        break;
+                    }
                 }
                 Err(error)
                     if matches!(
@@ -152,12 +180,13 @@ impl<'a> Spans<'a> {
             owned = super::meter::Heap::heap(tokens);
             // Sorting them in order keeps a copy of them for a moment, which
             // is counted first; a check that it stops never reads them.
-            if !hold(owned + tokens.len() * size)
-                && super::counted::sort_by(&meter, tokens, |a, b| a.span.start.cmp(&b.span.start))
-                    .is_err()
-            {
-                // The budget stopped the check, which never reads them.
-                debug_assert!(meter.stopped());
+            if !hold(owned) {
+                let sorted =
+                    super::counted::sort_by(&meter, tokens, |a, b| a.span.start.cmp(&b.span.start));
+                // The sort admits its scratch before allocation; report that
+                // peak before the next measure settles back to live tokens.
+                meter.reach(owned + std::mem::size_of_val(tokens.as_slice()));
+                debug_assert!(sorted.is_ok() || meter.stopped());
             }
         }
         Self {
