@@ -118,6 +118,9 @@ impl<'b> Room<'b> {
     /// comparisons it may make, and asks the budget, before it is made;
     /// whether it may be.
     fn charge_sort(&self, length: usize) -> bool {
+        if !self.within() {
+            return false;
+        }
         let steps = sort_steps(length);
         self.sorted.fetch_add(steps, Relaxed);
         self.within()

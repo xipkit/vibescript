@@ -1024,17 +1024,13 @@ fn a_sort_past_the_budget_is_not_made() {
     assert_eq!(list[0], 999, "the list is left as it was");
     assert!(!room.sort_by(&mut list, Ord::cmp));
     assert_eq!(list[0], 999, "the list is left as it was");
-    // Each was charged before it was refused, a step for each 64 of the
-    // comparisons it may make.
-    assert_eq!(
-        asked.load(std::sync::atomic::Ordering::Relaxed),
-        100 + 2 * 156
-    );
-    assert_eq!(room.total(), 100 + 2 * 156);
-    // A list too short to charge a step is sorted.
+    // The first refusal latches the stop, so later sorts do no work.
+    assert_eq!(asked.load(std::sync::atomic::Ordering::Relaxed), 100 + 156);
+    assert_eq!(room.total(), 100 + 156);
+    // A list too short to charge a step still observes the stop.
     let mut short = vec![3, 1, 2];
-    assert!(room.sort_unstable_by(&mut short, Ord::cmp));
-    assert_eq!(short, [1, 2, 3]);
+    assert!(!room.sort_unstable_by(&mut short, Ord::cmp));
+    assert_eq!(short, [3, 1, 2]);
 }
 
 /// The compiler's parser keeps no node for parentheses, so a grouped
