@@ -2254,7 +2254,25 @@ fn the_checkers_time_per_step_stays_flat_as_names_and_parameters_grow() {
     let _serial = SERIAL
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let shapes: [Shape; 8] = [
+    let shapes: [Shape; 9] = [
+        // Each call of a method while one instance variable is left
+        // unassigned reads which are, of many the constructor assigned.
+        (
+            "a constructor calling a method before its last variable",
+            |n| {
+                let count = 2 * n;
+                let ivars = lines(count, |i| format!("  @a{i}: int\n"));
+                let assigns = lines(count - 1, |i| format!("    @a{i} = 0\n"));
+                let calls = lines(count, |_| "    m\n".to_owned());
+                let last = count - 1;
+                (
+                    Vec::new(),
+                    format!(
+                        "class C\n{ivars}  def initialize\n{assigns}{calls}    @a{last} = 0\n  end\n  def m -> int\n    @a{last}\n  end\nend\np(1)\n"
+                    ),
+                )
+            },
+        ),
         // Each splat of unknown length spreads its elements over every
         // parameter left.
         ("a call splatting arrays over a wide signature", |n| {

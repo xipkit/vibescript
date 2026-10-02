@@ -14,7 +14,9 @@ const FAN: usize = 16;
 #[derive(Clone)]
 enum Node {
     Leaf(u64),
-    Inner(Vec<Rc<Node>>),
+    /// Children, each covering an equal part of the span, and how many
+    /// indices they hold together.
+    Inner(Vec<Rc<Node>>, usize),
 }
 
 /// A set of indices below the count it was made with.
@@ -68,7 +70,7 @@ impl Marks {
         loop {
             match &**node {
                 Node::Leaf(bits) => return bits & (1u64 << index) != 0,
-                Node::Inner(children) => {
+                Node::Inner(children, _) => {
                     span /= FAN;
                     node = &children[index / span];
                     index %= span;
@@ -93,7 +95,7 @@ impl Marks {
             }
             match &**node {
                 Node::Leaf(_) => return copied,
-                Node::Inner(children) => {
+                Node::Inner(children, _) => {
                     span /= FAN;
                     node = &children[index / span];
                     index %= span;
@@ -139,7 +141,12 @@ impl Marks {
                     self.bytes += copied;
                     return copied;
                 }
-                Node::Inner(children) => {
+                Node::Inner(children, held) => {
+                    if present {
+                        *held += 1;
+                    } else {
+                        *held -= 1;
+                    }
                     span /= FAN;
                     node = &mut children[index / span];
                     index %= span;
@@ -166,7 +173,7 @@ impl Marks {
                 continue;
             }
             bytes += node_bytes(node);
-            if let Node::Inner(children) = &**node {
+            if let Node::Inner(children, _) = &**node {
                 pending.extend(children);
             }
         }
@@ -213,7 +220,7 @@ fn full(span: usize, count: usize) -> (Rc<Node>, usize) {
             }
         })
         .collect();
-    let node = Node::Inner(children);
+    let node = Node::Inner(children, count.min(span));
     bytes += node_bytes(&node);
     (Rc::new(node), bytes)
 }
@@ -228,7 +235,7 @@ fn full_bytes(span: usize, count: usize) -> usize {
     full_bytes(child, child)
         + full_bytes(child, 0)
         + partial.unwrap_or(0)
-        + node_bytes(&Node::Inner(Vec::new()))
+        + node_bytes(&Node::Inner(Vec::new(), 0))
 }
 
 fn collect(node: &Node, start: usize, span: usize, found: &mut Vec<usize>) {
@@ -240,7 +247,10 @@ fn collect(node: &Node, start: usize, span: usize, found: &mut Vec<usize>) {
                 bits &= bits - 1;
             }
         }
-        Node::Inner(children) => {
+        // A part holding none is not entered, so a sparse set's indices
+        // are found along their paths alone.
+        Node::Inner(_, 0) => (),
+        Node::Inner(children, _) => {
             let child = span / FAN;
             for (index, node) in children.iter().enumerate() {
                 collect(node, start + index * child, child, found);
@@ -255,13 +265,26 @@ fn node_bytes(node: &Node) -> usize {
         + 16
         + match node {
             Node::Leaf(_) => 0,
-            Node::Inner(_) => FAN * std::mem::size_of::<Rc<Node>>(),
+            Node::Inner(..) => FAN * std::mem::size_of::<Rc<Node>>(),
         }
 }
 
 #[cfg(test)]
 mod tests {
     use super::Marks;
+
+    #[test]
+    fn a_sparse_sets_indices_are_found_along_their_paths() {
+        let count = 20_000;
+        let mut marks = Marks::all(count);
+        for index in (0..count).filter(|&index| index != 12_345) {
+            marks.set(index, false);
+        }
+        assert_eq!(marks.indices(), [12_345]);
+        marks.set(7, true);
+        assert_eq!(marks.indices(), [7, 12_345]);
+        assert_eq!(Marks::all(count).indices().len(), count);
+    }
 
     #[test]
     fn a_change_costs_what_it_copies() {
