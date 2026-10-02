@@ -511,6 +511,10 @@ impl<'a> Checker<'a> {
         let mut pending = ScratchVec::new(&self.meter);
         self.enter_namespace(ns, &mut pending);
         while let Some((ns, children)) = pending.last_mut() {
+            // A check a body stops checks no more of them.
+            if self.halted() {
+                return;
+            }
             let ns = *ns;
             match children.pop() {
                 Some(child) => self.enter_namespace(child, &mut pending),
@@ -1578,6 +1582,10 @@ impl<'a> Checker<'a> {
             return Ty::NIL;
         };
         for stmt in rest {
+            // A check a statement stops checks no more of them.
+            if self.halted() {
+                return Ty::ERROR;
+            }
             self.stmt(stmt, Want::Discard);
         }
         let ty = self.statement(last, want, true);

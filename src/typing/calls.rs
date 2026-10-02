@@ -394,6 +394,9 @@ impl<'a> Checker<'a> {
     /// Checks arguments and a block without a signature, as after an error.
     pub(super) fn loose_args(&mut self, call: &Call<'a, '_>) {
         for arg in call.args {
+            if self.halted() {
+                return;
+            }
             self.expr(&arg.value, None);
         }
         for selector in call.selectors {
@@ -739,6 +742,10 @@ impl<'a> Checker<'a> {
         // Reuse evaluated argument types, but check every receiver's contract.
         self.memo.get_mut().unwrap().replay = true;
         for &alternative in rest {
+            // A check one alternative stops checks no more of them.
+            if self.halted() {
+                break;
+            }
             let mark = self.frame.flow.mark();
             let result = self.member(call, alternative);
             results.add(result);
@@ -1978,6 +1985,11 @@ impl<'a> Checker<'a> {
             arguments.push((extra, false));
         }
         for (value, splat) in arguments {
+            // A check an argument stops checks no more of them.
+            if self.halted() {
+                self.release(held);
+                return;
+            }
             if splat {
                 splatted = true;
                 let ty = self.expr(value, None);
@@ -2134,6 +2146,10 @@ impl<'a> Checker<'a> {
         // list counted, with the copies of their names, while it lives.
         let mut given = ScratchVec::new(&self.meter);
         for arg in call.args {
+            // A check an argument stops checks no more of them.
+            if self.halted() {
+                return;
+            }
             match &arg.kind {
                 ArgumentKind::Keyword(name) => {
                     given.add(self.copy(name));
@@ -2850,6 +2866,9 @@ impl<'a> Checker<'a> {
             }
         }
         for (index, arg) in args.iter().enumerate() {
+            if self.halted() {
+                return Ty::ERROR;
+            }
             let param = self
                 .frame
                 .block

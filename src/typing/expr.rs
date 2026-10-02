@@ -507,6 +507,11 @@ impl<'a> Checker<'a> {
                 };
                 let mut values = Vec::with_capacity(items.len());
                 for (index, item) in items.iter().enumerate() {
+                    // A check an item stops lists no more hints.
+                    if self.halted() {
+                        self.release(held);
+                        return Ty::ERROR;
+                    }
                     // The item's hints are dropped before it is checked.
                     let element = {
                         let hints: Vec<Ty> = alternatives
@@ -693,6 +698,11 @@ impl<'a> Checker<'a> {
         };
         let mut fields = Vec::with_capacity(entries.len());
         for (key, entry) in entries {
+            // A check an entry stops lists no more hints nor names.
+            if self.halted() {
+                self.release(held);
+                return Ty::ERROR;
+            }
             // The entry's hints are dropped before it is checked.
             let hint = {
                 let hints: Vec<Ty> = shapes
