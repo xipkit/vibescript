@@ -2,7 +2,7 @@
 
 use super::{
     Checker,
-    counted::{CountedMap, CountedVec, ScratchMap, ScratchVec},
+    counted::{CountedMap, CountedVec, ScratchVec},
     flow::{Branch, Flow, LocalId, Mark, VarState},
     meter::Heap,
     program::{FnId, NsId},
@@ -197,6 +197,9 @@ pub(crate) struct Frame {
     /// In a required file's function or method: the locals that are the
     /// file's top-level locals.
     pub shared: CountedVec<LocalId>,
+    /// For each active ensure, a local's flow fact of values written on
+    /// live paths and whether every path writes it.
+    pub ensure_writes: CountedVec<CountedMap<LocalId, LocalId>>,
     /// What the locals' names take, in the locals, the map of them by name
     /// and the scopes that record them.
     pub name_bytes: usize,
@@ -233,6 +236,7 @@ impl Frame {
             contexts: CountedVec::new(),
             namespace_body: false,
             shared: CountedVec::new(),
+            ensure_writes: CountedVec::new(),
             name_bytes: 0,
             declared: None,
         }
@@ -259,6 +263,12 @@ impl Heap for Frame {
                 .map_or(0, |(roster, _)| super::construction::roster_bytes(roster))
             + vec(self.ambient.as_vec())
             + vec(self.shared.as_vec())
+            + vec(self.ensure_writes.as_vec())
+            + self
+                .ensure_writes
+                .iter()
+                .map(|writes| map(writes))
+                .sum::<usize>()
             + self.name.heap()
             + self.block.heap()
             + self
@@ -1431,7 +1441,7 @@ impl<'a> Checker<'a> {
     /// A flow fact that is not a named local, such as whether a block was
     /// given; `None` when the budget refuses it room, which stops the
     /// check and adds nothing.
-    fn pseudo_local(&mut self) -> Option<LocalId> {
+    pub(super) fn pseudo_local(&mut self) -> Option<LocalId> {
         let tables = self.meter.tables();
         self.frame.flow.reserve().ok()?;
         self.frame.locals.reserve(tables, 1).ok()?;
@@ -1462,6 +1472,24 @@ impl<'a> Checker<'a> {
                 assigned: true,
             },
         );
+        if !self.frame.flow.live {
+            return;
+        }
+        if let Some(writes) = self.frame.ensure_writes.last() {
+            if self.meter.charge(1) {
+                return;
+            }
+            let Some(flag) = writes.get(&id).copied() else {
+                return;
+            };
+            self.frame.flow.set(
+                flag,
+                VarState {
+                    ty: narrowed,
+                    assigned: true,
+                },
+            );
+        }
     }
 
     /// The alternatives of `declared` that a value of type `ty` may be.
@@ -1641,11 +1669,12 @@ impl<'a> Checker<'a> {
             self.too_deep(span);
             return Ty::ANY;
         }
-        if !self.frame.flow.live {
-            // Unreachable code is still checked, from a live state.
+        let unreachable = (!self.frame.flow.live).then(|| self.frame.flow.mark());
+        if unreachable.is_some() {
+            // Unreachable code is checked without changing the live paths.
             self.frame.flow.live = true;
         }
-        match &stmt.node {
+        let ty = match &stmt.node {
             Statement::Expr(expr) => match want {
                 Want::Discard => {
                     self.expr_want(expr, Want::Discard);
@@ -1718,7 +1747,11 @@ impl<'a> Checker<'a> {
                 );
                 self.statement_value(stmt, Ty::NIL, want)
             }
+        };
+        if let Some(mark) = unreachable {
+            self.frame.flow.rollback(mark);
         }
+        ty
     }
 
     /// Reports a declaration nested in a body, which the runtime refuses
@@ -3705,106 +3738,37 @@ fn mentions<'s>(
     walk.bytes()
 }
 
-/// The enclosing locals a body may assign, excluding bindings shadowed by
-/// block parameters or rescue bindings. The walk and its scope index are
-/// counted as they grow.
+/// The names of the locals a body may assign, including captured writes in nested blocks,
+/// excluding shadowed bindings and charging the walk that finds them to `meter`. The index it builds to
+/// find them is counted as it grows, and gone once it returns, which the
+/// next measure finds.
 pub(super) fn assigned_names(
     meter: &std::sync::Arc<super::meter::Meter>,
     body: &[Stmt],
     names: &mut ScratchVec<String>,
 ) {
-    use super::walk::{Item, Next, Walk};
-    // Scope ids travel with the walk, so sibling bodies and a block's
-    // receiver retain their enclosing bindings without copying name sets.
-    let mut parents = ScratchVec::new(meter);
-    let mut shadowed = ScratchMap::new(meter);
-    let mut found = ScratchMap::new(meter);
-    let mut walk = Walk::new(meter);
-    walk.stmts(body, None);
-    while let Some((item, scope)) = walk.next(0) {
-        match item {
-            Item::Expr(Expr {
-                node: Node::BlockCall(call, block),
-                ..
-            }) => {
-                let inner = parents.len();
-                if parents.push(scope).is_err() {
-                    return;
-                }
-                // Assigning an implicit parameter name disables its
-                // implicit binding; only explicit parameters shadow writes.
-                if !block.implicit {
-                    let mut params = Walk::new(meter);
-                    params.push(Next::Targets(block.params.iter()), ());
-                    while let Some((param, ())) = params.next(0) {
-                        if let Item::Target(Target::Value(Expr {
-                            node: Node::Var(name),
-                            ..
-                        })) = param
-                        {
-                            if shadowed.insert((inner, name.as_str()), false).is_err() {
-                                return;
-                            }
-                        }
-                        params.children(param, ());
-                    }
-                }
-                walk.expr(call, scope);
-                walk.stmts(&block.body, Some(inner));
-            }
-            Item::Expr(Expr {
-                node: Node::Try(attempt),
-                ..
-            }) => {
-                walk.stmts(&attempt.body, scope);
-                walk.stmts(&attempt.alternate, scope);
-                walk.stmts(&attempt.ensure, scope);
-                for rescue in attempt.rescues.iter() {
-                    let inner = parents.len();
-                    if parents.push(scope).is_err() {
-                        return;
-                    }
-                    if let Some(name) = &rescue.binding {
-                        if shadowed.insert((inner, name.as_str()), false).is_err() {
-                            return;
-                        }
-                    }
-                    walk.stmts(&rescue.body, Some(inner));
-                }
-            }
-            Item::Target(Target::Value(Expr {
-                node: Node::Var(name),
-                ..
-            })) => {
-                let mut outer = scope;
-                let mut local = false;
-                while let Some(at) = outer {
-                    if meter.charge(1) {
-                        return;
-                    }
-                    if shadowed.contains_key(&(at, name.as_str())) {
-                        local = true;
-                        break;
-                    }
-                    outer = parents[at];
-                }
-                if !local && found.insert(name.as_str(), false).is_err() {
-                    return;
-                }
-            }
-            _ => walk.children(item, scope),
+    let mut assigns = super::assigns::Assigns::default();
+    let span = assigns.body(meter, body);
+    // The list of the names is counted before it is made, beside the
+    // index, which its growth counted already; their copies are counted,
+    // with the list they go in, as it takes them.
+    let mut held = 0;
+    let found = assigns.distinct(span, |count, _| {
+        let bytes = count * std::mem::size_of::<&str>();
+        if meter.scratch_lists().keep(bytes).is_err() {
+            return false;
         }
-    }
+        held = bytes;
+        true
+    });
     // The copies are counted, with room for them, before they are made.
-    if meter.charge(found.len() as u64) {
-        return;
-    }
-    let bytes = found.keys().map(|name| name.len()).sum();
+    let bytes = found.iter().map(|name| name.len()).sum();
     if names.reserve_with(found.len(), bytes).is_ok() {
-        for &name in found.keys() {
+        for name in found {
             names.push_within(name.to_owned());
         }
     }
+    meter.dropped(held);
 }
 
 /// Why a value is checked against a type, for messages.

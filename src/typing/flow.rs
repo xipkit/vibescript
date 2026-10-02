@@ -300,6 +300,7 @@ impl Flow {
                 break;
             }
             let base = self.vars[id as usize];
+            let declared = declared(id);
             let states: Vec<VarState> = finals
                 .iter()
                 .map(|map| map.get(&id).copied().unwrap_or(base))
@@ -307,11 +308,13 @@ impl Flow {
             let assigned = states.iter().all(|state| state.assigned);
             let tys: Vec<Ty> = states
                 .iter()
-                .filter(|state| state.assigned)
+                // Ensure write facts start at never, so a conditional
+                // write's value remains even when another path skips it.
+                .filter(|state| state.assigned || declared == Ty::NEVER)
                 .map(|state| state.ty)
                 .collect();
             let ty = if tys.is_empty() {
-                declared(id)
+                declared
             } else {
                 types.union(&tys)
             };

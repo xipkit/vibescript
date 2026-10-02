@@ -31,6 +31,88 @@ fn early_returns_narrow_the_rest_of_the_function() {
 }
 
 #[test]
+fn shadowed_assignments_do_not_widen_enclosing_locals() {
+    for body in [
+        "[1].each { |x| x = 2 }",
+        "[1].each { |x| [1].each { |y| x = y } }",
+        "[[1, 2]].each { |(x, y)| x = y }",
+        "begin; raise 'failure'; rescue => x; x = x; end",
+    ] {
+        let source = format!(
+            "def f(c: bool) -> int\n  x: int? = 1\n  while c\n    {body}\n    x + 1\n    c = false\n  end\n  x + 1\nend\nf(true) + f(false)\n"
+        );
+        clean(&source);
+        assert_eq!(
+            vibescript::Engine::new()
+                .compile(&source)
+                .unwrap()
+                .run(Default::default())
+                .unwrap()
+                .value
+                .as_int(),
+            Some(4)
+        );
+    }
+    clean("x: int? = 1\nbegin\n  [1].each { |x| x = 2 }\nensure\n  p(x + 1)\nend\nx + 1\n");
+    codes(
+        "def f(c: bool)\n  x: int? = 1\n  [1, nil].each { |x: int?| x = 1; while c; x = nil; c = false; end; x + 1 }\nend\n",
+        &["V0107"],
+    );
+}
+
+#[test]
+fn conditional_ensure_writes_preserve_the_body_state() {
+    for (ensure, sum) in [
+        ("x = 2 if c", 8),
+        ("if c; x = 2 if d; end", 7),
+        ("while c; x = 2; c = false; end", 8),
+        ("x = 2 if c; x = 3 if d", 9),
+        ("begin; x = 2 if c; ensure; nil; end", 8),
+        ("if c; x = nil; return 0; end", 2),
+        ("if c; return 0; x = nil; end", 2),
+        ("[c].each { |go| x = 2 if go }", 8),
+    ] {
+        let source = format!(
+            "def f(c: bool, d: bool) -> int\n  x: int? = nil\n  begin\n    x = 1\n  ensure\n    {ensure}\n  end\n  x + 1\nend\nf(false, false) + f(true, false) + f(true, true)\n"
+        );
+        clean(&source);
+        assert_eq!(
+            vibescript::Engine::new()
+                .compile(&source)
+                .unwrap()
+                .run(Default::default())
+                .unwrap()
+                .value
+                .as_int(),
+            Some(sum),
+            "{ensure}"
+        );
+    }
+    for ensure in ["x = nil", "x = nil if c", "if c; x = nil if d; end"] {
+        codes(
+            &format!(
+                "def f(c: bool, d: bool) -> int\n  x: int? = nil\n  begin\n    x = 1\n  ensure\n    {ensure}\n  end\n  x + 1\nend\n"
+            ),
+            &["V0107"],
+        );
+    }
+    clean(
+        "def f(c: bool) -> int\n  x: int? = nil\n  begin\n    x = 1\n  ensure\n    x = nil if c\n    return 0 if x == nil\n  end\n  x + 1\nend\n",
+    );
+    clean(
+        "def f(c: bool) -> int\n  x: int | string | nil = nil\n  begin\n    x = 1\n  ensure\n    if c\n      begin\n        x = 's'\n      ensure\n        x = 2\n      end\n    end\n  end\n  x + 1\nend\n",
+    );
+    for name in ["it", "_1"] {
+        codes(
+            &format!(
+                "def f -> int\n  {name}: int? = nil\n  begin\n    {name} = 1\n  ensure\n    [nil].each {{ {name} = nil }}\n  end\n  {name} + 1\nend\n"
+            ),
+            &["V0107"],
+        );
+    }
+}
+
+#[test]
 fn an_ensure_sees_only_what_holds_wherever_it_starts() {
     // Its guards and exits narrow the rest of the function, as the body's do.
     clean(

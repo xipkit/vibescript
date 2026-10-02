@@ -1554,6 +1554,7 @@ mod tests {
         // A walk's tree of the assignments it listed, and a node of a set
         // of locals, each made at its size.
         ("Root", "lowest"),
+        ("Root", "lowest_scope"),
         ("Node", "Inner"),
         // Each class's defaults, indexed once and held.
         ("Defaults", "0"),
@@ -2100,11 +2101,11 @@ mod tests {
     /// list, counted while it lives.
     const MADE: &[(&str, [usize; 4])] = &[
         ("typing.rs", [0, 0, 0, 1]),
-        ("assigns.rs", [0, 0, 0, 2]),
+        ("assigns.rs", [0, 0, 0, 3]),
         ("calls.rs", [0, 1, 4, 5]),
         ("check.rs", [3, 0, 0, 11]),
         ("construction.rs", [1, 0, 0, 11]),
-        ("expr.rs", [2, 6, 0, 7]),
+        ("expr.rs", [2, 6, 0, 6]),
         ("flow.rs", [0, 0, 0, 6]),
         ("foreign.rs", [1, 0, 0, 0]),
         ("marks.rs", [2, 0, 0, 1]),
@@ -2178,7 +2179,7 @@ mod tests {
         // The frame's name, and the results of a stopped check.
         ("typing.rs", [6, 0, 0]),
         // A stopped walk's results, and a root without assignments.
-        ("assigns.rs", [3, 0, 0]),
+        ("assigns.rs", [4, 0, 0]),
         // Bindings of signatures without type variables, and the members
         // of a host or builtin namespace of one name, a few.
         ("calls.rs", [21, 2, 0]),

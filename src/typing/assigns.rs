@@ -18,12 +18,22 @@ use super::{
 use crate::syntax::{Argument, Expr, Node, Statement, Stmt, Target, Try, When};
 use std::{iter::Rev, slice::Iter};
 
+fn implicit_bit(name: &str) -> u16 {
+    match name.as_bytes() {
+        b"it" => 1,
+        [b'_', digit @ b'1'..=b'9'] => 1 << (digit - b'0'),
+        _ => 0,
+    }
+}
+
 /// A span of the assignments one walk listed.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Span {
     root: u32,
     start: u32,
     end: u32,
+    scope: u32,
+    implicit_assignments: u16,
 }
 
 /// The spans of a `begin`'s parts, which a walk lists in this order.
@@ -64,11 +74,12 @@ struct Root {
     start: u32,
     width: u32,
     lowest: Vec<u32>,
+    lowest_scope: Vec<u32>,
 }
 
 impl super::counted::Owned for Root {
     fn owned(&self) -> usize {
-        self.lowest.capacity() * std::mem::size_of::<u32>()
+        (self.lowest.capacity() + self.lowest_scope.capacity()) * std::mem::size_of::<u32>()
     }
 }
 
@@ -87,8 +98,10 @@ impl super::counted::Owned for TrySpans {
 #[derive(Default)]
 pub(super) struct Assigns<'a> {
     /// Each distinct name, by id.
-    names: CountedVec<&'a str>,
-    ids: CountedMap<&'a str, u32>,
+    names: CountedVec<(&'a str, u32)>,
+    ids: CountedMap<(&'a str, u32), u32>,
+    /// Increasing scope ids let a span skip assignments to nested bindings.
+    next_scope: u32,
     /// The name each assignment writes, in the order the walks met them.
     sites: CountedVec<u32>,
     /// For each assignment, one more than the position of the previous one
@@ -152,13 +165,13 @@ impl<'a> Assigns<'a> {
         let (mut count, mut bytes) = (0, 0);
         all(&mut |id| {
             count += 1;
-            bytes += self.names[id as usize].len();
+            bytes += self.names[id as usize].0.len();
         });
         if !reserve(count, bytes) {
             return Vec::new();
         }
         let mut names = Vec::with_capacity(count);
-        all(&mut |id| names.push(self.names[id as usize]));
+        all(&mut |id| names.push(self.names[id as usize].0));
         names
     }
 
@@ -177,18 +190,6 @@ impl<'a> Assigns<'a> {
             + self.held
     }
 
-    /// Whether some assignment in `span` writes `name`.
-    pub fn writes(&self, span: Span, name: &str) -> bool {
-        let Some(&id) = self.ids.get(name) else {
-            return false;
-        };
-        let positions = &self.positions[id as usize];
-        let at = positions.partition_point(|&position| position < span.start);
-        positions
-            .get(at)
-            .is_some_and(|&position| position < span.end)
-    }
-
     /// Gives `found` the name of each assignment in `span` that is its
     /// name's first there, below `node` of `root`'s tree, which covers
     /// positions `left..right`. An assignment is its name's first in the
@@ -203,7 +204,11 @@ impl<'a> Assigns<'a> {
         right: u32,
         found: &mut dyn FnMut(u32),
     ) {
-        if right <= span.start || span.end <= left || root.lowest[node] > span.start {
+        if right <= span.start
+            || span.end <= left
+            || root.lowest[node] > span.start
+            || root.lowest_scope[node] > span.scope
+        {
             return;
         }
         if right - left == 1 {
@@ -228,6 +233,10 @@ impl<'a> Assigns<'a> {
         let mut walk = Walk {
             assigns: self,
             root,
+            scope: 0,
+            implicit_assignments: 0,
+            bindings: CountedMap::new(),
+            shadows: CountedVec::new(),
             target: None,
             pending: Pending::default(),
             meter,
@@ -236,11 +245,12 @@ impl<'a> Assigns<'a> {
         };
         visit(&mut walk);
         let stopped = walk.finish();
+        drop(walk);
         let count = self.sites.len() - start as usize;
         let width = count.next_power_of_two().max(1);
         // The tree, twice as wide as the assignments rounded up to a power
         // of two, is counted before it is built.
-        let tree = 2 * width * std::mem::size_of::<u32>();
+        let tree = 4 * width * std::mem::size_of::<u32>();
         let kept = meter.tables().keep(tree);
         let (false, Ok(mut kept)) = (stopped, kept) else {
             // The spans the stopped walk recorded cover no positions of its
@@ -249,32 +259,47 @@ impl<'a> Assigns<'a> {
                 start,
                 width: 0,
                 lowest: Vec::new(),
+                lowest_scope: Vec::new(),
             });
             return;
         };
         let mut lowest = vec![u32::MAX; 2 * width];
+        let mut lowest_scope = vec![u32::MAX; 2 * width];
         lowest[width..width + count].copy_from_slice(&self.previous[start as usize..]);
+        for (place, &id) in self.sites[start as usize..].iter().enumerate() {
+            lowest_scope[width + place] = self.names[id as usize].1;
+        }
         for node in (1..width).rev() {
             lowest[node] = lowest[2 * node].min(lowest[2 * node + 1]);
+            lowest_scope[node] = lowest_scope[2 * node].min(lowest_scope[2 * node + 1]);
         }
-        self.held += lowest.capacity() * std::mem::size_of::<u32>();
+        self.held += (lowest.capacity() + lowest_scope.capacity()) * std::mem::size_of::<u32>();
         self.roots.push_kept(
             &mut kept,
             Root {
                 start,
                 width: width as u32,
                 lowest,
+                lowest_scope,
             },
         );
     }
 }
 
 impl Span {
+    /// Whether the body assigns this implicit parameter outside nested
+    /// blocks, which prevents the compiler from binding it as a parameter.
+    pub fn assigns_implicit(self, name: &str) -> bool {
+        self.implicit_assignments & implicit_bit(name) != 0
+    }
+
     /// A span with no assignments.
     const EMPTY: Self = Self {
         root: 0,
         start: 0,
         end: 0,
+        scope: 0,
+        implicit_assignments: 0,
     };
 }
 
@@ -296,6 +321,10 @@ const ROOM: usize = 4;
 struct Walk<'a, 'w> {
     assigns: &'w mut Assigns<'a>,
     root: u32,
+    scope: u32,
+    bindings: CountedMap<&'a str, u32>,
+    implicit_assignments: u16,
+    shadows: CountedVec<(&'a str, Option<u32>)>,
     /// The `begin` a `retry` here reruns, by address: the innermost one
     /// whose rescue the walk is in, as the runtime finds the innermost
     /// handler that is rescuing.
@@ -350,6 +379,8 @@ impl<'a> Walk<'a, '_> {
             root: self.root,
             start,
             end: self.here(),
+            scope: self.scope,
+            implicit_assignments: self.implicit_assignments,
         }
     }
 
@@ -357,9 +388,15 @@ impl<'a> Walk<'a, '_> {
     /// counted in every list they go in before any changes; a refusal
     /// lists nothing, and the walk stops.
     fn site(&mut self, name: &'a str) {
+        if self.meter.charge(1 + (name.len() / 64) as u64) {
+            self.stopped = true;
+            return;
+        }
+        let scope = self.bindings.get(name).copied().unwrap_or(0);
+        self.implicit_assignments |= implicit_bit(name);
         let tables = self.meter.tables();
         let assigns = &mut *self.assigns;
-        let known = assigns.ids.get(name).copied();
+        let known = assigns.ids.get(&(name, scope)).copied();
         let mut fresh = CountedVec::new();
         let before = known.map_or(0, |id| assigns.positions[id as usize].capacity());
         let room = assigns.sites.reserve(tables, 1).is_ok()
@@ -379,9 +416,9 @@ impl<'a> Walk<'a, '_> {
         }
         let id = known.unwrap_or_else(|| {
             let id = assigns.names.len() as u32;
-            assigns.names.push_within(name);
+            assigns.names.push_within((name, scope));
             assigns.positions.push_within(fresh);
-            assigns.ids.insert_within(name, id);
+            assigns.ids.insert_within((name, scope), id);
             id
         });
         let position = assigns.sites.len() as u32;
@@ -391,6 +428,79 @@ impl<'a> Walk<'a, '_> {
         assigns.held += (positions.capacity() - before) * std::mem::size_of::<u32>();
         assigns.sites.push_within(id);
         assigns.previous.push_within(previous);
+    }
+
+    fn scope(&mut self) -> u32 {
+        self.assigns.next_scope += 1;
+        self.assigns.next_scope
+    }
+
+    fn shadow(&mut self, scope: u32, name: &'a str) {
+        if self.meter.charge(1 + (name.len() / 64) as u64) {
+            self.stopped = true;
+            return;
+        }
+        let previous = self.bindings.get(name).copied();
+        let ledger = self.meter.scratch_lists();
+        if self.shadows.push(ledger, (name, previous)).is_err()
+            || self.bindings.insert(ledger, name, scope).is_err()
+        {
+            self.stopped = true;
+        }
+    }
+
+    fn restore(&mut self, mark: usize) {
+        while self.shadows.len() > mark {
+            if self.stopped || self.meter.stopped() {
+                self.shadows.truncate(mark);
+                return;
+            }
+            let (name, previous) = self.shadows.pop().unwrap();
+            if self.meter.charge(1 + (name.len() / 64) as u64) {
+                self.stopped = true;
+                continue;
+            }
+            match previous {
+                Some(scope) => {
+                    if self
+                        .bindings
+                        .insert(self.meter.scratch_lists(), name, scope)
+                        .is_err()
+                    {
+                        self.stopped = true;
+                    }
+                }
+                None => {
+                    self.bindings.remove(name);
+                }
+            }
+        }
+    }
+
+    fn bind(&mut self, scope: u32, target: &'a Target) {
+        if self.visit() {
+            return;
+        }
+        match target {
+            Target::Value(Expr {
+                node: Node::Var(name),
+                ..
+            }) => {
+                self.shadow(scope, name.as_str());
+            }
+            Target::Typed(target, _) => self.bind(scope, target),
+            Target::Tuple(parts) => {
+                for (target, _) in parts.iter() {
+                    if self.stopped {
+                        break;
+                    }
+                    if let Some(target) = target {
+                        self.bind(scope, target);
+                    }
+                }
+            }
+            _ => (),
+        }
     }
 
     /// Lists `body`'s assignments and records its span, unless the check
@@ -473,7 +583,15 @@ impl<'a> Walk<'a, '_> {
             if self.stopped {
                 break;
             }
+            let scope = self.scope();
+            let shadows = self.shadows.len();
+            if let Some(name) = &rescue.binding {
+                self.shadow(scope, name.as_str());
+            }
+            let outer_scope = std::mem::replace(&mut self.scope, scope);
             self.stmts(&rescue.body);
+            self.scope = outer_scope;
+            self.restore(shadows);
         }
         self.target = outer;
         let rescues = self.span(start);
@@ -544,12 +662,31 @@ impl<'a> Walk<'a, '_> {
                 Node::BlockCall(_, block) => {
                     // A block is a call, which a `retry` cannot leave.
                     let outer = self.target.take();
+                    let outer_implicit = std::mem::take(&mut self.implicit_assignments);
+                    let scope = self.scope();
+                    let shadows = self.shadows.len();
+                    if !block.implicit {
+                        for target in &block.params {
+                            self.bind(scope, target);
+                        }
+                    }
+                    let outer_scope = std::mem::replace(&mut self.scope, scope);
                     self.stmts(&block.body);
+                    self.implicit_assignments = outer_implicit;
+                    self.scope = outer_scope;
+                    self.restore(shadows);
                     self.target = outer;
                 }
                 _ => (),
             }
         }
+    }
+}
+
+impl Drop for Walk<'_, '_> {
+    fn drop(&mut self) {
+        self.meter
+            .dropped(super::meter::map(&self.bindings) + super::meter::vec(self.shadows.as_vec()));
     }
 }
 

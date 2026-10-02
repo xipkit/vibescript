@@ -2728,13 +2728,16 @@ impl<'a> Checker<'a> {
         let targets = &block.params;
         if block.implicit {
             let first = params.first().copied().unwrap_or(Ty::NIL);
-            if block.infer_it {
+            if block.infer_it && !span.assigns_implicit("it") {
                 if let Some(id) = self.declare("it", first, block.offset as usize, false) {
                     self.assign_local(id, first);
                 }
             }
             for index in 0..9 {
                 let name = text!(self, "_{}", index + 1);
+                if span.assigns_implicit(&name) {
+                    continue;
+                }
                 let ty = params.get(index).copied().or(rest).unwrap_or(Ty::NIL);
                 let Some(id) = self.declare(&name, ty, block.offset as usize, false) else {
                     break;

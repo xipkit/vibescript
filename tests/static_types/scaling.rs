@@ -12,7 +12,7 @@ fn repeat(count: usize, item: impl Fn(usize) -> String) -> String {
 /// statement or expression.
 type Shape = (&'static str, usize, fn(usize) -> String);
 
-const SHAPES: [Shape; 25] = [
+const SHAPES: [Shape; 26] = [
     ("functions calling their predecessor", 200, |count| {
         "def f0(n: int) -> int\n  n\nend\n".to_owned()
             + &repeat(count, |i| {
@@ -115,6 +115,9 @@ end\n"
     ),
     ("begins nested around repeated assignments", 100, |count| {
         nest(count, "begin\n", "rescue\n  c = 1\nensure\n  c = 2\nend\n")
+    }),
+    ("ensures nested around repeated assignments", 100, |count| {
+        nest(count, "begin\n  1\nensure\n", "end\n")
     }),
     ("loops nested around repeated assignments", 100, |count| {
         nest(count, "while c > 0\n", "  c -= 1\nend\n")

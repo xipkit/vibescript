@@ -2258,14 +2258,74 @@ impl<'a> Checker<'a> {
     /// Checks an ensure from what holds wherever it may start: before the
     /// body, less the narrowing of what the body, the `else` and the rescues
     /// assign. Then joins the `explored` ends of the body and the rescues,
-    /// and applies what the ensure proves on the way out: a local it assigns
-    /// has the state it leaves, and any other the state both the join and
-    /// the ensure's guards and exits prove.
+    /// and applies what the ensure proves on the way out. A definite write
+    /// replaces the body's state; a conditional write keeps its possible
+    /// values beside what unwritten paths retain from the body.
     fn ensure(&mut self, ensure: &'a [Stmt], explored: ScratchVec<Branch>, spans: TrySpans) {
         let mark = self.frame.flow.mark();
+        let mut names_held = 0;
+        let names = self.assigns.distinct(spans.ensure, |count, _| {
+            let bytes = count * std::mem::size_of::<&str>();
+            if self.meter.scratch_lists().keep(bytes).is_err() {
+                return false;
+            }
+            names_held = bytes;
+            true
+        });
+        if self
+            .frame
+            .ensure_writes
+            .push(self.meter.tables(), super::counted::CountedMap::new())
+            .is_err()
+        {
+            self.meter.dropped(names_held);
+            self.join_explored(explored);
+            return;
+        }
+        for name in names {
+            if self.meter.charge(1) {
+                break;
+            }
+            let Some(id) = self.local(name) else { continue };
+            let Some(flag) = self.pseudo_local() else {
+                break;
+            };
+            // Never contributes no incoming value: this fact contains
+            // only values written while the ensure runs.
+            self.frame.locals[flag as usize].declared = Ty::NEVER;
+            self.frame.flow.set(
+                flag,
+                VarState {
+                    ty: Ty::NEVER,
+                    assigned: false,
+                },
+            );
+            if self
+                .frame
+                .ensure_writes
+                .last_mut()
+                .unwrap()
+                .insert(self.meter.tables(), id, flag)
+                .is_err()
+            {
+                break;
+            }
+        }
+        self.meter.dropped(names_held);
         self.widen(spans.ensured());
         self.stmts(ensure, Want::Discard);
         let ensured = self.frame.flow.live;
+        let mut finals = super::counted::ScratchMap::new(&self.meter);
+        for (&id, &flag) in self.frame.ensure_writes.last().unwrap().iter() {
+            if self.meter.charge(1)
+                || finals
+                    .insert(id, (self.frame.flow.get(id), self.frame.flow.get(flag)))
+                    .is_err()
+            {
+                break;
+            }
+        }
+        self.frame.ensure_writes.pop();
         let branch = self.frame.flow.rollback(mark);
         // Taken from the flow, the ensure's changes are held until they
         // apply.
@@ -2279,12 +2339,9 @@ impl<'a> Checker<'a> {
             return;
         }
         for (id, state) in branch.changes {
-            if self
-                .assigns
-                .writes(spans.ensure, &self.frame.locals[id as usize].name)
+            let local = &self.frame.locals[id as usize];
+            if !finals.contains_key(&id) && !(local.name.is_empty() && local.declared == Ty::NEVER)
             {
-                self.frame.flow.set(id, state);
-            } else {
                 // What the ensure does not assign by name keeps what the
                 // body or rescues leave, narrowed by the ensure's guards,
                 // and is assigned if either assigns it: a fact that is not
@@ -2295,6 +2352,49 @@ impl<'a> Checker<'a> {
                 let ty = self.both(joined.ty, state.ty);
                 let assigned = joined.assigned || state.assigned;
                 self.frame.flow.set(id, VarState { ty, assigned });
+            }
+        }
+        for (&id, &(state, written_state)) in finals.iter() {
+            if self.meter.charge(1) {
+                break;
+            }
+            let final_state = if written_state.assigned {
+                state
+            } else {
+                let joined = self.frame.flow.get(id);
+                let unwritten = self.both(joined.ty, state.ty);
+                let written = self.both(written_state.ty, state.ty);
+                let ty = self.types.union(&[unwritten, written]);
+                VarState {
+                    ty,
+                    assigned: joined.assigned || state.assigned,
+                }
+            };
+            self.frame.flow.set(id, final_state);
+            // An enclosing ensure sees the inner ensure's transfer,
+            // rather than values the inner ensure overwrote.
+            if let Some(writes) = self.frame.ensure_writes.last() {
+                if self.meter.charge(1) {
+                    break;
+                }
+                let Some(flag) = writes.get(&id).copied() else {
+                    continue;
+                };
+                let tracked = if written_state.assigned {
+                    VarState {
+                        ty: final_state.ty,
+                        assigned: true,
+                    }
+                } else {
+                    let before = self.frame.flow.get(flag);
+                    let retained = self.both(before.ty, final_state.ty);
+                    let written = self.both(written_state.ty, final_state.ty);
+                    VarState {
+                        ty: self.types.union(&[retained, written]),
+                        assigned: before.assigned,
+                    }
+                };
+                self.frame.flow.set(flag, tracked);
             }
         }
         self.release(held);
@@ -2315,12 +2415,12 @@ impl<'a> Checker<'a> {
         if self.types.assignable(a, b) {
             return a;
         }
-        let members: Vec<Ty> = self
-            .types
-            .members(a)
-            .into_iter()
-            .filter(|&member| self.types.assignable(member, b))
-            .collect();
+        let mut members = ScratchVec::new(&self.meter);
+        for member in self.types.members(a) {
+            if self.types.assignable(member, b) && members.push(member).is_err() {
+                return Ty::ERROR;
+            }
+        }
         if members.is_empty() {
             Ty::NEVER
         } else {
