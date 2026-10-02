@@ -837,6 +837,11 @@ impl Registry {
         let mut symbols: Table<usize> = Table::new();
         for (index, member) in members.iter().enumerate() {
             work.charge(1)?;
+            // The member's symbol is written at the length it takes, which
+            // is reserved, with the bytes read twice to find it, before it
+            // is made, and while it is copied into a name.
+            work.bytes(member.len().saturating_mul(2))?;
+            let _written = work.reserve(crate::enums::symbol_len(member))?;
             let symbol = Name::new(work, &crate::enums::symbol(member))?;
             if let Some(&prior) = symbols.get(work, &symbol)? {
                 let prior = &members[prior];
