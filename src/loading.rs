@@ -214,6 +214,9 @@ impl Loader {
                         )
                     })?;
                 ctx.work_bytes(source_text.len())?;
+                // The origin's copy of the file's name is reserved before it
+                // is made, while the file compiles beside it.
+                let _name = ctx.reserve(candidate.relative.as_bytes().unwrap().len())?;
                 let origin = candidate.origin();
                 let compiled = crate::code::Code::compile_module(
                     ctx,
