@@ -77,20 +77,55 @@ pub(crate) struct Enum {
 }
 
 impl Enum {
-    pub fn new(name: String, members: Vec<String>) -> Self {
-        let symbols: Vec<String> = members.iter().map(|m| crate::enums::symbol(m)).collect();
-        let sorted = |names: &[String]| {
-            let mut order: Vec<u32> = (0..names.len() as u32).collect();
-            order.sort_unstable_by(|&a, &b| names[a as usize].cmp(&names[b as usize]));
-            order
-        };
-        Self {
-            name,
-            by_member: sorted(&members),
-            by_symbol: sorted(&symbols),
-            members,
-            symbols,
+    pub fn new(
+        name: &str,
+        members: &[compilation::Name],
+        meter: &Arc<super::meter::Meter>,
+    ) -> Option<Self> {
+        let mut names = ScratchVec::new(meter);
+        let mut symbols = ScratchVec::new(meter);
+        let mut by_member = ScratchVec::new(meter);
+        let mut by_symbol = ScratchVec::new(meter);
+        let rounds = usize::BITS - members.len().leading_zeros();
+        for (index, member) in members.iter().enumerate() {
+            if meter.pace(
+                1 + (member.len().saturating_mul(1 + rounds as usize) / 64) as u64,
+                0,
+            ) {
+                return None;
+            }
+            names.reserve_with(1, member.len()).ok()?;
+            names.push_within(member.to_string());
+            let symbol = enum_symbol(member, meter);
+            if meter.stopped() {
+                return None;
+            }
+            symbols.push(symbol).ok()?;
+            by_member.push(index as u32).ok()?;
+            by_symbol.push(index as u32).ok()?;
         }
+        super::counted::sort_unstable_by(meter, &mut by_member, |&a, &b| {
+            names[a as usize].cmp(&names[b as usize])
+        })
+        .ok()?;
+        super::counted::sort_unstable_by(meter, &mut by_symbol, |&a, &b| {
+            symbols[a as usize].cmp(&symbols[b as usize])
+        })
+        .ok()?;
+        if meter.pace(1 + (name.len() / 64) as u64, 0) {
+            return None;
+        }
+        let name = super::counted::text(meter, format_args!("{name}"));
+        if meter.stopped() {
+            return None;
+        }
+        Some(Self {
+            name,
+            members: names.into_vec(),
+            symbols: symbols.into_vec(),
+            by_member: by_member.into_vec(),
+            by_symbol: by_symbol.into_vec(),
+        })
     }
 
     /// The position of the member named `name`.
@@ -102,6 +137,43 @@ impl Enum {
     pub fn symbol(&self, symbol: &str) -> Option<usize> {
         find(&self.symbols, &self.by_symbol, symbol)
     }
+}
+
+/// The runtime's enum normalization, written through the checker's meter.
+fn enum_symbol(name: &str, meter: &super::meter::Meter) -> String {
+    use crate::syntax::unicode;
+    let mut output = super::counted::Text::new(meter);
+    let mut chars = name.chars().peekable();
+    let mut previous = None;
+    let mut underscore = false;
+    let mut empty = true;
+    while let Some(c) = chars.next() {
+        if meter.charge(1) {
+            break;
+        }
+        if c == '_' {
+            if !empty && !underscore {
+                output.push('_');
+                underscore = true;
+            }
+        } else {
+            if unicode::upper(c)
+                && previous.is_some_and(|p| {
+                    p != '_'
+                        && (unicode::lower(p)
+                            || unicode::digit(p)
+                            || chars.peek().is_some_and(|&n| unicode::lower(n)))
+                })
+            {
+                output.push('_');
+            }
+            output.push(crate::casing::map(c, false));
+            empty = false;
+            underscore = false;
+        }
+        previous = Some(c);
+    }
+    output.finish()
 }
 
 /// The position of `name` among `names`, which `order` sorts. Enum
@@ -426,20 +498,6 @@ impl<'a> Checker<'a> {
         }
     }
 
-    /// Whether an enum of `members` fits the budget: building it copies
-    /// each member, writes its symbol and sorts both, which is charged, and
-    /// what it keeps counted, before it is built.
-    fn enum_fits(&mut self, members: &[crate::compilation::Name]) -> bool {
-        let count = members.len();
-        let sorting = count * (usize::BITS - count.leading_zeros()) as usize;
-        if self.types.work(count + 2 * sorting) {
-            return false;
-        }
-        let bytes = members.iter().map(|member| 3 * member.len()).sum::<usize>()
-            + count * (2 * std::mem::size_of::<String>() + 2 * std::mem::size_of::<u32>());
-        self.meter.declarations().keep(bytes).is_ok() && !self.over_budget()
-    }
-
     /// Collects the declarations and resolves every signature.
     pub(super) fn declare_program(&mut self, parsed: &'a Declarations) {
         // Each enum, with its members, is counted before it is declared,
@@ -447,25 +505,32 @@ impl<'a> Checker<'a> {
         // the enum and its name in the type table take their places
         // together, so each name found has its enum.
         for (index, (name, members)) in parsed.enums.iter().enumerate() {
-            if self.halted() || !self.enum_fits(members) {
+            let Some(enumeration) = Enum::new(name, members, &self.meter) else {
+                return;
+            };
+            let declarations = self.meter.declarations();
+            let Ok(mut kept) = declarations.keep(
+                enumeration.heap()
+                    + 2 * name.len()
+                    + std::mem::size_of::<Enum>()
+                    + 2 * std::mem::size_of::<usize>(),
+            ) else {
+                return;
+            };
+            if self.program.enum_names.reserve(declarations, 1).is_err()
+                || self.program.enums.reserve(declarations, 1).is_err()
+                || self.types.names.enums.reserve(declarations, 1).is_err()
+            {
                 return;
             }
-            // Its places are kept once it fits, and counted: its names as
-            // the tables take them, and the enum an `Arc` shares here.
-            let always = self.meter.declarations().regardless();
-            always.kept(name.len() + std::mem::size_of::<Enum>() + 16);
             self.program
                 .enum_names
-                .insert_regardless(always, name.to_string(), index as u32);
-            let members = members.iter().map(|m| m.to_string()).collect();
-            let always = self.meter.declarations().regardless();
-            self.program
-                .enums
-                .push_regardless(always, Arc::new(Enum::new(name.to_string(), members)));
+                .insert_kept(&mut kept, name.to_string(), index as u32);
+            self.program.enums.push_within(Arc::new(enumeration));
             self.types
                 .names
                 .enums
-                .push_regardless(always, name.to_string());
+                .push_kept(&mut kept, name.to_string());
             if self.declaring() {
                 return;
             }
@@ -1646,4 +1711,50 @@ fn yields(meter: &super::meter::Meter, body: &[crate::syntax::Stmt]) -> (sigs::B
 fn block_optional(source: &str, block: &BlockParam) -> bool {
     let start = block.offset as usize + 1 + block.name.len();
     source.as_bytes().get(start) == Some(&b'?')
+}
+
+#[cfg(test)]
+mod budget_review_tests {
+    #[test]
+    fn enum_construction_stops_before_large_names_or_symbols() {
+        let long = "Aa".repeat(256 << 10);
+        for (name, member, memory) in [
+            (long.as_str(), "A", 128 << 10),
+            ("E", long.as_str(), 768 << 10),
+        ] {
+            let meter = super::super::meter::Meter::new(
+                crate::compilation::Budget {
+                    memory: Some(memory),
+                    ..Default::default()
+                },
+                None,
+            );
+            let member = crate::compilation::Name::new(&(), member).unwrap();
+            assert!(super::Enum::new(name, &[member], &meter).is_none());
+            assert!(meter.stopped());
+        }
+    }
+
+    #[test]
+    fn metered_enum_symbols_match_the_runtime() {
+        let meter = super::super::meter::Meter::new(Default::default(), None);
+        for name in [
+            "InReview",
+            "AaAaAa",
+            "XMLReader",
+            "_Leading",
+            "Trailing__",
+            "a1B",
+            "Ångström",
+            "İValue",
+            "___",
+            "",
+        ] {
+            assert_eq!(
+                super::enum_symbol(name, &meter),
+                crate::enums::symbol(name),
+                "{name}"
+            );
+        }
+    }
 }

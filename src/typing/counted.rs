@@ -2095,7 +2095,7 @@ mod tests {
         ("foreign.rs", [1, 0, 0, 0]),
         ("marks.rs", [2, 0, 0, 1]),
         ("modules.rs", [0, 0, 0, 9]),
-        ("program.rs", [0, 0, 0, 11]),
+        ("program.rs", [0, 0, 0, 8]),
         ("sigs.rs", [0, 1, 9, 0]),
         ("spans.rs", [0, 0, 0, 1]),
         ("ty.rs", [10, 2, 0, 1]),
@@ -2277,7 +2277,7 @@ mod tests {
         ("construction.rs", [0, 1, 0]),
         ("expr.rs", [1, 0, 0]),
         ("modules.rs", [0, 2, 2]),
-        ("program.rs", [0, 2, 6]),
+        ("program.rs", [0, 2, 5]),
         ("ty.rs", [3, 0, 0]),
     ];
 
@@ -2339,7 +2339,7 @@ mod tests {
         ("modules.rs", [3, 0, 0]),
         // A function's parameters; the builtin namespaces', and the
         // enums' and their names, which keep their places.
-        ("program.rs", [1, 4, 0]),
+        ("program.rs", [1, 1, 0]),
         // The builtin signatures' variables, names and bindings.
         ("sigs.rs", [0, 0, 6]),
         ("spans.rs", [1, 0, 0]),
@@ -2447,7 +2447,7 @@ mod tests {
     /// [`sort_unstable_by`] or [`sort_by`], by file: each sorts a few
     /// elements, such as a union's alternatives, at most 1,024, or charges
     /// its steps first itself, as an enum's members are.
-    const SORTED: &[(&str, usize)] = &[("program.rs", 1), ("ty.rs", 1)];
+    const SORTED: &[(&str, usize)] = &[("ty.rs", 1)];
 
     #[test]
     fn the_checker_sorts_through_the_meter() {

@@ -540,7 +540,11 @@ impl Types {
         let kind = Arc::new(kind);
         self.properties.push_within(properties);
         self.kinds.push_within(Arc::clone(&kind));
-        self.ids.insert_within(kind, ty);
+        if regardless {
+            self.ids.insert_regardless(ledger, kind, ty);
+        } else {
+            self.ids.insert_within(kind, ty);
+        }
         Some(ty)
     }
 

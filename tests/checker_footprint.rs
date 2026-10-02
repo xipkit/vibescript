@@ -886,6 +886,14 @@ fn shapes() -> Vec<Shape> {
                 lines(n * 4, |i| format!("enum E{i}\n  A{i}\nend\n")),
             )
         }),
+        ("an enum with a very long declaration name", |n| {
+            let name = "E".repeat(n * 64);
+            (Vec::new(), format!("enum {name}\n  A\nend\np(1)\n"))
+        }),
+        ("an enum with a very long normalized member", |n| {
+            let member = "Aa".repeat(n * 64);
+            (Vec::new(), format!("enum E\n  {member}\nend\np(1)\n"))
+        }),
         ("a wide enum", |n| {
             let members = lines(n, |i| format!("  M{i}\n"));
             (Vec::new(), format!("enum E\n{members}end\np(E::M0)\n"))
