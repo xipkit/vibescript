@@ -166,20 +166,78 @@ fn convert(
     base: usize,
     stop: Stop<'_>,
 ) -> Option<Vec<Token>> {
+    if stop() {
+        return None;
+    }
     let mut converted = Vec::with_capacity(tokens.len());
-    for (index, token) in tokens.iter().enumerate() {
-        if index % POLL as usize == 0 && stop() {
+    for token in tokens {
+        if stop() {
             return None;
         }
+        let kind = match &token.kind {
+            TokenKind::String(bytes) => TokenKind::String(copy_bytes(bytes, stop)?),
+            TokenKind::Symbol { name, quoted } => TokenKind::Symbol {
+                name: copy_bytes(name, stop)?,
+                quoted: *quoted,
+            },
+            TokenKind::Template(spans) => {
+                let mut copied = Vec::with_capacity(spans.len());
+                for span in spans {
+                    if stop() {
+                        return None;
+                    }
+                    copied.push(span.clone());
+                }
+                TokenKind::Template(copied)
+            }
+            TokenKind::Words { symbols, entries } => {
+                let mut copied = Vec::with_capacity(entries.len());
+                for entry in entries {
+                    if stop() {
+                        return None;
+                    }
+                    copied.push(match entry {
+                        Some(bytes) => Some(copy_bytes(bytes, stop)?),
+                        None => None,
+                    });
+                }
+                TokenKind::Words {
+                    symbols: *symbols,
+                    entries: copied,
+                }
+            }
+            kind => kind.clone(),
+        };
+        let mut newlines = 0;
+        for chunk in source.as_bytes()[token.span.clone()].chunks(4096) {
+            if stop() {
+                return None;
+            }
+            newlines += chunk.iter().filter(|&&byte| byte == b'\n').count();
+        }
         converted.push(Token {
-            kind: token.kind.clone(),
+            kind,
             start: token.span.start + base,
             end: token.span.end + base,
             line: token.line,
-            end_line: token.line + source[token.span.clone()].matches('\n').count(),
+            end_line: token.line + newlines,
         });
     }
     Some(converted)
+}
+
+fn copy_bytes(bytes: &[u8], stop: Stop<'_>) -> Option<Vec<u8>> {
+    if stop() {
+        return None;
+    }
+    let mut copied = Vec::with_capacity(bytes.len());
+    for chunk in bytes.chunks(4096) {
+        if stop() {
+            return None;
+        }
+        copied.extend_from_slice(chunk);
+    }
+    Some(copied)
 }
 
 const KEYWORDS: [&str; 34] = [
@@ -4263,4 +4321,25 @@ pub fn builtin_type(name: &str) -> bool {
             | "type"
             | "comparable"
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
+
+    #[test]
+    fn conversion_stops_inside_a_percent_literal() {
+        let token = tooling::Token {
+            kind: TokenKind::Words {
+                symbols: false,
+                entries: vec![Some(vec![b'x']); 10_000],
+            },
+            span: 0..1,
+            line: 1,
+        };
+        let polls = AtomicUsize::new(0);
+        assert!(convert("x", &[token], 0, &|| polls.fetch_add(1, Relaxed) == 8).is_none());
+        assert_eq!(polls.load(Relaxed), 9);
+    }
 }
