@@ -62,6 +62,11 @@ fn an_ensure_sees_only_what_holds_wherever_it_starts() {
         "def f -> int\n  begin\n    x = 1\n  ensure\n    p(x + 1)\n  end\n  0\nend\n",
         &["V0202"],
     );
+    // A guard of the ensure that what the body leaves never passes leaves
+    // nothing after the `begin` to run: no value has both types.
+    clean(
+        "def f -> int\n  x: string? = \"a\"\n  begin\n    x = nil\n  ensure\n    raise \"none\" if x == nil\n  end\n  x.upcase.length\nend\n",
+    );
 }
 
 #[test]

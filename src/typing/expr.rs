@@ -2235,7 +2235,8 @@ impl<'a> Checker<'a> {
 
     /// The type of a value known to have both types `a` and `b`: the
     /// narrower when one accepts the other, else the alternatives of `a`
-    /// that `b` accepts.
+    /// that `b` accepts, and `never` when none does, since no value has
+    /// both.
     fn both(&mut self, a: Ty, b: Ty) -> Ty {
         if a == b || b == Ty::ANY {
             return a;
@@ -2253,7 +2254,7 @@ impl<'a> Checker<'a> {
             .filter(|&member| self.types.assignable(member, b))
             .collect();
         if members.is_empty() {
-            a
+            Ty::NEVER
         } else {
             self.types.union(&members)
         }
