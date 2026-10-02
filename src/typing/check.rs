@@ -378,8 +378,8 @@ impl<'a> Checker<'a> {
             let mut shared = ScratchVec::new(&self.meter);
             for decl in self.program.fns.iter().filter(|decl| decl.main) {
                 if let Some(def) = decl.def {
-                    let scratch = assigned_names(&self.meter, &def.body, &mut shared);
-                    if self.transient(scratch) {
+                    assigned_names(&self.meter, &def.body, &mut shared);
+                    if self.measure() {
                         return;
                     }
                 }
@@ -445,8 +445,8 @@ impl<'a> Checker<'a> {
             }
             let Some(def) = decl.def else { continue };
             let mut names = ScratchVec::new(&self.meter);
-            let scratch = assigned_names(&self.meter, &def.body, &mut names);
-            if self.transient(scratch) {
+            assigned_names(&self.meter, &def.body, &mut names);
+            if self.measure() {
                 return None;
             }
             // Its parameters are its own, not the file's: the names
@@ -3678,20 +3678,21 @@ fn mentions<'s>(
 }
 
 /// The names of the locals a body may assign, including in nested blocks,
-/// charging the walk that finds them to `meter`.
-/// Returns the bytes of the index it built to find them.
+/// charging the walk that finds them to `meter`. The index it builds to
+/// find them is counted as it grows, and gone once it returns, which the
+/// next measure finds.
 pub(super) fn assigned_names(
     meter: &std::sync::Arc<super::meter::Meter>,
     body: &[Stmt],
     names: &mut ScratchVec<String>,
-) -> usize {
+) {
     let mut assigns = super::assigns::Assigns::default();
     let span = assigns.body(meter, body);
-    // The list of the names is counted before it is made; their copies are
-    // counted, with the list they go in, as it takes them.
-    let held = assigns.bytes();
+    // The list of the names is counted before it is made, beside the
+    // index, which its growth counted already; their copies are counted,
+    // with the list they go in, as it takes them.
     let found = assigns.distinct(span, |count, _| {
-        !meter.pace(0, held + count * std::mem::size_of::<&str>())
+        !meter.pace(0, count * std::mem::size_of::<&str>())
     });
     // The copies are counted, with room for them, before they are made.
     let bytes = found.iter().map(|name| name.len()).sum();
@@ -3700,7 +3701,6 @@ pub(super) fn assigned_names(
             names.push_within(name.to_owned());
         }
     }
-    assigns.bytes()
 }
 
 /// Why a value is checked against a type, for messages.

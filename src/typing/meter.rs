@@ -694,6 +694,14 @@ impl<'a> super::Checker<'a> {
         self.meter.reach(bytes);
     }
 
+    /// Measures what the check holds again, as after an operation has
+    /// dropped storage its growth counted, which the measure no longer
+    /// finds. Returns whether the check has stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    pub(super) fn measure(&self) -> bool {
+        self.check_memory(0) || self.halted()
+    }
+
     /// Takes back scratch [`Self::hold`] counted.
     pub(super) fn release(&mut self, bytes: usize) {
         self.scratch -= bytes;
