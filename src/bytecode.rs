@@ -3327,9 +3327,8 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 target
             }
         };
-        if let (Some(Invocation::Function(callee)), false) =
-            (target, expanded(args, self.c().work)?)
-        {
+        let listed = expanded(args, self.c().work)?;
+        if let (Some(Invocation::Function(callee)), false) = (target, listed) {
             for arg in args {
                 self.expr(&arg.value).await?;
             }
