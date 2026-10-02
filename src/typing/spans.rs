@@ -184,12 +184,6 @@ impl<'a> Spans<'a> {
             + super::meter::map(&self.furthest.borrow())
     }
 
-    /// What the larger of the tables of offsets holds, each of which grows
-    /// by an entry a node.
-    pub fn table(&self) -> usize {
-        super::meter::map(&self.lasts.borrow()).max(super::meter::map(&self.furthest.borrow()))
-    }
-
     /// Charges `count` steps of a scan over the tokens. Returns whether the
     /// check has stopped, when a scan gives up with the span it has.
     #[must_use = "the budget may have stopped the check, which must then do no more work"]

@@ -158,12 +158,6 @@ impl Construction {
             + super::meter::set(&self.retained)
             + self.held
     }
-
-    /// The larger of the records' hash tables, which grow as sites are
-    /// kept.
-    pub fn largest(&self) -> usize {
-        super::meter::map(&self.methods).max(super::meter::set(&self.retained))
-    }
 }
 
 /// What a method does with `self`, directly or in its blocks.

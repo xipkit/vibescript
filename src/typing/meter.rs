@@ -637,21 +637,9 @@ impl<'a> super::Checker<'a> {
     fn outside(&self) -> usize {
         let frame = &self.frame;
         let contexts: usize = frame.contexts.iter().map(Heap::heap).sum();
-        let largest = [
-            self.facts.largest(),
-            self.spans.table(),
-            self.assigns.largest(),
-            map(&self.constants),
-            set(&self.write_chain),
-            map(&self.fetch_receivers),
-            self.memo.get().map_or(0, super::Memo::bytes),
-            self.construction.largest(),
-        ]
-        .into_iter()
-        .max()
-        .unwrap_or(0);
-        growth(largest)
-            + vec(self.diagnostics.as_vec())
+        // Each table admits its larger storage beside the old as it grows,
+        // so no margin for a growing table is added here.
+        vec(self.diagnostics.as_vec())
             + vec(self.calls.as_vec())
             + map(&self.constants)
             + self.grown
