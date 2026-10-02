@@ -125,8 +125,10 @@ impl Loader {
                 let text = std::str::from_utf8(bytes).map_err(|_| {
                     Error::new(ErrorKind::Syntax, "required module source is not UTF-8")
                 })?;
-                // The copy returned is made beside the one read.
-                let _copy = ctx.reserve(text.len())?;
+                // The copy returned, and the origin's copy of the file's
+                // name, are made beside the source read.
+                let name = candidate.relative.as_bytes().unwrap().len();
+                let _copy = ctx.reserve(text.len().saturating_add(name))?;
                 return Ok((text.to_owned(), candidate.origin()));
             }
         }

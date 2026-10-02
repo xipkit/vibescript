@@ -443,11 +443,12 @@ impl<'a> Checker<'a> {
             return Ok(id);
         }
         let filename = origin.filename();
-        // The file's source and syntax count toward this check's memory
-        // until it is imported. Its parse charges a context of its own,
-        // as a compilation does, which the steps and memory left bound,
-        // and its steps are this check's.
-        let held = self.held() + source.len();
+        // The file's source and syntax, and its origin's copy of its name,
+        // count toward this check's memory until it is imported. Its parse
+        // charges a context of its own, as a compilation does, which the
+        // steps and memory left bound, and its steps are this check's.
+        let read = source.len() + origin.name().len();
+        let held = self.held() + read;
         let mut context = self.context(held);
         let parse = crate::syntax::parse_with_tokens(
             &source,
@@ -497,7 +498,7 @@ impl<'a> Checker<'a> {
                 return Err(text!(self, "{error}"));
             }
         };
-        let Some(tree) = self.hold(source.len() + parsing.retained_memory_bytes) else {
+        let Some(tree) = self.hold(read + parsing.retained_memory_bytes) else {
             self.stopped = true;
             return Err("the check ran out of its budget".into());
         };

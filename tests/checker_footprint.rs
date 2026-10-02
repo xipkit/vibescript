@@ -687,6 +687,34 @@ fn recording_file() -> String {
     )
 }
 
+/// The name of the `index`th file of [`named_chain`], in a directory of
+/// a long name.
+fn long_name(index: usize) -> String {
+    let length = if cfg!(target_os = "wasi") {
+        8_000
+    } else {
+        60_000
+    };
+    format!("{}/f{index}", "n".repeat(length))
+}
+
+/// Files in a directory of a long name, each but the last requiring the
+/// next by a short relative name, as deep as requires nest: each file's
+/// check runs while those that required it hold their names, which the
+/// sources they required them from do not spell out.
+fn named_chain() -> BTreeMap<String, String> {
+    (0..15)
+        .map(|index| {
+            let body = if index < 14 {
+                format!("require(\"./f{}\")\nx = 1\n", index + 1)
+            } else {
+                "x = 1\n".to_owned()
+            };
+            (format!("{}.vibe", long_name(index)), body)
+        })
+        .collect()
+}
+
 /// Every site and upstream program, and a sample of the language corpus.
 fn corpora() -> Vec<(String, String)> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -751,6 +779,13 @@ fn the_checkers_account_covers_its_peak_memory() {
         "a required file's receiver records".to_owned(),
         "require(\"records\")\np(1)\n".to_owned(),
     );
+    let mut naming = Engine::new();
+    naming.set_module_sources(named_chain()).unwrap();
+    let named = (
+        &naming,
+        "a chain of required files in a directory of a long name".to_owned(),
+        format!("require(\"{}\")\np(1)\n", long_name(0)),
+    );
     let log = std::env::var_os("VIBES_FOOTPRINT").is_some();
     let mut failures = Vec::new();
     let mut ratios = [
@@ -766,7 +801,7 @@ fn the_checkers_account_covers_its_peak_memory() {
     let programs = adversarial().into_iter().chain(corpora());
     for (engine, name, source) in programs
         .map(|(name, source)| (&engine, name, source))
-        .chain([required, recorded])
+        .chain([required, recorded, named])
     {
         let measured = measure(engine, &source);
         let passes = [measured.checker, measured.surface, measured.interval];
