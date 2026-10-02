@@ -787,12 +787,16 @@ impl<'a> Checker<'a> {
                         self.release(held);
                         return Ty::ERROR;
                     }
-                    let key = String::from_utf8_lossy(key).into_owned();
+                    let key = super::counted::lossy(key, &self.meter);
+                    let Some(key_held) = self.hold(key.capacity()) else {
+                        self.release(held);
+                        return Ty::ERROR;
+                    };
                     match fields.binary_search_by(|field| field.name.as_bytes().cmp(key.as_bytes()))
                     {
                         Ok(index) => {
                             let expected = fields[index].ty;
-                            types.push(self.expr_against(entry, expected, &Purpose::Field(key)));
+                            types.push(self.expr_against_held(entry, expected, &Purpose::Field(key)));
                             present[index] = true;
                         }
                         Err(_) => {
@@ -808,6 +812,7 @@ impl<'a> Checker<'a> {
                             }
                         }
                     }
+                    self.release(key_held);
                 }
                 let (missing, count) = super::listed(
                     &self.meter,

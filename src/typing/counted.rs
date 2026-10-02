@@ -454,6 +454,23 @@ pub(crate) fn text(meter: &Meter, args: std::fmt::Arguments<'_>) -> String {
     text.finish()
 }
 
+/// Lossy UTF-8 with each scan and growing output admitted before work.
+pub(crate) fn lossy(bytes: &[u8], meter: &Meter) -> String {
+    let mut text = Text::new(meter);
+    if !meter.pace(1 + (bytes.len() / 64) as u64, 0) {
+        for chunk in bytes.utf8_chunks() {
+            if meter.stopped() {
+                break;
+            }
+            text.push_str(chunk.valid());
+            if !chunk.invalid().is_empty() {
+                text.push_str("\u{fffd}");
+            }
+        }
+    }
+    text.finish()
+}
+
 /// A list an operation builds and drops, whose storage and elements are
 /// counted before it takes them, as a table's are, and while it lives,
 /// since no measure counts it: they are taken back when it is dropped.

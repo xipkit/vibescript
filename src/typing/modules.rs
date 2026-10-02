@@ -3,7 +3,7 @@
 
 use super::{
     Checker, Input, Modules,
-    counted::{CountedMap, CountedSet, CountedVec, ScratchVec},
+    counted::{CountedMap, CountedSet, CountedVec, ScratchVec, lossy},
     meter::Heap,
     program::{Enum, FnDecl, FnId, Namespace, NsId},
     sigs::{BlockSig, Param, Sig},
@@ -1429,23 +1429,6 @@ fn visit<'x>(expr: &'x Expr, walk: &mut Walk<'x, '_>, out: &mut ScratchVec<Reque
         _ => (),
     }
     false
-}
-
-/// Lossy UTF-8 with each scan and growing output admitted before work.
-fn lossy(bytes: &[u8], meter: &super::meter::Meter) -> String {
-    let mut text = super::counted::Text::new(meter);
-    if !meter.pace(1 + (bytes.len() / 64) as u64, 0) {
-        for chunk in bytes.utf8_chunks() {
-            if meter.stopped() {
-                break;
-            }
-            text.push_str(chunk.valid());
-            if !chunk.invalid().is_empty() {
-                text.push_str("\u{fffd}");
-            }
-        }
-    }
-    text.finish()
 }
 
 #[cfg(test)]

@@ -1025,6 +1025,13 @@ fn shapes() -> Vec<Shape> {
                 format!("type S = {{ {fields} }}\nx: S = {{ {values} }}\np(x)\n"),
             )
         }),
+        ("a shape hint checking a long literal field", |n| {
+            let key = "k".repeat(n * 64);
+            (
+                Vec::new(),
+                format!("def f -> {{ {key}: int }}\n  {{\"{key}\" => 1}}\nend\np(1)\n"),
+            )
+        }),
         ("a wide union", |n| {
             let arms = listed(n.min(1_000), |i| format!("{{a{i}: int}}"), " | ");
             (
