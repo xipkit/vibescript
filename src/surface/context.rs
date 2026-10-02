@@ -530,6 +530,9 @@ pub fn collect_rescued(rescued: &Rescued, scope: &mut Scope<'_>, halt: Halt<'_>)
         collect_locals(&clause.body, scope, halt);
     }
     for body in rescued.alternate.iter().chain(&rescued.ensure) {
+        if halt() {
+            return;
+        }
         collect_locals(body, scope, halt);
     }
 }
@@ -539,10 +542,15 @@ fn collect_stmt(stmt: &Stmt, scope: &mut Scope<'_>, halt: Halt<'_>) {
         StmtKind::Assign(assign) => {
             // A name the walk has stopped by is not gathered, nor any after.
             for target in &assign.targets {
+                if halt() {
+                    return;
+                }
                 target.names(&mut |name, _| {
-                    if !halt() {
-                        scope.locals.insert(name.to_owned());
+                    if halt() {
+                        return false;
                     }
+                    scope.locals.insert(name.to_owned());
+                    true
                 });
             }
             for value in &assign.values {
@@ -560,9 +568,11 @@ fn collect_stmt(stmt: &Stmt, scope: &mut Scope<'_>, halt: Halt<'_>) {
         }
         StmtKind::For(node) => {
             node.target.names(&mut |name, _| {
-                if !halt() {
-                    scope.locals.insert(name.to_owned());
+                if halt() {
+                    return false;
                 }
+                scope.locals.insert(name.to_owned());
+                true
             });
             collect_expr(&node.iterable, scope, halt);
             collect_locals(&node.body, scope, halt);

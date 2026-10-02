@@ -1792,10 +1792,12 @@ impl<'s> Parser<'s> {
         // Each name is a construct read, and a parse the compilation
         // stopped declares no more, nor fails again for each.
         target.names(&mut |name, _| {
-            if !self.stopped.get() && self.poll().is_ok() {
-                self.declared_it |= name == "it";
-                self.declare_local(name.to_owned());
+            if self.poll().is_err() {
+                return false;
             }
+            self.declared_it |= name == "it";
+            self.declare_local(name.to_owned());
+            true
         });
     }
 
@@ -4414,6 +4416,24 @@ mod tests {
         let mut parser = Parser::new(&source, tokens, starts, &|| true);
         assert!(parser.leaf(0).is_err());
         assert!(parser.stopped.get());
+    }
+
+    #[test]
+    fn target_names_stop_after_a_refused_name() {
+        let tree = parse("a, b, c = [1, 2, 3]").unwrap();
+        let StmtKind::Assign(assign) = &tree.body[0].kind else {
+            panic!("assignment")
+        };
+        let mut visited = 0;
+        for target in &assign.targets {
+            if !target.names(&mut |_, _| {
+                visited += 1;
+                false
+            }) {
+                break;
+            }
+        }
+        assert_eq!(visited, 1);
     }
 
     #[test]

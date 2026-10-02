@@ -172,21 +172,24 @@ impl Target {
     }
 
     /// Visits the names this target binds.
-    pub fn names(&self, visit: &mut impl FnMut(&str, &Expr)) {
+    pub fn names(&self, visit: &mut impl FnMut(&str, &Expr) -> bool) -> bool {
         match self {
             Self::Expr(expr) => {
                 if let ExprKind::Name(name) = &expr.kind {
-                    visit(name, expr);
+                    return visit(name, expr);
                 }
             }
-            Self::Splat(_, Some(inner)) | Self::Typed(inner, _) => inner.names(visit),
+            Self::Splat(_, Some(inner)) | Self::Typed(inner, _) => return inner.names(visit),
             Self::Splat(_, None) => (),
             Self::Group(_, parts) => {
                 for part in parts {
-                    part.names(visit);
+                    if !part.names(visit) {
+                        return false;
+                    }
                 }
             }
         }
+        true
     }
 }
 
