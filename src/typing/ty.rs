@@ -5,7 +5,7 @@ use super::{
     counted::{CountedMap, CountedVec, ScratchVec},
     meter::{self, Heap, Meter},
 };
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 /// The most alternatives a union may have: a wider one is an error
 /// (V0124), reported where it is written or inferred, before the checker
@@ -47,6 +47,32 @@ enum Head {
     /// An open shape, or one with optional fields, which shapes of other
     /// keys may fit.
     Loose,
+}
+
+impl super::counted::Owned for Head {
+    fn owned(&self) -> usize {
+        0
+    }
+}
+
+/// An unfinished index holds its own scratch account until publication.
+struct UnionIndex {
+    heads: CountedMap<Head, CountedVec<Ty>>,
+    scratch: Option<Arc<Meter>>,
+}
+
+impl Heap for UnionIndex {
+    fn heap(&self) -> usize {
+        self.heads.heap()
+    }
+}
+
+impl Drop for UnionIndex {
+    fn drop(&mut self) {
+        if let Some(meter) = &self.scratch {
+            meter.dropped(self.heap());
+        }
+    }
 }
 
 /// The head an alternative of `kind` files under, a closed shape's by
@@ -326,7 +352,7 @@ pub(crate) struct Types {
     assignable: CountedMap<(Ty, Ty), bool>,
     /// Each indexed union's alternatives by [`Head`], up to [`INDEXED`]
     /// alternatives in all.
-    index: CountedMap<Ty, Arc<HashMap<Head, Vec<Ty>>>>,
+    index: CountedMap<Ty, Arc<UnionIndex>>,
     indexed: usize,
     /// What the indexes hold.
     index_bytes: usize,
@@ -964,32 +990,47 @@ impl Types {
                     self.indexed = 0;
                     self.index_bytes = 0;
                 }
-                // The most the index can take is counted before it is
-                // built, with room for it in the table of indexes: a
-                // table with a head for each alternative at most, and
-                // lists of each head's alternatives, each at most twice
-                // as long as it is or four long.
-                let ledger = self.meter.types();
-                let most = meter::table::<(Head, Vec<Ty>)>(2 * count + 1)
-                    + 6 * count * std::mem::size_of::<Ty>()
-                    + 2 * std::mem::size_of::<usize>();
-                if ledger.keep(most).is_err() || self.index.reserve(ledger, 1).is_err() {
-                    return ScratchVec::new(&self.meter);
-                }
+                let mut index = UnionIndex {
+                    heads: CountedMap::new(),
+                    scratch: Some(Arc::clone(&self.meter)),
+                };
                 let kind = self.shared(union);
                 let Kind::Union(alternatives) = &*kind else {
                     return ScratchVec::new(&self.meter);
                 };
-                let mut index: HashMap<Head, Vec<Ty>> = HashMap::new();
                 for &alternative in alternatives.iter() {
                     let exact = self.exact_keys(alternative);
-                    index
-                        .entry(head(self.kind(alternative), exact))
-                        .or_default()
-                        .push(alternative);
+                    if self.stopped() {
+                        return ScratchVec::new(&self.meter);
+                    }
+                    let head = head(self.kind(alternative), exact);
+                    let ledger = self.meter.scratch_lists();
+                    if !index.heads.contains_key(&head)
+                        && index.heads.insert(ledger, head, CountedVec::new()).is_err()
+                    {
+                        return ScratchVec::new(&self.meter);
+                    }
+                    if index
+                        .heads
+                        .get_mut(&head)
+                        .unwrap()
+                        .push(ledger, alternative)
+                        .is_err()
+                    {
+                        return ScratchVec::new(&self.meter);
+                    }
                 }
+                let header = std::mem::size_of::<UnionIndex>() + 2 * std::mem::size_of::<usize>();
+                let ledger = self.meter.types();
+                if ledger.keep(header).is_err() || self.index.reserve(ledger, 1).is_err() {
+                    return ScratchVec::new(&self.meter);
+                }
+                let bytes = index.heap();
+                self.meter.dropped(bytes);
+                index.scratch = None;
+                ledger.kept(bytes);
                 self.indexed += count;
-                self.index_bytes += index.heap() + 2 * std::mem::size_of::<usize>();
+                self.index_bytes += bytes + header;
                 let index = Arc::new(index);
                 self.index.insert_within(union, Arc::clone(&index));
                 index
@@ -1000,14 +1041,14 @@ impl Types {
         let targets = targets(self.kind(value), exact);
         let count: usize = targets
             .iter()
-            .filter_map(|target| index.get(target).map(Vec::len))
+            .filter_map(|target| index.heads.get(target).map(|items| items.len()))
             .sum();
         let mut found = ScratchVec::new(&self.meter);
         if self.work(count) || found.reserve(count).is_err() {
             return ScratchVec::new(&self.meter);
         }
         for target in targets {
-            if let Some(alternatives) = index.get(&target) {
+            if let Some(alternatives) = index.heads.get(&target) {
                 for &alternative in alternatives {
                     found.add(alternative);
                 }
@@ -1021,6 +1062,9 @@ impl Types {
     /// for, and kept, the bytes hashed charged as a step for each 64 of
     /// them; `0` for any other type, or once the check stops.
     fn exact_keys(&mut self, ty: Ty) -> u64 {
+        if self.stopped() {
+            return 0;
+        }
         if let Some(&exact) = self.exact.get(&ty) {
             return exact;
         }
@@ -1729,6 +1773,60 @@ fn put(out: &mut String, text: &str, room: &mut usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_union_index_stops_before_publishing_refused_keys() {
+        let mut types = Types::new();
+        let arms: Vec<_> = (0..128)
+            .map(|i| {
+                types.shape(
+                    vec![Field {
+                        name: format!("{}_{i}", "k".repeat(4096)).into(),
+                        ty: Ty::INT,
+                        optional: false,
+                    }],
+                    false,
+                )
+            })
+            .collect();
+        let union = types.union(&arms);
+        types.meter = Meter::new(
+            crate::compilation::Budget {
+                steps: Some(2),
+                ..Default::default()
+            },
+            None,
+        );
+        let found = types.candidates(union, Ty::INT);
+        assert!(found.is_empty());
+        assert!(types.stopped());
+        assert!(!types.index.contains_key(&union));
+    }
+
+    #[test]
+    fn a_union_index_admits_only_the_heads_it_needs() {
+        let mut types = Types::new();
+        let arms: Vec<_> = (0..1024)
+            .map(|i| {
+                let element = types.intern(Kind::EnumValue(i));
+                types.array(element)
+            })
+            .collect();
+        let union = types.union(&arms);
+        let array = types.array(Ty::ANY);
+        let live = types.bytes();
+        types.meter = Meter::new(
+            crate::compilation::Budget {
+                memory: Some(live + (64 << 10)),
+                ..Default::default()
+            },
+            None,
+        );
+        types.meter.held(live);
+        let found = types.candidates(union, array);
+        assert!(!types.stopped());
+        assert_eq!(found.len(), 1024);
+    }
 
     #[test]
     fn shared_type_properties_do_not_expand_the_graph() {

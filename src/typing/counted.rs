@@ -2189,7 +2189,7 @@ mod tests {
         ("sigs.rs", [1, 10, 0]),
         // A display's text and parts, which share one room; a union's
         // index, counted before it is built.
-        ("ty.rs", [5, 5, 2]),
+        ("ty.rs", [5, 5, 0]),
         // The walk's stack, paced with what the walker holds.
         ("walk.rs", [0, 0, 1]),
     ];
