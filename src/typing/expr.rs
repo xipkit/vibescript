@@ -38,8 +38,14 @@ impl<'a> Checker<'a> {
         ty
     }
 
-    /// [`Self::expr_against`], once the purpose is held.
-    fn expr_against_held(&mut self, expr: &'a Expr, expected: Ty, purpose: &Purpose) -> Ty {
+    /// [`Self::expr_against`] for a caller that holds what `purpose`
+    /// copies.
+    pub(super) fn expr_against_held(
+        &mut self,
+        expr: &'a Expr,
+        expected: Ty,
+        purpose: &Purpose,
+    ) -> Ty {
         match &expr.node {
             Node::Conditional(..) | Node::Case(..) | Node::Try(_) | Node::Compound(_) => {
                 // The purpose, and its room on the stack, are counted as it

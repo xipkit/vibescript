@@ -2273,7 +2273,8 @@ impl<'a> Checker<'a> {
     ) -> Ty {
         let expected = self.types.subst(param, bindings);
         if !self.types.has_var(expected) {
-            return self.expr_against(value, expected, purpose);
+            // The caller holds what the purpose copies.
+            return self.expr_against_held(value, expected, purpose);
         }
         let mut ty = self.expr(value, None);
         let takes_type = matches!(self.types.kind(param), Kind::TypeLit(_));
