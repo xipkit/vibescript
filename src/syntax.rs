@@ -584,12 +584,18 @@ impl Target {
     // recursion, in source order, keeping what is left of each level's
     // parts rather than every part at once, in a list reserved from `work`
     // as it grows.
-    fn parts(&self, work: &dyn Work, mut visit: impl FnMut(&Self, u32) -> bool) -> Result<bool> {
+    fn parts(
+        &self,
+        work: &dyn Work,
+        mut visit: impl FnMut(&Self, u32) -> Result<bool>,
+    ) -> Result<bool> {
         // What is left of each level's parts, and its depth.
         type Level<'t> = (std::slice::Iter<'t, (Option<Target>, bool)>, u32);
         let mut levels: Buffer<Level<'_>> = Buffer::new();
         let mut next = Some((self, 0));
         loop {
+            work.checkpoint()?;
+            work.charge(1)?;
             let (target, depth) = match next.take() {
                 Some(next) => next,
                 None => {
@@ -607,7 +613,7 @@ impl Target {
                     }
                 }
             };
-            if !visit(target, depth) {
+            if !visit(target, depth)? {
                 return Ok(false);
             }
             match target {
@@ -618,9 +624,11 @@ impl Target {
         }
     }
     fn is_binding(&self, work: &dyn Work) -> Result<bool> {
-        self.parts(work, |target, _| match target {
-            Self::Value(e) => matches!(&e.node, Node::Var(name) if !name.starts_with('@')),
-            _ => true,
+        self.parts(work, |target, _| {
+            Ok(match target {
+                Self::Value(e) => matches!(&e.node, Node::Var(name) if !name.starts_with('@')),
+                _ => true,
+            })
         })
     }
     fn depth(&self, work: &dyn Work) -> Result<u32> {
@@ -631,7 +639,7 @@ impl Target {
             } else if let Self::Tuple(_) = target {
                 deepest = deepest.max(depth + 1);
             }
-            true
+            Ok(true)
         })?;
         Ok(deepest)
     }
@@ -3375,7 +3383,6 @@ impl<'a> Parser<'a> {
     fn declare_target(&mut self, target: &Target) -> Result<()> {
         self.work.charge(1)?;
         let mut names = Buffer::new();
-        let mut invalid = None;
         target.parts(self.work, |part, _| {
             if let Target::Value(Expr {
                 node: Node::Var(name),
@@ -3383,18 +3390,11 @@ impl<'a> Parser<'a> {
                 ..
             }) = part
             {
-                if let Err(error) = self.binding_name(name, *offset as usize) {
-                    invalid = Some(error);
-                    return false;
-                }
-                names.push(self.work, (name.clone(), *offset)).is_ok()
-            } else {
-                true
+                self.binding_name(name, *offset as usize)?;
+                names.push(self.work, (name.clone(), *offset))?;
             }
+            Ok(true)
         })?;
-        if let Some(error) = invalid {
-            return Err(error);
-        }
         for (name, offset) in names {
             self.work.charge(1)?;
             self.declared_it |= name == "it";
@@ -3411,7 +3411,6 @@ impl<'a> Parser<'a> {
     fn declare_block_parameter(&mut self, target: &Target, earlier: &[Target]) -> Result<()> {
         self.work.charge(1)?;
         let mut names = Buffer::new();
-        let mut invalid = None;
         target.parts(self.work, |part, _| {
             if let Target::Value(Expr {
                 node: Node::Var(name),
@@ -3419,18 +3418,11 @@ impl<'a> Parser<'a> {
                 ..
             }) = part
             {
-                if let Err(error) = self.binding_name(name, *offset as usize) {
-                    invalid = Some(error);
-                    return false;
-                }
-                names.push(self.work, (name.clone(), *offset)).is_ok()
-            } else {
-                true
+                self.binding_name(name, *offset as usize)?;
+                names.push(self.work, (name.clone(), *offset))?;
             }
+            Ok(true)
         })?;
-        if let Some(error) = invalid {
-            return Err(error);
-        }
         for (index, (name, offset)) in names.iter().enumerate() {
             self.work.charge(1)?;
             self.declared_it |= name == "it";
@@ -3438,8 +3430,13 @@ impl<'a> Parser<'a> {
             if self.locals.insert(self.work, name.clone(), id)?.is_none() {
                 continue;
             }
-            self.work.charge(index)?;
-            let mut repeated = names[..index].iter().any(|(other, _)| other == name);
+            let mut repeated = false;
+            for (other, _) in &names[..index] {
+                if same_binding(self.work, other, name)? {
+                    repeated = true;
+                    break;
+                }
+            }
             for other in earlier {
                 if repeated {
                     break;
@@ -3447,8 +3444,12 @@ impl<'a> Parser<'a> {
                 repeated = binds(other, name, self.work)?;
             }
             if repeated {
-                let at = binding_offset(target, index, self.work)?;
-                return Err(duplicate_parameter(self.work, name, at, name.len()));
+                return Err(duplicate_parameter(
+                    self.work,
+                    name,
+                    *offset as usize,
+                    name.len(),
+                ));
             }
         }
         Ok(())
@@ -4622,41 +4623,38 @@ fn duplicate_parameter(work: &dyn Work, name: &str, at: usize, width: usize) -> 
 /// Whether a block parameter binds `name`, charging a step for each part of
 /// it looked at.
 fn binds(target: &Target, name: &str, work: &dyn Work) -> Result<bool> {
-    let (mut found, mut visited) = (false, 0);
+    let mut found = false;
     target.parts(work, |part, _| {
-        visited += 1;
         if let Target::Value(Expr {
             node: Node::Var(bound),
             ..
         }) = part
         {
-            found = bound == name;
+            found = same_binding(work, bound, name)?;
         }
-        !found
+        Ok(!found)
     })?;
-    work.charge(visited)?;
     Ok(found)
 }
 
-/// The offset of the name a block parameter binds `index`th.
-fn binding_offset(target: &Target, index: usize, work: &dyn Work) -> Result<usize> {
-    let (mut seen, mut at) = (0, 0);
-    target.parts(work, |part, _| {
-        if let Target::Value(Expr {
-            node: Node::Var(_),
-            offset,
-            ..
-        }) = part
-        {
-            if seen == index {
-                at = *offset as usize;
-                return false;
-            }
-            seen += 1;
+fn same_binding(work: &dyn Work, left: &str, right: &str) -> Result<bool> {
+    work.checkpoint()?;
+    work.charge(1)?;
+    if left.len() != right.len() {
+        return Ok(false);
+    }
+    for (left, right) in left
+        .as_bytes()
+        .chunks(4096)
+        .zip(right.as_bytes().chunks(4096))
+    {
+        work.checkpoint()?;
+        work.bytes(left.len())?;
+        if left != right {
+            return Ok(false);
         }
-        true
-    })?;
-    Ok(at)
+    }
+    Ok(true)
 }
 
 /// Go's bound on source text quoted in a diagnostic: at most 64 bytes, cut at
@@ -4732,6 +4730,23 @@ mod walk_tests {
     use super::{Statement, Target};
     use crate::{CallContext, CallOptions, compilation::Meter};
     use std::cell::RefCell;
+
+    #[test]
+    fn a_target_walk_stops_before_visiting_a_refused_part() {
+        let parsed = super::parse("a, b = [1, 2]", &()).unwrap();
+        let Statement::Assign(target, _, _) = &parsed.functions[0].body[0].node else {
+            panic!("assignment")
+        };
+        let mut context = CallContext::new(CallOptions::default());
+        context.options.limits.steps = Some(0);
+        let mut visited = 0;
+        let result = target.parts(&Meter(RefCell::new(&mut context)), |_, _| {
+            visited += 1;
+            Ok(true)
+        });
+        assert_eq!(result.unwrap_err().kind, crate::ErrorKind::Steps);
+        assert_eq!(visited, 0);
+    }
 
     #[test]
     fn a_walk_over_a_deep_target_reserves_its_levels() {
