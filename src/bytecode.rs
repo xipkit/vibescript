@@ -778,11 +778,15 @@ pub(crate) fn compile_parsed(
     let mut handler_locals = None;
     for (index, def) in defs.into_iter().enumerate() {
         work.bytes(def.name.len())?;
-        let binds_parameters = def
-            .params
-            .iter()
-            .any(|p| p.default.is_some() || p.ty.is_some());
-        let plain = !binds_parameters && def.params.iter().all(|p| p.kind == ParamKind::Positional);
+        let mut binds_parameters = false;
+        let mut plain = true;
+        for param in &def.params {
+            work.checkpoint()?;
+            work.charge(1)?;
+            binds_parameters |= param.default.is_some() || param.ty.is_some();
+            plain &= param.kind == ParamKind::Positional;
+        }
+        plain &= !binds_parameters;
         let compiling = Compiling::new(Compiler {
             work,
             facts,
@@ -876,6 +880,8 @@ pub(crate) fn compile_parsed(
     program.prove_instance_variables(work)?;
     if facts.keep_type_checks {
         for function in &mut program.functions {
+            work.checkpoint()?;
+            work.charge(1)?;
             function.proven_ivars = Bits::default();
         }
     }
@@ -2058,13 +2064,15 @@ impl<'a, 'x> Compiling<'a, 'x> {
             if binds_parameters {
                 c.emit(Op::BindEnd);
             }
-            let direct = additions.prologue.is_empty()
-                && def.params.iter().zip(&params).all(|(param, compiled)| {
-                    param.kind == ParamKind::Positional
-                        && param.default.is_none()
-                        && !(c.instance && param.ivar.is_some())
-                        && compiled.ty.is_none_or(|ty| !c.program.types[ty].unproven())
-                });
+            let mut direct = additions.prologue.is_empty();
+            for (param, compiled) in def.params.iter().zip(&params) {
+                work.checkpoint()?;
+                work.charge(1)?;
+                direct &= param.kind == ParamKind::Positional
+                    && param.default.is_none()
+                    && !(c.instance && param.ivar.is_some())
+                    && compiled.ty.is_none_or(|ty| !c.program.types[ty].unproven());
+            }
             self.proven.set(direct.then_some(c.code.len()));
             if c.facts.keep_type_checks {
                 for param in &params {
@@ -2895,14 +2903,22 @@ impl<'a, 'x> Compiling<'a, 'x> {
     ) -> Result<()> {
         let guard = {
             let mut c = self.c();
-            c.work.names(names)?;
-            let guard = fallback.map(|_| {
+            let guard = if fallback.is_some() {
+                let mut copied = Buffer::with_capacity(c.work, names.len())?;
+                for name in names {
+                    let (name, held) =
+                        crate::compilation::formatted(c.work, format_args!("{name}"))?;
+                    crate::budget::Charge::merge(&mut c.handler_locals, held);
+                    copied.push(c.work, name)?;
+                }
+                let (copied, held) = copied.into_parts();
+                crate::budget::Charge::merge(&mut c.handler_locals, held);
                 let index = c.program.type_guards.len();
-                c.program
-                    .type_guards
-                    .push(names.iter().map(|name| name.as_str().to_owned()).collect());
-                c.emit(Op::TypeShadowed(narrow(index), 0))
-            });
+                c.program.type_guards.push(copied);
+                Some(c.emit(Op::TypeShadowed(narrow(index), 0)))
+            } else {
+                None
+            };
             let scope = aliases::scope(&c.program.namespaces, c.namespace);
             let shape = crate::shapes::compile(c.aliases.compile(scope, ty, c.work)?);
             c.constant(shape);
@@ -3032,7 +3048,12 @@ impl<'a, 'x> Compiling<'a, 'x> {
         };
         let (plain, plain_args) = {
             let c = self.c();
-            let plain_args = args.iter().all(|arg| c.facts.plain(&arg.value));
+            let mut plain_args = true;
+            for arg in args {
+                c.work.checkpoint()?;
+                c.work.charge(1)?;
+                plain_args &= c.facts.plain(&arg.value);
+            }
             (c.facts.plain(whole), plain_args)
         };
         if direct.is_some() {
