@@ -99,9 +99,9 @@ impl<'a> Checker<'a> {
                 return;
             };
             let Some(item) = (if *symbols {
-                symbol_literal(bytes)
+                symbol_literal(bytes, self.room)
             } else {
-                string_literal(bytes)
+                string_literal(bytes, self.room)
             }) else {
                 self.report(Finding::new(
                     Rule::PercentLiteral,
@@ -144,7 +144,7 @@ impl<'a> Checker<'a> {
             return;
         };
         let removed = self.text(selector.span);
-        match string_literal(name) {
+        match string_literal(name, self.room) {
             Some(literal) => {
                 let advice = written!(self, "hash keys are strings: `{literal}`");
                 let previous = self.enter(Rule::SymbolKey, selector.span, removed, advice);
@@ -456,7 +456,7 @@ impl<'a> Checker<'a> {
             if matches!(arg.value.kind, ExprKind::Symbol)
                 && let TokenKind::Symbol { name, .. } =
                     &self.tokens[self.token_at(arg.value.span.start)].kind
-                && let Some(literal) = string_literal(name)
+                && let Some(literal) = string_literal(name, self.room)
             {
                 let removed = self.text(arg.value.span);
                 let what = match &arg.kind {
@@ -517,7 +517,8 @@ impl<'a> Checker<'a> {
         let hashes = kinds.iter().filter(|kind| *kind == "hash").count();
         // A host or module object answers a dot with its own members.
         let object = kinds.iter().any(|kind| kind == "object");
-        let Some(key) = string_literal(call.name.as_bytes()).filter(|_| hashes > 0 && !object)
+        let Some(key) =
+            string_literal(call.name.as_bytes(), self.room).filter(|_| hashes > 0 && !object)
         else {
             return false;
         };

@@ -450,12 +450,18 @@ pub fn method_name(name: &str) -> bool {
 }
 
 /// Spells bytes as a double-quoted string literal, when every byte can be.
-pub fn string_literal(bytes: &[u8]) -> Option<String> {
+pub fn string_literal(bytes: &[u8], room: &super::edits::Room<'_>) -> Option<String> {
+    if !room.charge(bytes.len().div_ceil(64) as u64) {
+        return None;
+    }
     let text = std::str::from_utf8(bytes).ok()?;
-    let mut out = String::with_capacity(text.len() + 2);
-    out.push('"');
+    let mut out = super::edits::Written::new(room);
+    out.push_str("\"");
     let mut chars = text.chars().peekable();
     while let Some(c) = chars.next() {
+        if !room.within() {
+            return None;
+        }
         match c {
             '"' => out.push_str("\\\""),
             '\\' => out.push_str("\\\\"),
@@ -464,20 +470,35 @@ pub fn string_literal(bytes: &[u8]) -> Option<String> {
             '\r' => out.push_str("\\r"),
             '#' if chars.peek() == Some(&'{') => out.push_str("\\#"),
             c if c.is_control() => return None,
-            c => out.push(c),
+            c => {
+                out.push_str(c.encode_utf8(&mut [0; 4]));
+            }
         }
     }
-    out.push('"');
-    Some(out)
+    out.push_str("\"");
+    out.finish()
 }
 
 /// Spells bytes as a symbol literal, quoted when they are not a name.
-pub fn symbol_literal(bytes: &[u8]) -> Option<String> {
+pub fn symbol_literal(bytes: &[u8], room: &super::edits::Room<'_>) -> Option<String> {
+    if !room.charge(bytes.len().div_ceil(64) as u64) {
+        return None;
+    }
     let text = std::str::from_utf8(bytes).ok()?;
     if method_name(text) {
-        return Some(format!(":{text}"));
+        let mut out = super::edits::Written::new(room);
+        out.push_str(":");
+        out.push_str(text);
+        return out.finish();
     }
-    string_literal(bytes).map(|quoted| format!(":{quoted}"))
+    let quoted = string_literal(bytes, room)?;
+    let mut out = super::edits::Written::new(room);
+    out.push_str(":");
+    out.push_str(&quoted);
+    let capacity = quoted.capacity();
+    drop(quoted);
+    room.give_back(capacity);
+    out.finish()
 }
 
 /// Asks whether the walk has stopped, counting what it reads as the walk

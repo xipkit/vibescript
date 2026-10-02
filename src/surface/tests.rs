@@ -1088,8 +1088,8 @@ fn a_source_only_the_compiler_reads_fails_a_debug_build() {
 /// is written through the room with `written!` or `copied`.
 const WRITTEN: &[(&str, [usize; 3])] = &[
     ("checker.rs", [3, 0, 0]),
-    ("context.rs", [0, 8, 0]),
-    ("edits.rs", [2, 0, 1]),
+    ("context.rs", [0, 6, 0]),
+    ("edits.rs", [2, 0, 0]),
     ("parse.rs", [11, 22, 0]),
     ("patterns.rs", [12, 0, 0]),
     ("rules.rs", [7, 0, 0]),

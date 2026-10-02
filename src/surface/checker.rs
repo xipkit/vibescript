@@ -479,7 +479,7 @@ pub(super) struct Checker<'a> {
     /// text it copies outgrew its room.
     stopped: bool,
     /// What the text the walk copies and renders may hold.
-    room: &'a Room<'a>,
+    pub(super) room: &'a Room<'a>,
 }
 
 impl Checker<'_> {

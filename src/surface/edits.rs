@@ -67,6 +67,35 @@ impl<'b> Room<'b> {
         true
     }
 
+    /// Copies text with exact storage and a checkpoint before each byte batch.
+    pub fn copy(&self, text: &str) -> Option<String> {
+        if !self.take(text.len()) {
+            return None;
+        }
+        let mut copied = String::with_capacity(text.len());
+        if !self.append(&mut copied, text) {
+            self.give_back(copied.capacity());
+            return None;
+        }
+        Some(copied)
+    }
+
+    fn append(&self, out: &mut String, piece: &str) -> bool {
+        let mut start = 0;
+        while start < piece.len() {
+            let mut end = (start + 4096).min(piece.len());
+            while !piece.is_char_boundary(end) {
+                end -= 1;
+            }
+            if !self.charge((end - start).div_ceil(64) as u64) {
+                return false;
+            }
+            out.push_str(&piece[start..end]);
+            start = end;
+        }
+        true
+    }
+
     /// Gives back `bytes` a copy held, once it is dropped.
     pub fn give_back(&self, bytes: usize) {
         let held = self.held.load(Relaxed);
@@ -193,13 +222,13 @@ impl<'r> Written<'r> {
         let needed = length.saturating_add(piece.len());
         if needed > capacity {
             let target = needed.max(2 * capacity).max(16);
-            if !self.room.take(target) {
+            if !self.room.take(target) || !self.room.charge(length.div_ceil(64) as u64) {
                 return;
             }
             self.text.reserve_exact(target - length);
             self.room.give_back(capacity);
         }
-        self.text.push_str(piece);
+        self.room.append(&mut self.text, piece);
     }
 
     /// Writes `args`, as `write!` writes them; a refusal stops the writing.
@@ -349,7 +378,9 @@ impl Edits {
             }
             let mut text = String::with_capacity(padded);
             text.push(' ');
-            text.push_str(&source[extent.start..extent.end]);
+            if !room.append(&mut text, &source[extent.start..extent.end]) {
+                return None;
+            }
             text.push(' ');
             let local = |span: Span| Span {
                 start: span.start - extent.start + 1,
@@ -372,17 +403,11 @@ impl Edits {
                         }
                         Piece::Source(span) => {
                             copied += span.end - span.start;
-                            if !room.take(span.end - span.start) {
-                                return None;
-                            }
-                            Piece::Text(source[span.range()].to_owned())
+                            Piece::Text(room.copy(&source[span.range()])?)
                         }
                         Piece::Text(text) => {
                             copied += text.len();
-                            if !room.take(text.len()) {
-                                return None;
-                            }
-                            Piece::Text(text.clone())
+                            Piece::Text(room.copy(text)?)
                         }
                     });
                 }
@@ -564,6 +589,15 @@ mod tests {
         assert!(!room.take(1));
         assert!(!room.sort_unstable_by(&mut [1], Ord::cmp));
         assert!(!room.within());
+    }
+
+    #[test]
+    fn long_writes_charge_bytes_and_stop_between_chunks() {
+        let room = Room::new(None, &|steps| steps <= 64, 0);
+        let mut out = Written::new(&room);
+        out.push_str(&"x".repeat(100_000));
+        assert!(out.finish().is_none());
+        assert!(room.total() > 64);
     }
 
     #[test]
