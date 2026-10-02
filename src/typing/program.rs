@@ -267,6 +267,9 @@ impl<'a> Checker<'a> {
         // does, and kept by name in a map counted while it lives.
         let mut aliases = ScratchMap::new(&self.meter);
         for (scope, alias) in &parsed.additions.aliases {
+            if self.meter.charge(1) {
+                return;
+            }
             if scope.is_none() {
                 let mut text = AliasText {
                     text: ScratchVec::new(&self.meter),
@@ -296,6 +299,9 @@ impl<'a> Checker<'a> {
             }
         }
         for (name, declaration) in declared {
+            if self.meter.charge(1) {
+                return;
+            }
             let Some((value, retained)) = declaration.retained() else {
                 continue;
             };
@@ -466,7 +472,7 @@ impl<'a> Checker<'a> {
         }
         // A check that runs out of its budget stops declaring.
         for (index, module) in parsed.modules.iter().enumerate() {
-            if self.paced(index) || self.namespace(module, None) {
+            if self.meter.charge(1) || self.paced(index) || self.namespace(module, None) {
                 return;
             }
         }
@@ -533,7 +539,7 @@ impl<'a> Checker<'a> {
         let block_param = |offset: u32| blocks.get(&offset).copied();
         // Signatures after every name is known, so annotations resolve.
         for (index, def) in parsed.functions.iter().enumerate() {
-            if self.paced(index) {
+            if self.meter.charge(1) || self.paced(index) {
                 return;
             }
             let main = index == 0;
@@ -558,6 +564,9 @@ impl<'a> Checker<'a> {
         // step each.
         let mut methods = 0;
         for ns in 0..self.program.namespaces.len() {
+            if self.meter.charge(1) {
+                return;
+            }
             if self.halted() {
                 return;
             }
@@ -566,7 +575,7 @@ impl<'a> Checker<'a> {
             };
             for (def, visibility) in &module.instance_methods {
                 methods += 1;
-                if self.paced(methods) {
+                if self.meter.charge(1) || self.paced(methods) {
                     return;
                 }
                 let block = block_param(def.offset);
@@ -583,7 +592,7 @@ impl<'a> Checker<'a> {
             }
             for (def, visibility) in &module.methods {
                 methods += 1;
-                if self.paced(methods) {
+                if self.meter.charge(1) || self.paced(methods) {
                     return;
                 }
                 let block = block_param(def.offset);
@@ -610,6 +619,9 @@ impl<'a> Checker<'a> {
             }
         }
         for (class, ivar) in &parsed.additions.ivars {
+            if self.meter.charge(1) {
+                return;
+            }
             let Some(&ns) = self.program.by_offset.get(class) else {
                 continue;
             };
@@ -621,6 +633,9 @@ impl<'a> Checker<'a> {
         }
         // Declared class variables have their types before any body reads them.
         for (namespace, declared) in &parsed.additions.class_vars {
+            if self.meter.charge(1) {
+                return;
+            }
             let Some(&ns) = self.program.by_offset.get(namespace) else {
                 continue;
             };
@@ -632,6 +647,9 @@ impl<'a> Checker<'a> {
         // Properties declare their instance variables and their types; a
         // check that stops declares no more of them.
         for ns in 0..self.program.namespaces.len() {
+            if self.meter.charge(1) {
+                return;
+            }
             if self.halted() {
                 return;
             }
@@ -639,6 +657,9 @@ impl<'a> Checker<'a> {
                 continue;
             };
             for (def, _) in &module.instance_methods {
+                if self.meter.charge(1) {
+                    return;
+                }
                 let Some((name, setter)) = &def.accessor else {
                     continue;
                 };
@@ -762,12 +783,18 @@ impl<'a> Checker<'a> {
     /// A method may take the name, since a receiver calls it.
     fn check_names(&mut self, parsed: &'a Declarations) {
         for item in &parsed.outline {
+            if self.meter.charge(1) {
+                return;
+            }
             if item.kind == crate::DeclarationKind::Function && item.name == "require" {
                 let span = self.spans.word_after(item.start, "require");
                 self.reserved(span);
             }
         }
         for ns in 0..self.program.namespaces.len() {
+            if self.meter.charge(1) {
+                return;
+            }
             // A check that stops looks at no more namespaces.
             if self.halted() {
                 return;
@@ -791,6 +818,9 @@ impl<'a> Checker<'a> {
             };
             let mut earlier = ScratchSet::new(&self.meter);
             for (index, (def, _)) in module.instance_methods.iter().enumerate() {
+                if self.meter.charge(1) {
+                    return;
+                }
                 let repeated = def.accessor.is_none() && earlier.contains(def.name.as_str());
                 let offset = if repeated { alias(index) } else { None };
                 if earlier.insert(def.name.as_str()).is_err() {
@@ -974,7 +1004,7 @@ impl<'a> Checker<'a> {
         for (index, param) in def.params.iter().enumerate() {
             // A check its budget stops declares no more of them, and the
             // budget is checked as a walk checks it.
-            if self.paced(index) {
+            if self.meter.charge(1) || self.paced(index) {
                 self.release(held);
                 return None;
             }
@@ -1177,7 +1207,7 @@ impl<'a> Checker<'a> {
     ) -> Ty {
         // A check past its budget builds no more types, such as each arm
         // of a wide union.
-        if self.halted() {
+        if self.meter.charge(1) || self.halted() {
             return Ty::ERROR;
         }
         if super::too_tall(self.annotating) {
