@@ -414,6 +414,10 @@ impl<'a> Walk<'a, '_> {
                 }
                 Statement::If(branches, alternate, _) => {
                     for (condition, body) in branches.iter() {
+                        // A walk a branch stops lists no more of them.
+                        if self.stopped {
+                            break;
+                        }
                         self.expr(condition);
                         self.stmts(body);
                     }
@@ -466,6 +470,9 @@ impl<'a> Walk<'a, '_> {
         let start = self.here();
         let outer = self.target.replace(address);
         for rescue in attempt.rescues.iter() {
+            if self.stopped {
+                break;
+            }
             self.stmts(&rescue.body);
         }
         self.target = outer;
@@ -499,7 +506,12 @@ impl<'a> Walk<'a, '_> {
             Target::Value(expr) => self.expr(expr),
             Target::Typed(inner, _) => self.target(inner),
             Target::Tuple(parts) => {
+                // Each part is a visit, and a walk a part stops lists no
+                // more of them.
                 for (part, _) in parts.iter() {
+                    if self.visit() {
+                        return;
+                    }
                     if let Some(part) = part {
                         self.target(part);
                     }
