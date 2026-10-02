@@ -209,7 +209,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let mut modules = Buffer::new();
         let mut top = Buffer::new();
         let mut outline = Buffer::new();
-        let mut order = Vec::new();
+        let mut order = Buffer::new();
         loop {
             let (offset, first) = {
                 let mut p = self.p();
@@ -242,7 +242,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                         },
                     )?;
                     let at = p.tokens[p.significant(first + 1)].offset;
-                    order.push(Order::Function(definition.name.clone(), at));
+                    order.push(work, Order::Function(definition.name.clone(), at))?;
                     let index = defs.len();
                     def_names.insert(work, definition.name.clone(), index)?;
                     defs.push(work, definition)?;
@@ -275,7 +275,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                         },
                     )?;
                     let at = p.tokens[p.significant(first + 1)].offset;
-                    order.push(Order::Alias(name, target, found, at));
+                    order.push(work, Order::Alias(name, target, found, at))?;
                 }
                 Declared::Class(module) => {
                     let kind = if module.is_class {
@@ -297,7 +297,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                         Statement::Module(module.name.clone()).at(work, offset)?,
                     )?;
                     let index = modules.len();
-                    order.push(Order::Module(index));
+                    order.push(work, Order::Module(index))?;
                     modules.push(work, module)?;
                     p.note(|record| record.top.push((offset, record::Top::Module(index))));
                 }
@@ -312,7 +312,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                         },
                     )?;
                     let index = enums.len();
-                    order.push(Order::Enum(index));
+                    order.push(work, Order::Enum(index))?;
                     enums.push(work, (name, members))?;
                     p.note(|record| {
                         record.top.push((offset, record::Top::Enum(index)));
