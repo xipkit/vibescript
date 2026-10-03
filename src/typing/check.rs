@@ -1335,7 +1335,7 @@ impl<'a> Checker<'a> {
             };
             let callee = self.program.fns[call.callee]
                 .def
-                .map_or_else(String::new, |def| self.copy(&def.name));
+                .map_or("", |def| def.name.as_str());
             self.report(Diagnostic::error(
                 Code::UNASSIGNED_LOCAL,
                 call.span,

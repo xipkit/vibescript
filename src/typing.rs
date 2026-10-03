@@ -494,10 +494,10 @@ const LISTED: usize = 20;
 /// those it names are only counted, so a list of any length costs one
 /// short string.
 fn listed<T>(
-    meter: &meter::Meter,
+    meter: &std::sync::Arc<meter::Meter>,
     items: impl IntoIterator<Item = T>,
     mut write: impl FnMut(&mut counted::Text<'_>, T),
-) -> (String, usize) {
+) -> (counted::HeldText, usize) {
     // Written through the meter, since the items named can be long.
     let mut out = counted::Text::new(meter);
     let mut count = 0;
@@ -523,7 +523,7 @@ fn listed<T>(
     if count > LISTED {
         out.write(format_args!(" and {} more", count - LISTED));
     }
-    (out.finish(), count)
+    (out.finish_held(meter), count)
 }
 
 /// Checks one parsed source.
@@ -1085,6 +1085,53 @@ fn symbol_text(value: &crate::Value) -> Option<String> {
 mod budget_review_tests {
     use super::*;
     use std::cell::Cell;
+
+    #[test]
+    fn diagnostic_list_stays_charged_while_its_message_is_rendered() {
+        let meter = meter::Meter::new(
+            crate::compilation::Budget {
+                memory: Some(1_536),
+                ..Default::default()
+            },
+            None,
+        );
+        let name = "a".repeat(1_024);
+        let (names, count) = listed(&meter, [&name], |out, name| out.push_str(name));
+        assert_eq!(count, 1);
+        assert_eq!(&*names, name);
+        assert_eq!(meter.unmeasured(), 1_024);
+        assert_eq!(meter.held(0), 1_024);
+        assert_eq!(meter.unmeasured(), 1_024);
+        let message = counted::text(&meter, format_args!("{names}"));
+        assert!(message.is_empty());
+        assert!(meter.stopped());
+        assert_eq!(meter.unmeasured(), 1_024);
+        drop(names);
+        assert_eq!(meter.unmeasured(), 0);
+    }
+
+    #[test]
+    fn refused_diagnostic_list_releases_its_partial_text() {
+        let meter = meter::Meter::new(
+            crate::compilation::Budget {
+                memory: Some(32),
+                ..Default::default()
+            },
+            None,
+        );
+        let (names, _) = listed(
+            &meter,
+            ["short", "a name longer than the remaining quota"],
+            |out, name| {
+                out.push_str(name);
+            },
+        );
+        assert!(names.is_empty());
+        assert!(meter.stopped());
+        assert_eq!(meter.unmeasured(), 0);
+        drop(names);
+        assert_eq!(meter.unmeasured(), 0);
+    }
 
     #[test]
     fn diagnostic_list_stops_counting_when_its_budget_stops() {

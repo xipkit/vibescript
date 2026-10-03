@@ -559,11 +559,56 @@ impl<'m> Text<'m> {
     /// The text, no longer counted here: whoever keeps it counts it. A
     /// text the budget refused is empty.
     pub fn finish(mut self) -> String {
-        self.ledger.meter.dropped(self.text.capacity());
         if self.refused {
             return String::new();
         }
+        self.ledger.meter.dropped(self.text.capacity());
         std::mem::take(&mut self.text)
+    }
+
+    /// The text, still charged as scratch until the returned value drops.
+    pub fn finish_held(mut self, meter: &Arc<Meter>) -> HeldText {
+        debug_assert!(std::ptr::eq(self.ledger.meter, meter.as_ref()));
+        HeldText {
+            text: if self.refused {
+                String::new()
+            } else {
+                std::mem::take(&mut self.text)
+            },
+            meter: Arc::clone(meter),
+        }
+    }
+}
+
+impl Drop for Text<'_> {
+    fn drop(&mut self) {
+        self.ledger.meter.dropped(self.text.capacity());
+    }
+}
+
+/// Diagnostic text kept while another message is written from it.
+pub(crate) struct HeldText {
+    text: String,
+    meter: Arc<Meter>,
+}
+
+impl Deref for HeldText {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        &self.text
+    }
+}
+
+impl std::fmt::Display for HeldText {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.text)
+    }
+}
+
+impl Drop for HeldText {
+    fn drop(&mut self) {
+        self.meter.dropped(self.text.capacity());
     }
 }
 

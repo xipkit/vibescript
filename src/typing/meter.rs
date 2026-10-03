@@ -1063,6 +1063,54 @@ mod tests {
 mod budget_tests {
     use crate::{CancellationToken, compilation::Budget};
 
+    #[test]
+    fn long_method_names_keep_construction_and_file_read_diagnostics() {
+        let name = format!("read{}", "a".repeat(8_192));
+        for (source, control, file, code, message) in [
+            (
+                format!(
+                    "class C\n@a: int\ndef initialize\n{name}\n@a = 1\nend\ndef {name} -> int\n@a\nend\nend\n"
+                ),
+                format!(
+                    "class C\n@a: int\ndef initialize\n@a = 1\n{name}\nend\ndef {name} -> int\n@a\nend\nend\n"
+                ),
+                false,
+                crate::diagnostic::Code::UNINITIALIZED_IVAR,
+                format!("`{name}` reads @a before `initialize` assigns it"),
+            ),
+            (
+                format!("def {name} -> int\nx\nend\n{name}\nx = 1\n"),
+                format!("def {name} -> int\nx\nend\nx = 1\n{name}\n"),
+                true,
+                crate::diagnostic::Code::UNASSIGNED_LOCAL,
+                format!("`{name}` reads `x`, which the file has not assigned"),
+            ),
+        ] {
+            let found = checked_as(&source, Budget::default(), file);
+            assert!(!found.stopped);
+            let diagnostics: Vec<_> = found.diagnostics.iter().filter(|d| d.is_error()).collect();
+            assert_eq!(diagnostics.len(), 1, "{:?}", diagnostics);
+            assert_eq!(diagnostics[0].code, code);
+            assert!(diagnostics[0].message.contains(&message));
+            let limited = checked_as(
+                &source,
+                Budget {
+                    memory: Some(found.peak() - 1),
+                    ..Budget::default()
+                },
+                file,
+            );
+            assert!(limited.stopped);
+            let accepted = checked_as(&control, Budget::default(), file);
+            assert!(!accepted.stopped);
+            assert!(
+                !accepted.diagnostics.iter().any(|d| d.is_error()),
+                "{:?}",
+                accepted.diagnostics
+            );
+        }
+    }
+
     /// Checks `source` within `budget`.
     fn checked(source: &str, budget: Budget) -> super::super::Checked {
         checked_as(source, budget, false)

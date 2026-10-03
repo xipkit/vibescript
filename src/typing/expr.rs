@@ -2161,7 +2161,7 @@ impl<'a> Checker<'a> {
         }
         let missed = |place: usize| seen[place / 64] & (1 << (place % 64)) == 0;
         // The values the `case` misses, as their `when`s name them.
-        let (missing, name): (String, &str) = match &decl {
+        let (missing, name): (super::counted::HeldText, &str) = match &decl {
             Some(decl) => {
                 if self.types.work(count) || self.over_budget() {
                     return false;
@@ -2196,13 +2196,13 @@ impl<'a> Checker<'a> {
             return false;
         }
         let span = self.spans.token(expr.offset as usize);
-        self.non_exhaustive(span, name, missing);
+        self.non_exhaustive(span, name, &missing);
         false
     }
 
     /// Reports a `case` over `name` that does not handle the `missing`
     /// values.
-    fn non_exhaustive(&mut self, span: crate::diagnostic::Span, name: &str, missing: String) {
+    fn non_exhaustive(&mut self, span: crate::diagnostic::Span, name: &str, missing: &str) {
         self.report(Diagnostic::error(
             Code::NON_EXHAUSTIVE_CASE,
             span,

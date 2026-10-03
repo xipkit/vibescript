@@ -480,7 +480,7 @@ impl<'a> Checker<'a> {
             SiteKind::Call(callee) => {
                 let method = self.program.fns[*callee]
                     .def
-                    .map_or_else(String::new, |def| self.copy(&def.name));
+                    .map_or("", |def| def.name.as_str());
                 text!(
                     self,
                     "`{method}` reads {names} before `initialize` assigns {them}, and {they} {reads} as nil; assign {them} before this call or give {them} a default in the class body"
