@@ -670,6 +670,7 @@ fn adversarial() -> Vec<(String, String)> {
         "an unknown member of a long named enum",
         "checked arguments copying long purposes",
         "member calls on a union of long named classes",
+        "loops and blocks with many break values",
     ];
     for (name, shape) in shapes() {
         if reviewed.contains(&name) {
@@ -960,13 +961,24 @@ fn listed(n: usize, item: impl Fn(usize) -> String, separator: &str) -> String {
 /// required files, construction checks and diagnostics.
 fn shapes() -> Vec<Shape> {
     vec![
+        ("loops and blocks with many break values", |n| {
+            let breaks = lines(n * 4, |i| format!("x = {i}\nbreak x if flag\n"));
+            (
+                Vec::new(),
+                format!(
+                    "def f(flag: bool) -> int\nx = 0\nwhile flag\n{breaks}end\nfor item in [1]\n{breaks}end\n[1].each {{\n{breaks}}}\n0\nend\np(1)\n"
+                ),
+            )
+        }),
         ("member calls on a union of long named classes", |n| {
             let names: Vec<_> = (0..16)
                 .map(|i| format!("C{i}{}", "a".repeat(n * 4)))
                 .collect();
             let classes: String = names
                 .iter()
-                .map(|name| format!("class {name}\n  property value: int = 0\nend\n"))
+                .map(|name| {
+                    format!("class {name}\n  property value: int\n  def initialize(@value: int)\n  end\nend\n")
+                })
                 .collect();
             (
                 Vec::new(),
