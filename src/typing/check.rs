@@ -655,23 +655,21 @@ impl<'a> Checker<'a> {
         let (count, bytes) = named().fold((0, 0), |(count, bytes), (name, _)| {
             (count + 1, bytes + name.len())
         });
-        let Some(held) =
-            self.hold(count * std::mem::size_of::<(String, Ty, usize, VarState)>() + bytes)
-        else {
+        let mut ambient = ScratchVec::new(&self.meter);
+        if ambient.reserve_with(count, bytes).is_err() {
             self.leave_frame(previous);
             return;
-        };
-        let mut ambient = Vec::with_capacity(count);
-        ambient.extend(named().map(|(name, id)| {
+        }
+        for (name, id) in named() {
             let local = &previous.locals[id as usize];
-            (
+            ambient.push_within((
                 name.to_owned(),
                 local.declared,
                 local.offset,
                 previous.flow.get(id),
-            )
-        }));
-        for (name, declared, offset, state) in &ambient {
+            ));
+        }
+        for (name, declared, offset, state) in ambient.iter() {
             // A check the budget stops declares no more of them, and the
             // body it checks next reads no code.
             let Some(id) = self.declare(name, *declared, *offset, true) else {
@@ -685,7 +683,6 @@ impl<'a> Checker<'a> {
             }
         }
         self.stmts(&module.body, Want::Discard);
-        self.release(held);
         // What the body left of them, counted before it is copied.
         let (count, bytes) = ambient
             .iter()
@@ -693,15 +690,16 @@ impl<'a> Checker<'a> {
             .fold((0, 0), |(count, bytes), (name, ..)| {
                 (count + 1, bytes + name.len())
             });
-        if self.transient(count * std::mem::size_of::<(String, VarState)>() + bytes) {
+        let mut changes = ScratchVec::new(&self.meter);
+        if changes.reserve_with(count, bytes).is_err() {
             self.leave_frame(previous);
             return;
         }
-        let mut changes = Vec::with_capacity(count);
-        changes.extend(ambient.iter().filter_map(|(name, _, _, _)| {
-            self.local(name)
-                .map(|id| (name.clone(), self.frame.flow.get(id)))
-        }));
+        for (name, _, _, _) in ambient.iter() {
+            if let Some(id) = self.local(name) {
+                changes.push_within((name.clone(), self.frame.flow.get(id)));
+            }
+        }
         // Instance-variable defaults run for each instance.
         let defaults = self.defaults_of(module.offset);
         let bytes = super::meter::vec(&defaults);
@@ -709,9 +707,9 @@ impl<'a> Checker<'a> {
         drop(defaults);
         self.release(bytes);
         self.leave_frame(previous);
-        for (name, state) in changes {
-            if let Some(id) = self.local(&name) {
-                self.frame.flow.set(id, state);
+        for (name, state) in changes.iter() {
+            if let Some(id) = self.local(name) {
+                self.frame.flow.set(id, *state);
             }
         }
     }

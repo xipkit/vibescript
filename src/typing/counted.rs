@@ -245,6 +245,12 @@ impl<A: Owned, B: Owned, C: Owned> Owned for (A, B, C) {
     }
 }
 
+impl<A: Owned, B: Owned, C: Owned, D: Owned> Owned for (A, B, C, D) {
+    fn owned(&self) -> usize {
+        self.0.owned() + self.1.owned() + self.2.owned() + self.3.owned()
+    }
+}
+
 impl<T: Owned> Owned for Vec<T> {
     fn owned(&self) -> usize {
         self.capacity() * size_of::<T>() + self.iter().map(Owned::owned).sum::<usize>()
@@ -2266,7 +2272,7 @@ mod tests {
         ("typing.rs", [0, 0, 0, 1]),
         ("assigns.rs", [0, 0, 0, 2]),
         ("calls.rs", [0, 1, 4, 5]),
-        ("check.rs", [3, 0, 0, 11]),
+        ("check.rs", [3, 0, 0, 9]),
         ("construction.rs", [1, 0, 0, 11]),
         ("expr.rs", [2, 6, 0, 5]),
         ("flow.rs", [0, 0, 0, 6]),
