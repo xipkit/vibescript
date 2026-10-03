@@ -3802,7 +3802,7 @@ pub(super) fn assigned_names(
     // The copies are counted, with room for them, before they are made.
     let bytes = found.iter().map(|name| name.len()).sum();
     if names.reserve_with(found.len(), bytes).is_ok() {
-        for name in found.iter().copied() {
+        for &name in found.iter() {
             names.push_within(name.to_owned());
         }
     }
