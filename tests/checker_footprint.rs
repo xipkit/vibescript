@@ -671,6 +671,9 @@ fn adversarial() -> Vec<(String, String)> {
         "checked arguments copying long purposes",
         "member calls on a union of long named classes",
         "loops and blocks with many break values",
+        "a literal fitting multiple wide shapes",
+        "block assignments to many captured namespace locals",
+        "a class with many captured locals and defaults",
     ];
     for (name, shape) in shapes() {
         if reviewed.contains(&name) {
@@ -961,6 +964,51 @@ fn listed(n: usize, item: impl Fn(usize) -> String, separator: &str) -> String {
 /// required files, construction checks and diagnostics.
 fn shapes() -> Vec<Shape> {
     vec![
+        ("a literal fitting multiple wide shapes", |n| {
+            let a = listed(n, |i| format!("k{i}: int | string"), ", ");
+            let b = listed(n, |i| format!("k{i}: int | bool"), ", ");
+            let value = listed(n, |i| format!("k{i}: 1"), ", ");
+            (
+                Vec::new(),
+                format!(
+                    "type A = {{ {a} }}\ntype B = {{ {b} }}\ndef f(x: A | B) -> int\n  1\nend\nf({{ {value} }})\n"
+                ),
+            )
+        }),
+        ("block assignments to many captured namespace locals", |n| {
+            let name = |i| format!("x{i}{}", "a".repeat(64));
+            let locals = lines(n, |i| format!("{} = 0\n", name(i)));
+            let writes = lines(n, |i| format!("{} = item\n", name(i)));
+            (
+                Vec::new(),
+                format!("{locals}module M\n[1].each {{ |item|\n{writes}}}\nend\np(1)\n"),
+            )
+        }),
+        ("a class with many captured locals and defaults", |n| {
+            let name = |i| format!("x{i}{}", "a".repeat(64));
+            let locals = lines(n, |i| format!("{} = 0\n", name(i)));
+            let reads = lines(n, |i| format!("{}\n", name(i)));
+            let defaults = lines(n, |i| format!("@v{i}: int = 1\n"));
+            (
+                Vec::new(),
+                format!("{locals}class C\n{reads}{defaults}end\np(1)\n"),
+            )
+        }),
+        ("a required file copying many locals into a function", |n| {
+            let name = |i| format!("x{i}{}", "a".repeat(64));
+            let locals = lines(n, |i| format!("{} = 0\n", name(i)));
+            (
+                vec![(
+                    "locals.vibe".to_owned(),
+                    format!(
+                        "{locals}def f({}: int = 0) -> int\n  {}\nend\n",
+                        name(0),
+                        name(n - 1)
+                    ),
+                )],
+                "require('locals')\np(1)\n".to_owned(),
+            )
+        }),
         ("loops and blocks with many break values", |n| {
             let breaks = lines(n * 4, |i| format!("x = {i}\nbreak x if flag\n"));
             (
@@ -1707,6 +1755,35 @@ fn engine_with(modules: Vec<(String, String)>) -> Option<Engine> {
             .ok()?;
     }
     Some(engine)
+}
+
+#[test]
+fn the_scoped_scratch_witnesses_type_check_cleanly() {
+    let _serial = SERIAL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let names = [
+        "a literal fitting multiple wide shapes",
+        "block assignments to many captured namespace locals",
+        "a class with many captured locals and defaults",
+        "a required file copying many locals into a function",
+    ];
+    for (name, shape) in shapes()
+        .into_iter()
+        .filter(|(name, _)| names.contains(name))
+    {
+        let (modules, source) = shape(32);
+        let engine = engine_with(modules).unwrap();
+        let checked = engine.type_check(&source).expect("the source parses");
+        assert!(
+            !checked
+                .diagnostics
+                .iter()
+                .any(vibescript::diagnostic::Diagnostic::is_error),
+            "{name}: {:?}",
+            checked.diagnostics
+        );
+    }
 }
 
 /// The real peak heap of compiling `source` under `options`, above what
