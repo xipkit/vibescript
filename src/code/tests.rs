@@ -29,6 +29,73 @@ def host_value -> int; host().as(int); end
 "#;
 
 #[test]
+fn compilation_keeps_host_registry_storage_in_the_checkers_budget() {
+    use crate::{
+        capability::Registered,
+        compilation::{Budget, Meter, Work},
+    };
+    use std::cell::{Cell, RefCell};
+    use std::collections::BTreeMap;
+
+    struct CheckingWork<'a> {
+        inner: Meter<'a>,
+        held: Cell<usize>,
+    }
+    impl Work for CheckingWork<'_> {
+        fn budget(&self) -> Budget {
+            self.held
+                .set(self.inner.0.borrow().stats().retained_memory_bytes);
+            self.inner.budget()
+        }
+        fn charge(&self, steps: usize) -> crate::Result<()> {
+            self.inner.charge(steps)
+        }
+        fn bytes(&self, bytes: usize) -> crate::Result<()> {
+            self.inner.bytes(bytes)
+        }
+        fn checkpoint(&self) -> crate::Result<()> {
+            self.inner.checkpoint()
+        }
+        fn reserve(&self, bytes: usize) -> crate::Result<Option<crate::budget::Charge>> {
+            self.inner.reserve(bytes)
+        }
+        fn allocation_error(&self, message: &str) -> crate::Error {
+            self.inner.allocation_error(message)
+        }
+    }
+    let callback: crate::HostCallback = Arc::new(|_, _, _| Ok(Value::nil()));
+    let registered: BTreeMap<_, _> = (0..1_000)
+        .map(|i| (format!("host_{i}"), Registered::Callback(callback.clone())))
+        .collect();
+    let check = |registered: &BTreeMap<String, Registered>| {
+        let mut context = CallContext::new(CallOptions {
+            limits: Limits {
+                steps: None,
+                memory_bytes: None,
+                ..Limits::default()
+            },
+            ..CallOptions::default()
+        });
+        let work = CheckingWork {
+            inner: Meter(RefCell::new(&mut context)),
+            held: Cell::new(0),
+        };
+        let code = super::Code::compile_mode("1", registered.iter(), false, None, &work).unwrap();
+        let held = work.held.get();
+        drop(work);
+        assert_eq!(context.stats().retained_memory_bytes, 0);
+        drop(code);
+        held
+    };
+    let baseline = check(&BTreeMap::new());
+    let held = check(&registered);
+    assert!(
+        held >= baseline + registered.len() * std::mem::size_of::<(&String, &Registered)>(),
+        "host registry held {held} bytes, baseline {baseline}"
+    );
+}
+
+#[test]
 fn compiler_diagnostics_preserve_latched_control_errors() {
     let source = format!("{}def", "# text\n".repeat(256));
     let registered = std::collections::BTreeMap::new();

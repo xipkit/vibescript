@@ -144,11 +144,16 @@ impl Code {
         let resolve = |path: &str, origin: Option<&crate::loading::Origin>, ctx: &mut _| {
             loader.unwrap().source(path, origin, ctx)
         };
+        let mut registered_hosts =
+            crate::compilation::Buffer::with_capacity(work, registered.clone().size_hint().0)?;
+        for host in registered.clone() {
+            registered_hosts.push(work, host)?;
+        }
         let mut checked = crate::typing::check(&crate::typing::Input {
             source,
             parsed: &parsed,
             tokens: &tokens,
-            hosts: &registered.clone().collect::<Vec<_>>(),
+            hosts: &registered_hosts,
             declared,
             file,
             origin: origin.as_ref(),
@@ -174,6 +179,7 @@ impl Code {
         // own account, held this much at most at once while they ran, which
         // counts toward the call's peak and its quota.
         drop(work.reserve(checked.peak())?);
+        drop(registered_hosts);
         // What the check found stays while the compiler reads it.
         let _found = work.reserve(checked.bytes())?;
         if checked.diagnostics.iter().any(|d| d.is_error()) {
