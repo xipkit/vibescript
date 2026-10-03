@@ -680,7 +680,17 @@ impl<T: Owned> ScratchVec<T> {
     where
         T: PartialEq,
     {
-        self.list.dedup();
+        let mut removed = 0;
+        self.list.0.dedup_by(|value, previous| {
+            if value == previous {
+                removed += value.owned();
+                true
+            } else {
+                false
+            }
+        });
+        self.owned -= removed;
+        self.meter.dropped(removed);
     }
 
     /// Takes the last element, giving back what it owns.
@@ -1725,6 +1735,31 @@ mod tests {
             let mut list = ScratchVec::new(&meter);
             list.push("z".repeat(500)).unwrap();
             assert!(meter.unmeasured() >= 500);
+        }
+        assert_eq!(meter.unmeasured(), 0);
+    }
+
+    #[test]
+    fn a_scratch_list_gives_back_deduplicated_payloads() {
+        let meter = meter(Some(8 * size_of::<String>() + 4_096 + 3 * 8_192));
+        {
+            let mut list = ScratchVec::new(&meter);
+            let first = "a".repeat(4_096);
+            list.push(first.clone()).unwrap();
+            for _ in 0..3 {
+                let mut duplicate = String::with_capacity(8_192);
+                duplicate.push_str(&first);
+                list.push(duplicate).unwrap();
+            }
+            list.dedup();
+            assert_eq!(list.len(), 1);
+            assert_eq!(
+                meter.unmeasured(),
+                list.list.capacity() * size_of::<String>() + 4_096
+            );
+            // Freed duplicate payloads leave room for another name.
+            list.push("b".repeat(8_192)).unwrap();
+            assert!(!meter.stopped());
         }
         assert_eq!(meter.unmeasured(), 0);
     }
