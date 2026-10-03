@@ -230,20 +230,28 @@ fn verdicts(args: &[String], make_case: fn(u64, &str) -> Case) -> i32 {
 /// a build of the second version, it checks each such program again and
 /// sorts them by its first error's message, with the names in it left out.
 fn rejections(args: &[String]) -> i32 {
-    let read = |path: &String| -> BTreeMap<u64, String> {
-        let text = std::fs::read_to_string(path).expect("read a verdicts file");
-        text.lines()
-            .filter_map(|line| {
-                let (seed, outcome) = line.split_once(' ')?;
-                Some((seed.parse().ok()?, outcome.to_owned()))
-            })
-            .collect()
-    };
     let (Some(before), Some(after)) = (args.first(), args.get(1)) else {
         eprintln!("usage: checker_diff rejections BEFORE AFTER [--source S] [--out DIR]");
         return 2;
     };
-    let (before, after) = (read(before), read(after));
+    let read = |path: &String| {
+        std::fs::read_to_string(path)
+            .map_err(|error| error.to_string())
+            .and_then(|text| parse_verdicts(&text))
+            .map_err(|error| format!("{path}: {error}"))
+    };
+    let (before, after) =
+        match read(before).and_then(|before| read(after).map(|after| (before, after))) {
+            Ok(files) => files,
+            Err(error) => {
+                eprintln!("{error}");
+                return 2;
+            }
+        };
+    if !before.keys().eq(after.keys()) {
+        eprintln!("verdict files must contain the same seeds");
+        return 2;
+    }
     let source = option(args, "--source").unwrap_or_else(|| "generated".to_owned());
     let out =
         PathBuf::from(option(args, "--out").unwrap_or_else(|| "checker-rejections".to_owned()));
@@ -256,9 +264,7 @@ fn rejections(args: &[String]) -> i32 {
     let mut scratch = Scratch::new(&scratch_root(0));
     let mut compared = 0;
     for (seed, first) in &before {
-        let Some(second) = after.get(seed) else {
-            continue;
-        };
+        let second = &after[seed];
         compared += 1;
         if first == second {
             continue;
@@ -308,6 +314,35 @@ fn rejections(args: &[String]) -> i32 {
     }
     println!("  programs in {}", out.display());
     0
+}
+
+/// Reads one verdict per seed, in any order, without missing or duplicate seeds.
+fn parse_verdicts(text: &str) -> Result<BTreeMap<u64, String>, String> {
+    let mut verdicts = BTreeMap::new();
+    for (index, line) in text.lines().enumerate() {
+        let (seed, outcome) = line
+            .split_once(' ')
+            .ok_or_else(|| format!("invalid verdict on line {}", index + 1))?;
+        let seed: u64 = seed
+            .parse()
+            .map_err(|_| format!("invalid seed on line {}", index + 1))?;
+        let valid = matches!(outcome, "ran" | "failed" | "limited" | "panicked")
+            || outcome
+                .strip_prefix("rejected ")
+                .is_some_and(|code| !code.is_empty() && !code.chars().any(char::is_whitespace));
+        if !valid {
+            return Err(format!("invalid outcome on line {}", index + 1));
+        }
+        if verdicts.insert(seed, outcome.to_owned()).is_some() {
+            return Err(format!("duplicate seed {seed} on line {}", index + 1));
+        }
+    }
+    for (&previous, &next) in verdicts.keys().zip(verdicts.keys().skip(1)) {
+        if previous.checked_add(1) != Some(next) {
+            return Err(format!("missing seeds between {previous} and {next}"));
+        }
+    }
+    Ok(verdicts)
 }
 
 /// `message` with each name in backticks, and each number, left out, so
@@ -366,6 +401,61 @@ type Watch = Arc<Mutex<Vec<Option<(u64, Instant)>>>>;
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn verdict_seed_order_and_all_complete_outcomes_are_preserved() {
+        let found = super::parse_verdicts(
+            "12 rejected V0101:\n10 ran\n14 limited\n11 failed\n13 panicked\n",
+        )
+        .unwrap();
+        assert_eq!(
+            found.keys().copied().collect::<Vec<_>>(),
+            [10, 11, 12, 13, 14]
+        );
+        assert_eq!(found[&12], "rejected V0101:");
+        assert!(super::parse_verdicts("").unwrap().is_empty());
+        assert_eq!(
+            super::parse_verdicts("18446744073709551615 ran\n")
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+    #[test]
+    fn rejections_refuse_incomplete_or_malformed_seed_sets_before_creating_output() {
+        let root = super::scratch_root(usize::MAX - 2);
+        std::fs::create_dir_all(&root).unwrap();
+        let before = root.join("before.txt");
+        let after = root.join("after.txt");
+        let out = root.join("out");
+        let args = vec![
+            before.display().to_string(),
+            after.display().to_string(),
+            "--out".to_owned(),
+            out.display().to_string(),
+        ];
+        let mut results = Vec::new();
+        for (first, second) in [
+            ("0 ran\n1 ran\n", "0 ran\n"),
+            ("0 ran\n", "0 ran\n1 ran\n"),
+            ("0 ran\n", "1 ran\n"),
+            ("0 ran\n2 ran\n", "0 ran\n2 ran\n"),
+            ("0 ran\nbad row\n", "0 ran\n"),
+            ("0 ran\n0 failed\n", "0 failed\n"),
+            ("0 ran\n", "0 \n"),
+            ("0 ran\n", "0 rejected \n"),
+            ("0 ran\n", "0 r\n"),
+        ] {
+            std::fs::write(&before, first).unwrap();
+            std::fs::write(&after, second).unwrap();
+            results.push((super::rejections(&args), out.exists()));
+        }
+        std::fs::remove_dir_all(root).unwrap();
+        for (status, wrote) in results {
+            assert_eq!(status, 2);
+            assert!(!wrote, "invalid verdicts must not create output");
+        }
+    }
+
     #[test]
     fn rejections_fail_when_a_program_cannot_be_saved() {
         let root = super::scratch_root(usize::MAX - 1);

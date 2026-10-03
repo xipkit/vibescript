@@ -72,6 +72,8 @@ checker_diff verdicts --from 0 --count 2000000 --jobs 12 --source mixed > after.
 checker_diff rejections before.txt after.txt --source mixed --out DIR
 ```
 
+Both files must cover the same contiguous seed range with one valid verdict per seed. Comparison rejects malformed, duplicate or missing rows before creating `DIR`.
+
 It prints how many seeds went from each outcome to each other, and writes to `DIR` each program the second rejects that the first accepts and runs without an error, up to 200 of each kind, headed by its seed and the second's first error. Run by a build of the second version, it checks each such program again and counts them by that error's message, with names and numbers left out. Each is a regression, unless the second version means to reject it, as a new diagnostic or a limit does.
 
 ## Known disagreements
