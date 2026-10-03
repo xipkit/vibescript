@@ -3836,6 +3836,28 @@ pub(crate) enum Purpose {
     Break(String, bool),
 }
 
+impl Purpose {
+    /// The name storage a copy of this purpose allocates.
+    pub(super) fn copied_bytes(&self) -> usize {
+        match self {
+            Purpose::Local(name)
+            | Purpose::Global(name)
+            | Purpose::Ivar(name)
+            | Purpose::Field(name)
+            | Purpose::Break(name, _) => name.len(),
+            Purpose::Argument { name, function, .. } | Purpose::Keyword { name, function } => {
+                name.len() + function.len()
+            }
+            Purpose::Result
+            | Purpose::BlockResult
+            | Purpose::Element
+            | Purpose::Annotation
+            | Purpose::Yield(_)
+            | Purpose::Operand => 0,
+        }
+    }
+}
+
 impl Heap for Purpose {
     fn heap(&self) -> usize {
         match self {
@@ -3884,22 +3906,7 @@ impl<'a> Checker<'a> {
     /// returned guard counts them until the caller drops it.
     pub(super) fn current_purpose(&self) -> Option<CurrentPurpose> {
         let purpose = self.purposes.last().unwrap_or(&Purpose::Result);
-        let bytes = match purpose {
-            Purpose::Local(name)
-            | Purpose::Global(name)
-            | Purpose::Ivar(name)
-            | Purpose::Field(name)
-            | Purpose::Break(name, _) => name.len(),
-            Purpose::Argument { name, function, .. } | Purpose::Keyword { name, function } => {
-                name.len() + function.len()
-            }
-            Purpose::Result
-            | Purpose::BlockResult
-            | Purpose::Element
-            | Purpose::Annotation
-            | Purpose::Yield(_)
-            | Purpose::Operand => 0,
-        };
+        let bytes = purpose.copied_bytes();
         if self.meter.charge((bytes / 64) as u64) || self.meter.scratch_lists().keep(bytes).is_err()
         {
             return None;

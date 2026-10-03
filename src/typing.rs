@@ -580,7 +580,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         calls: CountedVec::new(),
         constants: CountedMap::new(),
         frame: check::Frame::new(&meter, None, false, None, String::new()),
-        purposes: CountedVec::new(),
+        purposes: counted::ScratchVec::new(&meter),
         mute: 0,
         modules: modules::Required::new(input, depth),
         memo: meter::MemoSlot::default(),
@@ -892,7 +892,7 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
         calls: CountedVec::new(),
         constants: CountedMap::new(),
         frame: check::Frame::new(&meter, None, false, None, String::new()),
-        purposes: CountedVec::new(),
+        purposes: counted::ScratchVec::new(&meter),
         mute: 0,
         modules: modules::Required::new(input, 0),
         memo: meter::MemoSlot::default(),
@@ -982,7 +982,7 @@ pub(crate) struct Checker<'a> {
     constants: CountedMap<(Option<program::NsId>, String), ty::Ty>,
     frame: check::Frame,
     /// Why the value being checked against a type is checked, innermost last.
-    purposes: CountedVec<check::Purpose>,
+    purposes: counted::ScratchVec<check::Purpose>,
     /// While positive, diagnostics are dropped: a second look at code that
     /// was already checked.
     mute: u32,

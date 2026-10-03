@@ -983,24 +983,6 @@ impl<T> CountedVec<T> {
         self.0.push(value);
     }
 
-    /// Adds the value `make` copies, room for it and the `bytes` it owns
-    /// counted before it is made; a value the budget refuses is not made.
-    #[must_use = "a refusal stops the check, whose table must then keep nothing more"]
-    pub fn push_made(
-        &mut self,
-        ledger: Ledger<'_>,
-        bytes: usize,
-        make: impl FnOnce() -> T,
-    ) -> Result<(), Refused>
-    where
-        T: Owned,
-    {
-        self.reserve(ledger, 1)?;
-        let mut kept = ledger.keep(bytes)?;
-        self.push_kept(&mut kept, make());
-        Ok(())
-    }
-
     /// Adds `value` in room [`Self::reserve`] made for it, whose place it
     /// moved from counted what it owns until now, such as the state a loop
     /// was left in, taken from the loop once it ends.
@@ -1780,6 +1762,34 @@ mod tests {
             let mut list = ScratchVec::new(&meter);
             list.push("z".repeat(500)).unwrap();
             assert!(meter.unmeasured() >= 500);
+        }
+        assert_eq!(meter.unmeasured(), 0);
+    }
+
+    #[test]
+    fn a_purpose_stack_refunds_copied_names_before_the_next_measure() {
+        use super::super::check::Purpose;
+        let meter = meter(Some(1_024));
+        let mut name = String::with_capacity(2_048);
+        name.push_str("parameter");
+        let purpose = Purpose::Argument {
+            index: 0,
+            name,
+            function: "f".repeat(256),
+        };
+        {
+            let mut stack = ScratchVec::new(&meter);
+            for _ in 0..1_000 {
+                stack.reserve_with(1, purpose.copied_bytes()).unwrap();
+                stack.push_within(purpose.clone());
+                let slots = stack.list.capacity() * size_of::<Purpose>();
+                assert_eq!(meter.unmeasured(), slots + purpose.copied_bytes());
+                meter.outside(0);
+                assert_eq!(meter.unmeasured(), slots + purpose.copied_bytes());
+                drop(stack.pop());
+                assert_eq!(meter.unmeasured(), slots);
+                assert!(!meter.stopped());
+            }
         }
         assert_eq!(meter.unmeasured(), 0);
     }

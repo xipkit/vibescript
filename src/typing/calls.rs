@@ -2831,11 +2831,7 @@ impl<'a> Checker<'a> {
         self.widen_for_loop(&block.body);
         // Room for the purpose is counted before it is kept; a block the
         // budget refuses it is not checked.
-        let tail = if self
-            .purposes
-            .push(self.meter.tables(), Purpose::BlockResult)
-            .is_ok()
-        {
+        let tail = if self.purposes.push(Purpose::BlockResult).is_ok() {
             let tail = self.stmts(&block.body, want);
             self.purposes.pop();
             tail

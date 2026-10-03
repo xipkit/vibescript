@@ -653,7 +653,6 @@ impl<'a> super::Checker<'a> {
             + contexts
             + self.saved
             + self.scratch
-            + self.purposes.heap()
             + self.memo.get().map_or(0, super::Memo::bytes)
             + set(&self.write_chain)
             + map(&self.fetch_receivers)
@@ -1062,6 +1061,26 @@ mod tests {
 #[cfg(test)]
 mod budget_tests {
     use crate::{CancellationToken, compilation::Budget};
+
+    #[test]
+    fn short_lived_purposes_do_not_accumulate_between_measures() {
+        let parameter = format!("p{}", "a".repeat(2_048));
+        let source = format!(
+            "def f({parameter}: int) -> int\n1\nend\n{}",
+            "f(true ? 1 : 2)\n".repeat(32)
+        );
+        let found = checked(&source, Budget::default());
+        assert!(!found.stopped);
+        assert!(!found.diagnostics.iter().any(|d| d.is_error()));
+        let limited = checked(
+            &source,
+            Budget {
+                memory: Some(found.peak()),
+                ..Budget::default()
+            },
+        );
+        assert!(!limited.stopped);
+    }
 
     #[test]
     fn long_method_names_keep_construction_and_file_read_diagnostics() {
