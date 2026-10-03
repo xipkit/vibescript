@@ -145,7 +145,7 @@ impl Aliases {
             if nodes > MAX_NODES {
                 return Err(too_large(work, name));
             }
-            Ok(Some(resolved.clone()))
+            Ok(Some(copy_type(resolved, work)?))
         })?;
         if nodes > 0 && compiled.height() > 2 * MAX_HEIGHT {
             return Err(crate::compilation::error(
@@ -193,7 +193,7 @@ impl Resolving<'_> {
         let mut nodes = 0;
         let compiled = entry.alias.ty.compile_with(work, &mut |work, name| {
             let Some(target) = self.lookup(&entry.scope, name) else {
-                return Ok(self.builtin(name).cloned());
+                return self.builtin(name).map(|ty| copy_type(ty, work)).transpose();
             };
             self.resolve(target, work)?;
             let resolved = self.resolved[target].as_ref().unwrap();
@@ -202,7 +202,7 @@ impl Resolving<'_> {
             if nodes > MAX_NODES {
                 return Err(too_large(work, &entry.alias.name));
             }
-            Ok(Some(resolved.clone()))
+            Ok(Some(copy_type(resolved, work)?))
         })?;
         self.path.pop();
         if compiled.height() > MAX_HEIGHT {
@@ -233,6 +233,67 @@ impl Resolving<'_> {
     fn builtin(&self, name: &str) -> Option<&'static types::Type> {
         crate::signatures::alias_type(name).filter(|_| self.builtins)
     }
+}
+
+// Expanded aliases can own tens of thousands of nodes. Poll during a copy
+// even when its work was charged up front.
+fn copy_type(ty: &types::Type, work: &dyn Work) -> Result<types::Type> {
+    use types::TypeKind;
+    work.checkpoint()?;
+    let kind = match &ty.kind {
+        TypeKind::Scalar(scalar) => TypeKind::Scalar(*scalar),
+        TypeKind::Array(element) => TypeKind::Array(
+            element
+                .as_ref()
+                .map(|element| Ok(Box::new(copy_type(element, work)?)))
+                .transpose()?,
+        ),
+        TypeKind::Hash(pair) => TypeKind::Hash(
+            pair.as_ref()
+                .map(|pair| {
+                    Ok(Box::new((
+                        copy_type(&pair.0, work)?,
+                        copy_type(&pair.1, work)?,
+                    )))
+                })
+                .transpose()?,
+        ),
+        TypeKind::Shape(fields, open) => {
+            let mut copied = Vec::with_capacity(fields.len());
+            for field in fields {
+                work.checkpoint()?;
+                copied.push(types::Field {
+                    name: field.name.clone(),
+                    ty: copy_type(&field.ty, work)?,
+                    optional: field.optional,
+                });
+            }
+            TypeKind::Shape(copied, *open)
+        }
+        TypeKind::Union(options) | TypeKind::Tuple(options) => {
+            let mut copied = Vec::with_capacity(options.len());
+            for option in options {
+                copied.push(copy_type(option, work)?);
+            }
+            if matches!(ty.kind, TypeKind::Union(_)) {
+                TypeKind::Union(copied)
+            } else {
+                TypeKind::Tuple(copied)
+            }
+        }
+        TypeKind::Literal(described) => TypeKind::Literal(
+            described
+                .as_ref()
+                .map(|described| Ok(Box::new(copy_type(described, work)?)))
+                .transpose()?,
+        ),
+        TypeKind::Named => TypeKind::Named,
+    };
+    Ok(types::Type {
+        name: ty.name.clone(),
+        kind,
+        nullable: ty.nullable,
+    })
 }
 
 /// A scope and each scope enclosing it, ending with the top level.
