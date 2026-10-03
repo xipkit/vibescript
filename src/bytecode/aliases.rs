@@ -235,11 +235,11 @@ impl Resolving<'_> {
     }
 }
 
-// Expanded aliases can own tens of thousands of nodes. Poll during a copy
-// even when its work was charged up front.
+// Expanded aliases can own tens of thousands of nodes. Charge name bytes
+// and poll during a copy even when its node count was charged up front.
 fn copy_type(ty: &types::Type, work: &dyn Work) -> Result<types::Type> {
     use types::TypeKind;
-    work.checkpoint()?;
+    work.bytes(ty.name.len())?;
     let kind = match &ty.kind {
         TypeKind::Scalar(scalar) => TypeKind::Scalar(*scalar),
         TypeKind::Array(element) => TypeKind::Array(
@@ -261,7 +261,7 @@ fn copy_type(ty: &types::Type, work: &dyn Work) -> Result<types::Type> {
         TypeKind::Shape(fields, open) => {
             let mut copied = Vec::with_capacity(fields.len());
             for field in fields {
-                work.checkpoint()?;
+                work.bytes(field.name.len())?;
                 copied.push(types::Field {
                     name: field.name.clone(),
                     ty: copy_type(&field.ty, work)?,
@@ -325,4 +325,39 @@ pub(super) fn scope(
     namespace: Option<usize>,
 ) -> &str {
     namespace.map_or("", |index| namespaces[index].name.as_str())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{CallContext, CallOptions, ErrorKind, Limits, compilation::Meter};
+    use std::cell::RefCell;
+
+    #[test]
+    fn alias_copies_charge_field_and_type_name_bytes() {
+        let named = types::Type::named("N".repeat(4_096));
+        let shape = types::Type {
+            name: String::new(),
+            kind: types::TypeKind::Shape(
+                vec![types::Field {
+                    name: vec![b'f'; 4_096],
+                    ty: types::Type::named("int".into()),
+                    optional: false,
+                }],
+                false,
+            ),
+            nullable: false,
+        };
+        for ty in [named, shape] {
+            let mut context = CallContext::new(CallOptions {
+                limits: Limits {
+                    steps: Some(10),
+                    ..Limits::default()
+                },
+                ..CallOptions::default()
+            });
+            let error = copy_type(&ty, &Meter(RefCell::new(&mut context))).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Steps);
+        }
+    }
 }
