@@ -2264,7 +2264,7 @@ mod tests {
     /// list, counted while it lives.
     const MADE: &[(&str, [usize; 4])] = &[
         ("typing.rs", [0, 0, 0, 1]),
-        ("assigns.rs", [0, 0, 0, 3]),
+        ("assigns.rs", [0, 0, 0, 2]),
         ("calls.rs", [0, 1, 4, 5]),
         ("check.rs", [3, 0, 0, 11]),
         ("construction.rs", [1, 0, 0, 11]),
@@ -2342,7 +2342,7 @@ mod tests {
         // The frame's name, and the results of a stopped check.
         ("typing.rs", [6, 0, 0]),
         // A stopped walk's results, and a root without assignments.
-        ("assigns.rs", [4, 0, 0]),
+        ("assigns.rs", [2, 0, 0]),
         // Bindings of signatures without type variables, and the members
         // of a host or builtin namespace of one name, a few.
         ("calls.rs", [21, 2, 0]),

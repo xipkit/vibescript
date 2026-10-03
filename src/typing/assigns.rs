@@ -12,7 +12,7 @@
 //! meter, and stops with the check.
 
 use super::{
-    counted::{CountedMap, CountedSet, CountedVec},
+    counted::{CountedMap, CountedSet, CountedVec, ScratchVec},
     meter::Meter,
 };
 use crate::syntax::{Argument, Expr, Node, Statement, Stmt, Target, Try, When};
@@ -151,27 +151,23 @@ impl<'a> Assigns<'a> {
     }
 
     /// The distinct names `span`'s assignments write, in the order of their
-    /// first assignment there. They are counted before they are listed:
-    /// `reserve` is given their number and the bytes of the names, and
-    /// none are listed unless it returns true.
-    pub fn distinct(&self, span: Span, reserve: impl FnOnce(usize, usize) -> bool) -> Vec<&'a str> {
+    /// first assignment there, counted before they are listed and until
+    /// the returned list is dropped.
+    pub fn distinct(&self, meter: &std::sync::Arc<Meter>, span: Span) -> ScratchVec<&'a str> {
+        let mut names = ScratchVec::new(meter);
         if span.start >= span.end {
-            return Vec::new();
+            return names;
         }
         let root = &self.roots[span.root as usize];
         let all = |found: &mut dyn FnMut(u32)| {
             self.first(root, span, 1, root.start, root.start + root.width, found);
         };
-        let (mut count, mut bytes) = (0, 0);
-        all(&mut |id| {
-            count += 1;
-            bytes += self.names[id as usize].0.len();
-        });
-        if !reserve(count, bytes) {
-            return Vec::new();
+        let mut count = 0;
+        all(&mut |_| count += 1);
+        if names.reserve(count).is_err() {
+            return names;
         }
-        let mut names = Vec::with_capacity(count);
-        all(&mut |id| names.push(self.names[id as usize].0));
+        all(&mut |id| names.push_within(self.names[id as usize].0));
         names
     }
 

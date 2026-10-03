@@ -1616,13 +1616,11 @@ impl<'a> Checker<'a> {
         if self.halted() {
             return;
         }
-        let names = self.assigns.distinct(span, |count, _| {
-            !self.transient(count * std::mem::size_of::<&str>())
-        });
+        let names = self.assigns.distinct(&self.meter, span);
         if self.meter.charge(names.len() as u64) {
             return;
         }
-        for name in names {
+        for name in names.iter().copied() {
             if let Some(id) = self.local(name) {
                 let state = self.frame.flow.get(id);
                 let declared = self.frame.locals[id as usize].declared;
@@ -3788,23 +3786,14 @@ pub(super) fn assigned_names(
     // The list of the names is counted before it is made, beside the
     // index, which its growth counted already; their copies are counted,
     // with the list they go in, as it takes them.
-    let mut held = 0;
-    let found = assigns.distinct(span, |count, _| {
-        let bytes = count * std::mem::size_of::<&str>();
-        if meter.scratch_lists().keep(bytes).is_err() {
-            return false;
-        }
-        held = bytes;
-        true
-    });
+    let found = assigns.distinct(meter, span);
     // The copies are counted, with room for them, before they are made.
     let bytes = found.iter().map(|name| name.len()).sum();
     if names.reserve_with(found.len(), bytes).is_ok() {
-        for name in found {
+        for name in found.iter().copied() {
             names.push_within(name.to_owned());
         }
     }
-    meter.dropped(held);
 }
 
 /// Why a value is checked against a type, for messages.

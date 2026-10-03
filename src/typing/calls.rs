@@ -2719,10 +2719,8 @@ impl<'a> Checker<'a> {
         }
         // The widening below charges for listing these names.
         let span = self.assigns.body(&self.meter, &block.body);
-        let names = self.assigns.distinct(span, |count, _| {
-            !self.transient(count * std::mem::size_of::<&str>())
-        });
-        for name in names {
+        let names = self.assigns.distinct(&self.meter, span);
+        for name in names.iter().copied() {
             if let Some(id) = self.local(name) {
                 // The enclosing locals are listed in the order of their ids.
                 if self.frame.ambient.binary_search(&id).is_ok()
@@ -2738,6 +2736,7 @@ impl<'a> Checker<'a> {
                 }
             }
         }
+        drop(names);
         let before = self.frame.flow.mark();
         let (result, used) = match want {
             Want::Check(expected) => (Some(expected), true),

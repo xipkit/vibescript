@@ -2269,26 +2269,18 @@ impl<'a> Checker<'a> {
     /// values beside what unwritten paths retain from the body.
     fn ensure(&mut self, ensure: &'a [Stmt], explored: ScratchVec<Branch>, spans: TrySpans) {
         let mark = self.frame.flow.mark();
-        let mut names_held = 0;
-        let names = self.assigns.distinct(spans.ensure, |count, _| {
-            let bytes = count * std::mem::size_of::<&str>();
-            if self.meter.scratch_lists().keep(bytes).is_err() {
-                return false;
-            }
-            names_held = bytes;
-            true
-        });
+        let names = self.assigns.distinct(&self.meter, spans.ensure);
         if self
             .frame
             .ensure_writes
             .push(self.meter.tables(), super::counted::CountedMap::new())
             .is_err()
         {
-            self.meter.dropped(names_held);
+            drop(names);
             self.join_explored(explored);
             return;
         }
-        for name in names {
+        for name in names.iter().copied() {
             if self.meter.charge(1) {
                 break;
             }
@@ -2317,7 +2309,7 @@ impl<'a> Checker<'a> {
                 break;
             }
         }
-        self.meter.dropped(names_held);
+        drop(names);
         self.widen(spans.ensured());
         self.stmts(ensure, Want::Discard);
         let ensured = self.frame.flow.live;
