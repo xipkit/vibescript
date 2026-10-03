@@ -153,7 +153,9 @@ fn verdicts(args: &[String], make_case: fn(u64, &str) -> Case) -> i32 {
         mutate::corpus();
     }
     let next = Arc::new(AtomicU64::new(from));
-    let end = from + count;
+    let end = from
+        .checked_add(count)
+        .expect("verdict seed range overflows u64");
     let output = Arc::new(Mutex::new(std::io::BufWriter::new(std::io::stdout())));
     let current: Watch = Arc::new(Mutex::new(vec![None; jobs]));
     let mut handles = Vec::new();
@@ -356,6 +358,20 @@ mod tests {
     #[test]
     fn verdicts_reject_zero_workers() {
         let args = ["--count", "1", "--jobs", "0"].map(str::to_owned);
+        assert!(std::panic::catch_unwind(|| super::verdicts(&args, super::case_for)).is_err());
+    }
+
+    #[test]
+    fn verdicts_reject_overflowing_seed_ranges() {
+        let args = [
+            "--from",
+            "18446744073709551615",
+            "--count",
+            "1",
+            "--jobs",
+            "1",
+        ]
+        .map(str::to_owned);
         assert!(std::panic::catch_unwind(|| super::verdicts(&args, super::case_for)).is_err());
     }
 
