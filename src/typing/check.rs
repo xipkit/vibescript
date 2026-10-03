@@ -809,32 +809,29 @@ impl<'a> Checker<'a> {
         let previous = self.enter_frame(frame);
         if self.program.file && !main {
             // The file's locals are copied, and counted before they are.
-            if self.transient(self.program.file_locals.heap()) {
+            let Some(held) = self.hold(self.program.file_locals.heap()) else {
+                self.leave_frame(previous);
+                return;
+            };
+            // Each function declares every one of the file's locals, a step
+            // each, but those its parameters name, which are its own.
+            if self.meter.charge(self.program.file_locals.len() as u64) {
+                self.release(held);
                 self.leave_frame(previous);
                 return;
             }
             let mut locals = self.program.file_locals.clone().into_map();
-            // Each function declares every one of the file's locals, a step
-            // each, but those its parameters name, which are its own.
-            if self.meter.charge(locals.len() as u64) {
-                self.leave_frame(previous);
-                return;
-            }
             for param in def.params.iter() {
                 locals.remove(param.name.as_str());
             }
-            for (name, (ty, offset)) in locals {
-                let Some(id) = self.declare(&name, ty, offset, true) else {
-                    self.leave_frame(previous);
-                    return;
-                };
-                self.assign_local(id, ty);
-                // Declared in turn, so listed in the order of their ids.
-                debug_assert!(self.frame.shared.last().is_none_or(|&last| last < id));
-                if self.frame.shared.push(self.meter.tables(), id).is_err() {
-                    self.leave_frame(previous);
-                    return;
-                }
+            let bytes = locals.heap();
+            self.release(held - bytes);
+            let declared = self.declare_file_locals(&locals);
+            drop(locals);
+            self.release(bytes);
+            if !declared {
+                self.leave_frame(previous);
+                return;
             }
         }
         if instance && def.name == "initialize" {
@@ -962,6 +959,23 @@ impl<'a> Checker<'a> {
             self.finish_initialize(Span::at(def.offset as usize));
         }
         self.leave_frame(previous);
+    }
+
+    /// Declares a required file's locals while the caller keeps their
+    /// copied map and names charged, including on a refused declaration.
+    fn declare_file_locals(&mut self, locals: &HashMap<String, (Ty, usize)>) -> bool {
+        for (name, &(ty, offset)) in locals {
+            let Some(id) = self.declare(name, ty, offset, true) else {
+                return false;
+            };
+            self.assign_local(id, ty);
+            // Declared in turn, so listed in the order of their ids.
+            debug_assert!(self.frame.shared.last().is_none_or(|&last| last < id));
+            if self.frame.shared.push(self.meter.tables(), id).is_err() {
+                return false;
+            }
+        }
+        true
     }
 
     /// Declares the instance variables `initialize` must assign.
