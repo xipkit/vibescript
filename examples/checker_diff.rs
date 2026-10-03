@@ -139,6 +139,15 @@ fn next_seed(next: &AtomicU64, end: u64) -> Option<u64> {
     .ok()
 }
 
+/// The positive number of workers shared by both differential commands.
+fn worker_count(args: &[String]) -> usize {
+    let jobs = option(args, "--jobs")
+        .and_then(|value| value.parse().ok())
+        .unwrap_or_else(|| std::thread::available_parallelism().map_or(1, |n| n.get()));
+    assert!(jobs > 0, "differential runs need at least one worker");
+    jobs
+}
+
 /// Prints how a build takes the programs of seeds N to N+M-1, a line a
 /// seed in the order they finish: the seed, then `rejected CODE`, or how
 /// running it with every check kept ended: `ran`, `failed`, `limited` or
@@ -152,10 +161,7 @@ fn verdicts(args: &[String], make_case: fn(u64, &str) -> Case) -> i32 {
     let count: u64 = option(args, "--count")
         .and_then(|value| value.parse().ok())
         .unwrap_or(1000);
-    let jobs: usize = option(args, "--jobs")
-        .and_then(|value| value.parse().ok())
-        .unwrap_or_else(|| std::thread::available_parallelism().map_or(1, |n| n.get()));
-    assert!(jobs > 0, "verdicts needs at least one worker");
+    let jobs = worker_count(args);
     let source = option(args, "--source").unwrap_or_else(|| "generated".to_owned());
     if matches!(source.as_str(), "corpus" | "mixed") {
         mutate::corpus();
@@ -360,6 +366,22 @@ type Watch = Arc<Mutex<Vec<Option<(u64, Instant)>>>>;
 #[cfg(test)]
 mod tests {
     #[test]
+    fn batch_rejects_zero_workers_before_creating_output() {
+        let out = super::scratch_root(usize::MAX).join("zero-workers");
+        let args = vec![
+            "--count".to_owned(),
+            "1".to_owned(),
+            "--jobs".to_owned(),
+            "0".to_owned(),
+            "--out".to_owned(),
+            out.to_str().unwrap().to_owned(),
+        ];
+        assert!(!out.exists());
+        assert!(std::panic::catch_unwind(|| super::batch(&args)).is_err());
+        assert!(!out.exists());
+    }
+
+    #[test]
     fn seed_claims_do_not_wrap_at_the_end_of_u64() {
         let next = super::AtomicU64::new(u64::MAX - 1);
         std::thread::scope(|scope| {
@@ -448,9 +470,7 @@ fn batch(args: &[String]) -> i32 {
     let count: u64 = option("--count")
         .and_then(|value| value.parse().ok())
         .unwrap_or(1000);
-    let jobs: usize = option("--jobs")
-        .and_then(|value| value.parse().ok())
-        .unwrap_or_else(|| std::thread::available_parallelism().map_or(1, |n| n.get()));
+    let jobs = worker_count(args);
     let out = PathBuf::from(option("--out").unwrap_or_else(|| "checker-diff-findings".to_owned()));
     let source = option("--source").unwrap_or_else(|| "generated".to_owned());
     if matches!(source.as_str(), "corpus" | "mixed") {
