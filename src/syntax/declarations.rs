@@ -171,7 +171,9 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 offset: definition.offset,
                 node: Statement::Unsupported,
             },
-            Declared::Class(class) => Statement::UnboundClass(class.name).at(class.offset),
+            Declared::Class(class) => {
+                Statement::UnboundClass(class.name).at(self.work, class.offset)?
+            }
             Declared::Enum(..) | Declared::Alias(..) | Declared::TypeAlias(..) => unreachable!(),
         })
     }
@@ -181,7 +183,8 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
     pub(super) async fn class_statement(&self) -> Result<(Stmt, Option<Module>)> {
         Ok(match self.declaration().await? {
             Declared::Class(class) => {
-                let stmt = Statement::UnboundClass(class.name.clone()).at(class.offset);
+                let stmt =
+                    Statement::UnboundClass(class.name.clone()).at(self.work, class.offset)?;
                 (stmt, Some(class))
             }
             Declared::Statement(stmt) => (stmt, None),
@@ -206,7 +209,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let mut modules = Buffer::new();
         let mut top = Buffer::new();
         let mut outline = Buffer::new();
-        let mut order = Vec::new();
+        let mut order = Buffer::new();
         loop {
             let (offset, first) = {
                 let mut p = self.p();
@@ -239,7 +242,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                         },
                     )?;
                     let at = p.tokens[p.significant(first + 1)].offset;
-                    order.push(Order::Function(definition.name.clone(), at));
+                    order.push(work, Order::Function(definition.name.clone(), at))?;
                     let index = defs.len();
                     def_names.insert(work, definition.name.clone(), index)?;
                     defs.push(work, definition)?;
@@ -272,7 +275,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                         },
                     )?;
                     let at = p.tokens[p.significant(first + 1)].offset;
-                    order.push(Order::Alias(name, target, found, at));
+                    order.push(work, Order::Alias(name, target, found, at))?;
                 }
                 Declared::Class(module) => {
                     let kind = if module.is_class {
@@ -289,9 +292,12 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                             end,
                         },
                     )?;
-                    top.push(work, Statement::Module(module.name.clone()).at(offset))?;
+                    top.push(
+                        work,
+                        Statement::Module(module.name.clone()).at(work, offset)?,
+                    )?;
                     let index = modules.len();
-                    order.push(Order::Module(index));
+                    order.push(work, Order::Module(index))?;
                     modules.push(work, module)?;
                     p.note(|record| record.top.push((offset, record::Top::Module(index))));
                 }
@@ -306,7 +312,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                         },
                     )?;
                     let index = enums.len();
-                    order.push(Order::Enum(index));
+                    order.push(work, Order::Enum(index))?;
                     enums.push(work, (name, members))?;
                     p.note(|record| {
                         record.top.push((offset, record::Top::Enum(index)));
@@ -353,6 +359,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             additions,
             outline,
             interpolations,
+            interpolated: super::Interpolated::default(),
         })
     }
 
@@ -405,10 +412,12 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 let block = p.block_param()?;
                 work.charge(params.len())?;
                 if params.iter().any(|param| param.name == block.name) {
-                    return Err(Error::syntax(
+                    let at = block.offset as usize + 1;
+                    return Err(super::duplicate_parameter(
                         work,
-                        block.offset as usize + 1,
-                        format_args!("duplicate parameter {}", source_text(&block.name)),
+                        &block.name,
+                        at,
+                        block.name.len(),
                     ));
                 }
                 let comma = p.significant(p.pos);
@@ -452,7 +461,15 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             if param.kind == ParamKind::Keyword {
                 p.labelled(id)?;
             }
-            p.locals.insert(work, param.name.clone(), id)?;
+            // Only an earlier parameter or a constant of the enclosing class
+            // has the name already.
+            if p.locals.insert(work, param.name.clone(), id)?.is_some() {
+                work.charge(params.len())?;
+                if params.iter().any(|earlier| earlier.name == param.name) {
+                    let width = param.name.len() + usize::from(param.ivar.is_some());
+                    return Err(super::duplicate_parameter(work, &param.name, offset, width));
+                }
+            }
             p.declared_it |= param.name == "it";
             params.push(work, param)?;
             let comma = p.significant(p.pos);

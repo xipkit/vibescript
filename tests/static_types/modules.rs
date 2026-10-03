@@ -134,6 +134,79 @@ fn required_functions_read_their_files_top_level_locals() {
     std::fs::remove_dir_all(directory).unwrap();
 }
 
+/// A function's parameter is its own, not the file's local of its name:
+/// assigning it leaves the local as it was narrowed.
+#[test]
+fn a_functions_parameter_is_not_the_files_local_of_its_name() {
+    let source =
+        "x: int? = 1\ndef f(x: int) -> int\n  x = 2\n  x\nend\nx = 5\nf(0)\ny: int = x + 1\n";
+    let (engine, directory) = engine(&[("params.vibe", source)]);
+    let found = errors_with(&engine, "require(\"params\")\n");
+    assert!(found.is_empty(), "{found:?}");
+    // A function that assigns the file's local itself still widens it.
+    std::fs::write(
+        directory.join("params.vibe"),
+        source.replace(
+            "def f(x: int) -> int\n  x = 2\n  x",
+            "def f(z: int) -> int\n  x = nil\n  z",
+        ),
+    )
+    .unwrap();
+    let found = errors_with(&engine, "require(\"params\")\n");
+    assert_eq!(found.len(), 1, "{found:?}");
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn scoped_bindings_do_not_write_required_file_locals() {
+    for (name, body) in [
+        ("x", "[1].each { |x| x = 2 }"),
+        ("x", "[1].each { |x: int| x = 2 }"),
+        ("x", "[[1, 2]].each { |(x, y)| x = 2 }"),
+        ("x", "[1].each { |x| [1].each { |y| x = y } }"),
+        ("x", "begin; raise 'failure'; rescue => x; x = x; end"),
+    ] {
+        let source = format!(
+            "{name}: int? = 1\ndef f\n  {body}\nend\nf\ny: int = {name} + 1\ndef result -> int\n  y\nend\n"
+        );
+        let (engine, directory) = engine(&[("scoped-writes.vibe", &source)]);
+        let script = "m = require(\"scoped-writes\")\nm.result\n";
+        let found = errors_with(&engine, script);
+        assert!(found.is_empty(), "{body}: {found:?}");
+        assert_eq!(
+            engine
+                .compile(script)
+                .unwrap()
+                .run(Default::default())
+                .unwrap()
+                .value
+                .as_int(),
+            Some(2),
+            "{body}"
+        );
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+}
+
+#[test]
+fn scoped_writes_still_detect_captured_required_file_locals() {
+    for (name, body) in [
+        ("x", "[1].each { |y| x = nil }"),
+        ("x", "[1].each { |y| [1].each { |z| x = nil } }"),
+        ("x", "[1].each { |x| x = 2 }; x = nil"),
+        ("x", "begin; raise 'failure'; rescue => y; x = nil; end"),
+        ("it", "[1].each { it = 2 }"),
+        ("_1", "[1].each { _1 = 2 }"),
+    ] {
+        let source = format!("{name}: int? = 1\ndef f\n  {body}\nend\nf\ny: int = {name} + 1\n");
+        let (engine, directory) = engine(&[("captured-writes.vibe", &source)]);
+        let found = errors_with(&engine, "require(\"captured-writes\")\n");
+        assert_eq!(found.len(), 1, "{body}: {found:?}");
+        assert_eq!(found[0].code, Code::OPTIONAL_USE, "{body}: {found:?}");
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+}
+
 #[test]
 fn relative_requires_use_the_requiring_files_origin() {
     let source = "other = require(\"./relative_target\")\ndef run -> int\n  other.double(3)\nend\n";

@@ -1,0 +1,15 @@
+# expect: rejected V0107
+# A block inside a member read's receiver may assign a local before the
+# body raises, which the rescue sees.
+def f(x: int?) -> int
+  if x != nil
+    begin
+      n = [1].map { |q| x = nil; q }.length
+      raise "e" if n > 0
+    rescue
+      return x + 1
+    end
+  end
+  0
+end
+p(f(1))

@@ -85,7 +85,19 @@ fn nested_declarations_and_destructuring_reach_the_reference_depth() {
         ("modules", "module A\n", "end\n", 1023),
     ] {
         let source = |depth: usize| format!("{}{}", prefix.repeat(depth), suffix.repeat(depth));
-        compile_deep(&source(depth), name);
+        if name == "classes" {
+            // The checker refuses a class in a class, which the runtime
+            // never binds, once the parser has read it.
+            let error = Engine::new().compile(&source(depth)).err().unwrap();
+            let codes = common::codes(&error);
+            assert!(
+                common::too_tall_for_wasi(&error)
+                    || (!codes.is_empty() && codes.iter().all(|code| code == "V0001")),
+                "{name}: {error}"
+            );
+        } else {
+            compile_deep(&source(depth), name);
+        }
         assert_too_deep(&source(depth + 1), name);
     }
     let destructure = |depth: usize| {
@@ -150,5 +162,41 @@ fn elsif_chains_and_deep_aliases_do_not_nest() {
     let source = format!("def original\n{body}\nend\nalias copied original\ndef run\ncopied\nend");
     if let Some(script) = compile_deep(&source, "function alias") {
         script.call("run", &[], CallOptions::default()).unwrap();
+    }
+}
+
+#[test]
+fn every_form_reaches_the_reference_depth_in_a_required_file() {
+    // A required file's functions have their assignments listed before
+    // their bodies are checked, as deep as the parser allows, and listing
+    // them may not exhaust the checker's stack either.
+    // A host checks a short script on its own thread, which a required
+    // file's check shares; natively the test gives it the stack a long
+    // script's check takes, so on WASI, which has no threads, it shows
+    // what the host's stack holds.
+    let check = || {
+        for &(name, prefix, inner, suffix, depth) in FORMS {
+            let file = format!("x = 1\n{}", nested(prefix, inner, suffix, depth));
+            let mut engine = Engine::new();
+            engine
+                .set_module_sources(std::collections::BTreeMap::from([(
+                    "deep.vibe".to_owned(),
+                    file,
+                )]))
+                .unwrap();
+            if let Err(error) = engine.compile("require(\"deep\")\n") {
+                assert_eq!(error.kind, ErrorKind::Type, "{name}: {error}");
+            }
+        }
+    };
+    if cfg!(target_os = "wasi") {
+        check();
+    } else {
+        std::thread::Builder::new()
+            .stack_size(64 << 20)
+            .spawn(check)
+            .unwrap()
+            .join()
+            .unwrap();
     }
 }

@@ -43,7 +43,7 @@ Compiling the text of earlier declarations ahead of new source carries them into
 
 `Script::run_bindings(options)` runs the top-level statements like `Script::run` and also returns the root bindings they leave: every entry of `CallOptions::globals` with the value the run left in it, the classes, modules and enums the script declares at the top level, and every top-level local the statements assigned. A local takes precedence over a global of the same name, and a supplied global shadows a declaration of the same name, as it does during the run. A local that only an unexecuted branch assigns is bound to `nil`, as a later read in the same script would see it.
 
-A later script declares the variables it continues with the types the checker gave them: `Engine::type_check(source).locals` lists each top-level local a script assigns on every path, with its type as an annotation writes it.
+A later script declares the variables it continues with the types the checker gave them: `Engine::type_check(source).locals` lists each top-level local a script assigns on every path, with its type as an annotation writes it, or `any` where no annotation can name it or the type takes more than 16 KiB to spell out.
 
 ```rust
 use std::collections::BTreeMap;

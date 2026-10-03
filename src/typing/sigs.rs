@@ -70,7 +70,8 @@ pub(crate) enum Breaks {
     Call,
     /// It returns from the function through the function's declared
     /// result, which the runtime checks: a script function that yields
-    /// only outside loops and blocks.
+    /// only outside loops and blocks, or a host method whose signature
+    /// declares its result.
     Result,
     /// It ends the loop or the call with a block around the function's
     /// `yield`, so the call's value is the function's result. The function
@@ -82,6 +83,16 @@ pub(crate) enum Breaks {
 }
 
 impl Sig {
+    /// A host method's signature: a `break` out of its block becomes its
+    /// result, which the runtime validates against the declared result, so
+    /// the break's value must have that type.
+    pub fn host(mut self) -> Self {
+        if self.block.is_some() && self.result.is_some_and(|result| result != Ty::ANY) {
+            self.breaks = Breaks::Result;
+        }
+        self
+    }
+
     /// The positional arguments the signature accepts: at least, and at most
     /// unless it has a rest parameter.
     pub fn positional(&self) -> (usize, Option<usize>) {
@@ -102,10 +113,25 @@ impl Sig {
         (min, max)
     }
 
-    pub fn keyword(&self, name: &str) -> Option<&Param> {
-        self.params
-            .iter()
-            .find(|p| p.kind == ParamKind::Keyword && p.name == name)
+    /// Finds the first parameter of `name`, counting the compared bytes;
+    /// a refused comparison stops the lookup without returning a match.
+    pub fn keyword(
+        &self,
+        meter: &super::meter::Meter,
+        name: &str,
+    ) -> Result<Option<&Param>, super::counted::Refused> {
+        for param in &self.params {
+            if meter.charge(1) {
+                return Err(super::counted::Refused);
+            }
+            if param.kind == ParamKind::Keyword
+                && super::counted::compare_names(meter, &param.name, name)?
+                    == std::cmp::Ordering::Equal
+            {
+                return Ok(Some(param));
+            }
+        }
+        Ok(None)
     }
 
     pub fn keyword_rest(&self) -> Option<&Param> {
@@ -131,9 +157,10 @@ impl Sig {
         (!rest).then_some(first)
     }
 
-    /// Renders the parameter list for messages.
-    pub fn describe(&self, types: &Types) -> String {
-        let mut out = format!("{}(", self.name);
+    /// Renders the parameter list for messages into `out`.
+    pub fn describe(&self, types: &Types, out: &mut super::counted::Text<'_>) {
+        out.push_str(&self.name);
+        out.push('(');
         let star = self.keyword_star();
         for (index, param) in self.params.iter().enumerate() {
             if index > 0 {
@@ -161,7 +188,6 @@ impl Sig {
             out.push_str(if block.optional { "&block?" } else { "&block" });
         }
         out.push(')');
-        out
     }
 }
 
@@ -227,9 +253,16 @@ impl Index {
 #[derive(Default)]
 pub(crate) struct Converter {
     cache: HashMap<(usize, usize), Rc<Sig>>,
+    /// What the cached signatures hold.
+    cached: usize,
 }
 
 impl Converter {
+    /// What the cache of converted signatures holds.
+    pub fn grown(&self) -> usize {
+        super::meter::map(&self.cache) + self.cached
+    }
+
     /// The signature of `function`, declared in `class` when it is a member
     /// of a value type, whose receiver pattern's variables come first.
     pub fn convert(
@@ -246,6 +279,7 @@ impl Converter {
             return sig.clone();
         }
         let sig = Rc::new(self.convert_owned(types, function, class));
+        self.cached += super::meter::Heap::heap(&sig);
         self.cache.insert(key, sig.clone());
         sig
     }
@@ -523,14 +557,14 @@ pub(crate) fn declares(types: &Types, receiver: Ty, name: &str) -> bool {
 /// Matches a receiver pattern such as `array<T?>` against a receiver type,
 /// binding the pattern's variables.
 fn bind_receiver(types: &mut Types, pattern: Ty, actual: Ty, bindings: &mut [Option<Ty>]) -> bool {
-    match (types.kind(pattern).clone(), types.kind(actual).clone()) {
+    match (&*types.shared(pattern), &*types.shared(actual)) {
         (Kind::Var(index), _) => {
             // An empty literal's elements are unknown, not impossible: the
             // arguments and the block may bind the variable instead.
             if actual == Ty::NEVER {
                 return true;
             }
-            let slot = &mut bindings[index as usize];
+            let slot = &mut bindings[*index as usize];
             match slot {
                 Some(bound) => *bound == actual,
                 None => {
@@ -539,13 +573,13 @@ fn bind_receiver(types: &mut Types, pattern: Ty, actual: Ty, bindings: &mut [Opt
                 }
             }
         }
-        (Kind::Array(p), Kind::Array(a)) => bind_receiver(types, p, a, bindings),
+        (Kind::Array(p), Kind::Array(a)) => bind_receiver(types, *p, *a, bindings),
         (Kind::Array(p), Kind::Tuple(items)) => {
-            let element = types.union(&items);
-            bind_receiver(types, p, element, bindings)
+            let element = types.union(items);
+            bind_receiver(types, *p, element, bindings)
         }
         (Kind::Hash(p), _) => match types.hash_value(actual) {
-            Some(value) => bind_receiver(types, p, value, bindings),
+            Some(value) => bind_receiver(types, *p, value, bindings),
             None => false,
         },
         (Kind::Tuple(p), Kind::Tuple(a)) => {

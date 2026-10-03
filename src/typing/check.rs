@@ -2,7 +2,9 @@
 
 use super::{
     Checker,
+    counted::{CountedMap, CountedVec, ScratchVec},
     flow::{Branch, Flow, LocalId, Mark, VarState},
+    meter::Heap,
     program::{FnId, NsId},
     sigs::BlockSig,
     ty::{Kind, Ty},
@@ -48,15 +50,69 @@ pub(crate) struct Local {
     pub dictionary: Option<Ty>,
 }
 
+impl super::counted::Owned for Local {
+    fn owned(&self) -> usize {
+        self.name.capacity()
+    }
+}
+
+impl super::counted::Owned for FileCall {
+    fn owned(&self) -> usize {
+        super::counted::Owned::owned(&self.assigned)
+    }
+}
+
+/// The name of the function a `break` returns through; its exits and
+/// results are counted as they grow.
+impl super::counted::Owned for Context {
+    fn owned(&self) -> usize {
+        match self {
+            Context::Block {
+                break_to: Some(to), ..
+            } => to.function.capacity(),
+            _ => 0,
+        }
+    }
+}
+
+impl super::counted::Owned for Purpose {
+    fn owned(&self) -> usize {
+        self.heap()
+    }
+}
+
 /// The states a loop or block is left or continued with.
 #[derive(Default)]
 pub(crate) struct Exits {
     /// The state at each `break`, which leaves the loop or the call.
-    pub breaks: Vec<Branch>,
+    pub breaks: CountedVec<Branch>,
     /// The state at each `next`, which starts the next iteration.
-    pub nexts: Vec<Branch>,
+    pub nexts: CountedVec<Branch>,
     /// The types of the values `break` gives.
-    pub values: Vec<Ty>,
+    pub values: CountedVec<Ty>,
+    /// What the states at the breaks and nexts own, kept as they are
+    /// recorded, so a measure of the exits takes no walk over them.
+    owned: usize,
+}
+
+impl Exits {
+    /// Records the state at a `break`, when `leaves`, or at a `next`,
+    /// counted with what it owns before it is kept.
+    pub fn record(
+        &mut self,
+        tables: super::counted::Ledger<'_>,
+        branch: Branch,
+        leaves: bool,
+    ) -> Result<(), super::counted::Refused> {
+        let owned = super::counted::Owned::owned(&branch);
+        if leaves {
+            self.breaks.push(tables, branch)?;
+        } else {
+            self.nexts.push(tables, branch)?;
+        }
+        self.owned += owned;
+        Ok(())
+    }
 }
 
 /// The type a `break` value out of a script function's block must have:
@@ -89,7 +145,7 @@ pub(crate) enum Context {
         /// Whether the block's value is used at all.
         used: bool,
         /// The values `next` and the tail gave, for inference.
-        results: Vec<Ty>,
+        results: CountedVec<Ty>,
     },
 }
 
@@ -120,29 +176,47 @@ pub(crate) struct Frame {
     pub block: Option<BlockSig>,
     /// A pseudo-local that is assigned where `block_given?` holds.
     pub block_given: Option<LocalId>,
-    /// In `initialize`: pseudo-locals for the instance variables it must assign.
-    pub initialize: Vec<(String, LocalId)>,
+    /// In `initialize`: the instance variables it must assign, in name
+    /// order, and the first of the pseudo-locals that follow each's
+    /// assignment in the same order.
+    pub initialize: Option<(super::construction::Roster, LocalId)>,
     /// The function being checked.
     pub function: Option<FnId>,
     /// In an instance variable's default: the variables not assigned yet.
-    pub building: Option<Vec<String>>,
-    pub locals: Vec<Local>,
-    pub names: HashMap<String, LocalId>,
-    pub ambient: Vec<LocalId>,
+    pub building: Option<super::construction::Unassigned>,
+    pub locals: CountedVec<Local>,
+    pub names: CountedMap<String, LocalId>,
+    pub ambient: CountedVec<LocalId>,
     /// Names each open block scope shadowed, to restore when it closes.
-    pub scopes: Vec<Vec<(String, Option<LocalId>)>>,
+    pub scopes: CountedVec<CountedVec<(String, Option<LocalId>)>>,
     pub flow: Flow,
-    pub contexts: Vec<Context>,
+    pub contexts: CountedVec<Context>,
     /// Whether the body is a class or module body, whose capitalized
     /// assignments are constants.
     pub namespace_body: bool,
     /// In a required file's function or method: the locals that are the
     /// file's top-level locals.
-    pub shared: Vec<LocalId>,
+    pub shared: CountedVec<LocalId>,
+    /// For each active ensure, a local's flow fact of values written on
+    /// live paths and whether every path writes it.
+    pub ensure_writes: CountedVec<CountedMap<LocalId, LocalId>>,
+    /// What the locals' names take, in the locals, the map of them by name
+    /// and the scopes that record them.
+    pub name_bytes: usize,
+    /// In a class or module body: the place in the body of each name its
+    /// annotated declarations declare, with what the copies of the names
+    /// take, made when the body first assigns a constant.
+    pub declared: Option<(CountedMap<String, u32>, usize)>,
 }
 
 impl Frame {
-    pub fn new(owner: Option<NsId>, instance: bool, result: Option<Ty>, name: String) -> Self {
+    pub fn new(
+        meter: &std::sync::Arc<super::meter::Meter>,
+        owner: Option<NsId>,
+        instance: bool,
+        result: Option<Ty>,
+        name: String,
+    ) -> Self {
         Self {
             owner,
             instance,
@@ -151,18 +225,84 @@ impl Frame {
             name,
             block: None,
             block_given: None,
-            initialize: Vec::new(),
+            initialize: None,
             function: None,
             building: None,
-            locals: Vec::new(),
-            names: HashMap::new(),
-            ambient: Vec::new(),
-            scopes: Vec::new(),
-            flow: Flow::new(),
-            contexts: Vec::new(),
+            locals: CountedVec::new(),
+            names: CountedMap::new(),
+            ambient: CountedVec::new(),
+            scopes: CountedVec::new(),
+            flow: Flow::new(std::sync::Arc::clone(meter)),
+            contexts: CountedVec::new(),
             namespace_body: false,
-            shared: Vec::new(),
+            shared: CountedVec::new(),
+            ensure_writes: CountedVec::new(),
+            name_bytes: 0,
+            declared: None,
         }
+    }
+}
+
+impl Heap for Frame {
+    fn heap(&self) -> usize {
+        use super::meter::{map, vec};
+        vec(self.locals.as_vec())
+            + map(&self.names)
+            + self.name_bytes
+            + vec(self.scopes.as_vec())
+            + self
+                .scopes
+                .iter()
+                .map(|scope| vec(scope.as_vec()))
+                .sum::<usize>()
+            + self.flow.bytes()
+            + vec(self.contexts.as_vec())
+            + self
+                .initialize
+                .as_ref()
+                .map_or(0, |(roster, _)| super::construction::roster_bytes(roster))
+            + vec(self.ambient.as_vec())
+            + vec(self.shared.as_vec())
+            + vec(self.ensure_writes.as_vec())
+            + self
+                .ensure_writes
+                .iter()
+                .map(|writes| map(writes))
+                .sum::<usize>()
+            + self.name.heap()
+            + self.block.heap()
+            + self
+                .declared
+                .as_ref()
+                .map_or(0, |(declared, names)| map(declared) + names)
+    }
+}
+
+impl Heap for Context {
+    fn heap(&self) -> usize {
+        match self {
+            Context::Loop { exits, .. } => exits.heap(),
+            Context::Block {
+                exits,
+                results,
+                break_to,
+                ..
+            } => {
+                exits.heap()
+                    + super::meter::vec(results.as_vec())
+                    + break_to.as_ref().map_or(0, |to| to.function.heap())
+            }
+        }
+    }
+}
+
+impl Heap for Exits {
+    fn heap(&self) -> usize {
+        use super::meter::vec;
+        vec(self.breaks.as_vec())
+            + vec(self.nexts.as_vec())
+            + self.owned
+            + vec(self.values.as_vec())
     }
 }
 
@@ -187,11 +327,22 @@ impl Want {
     }
 }
 
-/// Narrowings a condition implies for locals, when it holds and when not.
-#[derive(Default, Clone)]
+/// Narrowings a condition implies for locals, when it holds and when not,
+/// each in a list counted while it lives, so a condition composed of many
+/// is counted at every level as its lists grow.
 pub(crate) struct Narrow {
-    pub then: Vec<(LocalId, Ty)>,
-    pub otherwise: Vec<(LocalId, Ty)>,
+    pub then: ScratchVec<(LocalId, Ty)>,
+    pub otherwise: ScratchVec<(LocalId, Ty)>,
+}
+
+impl Narrow {
+    /// None, in lists that count with `meter`.
+    pub fn new(meter: &std::sync::Arc<super::meter::Meter>) -> Self {
+        Self {
+            then: ScratchVec::new(meter),
+            otherwise: ScratchVec::new(meter),
+        }
+    }
 }
 
 impl<'a> Checker<'a> {
@@ -199,7 +350,19 @@ impl<'a> Checker<'a> {
         if self.mute > 0 {
             return;
         }
-        self.diagnostics.push(diagnostic);
+        // A check its budget stops keeps no more findings, nor one it
+        // refuses room for; one it keeps is counted, with what it owns, as
+        // it is kept, and by the measures after.
+        let bytes = diagnostic.heap();
+        if self
+            .diagnostics
+            .push(self.meter.tables(), diagnostic)
+            .is_ok()
+        {
+            self.grown += bytes;
+        } else {
+            self.stopped = true;
+        }
     }
 
     /// Refuses syntax taller than [`super::HEIGHT`], which the checker does
@@ -209,7 +372,8 @@ impl<'a> Checker<'a> {
         self.report(Diagnostic::error(
             Code::SYNTAX,
             span,
-            format!(
+            text!(
+                self,
                 "syntax nesting too deep to type check: on WASI the checker allows {} levels",
                 super::HEIGHT
             ),
@@ -219,37 +383,130 @@ impl<'a> Checker<'a> {
     /// Checks every function and namespace body.
     pub(super) fn check_all(&mut self) {
         if self.program.file {
-            // The file's own locals, which its functions and methods share.
-            let mut shared = Vec::new();
+            // The file's own locals, which its functions and methods share,
+            // in a list counted while it lives.
+            let mut shared = ScratchVec::new(&self.meter);
             for decl in self.program.fns.iter().filter(|decl| decl.main) {
                 if let Some(def) = decl.def {
-                    assigned_names(&def.body, &mut shared);
+                    assigned_names(&self.meter, &def.body, &mut shared);
+                    if self.measure() {
+                        return;
+                    }
                 }
             }
-            let shared: std::collections::HashSet<String> = shared.into_iter().collect();
-            let mut written = Vec::new();
-            for decl in self.program.fns.iter().filter(|decl| !decl.main) {
-                let Some(def) = decl.def else { continue };
-                let mut names = Vec::new();
-                assigned_names(&def.body, &mut names);
-                names.retain(|name| {
-                    shared.contains(name) && !def.params.iter().any(|param| param.name == *name)
-                });
-                written.extend(names);
+            // The names move into a set, which, with them, is held from
+            // before it is made for as long as it lives, while each
+            // function's assignments are listed beside it.
+            let set = super::meter::table::<String>(shared.len())
+                + shared.iter().map(String::capacity).sum::<usize>();
+            let Some(held) = self.hold(set) else {
+                return;
+            };
+            let mut shared: std::collections::HashSet<String> =
+                shared.into_vec().into_iter().collect();
+            let written = self.file_writes(&mut shared);
+            drop(shared);
+            self.release(held);
+            let Some(written) = written else {
+                return;
+            };
+            // The names move into the program's set, each counted, with the
+            // set's room, as the set takes it, but those it has already,
+            // once the list that counted them gives them up.
+            let tables = self.meter.declarations();
+            let written = written.into_vec();
+            if self
+                .program
+                .file_written
+                .reserve(tables, written.len())
+                .is_err()
+            {
+                return;
             }
-            // Checking the bodies charges for these walks over them.
-            self.program.file_written = written.into_iter().collect();
+            for name in written {
+                if self.program.file_written.contains(&name) {
+                    continue;
+                }
+                let Ok(mut kept) = tables.keep(name.capacity()) else {
+                    return;
+                };
+                self.program.file_written.insert_kept(&mut kept, name);
+            }
+            if self.declared() {
+                return;
+            }
         }
+        self.check_bodies();
+    }
+
+    /// The names of the file's locals `shared` that the file's functions
+    /// assign, in a list counted while it lives; `None` once the check
+    /// stops.
+    fn file_writes(
+        &mut self,
+        shared: &mut std::collections::HashSet<String>,
+    ) -> Option<ScratchVec<String>> {
+        // The names the functions assign, and each function's, in lists
+        // counted while they live.
+        let mut written = ScratchVec::new(&self.meter);
+        for decl in self.program.fns.iter().filter(|decl| !decl.main) {
+            if self.halted() {
+                return None;
+            }
+            let Some(def) = decl.def else { continue };
+            let mut names = ScratchVec::new(&self.meter);
+            assigned_names(&self.meter, &def.body, &mut names);
+            if self.measure() {
+                return None;
+            }
+            // Its parameters are its own, not the file's: the names
+            // they take are set aside while its names are kept, in a
+            // list counted while it lives, so each name is one search.
+            let mut aside = ScratchVec::new(&self.meter);
+            for param in def.params.iter() {
+                if let Some(name) = shared.take(param.name.as_str()) {
+                    aside.add(name);
+                }
+            }
+            if written.reserve(names.len()).is_err() {
+                return None;
+            }
+            for name in names.into_vec() {
+                if shared.contains(&name) {
+                    written.add(name);
+                }
+            }
+            // The parameters' names are the file's again once its names
+            // are kept.
+            shared.extend(aside.into_vec());
+        }
+        Some(written)
+    }
+
+    /// Checks the main body, every namespace's and every function's.
+    fn check_bodies(&mut self) {
         if let Some(main) = self.program.fns.iter().position(|decl| decl.main) {
             self.check_function(main);
         }
+        // A check past its budget checks no more namespaces or functions:
+        // setting up each would still take work, such as declaring a
+        // required file's locals in every function.
         for ns in 0..self.program.namespaces.len() {
+            if self.over_budget() {
+                return;
+            }
             self.check_namespace_body(ns as NsId);
         }
         for id in 0..self.program.fns.len() {
+            if self.over_budget() {
+                return;
+            }
             if !self.program.fns[id].main {
                 self.check_function(id);
             }
+        }
+        if self.over_budget() {
+            return;
         }
         self.check_file_calls();
         self.finish_construction();
@@ -259,9 +516,15 @@ impl<'a> Checker<'a> {
     /// namespaces nested in it. The walk keeps its place on the heap, since
     /// namespaces nest as deep as the parser allows.
     fn check_namespace_body(&mut self, ns: NsId) {
-        let mut pending = Vec::new();
+        // The namespaces left at each level of nesting, in lists counted
+        // while they live.
+        let mut pending = ScratchVec::new(&self.meter);
         self.enter_namespace(ns, &mut pending);
         while let Some((ns, children)) = pending.last_mut() {
+            // A check a body stops checks no more of them.
+            if self.halted() {
+                return;
+            }
             let ns = *ns;
             match children.pop() {
                 Some(child) => self.enter_namespace(child, &mut pending),
@@ -275,15 +538,24 @@ impl<'a> Checker<'a> {
 
     /// Marks `ns` checked and queues it with its children, unless it was
     /// checked already.
-    fn enter_namespace(&mut self, ns: NsId, pending: &mut Vec<(NsId, Vec<NsId>)>) {
+    fn enter_namespace(&mut self, ns: NsId, pending: &mut ScratchVec<(NsId, ScratchVec<NsId>)>) {
         let namespace = &mut self.program.namespaces[ns as usize];
         if namespace.checked {
             return;
         }
         namespace.checked = true;
-        let mut children: Vec<NsId> = namespace.children.values().copied().collect();
-        // Popped from the end, so checked in ascending order.
-        children.sort_unstable_by(|a, b| b.cmp(a));
+        let mut children = ScratchVec::new(&self.meter);
+        if children.reserve(namespace.children.len()).is_err() {
+            return;
+        }
+        for &child in namespace.children.values() {
+            children.add(child);
+        }
+        // Popped from the end, so checked in ascending order; a check the
+        // sort stops checks none of them.
+        if super::counted::sort_unstable_by(&self.meter, &mut children, |a, b| b.cmp(a)).is_err() {
+            return;
+        }
         let tallest = namespace
             .module
             .filter(|module| namespace.parent.is_none() && super::too_tall(module.height()));
@@ -291,90 +563,229 @@ impl<'a> Checker<'a> {
             let span = self.spans.token(module.offset as usize);
             self.too_deep(span);
         }
-        pending.push((ns, children));
+        pending.add((ns, children));
+    }
+
+    /// The instance-variable defaults of the class at `offset`, in order,
+    /// with the variable each assigns. The first call gathers every
+    /// class's in one pass over the declarations, rather than each class
+    /// scanning all of them.
+    fn defaults_of(&mut self, offset: u32) -> Vec<(&'a Stmt, Option<&'a str>)> {
+        if self.defaults.is_none() {
+            let additions = &self.parsed.additions;
+            // Both indexes are counted before they are built: the names by
+            // class and offset, and each class's defaults, which take at
+            // most four places a class, or twice their number.
+            let (ivars, count) = (additions.ivars.len(), additions.defaults.len());
+            let most = super::meter::table::<((u32, u32), &str)>(ivars)
+                + super::meter::table::<(u32, Vec<(&Stmt, Option<&str>)>)>(count)
+                + 4 * count * std::mem::size_of::<(&Stmt, Option<&str>)>();
+            if self.transient(most) {
+                return Vec::new();
+            }
+            let mut names: HashMap<(u32, u32), &'a str> = HashMap::with_capacity(ivars);
+            let mut defaults: HashMap<u32, Vec<(&'a Stmt, Option<&'a str>)>> = HashMap::new();
+            // Each entry is a step, and the budget is checked as a walk
+            // checks it.
+            let pace = super::walk::PACE as usize;
+            for (index, (class, ivar)) in additions.ivars.iter().enumerate() {
+                if index % pace == pace - 1 && self.meter.pace(pace as u64, most) {
+                    return Vec::new();
+                }
+                names.insert((*class, ivar.offset), ivar.name.as_str());
+            }
+            for (index, (class, stmt)) in additions.defaults.iter().enumerate() {
+                if index % pace == pace - 1 && self.meter.pace(pace as u64, most) {
+                    return Vec::new();
+                }
+                let name = names.get(&(*class, stmt.offset)).copied();
+                defaults.entry(*class).or_default().push((stmt, name));
+            }
+            if self.meter.charge(((ivars % pace) + (count % pace)) as u64) {
+                return Vec::new();
+            }
+            let bytes = super::meter::map(&defaults)
+                + defaults.values().map(super::meter::vec).sum::<usize>();
+            // Kept for the rest of the check.
+            if self.hold(bytes).is_none() {
+                return Vec::new();
+            }
+            self.defaults = Some((defaults, bytes));
+        }
+        let (defaults, bytes) = self.defaults.take().unwrap();
+        let mut defaults = defaults;
+        let taken = defaults.remove(&offset).unwrap_or_default();
+        // The caller keeps the removed list charged until its defaults
+        // have been checked, then releases that list's actual storage.
+        self.defaults = Some((defaults, bytes - super::meter::vec(&taken)));
+        taken
     }
 
     fn namespace_body(&mut self, ns: NsId) {
         let Some(module) = self.program.namespaces[ns as usize].module else {
             return;
         };
-        let name = self.program.namespaces[ns as usize].name.clone();
-        let mut frame = Frame::new(Some(ns), false, None, name);
+        // The frame keeps a copy of the namespace's name, counted before it
+        // is made.
+        let name = &self.program.namespaces[ns as usize].name;
+        if self.meter.tables().keep(name.len()).is_err() {
+            return;
+        }
+        let name = name.clone();
+        let mut frame = Frame::new(&self.meter, Some(ns), false, None, name);
         frame.namespace_body = true;
         let previous = self.enter_frame(frame);
-        let ambient: Vec<_> = previous
-            .names
-            .iter()
-            .map(|(name, &id)| {
-                let local = &previous.locals[id as usize];
-                (
-                    name.clone(),
-                    local.declared,
-                    local.offset,
-                    previous.flow.get(id),
-                )
-            })
-            .collect();
-        for (name, declared, offset, state) in &ambient {
-            let id = self.declare(name, *declared, *offset, true);
+        // Only the enclosing locals the body names can matter to it, and
+        // copying every one into each of many namespaces would take their
+        // number times the namespaces.
+        let mut mentioned = super::counted::ScratchSet::new(&self.meter);
+        let scratch = mentions(&self.meter, &module.body, &mut mentioned);
+        if self.transient(scratch) {
+            self.leave_frame(previous);
+            return;
+        }
+        // The enclosing locals the body names, with a copy of each name,
+        // counted before they are copied; a check past its budget copies
+        // none.
+        let named = || {
+            mentioned
+                .iter()
+                .filter_map(|&name| previous.names.get(name).map(|&id| (name, id)))
+        };
+        let (count, bytes) = named().fold((0, 0), |(count, bytes), (name, _)| {
+            (count + 1, bytes + name.len())
+        });
+        let mut ambient = ScratchVec::new(&self.meter);
+        if ambient.reserve_with(count, bytes).is_err() {
+            self.leave_frame(previous);
+            return;
+        }
+        for (name, id) in named() {
+            let local = &previous.locals[id as usize];
+            ambient.push_within((
+                name.to_owned(),
+                local.declared,
+                local.offset,
+                previous.flow.get(id),
+            ));
+        }
+        for (name, declared, offset, state) in ambient.iter() {
+            // A check the budget stops declares no more of them, and the
+            // body it checks next reads no code.
+            let Some(id) = self.declare(name, *declared, *offset, true) else {
+                break;
+            };
             self.frame.flow.set(id, *state);
-            self.frame.ambient.push(id);
+            // Declared in turn, so listed in the order of their ids.
+            debug_assert!(self.frame.ambient.last().is_none_or(|&last| last < id));
+            if self.frame.ambient.push(self.meter.tables(), id).is_err() {
+                break;
+            }
         }
         self.stmts(&module.body, Want::Discard);
-        let changes: Vec<_> = ambient
+        // What the body left of them, counted before it is copied.
+        let (count, bytes) = ambient
             .iter()
-            .filter_map(|(name, _, _, _)| {
-                self.local(name)
-                    .map(|id| (name.clone(), self.frame.flow.get(id)))
-            })
-            .collect();
+            .filter(|(name, ..)| self.local(name).is_some())
+            .fold((0, 0), |(count, bytes), (name, ..)| {
+                (count + 1, bytes + name.len())
+            });
+        let mut changes = ScratchVec::new(&self.meter);
+        if changes.reserve_with(count, bytes).is_err() {
+            self.leave_frame(previous);
+            return;
+        }
+        for (name, _, _, _) in ambient.iter() {
+            if let Some(id) = self.local(name) {
+                changes.push_within((name.clone(), self.frame.flow.get(id)));
+            }
+        }
         // Instance-variable defaults run for each instance.
-        let defaults: Vec<&'a Stmt> = self
-            .parsed
-            .additions
-            .defaults
-            .iter()
-            .filter(|(owner, _)| *owner == module.offset)
-            .map(|(_, stmt)| stmt)
-            .collect();
-        let name = self.frame.name.clone();
-        let body = self.enter_frame(Frame::new(Some(ns), true, None, name));
-        // A default may read only the variables whose defaults precede it.
-        let mut unassigned: Vec<String> = Vec::new();
-        for (name, ivar) in &self.program.namespaces[ns as usize].ivars {
-            if !self.types.assignable(Ty::NIL, ivar.ty) {
-                unassigned.push(name.clone());
-            }
-        }
-        unassigned.sort();
-        let assigned: Vec<Option<String>> = defaults
-            .iter()
-            .map(|stmt| {
-                self.parsed
-                    .additions
-                    .ivars
-                    .iter()
-                    .find(|(class, ivar)| *class == module.offset && ivar.offset == stmt.offset)
-                    .map(|(_, ivar)| ivar.name.to_string())
-            })
-            .collect();
-        for (stmt, assigned) in defaults.into_iter().zip(assigned) {
-            self.frame.building = Some(unassigned.clone());
-            self.stmt(stmt, Want::Discard);
-            if let Some(name) = assigned {
-                unassigned.retain(|unassigned| *unassigned != name);
-            }
-        }
-        self.leave_frame(body);
+        let defaults = self.defaults_of(module.offset);
+        let bytes = super::meter::vec(&defaults);
+        self.namespace_defaults(ns, &defaults);
+        drop(defaults);
+        self.release(bytes);
         self.leave_frame(previous);
-        for (name, state) in changes {
-            if let Some(id) = self.local(&name) {
-                self.frame.flow.set(id, state);
+        for (name, state) in changes.iter() {
+            if let Some(id) = self.local(name) {
+                self.frame.flow.set(id, *state);
             }
         }
     }
 
+    /// Checks a class's defaults while their list remains charged to the
+    /// caller, restoring the namespace frame on every return.
+    fn namespace_defaults(&mut self, ns: NsId, defaults: &[(&'a Stmt, Option<&'a str>)]) {
+        if self.meter.tables().keep(self.frame.name.len()).is_err() {
+            return;
+        }
+        let name = self.frame.name.clone();
+        let body = self.enter_frame(Frame::new(&self.meter, Some(ns), true, None, name));
+        // A default may read only the variables whose defaults precede it:
+        // those that must be assigned, whose roster, and the list it is
+        // made from, are held before the names are copied.
+        let ivars = &self.program.namespaces[ns as usize].ivars;
+        let (mut count, mut bytes) = (0, 0);
+        for (name, ivar) in ivars {
+            if !self.types.assignable(Ty::NIL, ivar.ty) {
+                count += 1;
+                bytes += name.len();
+            }
+        }
+        let Some(held) = self.hold(2 * count * std::mem::size_of::<String>() + bytes) else {
+            self.leave_frame(body);
+            return;
+        };
+        let mut unassigned: Vec<String> = Vec::with_capacity(count);
+        for (name, ivar) in &self.program.namespaces[ns as usize].ivars {
+            // A check that stops takes every type as assignable, so lists
+            // no more of them than it counted.
+            if !self.types.assignable(Ty::NIL, ivar.ty) {
+                unassigned.push(name.clone());
+            }
+        }
+        if super::counted::sort_unstable_by(&self.meter, &mut unassigned, Ord::cmp).is_err() {
+            self.release(held);
+            self.leave_frame(body);
+            return;
+        }
+        let roster: super::construction::Roster = unassigned.into();
+        // Each default sees the same set, less what the ones before it
+        // assign, shared with the uses of `self` in them rather than copied,
+        // whose nodes are held before they are made, while it lives.
+        let Some(set) = self.hold(super::marks::Marks::most(roster.len())) else {
+            self.release(held);
+            self.leave_frame(body);
+            return;
+        };
+        let held = held + set;
+        let mut building = super::construction::Unassigned::all(roster);
+        for (stmt, assigned) in defaults.iter() {
+            self.frame.building = Some(building.clone());
+            self.stmt(stmt, Want::Discard);
+            // The frame's share goes before the variable is taken out, so
+            // taking it out copies only what the default's uses of `self`
+            // keep, which the copy then no longer shares.
+            self.frame.building = None;
+            if let Some(name) = assigned {
+                // What taking it out copies is counted first, and kept with
+                // the checker's other growth.
+                if self.meter.tables().keep(building.cost(name)).is_err() {
+                    break;
+                }
+                self.grown += building.remove(name);
+            }
+        }
+        self.release(held);
+        self.leave_frame(body);
+    }
+
     fn check_function(&mut self, id: FnId) {
+        // Checking a function is a step, whatever its body holds.
+        if self.meter.charge(1) {
+            return;
+        }
         let decl = &self.program.fns[id];
         let Some(def) = decl.def else {
             return;
@@ -384,19 +795,41 @@ impl<'a> Checker<'a> {
         let instance = decl.instance;
         let main = decl.main;
         let accessor = def.accessor.is_some();
-        let mut frame = Frame::new(owner, instance, sig.result, sig.name.clone());
+        // The frame keeps a copy of the function's name, counted before it
+        // is made.
+        if self.meter.tables().keep(sig.name.len()).is_err() {
+            return;
+        }
+        let mut frame = Frame::new(&self.meter, owner, instance, sig.result, sig.name.clone());
         frame.main = main;
         frame.function = Some(id);
         frame.block = sig.block.clone();
         let previous = self.enter_frame(frame);
         if self.program.file && !main {
-            let locals = self.program.file_locals.clone();
-            for (name, (ty, offset)) in locals {
-                if !def.params.iter().any(|param| param.name == name) {
-                    let id = self.declare(&name, ty, offset, true);
-                    self.assign_local(id, ty);
-                    self.frame.shared.push(id);
-                }
+            // The file's locals are copied, and counted before they are.
+            let Some(held) = self.hold(self.program.file_locals.heap()) else {
+                self.leave_frame(previous);
+                return;
+            };
+            // Each function declares every one of the file's locals, a step
+            // each, but those its parameters name, which are its own.
+            if self.meter.charge(self.program.file_locals.len() as u64) {
+                self.release(held);
+                self.leave_frame(previous);
+                return;
+            }
+            let mut locals = self.program.file_locals.clone().into_map();
+            for param in def.params.iter() {
+                locals.remove(param.name.as_str());
+            }
+            let bytes = locals.heap();
+            self.release(held - bytes);
+            let declared = self.declare_file_locals(&locals);
+            drop(locals);
+            self.release(bytes);
+            if !declared {
+                self.leave_frame(previous);
+                return;
             }
         }
         if instance && def.name == "initialize" {
@@ -409,7 +842,7 @@ impl<'a> Checker<'a> {
                     this.expr_against(
                         default,
                         declared.ty,
-                        &Purpose::Local(param.name.to_string()),
+                        &Purpose::Local(this.copy(&param.name)),
                     )
                 });
                 let evaluated = self.frame.flow.rollback(mark);
@@ -421,18 +854,21 @@ impl<'a> Checker<'a> {
                     },
                 ]);
             }
-            let local = self.declare(&param.name, declared.ty, def.offset as usize, true);
+            let Some(local) = self.declare(&param.name, declared.ty, def.offset as usize, true)
+            else {
+                self.leave_frame(previous);
+                return;
+            };
             self.assign_local(local, declared.ty);
             if let Some(ivar) = &param.ivar {
                 let span = self
                     .spans
-                    .word_after(def.offset as usize, &format!("@{ivar}"));
+                    .word_after(def.offset as usize, &text!(self, "@{ivar}"));
                 self.assign_ivar(ivar, declared.ty, span, accessor);
             }
         }
         if sig.block.as_ref().is_some_and(|block| block.optional) {
-            let given = self.pseudo_local();
-            self.frame.block_given = Some(given);
+            self.frame.block_given = self.pseudo_local();
         }
         if accessor {
             // Properties read and write their declared instance variable.
@@ -449,27 +885,55 @@ impl<'a> Checker<'a> {
         };
         let body = &def.body;
         let result = self.stmts(body, want);
-        if main && !self.program.file {
-            self.session = Some(super::Session {
-                locals: self
-                    .frame
-                    .names
-                    .iter()
-                    .filter(|(_, id)| self.frame.flow.get(**id).assigned)
-                    .map(|(name, &id)| (name.clone(), self.frame.locals[id as usize].declared))
-                    .collect(),
-                result,
-            });
-        }
-        if main && self.program.file {
-            for (name, &id) in &self.frame.names {
-                if self.frame.flow.get(id).assigned {
-                    let local = &self.frame.locals[id as usize];
-                    self.program
-                        .file_locals
-                        .insert(name.clone(), (local.declared, local.offset));
-                }
+        // A check past its budget keeps neither what a session declares
+        // nor a required file's locals, and checks nothing more here.
+        let mut stopped = self.halted();
+        if main && !self.program.file && self.annotate && !stopped {
+            // Counted before they are copied.
+            let (count, bytes) = self.assigned_size();
+            stopped = self.transient(count * std::mem::size_of::<(String, Ty)>() + bytes);
+            if !stopped {
+                let mut locals = Vec::with_capacity(count);
+                locals.extend(
+                    self.assigned_locals()
+                        .map(|(name, id)| (name.clone(), self.frame.locals[id as usize].declared)),
+                );
+                self.session = Some(super::Session { locals, result });
+                let locals = self
+                    .session
+                    .as_ref()
+                    .map_or(0, |session| session.locals.heap());
+                stopped = self.grow(locals);
             }
+        }
+        if main && self.program.file && !stopped {
+            // Counted, with room for them, before they are copied.
+            let (count, bytes) = self.assigned_size();
+            let declarations = self.meter.declarations();
+            let kept = declarations.keep(bytes);
+            stopped = kept.is_err()
+                || self
+                    .program
+                    .file_locals
+                    .reserve(declarations, count)
+                    .is_err();
+            if let (Ok(mut kept), false) = (kept, stopped) {
+                for (name, &id) in &self.frame.names {
+                    if self.frame.flow.get(id).assigned {
+                        let local = &self.frame.locals[id as usize];
+                        self.program.file_locals.insert_kept(
+                            &mut kept,
+                            name.clone(),
+                            (local.declared, local.offset),
+                        );
+                    }
+                }
+                stopped = self.declared();
+            }
+        }
+        if stopped {
+            self.leave_frame(previous);
+            return;
         }
         if self.frame.flow.live {
             if let (Some(result), false) = (sig.result, main) {
@@ -480,7 +944,8 @@ impl<'a> Checker<'a> {
                         Diagnostic::error(
                             Code::TYPE_MISMATCH,
                             span,
-                            format!(
+                            text!(
+                                self,
                                 "`{}` returns {expected}, but its body is empty and returns nil",
                                 def.name
                             ),
@@ -494,42 +959,114 @@ impl<'a> Checker<'a> {
         self.leave_frame(previous);
     }
 
+    /// Declares a required file's locals while the caller keeps their
+    /// copied map and names charged, including on a refused declaration.
+    fn declare_file_locals(&mut self, locals: &HashMap<String, (Ty, usize)>) -> bool {
+        for (name, &(ty, offset)) in locals {
+            let Some(id) = self.declare(name, ty, offset, true) else {
+                return false;
+            };
+            self.assign_local(id, ty);
+            // Declared in turn, so listed in the order of their ids.
+            debug_assert!(self.frame.shared.last().is_none_or(|&last| last < id));
+            if self.frame.shared.push(self.meter.tables(), id).is_err() {
+                return false;
+            }
+        }
+        true
+    }
+
     /// Declares the instance variables `initialize` must assign.
     fn track_initialize(&mut self, owner: Option<NsId>) {
         let Some(ns) = owner else {
             return;
         };
-        let mut required: Vec<(String, Ty)> = self.program.namespaces[ns as usize]
-            .ivars
+        // The variables without defaults, with a copy of each name, and the
+        // roster of those each path must assign, which takes the copies,
+        // are held while they are listed.
+        let ivars = &self.program.namespaces[ns as usize].ivars;
+        let (count, bytes) = ivars
             .iter()
             .filter(|(_, ivar)| !ivar.default)
-            .map(|(name, ivar)| (name.clone(), ivar.ty))
-            .collect();
-        required.sort_by(|a, b| a.0.cmp(&b.0));
+            .fold((0, 0), |(count, bytes), (name, _)| {
+                (count + 1, bytes + name.len())
+            });
+        let entries = std::mem::size_of::<(String, Ty)>() + 2 * std::mem::size_of::<String>();
+        let Some(held) = self.hold(count * entries + bytes) else {
+            return;
+        };
+        let mut required: Vec<(String, Ty)> = Vec::with_capacity(count);
+        required.extend(
+            self.program.namespaces[ns as usize]
+                .ivars
+                .iter()
+                .filter(|(_, ivar)| !ivar.default)
+                .map(|(name, ivar)| (name.clone(), ivar.ty)),
+        );
+        if super::counted::sort_unstable_by(&self.meter, &mut required, |a, b| a.0.cmp(&b.0))
+            .is_err()
+        {
+            self.release(held);
+            return;
+        }
+        let mut roster = Vec::with_capacity(count);
+        let mut first = None;
         for (name, ty) in required {
             if self.types.assignable(Ty::NIL, ty) {
                 continue;
             }
-            let id = self.pseudo_local();
-            self.frame.initialize.push((name, id));
+            // A check the budget stops tracks none of them.
+            let Some(id) = self.pseudo_local() else {
+                self.release(held);
+                return;
+            };
+            first.get_or_insert(id);
+            roster.push(name);
+        }
+        // The roster the frame keeps is counted as the frame's before the
+        // copies held for it are let go.
+        let roster: super::construction::Roster = roster.into();
+        let kept = self
+            .meter
+            .tables()
+            .keep(super::construction::roster_bytes(&roster))
+            .is_ok();
+        self.release(held);
+        // The pseudo-locals follow each other, in the roster's order.
+        if let (Some(first), true) = (first, kept) {
+            self.frame.flow.track(first, roster.len());
+            self.frame.initialize = Some((roster, first));
         }
     }
 
     /// Reports the instance variables a path through `initialize` left unassigned.
     pub(super) fn finish_initialize(&mut self, span: Span) {
-        let missing: Vec<String> = self
-            .frame
-            .initialize
-            .iter()
-            .filter(|(_, id)| !self.frame.flow.get(*id).assigned)
-            .map(|(name, _)| format!("@{name}"))
-            .collect();
-        if missing.is_empty() {
+        let Some((roster, first)) = self.frame.initialize.clone() else {
+            return;
+        };
+        let Some(unassigned) = self.frame.flow.unassigned() else {
+            return;
+        };
+        if unassigned.is_empty() {
+            return;
+        }
+        // Their places, counted before they are listed.
+        if self.transient(unassigned.len() * std::mem::size_of::<usize>()) {
+            return;
+        }
+        let places = unassigned.indices();
+        let (missing, count) = super::listed(&self.meter, places, |out, place| {
+            out.push('@');
+            out.push_str(&roster[place]);
+        });
+        if self.halted() {
             return;
         }
         // Report each variable once per function.
-        let ids: Vec<LocalId> = self.frame.initialize.iter().map(|(_, id)| *id).collect();
-        for id in ids {
+        self.frame.flow.untrack();
+        self.frame.initialize = None;
+        for place in 0..roster.len() {
+            let id = first + place as LocalId;
             let state = self.frame.flow.get(id);
             self.frame.flow.set(
                 id,
@@ -539,17 +1076,33 @@ impl<'a> Checker<'a> {
                 },
             );
         }
-        self.frame.initialize.clear();
         self.report(Diagnostic::error(
             Code::UNINITIALIZED_IVAR,
             span,
-            format!(
-                "`initialize` does not assign {} on every path; assign {} or give {} a default in the class body",
-                missing.join(", "),
-                if missing.len() == 1 { "it" } else { "them" },
-                if missing.len() == 1 { "it" } else { "them" },
+            text!(self,
+                "`initialize` does not assign {missing} on every path; assign {} or give {} a default in the class body",
+                if count == 1 { "it" } else { "them" },
+                if count == 1 { "it" } else { "them" },
             ),
         ));
+    }
+
+    /// The frame's locals assigned so far, by name.
+    fn assigned_locals(&self) -> impl Iterator<Item = (&String, LocalId)> + '_ {
+        self.frame
+            .names
+            .iter()
+            .filter(|(_, id)| self.frame.flow.get(**id).assigned)
+            .map(|(name, &id)| (name, id))
+    }
+
+    /// How many of the frame's locals are assigned so far, and the bytes
+    /// of their names.
+    fn assigned_size(&self) -> (usize, usize) {
+        self.assigned_locals()
+            .fold((0, 0), |(count, bytes), (name, _)| {
+                (count + 1, bytes + name.len())
+            })
     }
 
     /// Notes a call of script code, `callee` when it is one of this file's
@@ -558,13 +1111,17 @@ impl<'a> Checker<'a> {
     /// file's body it may read them before the body assigns them, which
     /// [`Self::check_file_calls`] reports once every function is checked.
     pub(super) fn script_called(&mut self, callee: Option<FnId>, span: Span) {
-        if !self.program.file {
+        // A check past its budget records no more calls, each of which
+        // lists the locals assigned so far.
+        if !self.program.file || self.halted() {
             return;
         }
-        let written: Vec<String> = self.program.file_written.iter().cloned().collect();
-        for name in &written {
-            self.steps += 1;
-            if let Some(id) = self.local(name) {
+        // The names are read in place: the frame, not the program, changes.
+        for name in &self.program.file_written {
+            if self.meter.charge(1) {
+                return;
+            }
+            if let Some(&id) = self.frame.names.get(name.as_str()) {
                 let state = self.frame.flow.get(id);
                 let declared = self.frame.locals[id as usize].declared;
                 self.frame.flow.set(
@@ -583,40 +1140,93 @@ impl<'a> Checker<'a> {
             if !self.frame.flow.live {
                 return;
             }
-            let assigned: Vec<String> = self
-                .frame
-                .names
-                .iter()
-                .filter(|(_, id)| self.frame.flow.get(**id).assigned)
-                .map(|(name, _)| name.clone())
-                .collect();
-            self.steps += assigned.len() as u64;
-            self.program.file_calls.push(FileCall {
+            // The locals assigned so far, counted before they are copied.
+            let (count, bytes) = self.assigned_size();
+            if self.transient(count * std::mem::size_of::<String>() + bytes) {
+                return;
+            }
+            let mut assigned: Vec<String> = Vec::with_capacity(count);
+            assigned.extend(self.assigned_locals().map(|(name, _)| name.clone()));
+            // Sorted, so each name the callee reads is found by search.
+            if super::counted::sort_unstable_by(&self.meter, &mut assigned, Ord::cmp).is_err()
+                || self.meter.charge(assigned.len() as u64)
+            {
+                return;
+            }
+            let bytes = assigned.heap();
+            let call = FileCall {
                 callee,
                 span,
                 assigned,
-            });
+            };
+            // A call the budget refuses room for is not recorded, and the
+            // check stops; one it records is counted, with the names it
+            // keeps, as it is kept, and by the measures after.
+            if self
+                .program
+                .file_calls
+                .push(self.meter.tables(), call)
+                .is_ok()
+            {
+                self.grown += bytes;
+            } else {
+                self.stopped = true;
+            }
         } else if let Some(caller) = self.frame.function {
-            self.program
-                .file_uses
-                .entry(caller)
-                .or_default()
-                .1
-                .push(callee);
+            // The caller's entry, and room for the call, are counted before
+            // they are kept, and what its list grows by is kept with the
+            // checker's growth; a check that stops records no more calls.
+            let tables = self.meter.tables();
+            let Ok((_, callees)) =
+                self.program
+                    .file_uses
+                    .get_or_insert_with(tables, caller, Default::default)
+            else {
+                return;
+            };
+            let before = callees.capacity();
+            if callees.push(tables, callee).is_err() {
+                return;
+            }
+            let grown = (callees.capacity() - before) * std::mem::size_of::<FnId>();
+            self.grown += grown;
         }
     }
 
     /// Notes a read of local `id` in a required file's function or method,
     /// when it is one of the file's top-level locals.
     pub(super) fn shared_read(&mut self, id: LocalId, name: &str) {
-        if self.frame.shared.contains(&id) {
+        // The file's locals are listed in the order of their ids.
+        if self.frame.shared.binary_search(&id).is_ok() {
             if let Some(function) = self.frame.function {
-                self.program
-                    .file_uses
-                    .entry(function)
-                    .or_default()
-                    .0
-                    .insert(name.to_owned());
+                // The function's entry, and the name with its room in the
+                // set, are counted before they are kept, and kept with the
+                // checker's growth; a check that stops records no more
+                // reads.
+                let tables = self.meter.tables();
+                let Ok((reads, _)) =
+                    self.program
+                        .file_uses
+                        .get_or_insert_with(tables, function, Default::default)
+                else {
+                    return;
+                };
+                if reads.contains(name) {
+                    return;
+                }
+                let before = super::meter::btree_storage::<String>(reads.len());
+                let Ok(mut kept) = tables.keep(name.len()) else {
+                    return;
+                };
+                if reads
+                    .insert_kept(tables, &mut kept, name.to_owned())
+                    .is_err()
+                {
+                    return;
+                }
+                let grown =
+                    super::meter::btree_storage::<String>(reads.len()) - before + name.len();
+                self.grown += grown;
             }
         }
     }
@@ -625,54 +1235,116 @@ impl<'a> Checker<'a> {
     /// a top-level local the body has not assigned yet, which reads nil or
     /// is undefined.
     fn check_file_calls(&mut self) {
-        let uses = std::mem::take(&mut self.program.file_uses);
+        let mut uses = std::mem::take(&mut self.program.file_uses);
+        // Taken from the program, the table is held while it is read.
+        let Some(taken) = self.hold(super::meter::map(&uses)) else {
+            return;
+        };
+        // A copy of what each function reads, counted before it is made.
+        if self.transient(
+            super::meter::table::<(FnId, std::collections::BTreeSet<String>)>(uses.len())
+                + uses.values().map(|(read, _)| read.heap()).sum::<usize>(),
+        ) {
+            self.release(taken);
+            return;
+        }
         let mut reads: HashMap<FnId, std::collections::BTreeSet<String>> = uses
             .iter()
-            .map(|(&id, (read, _))| (id, read.clone()))
+            .map(|(&id, (read, _))| (id, (**read).clone()))
             .collect();
+        // The copy, and the names added to it, are held while this runs,
+        // and given back with it.
+        let Some(copied) = self.hold(reads.heap()) else {
+            self.release(taken);
+            return;
+        };
+        let mut taken = taken + copied;
+        // A function called many times reads the same variables at every
+        // call, so each caller's callees are taken once each.
+        for (_, callees) in uses.values_mut() {
+            if super::counted::sort_unstable_by(&self.meter, callees, Ord::cmp).is_err() {
+                self.release(taken);
+                return;
+            }
+            callees.dedup();
+        }
         // Checking each call charged for the first pass over the calls.
         let mut again = false;
         let mut changed = true;
         while changed {
             changed = false;
             for (&caller, (_, callees)) in &uses {
+                if self.over_budget() {
+                    self.release(taken);
+                    return;
+                }
+                // The caller's variables are set aside while each callee's
+                // are added to them, which are read in place rather than
+                // copied, as only the names the caller lacks are.
+                let mut entry = reads.remove(&caller).unwrap_or_default();
                 for callee in callees {
-                    self.steps += u64::from(again);
-                    let Some(read) = reads.get(callee).cloned() else {
+                    if self.meter.charge(u64::from(again)) {
+                        self.release(taken);
+                        return;
+                    }
+                    let Some(read) = reads.get(callee) else {
                         continue;
                     };
-                    self.steps += read.len() as u64;
-                    let entry = reads.entry(caller).or_default();
+                    if self.meter.charge(read.len() as u64) {
+                        self.release(taken);
+                        return;
+                    }
                     for name in read {
-                        changed |= entry.insert(name);
+                        if entry.contains(name) {
+                            continue;
+                        }
+                        // The copy, and its room in the set, are counted
+                        // before it is made.
+                        let bytes = super::meter::btree_entry(&entry) + name.len();
+                        let Some(added) = self.hold(bytes) else {
+                            self.release(taken);
+                            return;
+                        };
+                        taken += added;
+                        entry.insert(name.clone());
+                        changed = true;
                     }
                 }
+                reads.insert(caller, entry);
             }
             again = true;
         }
-        for call in std::mem::take(&mut self.program.file_calls) {
+        let calls = std::mem::take(&mut self.program.file_calls);
+        let Some(calls_held) = self.hold(super::meter::vec(calls.as_vec())) else {
+            self.release(taken);
+            return;
+        };
+        let taken = taken + calls_held;
+        for call in calls {
             let Some(read) = reads.get(&call.callee) else {
                 continue;
             };
-            self.steps += read.len() as u64;
-            let missing: Vec<&String> = read
+            if self.meter.charge(read.len() as u64) {
+                break;
+            }
+            let Some(first) = read
                 .iter()
-                .filter(|name| !call.assigned.contains(name))
-                .collect();
-            let Some(first) = missing.first() else {
+                .find(|name| call.assigned.binary_search(name).is_err())
+            else {
                 continue;
             };
             let callee = self.program.fns[call.callee]
                 .def
-                .map_or_else(String::new, |def| def.name.to_string());
+                .map_or("", |def| def.name.as_str());
             self.report(Diagnostic::error(
                 Code::UNASSIGNED_LOCAL,
                 call.span,
-                format!(
+                text!(self,
                     "`{callee}` reads `{first}`, which the file has not assigned on every path that reaches this call; assign it first"
                 ),
             ));
         }
+        self.release(taken);
     }
 
     /// Runs `check` with symbol literals made enum members where `stay` is
@@ -689,37 +1361,111 @@ impl<'a> Checker<'a> {
         result
     }
 
+    /// The declared type of the host global a write to `name` updates:
+    /// one the host declares, which no local, parameter or block parameter
+    /// of the name shadows. The runtime writes the global's binding, which
+    /// every function then reads, so the write keeps the declared type. A
+    /// required file reads the globals but never writes them: its writes
+    /// bind the file's own variables, which shadow them.
+    pub(super) fn host_global(&self, name: &str) -> Option<Ty> {
+        if self.program.file || name.starts_with('@') || self.local(name).is_some() {
+            return None;
+        }
+        self.program.declared.get(name).copied()
+    }
+
+    /// Checks a value of type `ty` written to host global `name`, which
+    /// the host declares as `declared`.
+    fn global_write(&mut self, name: &str, declared: Ty, ty: Ty, span: Span) {
+        if !self.types.assignable(ty, declared) {
+            self.mismatch(span, declared, ty, &Purpose::Global(self.copy(name)));
+        }
+    }
+
+    /// Checks a typed declaration of host global `name`, which the host
+    /// declares as `global`, with the `declared` type, which must be the
+    /// global's own, since the write keeps it; `false` once reported.
+    fn global_declaration(&mut self, name: &str, global: Ty, declared: Ty, span: Span) -> bool {
+        if global == declared || declared == Ty::ERROR {
+            return true;
+        }
+        let first = self.types.display(global);
+        self.report(
+            Diagnostic::error(
+                Code::LOCAL_TYPE_CHANGED,
+                span,
+                text!(self,
+                    "the host declares the global `{name}` as {first}, and assigning it writes the global, which keeps that type; assign it without a type"
+                ),
+            )
+            .with_types(first, self.types.display(declared)),
+        );
+        false
+    }
+
     // Locals -----------------------------------------------------------
 
-    /// Declares a local in the innermost scope.
+    /// Declares a local in the innermost scope; `None` when the budget
+    /// refuses it room, which stops the check and declares nothing.
     pub(super) fn declare(
         &mut self,
         name: &str,
         declared: Ty,
         offset: usize,
         annotated: bool,
-    ) -> LocalId {
-        let id = self.frame.flow.add(declared);
-        debug_assert_eq!(id as usize, self.frame.locals.len());
-        self.frame.locals.push(Local {
-            name: name.to_owned(),
-            declared,
-            offset,
-            annotated,
-            checked: false,
-            dictionary: None,
-        });
-        let previous = self.frame.names.insert(name.to_owned(), id);
-        if let Some(scope) = self.frame.scopes.last_mut() {
-            scope.push((name.to_owned(), previous));
+    ) -> Option<LocalId> {
+        // The local copies its name, as do a new map entry and an open
+        // scope's record. Count only the copies they keep, and make room
+        // in each table before changing any binding, so a refusal leaves
+        // the frame as it was.
+        let tables = self.meter.tables();
+        let frame = &mut self.frame;
+        let new_name = !frame.names.contains_key(name);
+        let copies = 1 + usize::from(new_name) + usize::from(!frame.scopes.is_empty());
+        let bytes = copies * name.len();
+        let mut kept = tables.keep(bytes).ok()?;
+        frame.flow.reserve().ok()?;
+        frame.locals.reserve(tables, 1).ok()?;
+        if new_name {
+            frame.names.reserve(tables, 1).ok()?;
         }
-        id
+        if let Some(scope) = frame.scopes.last_mut() {
+            scope.reserve(tables, 1).ok()?;
+        }
+        let id = frame.flow.add(declared);
+        debug_assert_eq!(id as usize, frame.locals.len());
+        frame.locals.push_kept(
+            &mut kept,
+            Local {
+                name: name.to_owned(),
+                declared,
+                offset,
+                annotated,
+                checked: false,
+                dictionary: None,
+            },
+        );
+        let previous = if let Some(entry) = frame.names.get_mut(name) {
+            Some(std::mem::replace(entry, id))
+        } else {
+            frame.names.insert_kept(&mut kept, name.to_owned(), id)
+        };
+        frame.name_bytes += bytes;
+        if let Some(scope) = frame.scopes.last_mut() {
+            scope.push_kept(&mut kept, (name.to_owned(), previous));
+        }
+        Some(id)
     }
 
-    /// A flow fact that is not a named local, such as whether a block was given.
-    fn pseudo_local(&mut self) -> LocalId {
+    /// A flow fact that is not a named local, such as whether a block was
+    /// given; `None` when the budget refuses it room, which stops the
+    /// check and adds nothing.
+    pub(super) fn pseudo_local(&mut self) -> Option<LocalId> {
+        let tables = self.meter.tables();
+        self.frame.flow.reserve().ok()?;
+        self.frame.locals.reserve(tables, 1).ok()?;
         let id = self.frame.flow.add(Ty::BOOL);
-        self.frame.locals.push(Local {
+        self.frame.locals.push_within(Local {
             name: String::new(),
             declared: Ty::BOOL,
             offset: 0,
@@ -727,7 +1473,7 @@ impl<'a> Checker<'a> {
             checked: false,
             dictionary: None,
         });
-        id
+        Some(id)
     }
 
     pub(super) fn local(&self, name: &str) -> Option<LocalId> {
@@ -745,6 +1491,24 @@ impl<'a> Checker<'a> {
                 assigned: true,
             },
         );
+        if !self.frame.flow.live {
+            return;
+        }
+        if let Some(writes) = self.frame.ensure_writes.last() {
+            if self.meter.charge(1) {
+                return;
+            }
+            let Some(flag) = writes.get(&id).copied() else {
+                return;
+            };
+            self.frame.flow.set(
+                flag,
+                VarState {
+                    ty: narrowed,
+                    assigned: true,
+                },
+            );
+        }
     }
 
     /// The alternatives of `declared` that a value of type `ty` may be.
@@ -752,15 +1516,10 @@ impl<'a> Checker<'a> {
         if ty == Ty::ERROR || declared == Ty::ERROR || declared == Ty::ANY {
             return declared;
         }
-        let alternatives = self.types.members(declared);
-        if alternatives.len() < 2 {
+        if !matches!(self.types.kind(declared), Kind::Union(_)) {
             return declared;
         }
-        let values = self.types.members(ty);
-        let kept: Vec<Ty> = alternatives
-            .into_iter()
-            .filter(|&alt| values.iter().any(|&v| self.types.assignable(v, alt)))
-            .collect();
+        let kept = self.types.meet(declared, ty);
         if kept.is_empty() {
             declared
         } else {
@@ -768,21 +1527,34 @@ impl<'a> Checker<'a> {
         }
     }
 
-    pub(super) fn open_scope(&mut self) {
-        self.frame.scopes.push(Vec::new());
+    /// Opens a block scope; whether it did. A scope the budget refuses
+    /// room for is not opened, and must not be closed: the check has
+    /// stopped.
+    #[must_use = "a scope the budget refuses is not opened, and must not be closed"]
+    pub(super) fn open_scope(&mut self) -> bool {
+        self.frame
+            .scopes
+            .push(self.meter.tables(), CountedVec::new())
+            .is_ok()
     }
 
     pub(super) fn close_scope(&mut self) {
         let Some(scope) = self.frame.scopes.pop() else {
             return;
         };
+        // A name a scope shadowed had its entry, which it gets back in
+        // place.
         for (name, previous) in scope.into_iter().rev() {
+            self.frame.name_bytes -= name.len();
             match previous {
                 Some(id) => {
-                    self.frame.names.insert(name, id);
+                    if let Some(entry) = self.frame.names.get_mut(&name) {
+                        *entry = id;
+                    }
                 }
                 None => {
                     self.frame.names.remove(&name);
+                    self.frame.name_bytes -= name.len();
                 }
             }
         }
@@ -803,20 +1575,65 @@ impl<'a> Checker<'a> {
         }
     }
 
+    /// Keeps `branch`, one end of a construct's branches, in `explored`, a
+    /// list counted, its storage and what each branch owns, while it lives,
+    /// until [`Self::join_explored`] joins them.
+    pub(super) fn explore(&mut self, explored: &mut ScratchVec<Branch>, branch: Branch) {
+        // A check past its budget unwinds without keeping branches, which
+        // its joins would not read; a refusal stops it.
+        explored.add(branch);
+    }
+
+    /// Joins the branches [`Self::explore`] kept.
+    pub(super) fn join_explored(&mut self, explored: ScratchVec<Branch>) {
+        self.join(explored.into_vec());
+    }
+
     pub(super) fn join(&mut self, branches: Vec<Branch>) {
-        let declared: Vec<Ty> = self.frame.locals.iter().map(|l| l.declared).collect();
-        let lookup = move |id: LocalId| declared.get(id as usize).copied().unwrap_or(Ty::BOOL);
+        // A stopped check unwinds without the work its budget ran out of.
+        if self.halted() {
+            return;
+        }
+        // The branches, taken from wherever they were kept, and a table of
+        // each one's changes are held while the join runs.
+        let Some(held) = self.hold(branches.heap() + Flow::join_scratch(&branches)) else {
+            return;
+        };
+        // The locals' declared types are read in place, not copied at every
+        // join.
+        let locals = &self.frame.locals;
+        let lookup = |id: LocalId| {
+            locals
+                .get(id as usize)
+                .map_or(Ty::BOOL, |local| local.declared)
+        };
         self.frame.flow.join(&mut self.types, branches, &lookup);
+        self.release(held);
     }
 
     /// Widens the locals a loop body assigns back to their declared types,
     /// since the body may run again after narrowing them.
-    pub(super) fn widen_for_loop(&mut self, body: &[Stmt]) {
-        let mut names = Vec::new();
-        assigned_names(body, &mut names);
-        self.steps += names.len() as u64 + body.len() as u64;
-        for name in names {
-            if let Some(id) = self.local(&name) {
+    pub(super) fn widen_for_loop(&mut self, body: &'a [Stmt]) {
+        let span = self.assigns.body(&self.meter, body);
+        if self.meter.charge(body.len() as u64) {
+            return;
+        }
+        self.widen(span);
+    }
+
+    /// Widens each local in scope that an assignment in `span` writes to its
+    /// declared type, which forgets its narrowing but not whether it is
+    /// assigned.
+    pub(super) fn widen(&mut self, span: super::assigns::Span) {
+        if self.halted() {
+            return;
+        }
+        let names = self.assigns.distinct(&self.meter, span);
+        if self.meter.charge(names.len() as u64) {
+            return;
+        }
+        for name in names.iter().copied() {
+            if let Some(id) = self.local(name) {
                 let state = self.frame.flow.get(id);
                 let declared = self.frame.locals[id as usize].declared;
                 self.frame.flow.set(
@@ -837,44 +1654,59 @@ impl<'a> Checker<'a> {
         let Some((last, rest)) = body.split_last() else {
             return Ty::NIL;
         };
+        let mut unreachable = None;
         for stmt in rest {
+            // A check a statement stops checks no more of them.
+            if self.halted() {
+                if let Some(mark) = unreachable {
+                    self.frame.flow.rollback(mark);
+                }
+                return Ty::ERROR;
+            }
+            if !self.frame.flow.live {
+                unreachable.get_or_insert_with(|| self.frame.flow.mark());
+                self.frame.flow.live = true;
+            }
             self.stmt(stmt, Want::Discard);
         }
-        self.statement(last, want, true)
-    }
-
-    /// Makes `frame` current, keeping the work the replaced frame did.
-    pub(super) fn enter_frame(&mut self, frame: Frame) -> Frame {
-        let previous = std::mem::replace(&mut self.frame, frame);
-        self.steps += previous.flow.steps;
-        previous
-    }
-
-    /// Restores a frame [`Self::enter_frame`] replaced.
-    pub(super) fn leave_frame(&mut self, previous: Frame) {
-        let finished = std::mem::replace(&mut self.frame, previous);
-        self.steps += finished.flow.steps;
-        // The restored frame's work was counted when it was replaced.
-        self.frame.flow.steps = 0;
+        if !self.frame.flow.live {
+            unreachable.get_or_insert_with(|| self.frame.flow.mark());
+            self.frame.flow.live = true;
+        }
+        let ty = self.statement(last, want, true);
+        self.too_large(last.offset as usize);
+        if let Some(mark) = unreachable {
+            self.frame.flow.rollback(mark);
+        }
+        ty
     }
 
     pub(super) fn stmt(&mut self, stmt: &'a Stmt, want: Want) -> Ty {
-        self.statement(stmt, want, false)
+        let unreachable = (!self.frame.flow.live).then(|| self.frame.flow.mark());
+        if unreachable.is_some() {
+            self.frame.flow.live = true;
+        }
+        let ty = self.statement(stmt, want, false);
+        // A type the statement inferred too large to build, such as the
+        // union of a literal's many shapes, is reported at it.
+        self.too_large(stmt.offset as usize);
+        if let Some(mark) = unreachable {
+            self.frame.flow.rollback(mark);
+        }
+        ty
     }
 
     /// Checks a statement, `last` when it ends a body, where a loop gives
     /// another value than as an expression.
     fn statement(&mut self, stmt: &'a Stmt, want: Want, last: bool) -> Ty {
-        self.steps += 1;
+        if self.meter.charge(1) || self.over_budget() {
+            return Ty::ERROR;
+        }
         if super::too_tall(stmt.height()) {
             // The statement's first token: its whole span is as deep as it.
             let span = self.spans.token(stmt.offset as usize);
             self.too_deep(span);
             return Ty::ANY;
-        }
-        if !self.frame.flow.live {
-            // Unreachable code is still checked, from a live state.
-            self.frame.flow.live = true;
         }
         match &stmt.node {
             Statement::Expr(expr) => match want {
@@ -884,8 +1716,10 @@ impl<'a> Checker<'a> {
                 }
                 Want::Infer(hint) => self.expr(expr, hint),
                 Want::Check(expected) => {
-                    let purpose = self.purposes.last().cloned().unwrap_or(Purpose::Result);
-                    self.expr_against(expr, expected, &purpose)
+                    let Some(purpose) = self.current_purpose() else {
+                        return Ty::ERROR;
+                    };
+                    self.expr_against_held(expr, expected, &purpose)
                 }
             },
             Statement::Assign(target, op, value) => {
@@ -933,10 +1767,30 @@ impl<'a> Checker<'a> {
                 }
                 self.statement_value(stmt, Ty::NIL, want)
             }
-            Statement::UnboundClass(_) | Statement::Unsupported => {
+            // The runtime refuses a declaration nested where it cannot bind
+            // one, whenever the statement runs.
+            Statement::UnboundClass(_) => {
+                self.nested_declaration(
+                    stmt,
+                    "class declarations are only supported at the top level",
+                );
+                self.statement_value(stmt, Ty::NIL, want)
+            }
+            Statement::Unsupported => {
+                self.nested_declaration(
+                    stmt,
+                    "function declarations are only supported at the top level or in class and module bodies",
+                );
                 self.statement_value(stmt, Ty::NIL, want)
             }
         }
+    }
+
+    /// Reports a declaration nested in a body, which the runtime refuses
+    /// when it runs.
+    fn nested_declaration(&mut self, stmt: &Stmt, message: &str) {
+        let span = self.spans.token(stmt.offset as usize);
+        self.report(Diagnostic::error(Code::SYNTAX, span, message));
     }
 
     /// Checks a statement's value against what is wanted of it.
@@ -944,7 +1798,9 @@ impl<'a> Checker<'a> {
         if let Want::Check(expected) = want {
             if self.frame.flow.live && !self.types.assignable(ty, expected) {
                 let span = self.spans.stmt(stmt);
-                let purpose = self.purposes.last().cloned().unwrap_or(Purpose::Result);
+                let Some(purpose) = self.current_purpose() else {
+                    return Ty::ERROR;
+                };
                 self.mismatch(span, expected, ty, &purpose);
             }
         }
@@ -958,18 +1814,26 @@ impl<'a> Checker<'a> {
         alternate: &'a [Stmt],
         want: Want,
     ) -> Ty {
-        let mut results = Vec::new();
-        let mut explored = Vec::new();
+        // The branches' values, in a list counted while it lives.
+        let mut results = super::counted::ScratchVec::new(&self.meter);
+        let mut explored = ScratchVec::new(&self.meter);
         let entry = self.frame.flow.mark();
         for (condition, body) in branches {
             let narrow = self.condition(condition);
             let mark = self.frame.flow.mark();
             self.apply(&narrow.then);
             let ty = self.stmts(body, want);
-            if self.frame.flow.live {
-                results.push(ty);
+            // A check past its budget unwinds without the work of the
+            // branches it nests in.
+            if self.halted() {
+                self.frame.flow.rollback(entry);
+                return Ty::ERROR;
             }
-            explored.push(self.frame.flow.rollback(mark));
+            if self.frame.flow.live {
+                results.add(ty);
+            }
+            let branch = self.frame.flow.rollback(mark);
+            self.explore(&mut explored, branch);
             self.apply(&narrow.otherwise);
         }
         let ty = if alternate.is_empty() {
@@ -977,13 +1841,15 @@ impl<'a> Checker<'a> {
                 if !self.types.assignable(Ty::NIL, expected) {
                     let span = self.spans.token(if_offset);
                     let expected_text = self.types.display(expected);
-                    let purpose = self.purposes.last().cloned().unwrap_or(Purpose::Result);
+                    let Some(purpose) = self.current_purpose() else {
+                        return Ty::ERROR;
+                    };
                     let what = self.purpose_text(&purpose, &expected_text);
                     self.report(
                         Diagnostic::error(
                             Code::TYPE_MISMATCH,
                             span,
-                            format!("{what}, but this `if` has no `else`, so it gives nil when no branch runs"),
+                            text!(self, "{what}, but this `if` has no `else`, so it gives nil when no branch runs"),
                         )
                         .with_types(expected_text, "nil"),
                     );
@@ -994,10 +1860,11 @@ impl<'a> Checker<'a> {
             self.stmts(alternate, want)
         };
         if self.frame.flow.live {
-            results.push(ty);
+            results.add(ty);
         }
-        explored.push(self.frame.flow.rollback(entry));
-        self.join(explored);
+        let branch = self.frame.flow.rollback(entry);
+        self.explore(&mut explored, branch);
+        self.join_explored(explored);
         self.types.union(&results)
     }
 
@@ -1013,7 +1880,9 @@ impl<'a> Checker<'a> {
         let span = self.spans.token(stmt.offset as usize);
         let expected_text = self.types.display(expected);
         let found = self.types.display(ty);
-        let purpose = self.purposes.last().cloned().unwrap_or(Purpose::Result);
+        let Some(purpose) = self.current_purpose() else {
+            return Ty::ERROR;
+        };
         let what = self.purpose_text(&purpose, &expected_text);
         let without = self.types.without_nil(ty);
         let (code, message) = if self.types.has_nil(ty)
@@ -1022,14 +1891,16 @@ impl<'a> Checker<'a> {
         {
             (
                 Code::OPTIONAL_USE,
-                format!(
+                text!(
+                    self,
                     "{what}, but a loop that ends a body gives nil when no iteration reaches the end of its body; end the body with the value it should give"
                 ),
             )
         } else {
             (
                 Code::TYPE_MISMATCH,
-                format!(
+                text!(
+                    self,
                     "{what}, but a loop that ends a body gives the value its body had last, or nil when it never ran, so this one gives {found}; end the body with the value it should give"
                 ),
             )
@@ -1048,10 +1919,21 @@ impl<'a> Checker<'a> {
             matches!(&condition.node, Node::Literal(v) if v.type_name() == "bool" && v.truthy());
         let narrow = self.condition(condition);
         self.apply(&narrow.then);
-        self.frame.contexts.push(Context::Loop {
+        let context = Context::Loop {
             mark: before,
             exits: Exits::default(),
-        });
+        };
+        // A loop the budget refuses room for is not checked; its narrowing
+        // is undone as its end would.
+        if self
+            .frame
+            .contexts
+            .push(self.meter.tables(), context)
+            .is_err()
+        {
+            self.frame.flow.rollback(before);
+            return Ty::ERROR;
+        }
         let value = self.stmts(body, Self::body_want(last));
         let context = self.frame.contexts.pop().unwrap();
         let mut values = self.finish_loop(before, context, !infinite);
@@ -1085,19 +1967,40 @@ impl<'a> Checker<'a> {
         mut context: Context,
         ends: bool,
     ) -> Vec<Ty> {
+        // Popping the context removed its values from the frame's account;
+        // they still live beside the branch tables built by the join.
         let exits = std::mem::take(context.exits());
+        let Some(held) = self.hold(super::meter::vec(exits.values.as_vec())) else {
+            return exits.values.into_vec();
+        };
         let end = self.frame.flow.rollback(before);
         let mut branches = exits.breaks;
         if ends {
-            branches.extend(exits.nexts);
-            branches.push(end);
-            branches.push(Branch {
+            let tables = self.meter.tables();
+            // The state at the loop's end, which its exits did not keep, is
+            // counted with room for it and them; a check the budget stops
+            // joins none of them.
+            let kept = tables.keep(super::counted::Owned::owned(&end));
+            let Ok(mut kept) = kept else {
+                self.release(held);
+                return exits.values.into_vec();
+            };
+            if branches.reserve(tables, exits.nexts.len() + 2).is_err() {
+                self.release(held);
+                return exits.values.into_vec();
+            }
+            for branch in exits.nexts {
+                branches.push_moved(branch);
+            }
+            branches.push_kept(&mut kept, end);
+            branches.push_within(Branch {
                 live: true,
                 changes: Vec::new(),
             });
         }
-        self.join(branches);
-        exits.values
+        self.join(branches.into_vec());
+        self.release(held);
+        exits.values.into_vec()
     }
 
     /// Checks a `for` loop and returns its value: the iterable, or what
@@ -1119,10 +2022,21 @@ impl<'a> Checker<'a> {
         self.declare_for_target(target, element, nonempty);
         let before = self.frame.flow.mark();
         self.bind_target(target, element, true);
-        self.frame.contexts.push(Context::Loop {
+        let context = Context::Loop {
             mark: before,
             exits: Exits::default(),
-        });
+        };
+        // A loop the budget refuses room for is not checked; its bindings
+        // are undone as its end would.
+        if self
+            .frame
+            .contexts
+            .push(self.meter.tables(), context)
+            .is_err()
+        {
+            self.frame.flow.rollback(before);
+            return Ty::ERROR;
+        }
         let value = self.stmts(body, Self::body_want(last));
         let mut context = self.frame.contexts.pop().unwrap();
         let skips = !context.exits().nexts.is_empty();
@@ -1149,15 +2063,20 @@ impl<'a> Checker<'a> {
         match target {
             Target::Value(expr) => {
                 if let Node::Var(name) = &expr.node {
-                    if self.local(name).is_none() && !name.starts_with('@') {
+                    if self.local(name).is_none()
+                        && !name.starts_with('@')
+                        && self.host_global(name).is_none()
+                    {
                         self.check_binding_target(target);
                         let declared = if nonempty {
                             element
                         } else {
                             self.types.optional(element)
                         };
-                        let id = self.declare(name, declared, expr.offset as usize, false);
-                        self.assign_local(id, if nonempty { element } else { Ty::NIL });
+                        if let Some(id) = self.declare(name, declared, expr.offset as usize, false)
+                        {
+                            self.assign_local(id, if nonempty { element } else { Ty::NIL });
+                        }
                     }
                 }
             }
@@ -1192,7 +2111,7 @@ impl<'a> Checker<'a> {
             Diagnostic::error(
                 Code::TYPE_MISMATCH,
                 span,
-                format!("`for` iterates an array, hash or range, not {found}"),
+                text!(self, "`for` iterates an array, hash or range, not {found}"),
             )
             .with_types("array | hash | range", found),
         );
@@ -1228,7 +2147,7 @@ impl<'a> Checker<'a> {
                     self.report(Diagnostic::error(
                         Code::RETURN_WITHOUT_TYPE,
                         span,
-                        format!(
+                        text!(self,
                             "`{}` declares no result type, so it returns nil; declare `-> {found}` to return this value",
                             self.frame.name
                         ),
@@ -1285,7 +2204,8 @@ impl<'a> Checker<'a> {
             Diagnostic::error(
                 Code::TYPE_MISMATCH,
                 span,
-                format!(
+                text!(
+                    self,
                     "`raise` takes a message, an error class or a rescued error, found {found}"
                 ),
             )
@@ -1320,8 +2240,13 @@ impl<'a> Checker<'a> {
             (None, None) => Ty::NIL,
         };
         if self.frame.flow.live {
+            let tables = self.meter.tables();
             if let Some(context) = self.frame.contexts.last_mut() {
-                context.exits().values.push(ty);
+                // A check the budget stops keeps no more of them.
+                if context.exits().values.push(tables, ty).is_err() {
+                    self.frame.flow.live = false;
+                    return;
+                }
             }
         }
         self.exit_context(true);
@@ -1351,18 +2276,23 @@ impl<'a> Checker<'a> {
                 let found = self.types.display(value);
                 let expected = self.types.display(to.ty);
                 let what = if to.inside {
-                    format!(
+                    text!(
+                        self,
                         "ends a loop or block inside `{}`, which takes {expected}",
                         to.function
                     )
                 } else {
-                    format!("returns from `{}`, which returns {expected}", to.function)
+                    text!(
+                        self,
+                        "returns from `{}`, which returns {expected}",
+                        to.function
+                    )
                 };
                 self.report(
                     Diagnostic::error(
                         Code::TYPE_MISMATCH,
                         span,
-                        format!(
+                        text!(self,
                             "a `break` out of the caller's block, a value of {found}, leaves this `yield` and {what}; move the `yield` out of the block, or give the functions results that fit"
                         ),
                     )
@@ -1371,9 +2301,12 @@ impl<'a> Checker<'a> {
             }
         }
         let branch = self.frame.flow.peek(mark);
+        let tables = self.meter.tables();
         let exits = self.frame.contexts.last_mut().unwrap().exits();
-        exits.breaks.push(branch);
-        exits.values.push(value);
+        // A check the budget stops records neither.
+        if exits.values.reserve(tables, 1).is_ok() && exits.record(tables, branch, true).is_ok() {
+            exits.values.push_within(value);
+        }
     }
 
     /// Records the state at a `break` or `next` for the enclosing loop or block.
@@ -1385,11 +2318,12 @@ impl<'a> Checker<'a> {
             return;
         };
         let branch = self.frame.flow.peek(context.mark());
+        let tables = self.meter.tables();
         let exits = self.frame.contexts.last_mut().unwrap().exits();
-        if leaves {
-            exits.breaks.push(branch);
-        } else {
-            exits.nexts.push(branch);
+        let kept = exits.record(tables, branch, leaves);
+        // A check the budget stops keeps no more of them.
+        if kept.is_err() {
+            self.frame.flow.live = false;
         }
     }
 
@@ -1417,8 +2351,13 @@ impl<'a> Checker<'a> {
                     }
                     (None, None) => Ty::NIL,
                 };
+                let tables = self.meter.tables();
                 if let Some(Context::Block { results, .. }) = self.frame.contexts.last_mut() {
-                    results.push(ty);
+                    // A check the budget stops keeps no more of them.
+                    if results.push(tables, ty).is_err() {
+                        self.frame.flow.live = false;
+                        return;
+                    }
                 }
             }
             None => {
@@ -1436,7 +2375,7 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::SYNTAX,
                 self.spans.token(stmt.offset as usize),
-                format!("`{name}` is only valid inside a loop or block"),
+                text!(self, "`{name}` is only valid inside a loop or block"),
             ));
         }
     }
@@ -1465,8 +2404,15 @@ impl<'a> Checker<'a> {
     pub(super) fn mark_write_chain(&mut self, receiver: &Expr) {
         let mut current = receiver;
         loop {
-            self.write_chain
-                .insert(std::ptr::from_ref(current) as usize);
+            // A check the budget stops marks no more.
+            let tables = self.meter.tables();
+            if self
+                .write_chain
+                .insert(tables, std::ptr::from_ref(current) as usize)
+                .is_err()
+            {
+                return;
+            }
             current = match &current.node {
                 Node::Index(inner, _) | Node::Member(inner, _) | Node::Method(inner, ..) => inner,
                 _ => return,
@@ -1487,7 +2433,7 @@ impl<'a> Checker<'a> {
         match op {
             "=" => self.assign(target, value),
             "||=" | "&&=" => {
-                let outer = self.memo.replace(super::Memo::default());
+                let outer = self.set_memo(Some(super::Memo::default()));
                 let current = self.target_read(target);
                 if current != Ty::ERROR && current != Ty::BOOL {
                     let span = self.target_span(target);
@@ -1496,7 +2442,7 @@ impl<'a> Checker<'a> {
                         Diagnostic::error(
                             Code::CONDITION_NOT_BOOL,
                             span,
-                            format!(
+                            text!(self,
                                 "`{op}` tests its target, which must be a bool, found {found}; assign under an explicit nil test instead"
                             ),
                         )
@@ -1504,7 +2450,7 @@ impl<'a> Checker<'a> {
                     );
                 }
                 let ty = self.expr(value, Some(current));
-                self.memo.as_mut().unwrap().replay = true;
+                self.memo.get_mut().unwrap().replay = true;
                 self.target_write(target, ty, value);
                 self.restore_memo(outer);
                 ty
@@ -1513,11 +2459,11 @@ impl<'a> Checker<'a> {
                 let operator = &op[..op.len() - 1];
                 // The write reuses the types the read found for the target's
                 // receiver and selectors instead of checking them again.
-                let outer = self.memo.replace(super::Memo::default());
+                let outer = self.set_memo(Some(super::Memo::default()));
                 let current = self.target_read(target);
                 let right = self.expr(value, None);
                 let span = self.spans.stmt(stmt);
-                self.memo.as_mut().unwrap().replay = true;
+                self.memo.get_mut().unwrap().replay = true;
                 let result = match self.optional_element(target, op, value, current) {
                     Some(present) => {
                         self.binary_types(operator, present, right, span, Some((None, value)))
@@ -1566,12 +2512,13 @@ impl<'a> Checker<'a> {
         let mut diagnostic = Diagnostic::error(
             Code::OPTIONAL_USE,
             span,
-            format!(
+            text!(
+                self,
                 "this element may be nil ({found}), as it is when missing; read it with `fetch`, which raises when it is missing, or test it with `!= nil` first"
             ),
         );
         let receiver_ty = self.expr(receiver, None);
-        let stored = match self.types.kind(receiver_ty).clone() {
+        let stored = match *self.types.kind(receiver_ty) {
             Kind::Array(element) => Some(element),
             Kind::Hash(value) => Some(value),
             _ => None,
@@ -1604,7 +2551,7 @@ impl<'a> Checker<'a> {
 
     /// `x[i] = x.fetch(i) + v` in place of `x[i] += v`.
     fn fetch_assignment(
-        &self,
+        &mut self,
         target: &Expr,
         receiver: &Expr,
         selector: &Expr,
@@ -1634,6 +2581,18 @@ impl<'a> Checker<'a> {
                 | Node::Index(..)
         );
         let (open, close) = if grouped { ("", "") } else { ("(", ")") };
+        let replacement = text!(
+            self,
+            "{receiver_text}.fetch({selector_text}) {operator} {open}"
+        );
+        // The replacement, which spells the receiver and the selector, is
+        // held while the message that spells them again is written.
+        let held = self.hold(replacement.capacity())?;
+        let message = text!(
+            self,
+            "read it with `{receiver_text}.fetch({selector_text})`"
+        );
+        self.release(held);
         let mut edits = vec![
             Edit {
                 span: Span::new(at, at + op.len()),
@@ -1641,7 +2600,7 @@ impl<'a> Checker<'a> {
             },
             Edit {
                 span: Span::at(value_span.start),
-                replacement: format!("{receiver_text}.fetch({selector_text}) {operator} {open}"),
+                replacement,
             },
         ];
         if !close.is_empty() {
@@ -1650,10 +2609,7 @@ impl<'a> Checker<'a> {
                 replacement: close.to_owned(),
             });
         }
-        Some(Fix::edits(
-            format!("read it with `{receiver_text}.fetch({selector_text})`"),
-            edits,
-        ))
+        Some(Fix::edits(message, edits))
     }
 
     fn target_span(&self, target: &Target) -> Span {
@@ -1692,6 +2648,9 @@ impl<'a> Checker<'a> {
                             self.local_changed(id, span, ty);
                         }
                         self.assign_local(id, ty);
+                    } else if let Some(global) = self.host_global(name) {
+                        let span = self.spans.expr(value);
+                        self.global_write(name, global, ty, span);
                     }
                 }
                 Node::Index(receiver, selectors) => {
@@ -1722,12 +2681,26 @@ impl<'a> Checker<'a> {
                     return ty;
                 };
                 let declared = self.annotation(annotation, self.frame.owner, *offset as usize);
+                if let (Some(global), false) = (
+                    self.host_global(name),
+                    self.frame.namespace_body && is_constant(name),
+                ) {
+                    // A declaration writes the global too, whose type stays.
+                    let span = self.spans.token(*offset as usize);
+                    let purpose = if self.global_declaration(name, global, declared, span) {
+                        Purpose::Global(self.copy(name))
+                    } else {
+                        Purpose::Local(self.copy(name))
+                    };
+                    return self.expr_against(value, declared, &purpose);
+                }
                 let ty = self.symbols(None, |this| {
-                    this.expr_against(value, declared, &Purpose::Local(name.to_string()))
+                    this.expr_against(value, declared, &Purpose::Local(this.copy(name)))
                 });
                 if self.frame.namespace_body && is_constant(name) {
-                    self.constants
-                        .insert((self.frame.owner, name.to_string()), declared);
+                    if self.keep_constant((self.frame.owner, self.copy(name)), declared) {
+                        return Ty::ERROR;
+                    }
                     return ty;
                 }
                 let id = match self.local(name) {
@@ -1741,7 +2714,7 @@ impl<'a> Checker<'a> {
                                 Diagnostic::error(
                                     Code::LOCAL_TYPE_CHANGED,
                                     span,
-                                    format!(
+                                    text!(self,
                                         "`{name}` is already declared as {first}; a local keeps the type of its first declaration"
                                     ),
                                 )
@@ -1752,7 +2725,9 @@ impl<'a> Checker<'a> {
                         id
                     }
                     None => {
-                        let id = self.declare(name, declared, *offset as usize, true);
+                        let Some(id) = self.declare(name, declared, *offset as usize, true) else {
+                            return ty;
+                        };
                         self.frame.locals[id as usize].checked = true;
                         id
                     }
@@ -1762,14 +2737,14 @@ impl<'a> Checker<'a> {
             }
             Target::Value(expr) => match &expr.node {
                 Node::Var(name) if name.starts_with("@@") => {
-                    let key = (self.frame.owner, name.to_string());
+                    let key = (self.frame.owner, self.copy(name));
                     match self.constants.get(&key).copied() {
                         Some(declared) if self.frame.owner.is_some() => {
                             self.symbols(Some(CLASS_SYMBOL), |this| {
                                 this.expr_against(
                                     value,
                                     declared,
-                                    &Purpose::Ivar(name[1..].to_owned()),
+                                    &Purpose::Ivar(this.copy(&name[1..])),
                                 )
                             })
                         }
@@ -1785,11 +2760,11 @@ impl<'a> Checker<'a> {
                     let ivar = &name[1..];
                     let expected = self.ivar_type(ivar, span);
                     if matches!(&value.node, Node::Var(value) if value.as_str() == "self") {
-                        self.storing_self = Some(ivar.to_owned());
+                        self.storing_self = Some(self.copy(ivar));
                     }
                     let ty = match expected {
                         Some(expected) => self.symbols(None, |this| {
-                            this.expr_against(value, expected, &Purpose::Ivar(ivar.to_owned()))
+                            this.expr_against(value, expected, &Purpose::Ivar(this.copy(ivar)))
                         }),
                         None => self.expr(value, None),
                     };
@@ -1799,17 +2774,19 @@ impl<'a> Checker<'a> {
                 Node::Var(name) if self.frame.namespace_body && is_constant(name) => {
                     if let Some(declared) = self.declared_constant(name) {
                         return self.symbols(None, |this| {
-                            this.expr_against(value, declared, &Purpose::Local(name.to_string()))
+                            this.expr_against(value, declared, &Purpose::Local(this.copy(name)))
                         });
                     }
-                    let key = (self.frame.owner, name.to_string());
+                    let key = (self.frame.owner, self.copy(name));
                     if let Some(&declared) = self.constants.get(&key) {
                         self.symbols(Some(LOCAL_SYMBOL), |this| {
-                            this.expr_against(value, declared, &Purpose::Local(name.to_string()))
+                            this.expr_against(value, declared, &Purpose::Local(this.copy(name)))
                         })
                     } else {
                         let ty = self.expr(value, None);
-                        self.constants.insert(key, ty);
+                        if self.keep_constant(key, ty) {
+                            return Ty::ERROR;
+                        }
                         ty
                     }
                 }
@@ -1831,10 +2808,18 @@ impl<'a> Checker<'a> {
                             self.assign_local(id, ty);
                             ty
                         }
+                        None if self.host_global(name).is_some() => {
+                            let global = self.host_global(name).unwrap();
+                            self.expr_against(value, global, &Purpose::Global(self.copy(name)))
+                        }
                         None => {
                             let ty = self.expr(value, None);
                             let declared = self.local_type(name, ty, value, expr.offset as usize);
-                            let id = self.declare(name, declared, expr.offset as usize, false);
+                            let Some(id) =
+                                self.declare(name, declared, expr.offset as usize, false)
+                            else {
+                                return ty;
+                            };
                             if let (Node::Hash(_), Kind::Shape(..)) =
                                 (&value.node, self.types.kind(ty))
                             {
@@ -1872,6 +2857,9 @@ impl<'a> Checker<'a> {
         };
         let splat = parts.iter().position(|(_, rest)| *rest);
         let after = splat.map_or(0, |splat| parts.len() - splat - 1);
+        let Some(held) = self.hold(items.len() * std::mem::size_of::<Ty>()) else {
+            return Ty::ERROR;
+        };
         let types: Vec<Ty> = items
             .iter()
             .enumerate()
@@ -1894,7 +2882,9 @@ impl<'a> Checker<'a> {
                 }
             })
             .collect();
-        self.types.tuple(types)
+        let tuple = self.types.tuple(types);
+        self.release(held);
+        tuple
     }
 
     /// The type a local first assigned a value of type `ty` gets; `nil`,
@@ -1913,7 +2903,8 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::NEEDS_TYPE,
                 span,
-                format!(
+                text!(
+                    self,
                     "{what} does not say what `{name}` holds; declare it, as in `{name}: T = ...`"
                 ),
             ));
@@ -1941,7 +2932,7 @@ impl<'a> Checker<'a> {
     }
 
     fn uniform_field_type(&mut self, shape: Ty) -> Option<Ty> {
-        let Kind::Shape(fields, false) = self.types.kind(shape).clone() else {
+        let Kind::Shape(fields, false) = &*self.types.shared(shape) else {
             return None;
         };
         let first = fields.first()?.ty;
@@ -1974,7 +2965,10 @@ impl<'a> Checker<'a> {
             Diagnostic::error(
                 Code::LOCAL_TYPE_CHANGED,
                 span,
-                format!("`{name}` is {expected}, {how}; it cannot hold {found}"),
+                text!(
+                    self,
+                    "`{name}` is {expected}, {how}; it cannot hold {found}"
+                ),
             )
             .with_label(first, "declared here")
             .with_types(expected, found),
@@ -1988,6 +2982,11 @@ impl<'a> Checker<'a> {
         }
         match target {
             Target::Value(expr) => match &expr.node {
+                Node::Var(name) if assignment && self.host_global(name).is_some() => {
+                    let global = self.host_global(name).unwrap();
+                    let span = self.spans.expr(expr);
+                    self.global_write(name, global, ty, span);
+                }
                 Node::Var(name) if !name.starts_with('@') => {
                     let id = match (assignment, self.local(name)) {
                         (true, Some(id)) => {
@@ -2001,7 +3000,13 @@ impl<'a> Checker<'a> {
                         // A part such as the missing second element of
                         // `a, b = [1]` is `nil`, and uses of it are checked
                         // as any other type's.
-                        _ => self.declare(name, ty, expr.offset as usize, false),
+                        _ => {
+                            let Some(id) = self.declare(name, ty, expr.offset as usize, false)
+                            else {
+                                return;
+                            };
+                            id
+                        }
                     };
                     self.assign_local(id, ty);
                 }
@@ -2009,7 +3014,12 @@ impl<'a> Checker<'a> {
                     let span = self.spans.expr(expr);
                     if let Some(expected) = self.ivar_type(&name[1..], span) {
                         if !self.types.assignable(ty, expected) {
-                            self.mismatch(span, expected, ty, &Purpose::Ivar(name[1..].to_owned()));
+                            self.mismatch(
+                                span,
+                                expected,
+                                ty,
+                                &Purpose::Ivar(self.copy(&name[1..])),
+                            );
                         }
                     }
                     self.mark_ivar_assigned(&name[1..]);
@@ -2020,9 +3030,9 @@ impl<'a> Checker<'a> {
                     self.mark_write_chain(receiver);
                     // As a compound assignment does, the read checks the
                     // receiver and keys, and the write replays their types.
-                    let outer = self.memo.replace(super::Memo::default());
+                    let outer = self.set_memo(Some(super::Memo::default()));
                     self.expr(expr, None);
-                    self.memo.as_mut().unwrap().replay = true;
+                    self.memo.get_mut().unwrap().replay = true;
                     self.index_write(expr, receiver, selectors, ty, expr, false);
                     self.restore_memo(outer);
                 }
@@ -2048,11 +3058,24 @@ impl<'a> Checker<'a> {
                         node: Node::Var(name),
                         offset,
                         ..
+                    }) if assignment && self.host_global(name).is_some() => {
+                        // The value already has the declared type.
+                        let global = self.host_global(name).unwrap();
+                        let span = self.spans.token(*offset as usize);
+                        self.global_declaration(name, global, declared, span);
+                    }
+                    Target::Value(Expr {
+                        node: Node::Var(name),
+                        offset,
+                        ..
                     }) if !name.starts_with('@') => {
                         let id = match (assignment, self.local(name)) {
                             (true, Some(id)) => id,
                             _ => {
-                                let id = self.declare(name, declared, *offset as usize, true);
+                                let Some(id) = self.declare(name, declared, *offset as usize, true)
+                                else {
+                                    return;
+                                };
                                 self.frame.locals[id as usize].checked = true;
                                 id
                             }
@@ -2066,6 +3089,11 @@ impl<'a> Checker<'a> {
                 let count = parts.len();
                 let splat = parts.iter().position(|(_, rest)| *rest);
                 for (index, (part, rest)) in parts.iter().enumerate() {
+                    // A check its budget stops binds no more of them, and
+                    // the budget is checked as a walk checks it.
+                    if self.paced(index) {
+                        return;
+                    }
                     let Some(part) = part else {
                         continue;
                     };
@@ -2092,7 +3120,7 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::LOCAL_TYPE_CHANGED,
                 self.spans.expr(expr),
-                format!("a function cannot assign capitalized name `{name}`; use a lowercase local or a declared class variable"),
+                text!(self, "a function cannot assign capitalized name `{name}`; use a lowercase local or a declared class variable"),
             ));
             return;
         }
@@ -2109,16 +3137,19 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::LOCAL_TYPE_CHANGED,
                 self.spans.expr(expr),
-                format!("`{name}` names a namespace or function and cannot be rebound"),
+                text!(
+                    self,
+                    "`{name}` names a namespace or function and cannot be rebound"
+                ),
             ));
         }
     }
 
     /// The type of element `index` when destructuring a value of type `ty`.
     pub(super) fn element_of(&mut self, ty: Ty, index: usize) -> Ty {
-        match self.types.kind(ty).clone() {
+        match &*self.types.shared(ty) {
             Kind::Tuple(items) => items.get(index).copied().unwrap_or(Ty::NIL),
-            Kind::Array(element) => self.types.optional(element),
+            Kind::Array(element) => self.types.optional(*element),
             Kind::Error | Kind::Any => ty,
             _ if index == 0 => ty,
             _ => Ty::NIL,
@@ -2144,7 +3175,7 @@ impl<'a> Checker<'a> {
     }
 
     fn rest_of(&mut self, ty: Ty, index: usize, count: usize) -> Ty {
-        match self.types.kind(ty).clone() {
+        match &*self.types.shared(ty) {
             Kind::Tuple(items) => {
                 let end = items.len().saturating_sub(count - index - 1).max(index);
                 let slice: Vec<Ty> = items
@@ -2169,7 +3200,10 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::UNDECLARED_IVAR,
                 span,
-                format!("`@{name}` is outside any class; instance variables belong to a class"),
+                text!(
+                    self,
+                    "`@{name}` is outside any class; instance variables belong to a class"
+                ),
             ));
             return None;
         };
@@ -2181,7 +3215,7 @@ impl<'a> Checker<'a> {
         self.report(Diagnostic::error(
             Code::UNDECLARED_IVAR,
             span,
-            format!(
+            text!(self,
                 "`@{name}` is not declared in `{class}`; declare it in the class body, as in `@{name}: T`"
             ),
         ));
@@ -2193,14 +3227,44 @@ impl<'a> Checker<'a> {
     fn declared_constant(&mut self, name: &str) -> Option<Ty> {
         let ns = self.frame.owner?;
         let module = self.program.namespaces[ns as usize].module?;
-        let (ty, offset) = module.body.iter().find_map(|stmt| match &stmt.node {
-            Statement::Assign(target, "=", _) => {
-                let (declared, ty) = crate::syntax::typed::declared_local(target)?;
-                (declared == name).then_some((ty, stmt.offset))
+        // The body's declarations are found once, in a map counted as it
+        // grows, a step a statement, rather than searched for each
+        // assignment; the first declaration of a name is the one.
+        if self.frame.declared.is_none() {
+            if self.meter.charge(module.body.len() as u64) {
+                return None;
             }
-            _ => None,
-        })?;
-        Some(self.annotation(ty, Some(ns), offset as usize))
+            let tables = self.meter.tables();
+            let mut declared = CountedMap::new();
+            let mut names = 0;
+            for (index, stmt) in module.body.iter().enumerate() {
+                let Statement::Assign(target, "=", _) = &stmt.node else {
+                    continue;
+                };
+                let Some((name, _)) = crate::syntax::typed::declared_local(target) else {
+                    continue;
+                };
+                let name = name.as_str();
+                if declared.contains_key(name) {
+                    continue;
+                }
+                if declared
+                    .insert_made(tables, name.len(), || name.to_owned(), index as u32)
+                    .is_err()
+                {
+                    return None;
+                }
+                names += name.len();
+            }
+            self.frame.declared = Some((declared, names));
+        }
+        let &index = self.frame.declared.as_ref()?.0.get(name)?;
+        let stmt = &module.body[index as usize];
+        let Statement::Assign(target, "=", _) = &stmt.node else {
+            return None;
+        };
+        let (_, ty) = crate::syntax::typed::declared_local(target)?;
+        Some(self.annotation(ty, Some(ns), stmt.offset as usize))
     }
 
     /// Assigns a class variable, which its class or module body declares
@@ -2210,15 +3274,15 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::UNDECLARED_IVAR,
                 self.spans.expr(target),
-                format!("class variable `{name}` is outside a class"),
+                text!(self, "class variable `{name}` is outside a class"),
             ));
             return;
         };
-        let key = (Some(ns), name.to_owned());
+        let key = (Some(ns), self.copy(name));
         if let Some(declared) = self.constants.get(&key).copied() {
             if !self.types.assignable(ty, declared) {
                 let span = self.spans.expr(value);
-                self.mismatch(span, declared, ty, &Purpose::Ivar(name[1..].to_owned()));
+                self.mismatch(span, declared, ty, &Purpose::Ivar(self.copy(&name[1..])));
             }
             return;
         }
@@ -2227,7 +3291,8 @@ impl<'a> Checker<'a> {
         let mut diagnostic = Diagnostic::error(
             Code::UNDECLARED_IVAR,
             span,
-            format!(
+            text!(
+                self,
                 "class variable `{name}` is not declared in `{class}`; declare it in the body, as in `{name}: T = value`"
             ),
         );
@@ -2236,15 +3301,34 @@ impl<'a> Checker<'a> {
         if nameable && self.frame.namespace_body && self.class_body_assignment(ns, target) {
             let written = self.types.display(ty);
             diagnostic = diagnostic.with_fix(Fix::insert(
-                format!("declare `{name}: {written}`"),
+                text!(self, "declare `{name}: {written}`"),
                 span.end,
-                format!(": {written}"),
+                text!(self, ": {written}"),
             ));
         }
         self.report(diagnostic);
         // Later reads and writes check against the first value's type.
         let ty = if nameable { ty } else { Ty::ERROR };
-        self.constants.insert(key, ty);
+        if self.keep_constant(key, ty) {
+            self.stopped = true;
+        }
+    }
+
+    /// Records constant `key` of type `ty`. A new one's name, and its room
+    /// in the table, are counted before it is kept, and a check they stop
+    /// keeps no more constants. Returns whether the check has stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    pub(super) fn keep_constant(&mut self, key: (Option<NsId>, String), ty: Ty) -> bool {
+        if let Some(entry) = self.constants.get_mut(&key) {
+            *entry = ty;
+            return self.halted();
+        }
+        let bytes = key.1.capacity();
+        if self.constants.insert(self.meter.tables(), key, ty).is_err() {
+            return true;
+        }
+        self.grown += bytes;
+        self.halted()
     }
 
     /// Whether `target` is the target of a plain assignment that stands
@@ -2254,16 +3338,26 @@ impl<'a> Checker<'a> {
         let Some(module) = self.program.namespaces[ns as usize].module else {
             return false;
         };
-        module.body.iter().any(|stmt| match &stmt.node {
-            Statement::Assign(Target::Value(assigned), "=", _) => {
-                assigned.offset == target.offset && stmt.offset == target.offset
-            }
-            _ => false,
-        })
+        // The body's statements are in source order, so the one at the
+        // target's offset is found by search rather than by a scan.
+        let Ok(at) = module
+            .body
+            .binary_search_by_key(&target.offset, |stmt| stmt.offset)
+        else {
+            return false;
+        };
+        matches!(
+            &module.body[at].node,
+            Statement::Assign(Target::Value(assigned), "=", _) if assigned.offset == target.offset
+        )
     }
 
     pub(super) fn mark_ivar_assigned(&mut self, name: &str) {
-        if let Some(&(_, id)) = self.frame.initialize.iter().find(|(ivar, _)| ivar == name) {
+        let Some((roster, first)) = &self.frame.initialize else {
+            return;
+        };
+        if let Ok(place) = roster.binary_search_by(|ivar| ivar.as_str().cmp(name)) {
+            let id = first + place as LocalId;
             let state = self.frame.flow.get(id);
             self.frame.flow.set(
                 id,
@@ -2280,7 +3374,7 @@ impl<'a> Checker<'a> {
         if !accessor {
             if let Some(expected) = self.ivar_type(name, span) {
                 if !self.types.assignable(ty, expected) {
-                    self.mismatch(span, expected, ty, &Purpose::Ivar(name.to_owned()));
+                    self.mismatch(span, expected, ty, &Purpose::Ivar(self.copy(name)));
                 }
             }
         }
@@ -2291,7 +3385,7 @@ impl<'a> Checker<'a> {
         if let Some(expected) = self.ivar_type(name, span) {
             if !self.types.assignable(ty, expected) {
                 let span = self.spans.expr(value);
-                self.mismatch(span, expected, ty, &Purpose::Ivar(name.to_owned()));
+                self.mismatch(span, expected, ty, &Purpose::Ivar(self.copy(name)));
             }
         }
         self.mark_ivar_assigned(name);
@@ -2308,7 +3402,7 @@ impl<'a> Checker<'a> {
             let mut diagnostic = Diagnostic::error(
                 Code::CONDITION_NOT_BOOL,
                 span,
-                format!("a condition must be a bool, found {found}"),
+                text!(self, "a condition must be a bool, found {found}"),
             )
             .with_types("bool", found.clone());
             // A nil test keeps an optional value's meaning, unless it may be false.
@@ -2320,15 +3414,18 @@ impl<'a> Checker<'a> {
             {
                 let text = &self.source[span.start..span.end];
                 let replacement = if is_simple(expr) {
-                    format!("{text} != nil")
+                    text!(self, "{text} != nil")
                 } else {
-                    format!("({text}) != nil")
+                    text!(self, "({text}) != nil")
                 };
-                diagnostic = diagnostic.with_fix(Fix::replace(
-                    format!("test for nil: `{replacement}`"),
-                    span,
-                    replacement,
-                ));
+                // The replacement, which spells the condition, is held
+                // while the message that spells it again is written.
+                let Some(held) = self.hold(replacement.capacity()) else {
+                    return narrow;
+                };
+                let message = text!(self, "test for nil: `{replacement}`");
+                self.release(held);
+                diagnostic = diagnostic.with_fix(Fix::replace(message, span, replacement));
             }
             self.report(diagnostic);
         }
@@ -2357,10 +3454,15 @@ impl<'a> Checker<'a> {
                 let (rt, rn) = self.condition_parts(right);
                 self.require_bool(right, rt, "&&");
                 self.frame.flow.rollback(mark);
-                let mut then = ln.then.clone();
-                then.extend(rn.then.iter().copied());
-                let otherwise =
-                    self.join_narrowings(&ln.otherwise, &merge(&ln.then, &rn.otherwise));
+                let merged = merge(&self.meter, &ln.then, &rn.otherwise);
+                let otherwise = self.join_narrowings(&ln.otherwise, &merged);
+                drop(merged);
+                // The left's list takes the right's, its growth counted
+                // first; a refusal stops the check.
+                let mut then = ln.then;
+                if then.extend_from_slice(&rn.then).is_err() {
+                    return (Ty::ERROR, Narrow::new(&self.meter));
+                }
                 (Ty::BOOL, Narrow { then, otherwise })
             }
             Node::Binary("||", left, right) => {
@@ -2371,9 +3473,13 @@ impl<'a> Checker<'a> {
                 let (rt, rn) = self.condition_parts(right);
                 self.require_bool(right, rt, "||");
                 self.frame.flow.rollback(mark);
-                let mut otherwise = ln.otherwise.clone();
-                otherwise.extend(rn.otherwise.iter().copied());
-                let then = self.join_narrowings(&ln.then, &merge(&ln.otherwise, &rn.then));
+                let merged = merge(&self.meter, &ln.otherwise, &rn.then);
+                let then = self.join_narrowings(&ln.then, &merged);
+                drop(merged);
+                let mut otherwise = ln.otherwise;
+                if otherwise.extend_from_slice(&rn.otherwise).is_err() {
+                    return (Ty::ERROR, Narrow::new(&self.meter));
+                }
                 (Ty::BOOL, Narrow { then, otherwise })
             }
             Node::Binary(op @ ("==" | "!="), left, right) => {
@@ -2383,7 +3489,7 @@ impl<'a> Checker<'a> {
                     (Node::Literal(v), _) if v.type_name() == "nil" => Some(&**right),
                     _ => None,
                 };
-                let mut narrow = Narrow::default();
+                let mut narrow = Narrow::new(&self.meter);
                 if let Some(id) = subject.and_then(|subject| self.narrowable(subject)) {
                     let current = self.frame.flow.get(id).ty;
                     let without = self.types.without_nil(current);
@@ -2396,18 +3502,19 @@ impl<'a> Checker<'a> {
                         self.report(Diagnostic::warning(
                             Code::UNREACHABLE_NARROWING,
                             span,
-                            format!(
+                            text!(
+                                self,
                                 "`{name}` is {found}, never nil, so this test is always {always}"
                             ),
                         ));
                     }
                     let nil = if optional { Ty::NIL } else { current };
                     if *op == "==" {
-                        narrow.then.push((id, nil));
-                        narrow.otherwise.push((id, without));
+                        narrow.then.add((id, nil));
+                        narrow.otherwise.add((id, without));
                     } else {
-                        narrow.then.push((id, without));
-                        narrow.otherwise.push((id, nil));
+                        narrow.then.add((id, without));
+                        narrow.otherwise.add((id, nil));
                     }
                 }
                 (ty, narrow)
@@ -2416,7 +3523,7 @@ impl<'a> Checker<'a> {
                 if name.as_str() == "is_type?" && args.len() == 1 =>
             {
                 let ty = self.expr(expr, None);
-                let mut narrow = Narrow::default();
+                let mut narrow = Narrow::new(&self.meter);
                 if let (Some(id), Some(tested)) =
                     (self.narrowable(receiver), self.type_atom(&args[0].value))
                 {
@@ -2429,7 +3536,7 @@ impl<'a> Checker<'a> {
                         self.report(Diagnostic::warning(
                             Code::CAST,
                             span,
-                            format!("a value of type {found} is never {wanted}, so this test is always false"),
+                            text!(self, "a value of type {found} is never {wanted}, so this test is always false"),
                         ));
                     }
                     let otherwise = if current == Ty::ANY {
@@ -2437,19 +3544,19 @@ impl<'a> Checker<'a> {
                     } else {
                         self.types.without(current, tested)
                     };
-                    narrow.then.push((id, then));
-                    narrow.otherwise.push((id, otherwise));
+                    narrow.then.add((id, then));
+                    narrow.otherwise.add((id, otherwise));
                 }
                 (ty, narrow)
             }
             Node::Var(name) if name.as_str() == "block_given?" && self.local(name).is_none() => {
-                let mut narrow = Narrow::default();
+                let mut narrow = Narrow::new(&self.meter);
                 if let Some(id) = self.frame.block_given {
-                    narrow.then.push((id, Ty::BOOL));
+                    narrow.then.add((id, Ty::BOOL));
                 }
                 (Ty::BOOL, narrow)
             }
-            _ => (self.expr(expr, None), Narrow::default()),
+            _ => (self.expr(expr, None), Narrow::new(&self.meter)),
         }
     }
 
@@ -2463,18 +3570,28 @@ impl<'a> Checker<'a> {
             Diagnostic::error(
                 Code::LOGICAL_NOT_BOOL,
                 span,
-                format!("`{op}` takes bool operands, found {found}"),
+                text!(self, "`{op}` takes bool operands, found {found}"),
             )
             .with_types("bool", found),
         );
     }
 
     /// Narrowings that hold on either of two paths.
-    fn join_narrowings(&mut self, a: &[(LocalId, Ty)], b: &[(LocalId, Ty)]) -> Vec<(LocalId, Ty)> {
-        let mut joined = Vec::new();
+    fn join_narrowings(
+        &mut self,
+        a: &[(LocalId, Ty)],
+        b: &[(LocalId, Ty)],
+    ) -> ScratchVec<(LocalId, Ty)> {
+        // Each narrowing of one is compared with the other's, which is
+        // charged first, and the joined ones are kept in a list counted
+        // while it lives.
+        let mut joined = ScratchVec::new(&self.meter);
+        if self.types.work(a.len().saturating_mul(b.len())) {
+            return joined;
+        }
         for &(id, ty) in a {
             if let Some(&(_, other)) = b.iter().rev().find(|(other, _)| *other == id) {
-                joined.push((id, self.types.union(&[ty, other])));
+                joined.add((id, self.types.union(&[ty, other])));
             }
         }
         joined
@@ -2521,6 +3638,10 @@ impl<'a> Checker<'a> {
                 if let Some(&id) = self.program.enum_names.get(base) {
                     self.types.intern(Kind::EnumValue(id))
                 } else {
+                    // A pass over the namespaces, a step for each 64.
+                    if self.types.work(self.program.namespaces.len()) {
+                        return None;
+                    }
                     let ns = self.program.namespaces.iter().position(|ns| {
                         ns.is_class && ns.module.is_some_and(|module| module.name == base)
                     })?;
@@ -2541,14 +3662,23 @@ impl<'a> Checker<'a> {
         if current == Ty::ANY || current == Ty::ERROR {
             return tested;
         }
+        // A member matches a tested alternative it fits, or one of the same
+        // base, which the tested alternatives' bases decide at once.
         let tested_members = self.types.members(tested);
+        let arrays = tested_members
+            .iter()
+            .any(|&t| same_base(&Kind::Array(Ty::ANY), self.types.kind(t)));
+        let hashes = tested_members
+            .iter()
+            .any(|&t| same_base(&Kind::EmptyHash, self.types.kind(t)));
         let mut kept = Vec::new();
         for member in self.types.members(current) {
-            let matches = tested_members.iter().any(|&t| {
-                self.types.assignable(member, t)
-                    || same_base(self.types.kind(member), self.types.kind(t))
-            });
-            if matches {
+            let base = match self.types.kind(member) {
+                Kind::Array(_) | Kind::Tuple(_) => arrays,
+                Kind::Hash(_) | Kind::Shape(..) | Kind::EmptyHash => hashes,
+                _ => false,
+            };
+            if base || self.types.assignable(member, tested) {
                 kept.push(member);
             }
         }
@@ -2576,9 +3706,20 @@ fn literal_without_type(expr: &Expr) -> bool {
     }
 }
 
-fn merge(a: &[(LocalId, Ty)], b: &[(LocalId, Ty)]) -> Vec<(LocalId, Ty)> {
-    let mut merged = a.to_vec();
-    merged.extend_from_slice(b);
+/// The narrowings of `a` and then `b`, in a list counted while it lives;
+/// none once the budget refuses it room, which stops the check.
+fn merge(
+    meter: &std::sync::Arc<super::meter::Meter>,
+    a: &[(LocalId, Ty)],
+    b: &[(LocalId, Ty)],
+) -> ScratchVec<(LocalId, Ty)> {
+    let mut merged = ScratchVec::new(meter);
+    if merged.reserve(a.len() + b.len()).is_err() {
+        return merged;
+    }
+    for &narrowing in a.iter().chain(b) {
+        merged.add(narrowing);
+    }
     merged
 }
 
@@ -2612,101 +3753,57 @@ fn target_expr(target: &Target) -> Option<&Expr> {
     }
 }
 
-/// The names of the locals a loop body may assign, including in nested blocks.
-pub(super) fn assigned_names(body: &[Stmt], names: &mut Vec<String>) {
-    for stmt in body {
-        match &stmt.node {
-            Statement::Assign(target, _, value) => {
-                target_names(target, names);
-                expr_assigned(value, names);
-            }
-            Statement::If(branches, alternate, _) => {
-                for (condition, body) in branches.iter() {
-                    expr_assigned(condition, names);
-                    assigned_names(body, names);
-                }
-                assigned_names(alternate, names);
-            }
-            Statement::While(condition, body, _) => {
-                expr_assigned(condition, names);
-                assigned_names(body, names);
-            }
-            Statement::For(target, iterable, body) => {
-                target_names(target, names);
-                expr_assigned(iterable, names);
-                assigned_names(body, names);
-            }
-            Statement::Expr(expr) => expr_assigned(expr, names),
-            Statement::Return(Some(expr))
-            | Statement::Break(Some(expr))
-            | Statement::Next(Some(expr)) => expr_assigned(expr, names),
-            _ => (),
-        }
-    }
-}
-
-fn target_names(target: &Target, names: &mut Vec<String>) {
-    match target {
-        Target::Value(Expr {
-            node: Node::Var(name),
+/// Adds the names `body` mentions as variables, assignment targets or bare
+/// calls, which are the enclosing locals a namespace body can read or
+/// update, however deep in its expressions, charging the walk to `meter`.
+/// Returns the bytes of the stack the walk kept.
+fn mentions<'s>(
+    meter: &super::meter::Meter,
+    body: &'s [Stmt],
+    names: &mut super::counted::ScratchSet<&'s str>,
+) -> usize {
+    use super::walk::{Item, Walk};
+    let mut walk = Walk::new(meter);
+    // The body is a visit, empty or not; the names count themselves.
+    walk.visit(0);
+    walk.stmts(body, ());
+    while let Some((item, ())) = walk.next(0) {
+        if let Item::Expr(Expr {
+            node: Node::Var(name) | Node::Call(name, _, _),
             ..
-        }) => names.push(name.to_string()),
-        Target::Typed(inner, _) => target_names(inner, names),
-        Target::Tuple(parts) => {
-            for (part, _) in parts.iter() {
-                if let Some(part) = part {
-                    target_names(part, names);
-                }
+        }) = item
+        {
+            // A name the budget refuses room for stops the check, which
+            // the walk reads.
+            if names.insert(name.as_str()).is_err() {
+                break;
             }
         }
-        _ => (),
+        walk.children(item, ());
     }
+    walk.bytes()
 }
 
-fn expr_assigned(expr: &Expr, names: &mut Vec<String>) {
-    let mut pending = vec![expr];
-    while let Some(expr) = pending.pop() {
-        match &expr.node {
-            Node::Compound(stmt) => assigned_names(std::slice::from_ref(&**stmt), names),
-            Node::Try(attempt) => {
-                assigned_names(&attempt.body, names);
-                assigned_names(&attempt.alternate, names);
-                assigned_names(&attempt.ensure, names);
-                for rescue in attempt.rescues.iter() {
-                    assigned_names(&rescue.body, names);
-                }
-            }
-            Node::BlockCall(call, block) => {
-                pending.push(call);
-                assigned_names(&block.body, names);
-            }
-            Node::Conditional(branches, alternate) => {
-                for (c, v) in branches.iter() {
-                    pending.push(c);
-                    pending.push(v);
-                }
-                pending.push(alternate);
-            }
-            Node::Case(subject, whens, alternate) => {
-                pending.extend(subject.as_deref());
-                for when in whens.iter() {
-                    pending.push(&when.result);
-                }
-                pending.extend(alternate.as_deref());
-            }
-            Node::Binary(_, l, r) => {
-                pending.push(l);
-                pending.push(r);
-            }
-            Node::Unary(_, v) => pending.push(v),
-            Node::Call(_, args, _) => pending.extend(args.iter().map(|a| &a.value)),
-            Node::Method(recv, _, args, _) | Node::SafeMethod(recv, _, args, _) => {
-                pending.push(recv);
-                pending.extend(args.iter().map(|a| &a.value));
-            }
-            Node::Array(items) => pending.extend(items.iter()),
-            Node::Hash(entries) => pending.extend(entries.iter().map(|(_, v)| v)),
-            _ => (),
+/// The names of the locals a body may assign, including captured writes in nested blocks,
+/// excluding shadowed bindings and charging the walk that finds them to `meter`. The index it builds to
+/// find them is counted as it grows, and gone once it returns, which the
+/// next measure finds.
+pub(super) fn assigned_names(
+    meter: &std::sync::Arc<super::meter::Meter>,
+    body: &[Stmt],
+    names: &mut ScratchVec<String>,
+) {
+    let mut assigns = super::assigns::Assigns::default();
+    let span = assigns.body(meter, body);
+    // The list of the names is counted before it is made, beside the
+    // index, which its growth counted already; their copies are counted,
+    // with the list they go in, as it takes them.
+    let found = assigns.distinct(meter, span);
+    // The copies are counted, with room for them, before they are made.
+    let bytes = found.iter().map(|name| name.len()).sum();
+    if names.reserve_with(found.len(), bytes).is_ok() {
+        for &name in found.iter() {
+            names.push_within(name.to_owned());
         }
     }
 }
@@ -2717,6 +3814,8 @@ pub(crate) enum Purpose {
     Result,
     BlockResult,
     Local(String),
+    /// A global the host declares, which a write updates.
+    Global(String),
     Ivar(String),
     Argument {
         index: usize,
@@ -2737,36 +3836,128 @@ pub(crate) enum Purpose {
     Break(String, bool),
 }
 
+impl Purpose {
+    /// The name storage a copy of this purpose allocates.
+    pub(super) fn copied_bytes(&self) -> usize {
+        match self {
+            Purpose::Local(name)
+            | Purpose::Global(name)
+            | Purpose::Ivar(name)
+            | Purpose::Field(name)
+            | Purpose::Break(name, _) => name.len(),
+            Purpose::Argument { name, function, .. } | Purpose::Keyword { name, function } => {
+                name.len() + function.len()
+            }
+            Purpose::Result
+            | Purpose::BlockResult
+            | Purpose::Element
+            | Purpose::Annotation
+            | Purpose::Yield(_)
+            | Purpose::Operand => 0,
+        }
+    }
+}
+
+impl Heap for Purpose {
+    fn heap(&self) -> usize {
+        match self {
+            Purpose::Local(name)
+            | Purpose::Global(name)
+            | Purpose::Ivar(name)
+            | Purpose::Field(name)
+            | Purpose::Break(name, _) => name.heap(),
+            Purpose::Argument { name, function, .. } | Purpose::Keyword { name, function } => {
+                name.heap() + function.heap()
+            }
+            Purpose::Result
+            | Purpose::BlockResult
+            | Purpose::Element
+            | Purpose::Annotation
+            | Purpose::Yield(_)
+            | Purpose::Operand => 0,
+        }
+    }
+}
+
+/// A copy admitted before its names are allocated, held as scratch for
+/// as long as the caller checks or describes its value.
+pub(super) struct CurrentPurpose {
+    value: Purpose,
+    bytes: usize,
+    meter: std::sync::Arc<super::meter::Meter>,
+}
+
+impl std::ops::Deref for CurrentPurpose {
+    type Target = Purpose;
+
+    fn deref(&self) -> &Purpose {
+        &self.value
+    }
+}
+
+impl Drop for CurrentPurpose {
+    fn drop(&mut self) {
+        self.meter.dropped(self.bytes);
+    }
+}
+
 impl<'a> Checker<'a> {
+    /// Copies the current purpose once its names fit the budget; the
+    /// returned guard counts them until the caller drops it.
+    pub(super) fn current_purpose(&self) -> Option<CurrentPurpose> {
+        let purpose = self.purposes.last().unwrap_or(&Purpose::Result);
+        let bytes = purpose.copied_bytes();
+        if self.meter.charge((bytes / 64) as u64) || self.meter.scratch_lists().keep(bytes).is_err()
+        {
+            return None;
+        }
+        Some(CurrentPurpose {
+            value: purpose.clone(),
+            bytes,
+            meter: std::sync::Arc::clone(&self.meter),
+        })
+    }
+
     /// What a position expects, for messages: "`f` returns int".
     pub(super) fn purpose_text(&self, purpose: &Purpose, expected_text: &str) -> String {
         match purpose {
-            Purpose::Result => format!("`{}` returns {expected_text}", self.current_function()),
-            Purpose::BlockResult => format!("the block returns {expected_text}"),
-            Purpose::Local(name) => format!("`{name}` is {expected_text}"),
-            Purpose::Ivar(name) => format!("`@{name}` is {expected_text}"),
+            Purpose::Result => text!(
+                self,
+                "`{}` returns {expected_text}",
+                self.current_function()
+            ),
+            Purpose::BlockResult => text!(self, "the block returns {expected_text}"),
+            Purpose::Local(name) => text!(self, "`{name}` is {expected_text}"),
+            Purpose::Global(name) => text!(
+                self,
+                "the host declares the global `{name}` as {expected_text}, and this writes it"
+            ),
+            Purpose::Ivar(name) => text!(self, "`@{name}` is {expected_text}"),
             Purpose::Argument {
                 index,
                 name,
                 function,
             } => {
-                format!(
+                text!(
+                    self,
                     "argument {} (`{name}`) of `{function}` is {expected_text}",
                     index + 1
                 )
             }
             Purpose::Keyword { name, function } => {
-                format!("keyword `{name}:` of `{function}` is {expected_text}")
+                text!(self, "keyword `{name}:` of `{function}` is {expected_text}")
             }
-            Purpose::Element => format!("elements here are {expected_text}"),
-            Purpose::Field(name) => format!("field `{name}` is {expected_text}"),
-            Purpose::Annotation => format!("the annotation says {expected_text}"),
-            Purpose::Yield(index) => format!("block argument {} is {expected_text}", index + 1),
-            Purpose::Operand => format!("the operand must be {expected_text}"),
-            Purpose::Break(function, false) => format!(
+            Purpose::Element => text!(self, "elements here are {expected_text}"),
+            Purpose::Field(name) => text!(self, "field `{name}` is {expected_text}"),
+            Purpose::Annotation => text!(self, "the annotation says {expected_text}"),
+            Purpose::Yield(index) => text!(self, "block argument {} is {expected_text}", index + 1),
+            Purpose::Operand => text!(self, "the operand must be {expected_text}"),
+            Purpose::Break(function, false) => text!(
+                self,
                 "a `break` out of the block returns from `{function}`, which returns {expected_text}"
             ),
-            Purpose::Break(function, true) => format!(
+            Purpose::Break(function, true) => text!(
+                self,
                 "a `break` value out of this block ends a loop or block inside `{function}`, which takes it as a value of its result type, {expected_text}"
             ),
         }
@@ -2774,31 +3965,49 @@ impl<'a> Checker<'a> {
 
     /// Reports that a value of type `found` is not assignable to `expected`.
     pub(super) fn mismatch(&mut self, span: Span, expected: Ty, found: Ty, purpose: &Purpose) {
-        if expected == Ty::ERROR || found == Ty::ERROR {
+        // A stopped check builds no more findings, which it would drop.
+        if expected == Ty::ERROR || found == Ty::ERROR || self.halted() {
             return;
         }
         let expected_text = self.types.display(expected);
         let found_text = self.types.display(found);
         let what = self.purpose_text(purpose, &expected_text);
-        let mut diagnostic = Diagnostic::error(
-            Code::TYPE_MISMATCH,
-            span,
-            format!("{what}, found {found_text}"),
-        )
-        .with_types(expected_text.clone(), found_text);
-        if found == Ty::ANY {
-            diagnostic.code = Code::ANY_USE;
-            diagnostic.message = format!(
-                "{what}, found any; narrow the value first with `is_type?`, `.as({expected_text})` or `JSON.parse_as`"
-            );
-        } else if self.types.has_nil(found) {
+        // What the message spells, the purpose with its names and the
+        // types, is held while the message is written, once.
+        let Some(held) =
+            self.hold(what.capacity() + expected_text.capacity() + found_text.capacity())
+        else {
+            return;
+        };
+        let optional = found != Ty::ANY && self.types.has_nil(found) && {
             let without = self.types.without_nil(found);
-            if without != Ty::NEVER && self.types.assignable(without, expected) {
-                diagnostic.code = Code::OPTIONAL_USE;
-                diagnostic.message =
-                    format!("{what}, but this value may be nil; test it with `!= nil` first");
-            }
-        }
+            without != Ty::NEVER && self.types.assignable(without, expected)
+        };
+        let (code, message) = if found == Ty::ANY {
+            (
+                Code::ANY_USE,
+                text!(
+                    self,
+                    "{what}, found any; narrow the value first with `is_type?`, `.as({expected_text})` or `JSON.parse_as`"
+                ),
+            )
+        } else if optional {
+            (
+                Code::OPTIONAL_USE,
+                text!(
+                    self,
+                    "{what}, but this value may be nil; test it with `!= nil` first"
+                ),
+            )
+        } else {
+            (
+                Code::TYPE_MISMATCH,
+                text!(self, "{what}, found {found_text}"),
+            )
+        };
+        self.release(held);
+        let diagnostic =
+            Diagnostic::error(code, span, message).with_types(expected_text, found_text);
         self.report(diagnostic);
     }
 }

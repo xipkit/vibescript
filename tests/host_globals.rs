@@ -149,17 +149,31 @@ fn nil_overrides_and_parameter_shadowing_do_not_lose_bindings() {
         ),
         serde_json::json!([7, null])
     );
-    // An assignment binds the name over the global with its own type.
+    // An assignment writes the global, which keeps its declared type; a
+    // block parameter of the name is its own.
+    for (body, codes) in [
+        ("items: int? = nil;items", &["V0102"][..]),
+        ("items=1;items", &["V0101"]),
+        ("def f;items=1;end;f;items", &["V0101"]),
+    ] {
+        let error = declaring(&[("items", "array<int>")])
+            .compile(body)
+            .err()
+            .unwrap();
+        assert_eq!(common::codes(&error), codes, "{body}");
+    }
     for body in [
-        "items: int? = nil;items",
-        "items=1;items+=2;items",
-        "items=1;[2].each{|items|items+=1};items",
-        "items=1;[2].each{items+=2};items",
+        "items: array<int> = [];items",
+        "items=[1];items+=[2];items",
+        "items=[1];[2].each{|items|items+=1};items",
+        "items=[1];[2].each{items+=[2]};items",
+        "def f;items=[4];end;f;items",
     ] {
         let expected = match body {
-            "items: int? = nil;items" => serde_json::Value::Null,
-            "items=1;[2].each{|items|items+=1};items" => serde_json::json!(1),
-            _ => serde_json::json!(3),
+            "items: array<int> = [];items" => serde_json::json!([]),
+            "items=[1];[2].each{|items|items+=1};items" => serde_json::json!([1]),
+            "def f;items=[4];end;f;items" => serde_json::json!([4]),
+            _ => serde_json::json!([1, 2]),
         };
         let script = declaring(&[("items", "array<int>")]).compile(body).unwrap();
         assert_eq!(
@@ -195,7 +209,7 @@ fn global_mutation_addresses_survive_parent_growth_and_rebindings() {
             serde_json::json!([[1, 2], [[1, 2], [9]], [[1]]])
         );
         assert_eq!(json(&input), serde_json::json!([[1]]));
-        let source = format!("class Box;end;def helper -> int;99;end;{name}=[7];{name}");
+        let source = format!("class Box;end;def helper -> int;99;end;{name}=[[7]];{name}");
         // A namespace or class name cannot be rebound, even where a global
         // shadows it.
         if name.starts_with(char::is_uppercase) {
@@ -216,7 +230,7 @@ fn global_mutation_addresses_survive_parent_growth_and_rebindings() {
                     .unwrap()
                     .value
             ),
-            serde_json::json!([7])
+            serde_json::json!([[7]])
         );
     }
 }
@@ -299,11 +313,17 @@ fn module_initializers_call_enclosing_bindings() {
     ] {
         let source = format!("helper=[3];module M;Result={expression};end;M.Result");
         let script = Engine::new().compile(&source).unwrap();
-        for opts in [CallOptions::default(), options(&[("helper", Value::nil())])] {
+        // The assignment writes the global the host declares.
+        for opts in [
+            CallOptions::default(),
+            options(&[("helper", Value::array(Vec::new()))]),
+        ] {
             let script = if opts.globals.is_empty() {
                 script.clone()
             } else {
-                declaring(&[("helper", "")]).compile(&source).unwrap()
+                declaring(&[("helper", "array<int>")])
+                    .compile(&source)
+                    .unwrap()
             };
             assert_eq!(
                 script.run(opts).unwrap().value.as_int(),
@@ -356,7 +376,7 @@ fn unused_composites_and_overwrites_avoid_importing_large_values() {
         engine.set_strict_effects(strict);
         for body in [
             "1",
-            "big=1;big",
+            "big=[\"x\"];big.length",
             "def f(big: int) -> int;big;end;f(1)",
             "enum big;Large;end;enum State;Ready;end;def f(x:State) -> int;1;end;f(:ready)",
         ] {
@@ -530,7 +550,7 @@ fn incoming_enums_rebind_when_lazily_materialized_or_used_in_types() {
 fn imported_global_objects_preserve_cycles_aliases_and_call_isolation() {
     // Another program's instance is `any` here, and its class cannot be
     // named, so the instance comes from the consumer's own class.
-    let consumer = declaring(&[("node", "")]).compile("class Node;property link: Node?;property count: int;def initialize;@count=0;@link=self;end;end;def make -> Node;Node.new;end;def run(arg: Node) -> array<int | bool>;arg.count+=1;node=node.as(Node);[node.count,node==arg,node.link==node];end;def inspect(arg: Node) -> int;arg.count;end").unwrap();
+    let consumer = declaring(&[("node", "")]).compile("class Node;property link: Node?;property count: int;def initialize;@count=0;@link=self;end;end;def make -> Node;Node.new;end;def run(arg: Node) -> array<int | bool>;arg.count+=1;found=node.as(Node);[found.count,found==arg,found.link==found];end;def inspect(arg: Node) -> int;arg.count;end").unwrap();
     let unbound = options(&[("node", Value::nil())]);
     let original = consumer.call("make", &[], unbound.clone()).unwrap().value;
     for _ in 0..3 {

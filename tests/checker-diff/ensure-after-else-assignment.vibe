@@ -1,0 +1,18 @@
+# expect: rejected V0107
+# An `ensure` runs after any part of the `else`, including its assignments.
+def f(x: int?) -> int
+  if x != nil
+    begin
+      1
+    rescue
+      2
+    else
+      x = nil
+      raise "e"
+    ensure
+      p(x + 1)
+    end
+  end
+  0
+end
+p(f(5))

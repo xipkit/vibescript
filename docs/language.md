@@ -195,7 +195,7 @@ amount: int | float = 1            # a union must be declared
 amount = 2.5
 ```
 
-Assignment never converts: an `int` local cannot hold a `float`. A local must be assigned on every path before it is read (V0202):
+Assignment never converts: an `int` local cannot hold a `float`. A union has at most 1,024 alternatives and a shape at most 16,384 fields, whether written or inferred, such as the union of an array literal's many differently shaped elements; a larger one is an error (V0124), so declare a dictionary or a smaller union instead. An enum has no such bound: its members are all written out rather than built by the checker, which finds each one by name. A local must be assigned on every path before it is read (V0202):
 
 ```vibe error=V0202
 if Time.now.hour < 12
@@ -225,6 +225,7 @@ log "sent"
 ```
 
 - Every parameter declares its type. Optional parameters have defaults, `times: int = 1`.
+- Each parameter, including a rest, keyword rest or `&block` parameter, needs a name of its own: repeating one in a list is an error (V0209). The same holds for a block's parameters, down to the names they destructure, as in `|(a, b), a|`, though a block parameter may share an enclosing local's name.
 - Parameters after a bare `*`, or after a rest parameter `*items: array<int>`, are keywords, passed by name. `**options: hash<string, int>` collects extra keywords.
 - `-> T` declares the result, which is the last expression or an explicit `return`. A function without `->` returns `nil`: its last expression runs for its effect only, and `return value` in it is an error (V0117).
 - A call without arguments has no parentheses: `items.length`, `uuid`, `Time.now`, `log_all`.
@@ -378,7 +379,7 @@ label = scores.first&.to_s             # &. calls through nil; label is string?
 fallback = label == nil ? "none" : label
 ```
 
-Narrowing applies to locals and parameters. A member read or index expression is not narrowed, because it could change between the test and the use; bind it to a local first:
+Narrowing applies to locals and parameters. A `rescue` or `ensure` may run after any part of its `begin` body, so it keeps none of the narrowing that the body's assignments could end or its guards establish, and a local the body first assigns may be unassigned there; an `ensure` may also follow any part of the `else` or a rescue. A guard or exit in the `ensure` itself narrows what follows the `begin`, and a `retry` runs the body again from what the rescue left. A `retry` reruns the innermost `begin` that is rescuing, so one in the body, `else` or ensure of a `begin` nested in a rescue reruns the enclosing one; a `retry` in a block fails, since it cannot leave the block's call. A member read or index expression is not narrowed, because it could change between the test and the use; bind it to a local first:
 
 ```vibe
 user = JSON.parse_as("{\"nick\": null}", { nick: string? })
@@ -531,13 +532,15 @@ label = case post.status
 
 - Every instance variable is declared: in the class body (`@views: int = 0`, or `@name: string` assigned by `initialize`), or by `getter`, `setter` or `property`. Reading an undeclared one is an error (V0204), and one without a default must be assigned on every path through `initialize` (V0205). Until then it reads as `nil`, so `initialize` must not read it, call a method that reads it, or pass `self` on before assigning it (V0205). A `getter`, `setter` or `property` of a declared instance variable has its type (V0101). `@title: string` in a parameter list assigns an already declared field; it does not declare the field.
 - Class variables are declared with a value, `@@count: int = 0`. Class methods are `def self.name`. Uppercase assignments in the body, such as `LIMIT = 3`, are constants, read as `Post::LIMIT` outside. A constant may declare its type, `TAGS: array<string> = []`, which its value and every later assignment keep.
-- Classes have no inheritance, and instances have identity: two names for the same instance see the same changes. Classes can define operators, `==`, `to_s`, `[]` and `[]=`; an instance has `to_s` and `inspect` only when its class defines them, and interpolation, `p` and `puts` render any instance. `a.count += 1` reads with the getter and writes with the setter, so it needs both. See [classes](classes.md).
+- Classes have no inheritance, and instances have identity: two names for the same instance see the same changes. Classes can define operators, `==`, `to_s`, `[]` and `[]=`. A class's own `==` also runs, with `nil`, for a nil test of an optional instance, such as `x != nil` for an `x` of type `Node?`, so its parameter must accept `nil` if the class is nil-tested (V0101). An instance has `to_s` and `inspect` only when its class defines them, and interpolation, `p` and `puts` render any instance. `a.count += 1` reads with the getter and writes with the setter, so it needs both. See [classes](classes.md).
 - An enum is a type. A symbol literal naming a member, such as `:draft`, is accepted where the runtime checks the enum and so turns the symbol into the member: a typed local, a parameter of a function or method, a result, a field, a default, a constant, a `yield` argument or a block's result. Elsewhere, such as an argument of a builtin, an element written through an index or `<<`, a class variable, or a later assignment to a parameter or to a local without a declared type, it would stay a symbol, so write `Status::Draft` (V0101). Members have `name`, `symbol` and `to_s`.
 - `case` over an enum or a `bool` must handle every member or have an `else` (V0114), so adding a member shows every `case` that needs it. Its `when` values name members as `Status::Draft`.
 
 ## Modules and required files
 
-A module is a namespace of functions, constants and nested modules or classes:
+A module is a namespace of functions, constants and nested modules. Classes and enums are declared at the top level, and functions at the top level or in a class or module body; a declaration anywhere else, such as a class in a class or a function in a function, block or `if`, is an error (V0001).
+
+A module's functions are called through it:
 
 ```vibe
 module Pricing
@@ -605,7 +608,9 @@ greeting = "Hello, #{customer["name"]}"
 discount = customer["tier"] == "gold" ? 10 : 0
 ```
 
-A capability's methods are typed by the signatures the host publishes; a host function or capability method without a signature takes and returns `any`. See [host globals](globals.md) and [host capabilities](capabilities.md).
+Assigning a global's name, in the script, a function or a block, writes the global, which every function reads with the type the host declares; the value must have that type (V0101), and declaring the name with another type is an error (V0102). A parameter or block parameter of the name is its own local.
+
+A capability's methods are typed by the signatures the host publishes; a host function or capability method without a signature takes and returns `any`. A `break` out of a host method's block becomes its result, so its value must have the declared result type (V0101). See [host globals](globals.md) and [host capabilities](capabilities.md).
 
 ## Errors
 

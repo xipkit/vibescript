@@ -1,7 +1,8 @@
 //! Checking is linear: each function is checked once, from its signature and
 //! those of what it calls, so doubling a program at most doubles the work.
 
-use vibescript::Engine;
+use super::support::errors;
+use vibescript::{Engine, diagnostic::Diagnostic};
 
 fn repeat(count: usize, item: impl Fn(usize) -> String) -> String {
     (0..count).map(item).collect()
@@ -11,7 +12,7 @@ fn repeat(count: usize, item: impl Fn(usize) -> String) -> String {
 /// statement or expression.
 type Shape = (&'static str, usize, fn(usize) -> String);
 
-const SHAPES: [Shape; 14] = [
+const SHAPES: [Shape; 26] = [
     ("functions calling their predecessor", 200, |count| {
         "def f0(n: int) -> int\n  n\nend\n".to_owned()
             + &repeat(count, |i| {
@@ -112,6 +113,51 @@ end\n"
             )
         },
     ),
+    ("begins nested around repeated assignments", 100, |count| {
+        nest(count, "begin\n", "rescue\n  c = 1\nensure\n  c = 2\nend\n")
+    }),
+    ("ensures nested around repeated assignments", 100, |count| {
+        nest(count, "begin\n  1\nensure\n", "end\n")
+    }),
+    ("loops nested around repeated assignments", 100, |count| {
+        nest(count, "while c > 0\n", "  c -= 1\nend\n")
+    }),
+    ("blocks nested around repeated assignments", 60, |count| {
+        nest(count, "[1].each { |q|\n", "}\n")
+    }),
+    (
+        "a wide union of shapes that an ensure narrows",
+        200,
+        |count| {
+            format!(
+                "type Wide = {}\ndef f(x: Wide?) -> Wide?\n  begin\n    1\n  ensure\n    return nil if x == nil\n  end\n  x\nend\n",
+                wide_union(count)
+            )
+        },
+    ),
+    ("a wide union of shapes cast and assigned", 200, |count| {
+        format!(
+            "type Wide = {}\ndef f(x: any, y: Wide?) -> Wide\n  z: Wide = x.as(Wide)\n  w: Wide? = y\n  z\nend\n",
+            wide_union(count)
+        )
+    }),
+    ("a wide shape read and assigned", 200, |count| {
+        format!(
+            "type Big = {{ {} }}\ndef f(b: Big) -> int\n  c: Big = b\n{}  0\nend\n",
+            (0..count)
+                .map(|i| format!("f{i}: int"))
+                .collect::<Vec<_>>()
+                .join(", "),
+            repeat(count, |i| format!("  n{i} = c[\"f{i}\"]\n"))
+        )
+    }),
+    ("a case naming every member of a wide enum", 500, |count| {
+        format!(
+            "enum E\n{}end\ndef f(e: E) -> int\n  case e\n{}  end\nend\n",
+            repeat(count, |i| format!("  M{i}\n")),
+            repeat(count, |i| format!("  when E::M{i} then {i}\n"))
+        )
+    }),
     ("loops assigning many locals", 100, |count| {
         format!(
             "def f(x: int) -> int\n{}  while x > 0\n{}    x -= 1\n  end\n  0\nend\n",
@@ -119,7 +165,69 @@ end\n"
             repeat(count, |i| format!("    v{i} = x\n"))
         )
     }),
+    // Each use of `self` in `initialize` or a default records which
+    // variables are not assigned yet, which once took a copy of them all.
+    (
+        "an initialize reading each variable once assigned",
+        200,
+        |count| {
+            format!(
+                "class C\n{}  def initialize\n{}  end\nend\n",
+                repeat(count, |i| format!("  @v{i}: int\n")),
+                repeat(count, |i| format!("    @v{i} = {i}\n    x{i} = @v{i}\n"))
+            )
+        },
+    ),
+    ("defaults reading the variable before", 200, |count| {
+        format!(
+            "class C\n  @v0: int = 0\n{}end\n",
+            repeat(count, |i| format!("  @v{}: int = @v{i} + 1\n", i + 1))
+        )
+    }),
+    ("an initialize calling a method on self", 200, |count| {
+        format!(
+            "class C\n{}  def one -> int\n    1\n  end\n  def initialize\n{}  end\nend\n",
+            repeat(count, |i| format!("  @v{i}: int\n")),
+            repeat(count, |i| format!("    @v{i} = self.one\n"))
+        )
+    }),
+    // Methods calling each other in a cycle read what all of them read,
+    // which a pass per step around the cycle once found.
+    (
+        "methods reading variables and calling each other in a cycle",
+        200,
+        |count| {
+            format!(
+                "class C\n{}  def initialize\n{}  end\n{}end\n",
+                repeat(count, |i| format!("  @v{i}: int\n")),
+                repeat(count, |i| format!("    @v{i} = {i}\n")),
+                repeat(count, |i| format!(
+                    "  def m{i} -> int\n    @v{i} + self.m{}\n  end\n",
+                    (i + 1) % count
+                ))
+            )
+        },
+    ),
 ];
+
+/// A union of `count` one-field shapes.
+fn wide_union(count: usize) -> String {
+    (0..count)
+        .map(|i| format!("{{ a{i}: int }}"))
+        .collect::<Vec<_>>()
+        .join(" | ")
+}
+
+/// A function whose body nests `count` levels of `open` and `close` around
+/// `count` assignments of one local.
+fn nest(count: usize, open: &str, close: &str) -> String {
+    format!(
+        "def f -> int\n  x: int? = 0\n  c = 1\n{}{}{}  0\nend\n",
+        open.repeat(count),
+        "x = 1\n".repeat(count),
+        close.repeat(count)
+    )
+}
 
 fn steps(source: &str) -> u64 {
     let checked = Engine::new().type_check(source).unwrap();
@@ -151,6 +259,33 @@ fn doubling_a_program_at_most_doubles_the_checking_work() {
     }
 }
 
+#[test]
+fn a_deep_nest_around_many_assignments_checks_in_linear_work() {
+    // Each level's rescue and ensure may see what the levels inside assign;
+    // listing those assignments again at every level once took work and
+    // memory proportional to the depth times the assignments. The walks
+    // that list them, find the files the program requires and whether a
+    // function yields are each charged a step for each statement and
+    // expression, and sizing the pass over the canonical surface a step for
+    // each token. On WASI, where that pass cannot read syntax this deep, a
+    // parse of the source is charged again. All of it is linear in the
+    // source, a few steps a byte, where listing the assignments at every
+    // level took steps in proportion to the bytes times the depth.
+    let levels = if cfg!(target_os = "wasi") { 100 } else { 900 };
+    let source = format!(
+        "x: int? = 1\nc = true\n{}{}{}",
+        "begin\n".repeat(levels),
+        "x = 1\n".repeat(10_000),
+        "rescue\nc = false\nensure\nc = true\nend\n".repeat(levels)
+    );
+    let steps = steps(&source);
+    assert!(
+        steps < 5 * source.len() as u64,
+        "{steps} steps for {} bytes",
+        source.len()
+    );
+}
+
 // WASI preview 1 cannot start the small-stack thread.
 #[cfg(not(target_os = "wasi"))]
 #[test]
@@ -179,4 +314,69 @@ fn syntax_as_deep_as_the_parser_allows_checks_on_a_small_stack() {
         .unwrap()
         .join()
         .unwrap();
+}
+
+#[test]
+fn unions_and_shapes_past_their_bounds_are_reported_where_they_are_written() {
+    let arms = |count: usize| {
+        (0..count)
+            .map(|i| format!("{{ a{i}: int }}"))
+            .collect::<Vec<_>>()
+            .join(" | ")
+    };
+    // A declared union of 1,024 alternatives, `nil` among them, is fine;
+    // one more is not.
+    let source = format!(
+        "type Wide = {}\ndef f(x: Wide?) -> Wide?\n  x\nend\n",
+        arms(1023)
+    );
+    assert!(errors(&source).is_empty());
+    let source = format!(
+        "type Wide = {}\ndef f(x: Wide) -> Wide\n  x\nend\n",
+        arms(1025)
+    );
+    let found = errors(&source);
+    assert_eq!(codes_of(&found), ["V0124"], "{:?}", found.first());
+    assert!(
+        found[0].message.contains("1025 alternatives"),
+        "{}",
+        found[0].message
+    );
+    assert_eq!(found[0].span.start, 0);
+    // `nil` takes a union of the most alternatives past them, reported
+    // where it is added, even with nothing else to check.
+    let source = format!("type Wide = {}\ndef f(x: Wide?)\nend\n", arms(1024));
+    let found = errors(&source);
+    assert_eq!(codes_of(&found), ["V0124"], "{:?}", found.first());
+    assert!(
+        found[0].message.contains("1025 alternatives"),
+        "{}",
+        found[0].message
+    );
+    assert_eq!(found[0].span.start, source.find("def f").unwrap());
+    // An inferred one is reported at its statement.
+    let items = (0..1100)
+        .map(|i| format!("{{ a{i}: {i} }}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let source = format!("y = 1\nx = [{items}]\n");
+    let found = errors(&source);
+    assert_eq!(codes_of(&found), ["V0124"]);
+    assert_eq!(found[0].span.start, source.find("x =").unwrap());
+    // So is a shape of too many fields.
+    let fields = (0..16_385)
+        .map(|i| format!("f{i}: int"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let found = errors(&format!("def f(x: {{ {fields} }}) -> int\n  1\nend\n"));
+    assert_eq!(codes_of(&found), ["V0124"]);
+    assert!(
+        found[0].message.contains("16385 fields"),
+        "{}",
+        found[0].message
+    );
+}
+
+fn codes_of(found: &[Diagnostic]) -> Vec<String> {
+    found.iter().map(|d| d.code.to_string()).collect()
 }

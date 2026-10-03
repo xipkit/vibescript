@@ -341,7 +341,8 @@ def host_global_cases():
     add("block_parameter", "[1].map{|helper|helper+1}", {"helper":99}, [2], "array<int>")
     add("block_write", 'begin;[1].each{count+=1};count;rescue;"host-global-binding-error";end', {"count":9}, 10, "int | string",
         difference="A block assignment retains an existing host binding instead of creating an uninitialized local.")
-    add("overwrite", "settings=7;settings", {"settings":{"items":[1]}}, 7, "int")
+    # A write to a global keeps the type the host declares for it.
+    add("overwrite", 'settings={items: [7]};settings["items"].fetch(0)', {"settings":{"items":[1]}}, 7, "int")
     add("nested_address", "rows[-1]&.push(2);rows", {"rows":[[1]]}, [[1,2]], "array<array<int>>")
     add("rescued_call", "begin;helper(1);rescue;7;end", {"helper":None}, 7,
         source="def helper(x: int) -> int;99;end;"+function("begin;helper(1);rescue;7;end", "int"),

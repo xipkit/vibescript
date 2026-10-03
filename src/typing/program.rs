@@ -4,6 +4,10 @@
 
 use super::{
     Checker,
+    counted::{
+        CountedBTreeSet, CountedMap, CountedSet, CountedVec, ScratchMap, ScratchSet, ScratchVec,
+    },
+    meter::{Heap, map, vec},
     sigs::{self, BlockSig, Param, ParamKind, Sig},
     ty::{Field, Kind, Ty},
 };
@@ -16,7 +20,7 @@ use crate::{
     },
     types::Scalar,
 };
-use std::{collections::HashMap, rc::Rc};
+use std::{collections::HashMap, rc::Rc, sync::Arc};
 
 pub(crate) type FnId = usize;
 pub(crate) type NsId = u32;
@@ -53,19 +57,184 @@ pub(crate) struct Namespace<'a> {
     pub name: String,
     pub parent: Option<NsId>,
     pub is_class: bool,
-    pub methods: HashMap<String, FnId>,
-    pub statics: HashMap<String, FnId>,
-    pub ivars: HashMap<String, Ivar>,
-    pub children: HashMap<&'a str, NsId>,
+    pub methods: CountedMap<String, FnId>,
+    pub statics: CountedMap<String, FnId>,
+    pub ivars: CountedMap<String, Ivar>,
+    pub children: CountedMap<&'a str, NsId>,
 }
 
-/// A script enum.
-#[derive(Clone)]
+/// A script enum, which a required file's importers share.
 pub(crate) struct Enum {
     pub name: String,
     pub members: Vec<String>,
     /// Each member's symbol, as `:in_review` names `InReview`.
     pub symbols: Vec<String>,
+    /// The positions of the members in the order of their names, and of
+    /// the symbols in the order of the symbols, which naming one searches
+    /// rather than scanning them all.
+    by_member: Vec<u32>,
+    by_symbol: Vec<u32>,
+}
+
+impl Enum {
+    pub fn new(
+        name: &str,
+        members: &[compilation::Name],
+        meter: &Arc<super::meter::Meter>,
+    ) -> Option<Self> {
+        let mut names = ScratchVec::new(meter);
+        let mut symbols = ScratchVec::new(meter);
+        let mut by_member = ScratchVec::new(meter);
+        let mut by_symbol = ScratchVec::new(meter);
+        let rounds = usize::BITS - members.len().leading_zeros();
+        for (index, member) in members.iter().enumerate() {
+            if meter.pace(
+                1 + (member.len().saturating_mul(1 + rounds as usize) / 64) as u64,
+                0,
+            ) {
+                return None;
+            }
+            names.reserve_with(1, member.len()).ok()?;
+            names.push_within(member.to_string());
+            let symbol = enum_symbol(member, meter);
+            if meter.stopped() {
+                return None;
+            }
+            symbols.push(symbol).ok()?;
+            by_member.push(index as u32).ok()?;
+            by_symbol.push(index as u32).ok()?;
+        }
+        super::counted::sort_unstable_by(meter, &mut by_member, |&a, &b| {
+            names[a as usize].cmp(&names[b as usize])
+        })
+        .ok()?;
+        super::counted::sort_unstable_by(meter, &mut by_symbol, |&a, &b| {
+            symbols[a as usize].cmp(&symbols[b as usize])
+        })
+        .ok()?;
+        if meter.pace(1 + (name.len() / 64) as u64, 0) {
+            return None;
+        }
+        let name = super::counted::text(meter, format_args!("{name}"));
+        if meter.stopped() {
+            return None;
+        }
+        Some(Self {
+            name,
+            members: names.into_vec(),
+            symbols: symbols.into_vec(),
+            by_member: by_member.into_vec(),
+            by_symbol: by_symbol.into_vec(),
+        })
+    }
+
+    /// The position of the member named `name`.
+    pub fn member(&self, name: &str) -> Option<usize> {
+        find(&self.members, &self.by_member, name)
+    }
+
+    /// The position of the member whose symbol is `symbol`.
+    pub fn symbol(&self, symbol: &str) -> Option<usize> {
+        find(&self.symbols, &self.by_symbol, symbol)
+    }
+}
+
+/// The runtime's enum normalization, written through the checker's meter.
+fn enum_symbol(name: &str, meter: &super::meter::Meter) -> String {
+    use crate::syntax::unicode;
+    let mut output = super::counted::Text::new(meter);
+    let mut chars = name.chars().peekable();
+    let mut previous = None;
+    let mut underscore = false;
+    let mut empty = true;
+    while let Some(c) = chars.next() {
+        if meter.charge(1) {
+            break;
+        }
+        if c == '_' {
+            if !empty && !underscore {
+                output.push('_');
+                underscore = true;
+            }
+        } else {
+            if unicode::upper(c)
+                && previous.is_some_and(|p| {
+                    p != '_'
+                        && (unicode::lower(p)
+                            || unicode::digit(p)
+                            || chars.peek().is_some_and(|&n| unicode::lower(n)))
+                })
+            {
+                output.push('_');
+            }
+            output.push(crate::casing::map(c, false));
+            empty = false;
+            underscore = false;
+        }
+        previous = Some(c);
+    }
+    output.finish()
+}
+
+/// The position of `name` among `names`, which `order` sorts. Enum
+/// members are unique, and so are their symbols.
+fn find(names: &[String], order: &[u32], name: &str) -> Option<usize> {
+    let at = order
+        .binary_search_by(|&index| names[index as usize].as_str().cmp(name))
+        .ok()?;
+    Some(order[at] as usize)
+}
+
+impl Heap for Enum {
+    fn heap(&self) -> usize {
+        self.name.heap()
+            + self.members.heap()
+            + self.symbols.heap()
+            + self.by_member.heap()
+            + self.by_symbol.heap()
+    }
+}
+
+/// Its signature, which an `Rc` shares, is counted where it is made.
+impl super::counted::Owned for FnDecl<'_> {
+    fn owned(&self) -> usize {
+        0
+    }
+}
+
+/// Its name; its tables are counted as they grow.
+impl super::counted::Owned for Namespace<'_> {
+    fn owned(&self) -> usize {
+        self.name.capacity()
+    }
+}
+
+impl super::counted::Owned for Ivar {
+    fn owned(&self) -> usize {
+        0
+    }
+}
+
+impl Heap for FnDecl<'_> {
+    fn heap(&self) -> usize {
+        self.sig.heap()
+    }
+}
+
+impl Heap for Namespace<'_> {
+    fn heap(&self) -> usize {
+        self.name.heap()
+            + self.methods.heap()
+            + self.statics.heap()
+            + self.ivars.heap()
+            + self.children.heap()
+    }
+}
+
+impl Heap for Ivar {
+    fn heap(&self) -> usize {
+        0
+    }
 }
 
 /// Everything a program declares.
@@ -74,36 +243,82 @@ pub(crate) struct Program<'a> {
     pub file: bool,
     /// A required file's top-level locals, which its functions and methods
     /// see: each one's type and where it is declared.
-    pub file_locals: HashMap<String, (Ty, usize)>,
+    pub file_locals: CountedMap<String, (Ty, usize)>,
     /// The names a required file's functions and methods assign, which a
     /// call of script code may change.
-    pub file_written: std::collections::HashSet<String>,
+    pub file_written: CountedSet<String>,
     /// Each call of the file's own code in its body, which may run before
     /// the file assigns the top-level locals that code reads.
-    pub file_calls: Vec<super::check::FileCall>,
+    pub file_calls: CountedVec<super::check::FileCall>,
     /// The file's top-level locals each of its functions and methods
     /// reads, and the others it calls.
-    pub file_uses: HashMap<FnId, (std::collections::BTreeSet<String>, Vec<FnId>)>,
-    pub fns: Vec<FnDecl<'a>>,
+    pub file_uses: CountedMap<FnId, (CountedBTreeSet<String>, CountedVec<FnId>)>,
+    pub fns: CountedVec<FnDecl<'a>>,
     /// Top-level functions by name.
-    pub functions: HashMap<&'a str, FnId>,
-    pub namespaces: Vec<Namespace<'a>>,
+    pub functions: CountedMap<&'a str, FnId>,
+    pub namespaces: CountedVec<Namespace<'a>>,
     /// Top-level classes and modules by name.
-    pub roots: HashMap<&'a str, NsId>,
-    pub enums: Vec<Enum>,
-    pub enum_names: HashMap<String, u32>,
+    pub roots: CountedMap<&'a str, NsId>,
+    pub enums: CountedVec<Arc<Enum>>,
+    pub enum_names: CountedMap<String, u32>,
     /// Type aliases by declaring namespace (none at the top level) and name.
-    pub aliases: HashMap<(Option<NsId>, &'a str), &'a compilation::Type>,
-    alias_types: HashMap<(Option<NsId>, String), Ty>,
+    pub aliases: CountedMap<(Option<NsId>, &'a str), &'a compilation::Type>,
+    alias_types: CountedMap<(Option<NsId>, usize), Ty>,
     /// Namespaces by the offset of their `class` or `module` keyword.
-    pub by_offset: HashMap<u32, NsId>,
+    pub by_offset: CountedMap<u32, NsId>,
     /// Host functions registered on the engine.
-    pub hosts: HashMap<String, Rc<Sig>>,
-    pub declared_calls: std::collections::HashSet<String>,
+    pub hosts: CountedMap<String, Rc<Sig>>,
+    pub declared_calls: CountedSet<String>,
     /// Globals and capabilities the host declares, as values, by name.
-    pub declared: HashMap<String, Ty>,
+    pub declared: CountedMap<String, Ty>,
     /// Capabilities the host declares with members, by `Kind::Host` index.
-    pub host_modules: Vec<&'a crate::signatures::Module>,
+    pub host_modules: CountedVec<&'a crate::signatures::Module>,
+}
+
+impl Program<'_> {
+    /// What the declarations hold, but for the tables checking grows,
+    /// which [`Self::grown`] counts.
+    pub fn heap(&self) -> usize {
+        self.file_locals.heap()
+            + self.file_written.heap()
+            + self.fns.heap()
+            + self.functions.heap()
+            + self.namespaces.heap()
+            + self.roots.heap()
+            + self.enums.heap()
+            + self.enum_names.heap()
+            + self.aliases.heap()
+            + self.by_offset.heap()
+            + self.hosts.heap()
+            + self.declared_calls.heap()
+            + self.declared.heap()
+            + vec(self.host_modules.as_vec())
+    }
+
+    /// The storage of the tables checking grows, whose elements' payloads
+    /// the checker counts as it adds them.
+    pub fn grown(&self) -> usize {
+        map(&self.alias_types) + vec(self.file_calls.as_vec()) + map(&self.file_uses)
+    }
+}
+
+/// A retained alias's text as it is written, a step a byte, in a list
+/// counted before it grows and while it lives.
+struct AliasText<'m> {
+    text: ScratchVec<u8>,
+    meter: &'m super::meter::Meter,
+}
+
+impl crate::shapes::TypeWriter for AliasText<'_> {
+    fn write(&mut self, bytes: &[u8]) -> crate::Result<()> {
+        if self.meter.charge(bytes.len() as u64) || self.text.extend_from_slice(bytes).is_err() {
+            return Err(crate::Error::new(
+                crate::ErrorKind::Steps,
+                "the check ran out of its budget",
+            ));
+        }
+        Ok(())
+    }
 }
 
 impl<'a> Checker<'a> {
@@ -119,45 +334,66 @@ impl<'a> Checker<'a> {
         {
             return;
         }
-        let carried: std::collections::HashMap<_, _> = parsed
-            .outline
-            .iter()
-            .map(|declaration| {
-                (
-                    declaration.name.as_str(),
-                    &self.source[declaration.start..declaration.end],
-                )
-            })
-            .collect();
-        let nominal: std::collections::HashSet<_> = parsed
-            .outline
-            .iter()
-            .filter(|declaration| declaration.kind != crate::DeclarationKind::Function)
-            .map(|declaration| declaration.name.as_str())
-            .collect();
-        let mut aliases = std::collections::HashMap::new();
+        // Each alias's text is written a step a byte into a list counted
+        // before it grows and while it lives, which stops once the check
+        // does, and kept by name in a map counted while it lives.
+        let mut aliases = ScratchMap::new(&self.meter);
         for (scope, alias) in &parsed.additions.aliases {
+            if self.meter.charge(1) {
+                return;
+            }
             if scope.is_none() {
-                let mut text = Vec::new();
-                crate::shapes::format(&alias.ty, &mut text)
-                    .expect("formatting into a Vec cannot fail");
-                self.steps += text.len() as u64;
-                aliases.insert(alias.name.as_str(), text);
+                let mut text = AliasText {
+                    text: ScratchVec::new(&self.meter),
+                    meter: &self.meter,
+                };
+                if crate::shapes::format(&alias.ty, &mut text).is_err()
+                    || aliases.insert(alias.name.as_str(), text.text).is_err()
+                {
+                    return;
+                }
+            }
+        }
+        let mut carried = ScratchMap::new(&self.meter);
+        let mut nominal = ScratchSet::new(&self.meter);
+        for declaration in &parsed.outline {
+            if self.meter.charge(1)
+                || carried
+                    .insert(
+                        declaration.name.as_str(),
+                        &self.source[declaration.start..declaration.end],
+                    )
+                    .is_err()
+                || (declaration.kind != crate::DeclarationKind::Function
+                    && nominal.insert(declaration.name.as_str()).is_err())
+            {
+                return;
             }
         }
         for (name, declaration) in declared {
+            if self.meter.charge(1) {
+                return;
+            }
             let Some((value, retained)) = declaration.retained() else {
                 continue;
             };
+            // A check its charges stop compares no more.
+            if self.halted() {
+                return;
+            }
             let valid = match &value.0 {
                 crate::value::Kind::Namespace(namespace) => {
                     namespace.definition.name == *name
                         && retained.is_some_and(|retained| {
                             retained.aliases.iter().all(|(name, ty)| {
-                                self.steps += ty.len() as u64;
-                                aliases.get(name.as_str()) == Some(ty)
+                                !self.meter.charge(ty.len() as u64)
+                                    && aliases
+                                        .get(name.as_str())
+                                        .is_some_and(|text| **text == ty[..])
                             }) && retained.declarations.iter().all(|(name, source)| {
-                                self.steps += source.len() as u64;
+                                if self.meter.charge(source.len() as u64) {
+                                    return false;
+                                }
                                 let bound = !nominal.contains(name.as_str())
                                     || declared
                                         .get(name)
@@ -176,8 +412,10 @@ impl<'a> Checker<'a> {
                     .get(name.as_str())
                     .is_some_and(|&id| {
                         let found = &self.program.enums[id as usize];
-                        self.steps += enumeration.definition.members.len() as u64;
-                        enumeration.definition.name == *name
+                        !self
+                            .meter
+                            .charge(enumeration.definition.members.len() as u64)
+                            && enumeration.definition.name == *name
                             && found.members.iter().eq(enumeration
                                 .definition
                                 .members
@@ -188,7 +426,7 @@ impl<'a> Checker<'a> {
             };
             if !valid {
                 self.report(Diagnostic::error(Code::TYPE_MISMATCH, crate::diagnostic::Span::at(0),
-                    format!("retained declaration `{name}` must keep its original declarations and enum members")));
+                    text!(self, "retained declaration `{name}` must keep its original declarations and enum members")));
             }
         }
     }
@@ -198,28 +436,62 @@ impl<'a> Checker<'a> {
     /// namespace of them, and a callable capability as a host function.
     pub(super) fn declare_hosts(&mut self, declared: &'a crate::declared::Declarations) {
         for (name, declaration) in declared {
-            self.steps += 1;
+            if self.meter.charge(1) {
+                return;
+            }
             if declaration.retained().is_some() {
                 continue;
             }
+            // Each declaration, its copies of the name and room for them
+            // in the tables they go in are counted before any changes; a
+            // check they stop declares no more.
+            let declarations = self.meter.declarations();
+            let program = &mut self.program;
             match &declaration.item {
                 crate::signatures::Item::Constant(constant) => {
                     let ty = sigs::table_type(&mut self.types, &constant.ty, &[]);
-                    self.program.declared.insert(name.clone(), ty);
+                    let Ok(mut kept) = declarations.keep(name.len()) else {
+                        return;
+                    };
+                    if program.declared.reserve(declarations, 1).is_err() {
+                        return;
+                    }
+                    program.declared.insert_kept(&mut kept, name.clone(), ty);
                 }
                 crate::signatures::Item::Module(module) => {
-                    let id = self.program.host_modules.len() as u32;
-                    self.program.host_modules.push(module);
-                    self.types.names.hosts.push(name.clone());
+                    let Ok(mut kept) = declarations.keep(2 * name.len()) else {
+                        return;
+                    };
+                    if program.host_modules.reserve(declarations, 1).is_err()
+                        || self.types.names.hosts.reserve(declarations, 1).is_err()
+                        || program.declared.reserve(declarations, 1).is_err()
+                    {
+                        return;
+                    }
+                    let id = program.host_modules.len() as u32;
+                    program.host_modules.push_within(module);
+                    self.types.names.hosts.push_kept(&mut kept, name.clone());
                     let ty = self.types.intern(Kind::Host(id));
-                    self.program.declared.insert(name.clone(), ty);
+                    self.program
+                        .declared
+                        .insert_kept(&mut kept, name.clone(), ty);
                 }
                 crate::signatures::Item::Function(function) => {
-                    let sig = self
-                        .converter
-                        .convert_owned(&mut self.types, function, None);
-                    self.program.declared_calls.insert(name.clone());
-                    self.program.hosts.insert(name.clone(), Rc::new(sig));
+                    let sig = Rc::new(
+                        self.converter
+                            .convert_owned(&mut self.types, function, None)
+                            .host(),
+                    );
+                    let Ok(mut kept) = declarations.keep(2 * name.len() + sig.heap()) else {
+                        return;
+                    };
+                    if program.declared_calls.reserve(declarations, 1).is_err()
+                        || program.hosts.reserve(declarations, 1).is_err()
+                    {
+                        return;
+                    }
+                    program.declared_calls.insert_kept(&mut kept, name.clone());
+                    program.hosts.insert_kept(&mut kept, name.clone(), sig);
                 }
                 _ => (),
             }
@@ -228,89 +500,231 @@ impl<'a> Checker<'a> {
 
     /// Collects the declarations and resolves every signature.
     pub(super) fn declare_program(&mut self, parsed: &'a Declarations) {
+        // Each enum, with its members, is counted before it is declared,
+        // and a check that stops declares no more of them: an enum's name,
+        // the enum and its name in the type table take their places
+        // together, so each name found has its enum.
         for (index, (name, members)) in parsed.enums.iter().enumerate() {
+            let Some(enumeration) = Enum::new(name, members, &self.meter) else {
+                return;
+            };
+            let declarations = self.meter.declarations();
+            let Ok(mut kept) = declarations.keep(
+                enumeration.heap()
+                    + 2 * name.len()
+                    + std::mem::size_of::<Enum>()
+                    + 2 * std::mem::size_of::<usize>(),
+            ) else {
+                return;
+            };
+            if self.program.enum_names.reserve(declarations, 1).is_err()
+                || self.program.enums.reserve(declarations, 1).is_err()
+                || self.types.names.enums.reserve(declarations, 1).is_err()
+            {
+                return;
+            }
             self.program
                 .enum_names
-                .insert(name.to_string(), index as u32);
-            self.program.enums.push(Enum {
-                name: name.to_string(),
-                members: members.iter().map(|m| m.to_string()).collect(),
-                symbols: members.iter().map(|m| crate::enums::symbol(m)).collect(),
-            });
-            self.types.names.enums.push(name.to_string());
+                .insert_kept(&mut kept, name.to_string(), index as u32);
+            self.program.enums.push_within(Arc::new(enumeration));
+            self.types
+                .names
+                .enums
+                .push_kept(&mut kept, name.to_string());
+            if self.declaring() {
+                return;
+            }
         }
-        for module in &parsed.modules {
-            self.namespace(module, None);
+        // A check that runs out of its budget stops declaring.
+        for (index, module) in parsed.modules.iter().enumerate() {
+            if self.meter.charge(1) || self.paced(index) || self.namespace(module, None) {
+                return;
+            }
         }
-        for (scope, alias) in &parsed.additions.aliases {
+        // Each alias is a step, and the budget is checked as a walk checks
+        // it, while they are declared.
+        let pace = super::walk::PACE as usize;
+        let aliases = &parsed.additions.aliases;
+        for (index, (scope, alias)) in aliases.iter().enumerate() {
+            if index % pace == pace - 1 && self.meter.pace(pace as u64, 0) {
+                return;
+            }
             let scope = scope.and_then(|offset| self.program.by_offset.get(&offset).copied());
-            self.program
+            let declarations = self.meter.declarations();
+            if self
+                .program
                 .aliases
-                .insert((scope, alias.name.as_str()), &alias.ty);
+                .insert(declarations, (scope, alias.name.as_str()), &alias.ty)
+                .is_err()
+            {
+                return;
+            }
         }
+        // A check that stops declares nothing more.
+        if self.meter.charge((aliases.len() % pace) as u64) || self.halted() {
+            return;
+        }
+        // The builtin namespaces' names have their places, which are kept
+        // however the budget stands once the check reaches them.
         for (index, (name, _)) in sigs::index().modules.iter().enumerate() {
             debug_assert_eq!(self.types.names.builtins.len(), index);
-            self.types.names.builtins.push((*name).to_owned());
+            let always = self.meter.declarations().regardless();
+            self.types
+                .names
+                .builtins
+                .push_regardless(always, (*name).to_owned());
         }
         // Required files' enums are types in annotations too.
         self.require_modules(parsed);
+        // Each function's typed block parameter, by the offset of its `def`,
+        // found once rather than by searching every one for each function:
+        // the first one recorded for it, as a search finds, counted while
+        // the functions are declared.
+        let recorded = &parsed.additions.blocks;
+        let Some(blocks_held) =
+            self.hold(super::meter::table::<(u32, &BlockParam)>(recorded.len()))
+        else {
+            return;
+        };
+        let mut blocks: HashMap<u32, &BlockParam> = HashMap::with_capacity(recorded.len());
+        // Each entry is a step, and the budget is checked as a walk checks
+        // it, while the index is filled.
+        let pace = super::walk::PACE as usize;
+        for (index, (owner, block)) in recorded.iter().enumerate() {
+            if index % pace == pace - 1 && self.meter.pace(pace as u64, 0) {
+                self.release(blocks_held);
+                return;
+            }
+            blocks.entry(*owner).or_insert(block);
+        }
+        if self.meter.charge((recorded.len() % pace) as u64) {
+            self.release(blocks_held);
+            return;
+        }
+        let block_param = |offset: u32| blocks.get(&offset).copied();
         // Signatures after every name is known, so annotations resolve.
         for (index, def) in parsed.functions.iter().enumerate() {
+            if self.meter.charge(1) || self.paced(index) {
+                return;
+            }
             let main = index == 0;
-            let block = (!main).then(|| block_param(parsed, def.offset)).flatten();
-            let id = self.function(def, None, false, block, main, Visibility::Public);
-            if !main {
-                self.program.functions.insert(def.name.as_str(), id);
+            let block = (!main).then(|| block_param(def.offset)).flatten();
+            let Some(id) = self.function(def, None, false, block, main, Visibility::Public) else {
+                self.release(blocks_held);
+                return;
+            };
+            let declarations = self.meter.declarations();
+            if !main
+                && self
+                    .program
+                    .functions
+                    .insert(declarations, def.name.as_str(), id)
+                    .is_err()
+            {
+                self.release(blocks_held);
+                return;
             }
         }
+        // The methods declared so far, whose walks for yields charge a
+        // step each.
+        let mut methods = 0;
         for ns in 0..self.program.namespaces.len() {
+            if self.meter.charge(1) {
+                return;
+            }
+            if self.halted() {
+                return;
+            }
             let Some(module) = self.program.namespaces[ns].module else {
                 continue;
             };
             for (def, visibility) in &module.instance_methods {
-                let block = block_param(parsed, def.offset);
-                let id = self.function(def, Some(ns as NsId), true, block, false, *visibility);
-                self.program.namespaces[ns]
-                    .methods
-                    .insert(def.name.to_string(), id);
+                methods += 1;
+                if self.meter.charge(1) || self.paced(methods) {
+                    return;
+                }
+                let block = block_param(def.offset);
+                let Some(id) =
+                    self.function(def, Some(ns as NsId), true, block, false, *visibility)
+                else {
+                    self.release(blocks_held);
+                    return;
+                };
+                if !self.declare_method(ns, def.name.as_str(), id, false) {
+                    self.release(blocks_held);
+                    return;
+                }
             }
             for (def, visibility) in &module.methods {
-                let block = block_param(parsed, def.offset);
-                let id = self.function(def, Some(ns as NsId), false, block, false, *visibility);
-                self.program.namespaces[ns]
-                    .statics
-                    .insert(def.name.to_string(), id);
+                methods += 1;
+                if self.meter.charge(1) || self.paced(methods) {
+                    return;
+                }
+                let block = block_param(def.offset);
+                let Some(id) =
+                    self.function(def, Some(ns as NsId), false, block, false, *visibility)
+                else {
+                    self.release(blocks_held);
+                    return;
+                };
+                if !self.declare_method(ns, def.name.as_str(), id, true) {
+                    self.release(blocks_held);
+                    return;
+                }
+            }
+        }
+        drop(blocks);
+        self.release(blocks_held);
+        self.held();
+        // Defaults remain live while annotations and properties are declared.
+        let mut defaults = ScratchSet::new(&self.meter);
+        for (owner, stmt) in &parsed.additions.defaults {
+            if self.meter.charge(1) || defaults.insert((*owner, stmt.offset)).is_err() {
+                return;
             }
         }
         for (class, ivar) in &parsed.additions.ivars {
+            if self.meter.charge(1) {
+                return;
+            }
             let Some(&ns) = self.program.by_offset.get(class) else {
                 continue;
             };
-            let default = parsed
-                .additions
-                .defaults
-                .iter()
-                .any(|(owner, stmt)| owner == class && stmt.offset == ivar.offset);
+            let default = defaults.contains(&(*class, ivar.offset));
             let ty = self.annotation(&ivar.ty, Some(ns), ivar.offset as usize);
-            self.program.namespaces[ns as usize]
-                .ivars
-                .insert(ivar.name.to_string(), Ivar { ty, default });
+            if !self.declare_ivar(ns as usize, &ivar.name, Ivar { ty, default }, true) {
+                return;
+            }
         }
         // Declared class variables have their types before any body reads them.
         for (namespace, declared) in &parsed.additions.class_vars {
+            if self.meter.charge(1) {
+                return;
+            }
             let Some(&ns) = self.program.by_offset.get(namespace) else {
                 continue;
             };
             let ty = self.annotation(&declared.ty, Some(ns), declared.offset as usize);
-            self.constants
-                .insert((Some(ns), declared.name.to_string()), ty);
+            if self.keep_constant((Some(ns), self.copy(&declared.name)), ty) {
+                return;
+            }
         }
-        // Properties declare their instance variables and their types.
+        // Properties declare their instance variables and their types; a
+        // check that stops declares no more of them.
         for ns in 0..self.program.namespaces.len() {
+            if self.meter.charge(1) {
+                return;
+            }
+            if self.halted() {
+                return;
+            }
             let Some(module) = self.program.namespaces[ns].module else {
                 continue;
             };
             for (def, _) in &module.instance_methods {
+                if self.meter.charge(1) {
+                    return;
+                }
                 let Some((name, setter)) = &def.accessor else {
                     continue;
                 };
@@ -327,7 +741,10 @@ impl<'a> Checker<'a> {
                     self.report(Diagnostic::error(
                         Code::MISSING_PARAMETER_TYPE,
                         span,
-                        format!("property `{name}` has no type; declare it as `{name}: T`"),
+                        text!(
+                            self,
+                            "property `{name}` has no type; declare it as `{name}: T`"
+                        ),
                     ));
                 }
                 let id = self.program.namespaces[ns].methods[def.name.as_str()];
@@ -369,7 +786,7 @@ impl<'a> Checker<'a> {
                             Diagnostic::error(
                                 Code::TYPE_MISMATCH,
                                 span,
-                                format!(
+                                text!(self,
                                     "the {what} `{name}` {how} {found}, but `@{name}` is {declared_text}; declare them with one type"
                                 ),
                             )
@@ -377,13 +794,52 @@ impl<'a> Checker<'a> {
                         );
                     }
                 }
-                self.program.namespaces[ns]
-                    .ivars
-                    .entry(name.to_string())
-                    .or_insert(Ivar { ty, default: false });
+                if !self.declare_ivar(ns, name, Ivar { ty, default: false }, false) {
+                    return;
+                }
             }
         }
         self.check_names(parsed);
+    }
+
+    /// Declares method `name` of namespace `ns`, a static one when
+    /// `statics`, with a copy of its name, counted with its room in the
+    /// table before it is made.
+    /// Returns whether it did: a check the budget stops declares no more.
+    fn declare_method(&mut self, ns: usize, name: &str, id: FnId, statics: bool) -> bool {
+        let declarations = self.meter.declarations();
+        let namespace = &mut self.program.namespaces[ns];
+        let table = if statics {
+            &mut namespace.statics
+        } else {
+            &mut namespace.methods
+        };
+        if let Some(entry) = table.get_mut(name) {
+            *entry = id;
+            return true;
+        }
+        table
+            .insert_made(declarations, name.len(), || name.to_owned(), id)
+            .is_ok()
+    }
+
+    /// Declares instance variable `name` of namespace `ns`, with a copy of
+    /// its name, counted with its room before it is made; one declared
+    /// already is
+    /// replaced when `replace`, and kept otherwise. Returns whether it did:
+    /// a check the budget stops declares no more.
+    fn declare_ivar(&mut self, ns: usize, name: &str, ivar: Ivar, replace: bool) -> bool {
+        let declarations = self.meter.declarations();
+        let ivars = &mut self.program.namespaces[ns].ivars;
+        if let Some(entry) = ivars.get_mut(name) {
+            if replace {
+                *entry = ivar;
+            }
+            return true;
+        }
+        ivars
+            .insert_made(declarations, name.len(), || name.to_owned(), ivar)
+            .is_ok()
     }
 
     /// Reports a class alias that takes the name of a method the class
@@ -392,38 +848,59 @@ impl<'a> Checker<'a> {
     /// A method may take the name, since a receiver calls it.
     fn check_names(&mut self, parsed: &'a Declarations) {
         for item in &parsed.outline {
+            if self.meter.charge(1) {
+                return;
+            }
             if item.kind == crate::DeclarationKind::Function && item.name == "require" {
                 let span = self.spans.word_after(item.start, "require");
                 self.reserved(span);
             }
         }
         for ns in 0..self.program.namespaces.len() {
+            if self.meter.charge(1) {
+                return;
+            }
+            // A check that stops looks at no more namespaces.
+            if self.halted() {
+                return;
+            }
             let Some(module) = self.program.namespaces[ns].module else {
                 continue;
             };
-            let at = |index: usize, def: &crate::syntax::Definition| {
+            // Only an alias can repeat an earlier method's name. The aliases
+            // are listed in the order of the methods they add, so each is
+            // found by search, and the names before each method are kept in
+            // a set, counted while it lives.
+            if module.aliases.is_empty() {
+                continue;
+            }
+            let alias = |index: usize| {
                 module
                     .aliases
-                    .iter()
-                    .find(|(alias, _)| *alias == index)
-                    .map_or(def.offset, |(_, offset)| *offset) as usize
+                    .binary_search_by_key(&index, |&(alias, _)| alias)
+                    .ok()
+                    .map(|at| module.aliases[at].1 as usize)
             };
+            let mut earlier = ScratchSet::new(&self.meter);
             for (index, (def, _)) in module.instance_methods.iter().enumerate() {
-                if def.accessor.is_some() {
-                    continue;
+                if self.meter.charge(1) {
+                    return;
                 }
-                let alias = module.aliases.iter().any(|(alias, _)| *alias == index);
-                let earlier = module.instance_methods[..index]
-                    .iter()
-                    .any(|(other, _)| other.name == def.name);
-                if alias && earlier {
-                    let span = self.spans.word_after(at(index, def), &def.name);
+                let repeated = def.accessor.is_none() && earlier.contains(def.name.as_str());
+                let offset = if repeated { alias(index) } else { None };
+                if earlier.insert(def.name.as_str()).is_err() {
+                    return;
+                }
+                if let Some(offset) = offset {
+                    let span = self.spans.word_after(offset, &def.name);
                     self.report(Diagnostic::error(
                         Code::DUPLICATE_NAME,
                         span,
-                        format!(
+                        text!(
+                            self,
                             "`{}` is already a method of `{}`; an alias takes a new name",
-                            def.name, module.name
+                            def.name,
+                            module.name
                         ),
                     ));
                 }
@@ -439,55 +916,129 @@ impl<'a> Checker<'a> {
         ));
     }
 
-    /// Declares `module` and the namespaces nested in it, each before its
-    /// children, and returns its id. The walk keeps its place on the heap,
-    /// since namespaces nest as deep as the parser allows.
-    fn namespace(&mut self, module: &'a Module, parent: Option<NsId>) -> NsId {
-        let first = self.program.namespaces.len() as NsId;
-        let mut pending = vec![(module, parent)];
-        while let Some((module, parent)) = pending.pop() {
-            let id = self.declare_namespace(module, parent);
-            // Pushed in reverse, so declared in source order.
-            for nested in module.modules.iter().chain(&module.inner).rev() {
-                pending.push((nested, Some(id)));
-            }
-        }
-        first
+    /// Checks the budget once for every [`super::walk::PACE`] of the
+    /// declarations a loop has visited, `count` of them so far, whose steps
+    /// they charge themselves, as a walk does: the steps, the deadline and
+    /// the cancellation. Returns whether the check has stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    pub(super) fn paced(&self, count: usize) -> bool {
+        let pace = super::walk::PACE as usize;
+        (count % pace == pace - 1 && self.meter.pace(0, 0)) || self.halted()
     }
 
-    fn declare_namespace(&mut self, module: &'a Module, parent: Option<NsId>) -> NsId {
-        let id = self.program.namespaces.len() as NsId;
-        let name = match parent {
-            Some(parent) => format!(
-                "{}::{}",
-                self.program.namespaces[parent as usize].name, module.name
-            ),
-            None => module.name.to_string(),
+    /// Declares `module` and the namespaces nested in it, each before its
+    /// children. The walk keeps its place on the heap, since namespaces nest
+    /// as deep as the parser allows: what is left of each level's
+    /// namespaces, whichever many a level holds. It charges a step for each
+    /// namespace, and stops with the check. Returns whether the check has
+    /// stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    fn namespace(&mut self, module: &'a Module, parent: Option<NsId>) -> bool {
+        let Some(first) = self.declare_namespace(module, parent) else {
+            return true;
         };
-        self.types.names.namespaces.push(name.clone());
-        self.program.namespaces.push(Namespace {
-            checked: false,
-            module: Some(module),
-            name,
-            parent,
-            is_class: module.is_class,
-            methods: HashMap::new(),
-            statics: HashMap::new(),
-            ivars: HashMap::new(),
-            children: HashMap::new(),
-        });
-        self.program.by_offset.insert(module.offset, id);
-        match parent {
-            Some(parent) => {
-                self.program.namespaces[parent as usize]
-                    .children
-                    .insert(module.name.as_str(), id);
+        if self.declaring() {
+            return true;
+        }
+        // The levels are counted, with their growth admitted first, while
+        // they live: a namespace's nested namespaces above its inner ones,
+        // so they are declared first.
+        let mut levels = ScratchVec::new(&self.meter);
+        if levels.push((module.inner.iter(), first)).is_err()
+            || levels.push((module.modules.iter(), first)).is_err()
+        {
+            return true;
+        }
+        // The namespaces declared since the meter was last charged.
+        let mut unpaced = 1;
+        while let Some((level, parent)) = levels.last_mut() {
+            let parent = *parent;
+            let Some(module) = level.next() else {
+                levels.pop();
+                continue;
+            };
+            if unpaced == 64 {
+                unpaced = 0;
+                if self.meter.pace(64, 0) {
+                    break;
+                }
             }
-            None => {
-                self.program.roots.insert(module.name.as_str(), id);
+            let Some(id) = self.declare_namespace(module, Some(parent)) else {
+                break;
+            };
+            unpaced += 1;
+            if self.declaring() {
+                break;
+            }
+            if levels.push((module.inner.iter(), id)).is_err()
+                || levels.push((module.modules.iter(), id)).is_err()
+            {
+                break;
             }
         }
-        id
+        self.meter.charge(unpaced) || self.halted()
+    }
+
+    /// Declares `module` in `parent`, or at the top level. Its two copies
+    /// of its qualified name, and room for it in every table it goes in,
+    /// are counted before any changes; `None` when the budget refuses them,
+    /// which stops the check and declares nothing.
+    fn declare_namespace(&mut self, module: &'a Module, parent: Option<NsId>) -> Option<NsId> {
+        let declarations = self.meter.declarations();
+        let program = &mut self.program;
+        let outer = parent.map(|parent| program.namespaces[parent as usize].name.as_str());
+        let length = outer.map_or(0, |outer| outer.len() + 2) + module.name.len();
+        if self.meter.pace(1 + (2 * length / 64) as u64, 0) {
+            return None;
+        }
+        let mut kept = declarations.keep(2 * length).ok()?;
+        program.namespaces.reserve(declarations, 1).ok()?;
+        self.types.names.namespaces.reserve(declarations, 1).ok()?;
+        program.by_offset.reserve(declarations, 1).ok()?;
+        match parent {
+            Some(parent) => program.namespaces[parent as usize]
+                .children
+                .reserve(declarations, 1)
+                .ok()?,
+            None => program.roots.reserve(declarations, 1).ok()?,
+        }
+        let mut name = String::with_capacity(length);
+        if let Some(parent) = parent {
+            name.push_str(&program.namespaces[parent as usize].name);
+            name.push_str("::");
+        }
+        name.push_str(&module.name);
+        let id = program.namespaces.len() as NsId;
+        self.types
+            .names
+            .namespaces
+            .push_kept(&mut kept, name.clone());
+        program.namespaces.push_kept(
+            &mut kept,
+            Namespace {
+                checked: false,
+                module: Some(module),
+                name,
+                parent,
+                is_class: module.is_class,
+                methods: CountedMap::new(),
+                statics: CountedMap::new(),
+                ivars: CountedMap::new(),
+                children: CountedMap::new(),
+            },
+        );
+        program.by_offset.insert_within(module.offset, id);
+        match parent {
+            Some(parent) => {
+                program.namespaces[parent as usize]
+                    .children
+                    .insert_within(module.name.as_str(), id);
+            }
+            None => {
+                program.roots.insert_within(module.name.as_str(), id);
+            }
+        }
+        Some(id)
     }
 
     fn function(
@@ -498,9 +1049,30 @@ impl<'a> Checker<'a> {
         block: Option<&'a BlockParam>,
         main: bool,
         visibility: Visibility,
-    ) -> FnId {
+    ) -> Option<FnId> {
+        // The parameters, each with a copy of its name, the block's, and
+        // the function's qualified name, counted before they are listed; a
+        // check that stops declares no more functions.
+        let qualified = owner.map_or(0, |ns| self.program.namespaces[ns as usize].name.len() + 1)
+            + def.name.len();
+        let held = self.hold(
+            def.params.len() * std::mem::size_of::<Param>()
+                + def
+                    .params
+                    .iter()
+                    .map(|param| param.name.len())
+                    .sum::<usize>()
+                + block.map_or(0, |block| block.params.len()) * std::mem::size_of::<Ty>()
+                + qualified,
+        )?;
         let mut params = Vec::with_capacity(def.params.len());
-        for param in &def.params {
+        for (index, param) in def.params.iter().enumerate() {
+            // A check its budget stops declares no more of them, and the
+            // budget is checked as a walk checks it.
+            if self.meter.charge(1) || self.paced(index) {
+                self.release(held);
+                return None;
+            }
             let kind = match param.kind {
                 crate::syntax::ParamKind::Positional => ParamKind::Positional,
                 crate::syntax::ParamKind::Rest => ParamKind::Rest,
@@ -517,9 +1089,12 @@ impl<'a> Checker<'a> {
                         let mut diagnostic = Diagnostic::error(
                             Code::MISSING_PARAMETER_TYPE,
                             span,
-                            format!(
+                            text!(
+                                self,
                                 "parameter `{}` of `{}` has no type; declare it as `{}: T`",
-                                param.name, def.name, param.name
+                                param.name,
+                                def.name,
+                                param.name
                             ),
                         );
                         // A removed keyword form has a colon after the name,
@@ -528,9 +1103,9 @@ impl<'a> Checker<'a> {
                         if literal != Ty::ERROR && !colon {
                             let ty = self.types.display(literal);
                             diagnostic = diagnostic.with_fix(Fix::insert(
-                                format!("declare `{}: {ty}`", param.name),
+                                text!(self, "declare `{}: {ty}`", param.name),
                                 span.end,
-                                format!(": {ty}"),
+                                text!(self, ": {ty}"),
                             ));
                         }
                         self.report(diagnostic);
@@ -544,6 +1119,10 @@ impl<'a> Checker<'a> {
                 ParamKind::KeywordRest if param.ty.is_none() => self.types.hash(Ty::ERROR),
                 _ => ty,
             };
+            if self.halted() {
+                self.release(held);
+                return None;
+            }
             params.push(Param {
                 name: param.name.to_string(),
                 kind,
@@ -556,39 +1135,72 @@ impl<'a> Checker<'a> {
             None if def.accessor.as_ref().is_some_and(|(_, setter)| !setter) => Some(Ty::ANY),
             None => None,
         };
-        let block_sig = block.map(|block| BlockSig {
-            params: block
-                .params
-                .iter()
-                .map(|ty| self.annotation(ty, owner, block.offset as usize))
-                .collect(),
-            rest: None,
-            result: block
+        if self.halted() {
+            self.release(held);
+            return None;
+        }
+        let mut block_sig = None;
+        if let Some(block) = block {
+            let mut params = Vec::with_capacity(block.params.len());
+            for ty in &block.params {
+                let ty = self.annotation(ty, owner, block.offset as usize);
+                if self.halted() {
+                    self.release(held);
+                    return None;
+                }
+                params.push(ty);
+            }
+            let result = block
                 .result
                 .as_ref()
-                .map(|ty| self.annotation(ty, owner, block.offset as usize)),
-            optional: block_optional(self.source, block),
-        });
-        let name = match (owner, instance) {
-            (Some(ns), true) => {
-                format!("{}#{}", self.program.namespaces[ns as usize].name, def.name)
+                .map(|ty| self.annotation(ty, owner, block.offset as usize));
+            if self.halted() {
+                self.release(held);
+                return None;
             }
-            (Some(ns), false) => {
-                format!("{}.{}", self.program.namespaces[ns as usize].name, def.name)
-            }
-            (None, _) => def.name.to_string(),
-        };
-        let sig = Rc::new(Sig {
+            block_sig = Some(BlockSig {
+                params,
+                rest: None,
+                result,
+                optional: block_optional(self.source, block),
+            });
+        }
+        let mut name = String::with_capacity(qualified);
+        if let Some(ns) = owner {
+            name.push_str(&self.program.namespaces[ns as usize].name);
+            name.push(if instance { '#' } else { '.' });
+        }
+        name.push_str(&def.name);
+        let (breaks, scratch) = yields(&self.meter, &def.body);
+        if self.transient(scratch) {
+            self.release(held);
+            return None;
+        }
+        let sig = Sig {
             name,
             params,
             result,
             block: block_sig,
             vars: Vec::new(),
-            breaks: yields(&def.body),
+            breaks,
             converts: true,
             id: Some(self.program.fns.len()),
-        });
-        self.program.fns.push(FnDecl {
+        };
+        // The program counts them from here, and room for the function,
+        // before they are let go.
+        let declarations = self.meter.declarations();
+        let admitted = declarations
+            .keep(std::mem::size_of::<Sig>() + 2 * std::mem::size_of::<usize>())
+            .is_ok()
+            && self.program.fns.reserve(declarations, 1).is_ok();
+        self.release(held);
+        if !admitted {
+            return None;
+        }
+        self.held();
+        self.meter.declarations().kept(sig.heap());
+        let sig = Rc::new(sig);
+        self.program.fns.push_within(FnDecl {
             def: Some(def),
             owner,
             instance,
@@ -596,7 +1208,10 @@ impl<'a> Checker<'a> {
             main,
             visibility,
         });
-        self.program.fns.len() - 1
+        if self.declaring() {
+            return None;
+        }
+        Some(self.program.fns.len() - 1)
     }
 
     /// Reports the parameters of top-level `function` that `count` string
@@ -633,7 +1248,7 @@ impl<'a> Checker<'a> {
                     Diagnostic::error(
                         Code::TYPE_MISMATCH,
                         span,
-                        format!(
+                        text!(self,
                             "the command line passes strings, but `{}` of `{function}` is {declared}",
                             param.name
                         ),
@@ -645,8 +1260,37 @@ impl<'a> Checker<'a> {
     }
 
     /// Resolves an annotation in the scope of namespace `scope`, reporting
-    /// unknown names at `offset`.
+    /// unknown names at `offset`. An annotation that nests deeper than
+    /// [`ANNOTATED`] levels, through its parts and the aliases it names,
+    /// is unknown, and on WASI one taller than the syntax the checker
+    /// descends into is refused as that syntax is.
     pub(super) fn annotation(
+        &mut self,
+        ty: &compilation::Type,
+        scope: Option<NsId>,
+        offset: usize,
+    ) -> Ty {
+        // A check past its budget builds no more types, such as each arm
+        // of a wide union.
+        if self.meter.charge(1) || self.halted() {
+            return Ty::ERROR;
+        }
+        if super::too_tall(self.annotating) {
+            let span = self.spans.token(offset);
+            self.too_deep(span);
+            return Ty::ERROR;
+        }
+        if self.annotating >= ANNOTATED {
+            return Ty::ERROR;
+        }
+        self.annotating += 1;
+        let resolved = self.annotation_within(ty, scope, offset);
+        self.annotating -= 1;
+        resolved
+    }
+
+    /// [`Self::annotation`], one level deeper.
+    fn annotation_within(
         &mut self,
         ty: &compilation::Type,
         scope: Option<NsId>,
@@ -690,29 +1334,76 @@ impl<'a> Checker<'a> {
                 self.types.hash(value)
             }
             TypeKind::Shape(fields, open) => {
-                let fields = fields
-                    .iter()
-                    .map(|field| Field {
+                // An annotation names each field once, so one of more fields
+                // than a shape may have is too large before its fields are
+                // typed and sorted.
+                if fields.len() > super::ty::MAX_FIELDS {
+                    self.types.too_large.get_or_insert(("shape", fields.len()));
+                    self.too_large(offset);
+                    return Ty::ERROR;
+                }
+                // Counted before they are listed; the table counts them from
+                // when it takes them.
+                let Some(held) = self.hold(
+                    fields.len() * std::mem::size_of::<Field>()
+                        + fields.iter().map(|field| field.name.len()).sum::<usize>(),
+                ) else {
+                    return Ty::ERROR;
+                };
+                let mut copied = Vec::with_capacity(fields.len());
+                for field in fields {
+                    let ty = self.annotation(&field.ty, scope, offset);
+                    if self.halted() {
+                        self.release(held);
+                        return Ty::ERROR;
+                    }
+                    copied.push(Field {
                         name: String::from_utf8_lossy(&field.name).into(),
-                        ty: self.annotation(&field.ty, scope, offset),
+                        ty,
                         optional: field.optional,
-                    })
-                    .collect();
-                self.types.shape(fields, *open)
+                    });
+                }
+                self.release(held);
+                let shape = self.types.shape(copied, *open);
+                self.too_large(offset);
+                shape
             }
             TypeKind::Union(options) => {
-                let options: Vec<Ty> = options
-                    .iter()
-                    .map(|option| self.annotation(option, scope, offset))
-                    .collect();
-                self.types.union(&options)
+                // Counted while they are listed; the table counts them
+                // while it joins them.
+                let Some(held) = self.hold(options.len() * std::mem::size_of::<Ty>()) else {
+                    return Ty::ERROR;
+                };
+                let mut copied = Vec::with_capacity(options.len());
+                for part in options {
+                    let ty = self.annotation(part, scope, offset);
+                    if self.halted() {
+                        self.release(held);
+                        return Ty::ERROR;
+                    }
+                    copied.push(ty);
+                }
+                let union = self.types.union(&copied);
+                self.release(held);
+                self.too_large(offset);
+                union
             }
             TypeKind::Tuple(elements) => {
-                let elements = elements
-                    .iter()
-                    .map(|element| self.annotation(element, scope, offset))
-                    .collect();
-                self.types.tuple(elements)
+                // Counted while they are listed.
+                let Some(held) = self.hold(elements.len() * std::mem::size_of::<Ty>()) else {
+                    return Ty::ERROR;
+                };
+                let mut copied = Vec::with_capacity(elements.len());
+                for part in elements {
+                    let ty = self.annotation(part, scope, offset);
+                    if self.halted() {
+                        self.release(held);
+                        return Ty::ERROR;
+                    }
+                    copied.push(ty);
+                }
+                self.release(held);
+                self.types.tuple(copied)
             }
             TypeKind::Literal(described) => {
                 let described = match described {
@@ -724,10 +1415,44 @@ impl<'a> Checker<'a> {
             TypeKind::Named => self.named_type(&ty.name, scope, offset),
         };
         if ty.nullable {
-            self.types.optional(base)
+            // `nil` can take a union of the most alternatives past them.
+            let optional = self.types.optional(base);
+            self.too_large(offset);
+            optional
         } else {
             base
         }
+    }
+
+    /// Reports, at `offset`, a union or shape too large for the checker to
+    /// build since it last looked.
+    pub(super) fn too_large(&mut self, offset: usize) {
+        let Some((what, size)) = self.types.too_large.take() else {
+            return;
+        };
+        let span = self.spans.token(offset);
+        if what == "nesting" {
+            let most = super::ty::MAX_DEPTH;
+            self.report(Diagnostic::error(
+                Code::TYPE_TOO_LARGE,
+                span,
+                text!(self,
+                    "this value's type nests {size} levels deep, more than the {most} the checker relates; declare a level of it, as `any` or a shallower type"
+                ),
+            ));
+            return;
+        }
+        let (most, parts) = match what {
+            "union" => (super::ty::MAX_ALTERNATIVES, "alternatives"),
+            _ => (super::ty::MAX_FIELDS, "fields"),
+        };
+        self.report(Diagnostic::error(
+            Code::TYPE_TOO_LARGE,
+            span,
+            text!(self,
+                "this {what} has {size} {parts}, more than the {most} the checker relates; declare a wider type, such as a dictionary or an array of a smaller union"
+            ),
+        ));
     }
 
     /// Resolves a named type: an alias, class or enum visible from `scope`,
@@ -740,7 +1465,7 @@ impl<'a> Checker<'a> {
         self.report(Diagnostic::error(
             Code::UNKNOWN_TYPE,
             span,
-            format!("unknown type `{name}`"),
+            text!(self, "unknown type `{name}`"),
         ));
         Ty::ERROR
     }
@@ -815,15 +1540,24 @@ impl<'a> Checker<'a> {
     }
 
     fn alias_type(&mut self, name: &str, scope: Option<NsId>, depth: usize) -> Option<Ty> {
-        let key = (scope, name.to_owned());
+        let ty = *self.program.aliases.get(&(scope, name))?;
+        let key = (scope, std::ptr::from_ref(ty) as usize);
         if let Some(&ty) = self.program.alias_types.get(&key) {
             return Some(ty);
         }
-        let ty = *self.program.aliases.get(&(scope, name))?;
-        // A self-referential alias resolves to an unknown type once.
-        self.program.alias_types.insert(key.clone(), Ty::ERROR);
+        // The declaration's identity stays stable through recursive resolution.
+        if self
+            .program
+            .alias_types
+            .insert(self.meter.tables(), key, Ty::ERROR)
+            .is_err()
+        {
+            return Some(Ty::ERROR);
+        }
         let resolved = self.annotation_depth(ty, scope, depth + 1);
-        self.program.alias_types.insert(key, resolved);
+        if let Some(entry) = self.program.alias_types.get_mut(&key) {
+            *entry = resolved;
+        }
         Some(resolved)
     }
 
@@ -839,6 +1573,14 @@ impl<'a> Checker<'a> {
         self.annotation(ty, scope, 0)
     }
 }
+
+/// How deep the checker resolves an annotation, through its parts and the
+/// aliases it names, each a level. The compiler refuses a chain of more
+/// than 64 aliases, and a type that nests deeper than 128 levels once they
+/// are expanded, so an annotation it compiles stays well within this; a
+/// deeper one is unknown here, and the compiler reports it. The bound keeps
+/// the checker's recursion through aliases off the end of its stack.
+const ANNOTATED: u32 = 512;
 
 /// The type of a literal default value, or unknown for any other default.
 fn literal_type(expr: &crate::syntax::Expr) -> Ty {
@@ -861,145 +1603,169 @@ fn literal_type(expr: &crate::syntax::Expr) -> Ty {
 /// Where a `break` out of the block a function body yields to goes: out
 /// of the function when every `yield` stands outside loops and blocks, and
 /// otherwise into the loop or call around a `yield`, or nowhere when the
-/// body never yields.
-fn yields(body: &[crate::syntax::Stmt]) -> sigs::Breaks {
-    let mut found = false;
+/// body never yields; with the bytes of the stack the walk kept, which is
+/// charged to `meter`.
+fn yields(meter: &super::meter::Meter, body: &[crate::syntax::Stmt]) -> (sigs::Breaks, usize) {
+    use super::walk::{Item, Next, Walk};
     use crate::syntax::{Node, Statement};
-    let mut statements: Vec<(&crate::syntax::Stmt, bool)> =
-        body.iter().map(|stmt| (stmt, false)).collect();
-    let mut expressions: Vec<(&crate::syntax::Expr, bool)> = Vec::new();
-    loop {
-        if let Some((expr, inside)) = expressions.pop() {
-            match &expr.node {
+    // Each entry carries whether it stands inside a loop or a block.
+    let mut walk: Walk<'_, '_, bool> = Walk::new(meter);
+    // The body is a visit, empty or not.
+    walk.visit(0);
+    walk.stmts(body, false);
+    let mut found = false;
+    while let Some((item, inside)) = walk.next(0) {
+        match item {
+            Item::Expr(expr) => match &expr.node {
                 Node::Yield(args) => {
                     if inside {
-                        return sigs::Breaks::Inside;
+                        return (sigs::Breaks::Inside, walk.bytes());
                     }
                     found = true;
-                    expressions.extend(args.iter().map(|arg| (arg, inside)));
+                    walk.push(Next::Exprs(args.iter()), inside);
                 }
                 Node::BlockCall(call, block) => {
-                    expressions.push((call, inside));
-                    statements.extend(block.body.iter().map(|stmt| (stmt, true)));
+                    walk.expr(call, inside);
+                    walk.stmts(&block.body, true);
                 }
-                Node::Compound(stmt) => statements.push((stmt, inside)),
+                Node::Compound(stmt) => walk.push(Next::Item(Item::Stmt(stmt)), inside),
                 Node::Try(attempt) => {
-                    let bodies = [&attempt.body, &attempt.alternate, &attempt.ensure];
-                    for body in bodies {
-                        statements.extend(body.iter().map(|stmt| (stmt, inside)));
-                    }
-                    for rescue in attempt.rescues.iter() {
-                        statements.extend(rescue.body.iter().map(|stmt| (stmt, inside)));
-                    }
+                    walk.stmts(&attempt.body, inside);
+                    walk.stmts(&attempt.alternate, inside);
+                    walk.stmts(&attempt.ensure, inside);
+                    walk.push(Next::Rescues(attempt.rescues.iter()), inside);
                 }
                 Node::Conditional(branches, alternate) => {
-                    for (condition, value) in branches.iter() {
-                        expressions.push((condition, inside));
-                        expressions.push((value, inside));
-                    }
-                    expressions.push((alternate, inside));
+                    walk.push(Next::Branches(branches.iter()), inside);
+                    walk.expr(alternate, inside);
                 }
                 Node::Case(subject, whens, alternate) => {
-                    expressions.extend(subject.as_deref().map(|e| (e, inside)));
-                    for when in whens.iter() {
-                        expressions.extend(when.values.iter().map(|(value, _)| (value, inside)));
-                        expressions.push((&when.result, inside));
+                    for expr in subject.iter().chain(alternate) {
+                        walk.expr(expr, inside);
                     }
-                    expressions.extend(alternate.as_deref().map(|e| (e, inside)));
+                    walk.push(Next::Whens(whens.iter()), inside);
                 }
                 Node::Binary(_, left, right) => {
-                    expressions.push((left, inside));
-                    expressions.push((right, inside));
+                    walk.expr(left, inside);
+                    walk.expr(right, inside);
                 }
                 Node::Range(start, end, _) => {
-                    expressions.extend([start, end].into_iter().flatten().map(|e| (&**e, inside)));
+                    for expr in start.iter().chain(end) {
+                        walk.expr(expr, inside);
+                    }
                 }
-                Node::Unary(_, value) => expressions.push((value, inside)),
-                Node::Call(_, args, _) => {
-                    expressions.extend(args.iter().map(|arg| (&arg.value, inside)));
-                }
-                Node::ComputedCall(receiver, args) => {
-                    expressions.push((receiver, inside));
-                    expressions.extend(args.iter().map(|arg| (&arg.value, inside)));
-                }
-                Node::Method(receiver, _, args, _) | Node::SafeMethod(receiver, _, args, _) => {
-                    expressions.push((receiver, inside));
-                    expressions.extend(args.iter().map(|arg| (&arg.value, inside)));
+                Node::Unary(_, value) => walk.expr(value, inside),
+                Node::Call(_, args, _) => walk.push(Next::Arguments(args.iter()), inside),
+                Node::ComputedCall(receiver, args)
+                | Node::Method(receiver, _, args, _)
+                | Node::SafeMethod(receiver, _, args, _) => {
+                    walk.expr(receiver, inside);
+                    walk.push(Next::Arguments(args.iter()), inside);
                 }
                 Node::Scope(receiver, _, args) => {
-                    expressions.push((receiver, inside));
-                    for arg in args.iter().flat_map(|args| args.iter()) {
-                        expressions.push((&arg.value, inside));
+                    walk.expr(receiver, inside);
+                    if let Some(args) = args {
+                        walk.push(Next::Arguments(args.iter()), inside);
                     }
                 }
                 Node::Member(receiver, _) | Node::SafeMember(receiver, _) => {
-                    expressions.push((receiver, inside));
+                    walk.expr(receiver, inside);
                 }
                 Node::Index(receiver, selectors) => {
-                    expressions.push((receiver, inside));
-                    expressions.extend(selectors.iter().map(|e| (e, inside)));
+                    walk.expr(receiver, inside);
+                    walk.push(Next::Exprs(selectors.iter()), inside);
                 }
                 Node::Array(items) | Node::Template(items, _) => {
-                    expressions.extend(items.iter().map(|e| (e, inside)));
+                    walk.push(Next::Exprs(items.iter()), inside);
                 }
-                Node::Hash(entries) => {
-                    expressions.extend(entries.iter().map(|(_, e)| (e, inside)));
+                Node::Hash(entries) => walk.push(Next::Pairs(entries.iter()), inside),
+                Node::Shape(_, Some(fallback), _) => walk.expr(fallback, inside),
+                _ => (),
+            },
+            Item::Stmt(stmt) => match &stmt.node {
+                Statement::Expr(e)
+                | Statement::Assign(_, _, e)
+                | Statement::Return(Some(e))
+                | Statement::Break(Some(e))
+                | Statement::Next(Some(e)) => walk.expr(e, inside),
+                Statement::Raise(value, message) => {
+                    for expr in value.iter().chain(message) {
+                        walk.expr(expr, inside);
+                    }
                 }
-                Node::Shape(_, fallback, _) => {
-                    expressions.extend(fallback.as_deref().map(|e| (e, inside)));
+                Statement::If(branches, alternate, _) => {
+                    walk.push(Next::Clauses(branches.iter()), inside);
+                    walk.stmts(alternate, inside);
+                }
+                Statement::While(condition, body, _) => {
+                    walk.expr(condition, inside);
+                    walk.stmts(body, true);
+                }
+                Statement::For(_, iterable, body) => {
+                    walk.expr(iterable, inside);
+                    walk.stmts(body, true);
                 }
                 _ => (),
-            }
-            continue;
-        }
-        let Some((stmt, inside)) = statements.pop() else {
-            return if found {
-                sigs::Breaks::Result
-            } else {
-                sigs::Breaks::Never
-            };
-        };
-        match &stmt.node {
-            Statement::Expr(e) => expressions.push((e, inside)),
-            Statement::Assign(_, _, e) => expressions.push((e, inside)),
-            Statement::Return(Some(e)) | Statement::Break(Some(e)) | Statement::Next(Some(e)) => {
-                expressions.push((e, inside));
-            }
-            Statement::Raise(value, message) => {
-                expressions.extend(value.as_deref().map(|e| (e, inside)));
-                expressions.extend(message.as_deref().map(|e| (e, inside)));
-            }
-            Statement::If(branches, alternate, _) => {
-                for (condition, body) in branches.iter() {
-                    expressions.push((condition, inside));
-                    statements.extend(body.iter().map(|stmt| (stmt, inside)));
-                }
-                statements.extend(alternate.iter().map(|stmt| (stmt, inside)));
-            }
-            Statement::While(condition, body, _) => {
-                expressions.push((condition, inside));
-                statements.extend(body.iter().map(|stmt| (stmt, true)));
-            }
-            Statement::For(_, iterable, body) => {
-                expressions.push((iterable, inside));
-                statements.extend(body.iter().map(|stmt| (stmt, true)));
-            }
-            _ => (),
+            },
+            Item::Target(_) => (),
         }
     }
-}
-
-fn block_param(parsed: &Declarations, offset: u32) -> Option<&BlockParam> {
-    parsed
-        .additions
-        .blocks
-        .iter()
-        .find(|(owner, _)| *owner == offset)
-        .map(|(_, block)| block)
+    let breaks = if found {
+        sigs::Breaks::Result
+    } else {
+        sigs::Breaks::Never
+    };
+    (breaks, walk.bytes())
 }
 
 /// Whether a typed block parameter is written `&name?:`.
 fn block_optional(source: &str, block: &BlockParam) -> bool {
     let start = block.offset as usize + 1 + block.name.len();
     source.as_bytes().get(start) == Some(&b'?')
+}
+
+#[cfg(test)]
+mod budget_review_tests {
+    #[test]
+    fn enum_construction_stops_before_large_names_or_symbols() {
+        let long = "Aa".repeat(256 << 10);
+        for (name, member, memory) in [
+            (long.as_str(), "A", 128 << 10),
+            ("E", long.as_str(), 768 << 10),
+        ] {
+            let meter = super::super::meter::Meter::new(
+                crate::compilation::Budget {
+                    memory: Some(memory),
+                    ..Default::default()
+                },
+                None,
+            );
+            let member = crate::compilation::Name::new(&(), member).unwrap();
+            assert!(super::Enum::new(name, &[member], &meter).is_none());
+            assert!(meter.stopped());
+        }
+    }
+
+    #[test]
+    fn metered_enum_symbols_match_the_runtime() {
+        let meter = super::super::meter::Meter::new(Default::default(), None);
+        for name in [
+            "InReview",
+            "AaAaAa",
+            "XMLReader",
+            "_Leading",
+            "Trailing__",
+            "a1B",
+            "Ångström",
+            "İValue",
+            "___",
+            "",
+        ] {
+            assert_eq!(
+                super::enum_symbol(name, &meter),
+                crate::enums::symbol(name),
+                "{name}"
+            );
+        }
+    }
 }

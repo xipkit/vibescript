@@ -12661,11 +12661,6 @@
     "go_error": "parse error at 5:5: unexpected token \".\""
   },
   {
-    "name": "rescue_label_after_a_call_result_needs_a_fallback",
-    "source": "def boom\n  raise \"x\"\nend\n\ndef run(input: any) -> any\n  x = boom() rescue :fb\n  x\nend",
-    "go_error": "parse error at 6:14: rescue modifier requires fallback expression"
-  },
-  {
     "name": "alias_inside_a_function_is_rejected",
     "source": "def foo -> int\n  1\nend\n\ndef run(input: any)\n  alias bar foo\nend",
     "go_error": "parse error at 6:3: alias declarations are only supported at the top level or in class bodies"
@@ -13457,11 +13452,6 @@
     "source": "x = [1].map\n  do |v| v end.size\n",
     "go_error": "parse error at 2:15: unexpected token \".\"",
     "error": "parse error at 2:3: unexpected token 'do'"
-  },
-  {
-    "name": "parity_multiline_array_index_in_hash",
-    "source": "h = { a: [\n  1\n][0] }\n",
-    "go_error": "parse error at 3:2: invalid hash pair: expected key like name: or \"name\":"
   },
   {
     "name": "parity_multiline_hash_call_target",

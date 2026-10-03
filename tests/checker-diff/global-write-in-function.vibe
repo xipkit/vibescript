@@ -1,0 +1,12 @@
+# expect: rejected V0101
+# A function's assignment of a global's name writes the global.
+#@ global g: int? = 5
+#@ main
+def write
+  g = "x"
+end
+def read -> int?
+  g
+end
+write
+p(read)

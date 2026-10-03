@@ -1,0 +1,12 @@
+# expect: rejected V0209
+# A function whose parameters repeat a name bound the later one, which the
+# checker typed as the earlier one: `a` held the int 2 as a float, and the
+# kept parameter check refused it.
+def f(a: float,a: int) -> int
+a
+end
+def run(input: any) -> int
+f(1.5,2)
+end
+
+p(run(nil))

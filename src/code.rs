@@ -133,29 +133,70 @@ impl Code {
         let filename = origin.as_ref().map(crate::loading::Origin::filename);
         let parse_error =
             |error| crate::source::parse_error(source, filename.as_ref(), error, work);
-        let (parsed, tokens) = crate::syntax::parse_with_tokens(source, work).map_err(|error| {
-            parse_error(if file {
-                crate::syntax::canonical_syntax(source, work, error)
-            } else {
-                crate::syntax::host_syntax(source, work, error)
-            })
-        })?;
-        let resolve = |path: &str, origin: Option<&crate::loading::Origin>| {
-            loader.unwrap().source(path, origin)
+        let (parsed, tokens, _tokens_held) = crate::syntax::parse_with_tokens(source, work)
+            .map_err(|error| {
+                parse_error(if file {
+                    crate::syntax::canonical_syntax(source, work, error)
+                } else {
+                    crate::syntax::host_syntax(source, work, error)
+                })
+            })?;
+        let resolve = |path: &str, origin: Option<&crate::loading::Origin>, ctx: &mut _| {
+            loader.unwrap().source(path, origin, ctx)
         };
+        let mut registered_hosts =
+            crate::compilation::Buffer::with_capacity(work, registered.clone().size_hint().0)?;
+        for host in registered.clone() {
+            registered_hosts.push(work, host)?;
+        }
         let mut checked = crate::typing::check(&crate::typing::Input {
             source,
             parsed: &parsed,
             tokens: &tokens,
-            hosts: registered.clone().collect(),
+            hosts: &registered_hosts,
             declared,
             file,
             origin: origin.as_ref(),
             modules: loader.is_some().then_some(&resolve),
+            budget: work.budget(),
+            observe: None,
+            annotate: false,
         });
+        // What a required file's check exports, its type table and copies
+        // of its public signatures and classes, is for a check that
+        // requires it to import; the compilation reads none of it, so it
+        // goes before the code is generated, which the peak below counted
+        // it for.
+        checked.exported = None;
         work.charge(usize::try_from(checked.steps).unwrap_or(usize::MAX))?;
         work.checkpoint()?;
+        if checked.stopped {
+            // Charging the steps or the checkpoint fails first unless the
+            // check stopped for memory, which it does not charge.
+            return Err(work.allocation_error("memory quota exceeded while checking types"));
+        }
+        // The checker's tables, and the surface pass beside them, by their
+        // own account, held this much at most at once while they ran, which
+        // counts toward the call's peak and its quota.
+        drop(work.reserve(checked.peak())?);
+        drop(registered_hosts);
+        // What the check found stays while the compiler reads it.
+        let _found = work.reserve(checked.bytes())?;
         if checked.diagnostics.iter().any(|d| d.is_error()) {
+            // The copy of the source and its index of positions, which
+            // locate the first error, the list the error shares the
+            // diagnostics in and its message, are reserved before they are
+            // made, and while they live.
+            let message = checked
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.is_error())
+                .map_or(0, |diagnostic| diagnostic.message.len() + 64);
+            let _located = work.reserve(
+                crate::source::Source::bytes(source.len())
+                    .saturating_add(std::mem::size_of_val(checked.diagnostics.as_slice()))
+                    .saturating_add(message),
+            )?;
             let mut text = crate::source::Source::compile(source, work)?;
             text.filename = filename.clone();
             let diagnostics = checked

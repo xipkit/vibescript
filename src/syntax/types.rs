@@ -679,7 +679,7 @@ impl Parser<'_> {
                 self.pos = peek;
                 let annotation = match self.type_expr(1, false) {
                     Ok(ty) => {
-                        self.declared_leaves(&ty)
+                        self.declared_leaves(&ty)?
                             && !self.default_field(&ty)?
                             && self.type_boundary(self.pos - 1, parenthesized)
                     }

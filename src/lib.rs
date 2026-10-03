@@ -77,6 +77,8 @@ pub mod typing;
 mod value;
 mod vm;
 
+#[doc(hidden)]
+pub use budget::set_budget_hook;
 pub use budget::{CallContext, CallOptions, CancellationToken, Limits, Stats};
 pub use capability::{Capability, HostMethod};
 pub use error::{Diagnostic, Error, ErrorClass, ErrorKind, Position, Result, StackFrame};
@@ -158,10 +160,21 @@ impl Engine {
     /// # Ok::<(), vibescript::Error>(())
     /// ```
     pub fn type_check(&self, source: &str) -> Result<typing::Checked> {
+        self.type_check_with(source, |_| ())
+    }
+
+    /// Like [`Self::type_check`], telling `observe` what the check does as
+    /// it goes, for a test measuring the memory it needs.
+    #[doc(hidden)]
+    pub fn type_check_with(
+        &self,
+        source: &str,
+        observe: fn(typing::Observed),
+    ) -> Result<typing::Checked> {
         for name in self.hosts.keys() {
             syntax::host_function_name(&(), syntax::HostName::FUNCTION, name)?;
         }
-        let (parsed, tokens) = syntax::parse_with_tokens(source, &()).map_err(|error| {
+        let (parsed, tokens, _) = syntax::parse_with_tokens(source, &()).map_err(|error| {
             source::parse_error(
                 source,
                 None,
@@ -169,19 +182,28 @@ impl Engine {
                 &(),
             )
         })?;
-        let resolve =
-            |path: &str, origin: Option<&loading::Origin>| self.loader.source(path, origin);
-        Ok(typing::check(&typing::Input {
+        let resolve = |path: &str, origin: Option<&loading::Origin>, ctx: &mut _| {
+            self.loader.source(path, origin, ctx)
+        };
+        let input = typing::Input {
             source,
             parsed: &parsed,
             tokens: &tokens,
-            hosts: self.hosts.iter().collect(),
+            hosts: &self.hosts.iter().collect::<Vec<_>>(),
             declared: &self.declared,
             file: false,
             origin: None,
             modules: Some(&resolve),
-        }))
+            budget: Default::default(),
+            observe: Some(observe),
+            annotate: true,
+        };
+        observe(typing::Observed::Checking);
+        let checked = typing::check(&input);
+        observe(typing::Observed::Checked);
+        Ok(checked)
     }
+
     /// Checks that a command line can call `function` in `source` with
     /// `count` arguments, which it passes as strings (ADR-007): each
     /// positional parameter they bind must accept `string`, and a rest
@@ -205,7 +227,7 @@ impl Engine {
         for name in self.hosts.keys() {
             syntax::host_function_name(&(), syntax::HostName::FUNCTION, name)?;
         }
-        let (parsed, tokens) = syntax::parse_with_tokens(source, &()).map_err(|error| {
+        let (parsed, tokens, _) = syntax::parse_with_tokens(source, &()).map_err(|error| {
             source::parse_error(
                 source,
                 None,
@@ -218,11 +240,14 @@ impl Engine {
                 source,
                 parsed: &parsed,
                 tokens: &tokens,
-                hosts: self.hosts.iter().collect(),
+                hosts: &self.hosts.iter().collect::<Vec<_>>(),
                 declared: &self.declared,
                 file: false,
                 origin: None,
                 modules: None,
+                budget: Default::default(),
+                observe: None,
+                annotate: false,
             },
             function,
             count,

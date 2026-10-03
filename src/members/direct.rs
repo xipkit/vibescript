@@ -19,24 +19,6 @@ pub(crate) enum Base {
     Float,
 }
 
-impl Base {
-    /// The one base type the checker names for a receiver, when the runtime
-    /// binds builtins to it.
-    pub(crate) fn of(bases: &[String]) -> Option<Self> {
-        let [base] = bases else {
-            return None;
-        };
-        Some(match base.as_str() {
-            "hash" => Self::Hash,
-            "array" => Self::Array,
-            "string" => Self::String,
-            "int" => Self::Int,
-            "float" => Self::Float,
-            _ => return None,
-        })
-    }
-}
-
 /// Whether a call of `method` with `count` arguments, and no block or
 /// keywords, on a receiver of `base` is served directly.
 pub(crate) fn serves(base: Base, method: Method, count: usize) -> bool {

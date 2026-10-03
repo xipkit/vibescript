@@ -1,0 +1,9 @@
+# expect: rejected V0102
+# A declaration of a global's name writes the global too.
+#@ global g: int? = 5
+#@ main
+def read -> int?
+  g
+end
+g: string = "typed"
+p(read)

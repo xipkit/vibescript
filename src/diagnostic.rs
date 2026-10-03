@@ -122,6 +122,7 @@ registry! {
     UNREACHABLE_NARROWING = 121, "unreachable-narrowing", "A nil test or type test on a value whose type already decides it.";
     TUPLE_MUTATION = 122, "tuple-mutation", "A mutation could change a tuple's length or positional element types.";
     SHAPE_MUTATION = 123, "shape-mutation", "A mutation could remove a shape's fields or replace them.";
+    TYPE_TOO_LARGE = 124, "type-too-large", "A union has more than 1,024 alternatives, or a shape more than 16,384 fields.";
 
     UNDEFINED_NAME = 201, "undefined-name", "A name does not refer to a local, function, constant or type in scope.";
     UNASSIGNED_LOCAL = 202, "unassigned-local", "A local is read where it is not assigned on every path.";
@@ -131,7 +132,7 @@ registry! {
     UNKNOWN_ENUM_MEMBER = 206, "unknown-enum-member", "A symbol or constant does not name a member of the enum.";
     BLOCK_NOT_VALUE = 207, "block-not-value", "A block parameter is used as a value.";
     VISIBILITY = 208, "visibility", "A private method is called with a receiver, or a protected one from outside its class's own methods.";
-    DUPLICATE_NAME = 209, "duplicate-name", "A function, method or alias takes a name its scope already defines.";
+    DUPLICATE_NAME = 209, "duplicate-name", "A function, method or alias takes a name its scope already defines, or a parameter repeats one of its list.";
     RESERVED_NAME = 210, "reserved-name", "A function or alias takes a reserved name: `require`, which the compiler resolves statically, or `__main__`.";
 
     NO_OVERLOAD = 301, "no-overload", "No signature accepts the call's positional arguments, keywords and block.";
@@ -382,6 +383,41 @@ impl Fix {
         output.push_str(&source[cursor..]);
         Some(output)
     }
+
+    /// Whether [`Self::apply`] applies the edits to `source`, without
+    /// building the result. Edits listed in order, as the surface pass
+    /// lists them, are checked in one pass, without a copy of them; others
+    /// are put in order first, as [`Self::apply`] puts them.
+    pub(crate) fn applies(&self, source: &str) -> bool {
+        let key = |span: Span| (span.start, span.end);
+        let ordered = self
+            .edits
+            .windows(2)
+            .all(|pair| key(pair[0].span) <= key(pair[1].span));
+        if ordered {
+            return applies_in_order(self.edits.iter().map(|edit| edit.span), source);
+        }
+        let mut spans: Vec<Span> = self.edits.iter().map(|edit| edit.span).collect();
+        spans.sort_by_key(|&span| key(span));
+        applies_in_order(spans, source)
+    }
+}
+
+/// Whether `spans`, in order, can each be replaced in `source`: each in
+/// range, on character boundaries, and after the one before.
+fn applies_in_order(spans: impl IntoIterator<Item = Span>, source: &str) -> bool {
+    let mut cursor = 0;
+    for Span { start, end } in spans {
+        if start < cursor
+            || end > source.len()
+            || !source.is_char_boundary(start)
+            || !source.is_char_boundary(end)
+        {
+            return false;
+        }
+        cursor = end;
+    }
+    true
 }
 
 /// One compile-time finding.
@@ -697,6 +733,26 @@ mod tests {
         );
         assert_eq!(overlapping.apply("abcdef"), None);
         assert_eq!(Fix::replace("out", Span::new(3, 9), "").apply("abc"), None);
+        // Validation agrees, for edits listed in order, which it checks in
+        // one pass, and for edits it puts in order first.
+        assert!(fix.applies("a = a"));
+        assert!(!overlapping.applies("abcdef"));
+        assert!(!Fix::replace("out", Span::new(3, 9), "").applies("abc"));
+        let ordered = Fix::edits(
+            "in order",
+            vec![
+                Edit {
+                    span: Span::at(0),
+                    replacement: "x: ".into(),
+                },
+                Edit {
+                    span: Span::new(4, 5),
+                    replacement: "b".into(),
+                },
+            ],
+        );
+        assert!(ordered.applies("a = a"));
+        assert_eq!(ordered.apply("a = a").as_deref(), Some("x: a = b"));
     }
 
     #[test]

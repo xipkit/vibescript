@@ -1,0 +1,7 @@
+# expect: rejected V0101
+# A `break` out of a host method's block becomes its result, which the
+# runtime validates against the method's declared result.
+#@ capability store
+#@ main
+r = store.each([1, 2]) { |x| break "s" }
+p(r)

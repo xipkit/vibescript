@@ -29,6 +29,72 @@ def host_value -> int; host().as(int); end
 "#;
 
 #[test]
+fn compilation_keeps_host_registry_storage_in_the_checkers_budget() {
+    use crate::{
+        capability::Registered,
+        compilation::{Budget, Meter, Work},
+    };
+    use std::cell::{Cell, RefCell};
+    use std::collections::BTreeMap;
+
+    struct CheckingWork<'a> {
+        inner: Meter<'a>,
+        held: Cell<usize>,
+    }
+    impl Work for CheckingWork<'_> {
+        fn budget(&self) -> Budget {
+            self.held
+                .set(self.inner.0.borrow().stats().retained_memory_bytes);
+            self.inner.budget()
+        }
+        fn charge(&self, steps: usize) -> crate::Result<()> {
+            self.inner.charge(steps)
+        }
+        fn bytes(&self, bytes: usize) -> crate::Result<()> {
+            self.inner.bytes(bytes)
+        }
+        fn checkpoint(&self) -> crate::Result<()> {
+            self.inner.checkpoint()
+        }
+        fn reserve(&self, bytes: usize) -> crate::Result<Option<crate::budget::Charge>> {
+            self.inner.reserve(bytes)
+        }
+        fn allocation_error(&self, message: &str) -> crate::Error {
+            self.inner.allocation_error(message)
+        }
+    }
+    let callback: crate::HostCallback = Arc::new(|_, _, _| Ok(Value::nil()));
+    let registered: BTreeMap<_, _> = (0..1_000)
+        .map(|i| (format!("host_{i}"), Registered::Callback(callback.clone())))
+        .collect();
+    let check = |registered: &BTreeMap<String, Registered>| {
+        let mut context = CallContext::new(CallOptions {
+            limits: Limits {
+                steps: None,
+                memory_bytes: None,
+                ..Limits::default()
+            },
+            ..CallOptions::default()
+        });
+        let work = CheckingWork {
+            inner: Meter(RefCell::new(&mut context)),
+            held: Cell::new(0),
+        };
+        let code = super::Code::compile_mode("1", registered.iter(), false, None, &work).unwrap();
+        let held = work.held.get();
+        assert_eq!(context.stats().retained_memory_bytes, 0);
+        drop(code);
+        held
+    };
+    let baseline = check(&BTreeMap::new());
+    let held = check(&registered);
+    assert!(
+        held >= baseline + registered.len() * std::mem::size_of::<(&String, &Registered)>(),
+        "host registry held {held} bytes, baseline {baseline}"
+    );
+}
+
+#[test]
 fn compiler_diagnostics_preserve_latched_control_errors() {
     let source = format!("{}def", "# text\n".repeat(256));
     let registered = std::collections::BTreeMap::new();
@@ -436,4 +502,57 @@ fn metered_compilation_stops_at_limits_and_matches_unmetered_results() {
             .unwrap();
         assert_eq!(metered, engine.compile(broken).err().unwrap());
     }
+}
+
+/// A required file's check, whose checker peaks before its surface pass
+/// starts beside less than that, counts toward the compilation's quota
+/// what it held at most at once, not its checker's peak and its surface
+/// pass's together.
+#[test]
+fn a_required_files_check_counts_its_peak_or_its_surface_pass_not_both() {
+    // An index into a union sets records aside, which the checker holds
+    // at its peak and lets go before the surface pass, whose footprint the
+    // wide literals make large. WASI checks syntax at most 128 levels tall.
+    let (depth, width) = if cfg!(target_os = "wasi") {
+        (20, 500)
+    } else {
+        (50, 400)
+    };
+    let wide = format!("[{}].length", vec!["1"; width].join(", "));
+    let mut index = "0".to_owned();
+    for _ in 0..depth {
+        index = format!("u[{wide} + g({index})]");
+    }
+    let file = format!(
+        "def g(v: int | float | nil) -> int\n  0\nend\ndef f(u: array<int> | array<float>) -> int\n  x = {index}\n  0\nend\n"
+    );
+    let alone = Engine::new().type_check(&file).unwrap();
+    let apart = alone.peak_bytes + alone.surface_bytes - alone.peak();
+    assert!(
+        apart > 256 << 10,
+        "the checker's peak, {}, and the surface pass's, {} beside {}, are held apart",
+        alone.peak_bytes,
+        alone.surface_bytes,
+        alone.surfaced
+    );
+    let mut engine = Engine::new();
+    engine
+        .set_module_sources(std::collections::BTreeMap::from([(
+            "big.vibe".to_owned(),
+            file,
+        )]))
+        .unwrap();
+    let source = "require(\"big\")\np(1)\n";
+    let peak = engine.type_check(source).unwrap().peak_bytes;
+    // Counting the file's peaks together would take `apart` more than the
+    // check holds; the compilation fits within half that.
+    let options = CallOptions {
+        limits: Limits {
+            steps: None,
+            memory_bytes: Some(peak + apart / 2),
+            ..Limits::default()
+        },
+        ..CallOptions::default()
+    };
+    engine.compile_with_options(source, &options).unwrap();
 }

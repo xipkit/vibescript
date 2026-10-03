@@ -16,7 +16,7 @@ def run -> int
 end
 ```
 
-This returns `90`. Methods follow the same rules as other script functions: typed positional, default, rest and `*` keyword parameters, a declared result, and a typed `&block` parameter when they yield. Modules can nest, and a nested module or class is named `Outer::Inner`. Their names start with an ASCII uppercase letter. A module may also declare type aliases, `type Score = int`, used inside it and, qualified, outside.
+This returns `90`. Methods follow the same rules as other script functions: typed positional, default, rest and `*` keyword parameters, a declared result, and a typed `&block` parameter when they yield. Modules can nest, and a nested module is named `Outer::Inner`; classes and enums are declared at the top level. Their names start with an ASCII uppercase letter. A module may also declare type aliases, `type Score = int`, used inside it and, qualified, outside.
 
 `Scoring::BONUS` reads a constant. Dotted access checks methods before fields, so a method can share a constant's name. `def self.name=` declares a setter; assignments retain the assigned value even when the setter returns something else.
 

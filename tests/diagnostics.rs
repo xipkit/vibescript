@@ -611,6 +611,70 @@ fn duplicate_and_reserved_function_names_are_coded() {
 }
 
 #[test]
+fn repeated_parameter_names_are_coded() {
+    // `^` marks the name that repeats an earlier parameter's, where the
+    // error is reported. The first is the differential tests' finding: the
+    // runtime bound the second `a`, which the kept checks tested against
+    // the first one's type.
+    for marked in [
+        "def f(a: float,^a: int) -> int\na\nend\ndef run(input: any) -> int\nf(1.5,2)\nend\n\np(run(nil))\n",
+        "def f(a: int, ^a: int) -> int\n  a\nend\n",
+        "def f(a: int = 1, ^a: int = 2) -> int\n  a\nend\n",
+        "def f(a: int, *^a: array<int>) -> int\n  1\nend\n",
+        "def f(a: int, *, ^a: int = 1) -> int\n  a\nend\n",
+        "def f(*a: array<int>, ^a: int = 1) -> int\n  1\nend\n",
+        "def f(a: int, **^a: hash<string, int>) -> int\n  1\nend\n",
+        "def f(a: int, &^a: int)\n  yield a\nend\n",
+        "def f a: int, ^a: int\n  p(a)\nend\n",
+        "def f a: int, &^a: int\n  yield a\nend\n",
+        "class C\n  def m(a: int, ^a: int) -> int\n    a\n  end\nend\n",
+        "class C\n  def m a: int, ^a: int\n    p(a)\n  end\nend\n",
+        "class C\n  def self.m(a: int, ^a: int) -> int\n    a\n  end\nend\n",
+        "module M\n  def self.m(a: int, ^a: int) -> int\n    a\n  end\nend\n",
+        "class C\n  @a: int\n  def initialize(@a: int, ^a: int)\n  end\nend\n",
+        "class C\n  @a: int\n  def initialize(a: int, ^@a: int)\n  end\nend\n",
+        "[1].each { |a, ^a| p(a) }\n",
+        "[[1, 2]].each { |a: int, ^a: int| p(a) }\n",
+        "[[1, [2, 3]]].each { |a, (b, ^a)| p(a) }\n",
+        "[[1, 2]].each { |(a, ^a)| p(a) }\n",
+        "[[1, 2, 3]].each { |(a, *^a)| p(a) }\n",
+        "[[1, 2], [3, 4]].each { |(a, b), (c, ^a)| p(a) }\n",
+        "class C\n  def m -> int\n    [1].each { |x, ^x| p(x) }\n    1\n  end\nend\n",
+    ] {
+        let at = marked.find('^').unwrap();
+        let source = marked.replacen('^', "", 1);
+        let error = Engine::new().compile(&source).err().unwrap();
+        assert_eq!(error.kind, ErrorKind::Syntax, "{source}");
+        let name = if source[at..].starts_with("@a") {
+            "@a"
+        } else {
+            &source[at..=at]
+        };
+        assert_eq!(
+            error.message,
+            format!("duplicate parameter {}", name.trim_start_matches('@')),
+            "{source}"
+        );
+        assert_eq!(common::codes(&error), ["V0209"], "{source}");
+        let span = error.diagnostics()[0].span;
+        assert_eq!(span.start, at, "{source}");
+        assert_eq!(&source[span.start..span.end], name, "{source}");
+    }
+    // A block parameter may take an enclosing local's name, or an enclosing
+    // block's parameter's, and a parameter a constant's.
+    for source in [
+        "a = 1\n[1].each { |a| p(a) }\np(a)\n",
+        "[[1, 2]].each { |x, y| [[3, 4]].each { |x, y| p(x) } }\n",
+        "def f(x: int) -> int\n  [[1, 2]].each { |x, y| p(x) }\n  x\nend\n",
+        "class C\n  Y = 2\n  def m(Y: int) -> int\n    1\n  end\nend\n",
+    ] {
+        Engine::new()
+            .compile(source)
+            .unwrap_or_else(|error| panic!("{source}: {error}"));
+    }
+}
+
+#[test]
 fn a_scoped_call_takes_parenless_arguments() {
     // `Math::sqrt 9` is one call, reported for its `::` alone, and its fix
     // keeps the argument with the call.

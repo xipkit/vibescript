@@ -46,13 +46,12 @@ pub(super) fn diagnostics_with_tokens(
         remaining: Cell::new(source.len().saturating_mul(128).saturating_add(16384)),
         caller,
     };
-    let parser = if let Some(tokens) = tokens {
-        parser_from_tokens(source, &work, tokens)
-    } else {
-        let Ok(parser) = parser(source, &work) else {
-            return caller.checkpoint().err().unwrap_or(first);
-        };
-        parser
+    let parser = match tokens {
+        Some(tokens) => parser_from_tokens(source, &work, tokens),
+        None => parser(source, &work),
+    };
+    let Ok(parser) = parser else {
+        return caller.checkpoint().err().unwrap_or(first);
     };
     let parsing = Parsing::<Recover>::new(parser);
     if let Err(error) = parsing.run(Call::Program) {

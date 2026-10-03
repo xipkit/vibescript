@@ -135,13 +135,16 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let fallback = self.line_expr(0).await?;
         let attempt = Try {
             modifier: true,
-            body: Buffer::from_array(work, [Statement::Expr(body).at(offset)])?,
+            body: Buffer::from_array(work, [Statement::Expr(body).at(work, offset)?])?,
             rescues: Buffer::from_array(
                 work,
                 [Rescue {
                     classes: Buffer::from_array(work, [crate::ErrorClass::Standard])?,
                     binding: None,
-                    body: Buffer::from_array(work, [Statement::Expr(fallback).at(rescue_offset)])?,
+                    body: Buffer::from_array(
+                        work,
+                        [Statement::Expr(fallback).at(work, rescue_offset)?],
+                    )?,
                     offset: rescue_offset,
                 }],
             )?,

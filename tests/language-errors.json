@@ -124947,7 +124947,8 @@
   {
     "name": "class_syntax_body_17",
     "source": "module M\nend\nclass C\nclass Inner\nend\nend\ndef run(input: any) -> int\n1\nend\n",
-    "go_error": "class Inner is not bound"
+    "go_error": "class Inner is not bound",
+    "static_error": {"code": "V0001", "at": [4, 1]}
   },
   {
     "name": "class_variables_4",
@@ -124997,13 +124998,14 @@
   {
     "name": "class_initial_0",
     "source": "class Outer\n class Inner\n  def value -> int; 7; end\n end\nend\ndef run(input: any) -> int\nOuter::Inner.new.value\nend\n",
-    "go_error": "class Inner is not bound"
+    "go_error": "class Inner is not bound",
+    "static_error": {"code": "V0001", "at": [2, 2]}
   },
   {
     "name": "class_initial_1",
     "source": "def maker\n class Inner\n def value -> int; 8; end\n end\nend\ndef run(input: any) -> any\nmaker; Inner.new.value\nend\n",
     "go_error": "class Inner is not bound",
-    "static_error": {"code": "V0201", "at": [7, 8]}
+    "static_error": {"code": "V0001", "at": [2, 2]}
   },
   {
     "name": "class_initial_8",
@@ -167796,13 +167798,46 @@
     }
   },
   {
+    "name": "call_duplicate_params",
+    "source": "def f(a: int,a: int) -> int\na\nend\ndef run(input: any) -> int\nf(1,2)\nend\n",
+    "static_error": {
+      "code": "V0209",
+      "at": [
+        1,
+        14
+      ]
+    }
+  },
+  {
+    "name": "call_duplicate_default_params",
+    "source": "def f(a: int =1,a: int =a+1) -> int\na\nend\ndef run(input: any) -> array<int>\n[f(),f(3),f(3,9)]\nend\n",
+    "static_error": {
+      "code": "V0209",
+      "at": [
+        1,
+        17
+      ]
+    }
+  },
+  {
+    "name": "call_duplicate_keyword_params",
+    "source": "def f(*, a: int,a: int) -> int\na\nend\ndef run(input: any) -> int\nf(a:3)\nend\n",
+    "static_error": {
+      "code": "V0209",
+      "at": [
+        1,
+        17
+      ]
+    }
+  },
+  {
     "name": "block_duplicate_params",
     "source": "def zero(&block: () -> int) -> int\nyield\nend\ndef one(x: int, &block: int -> int) -> int\nyield x\nend\ndef two(x: int,y: int, &block: (int, int) -> int) -> int\nyield x,y\nend\ndef twice(x: int, &block: int -> int) -> array<int>\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present() -> bool\nblock_given?\nend\ndef k(*, a: any, &block: any -> any) -> any\nyield a\nend\ndef d(a: any =yield) -> any\na\nend\ndef run(input: any) -> int\ntwo(1,2){|x,x|x}\nend\n",
     "static_error": {
-      "code": "V0308",
+      "code": "V0209",
       "at": [
-        21,
-        15
+        25,
+        13
       ]
     }
   },

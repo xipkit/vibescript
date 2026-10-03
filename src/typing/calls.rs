@@ -5,6 +5,7 @@
 use super::{
     Checker, ReceiverType,
     check::{Context, Purpose, Want},
+    counted::{CountedVec, ScratchVec},
     program::{FnId, NsId},
     sigs::{self, BlockSig, ParamKind, Sig},
     ty::{Kind, Ty},
@@ -16,6 +17,10 @@ use crate::{
 use std::rc::Rc;
 
 pub(super) use super::check::BreakTo;
+
+/// The parameters past which a call's keywords are found by search among
+/// the signature's in name order, rather than by a pass over them.
+const INDEXED_PARAMS: usize = 16;
 
 /// One call site's arguments.
 #[derive(Clone, Copy)]
@@ -95,7 +100,10 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::NOT_CALLABLE,
                 span,
-                format!("`{name}` is a local, not a function; a local cannot be called"),
+                text!(
+                    self,
+                    "`{name}` is a local, not a function; a local cannot be called"
+                ),
             ));
             self.loose_args(&call);
             return Ty::ERROR;
@@ -144,12 +152,12 @@ impl<'a> Checker<'a> {
             if name.chars().next().is_some_and(char::is_uppercase)
                 && !self.program.functions.contains_key(name)
                 && !methods.contains_key(name)
-                && self.constants.contains_key(&(Some(ns), name.to_owned()))
+                && self.constants.contains_key(&(Some(ns), self.copy(name)))
             {
                 self.report(Diagnostic::error(
                     Code::NOT_CALLABLE,
                     call.name_span,
-                    format!("`{name}` is a namespace constant, not a function"),
+                    text!(self, "`{name}` is a namespace constant, not a function"),
                 ));
                 self.loose_args(&call);
                 return Ty::ERROR;
@@ -160,7 +168,10 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::NOT_CALLABLE,
                 call.name_span,
-                format!("`{name}` is a {found} the host declares, not a function"),
+                text!(
+                    self,
+                    "`{name}` is a {found} the host declares, not a function"
+                ),
             ));
             self.loose_args(&call);
             return Ty::ERROR;
@@ -249,11 +260,15 @@ impl<'a> Checker<'a> {
             return Ty::ANY;
         }
         let message = if bare {
-            format!(
+            text!(
+                self,
                 "`{name}` is not a local, function or builtin in scope, and the host declares no global or capability of that name"
             )
         } else {
-            format!("`{name}` is not a function, method or builtin in scope")
+            text!(
+                self,
+                "`{name}` is not a function, method or builtin in scope"
+            )
         };
         let diagnostic = Diagnostic::error(Code::UNDEFINED_NAME, call.name_span, message);
         self.foreign_call(expr, &call, diagnostic);
@@ -298,7 +313,10 @@ impl<'a> Checker<'a> {
                     self.report(Diagnostic::error(
                         Code::UNKNOWN_KEYWORD,
                         span,
-                        format!("`require` has no keyword `{name}`; its only keyword is `as`"),
+                        text!(
+                            self,
+                            "`require` has no keyword `{name}`; its only keyword is `as`"
+                        ),
                     ));
                     continue;
                 }
@@ -364,7 +382,10 @@ impl<'a> Checker<'a> {
                 self.report(Diagnostic::error(
                     Code::DUPLICATE_NAME,
                     span,
-                    format!("`require` alias `{alias}` is already defined; choose a free name"),
+                    text!(
+                        self,
+                        "`require` alias `{alias}` is already defined; choose a free name"
+                    ),
                 ));
             }
         }
@@ -373,6 +394,9 @@ impl<'a> Checker<'a> {
     /// Checks arguments and a block without a signature, as after an error.
     pub(super) fn loose_args(&mut self, call: &Call<'a, '_>) {
         for arg in call.args {
+            if self.halted() {
+                return;
+            }
             self.expr(&arg.value, None);
         }
         for selector in call.selectors {
@@ -415,7 +439,7 @@ impl<'a> Checker<'a> {
         self.report(Diagnostic::error(
             Code::NOT_CALLABLE,
             call.name_span,
-            format!("a value of type {found} cannot be called"),
+            text!(self, "a value of type {found} cannot be called"),
         ));
         Ty::ERROR
     }
@@ -469,8 +493,8 @@ impl<'a> Checker<'a> {
         // the types of its parts for [`Self::field_addresses`].
         let addressed = crate::bytecode::mutating_member(name)
             && matches!(receiver.node, Node::Member(..) | Node::SafeMember(..))
-            && !self.memo.as_ref().is_some_and(|memo| memo.replay);
-        let outer = addressed.then(|| self.memo.replace(super::Memo::default()));
+            && !self.memo.get().is_some_and(|memo| memo.replay);
+        let outer = addressed.then(|| self.set_memo(Some(super::Memo::default())));
         let ty = self.member_receiver(receiver, name);
         if let Some(outer) = outer {
             self.field_addresses(receiver, name);
@@ -481,27 +505,33 @@ impl<'a> Checker<'a> {
         }
         if ty != Ty::ERROR && block.is_none() {
             let called = if safe { self.types.without_nil(ty) } else { ty };
-            let base = crate::members::direct::Base::of(&self.types.bases(called));
-            self.facts.record_base(expr, base);
+            let base = self.types.direct_base(called);
+            self.facts.record_base(self.meter.tables(), expr, base);
             let class = match self.types.kind(called) {
                 Kind::Instance(ns) => {
                     let namespace = &self.program.namespaces[*ns as usize];
                     (namespace.module.is_some()
                         && !matches!(name, "initialize" | "class")
                         && namespace.methods.contains_key(name))
-                    .then(|| namespace.name.clone())
+                    .then_some(namespace.name.as_str())
                 }
                 _ => None,
             };
-            self.facts.record_class(expr, class);
+            self.facts.record_class(self.meter.tables(), expr, class);
         }
         let name_span = self.spans.member(receiver, name);
         if let Some(span) = name_span {
             if ty != Ty::ERROR {
                 // A safe call runs the member on the value without nil.
                 let called = if safe { self.types.without_nil(ty) } else { ty };
-                let mut receiver_type =
-                    ReceiverType::new(self.types.display(called), self.types.bases(called));
+                let Some(bases) = self.types.bases(called) else {
+                    return Ty::ERROR;
+                };
+                let display = self.types.display(called);
+                if self.halted() {
+                    return Ty::ERROR;
+                }
+                let mut receiver_type = ReceiverType::new(display, bases.into_vec());
                 receiver_type.user_method = self.types.members(called).iter().all(|&ty| match self
                     .types
                     .kind(ty)
@@ -520,7 +550,18 @@ impl<'a> Checker<'a> {
                         .contains_key(name),
                     _ => false,
                 });
-                self.calls.push((span.start, receiver_type));
+                // A check that counting it stops keeps no more receivers;
+                // one it keeps is counted, with what it owns, as it is kept,
+                // and by the measures after.
+                let bytes = super::meter::Heap::heap(&receiver_type);
+                if self
+                    .calls
+                    .push(self.meter.tables(), (span.start, receiver_type))
+                    .is_err()
+                {
+                    return Ty::ERROR;
+                }
+                self.grown += bytes;
             }
         }
         let call = Call {
@@ -536,7 +577,7 @@ impl<'a> Checker<'a> {
         let shapes = if crate::bytecode::mutating_member(name) && self.place(receiver) {
             self.shapes(ty)
         } else {
-            Vec::new()
+            ScratchVec::new(&self.meter)
         };
         if name == "replace" && !shapes.is_empty() {
             return self.shape_replace(&call, receiver, ty, safe, &shapes);
@@ -608,12 +649,12 @@ impl<'a> Checker<'a> {
                 self.mute -= 1;
                 ty
             });
-        let outer = self.memo.replace(super::Memo::default());
+        let outer = self.set_memo(Some(super::Memo::default()));
         let reported = self.diagnostics.len();
         let result = self.checked_member(call, receiver, ty, safe);
         let valid = self.diagnostics.len() == reported;
         // Another argument's type, as the call just checked it.
-        self.memo.as_mut().unwrap().replay = true;
+        self.memo.get_mut().unwrap().replay = true;
         self.mute += 1;
         let other = literal.or_else(|| argument.map(|value| self.expr(value, None)));
         self.mute -= 1;
@@ -647,25 +688,34 @@ impl<'a> Checker<'a> {
             return self.member(call, ty);
         }
         // `nil` must answer the member too, or the value needs a nil test.
-        let mut others: Vec<Ty> = Vec::new();
+        // The alternatives, and the results of the member on each, are
+        // listed in lists counted while they live, since checking the
+        // member on one checks its arguments, which may hold more.
+        let mut others = ScratchVec::new(&self.meter);
+        let mut results = ScratchVec::new(&self.meter);
+        if others.reserve(alternatives.len()).is_err()
+            || results.reserve(alternatives.len()).is_err()
+        {
+            return Ty::ERROR;
+        }
         let mut nil = false;
         for &alternative in &alternatives {
             if alternative == Ty::NIL {
                 nil = true;
             } else {
-                others.push(alternative);
+                others.add(alternative);
             }
         }
-        let mut results = Vec::new();
         if nil {
             if self.answers(Ty::NIL, call.name) {
-                others.push(Ty::NIL);
+                others.add(Ty::NIL);
             } else {
                 let found = self.types.display(ty);
                 let mut diagnostic = Diagnostic::error(
                     Code::OPTIONAL_USE,
                     call.name_span,
-                    format!(
+                    text!(
+                        self,
                         "`{}` is not defined for nil, and this value is {found}; test it with `!= nil` first, or call through `&.`",
                         call.name
                     ),
@@ -686,18 +736,27 @@ impl<'a> Checker<'a> {
             self.loose_args(call);
             return Ty::ERROR;
         };
-        let outer = self.memo.replace(super::Memo::default());
+        let outer = self.set_memo(Some(super::Memo::default()));
         let mark = self.frame.flow.mark();
-        results.push(self.member(call, first));
-        let mut branches = vec![self.frame.flow.rollback(mark)];
+        let first = self.member(call, first);
+        results.add(first);
+        let mut branches = ScratchVec::new(&self.meter);
+        let branch = self.frame.flow.rollback(mark);
+        self.explore(&mut branches, branch);
         // Reuse evaluated argument types, but check every receiver's contract.
-        self.memo.as_mut().unwrap().replay = true;
+        self.memo.get_mut().unwrap().replay = true;
         for &alternative in rest {
+            // A check one alternative stops checks no more of them.
+            if self.halted() {
+                break;
+            }
             let mark = self.frame.flow.mark();
-            results.push(self.member(call, alternative));
-            branches.push(self.frame.flow.rollback(mark));
+            let result = self.member(call, alternative);
+            results.add(result);
+            let branch = self.frame.flow.rollback(mark);
+            self.explore(&mut branches, branch);
         }
-        self.join(branches);
+        self.join_explored(branches);
         self.restore_memo(outer);
         self.types.union(&results)
     }
@@ -709,7 +768,7 @@ impl<'a> Checker<'a> {
 
     /// Checks a member call on a receiver of a single type.
     fn member(&mut self, call: &Call<'a, '_>, ty: Ty) -> Ty {
-        let kind = self.types.kind(ty).clone();
+        let kind = &*self.types.shared(ty);
         match kind {
             Kind::Error | Kind::Never => {
                 self.loose_args(call);
@@ -732,7 +791,7 @@ impl<'a> Checker<'a> {
                 self.report(Diagnostic::error(
                     Code::ANY_USE,
                     call.name_span,
-                    format!(
+                    text!(self,
                         "this value has type any; narrow it with `is_type?`, `.as(T)` or `JSON.parse_as` before calling `{}`",
                         call.name
                     ),
@@ -741,13 +800,13 @@ impl<'a> Checker<'a> {
                 Ty::ERROR
             }
             Kind::Instance(ns) => {
-                let method = self.program.namespaces[ns as usize]
+                let method = self.program.namespaces[*ns as usize]
                     .methods
                     .get(call.name)
                     .copied();
                 match method {
                     Some(id) if call.name != "initialize" => {
-                        self.visibility(call.name, call.name_span, id, ns, true);
+                        self.visibility(call.name, call.name_span, id, *ns, true);
                         let sig = self.program.fns[id].sig.clone();
                         self.call_sigs(call, &[(sig, Vec::new())])
                     }
@@ -757,22 +816,22 @@ impl<'a> Checker<'a> {
                     _ => self.table_member(call, ty),
                 }
             }
-            Kind::Namespace(ns) => self.namespace_member(call, ns, ty),
-            Kind::Exports(id) => match self.exported(id, call.name) {
+            Kind::Namespace(ns) => self.namespace_member(call, *ns, ty),
+            Kind::Exports(id) => match self.exported(*id, call.name) {
                 Some(sig) => self.call_sigs(call, &[(sig, Vec::new())]),
-                None => match self.exported_enum(id, call.name) {
+                None => match self.exported_enum(*id, call.name) {
                     Some(enumeration) if call.args.is_empty() && call.block.is_none() => {
                         self.types.intern(Kind::EnumType(enumeration))
                     }
                     _ => {
-                        self.unknown_export(id, call.name, call.name_span);
+                        self.unknown_export(*id, call.name, call.name_span);
                         self.loose_args(call);
                         Ty::ERROR
                     }
                 },
             },
-            Kind::Builtin(index) => self.builtin_member(call, index, ty),
-            Kind::Host(index) => self.host_member(call, index, ty),
+            Kind::Builtin(index) => self.builtin_member(call, *index, ty),
+            Kind::Host(index) => self.host_member(call, *index, ty),
             _ => self.table_member(call, ty),
         }
     }
@@ -794,7 +853,7 @@ impl<'a> Checker<'a> {
     fn field_addresses(&mut self, receiver: &Expr, name: &str) {
         let mut node = receiver;
         while let Node::Member(inner, member) | Node::SafeMember(inner, member) = &node.node {
-            let types = &self.memo.as_ref().unwrap().types;
+            let types = &self.memo.get().unwrap().types;
             let called = types.get(&(std::ptr::from_ref(node) as usize)).copied();
             let Some(inner_ty) = types.get(&(std::ptr::from_ref(&**inner) as usize)).copied()
             else {
@@ -806,7 +865,7 @@ impl<'a> Checker<'a> {
                     && self.types.members(inner_ty).into_iter().any(|ty| {
                         match self.types.kind(ty) {
                             Kind::Shape(fields, open) => {
-                                *open || fields.iter().any(|field| *field.name == **member)
+                                *open || self.types.field(fields, member.as_bytes()).is_some()
                             }
                             Kind::Hash(_) => true,
                             _ => false,
@@ -820,7 +879,7 @@ impl<'a> Checker<'a> {
                 self.report(Diagnostic::error(
                     Code::FIELD_ACCESS,
                     span,
-                    format!(
+                    text!(self,
                         "`.{member}` in front of `{name}` updates the field `{member}` when the hash has one, not the result of `{member}`; index the field, `[\"{member}\"]`, or update a local holding the result"
                     ),
                 ));
@@ -830,13 +889,17 @@ impl<'a> Checker<'a> {
         }
     }
 
-    /// The shapes among `ty`'s alternatives.
-    fn shapes(&self, ty: Ty) -> Vec<Ty> {
-        self.types
-            .members(ty)
-            .into_iter()
-            .filter(|&ty| matches!(self.types.kind(ty), Kind::Shape(..)))
-            .collect()
+    /// The shapes among `ty`'s alternatives, in a list counted while it
+    /// lives, since the call it is for checks arguments, which may hold
+    /// more.
+    fn shapes(&self, ty: Ty) -> ScratchVec<Ty> {
+        let mut shapes = ScratchVec::new(&self.meter);
+        for alternative in self.types.members(ty) {
+            if matches!(self.types.kind(alternative), Kind::Shape(..)) {
+                shapes.add(alternative);
+            }
+        }
+        shapes
     }
 
     /// Whether `name`, a hash member that removes keys, could remove a field
@@ -872,7 +935,8 @@ impl<'a> Checker<'a> {
         let mut diagnostic = Diagnostic::error(
             Code::SHAPE_MUTATION,
             call.name_span,
-            format!(
+            text!(
+                self,
                 "a record keeps the fields its shape declares, but `{}` could {what}; assign it a new record, or declare a dictionary, `hash<string, V>`",
                 call.name
             ),
@@ -884,9 +948,9 @@ impl<'a> Checker<'a> {
                     let value_text = self.types.display(value);
                     let name_span = self.spans.token(local.offset);
                     diagnostic = diagnostic.with_fix(Fix::insert(
-                        format!("declare `{name}: hash<string, {value_text}>`"),
+                        text!(self, "declare `{name}: hash<string, {value_text}>`"),
                         name_span.end,
-                        format!(": hash<string, {value_text}>"),
+                        text!(self, ": hash<string, {value_text}>"),
                     ));
                 }
             }
@@ -902,7 +966,7 @@ impl<'a> Checker<'a> {
         self.report(Diagnostic::error(
             Code::UNKNOWN_MEMBER,
             call.name_span,
-            format!(
+            text!(self,
                 "{found} has no member `{}`; {what} renders through interpolation, `p` and `puts`, or define `def {} -> string`",
                 call.name, call.name
             ),
@@ -924,27 +988,39 @@ impl<'a> Checker<'a> {
                 crate::signatures::Member::Function(function) => {
                     let sig = self
                         .converter
-                        .convert_owned(&mut self.types, function, None);
+                        .convert_owned(&mut self.types, function, None)
+                        .host();
                     candidates.push((Rc::new(sig), Vec::new()));
                 }
                 crate::signatures::Member::Module(module) => {
                     self.non_callable_member(call);
                     self.loose_args(call);
-                    let id = self
+                    let known = self
                         .program
                         .host_modules
                         .iter()
-                        .position(|&known| std::ptr::eq(known, module))
-                        .unwrap_or_else(|| {
+                        .position(|&known| std::ptr::eq(known, module));
+                    let id = match known {
+                        Some(id) => id,
+                        None => {
+                            // Counted before it is kept; a check that stops
+                            // names no more modules.
+                            let name = text!(self, "{}.{}", self.types.display(ty), module.name);
+                            let declarations = self.meter.declarations();
+                            let Ok(mut kept) = declarations.keep(name.capacity()) else {
+                                return Ty::ERROR;
+                            };
+                            if self.program.host_modules.reserve(declarations, 1).is_err()
+                                || self.types.names.hosts.reserve(declarations, 1).is_err()
+                            {
+                                return Ty::ERROR;
+                            }
                             let id = self.program.host_modules.len();
-                            self.program.host_modules.push(module);
-                            self.types.names.hosts.push(format!(
-                                "{}.{}",
-                                self.types.display(ty),
-                                module.name
-                            ));
+                            self.program.host_modules.push_within(module);
+                            self.types.names.hosts.push_kept(&mut kept, name);
                             id
-                        });
+                        }
+                    };
                     return self.types.intern(Kind::Host(id as u32));
                 }
                 crate::signatures::Member::Constant(constant) => {
@@ -961,7 +1037,8 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::UNKNOWN_MEMBER,
                 call.name_span,
-                format!(
+                text!(
+                    self,
                     "{} declares no member `{}`",
                     self.types.display(ty),
                     call.name
@@ -978,7 +1055,7 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::NOT_CALLABLE,
                 call.name_span,
-                format!("`{}` is data, not a callable member", call.name),
+                text!(self, "`{}` is data, not a callable member", call.name),
             ));
         }
     }
@@ -989,11 +1066,20 @@ impl<'a> Checker<'a> {
         if call.name == "new" && namespace.is_class {
             let initialize = namespace.methods.get("initialize").copied();
             let instance = self.types.intern(Kind::Instance(ns));
+            // The copy of the initializer's signature `new` takes, with its
+            // parameters' names, and its own name, are held, before they
+            // are made, while the call is checked: calls of `new` nest.
+            let named = self.program.namespaces[ns as usize].name.len() + ".new".len();
+            let copied =
+                initialize.map_or(0, |id| super::meter::Heap::heap(&*self.program.fns[id].sig));
+            let Some(held) = self.hold(copied + named) else {
+                return Ty::ERROR;
+            };
             let sig = match initialize {
                 Some(id) => {
                     let sig = self.program.fns[id].sig.clone();
                     let mut sig = (*sig).clone();
-                    sig.name = format!("{}.new", self.program.namespaces[ns as usize].name);
+                    sig.name = text!(self, "{}.new", self.program.namespaces[ns as usize].name);
                     // A break out of the block is the value of `new`,
                     // unchecked by the initializer's result.
                     if sig.breaks == sigs::Breaks::Result {
@@ -1002,7 +1088,7 @@ impl<'a> Checker<'a> {
                     sig
                 }
                 None => Sig {
-                    name: format!("{}.new", self.program.namespaces[ns as usize].name),
+                    name: text!(self, "{}.new", self.program.namespaces[ns as usize].name),
                     params: Vec::new(),
                     result: None,
                     block: None,
@@ -1013,6 +1099,7 @@ impl<'a> Checker<'a> {
                 },
             };
             let (_, breaks) = self.call_sigs_parts(call, &[(Rc::new(sig), Vec::new())]);
+            self.release(held);
             return self.with_breaks(instance, &breaks);
         }
         if let Some(&id) = namespace.statics.get(call.name) {
@@ -1021,7 +1108,7 @@ impl<'a> Checker<'a> {
             return self.call_sigs(call, &[(sig, Vec::new())]);
         }
         if call.args.is_empty() && call.block.is_none() {
-            if let Some(&ty) = self.constants.get(&(Some(ns), call.name.to_owned())) {
+            if let Some(&ty) = self.constants.get(&(Some(ns), self.copy(call.name))) {
                 return ty;
             }
             if let Some(&child) = namespace.children.get(call.name) {
@@ -1153,7 +1240,7 @@ impl<'a> Checker<'a> {
         let mut diagnostic = Diagnostic::error(
             Code::UNKNOWN_MEMBER,
             call.name_span,
-            format!("{found} has no member `{}`", call.name),
+            text!(self, "{found} has no member `{}`", call.name),
         );
         let canonical = match (self.types.kind(ty), call.name) {
             (Kind::Array(_), "filter") => Some("select"),
@@ -1164,7 +1251,7 @@ impl<'a> Checker<'a> {
         if let Some(canonical) = canonical {
             diagnostic = diagnostic.with_fix(
                 Fix::replace(
-                    format!("the Vibescript member is `{canonical}`; check its arguments and block in `vibes prelude`"),
+                    text!(self, "the Vibescript member is `{canonical}`; check its arguments and block in `vibes prelude`"),
                     call.name_span,
                     canonical,
                 )
@@ -1177,11 +1264,11 @@ impl<'a> Checker<'a> {
     }
 
     fn removed_rename(&mut self, call: &Call<'a, '_>, canonical: &str) {
-        let advice = format!("use `{canonical}`");
+        let advice = text!(self, "use `{canonical}`");
         let mut diagnostic = Diagnostic::error(
             Code::REMOVED_NAME,
             call.name_span,
-            format!("`{}` was removed; {advice}", call.name),
+            text!(self, "`{}` was removed; {advice}", call.name),
         );
         if call.empty() {
             diagnostic = diagnostic.with_fix(Fix::replace(advice, call.name_span, canonical));
@@ -1200,12 +1287,12 @@ impl<'a> Checker<'a> {
         };
         let advice = match &rename.replacement {
             crate::signatures::Replacement::Manual(hint) => hint.clone(),
-            crate::signatures::Replacement::Rewrite(template) => format!("use `{template}`"),
+            crate::signatures::Replacement::Rewrite(template) => text!(self, "use `{template}`"),
         };
         self.report(Diagnostic::error(
             code,
             call.name_span,
-            format!("`{}` was removed; {advice}", call.name),
+            text!(self, "`{}` was removed; {advice}", call.name),
         ));
     }
 
@@ -1222,7 +1309,7 @@ impl<'a> Checker<'a> {
         };
         let literal = self.expr(&arg.value, None);
         let literal = self.nominal_type(literal);
-        let Kind::TypeLit(target) = self.types.kind(literal).clone() else {
+        let Kind::TypeLit(target) = *self.types.kind(literal) else {
             if literal != Ty::ERROR {
                 let span = self.spans.expr(&arg.value);
                 let found = self.types.display(literal);
@@ -1230,7 +1317,7 @@ impl<'a> Checker<'a> {
                     Diagnostic::error(
                         Code::TYPE_MISMATCH,
                         span,
-                        format!("`as` takes a type, found {found}"),
+                        text!(self, "`as` takes a type, found {found}"),
                     )
                     .with_types("type<T>", found),
                 );
@@ -1238,20 +1325,25 @@ impl<'a> Checker<'a> {
             return Ty::ERROR;
         };
         if ty != Ty::ANY && ty != Ty::ERROR {
-            let possible = self.types.members(target).into_iter().any(|t| {
-                self.types.members(ty).into_iter().any(|m| {
-                    self.types.assignable(m, t)
-                        || self.types.assignable(t, m)
-                        || (m == Ty::SYMBOL && matches!(self.types.kind(t), Kind::EnumValue(_)))
-                })
-            });
+            // Some alternative of one fits the other, compared through the
+            // unions' indexes rather than pair by pair.
+            let symbol = self.types.members(ty).contains(&Ty::SYMBOL);
+            let possible = self
+                .types
+                .members(ty)
+                .into_iter()
+                .any(|m| self.types.assignable(m, target))
+                || self.types.members(target).into_iter().any(|t| {
+                    self.types.assignable(t, ty)
+                        || (symbol && matches!(self.types.kind(t), Kind::EnumValue(_)))
+                });
             if !possible {
                 let found = self.types.display(ty);
                 let wanted = self.types.display(target);
                 self.report(Diagnostic::error(
                     Code::CAST,
                     call.name_span,
-                    format!("a value of type {found} can never be {wanted}"),
+                    text!(self, "a value of type {found} can never be {wanted}"),
                 ));
             }
         }
@@ -1264,7 +1356,7 @@ impl<'a> Checker<'a> {
     /// The type literal a class or enum used as a value names, since each
     /// names its own type; any other type as it is.
     fn nominal_type(&mut self, ty: Ty) -> Ty {
-        match self.types.kind(ty).clone() {
+        match *self.types.kind(ty) {
             Kind::EnumType(id) => {
                 let member = self.types.intern(Kind::EnumValue(id));
                 self.types.type_lit(member)
@@ -1298,7 +1390,7 @@ impl<'a> Checker<'a> {
             extra: None,
             selectors: &[],
         };
-        match self.types.kind(ty).clone() {
+        match *self.types.kind(ty) {
             Kind::EnumValue(_) | Kind::AnyEnum => {
                 let span = self
                     .spans
@@ -1319,20 +1411,20 @@ impl<'a> Checker<'a> {
                 self.dispatch(&call, receiver, ty)
             }
             Kind::EnumType(id) if args.is_none() => {
-                let decl = &self.program.enums[id as usize];
-                if decl.members.iter().any(|member| member == name) {
+                let decl = std::sync::Arc::clone(&self.program.enums[id as usize]);
+                if decl.member(name).is_some() {
                     return self.types.intern(Kind::EnumValue(id));
                 }
-                let enum_name = decl.name.clone();
+                let enum_name = &decl.name;
                 self.report(Diagnostic::error(
                     Code::UNKNOWN_ENUM_MEMBER,
                     call.name_span,
-                    format!("`{enum_name}` has no member `{name}`"),
+                    text!(self, "`{enum_name}` has no member `{name}`"),
                 ));
                 Ty::ERROR
             }
             Kind::Namespace(ns) if args.is_none() && block.is_none() => {
-                if let Some(&ty) = self.constants.get(&(Some(ns), name.to_owned())) {
+                if let Some(&ty) = self.constants.get(&(Some(ns), self.copy(name))) {
                     return ty;
                 }
                 if let Some(&child) = self.program.namespaces[ns as usize].children.get(name) {
@@ -1383,15 +1475,33 @@ impl<'a> Checker<'a> {
         value: &'a Expr,
         evaluate: bool,
     ) -> Ty {
-        let setter = format!("{name}=");
+        let setter = text!(self, "{name}=");
         let setter = setter.as_str();
         let ty = self.member_receiver(receiver, setter);
         let name_span = self.spans.member(receiver, name);
         if let (Some(span), false) = (name_span, ty == Ty::ERROR) {
-            let receiver_type = ReceiverType::new(self.types.display(ty), self.types.bases(ty));
-            self.calls.push((span.start, receiver_type));
+            let Some(bases) = self.types.bases(ty) else {
+                return Ty::ERROR;
+            };
+            let display = self.types.display(ty);
+            if self.halted() {
+                return Ty::ERROR;
+            }
+            let receiver_type = ReceiverType::new(display, bases.into_vec());
+            // A check that counting it stops keeps no more receivers; one
+            // it keeps is counted, with what it owns, as it is kept, and by
+            // the measures after.
+            let bytes = super::meter::Heap::heap(&receiver_type);
+            if self
+                .calls
+                .push(self.meter.tables(), (span.start, receiver_type))
+                .is_err()
+            {
+                return Ty::ERROR;
+            }
+            self.grown += bytes;
         }
-        if let Kind::Host(index) = self.types.kind(ty).clone() {
+        if let Kind::Host(index) = *self.types.kind(ty) {
             let module = self.program.host_modules[index as usize];
             if let Some(crate::signatures::Member::Constant(constant)) =
                 module.members.iter().find(|member| member.name() == name)
@@ -1413,7 +1523,8 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::UNKNOWN_MEMBER,
                 name_span.unwrap_or_else(|| self.spans.expr(expr)),
-                format!(
+                text!(
+                    self,
                     "{} has no writable data member `{name}`",
                     self.types.display(ty)
                 ),
@@ -1440,7 +1551,7 @@ impl<'a> Checker<'a> {
                 if alternative == Ty::NIL {
                     continue;
                 }
-                let method = match self.types.kind(alternative).clone() {
+                let method = match *self.types.kind(alternative) {
                     Kind::Instance(ns) => self.program.namespaces[ns as usize]
                         .methods
                         .get(setter)
@@ -1457,7 +1568,7 @@ impl<'a> Checker<'a> {
                     self.report(Diagnostic::error(
                         Code::UNKNOWN_MEMBER,
                         call.name_span,
-                        format!("{found} has no member `{setter}`"),
+                        text!(self, "{found} has no member `{setter}`"),
                     ));
                     break;
                 };
@@ -1473,12 +1584,12 @@ impl<'a> Checker<'a> {
             }
             return value_ty;
         }
-        let outer = self.memo.replace(super::Memo::default());
+        let outer = self.set_memo(Some(super::Memo::default()));
         self.dispatch(&call, receiver, ty);
         // The assigned value was checked as the setter's argument.
         let assigned = self
             .memo
-            .as_ref()
+            .get()
             .and_then(|memo| {
                 memo.types
                     .get(&(std::ptr::from_ref(value) as usize))
@@ -1518,44 +1629,37 @@ impl<'a> Checker<'a> {
         let (word, rule) = match visibility {
             Visibility::Private => (
                 "private",
-                format!("only `{class}`'s own methods can call it, without a receiver"),
+                text!(
+                    self,
+                    "only `{class}`'s own methods can call it, without a receiver"
+                ),
             ),
             _ if instance => (
                 "protected",
-                format!(
+                text!(
+                    self,
                     "only `{class}`'s instance methods can call it, on an instance of `{class}`"
                 ),
             ),
             _ if namespace.is_class => (
                 "protected",
-                format!("only `{class}`'s class methods can call it"),
+                text!(self, "only `{class}`'s class methods can call it"),
             ),
             _ => (
                 "protected",
-                format!("only `{class}`'s own methods can call it"),
+                text!(self, "only `{class}`'s own methods can call it"),
             ),
         };
         let mut diagnostic = Diagnostic::error(
             Code::VISIBILITY,
             span,
-            format!("`{name}` is {word} in `{class}`: {rule}"),
+            text!(self, "`{name}` is {word} in `{class}`: {rule}"),
         );
         if let Some(def) = self.program.fns[id].def {
             let declared = self.spans.token(def.offset as usize);
-            diagnostic = diagnostic.with_label(declared, format!("declared {word} here"));
+            diagnostic = diagnostic.with_label(declared, text!(self, "declared {word} here"));
         }
         self.report(diagnostic);
-    }
-
-    /// Restores an enclosing memo, keeping what the inner one recorded when
-    /// the enclosing one records too.
-    pub(super) fn restore_memo(&mut self, outer: Option<super::Memo>) {
-        let inner = std::mem::replace(&mut self.memo, outer);
-        if let (Some(inner), Some(outer)) = (inner, self.memo.as_mut()) {
-            if !outer.replay {
-                outer.types.extend(inner.types);
-            }
-        }
     }
 
     /// A method of a script class called with index syntax, `[]` or `[]=`.
@@ -1595,9 +1699,9 @@ impl<'a> Checker<'a> {
         if breaks.is_empty() {
             return result;
         }
-        let mut all = breaks.to_vec();
-        all.push(result);
-        self.types.union(&all)
+        // The values join first, rather than a copy of them with the result.
+        let breaks = self.types.union(breaks);
+        self.types.union(&[breaks, result])
     }
 
     /// [`Self::call_sigs`], with the signature's result and the types of
@@ -1609,11 +1713,18 @@ impl<'a> Checker<'a> {
             self.select(call, candidates)
         };
         let Some(chosen) = chosen else {
-            let list = candidates
-                .iter()
-                .map(|(sig, _)| format!("`{}`", sig.describe(&self.types)))
-                .collect::<Vec<_>>()
-                .join(", ");
+            // Each written through the meter, which the parameters' names
+            // and types can make long.
+            let mut list = super::counted::Text::new(&self.meter);
+            for (index, (sig, _)) in candidates.iter().enumerate() {
+                if index > 0 {
+                    list.push_str(", ");
+                }
+                list.push('`');
+                sig.describe(&self.types, &mut list);
+                list.push('`');
+            }
+            let list = list.finish();
             let block = if call.block.is_some() {
                 " and a block"
             } else {
@@ -1622,7 +1733,8 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::NO_OVERLOAD,
                 call.name_span,
-                format!(
+                text!(
+                    self,
                     "no signature of `{}` takes {} positional argument(s){block}; it has {list}",
                     call.name,
                     call.positional()
@@ -1653,22 +1765,56 @@ impl<'a> Checker<'a> {
                 splat = true;
             }
         }
-        let mut keywords: Vec<String> = call.keywords().map(str::to_owned).collect();
-        for arg in call
-            .args
-            .iter()
-            .filter(|arg| matches!(arg.kind, ArgumentKind::KeywordSplat))
-        {
-            if let Node::Hash(entries) = &arg.value.node {
-                keywords.extend(
-                    entries
-                        .iter()
-                        .map(|(name, _)| String::from_utf8_lossy(name).into_owned()),
-                );
+        // The names borrow the syntax's, but for a splatted hash's keys that
+        // are not UTF-8, which are copied, at most three bytes for each; the
+        // list is counted before it is made.
+        let splatted = || {
+            call.args
+                .iter()
+                .filter(|arg| matches!(arg.kind, ArgumentKind::KeywordSplat))
+                .filter_map(|arg| match &arg.value.node {
+                    Node::Hash(entries) => Some(entries.iter().map(|(name, _)| name)),
+                    _ => None,
+                })
+                .flatten()
+        };
+        let count = call.keywords().count() + splatted().count();
+        // A check past its budget chooses the first candidate, which it
+        // checks no further.
+        let mut keywords = ScratchVec::new(&self.meter);
+        if keywords.reserve(count).is_err() {
+            return Some(0);
+        }
+        for name in call.keywords() {
+            keywords.push_within(std::borrow::Cow::Borrowed(name));
+        }
+        for name in splatted() {
+            let name = match std::str::from_utf8(name) {
+                Ok(name) => std::borrow::Cow::Borrowed(name),
+                Err(_) => std::borrow::Cow::Owned(super::counted::lossy(name, &self.meter)),
+            };
+            if keywords.push(name).is_err() {
+                return Some(0);
             }
         }
-        let declared = call.block.map(block_arity);
+        let declared = match call.block {
+            Some(block) => {
+                let (arity, scratch) = block_arity(&self.meter, block);
+                if self.transient(scratch) {
+                    return Some(0);
+                }
+                Some(arity)
+            }
+            None => None,
+        };
+        // Each candidate's keywords are looked for among the call's, and the
+        // call's among each candidate's, a step for each 64 looks.
+        let meter = std::sync::Arc::clone(&self.meter);
         let fits = |sig: &Sig, relaxed: bool| {
+            let looks = keywords.len().saturating_mul(sig.params.len());
+            if meter.stopped() || looks >= 64 && meter.charge((looks / 64) as u64) {
+                return false;
+            }
             let (min, max) = sig.positional();
             let count = positional >= min
                 && if splat {
@@ -1676,14 +1822,22 @@ impl<'a> Checker<'a> {
                 } else {
                     max.is_none_or(|max| positional <= max)
                 };
-            let keyword_ok = keywords
+            let keyword_ok = keywords.iter().all(|name| {
+                sig.keyword(&meter, name)
+                    .is_ok_and(|param| param.is_some() || sig.keyword_rest().is_some())
+            }) && sig
+                .params
                 .iter()
-                .all(|name| sig.keyword(name).is_some() || sig.keyword_rest().is_some())
-                && sig
-                    .params
-                    .iter()
-                    .filter(|p| p.kind == ParamKind::Keyword && !p.optional)
-                    .all(|p| keywords.contains(&p.name));
+                .filter(|p| p.kind == ParamKind::Keyword && !p.optional)
+                .all(|p| {
+                    keywords
+                        .iter()
+                        .take_while(|_| !meter.stopped())
+                        .any(|name| {
+                            super::counted::compare_names(&meter, name, &p.name)
+                                .is_ok_and(|order| order == std::cmp::Ordering::Equal)
+                        })
+                });
             let block_ok = match (&sig.block, declared) {
                 (None, None) => true,
                 (None, Some(_)) => false,
@@ -1703,6 +1857,9 @@ impl<'a> Checker<'a> {
                 .filter(|(_, (sig, _))| fits(sig, relaxed))
                 .map(|(index, _)| index)
                 .collect();
+            if meter.stopped() {
+                return Some(0);
+            }
             if let Some(&first) = fitting.first() {
                 if relaxed && declared.is_some() {
                     // Prefer the fewest block parameters that cover the block's.
@@ -1731,23 +1888,28 @@ impl<'a> Checker<'a> {
         mut bindings: Vec<Option<Ty>>,
     ) -> (Ty, Vec<Ty>) {
         bindings.resize(sig.vars.len(), None);
-        let function = sig.name.clone();
+        let function = sig.name.as_str();
         let stay = (!sig.converts).then_some(super::check::BUILTIN_SYMBOL);
         self.symbols(stay, |this| {
             this.check_positional(call, sig, &mut bindings);
-            this.check_keywords(call, sig, &mut bindings);
+            if !this.halted() {
+                this.check_keywords(call, sig, &mut bindings);
+            }
         });
+        // A check past its budget checks nothing more of the call.
+        if self.halted() {
+            return (Ty::ERROR, Vec::new());
+        }
         let mut breaks = Vec::new();
         match (&sig.block, call.block) {
             (Some(block_sig), Some(block)) => {
-                let block_sig = block_sig.clone();
                 // A script function returns a break value through its
                 // declared result, or, yielding inside a loop or a block,
                 // sees it there as a value of its result type.
                 let break_to = match (sig.breaks, sig.result) {
                     (sigs::Breaks::Result | sigs::Breaks::Inside, Some(result)) => Some(BreakTo {
                         ty: self.types.close(result, &bindings),
-                        function: function.clone(),
+                        function: self.copy(function),
                         inside: sig.breaks == sigs::Breaks::Inside,
                     }),
                     _ => None,
@@ -1758,7 +1920,7 @@ impl<'a> Checker<'a> {
                     sigs::Breaks::Inside | sigs::Breaks::Never => false,
                 };
                 breaks = self.symbols(stay, |this| {
-                    this.call_block(block, &block_sig, &mut bindings, break_to)
+                    this.call_block(block, block_sig, &mut bindings, break_to)
                 });
                 if !call_value {
                     breaks.clear();
@@ -1769,7 +1931,7 @@ impl<'a> Checker<'a> {
                     self.report(Diagnostic::error(
                         Code::MISSING_BLOCK,
                         call.name_span,
-                        format!("`{function}` needs a block"),
+                        text!(self, "`{function}` needs a block"),
                     ));
                 }
             }
@@ -1778,7 +1940,7 @@ impl<'a> Checker<'a> {
                 self.report(Diagnostic::error(
                     Code::UNEXPECTED_BLOCK,
                     span,
-                    format!("`{function}` takes no block"),
+                    text!(self, "`{function}` takes no block"),
                 ));
                 self.block(block, &[], Want::Discard);
             }
@@ -1798,17 +1960,37 @@ impl<'a> Checker<'a> {
     }
 
     fn check_positional(&mut self, call: &Call<'a, '_>, sig: &Sig, bindings: &mut [Option<Ty>]) {
-        let function = sig.name.clone();
-        let positional_params: Vec<&sigs::Param> = sig
-            .params
-            .iter()
-            .filter(|p| p.kind == ParamKind::Positional)
-            .collect();
-        let rest = sig.rest().map(|p| p.ty);
+        let function = sig.name.as_str();
+        let mut positional_params = ScratchVec::new(&self.meter);
+        for param in &sig.params {
+            if param.kind == ParamKind::Positional && positional_params.push(param).is_err() {
+                return;
+            }
+        }
+        // The rest parameter is found once, not for each argument it takes.
+        let rest_param = sig.rest();
+        let rest = rest_param.map(|p| p.ty);
         let rest_element = rest.map(|ty| self.types.element(ty).unwrap_or(Ty::ANY));
         let mut index = 0;
         let mut splatted = false;
-        let mut arguments: Vec<(&'a Expr, bool)> = Vec::new();
+        // The arguments, a literal splat's elements each, are counted and
+        // held before they are listed, at the length they take.
+        let count = call
+            .args
+            .iter()
+            .map(|arg| match (&arg.kind, &arg.value.node) {
+                (ArgumentKind::Positional, _) => 1,
+                (ArgumentKind::Splat, Node::Array(items)) => items.len(),
+                (ArgumentKind::Splat, _) => 1,
+                _ => 0,
+            })
+            .sum::<usize>()
+            + call.selectors.len()
+            + usize::from(call.extra.is_some());
+        let Some(held) = self.hold(count * std::mem::size_of::<(&Expr, bool)>()) else {
+            return;
+        };
+        let mut arguments: Vec<(&'a Expr, bool)> = Vec::with_capacity(count);
         for arg in call.args {
             match &arg.kind {
                 ArgumentKind::Positional => arguments.push((&arg.value, false)),
@@ -1826,6 +2008,11 @@ impl<'a> Checker<'a> {
             arguments.push((extra, false));
         }
         for (value, splat) in arguments {
+            // A check an argument stops checks no more of them.
+            if self.halted() {
+                self.release(held);
+                return;
+            }
             if splat {
                 splatted = true;
                 let ty = self.expr(value, None);
@@ -1836,42 +2023,49 @@ impl<'a> Checker<'a> {
                         Diagnostic::error(
                             Code::TYPE_MISMATCH,
                             span,
-                            format!("a splat spreads an array, found {found}"),
+                            text!(self, "a splat spreads an array, found {found}"),
                         )
                         .with_types("array<any>", found),
                     );
                 }
-                if let Kind::Tuple(items) = self.types.kind(ty).clone() {
+                if let Kind::Tuple(items) = &*self.types.shared(ty) {
                     splatted = false;
                     for &element in items.iter() {
                         let param = positional_params.get(index).map(|p| p.ty).or(rest_element);
                         if let Some(param) = param {
-                            self.spread_argument(value, element, param, bindings, &function);
+                            self.spread_argument(value, element, param, bindings, function);
                         }
                         index += 1;
                     }
                 } else if let Some(element) = self.types.element(ty) {
+                    // A splat of unknown length spreads over every
+                    // parameter left, a step each.
+                    let left = positional_params.len().saturating_sub(index);
+                    if self.meter.charge(left as u64) {
+                        self.release(held);
+                        return;
+                    }
                     for param in positional_params.iter().skip(index) {
-                        self.spread_argument(value, element, param.ty, bindings, &function);
+                        self.spread_argument(value, element, param.ty, bindings, function);
                     }
                     if let Some(rest) = rest_element {
-                        self.spread_argument(value, element, rest, bindings, &function);
+                        self.spread_argument(value, element, rest, bindings, function);
                     }
                     let (min, max) = sig.positional();
                     if index < min || max.is_some() {
                         self.report(Diagnostic::error(
                             Code::NO_OVERLOAD,
                             call.name_span,
-                            format!("the length of this splat is unknown; `{function}` must accept every possible argument count"),
+                            text!(self, "the length of this splat is unknown; `{function}` must accept every possible argument count"),
                         ));
                     }
                 }
                 continue;
             }
             let (param_ty, name) = match positional_params.get(index) {
-                Some(param) => (param.ty, param.name.clone()),
-                None => match (rest_element, sig.rest()) {
-                    (Some(element), Some(param)) => (element, param.name.clone()),
+                Some(param) => (param.ty, param.name.as_str()),
+                None => match (rest_element, rest_param) {
+                    (Some(element), Some(param)) => (element, param.name.as_str()),
                     _ => {
                         self.expr(value, None);
                         index += 1;
@@ -1879,18 +2073,30 @@ impl<'a> Checker<'a> {
                     }
                 },
             };
+            // The names the purpose copies are held while the argument is
+            // checked, and admitted before either copy is made.
+            let Some(argument_held) = self.hold(name.len() + function.len()) else {
+                self.release(held);
+                return;
+            };
             let purpose = Purpose::Argument {
                 index,
-                name,
-                function: function.clone(),
+                name: name.to_owned(),
+                function: function.to_owned(),
             };
             let actual = self.argument(value, param_ty, bindings, &purpose);
+            self.release(argument_held);
             if splatted {
+                let left = positional_params.len().saturating_sub(index + 1);
+                if self.meter.charge(left as u64) {
+                    self.release(held);
+                    return;
+                }
                 for param in positional_params.iter().skip(index + 1) {
-                    self.spread_argument(value, actual, param.ty, bindings, &function);
+                    self.spread_argument(value, actual, param.ty, bindings, function);
                 }
                 if let Some(rest) = rest_element {
-                    self.spread_argument(value, actual, rest, bindings, &function);
+                    self.spread_argument(value, actual, rest, bindings, function);
                 }
             }
             index += 1;
@@ -1899,37 +2105,96 @@ impl<'a> Checker<'a> {
             let (min, max) = sig.positional();
             if index < min || max.is_some_and(|max| index > max) {
                 let expected = match max {
-                    Some(max) if max == min => format!("{min}"),
-                    Some(max) => format!("{min} to {max}"),
-                    None => format!("at least {min}"),
+                    Some(max) if max == min => text!(self, "{min}"),
+                    Some(max) => text!(self, "{min} to {max}"),
+                    None => text!(self, "at least {min}"),
                 };
                 self.report(Diagnostic::error(
                     Code::NO_OVERLOAD,
                     call.name_span,
-                    format!("`{function}` takes {expected} positional argument(s), got {index}"),
+                    text!(
+                        self,
+                        "`{function}` takes {expected} positional argument(s), got {index}"
+                    ),
                 ));
             }
         }
+        self.release(held);
     }
 
     fn check_keywords(&mut self, call: &Call<'a, '_>, sig: &Sig, bindings: &mut [Option<Ty>]) {
-        let function = sig.name.clone();
-        let mut given = Vec::new();
+        let function = sig.name.as_str();
+        // The call reads the signature's parameters, a step for each 64 of
+        // them. Of a signature of many, the keyword parameters are put in
+        // name order, in a list counted while it lives, and each keyword
+        // given is found by search rather than by a pass over them.
+        if self.types.work(sig.params.len()) {
+            return;
+        }
+        let keywords = call.args.iter().any(|arg| {
+            matches!(
+                arg.kind,
+                ArgumentKind::Keyword(_) | ArgumentKind::KeywordSplat
+            )
+        });
+        let indexed = keywords && sig.params.len() > INDEXED_PARAMS;
+        let mut by_name = ScratchVec::new(&self.meter);
+        if indexed {
+            if by_name.reserve(sig.params.len()).is_err() {
+                return;
+            }
+            for (at, param) in sig.params.iter().enumerate() {
+                if param.kind == ParamKind::Keyword {
+                    by_name.add((param.name.as_str(), at));
+                }
+            }
+            if super::counted::try_sort_unstable_by(&self.meter, &mut by_name, |a, b| {
+                super::counted::compare_names(&self.meter, a.0, b.0)
+                    .map(|order| order.then_with(|| a.1.cmp(&b.1)))
+            })
+            .is_err()
+            {
+                return;
+            }
+        }
+        // The first parameter of the name, as a pass over them finds it.
+        let meter = std::sync::Arc::clone(&self.meter);
+        let keyword = |name: &str| {
+            if indexed {
+                super::counted::find_name(&meter, &by_name, name, |&(name, _)| name)
+                    .map(|at| at.map(|at| sig.params[by_name[at].1].ty))
+            } else {
+                sig.keyword(&meter, name)
+                    .map(|param| param.map(|param| param.ty))
+            }
+        };
+        let rest = sig.keyword_rest().map(|param| param.ty);
+        // The keywords given, kept while their values are checked, in a
+        // list counted, with the copies of their names, while it lives.
+        let mut given = ScratchVec::new(&self.meter);
         for arg in call.args {
+            // A check an argument stops checks no more of them.
+            if self.halted() {
+                return;
+            }
             match &arg.kind {
                 ArgumentKind::Keyword(name) => {
-                    given.push(name.to_string());
-                    let param = sig.keyword(name).map(|p| p.ty).or_else(|| {
-                        sig.keyword_rest()
-                            .map(|p| self.types.hash_value(p.ty).unwrap_or(Ty::ANY))
-                    });
+                    given.add(self.copy(name));
+                    let Ok(param) = keyword(name) else { return };
+                    let param = param
+                        .or_else(|| rest.map(|ty| self.types.hash_value(ty).unwrap_or(Ty::ANY)));
                     match param {
                         Some(param_ty) => {
                             let purpose = Purpose::Keyword {
-                                name: name.to_string(),
-                                function: function.clone(),
+                                name: self.copy(name),
+                                function: self.copy(function),
+                            };
+                            let Some(purpose_held) = self.hold(super::meter::Heap::heap(&purpose))
+                            else {
+                                return;
                             };
                             self.argument(&arg.value, param_ty, bindings, &purpose);
+                            self.release(purpose_held);
                         }
                         None => {
                             self.expr(&arg.value, None);
@@ -1938,50 +2203,57 @@ impl<'a> Checker<'a> {
                             self.report(Diagnostic::error(
                                 Code::UNKNOWN_KEYWORD,
                                 span,
-                                format!("`{function}` has no keyword `{name}:`"),
+                                text!(self, "`{function}` has no keyword `{name}:`"),
                             ));
                         }
                     }
                 }
                 ArgumentKind::KeywordSplat => {
                     let ty = self.expr(&arg.value, None);
-                    if let Kind::Shape(fields, _) = self.types.kind(ty).clone() {
+                    if let Kind::Shape(fields, _) = &*self.types.shared(ty) {
                         for field in fields.iter() {
                             if !field.optional {
-                                given.push(field.name.to_string());
+                                given.add(self.copy(&field.name));
                             }
-                            let expected = sig.keyword(&field.name).map(|p| p.ty).or_else(|| {
-                                sig.keyword_rest()
-                                    .map(|p| self.types.hash_value(p.ty).unwrap_or(Ty::ANY))
+                            let Ok(expected) = keyword(&field.name) else {
+                                return;
+                            };
+                            let expected = expected.or_else(|| {
+                                rest.map(|ty| self.types.hash_value(ty).unwrap_or(Ty::ANY))
                             });
                             if let Some(expected) = expected {
                                 self.spread_argument(
-                                    &arg.value, field.ty, expected, bindings, &function,
+                                    &arg.value, field.ty, expected, bindings, function,
                                 );
                             } else {
                                 self.report(Diagnostic::error(
                                     Code::UNKNOWN_KEYWORD,
                                     self.spans.expr(&arg.value),
-                                    format!("`{function}` has no keyword `{}:`", field.name),
+                                    text!(self, "`{function}` has no keyword `{}:`", field.name),
                                 ));
                             }
                         }
                     } else if let Some(element) = self.types.hash_value(ty) {
                         if ty != Ty::EMPTY_HASH {
                             if let Some(rest) = sig.keyword_rest() {
+                                // A dictionary of unknown keys spreads over
+                                // every keyword parameter, a step each.
+                                if self.meter.charge(sig.params.len() as u64) {
+                                    return;
+                                }
                                 let expected = self.types.hash_value(rest.ty).unwrap_or(Ty::ANY);
                                 self.spread_argument(
-                                    &arg.value, element, expected, bindings, &function,
+                                    &arg.value, element, expected, bindings, function,
                                 );
                                 for param in
                                     sig.params.iter().filter(|p| p.kind == ParamKind::Keyword)
                                 {
                                     self.spread_argument(
-                                        &arg.value, element, param.ty, bindings, &function,
+                                        &arg.value, element, param.ty, bindings, function,
                                     );
                                 }
                             } else {
-                                self.report(Diagnostic::error(Code::UNKNOWN_KEYWORD, self.spans.expr(&arg.value), format!("a dictionary splat has unknown keys; `{function}` needs a keyword rest parameter")));
+                                self.report(Diagnostic::error(Code::UNKNOWN_KEYWORD, self.spans.expr(&arg.value), text!(self, "a dictionary splat has unknown keys; `{function}` needs a keyword rest parameter")));
                             }
                         }
                     }
@@ -1992,7 +2264,7 @@ impl<'a> Checker<'a> {
                             Diagnostic::error(
                                 Code::TYPE_MISMATCH,
                                 span,
-                                format!("a keyword splat spreads a hash, found {found}"),
+                                text!(self, "a keyword splat spreads a hash, found {found}"),
                             )
                             .with_types("hash<string, any>", found),
                         );
@@ -2001,18 +2273,33 @@ impl<'a> Checker<'a> {
                 _ => (),
             }
         }
+        // Sorted, so each required keyword is found by search; a check the
+        // sort stops looks for none.
+        if super::counted::try_sort_unstable_by(&self.meter, &mut given, |a, b| {
+            super::counted::compare_names(&self.meter, a, b)
+        })
+        .is_err()
         {
-            for param in &sig.params {
-                if param.kind == ParamKind::Keyword
-                    && !param.optional
-                    && !given.contains(&param.name)
-                {
-                    self.report(Diagnostic::error(
-                        Code::MISSING_KEYWORD,
-                        call.name_span,
-                        format!("`{function}` needs the keyword `{}:`", param.name),
-                    ));
+            return;
+        }
+        for param in &sig.params {
+            if self.halted() {
+                return;
+            }
+            if param.kind == ParamKind::Keyword && !param.optional {
+                let Ok(found) =
+                    super::counted::find_name(&self.meter, &given, &param.name, |name| name)
+                else {
+                    return;
+                };
+                if found.is_some() {
+                    continue;
                 }
+                self.report(Diagnostic::error(
+                    Code::MISSING_KEYWORD,
+                    call.name_span,
+                    text!(self, "`{function}` needs the keyword `{}:`", param.name),
+                ));
             }
         }
     }
@@ -2021,13 +2308,11 @@ impl<'a> Checker<'a> {
     /// receiver unchanged, so a shape or tuple keeps its exact type.
     fn member_result(&mut self, call: &Call<'a, '_>, receiver: Ty, result: Ty) -> Ty {
         // `fetch` of a field a shape declares gives that field's type.
-        if let (Kind::Shape(fields, _), "fetch", Some(first)) = (
-            self.types.kind(receiver).clone(),
-            call.name,
-            call.args.first(),
-        ) {
+        if let (Kind::Shape(fields, _), "fetch", Some(first)) =
+            (&*self.types.shared(receiver), call.name, call.args.first())
+        {
             if let Some(key) = super::expr::string_literal(&first.value) {
-                if let Some(field) = fields.iter().find(|field| *field.name == *key) {
+                if let Some(field) = self.types.field(fields, key.as_bytes()) {
                     return field.ty;
                 }
             }
@@ -2073,7 +2358,8 @@ impl<'a> Checker<'a> {
     ) -> Ty {
         let expected = self.types.subst(param, bindings);
         if !self.types.has_var(expected) {
-            return self.expr_against(value, expected, purpose);
+            // The caller holds what the purpose copies.
+            return self.expr_against_held(value, expected, purpose);
         }
         let mut ty = self.expr(value, None);
         let takes_type = matches!(self.types.kind(param), Kind::TypeLit(_));
@@ -2114,7 +2400,7 @@ impl<'a> Checker<'a> {
                 &Purpose::Argument {
                     index: 0,
                     name: "splat element".to_owned(),
-                    function: function.to_owned(),
+                    function: self.copy(function),
                 },
             );
         }
@@ -2125,12 +2411,13 @@ impl<'a> Checker<'a> {
         let span = self.spans.expr(value);
         let found = self.types.display(ty);
         let what = self.purpose_text(purpose, "a type");
-        let mut message = format!("{what}, found {found}");
-        if matches!(&value.node, Node::Hash(entries) if !entries.is_empty()) {
-            message.push_str(
-                "; braces make a type only where every field names one, as in `{ status: Status }`",
-            );
-        }
+        // The message is written once, in room counted as it grows.
+        let braces = if matches!(&value.node, Node::Hash(entries) if !entries.is_empty()) {
+            "; braces make a type only where every field names one, as in `{ status: Status }`"
+        } else {
+            ""
+        };
+        let message = text!(self, "{what}, found {found}{braces}");
         self.report(
             Diagnostic::error(Code::TYPE_MISMATCH, span, message).with_types("type<T>", found),
         );
@@ -2141,17 +2428,14 @@ impl<'a> Checker<'a> {
         if !self.types.has_var(pattern) || actual == Ty::NEVER {
             return;
         }
-        match (
-            self.types.kind(pattern).clone(),
-            self.types.kind(actual).clone(),
-        ) {
+        match (&*self.types.shared(pattern), &*self.types.shared(actual)) {
             (_, Kind::Union(arms)) => {
                 for actual in arms.iter() {
                     self.unify(pattern, *actual, bindings);
                 }
             }
             (Kind::Var(index), _) => {
-                let Some(slot) = bindings.get_mut(index as usize) else {
+                let Some(slot) = bindings.get_mut(*index as usize) else {
                     return;
                 };
                 *slot = Some(match *slot {
@@ -2167,14 +2451,14 @@ impl<'a> Checker<'a> {
                     }
                 });
             }
-            (Kind::Array(p), Kind::Array(a)) => self.unify(p, a, bindings),
+            (Kind::Array(p), Kind::Array(a)) => self.unify(*p, *a, bindings),
             (Kind::Array(p), Kind::Tuple(items)) => {
-                let element = self.types.union(&items);
-                self.unify(p, element, bindings);
+                let element = self.types.union(items);
+                self.unify(*p, element, bindings);
             }
             (Kind::Hash(p), _) => {
                 if let Some(value) = self.types.hash_value(actual) {
-                    self.unify(p, value, bindings);
+                    self.unify(*p, value, bindings);
                 }
             }
             (Kind::Tuple(ps), Kind::Tuple(items)) if ps.len() == items.len() => {
@@ -2184,13 +2468,16 @@ impl<'a> Checker<'a> {
             }
             (Kind::Tuple(ps), Kind::Array(a)) => {
                 for p in ps.iter() {
-                    self.unify(*p, a, bindings);
+                    self.unify(*p, *a, bindings);
                 }
             }
-            (Kind::TypeLit(p), Kind::TypeLit(a)) => self.unify(p, a, bindings),
+            (Kind::TypeLit(p), Kind::TypeLit(a)) => self.unify(*p, *a, bindings),
             (Kind::Shape(pf, _), Kind::Shape(af, _)) => {
                 for field in pf.iter() {
-                    if let Some(found) = af.iter().find(|f| f.name == field.name) {
+                    if self.halted() {
+                        return;
+                    }
+                    if let Some(found) = self.types.field(af, field.name.as_bytes()) {
                         self.unify(field.ty, found.ty, bindings);
                     }
                 }
@@ -2256,9 +2543,10 @@ impl<'a> Checker<'a> {
             let found = self.types.display(ty);
             let bound_text = self.types.display(bound);
             let reason = if single {
-                format!("{found} is not {bound_text}")
+                text!(self, "{found} is not {bound_text}")
             } else {
-                format!(
+                text!(
+                    self,
                     "{found} is a union, and `{}` needs one {bound_text} type",
                     call.name
                 )
@@ -2266,9 +2554,11 @@ impl<'a> Checker<'a> {
             let mut diagnostic = Diagnostic::error(
                 Code::BOUND,
                 call.name_span,
-                format!(
+                text!(
+                    self,
                     "`{}` needs {} to be {bound_text}: {reason}",
-                    call.name, var.name
+                    call.name,
+                    var.name
                 ),
             )
             .with_types(bound_text, found);
@@ -2299,22 +2589,30 @@ impl<'a> Checker<'a> {
             None
         };
         let example = match (zero, element == Ty::MONEY) {
-            (Some(zero), _) => format!("`sum({zero})`"),
+            (Some(zero), _) => text!(self, "`sum({zero})`"),
             (None, true) => "`sum(money_cents(0, \"USD\"))`".to_owned(),
             (None, false) => {
                 return diagnostic;
             }
         };
-        diagnostic.message.push_str(&format!(
-            "; without a starting value `sum` begins at the int 0, so pass one, as in {example}"
-        ));
+        // The longer message is written whole, in room counted as it grows,
+        // while the one it replaces is held.
+        let Some(held) = self.hold(diagnostic.message.capacity()) else {
+            return diagnostic;
+        };
+        diagnostic.message = text!(
+            self,
+            "{}; without a starting value `sum` begins at the int 0, so pass one, as in {example}",
+            diagnostic.message
+        );
+        self.release(held);
         let end = call.name_span.end;
         let parenthesized = self.source[end..].trim_start().starts_with('(');
         if let (Some(zero), false) = (zero, parenthesized) {
             diagnostic = diagnostic.with_fix(Fix::insert(
-                format!("start the sum at `{zero}`"),
+                text!(self, "start the sum at `{zero}`"),
                 end,
-                format!("({zero})"),
+                text!(self, "({zero})"),
             ));
         }
         diagnostic
@@ -2333,6 +2631,10 @@ impl<'a> Checker<'a> {
         bindings: &mut [Option<Ty>],
         break_to: Option<BreakTo>,
     ) -> Vec<Ty> {
+        // Counted before they are listed.
+        let Some(held) = self.hold(block_sig.params.len() * std::mem::size_of::<Ty>()) else {
+            return Vec::new();
+        };
         let params: Vec<Ty> = block_sig
             .params
             .iter()
@@ -2350,10 +2652,10 @@ impl<'a> Checker<'a> {
                 };
                 if self.types.has_var(expected) {
                     (Want::Infer(Some(expected)), Some(result))
-                } else if let (Kind::Var(index), true) = (self.types.kind(result).clone(), empty) {
+                } else if let (Kind::Var(index), true) = (&*self.types.shared(result), empty) {
                     // An empty literal bound the variable, and the block's
                     // result may widen it: `reduce([]) { |all, x| all.push(x) }`.
-                    widen = Some((index as usize, expected));
+                    widen = Some((*index as usize, expected));
                     (Want::Infer(Some(expected)), None)
                 } else {
                     (Want::Check(expected), None)
@@ -2361,11 +2663,8 @@ impl<'a> Checker<'a> {
             }
             None => (Want::Discard, None),
         };
-        let mut all = params.clone();
-        if let Some(rest) = rest {
-            all.push(rest);
-        }
         let (result, breaks) = self.block_with_rest(block, &params, rest, want, break_to);
+        self.release(held);
         if let Some(pattern) = infer {
             self.unify(pattern, result, bindings);
             let expected = self.types.close(pattern, bindings);
@@ -2387,12 +2686,23 @@ impl<'a> Checker<'a> {
 
     /// Checks a block whose parameters have the given types.
     pub(super) fn block(&mut self, block: &'a Block, params: &[Ty], want: Want) -> Ty {
+        // Counted before they are copied.
+        let count = if params.is_empty() {
+            block.params.len()
+        } else {
+            params.len()
+        };
+        let Some(held) = self.hold(count * std::mem::size_of::<Ty>()) else {
+            return Ty::ERROR;
+        };
         let params: Vec<Ty> = if params.is_empty() && !block.params.is_empty() {
             vec![Ty::ERROR; block.params.len()]
         } else {
             params.to_vec()
         };
-        self.block_with_rest(block, &params, None, want, None).0
+        let ty = self.block_with_rest(block, &params, None, want, None).0;
+        self.release(held);
+        ty
     }
 
     /// Checks a block and returns the type of its value and the types of
@@ -2409,48 +2719,76 @@ impl<'a> Checker<'a> {
             .iter()
             .chain(rest.as_ref())
             .all(|&ty| self.types.plain(ty));
-        self.facts.record_block(block, plain);
+        self.facts.record_block(self.meter.tables(), block, plain);
         // Union receivers supply different block parameter types on each pass.
-        let outer_memo = self.memo.take();
-        self.open_scope();
-        let mut assigned = Vec::new();
-        super::check::assigned_names(&block.body, &mut assigned);
-        for name in assigned {
-            if let Some(id) = self.local(&name) {
-                if self.frame.ambient.contains(&id)
+        let outer_memo = self.set_memo(None);
+        if !self.open_scope() {
+            self.put_back_memo(outer_memo);
+            return (Ty::ERROR, Vec::new());
+        }
+        // The widening below charges for listing these names.
+        let span = self.assigns.body(&self.meter, &block.body);
+        let names = self.assigns.distinct(&self.meter, span);
+        for name in names.iter().copied() {
+            if let Some(id) = self.local(name) {
+                // The enclosing locals are listed in the order of their ids.
+                if self.frame.ambient.binary_search(&id).is_ok()
                     && !name.chars().next().is_some_and(char::is_uppercase)
                 {
                     let ty = self.frame.locals[id as usize].declared;
-                    self.declare(&name, ty, block.offset as usize, false);
+                    if self
+                        .declare(name, ty, block.offset as usize, false)
+                        .is_none()
+                    {
+                        break;
+                    }
                 }
             }
         }
+        drop(names);
         let before = self.frame.flow.mark();
         let (result, used) = match want {
             Want::Check(expected) => (Some(expected), true),
             Want::Infer(_) => (None, true),
             Want::Discard => (None, false),
         };
-        self.frame.contexts.push(Context::Block {
+        let context = Context::Block {
             mark: before,
             exits: super::check::Exits::default(),
             result,
             hint: want.hint(),
             break_to,
             used,
-            results: Vec::new(),
-        });
+            results: CountedVec::new(),
+        };
+        // A block the budget refuses room for is not checked.
+        if self
+            .frame
+            .contexts
+            .push(self.meter.tables(), context)
+            .is_err()
+        {
+            self.close_scope();
+            self.put_back_memo(outer_memo);
+            return (Ty::ERROR, Vec::new());
+        }
         let targets = &block.params;
         if block.implicit {
             let first = params.first().copied().unwrap_or(Ty::NIL);
-            if block.infer_it {
-                let id = self.declare("it", first, block.offset as usize, false);
-                self.assign_local(id, first);
+            if block.infer_it && !span.assigns_implicit("it") {
+                if let Some(id) = self.declare("it", first, block.offset as usize, false) {
+                    self.assign_local(id, first);
+                }
             }
             for index in 0..9 {
-                let name = format!("_{}", index + 1);
+                let name = text!(self, "_{}", index + 1);
+                if span.assigns_implicit(&name) {
+                    continue;
+                }
                 let ty = params.get(index).copied().or(rest).unwrap_or(Ty::NIL);
-                let id = self.declare(&name, ty, block.offset as usize, false);
+                let Some(id) = self.declare(&name, ty, block.offset as usize, false) else {
+                    break;
+                };
                 self.assign_local(id, ty);
             }
         } else if targets.len() > 1
@@ -2477,7 +2815,8 @@ impl<'a> Checker<'a> {
                         self.report(Diagnostic::error(
                             Code::BLOCK_PARAMETERS,
                             span,
-                            format!(
+                            text!(
+                                self,
                                 "this block declares {} parameter(s), but it is given {}",
                                 targets.len(),
                                 params.len()
@@ -2490,9 +2829,15 @@ impl<'a> Checker<'a> {
             }
         }
         self.widen_for_loop(&block.body);
-        self.purposes.push(Purpose::BlockResult);
-        let tail = self.stmts(&block.body, want);
-        self.purposes.pop();
+        // Room for the purpose is counted before it is kept; a block the
+        // budget refuses it is not checked.
+        let tail = if self.purposes.push(Purpose::BlockResult).is_ok() {
+            let tail = self.stmts(&block.body, want);
+            self.purposes.pop();
+            tail
+        } else {
+            Ty::ERROR
+        };
         if let (Want::Check(expected), true) = (want, block.body.is_empty()) {
             if !self.types.assignable(Ty::NIL, expected) {
                 let span = self.spans.token(block.offset as usize);
@@ -2503,14 +2848,15 @@ impl<'a> Checker<'a> {
         let mut context = self.frame.contexts.pop().unwrap();
         let mut results = match &mut context {
             Context::Block { results, .. } => std::mem::take(results),
-            Context::Loop { .. } => Vec::new(),
+            Context::Loop { .. } => CountedVec::new(),
         };
-        if live {
-            results.push(tail);
+        // A check the budget stops keeps no more of them.
+        if live && results.push(self.meter.tables(), tail).is_err() {
+            results.clear();
         }
         let breaks = self.finish_loop(before, context, true);
         self.close_scope();
-        self.memo = outer_memo;
+        self.put_back_memo(outer_memo);
         (self.types.union(&results), breaks)
     }
 
@@ -2522,8 +2868,9 @@ impl<'a> Checker<'a> {
                 offset,
                 ..
             }) if !name.starts_with('@') => {
-                let id = self.declare(name, ty, *offset as usize, false);
-                self.assign_local(id, ty);
+                if let Some(id) = self.declare(name, ty, *offset as usize, false) {
+                    self.assign_local(id, ty);
+                }
             }
             _ => self.bind_target(target, ty, false),
         }
@@ -2532,14 +2879,21 @@ impl<'a> Checker<'a> {
     /// `yield args`, checked against the function's `&block` declaration.
     pub(super) fn yield_expr(&mut self, expr: &'a Expr, args: &'a [Expr], want: Want) -> Ty {
         let span = self.spans.token(expr.offset as usize);
-        let Some(block) = self.frame.block.clone() else {
+        // The block's parameters are read in place, one at a time, not
+        // copied: `yield`s nest.
+        let Some((arity, result)) = self
+            .frame
+            .block
+            .as_ref()
+            .map(|block| (block.params.len(), block.result))
+        else {
             for arg in args {
                 self.expr(arg, None);
             }
             self.report(Diagnostic::error(
                 Code::UNDECLARED_BLOCK,
                 span,
-                format!(
+                text!(self,
                     "`{}` yields but declares no block; add a typed block parameter, as in `&block: (T) -> R`",
                     self.frame.name
                 ),
@@ -2556,8 +2910,16 @@ impl<'a> Checker<'a> {
             }
         }
         for (index, arg) in args.iter().enumerate() {
-            match block.params.get(index) {
-                Some(&param) => {
+            if self.halted() {
+                return Ty::ERROR;
+            }
+            let param = self
+                .frame
+                .block
+                .as_ref()
+                .and_then(|block| block.params.get(index).copied());
+            match param {
+                Some(param) => {
                     self.symbols(None, |this| {
                         this.expr_against(arg, param, &Purpose::Yield(index))
                     });
@@ -2567,13 +2929,14 @@ impl<'a> Checker<'a> {
                 }
             }
         }
-        if args.len() != block.params.len() && !(args.len() == 1 && block.params.is_empty()) {
+        if args.len() != arity && !(args.len() == 1 && arity == 0) {
             self.report(Diagnostic::error(
                 Code::NO_OVERLOAD,
                 span,
-                format!(
+                text!(
+                    self,
                     "the block takes {} argument(s), but `yield` passes {}",
-                    block.params.len(),
+                    arity,
                     args.len()
                 ),
             ));
@@ -2581,7 +2944,7 @@ impl<'a> Checker<'a> {
         self.yield_breaks(span);
         // The block may be the file's own, and assign its locals.
         self.script_called(None, span);
-        match block.result {
+        match result {
             Some(result) => result,
             None => {
                 if !matches!(want, Want::Discard) {
@@ -2598,32 +2961,34 @@ impl<'a> Checker<'a> {
 }
 
 /// How many parameters a block declares: its explicit list, or the highest
-/// numbered parameter or `it` it reads.
-fn block_arity(block: &Block) -> usize {
+/// numbered parameter or `it` it reads, charging the walk that finds them
+/// to `meter`; with the bytes of the stack the walk kept.
+fn block_arity(meter: &super::meter::Meter, block: &Block) -> (usize, usize) {
+    use super::walk::{Item, Next, Walk};
+    use crate::syntax::Statement;
     if !block.implicit {
-        return block.params.len();
+        return (block.params.len(), 0);
     }
     let mut arity = 0;
-    let mut pending: Vec<&Expr> = Vec::new();
-    let mut statements: Vec<&crate::syntax::Stmt> = block.body.iter().collect();
-    while let Some(stmt) = statements.pop() {
-        match &stmt.node {
-            crate::syntax::Statement::Expr(e) => pending.push(e),
-            crate::syntax::Statement::Assign(_, _, e) => pending.push(e),
-            crate::syntax::Statement::Return(Some(e))
-            | crate::syntax::Statement::Next(Some(e))
-            | crate::syntax::Statement::Break(Some(e)) => pending.push(e),
-            crate::syntax::Statement::If(branches, alternate, _) => {
-                for (c, body) in branches.iter() {
-                    pending.push(c);
-                    statements.extend(body.iter());
+    let mut walk = Walk::new(meter);
+    // The block is a visit, empty or not.
+    walk.visit(0);
+    walk.stmts(&block.body, ());
+    while let Some((item, ())) = walk.next(0) {
+        match item {
+            Item::Stmt(stmt) => match &stmt.node {
+                Statement::Expr(e)
+                | Statement::Assign(_, _, e)
+                | Statement::Return(Some(e))
+                | Statement::Next(Some(e))
+                | Statement::Break(Some(e)) => walk.expr(e, ()),
+                Statement::If(branches, alternate, _) => {
+                    walk.push(Next::Clauses(branches.iter()), ());
+                    walk.stmts(alternate, ());
                 }
-                statements.extend(alternate.iter());
-            }
-            _ => (),
-        }
-        while let Some(e) = pending.pop() {
-            match &e.node {
+                _ => (),
+            },
+            Item::Expr(e) => match &e.node {
                 Node::Var(name) if name.as_str() == "it" => arity = arity.max(1),
                 Node::Var(name) => {
                     if let Some(n) = name.strip_prefix('_').and_then(|n| n.parse::<usize>().ok()) {
@@ -2631,37 +2996,37 @@ fn block_arity(block: &Block) -> usize {
                     }
                 }
                 Node::Binary(_, l, r) => {
-                    pending.push(l);
-                    pending.push(r);
+                    walk.expr(l, ());
+                    walk.expr(r, ());
                 }
-                Node::Unary(_, v) => pending.push(v),
+                Node::Unary(_, v) => walk.expr(v, ()),
                 Node::Method(r, _, args, _) | Node::SafeMethod(r, _, args, _) => {
-                    pending.push(r);
-                    pending.extend(args.iter().map(|a| &a.value));
+                    walk.expr(r, ());
+                    walk.push(Next::Arguments(args.iter()), ());
                 }
-                Node::Member(r, _) | Node::SafeMember(r, _) => pending.push(r),
+                Node::Member(r, _) | Node::SafeMember(r, _) => walk.expr(r, ()),
                 Node::Call(name, args, _) => {
                     if name.as_str() == "it" {
                         arity = arity.max(1);
                     }
-                    pending.extend(args.iter().map(|a| &a.value));
+                    walk.push(Next::Arguments(args.iter()), ());
                 }
                 Node::Index(r, s) => {
-                    pending.push(r);
-                    pending.extend(s.iter());
+                    walk.expr(r, ());
+                    walk.push(Next::Exprs(s.iter()), ());
                 }
-                Node::Array(items) | Node::Template(items, _) => pending.extend(items.iter()),
-                Node::Hash(entries) => pending.extend(entries.iter().map(|(_, v)| v)),
+                Node::Array(items) | Node::Template(items, _) => {
+                    walk.push(Next::Exprs(items.iter()), ());
+                }
+                Node::Hash(entries) => walk.push(Next::Pairs(entries.iter()), ()),
                 Node::Conditional(branches, alternate) => {
-                    for (c, v) in branches.iter() {
-                        pending.push(c);
-                        pending.push(v);
-                    }
-                    pending.push(alternate);
+                    walk.push(Next::Branches(branches.iter()), ());
+                    walk.expr(alternate, ());
                 }
                 _ => (),
-            }
+            },
+            Item::Target(_) => (),
         }
     }
-    arity
+    (arity, walk.bytes())
 }

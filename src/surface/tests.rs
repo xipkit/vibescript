@@ -512,7 +512,7 @@ fn sources_the_compiler_accepts_still_walk() {
     ] {
         let tokens = crate::tooling::tokens(source).unwrap();
         assert!(
-            super::parse::parse_tokens(source, &tokens, super::checker::NESTING).is_ok(),
+            super::parse::parse_tokens(source, &tokens, super::checker::NESTING, &|| false).is_ok(),
             "{source:?}"
         );
         // `compile` runs the removed-spelling walk too; its debug
@@ -902,6 +902,45 @@ fn the_rules_parser_reads_safe_reads_in_selectors_and_receivers() {
     }
 }
 
+/// How long the rules' parse of `source`, and the walk's preparation of
+/// its tree, take to give up once the compilation has stopped already: the
+/// least of three tries each.
+fn stopping(source: &str) -> (std::time::Duration, std::time::Duration) {
+    let tokens = crate::tooling::tokens(source).unwrap();
+    let stopped: super::parse::Stop<'_> = &|| true;
+    let least = |run: &dyn Fn()| {
+        (0..3)
+            .map(|_| {
+                let start = std::time::Instant::now();
+                run();
+                start.elapsed()
+            })
+            .min()
+            .unwrap()
+    };
+    let parse = least(&|| {
+        assert!(super::parse::parse_tokens(source, &tokens, usize::MAX, stopped).is_err());
+    });
+    let tree = super::parse::parse_tokens(source, &tokens, usize::MAX, &|| false).unwrap();
+    let prepare = least(&|| {
+        assert!(super::context::Surface::new(source, &tree, stopped).is_none());
+    });
+    (parse, prepare)
+}
+
+#[test]
+fn the_rules_pass_stops_in_its_passes_over_the_tokens() {
+    // Many short statements, each a few tokens, which the passes before
+    // the parse and before the walk would each read in full.
+    let lines = |count| "x = 1 && 1\n".repeat(count);
+    let (small, large) = (stopping(&lines(1_000)), stopping(&lines(100_000)));
+    let bound = |small: std::time::Duration| 4 * small + std::time::Duration::from_millis(1);
+    assert!(
+        large.0 < bound(small.0) && large.1 < bound(small.1),
+        "stopped in {small:?} for a thousand lines and {large:?} for a hundred thousand"
+    );
+}
+
 #[test]
 fn removed_spellings_are_reported_however_they_are_written() {
     for (source, code) in [
@@ -946,7 +985,7 @@ fn the_rules_parser_reads_tuples_of_shapes_and_tuples() {
         "enum Status\nDraft\nend\nrows: array<[[Status], int]> = [[[:draft], 2]]\nrows.map { |((state: Status), n: int)| state }\n",
     ] {
         let tokens = crate::tooling::tokens(source).unwrap();
-        super::parse::parse_tokens(source, &tokens, usize::MAX)
+        super::parse::parse_tokens(source, &tokens, usize::MAX, &|| false)
             .unwrap_or_else(|error| panic!("{source}: {error:?}"));
     }
     let checked = crate::Engine::new()
@@ -970,7 +1009,7 @@ fn the_rules_parser_reads_called_groups_and_tuple_type_arguments() {
         "x = JSON.parse_as(\"[]\", [string, array<int>])",
     ] {
         let tokens = crate::tooling::tokens(source).unwrap();
-        super::parse::parse_tokens(source, &tokens, usize::MAX)
+        super::parse::parse_tokens(source, &tokens, usize::MAX, &|| false)
             .unwrap_or_else(|error| panic!("{source}: {error:?}"));
     }
     let checked = crate::Engine::new()
@@ -984,6 +1023,49 @@ fn the_rules_parser_reads_called_groups_and_tuple_type_arguments() {
         "{:?}",
         checked.diagnostics
     );
+}
+
+/// An index that abuts the end of an expression spanning lines indexes it
+/// in the rules' parser, as in the compiler's: the rules read these
+/// sources, as their `size` diagnostics show.
+#[test]
+fn an_abutting_index_continues_an_expression_spanning_lines() {
+    for source in [
+        "h = { a: [\n  1\n][0] }\nn = [1].size\n",
+        "x = [[1], (case 1\nwhen 1 then [1]\nelse [2]\nend)[0]]\nn = [1].size\n",
+    ] {
+        assert_eq!(
+            with_code(source, Code::REMOVED_NAME).len(),
+            1,
+            "{source:?}: {:?}",
+            diagnostics(source)
+        );
+        crate::Engine::new().type_check(source).unwrap();
+    }
+}
+
+/// A sort the pass makes is charged and the budget asked before it is
+/// made: one the budget has run out for leaves the list as it was.
+#[test]
+fn a_sort_past_the_budget_is_not_made() {
+    let asked = std::sync::atomic::AtomicU64::new(0);
+    let within = |steps: u64| {
+        asked.store(steps, std::sync::atomic::Ordering::Relaxed);
+        steps <= 100
+    };
+    let room = super::edits::Room::new(None, &within, 100);
+    let mut list: Vec<u32> = (0..1_000).rev().collect();
+    assert!(!room.sort_unstable_by(&mut list, Ord::cmp));
+    assert_eq!(list[0], 999, "the list is left as it was");
+    assert!(!room.sort_by(&mut list, Ord::cmp));
+    assert_eq!(list[0], 999, "the list is left as it was");
+    // The first refusal latches the stop, so later sorts do no work.
+    assert_eq!(asked.load(std::sync::atomic::Ordering::Relaxed), 100 + 156);
+    assert_eq!(room.total(), 100 + 156);
+    // A list too short to charge a step still observes the stop.
+    let mut short = vec![3, 1, 2];
+    assert!(!room.sort_unstable_by(&mut short, Ord::cmp));
+    assert_eq!(short, [3, 1, 2]);
 }
 
 /// The compiler's parser keeps no node for parentheses, so a grouped
@@ -1021,5 +1103,203 @@ fn a_source_only_the_compiler_reads_fails_a_debug_build() {
     // Tokens the rules' parser cannot read, for a source that compiles.
     let mut tokens = crate::tooling::tokens(source).unwrap();
     tokens[1].kind = crate::tooling::TokenKind::Punct(')');
-    super::add_to(&mut checked, source, &tokens);
+    super::add_to(
+        &mut checked,
+        source,
+        &tokens,
+        0,
+        &|_| true,
+        &|source, _| Some(crate::syntax::canonical_error(source, &())),
+        None,
+    );
+}
+
+/// The text each file of the rules' pass writes outside its room, with a
+/// `format!`, `to_string`, `to_owned` or `String::from`, by file and in
+/// three kinds: fixed text, an excerpt or the patterns' own, which is
+/// short; a copy of a name the pass's footprint counts for each word,
+/// class or percent literal it reads; and a copy the room takes before it
+/// is made. Any other text, and above all a copy of a span of the source,
+/// is written through the room with `written!` or `copied`.
+const WRITTEN: &[(&str, [usize; 3])] = &[
+    ("checker.rs", [3, 0, 0]),
+    ("context.rs", [0, 6, 0]),
+    ("edits.rs", [2, 0, 0]),
+    ("parse.rs", [11, 22, 0]),
+    ("patterns.rs", [12, 0, 0]),
+    ("rules.rs", [7, 0, 0]),
+    ("walk.rs", [1, 2, 0]),
+];
+
+#[test]
+fn the_text_the_rules_write_is_in_their_room_or_of_a_kind() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut sources = vec![root.join("surface.rs")];
+    for entry in std::fs::read_dir(root.join("surface")).unwrap() {
+        sources.push(entry.unwrap().path());
+    }
+    let mut found = Vec::new();
+    for path in sources {
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        if name == "tests.rs" {
+            continue;
+        }
+        let text = std::fs::read_to_string(&path).unwrap();
+        // The tests at the end are cut; a test's own helper earlier stays.
+        let code = text.split("#[cfg(test)]\nmod tests {").next().unwrap();
+        let written = code
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("//"))
+            .filter(|line| {
+                ["format!(", ".to_string()", ".to_owned()", "String::from("]
+                    .iter()
+                    .any(|site| line.contains(site))
+            })
+            .count();
+        let kinds = WRITTEN
+            .iter()
+            .find(|(file, _)| *file == name)
+            .map_or(0, |(_, kinds)| kinds.iter().sum());
+        if written != kinds {
+            found.push(format!("{name}: {written} written, {kinds} of a kind"));
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "write the rules' text through their room, or say here which kind it is:\n{}",
+        found.join("\n")
+    );
+}
+
+/// The empty lists, maps, sets and strings each file of the rules' pass
+/// starts, with a `Vec::new()`, `HashMap::new()`, `String::new()` or the
+/// like, or an `.or_default()`, which then grow by `push` or `insert`, by
+/// file and in four kinds: one returned, passed or kept empty, which
+/// nothing grows here; one of the syntax tree, the parser's or the walk's
+/// records, or the edits and diagnostics, a few for each token, which the
+/// pass's footprint counts; one of the patterns' own; and one that takes
+/// from the room as it grows. Text the source sizes otherwise, such as a
+/// copy of a span, is written through the room.
+const STARTED: &[(&str, [usize; 4])] = &[
+    // A finding's suggestion, which a rule sets whole.
+    ("surface.rs", [1, 0, 0, 0]),
+    // The walk's findings and the diagnostics of its rewrites.
+    ("checker.rs", [0, 2, 0, 0]),
+    // The walk's scopes and records.
+    ("context.rs", [0, 6, 0, 0]),
+    // The edits by rewrite, a group's clusters and the conflicts; the
+    // writer's text.
+    ("edits.rs", [0, 3, 0, 1]),
+    // A definition's missing parameters and a named type's missing
+    // arguments; the syntax tree, and the parser's locals, journal,
+    // ternaries and type names.
+    ("parse.rs", [3, 26, 0, 0]),
+    // A template's pieces.
+    ("patterns.rs", [0, 0, 2, 0]),
+    // A call's missing arguments; the keywords a pattern takes, and the
+    // pieces of a rename, a few for each argument; the template's text.
+    ("rules.rs", [2, 3, 1, 0]),
+    // The interpolations' first tokens.
+    ("syntax.rs", [0, 1, 0, 0]),
+];
+
+/// How many empty lists, maps, sets and strings `line` starts.
+fn started(line: &str) -> usize {
+    let mut count = line.matches(".or_default()").count();
+    for kind in [
+        "Vec", "HashMap", "HashSet", "BTreeMap", "BTreeSet", "String",
+    ] {
+        for made in ["::new()", "::default()"] {
+            let site = format!("{kind}{made}");
+            count += line
+                .match_indices(&site)
+                .filter(|&(at, _)| {
+                    !line[..at]
+                        .chars()
+                        .next_back()
+                        .is_some_and(|c| c == '_' || c.is_alphanumeric())
+                })
+                .count();
+        }
+    }
+    count
+}
+
+#[test]
+fn the_empty_lists_the_rules_start_are_each_of_a_kind() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut sources = vec![root.join("surface.rs")];
+    for entry in std::fs::read_dir(root.join("surface")).unwrap() {
+        sources.push(entry.unwrap().path());
+    }
+    let mut found = Vec::new();
+    for path in sources {
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        if name == "tests.rs" {
+            continue;
+        }
+        let text = std::fs::read_to_string(&path).unwrap();
+        let code = text.split("#[cfg(test)]\nmod tests {").next().unwrap();
+        let count: usize = code
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("//"))
+            .map(started)
+            .sum();
+        let kinds = STARTED
+            .iter()
+            .find(|(file, _)| *file == name)
+            .map_or(0, |(_, kinds)| kinds.iter().sum());
+        if count != kinds {
+            found.push(format!("{name}: {count} started, {kinds} of a kind"));
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "say here which kind each empty list or map these files start is, or write its text through the room:\n{}",
+        found.join("\n")
+    );
+}
+
+#[test]
+fn the_rules_sort_through_their_room() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut sources = vec![root.join("surface.rs")];
+    for entry in std::fs::read_dir(root.join("surface")).unwrap() {
+        sources.push(entry.unwrap().path());
+    }
+    let mut found = Vec::new();
+    for path in sources {
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        if name == "tests.rs" {
+            continue;
+        }
+        let text = std::fs::read_to_string(&path).unwrap();
+        let code = text.split("#[cfg(test)]\nmod tests {").next().unwrap();
+        let sorted = code
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("//") && !line.contains("room."))
+            .filter(|line| {
+                [
+                    ".sort(",
+                    ".sort_by(",
+                    ".sort_by_key(",
+                    ".sort_unstable(",
+                    ".sort_unstable_by(",
+                    ".sort_unstable_by_key(",
+                ]
+                .iter()
+                .any(|site| line.contains(site))
+            })
+            .count();
+        // The room's own two sorts, which charge their steps.
+        let allowed = if name == "edits.rs" { 2 } else { 0 };
+        if sorted != allowed {
+            found.push(format!("{name}: {sorted} sorts, {allowed} allowed"));
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "sort through the room, which charges the steps:\n{}",
+        found.join("\n")
+    );
 }

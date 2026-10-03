@@ -1,14 +1,19 @@
 //! Source spans of syntax nodes, which record only where they start: the
 //! parser's tokens give each node's end.
 
+use super::{
+    counted::{CountedMap, Owned, Refused, ScratchVec},
+    walk::{Item, Next, Walk},
+};
 use crate::{
     diagnostic::Span,
-    syntax::{Argument, Block, CallForm, Expr, Node, Statement, Stmt, Target},
+    syntax::{CallForm, Expr, Node, Statement, Stmt},
     tooling::{Token, TokenKind},
 };
 
 /// What follows a node's rightmost child in the source, which the tree
 /// does not locate.
+#[derive(Clone, Copy)]
 enum Trail<'e> {
     /// Nothing: the child ends the node.
     None,
@@ -16,50 +21,203 @@ enum Trail<'e> {
     Member(&'e str, bool),
 }
 
+impl Owned for Trail<'_> {
+    fn owned(&self) -> usize {
+        0
+    }
+}
+
 pub(crate) struct Spans<'a> {
     source: &'a str,
     tokens: std::borrow::Cow<'a, [Token]>,
-    /// Tokens and nodes visited, for [`super::Checked::steps`].
-    pub steps: std::cell::Cell<u64>,
-    /// [`last_offset`] by node, so shared subtrees are walked once.
-    lasts: std::cell::RefCell<std::collections::HashMap<usize, usize>>,
+    /// The check's account, which tokens and nodes visited are charged to.
+    meter: std::sync::Arc<super::meter::Meter>,
+    /// Where each expression's last token starts, by node, so shared
+    /// subtrees are walked once.
+    lasts: std::cell::RefCell<CountedMap<usize, usize>>,
+    /// [`Self::furthest`] of each statement measured, by node, so a
+    /// statement nested in many that are measured is walked once.
+    furthest: std::cell::RefCell<CountedMap<usize, usize>>,
+    /// What the tokens hold when they are a merged copy of their own.
+    owned: usize,
+    /// The most that parsing one interpolation again held.
+    parsing: usize,
 }
 
 impl<'a> Spans<'a> {
-    pub fn new(source: &'a str, tokens: &'a [Token], interpolations: &[(u32, u32)]) -> Self {
+    pub fn new(
+        source: &'a str,
+        tokens: &'a [Token],
+        interpolations: &[(u32, u32)],
+        meter: std::sync::Arc<super::meter::Meter>,
+    ) -> Self {
         let mut tokens = std::borrow::Cow::Borrowed(tokens);
-        let mut steps = 0;
         // The parser lists each interpolation separately from its outer string
         // token. Merge their tokens by source offset for member and edit spans.
+        // Each is parsed again for its tokens, which holds its syntax for a
+        // moment, within the steps and memory the check may spend, and its
+        // steps are the check's; one that runs out of them stops the check.
+        let size = std::mem::size_of::<Token>();
+        // Holds `bytes` in the account until the checker measures its own
+        // tables, stopping the check if they pass the memory left, before
+        // what they count is made. Returns whether the check has stopped.
+        let hold = |bytes: usize| {
+            meter.outside(bytes);
+            let held = meter.held(0);
+            if meter.budget().memory.is_some_and(|left| held > left) {
+                meter.stop();
+            }
+            meter.stopped()
+        };
+        let mut parsing = 0;
+        // What the merged copy's tokens hold beyond the list, once it is
+        // made.
+        let mut payloads = 0;
         for &(start, end) in interpolations {
+            if meter.stopped() {
+                break;
+            }
             let start = start as usize;
             let end = end as usize - 1;
-            steps += (end - start) as u64;
-            if let Ok(inner) = crate::tooling::tokens(&source[start..end]) {
-                tokens
-                    .to_mut()
-                    .extend(inner.into_iter().filter_map(|mut token| {
-                        if token.kind == TokenKind::Eof {
-                            return None;
+            let budget = meter.budget();
+            let merged = match &tokens {
+                std::borrow::Cow::Borrowed(_) => 0,
+                std::borrow::Cow::Owned(list) => list.capacity() * size + payloads,
+            };
+            let mut context = crate::CallContext::new(crate::CallOptions {
+                limits: crate::Limits {
+                    steps: budget.steps.map(|left| left.saturating_sub(meter.steps())),
+                    memory_bytes: budget.memory.map(|left| left.saturating_sub(merged)),
+                    ..crate::Limits::default()
+                },
+                cancellation: budget.cancellation.clone().unwrap_or_default(),
+                deadline: budget.deadline,
+                ..crate::CallOptions::default()
+            });
+            let inner = crate::syntax::record::tokens_within(
+                &source[start..end],
+                &crate::compilation::Meter(std::cell::RefCell::new(&mut context)),
+            );
+            let used = context.stats();
+            let charged = meter.charge(used.steps);
+            parsing = parsing.max(used.peak_memory_bytes);
+            // A check the parse's work stops merges no more tokens.
+            if meter.scratch(used.peak_memory_bytes) || charged {
+                break;
+            }
+            match inner {
+                Ok(inner) => {
+                    // Appending copies the parser's tokens the first time,
+                    // and growing the copy holds its old buffer beside the
+                    // new one for a moment: both are counted before they
+                    // are made.
+                    let (length, before, copied) = match &tokens {
+                        std::borrow::Cow::Borrowed(list) => {
+                            (list.len(), 0, super::meter::Heap::heap(*list))
                         }
-                        token.span = token.span.start + start..token.span.end + start;
-                        Some(token)
-                    }));
+                        std::borrow::Cow::Owned(list) => (list.len(), list.capacity(), payloads),
+                    };
+                    let added = super::meter::Heap::heap(inner.as_slice());
+                    let needed = length + inner.len();
+                    let capacity = if needed > before {
+                        needed.max(2 * before)
+                    } else {
+                        before
+                    };
+                    let relocating = if needed > before { capacity } else { 0 };
+                    if meter.pace((length + inner.len()) as u64, 0)
+                        || hold((before + relocating + inner.capacity()) * size + copied + added)
+                    {
+                        break;
+                    }
+                    if let std::borrow::Cow::Borrowed(list) = tokens {
+                        let mut merged = Vec::with_capacity(capacity);
+                        for token in list {
+                            if meter.pace(1 + (token.span.len() / 64) as u64, 0) {
+                                break;
+                            }
+                            merged.push(token.clone());
+                        }
+                        tokens = std::borrow::Cow::Owned(merged);
+                    }
+                    if meter.stopped() {
+                        break;
+                    }
+                    let list = tokens.to_mut();
+                    if needed > list.capacity() {
+                        list.reserve_exact(capacity - list.len());
+                    }
+                    payloads = copied + added;
+                    for mut token in inner {
+                        if meter.charge(1) {
+                            break;
+                        }
+                        if token.kind != TokenKind::Eof {
+                            token.span = token.span.start + start..token.span.end + start;
+                            list.push(token);
+                        }
+                    }
+                    if hold(list.capacity() * size + payloads) {
+                        break;
+                    }
+                }
+                Err(error)
+                    if matches!(
+                        error.kind,
+                        crate::ErrorKind::Steps
+                            | crate::ErrorKind::Memory
+                            | crate::ErrorKind::Deadline
+                            | crate::ErrorKind::Cancelled
+                    ) =>
+                {
+                    meter.stop();
+                }
+                Err(_) => (),
             }
         }
+        let mut owned = 0;
         if let std::borrow::Cow::Owned(tokens) = &mut tokens {
-            tokens.sort_by_key(|token| token.span.start);
+            owned = super::meter::Heap::heap(tokens);
+            // Sorting them in order keeps a copy of them for a moment, which
+            // is counted first; a check that it stops never reads them.
+            if !hold(owned) {
+                let sorted =
+                    super::counted::sort_by(&meter, tokens, |a, b| a.span.start.cmp(&b.span.start));
+                // The sort admits its scratch before allocation; report that
+                // peak before the next measure settles back to live tokens.
+                meter.reach(owned + std::mem::size_of_val(tokens.as_slice()));
+                debug_assert!(sorted.is_ok() || meter.stopped());
+            }
         }
         Self {
             source,
             tokens,
-            steps: std::cell::Cell::new(steps),
+            meter,
             lasts: std::cell::RefCell::default(),
+            furthest: std::cell::RefCell::default(),
+            owned,
+            parsing,
         }
     }
 
-    fn step(&self, count: usize) {
-        self.steps.set(self.steps.get() + count as u64);
+    /// The most that parsing one interpolation again held, as the pass
+    /// over the canonical surface does too.
+    pub fn parsing(&self) -> usize {
+        self.parsing
+    }
+
+    /// What the spans' tables hold.
+    pub fn bytes(&self) -> usize {
+        self.owned
+            + super::meter::map(&self.lasts.borrow())
+            + super::meter::map(&self.furthest.borrow())
+    }
+
+    /// Charges `count` steps of a scan over the tokens. Returns whether the
+    /// check has stopped, when a scan gives up with the span it has.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    fn step(&self, count: usize) -> bool {
+        self.meter.charge(count as u64)
     }
 
     /// The index of the token that starts at `offset`.
@@ -113,7 +271,9 @@ impl<'a> Spans<'a> {
     pub fn word_after(&self, offset: usize, name: &str) -> Span {
         let start = self.token_from(offset);
         for index in start..self.tokens.len().min(start + 256) {
-            self.step(1);
+            if self.step(1) {
+                break;
+            }
             if self.tokens[index].kind == TokenKind::Word && self.text(index) == name {
                 let span = &self.tokens[index].span;
                 return Span::new(span.start, span.end);
@@ -125,7 +285,7 @@ impl<'a> Spans<'a> {
     /// The span of an expression, from its first token to its last,
     /// including the parentheses of a group it starts with.
     pub fn expr(&self, expr: &Expr) -> Span {
-        let start = first_offset(expr);
+        let start = first_offset(expr, &self.meter);
         let last = self.last(expr);
         let end = self.close(start, last);
         Span::new(self.open(start, end), end)
@@ -141,9 +301,10 @@ impl<'a> Spans<'a> {
             }
             _ => None,
         };
+        let furthest = self.stmt_furthest(stmt);
         let last = match value {
-            Some(value) => self.last(value).max(stmt_last(stmt)),
-            None => stmt_last(stmt),
+            Some(value) => self.last(value).max(furthest),
+            None => furthest,
         };
         let last = last.max(start);
         Span::new(start, self.close(start, last))
@@ -160,7 +321,9 @@ impl<'a> Spans<'a> {
             let mut depth = 0;
             let mut closes = None;
             for index in first - 1..self.tokens.len() {
-                self.step(1);
+                if self.step(1) {
+                    return start;
+                }
                 let token = &self.tokens[index];
                 if token.span.start >= end {
                     break;
@@ -195,7 +358,9 @@ impl<'a> Spans<'a> {
         };
         let first = self.token_from(start);
         let mut depth: i64 = 0;
-        self.step(last_index.saturating_sub(first) + 1);
+        if self.step(last_index.saturating_sub(first) + 1) {
+            return self.tokens[last_index].span.end;
+        }
         for index in first..=last_index {
             match &self.tokens[index].kind {
                 TokenKind::Punct('(' | '[' | '{') => depth += 1,
@@ -206,7 +371,9 @@ impl<'a> Spans<'a> {
         let mut end = self.tokens[last_index].span.end;
         let mut index = last_index + 1;
         while depth > 0 && index < self.tokens.len() {
-            self.step(1);
+            if self.step(1) {
+                break;
+            }
             match &self.tokens[index].kind {
                 TokenKind::Punct(')' | ']' | '}') => {
                     depth -= 1;
@@ -235,7 +402,9 @@ impl<'a> Spans<'a> {
         let mut index = from;
         let limit = self.tokens.len().min(from + 512);
         while index + 1 < limit {
-            self.step(1);
+            if self.step(1) {
+                return None;
+            }
             let dot = matches!(
                 self.tokens[index].kind,
                 TokenKind::Punct('.') | TokenKind::Operator("&." | "::")
@@ -261,7 +430,9 @@ impl<'a> Spans<'a> {
         let mut index = self.token_from(member.start);
         while index > 0 {
             index -= 1;
-            self.step(1);
+            if self.step(1) {
+                return None;
+            }
             let token = &self.tokens[index];
             if token.kind != TokenKind::Newline {
                 return Some(Span::new(token.span.start, token.span.end));
@@ -290,9 +461,14 @@ impl<'a> Spans<'a> {
     /// down to one the tree locates, and each member name on it is found
     /// in the tokens after its receiver.
     fn last(&self, expr: &Expr) -> usize {
-        let mut path: Vec<(&Expr, Trail<'_>)> = Vec::new();
+        // The path, in a list counted while it lives, since a chain of
+        // members is as long as the source makes it.
+        let mut path: ScratchVec<(&Expr, Trail<'_>)> = ScratchVec::new(&self.meter);
         let mut current = expr;
         let mut position = loop {
+            if self.step(1) {
+                return current.offset as usize;
+            }
             let key = std::ptr::from_ref(current) as usize;
             if let Some(&known) = self.lasts.borrow().get(&key) {
                 break known;
@@ -324,25 +500,131 @@ impl<'a> Spans<'a> {
                 Node::Binary(_, _, right) => (&**right, Trail::None),
                 Node::Unary(_, value) => (&**value, Trail::None),
                 Node::Range(_, Some(end), _) => (&**end, Trail::None),
-                _ => {
-                    let (last, visited) = last_offset_counted(current, &self.lasts);
-                    self.step(visited);
-                    break last;
-                }
+                _ => break self.furthest(Item::Expr(current), true),
             };
-            path.push((current, trail));
+            if path.push((current, trail)).is_err() {
+                return current.offset as usize;
+            }
             current = next;
         };
         let key = std::ptr::from_ref(current) as usize;
-        self.lasts.borrow_mut().insert(key, position);
-        for (node, trail) in path.into_iter().rev() {
+        self.remember(&self.lasts, key, position);
+        for &(node, trail) in path.iter().rev() {
+            if self.step(1) {
+                break;
+            }
             if let Trail::Member(name, parenthesized) = trail {
                 position = self.name_after(position, name, parenthesized);
             }
             let key = std::ptr::from_ref(node) as usize;
-            self.lasts.borrow_mut().insert(key, position);
+            self.remember(&self.lasts, key, position);
         }
         position
+    }
+
+    /// Remembers `position` for node `key` in `table`, with its room
+    /// counted before it is kept. One the budget refuses room for is not
+    /// remembered: the check has stopped, and finds it again if asked.
+    fn remember(
+        &self,
+        table: &std::cell::RefCell<CountedMap<usize, usize>>,
+        key: usize,
+        position: usize,
+    ) {
+        match table
+            .borrow_mut()
+            .insert(self.meter.tables(), key, position)
+        {
+            Ok(_) | Err(Refused) => (),
+        }
+    }
+
+    /// The greatest start of a statement, expression, rescue or block in
+    /// `root`, which is where its last token-bearing part starts, charging
+    /// the walk that finds it. With `memo`, an expression other than `root`
+    /// that holds no statement between them takes the start of its last
+    /// token remembered in [`Self::lasts`], if any, instead of its parts.
+    fn furthest(&self, root: Item<'_>, memo: bool) -> usize {
+        let mut last = match root {
+            Item::Stmt(stmt) => stmt.offset as usize,
+            Item::Expr(expr) => expr.offset as usize,
+            Item::Target(_) => 0,
+        };
+        let lasts = self.lasts.borrow();
+        // Each entry carries whether its expressions may take a remembered
+        // start: not below a statement, as a statement's parts are measured
+        // afresh.
+        let mut walk = Walk::new(&self.meter);
+        walk.push(Next::Item(root), (memo, None));
+        let mut first = true;
+        while let Some((item, (remembered, restore))) = walk.next(0) {
+            if self.meter.stopped() {
+                return last;
+            }
+            let own = match item {
+                Item::Stmt(stmt) => {
+                    let key = std::ptr::from_ref(stmt) as usize;
+                    if let Some(outer) = restore {
+                        self.remember(&self.furthest, key, last);
+                        last = last.max(outer);
+                        continue;
+                    }
+                    if let Some(&known) = self.furthest.borrow().get(&key) {
+                        last = last.max(known);
+                        continue;
+                    }
+                    // Cache the statement after all its children finish,
+                    // then restore the enclosing subtree's furthest offset.
+                    walk.push(Next::Item(item), (false, Some(last)));
+                    last = stmt.offset as usize;
+                    walk.children(item, (false, None));
+                    first = false;
+                    continue;
+                }
+                Item::Expr(expr) => expr.offset as usize,
+                Item::Target(_) => 0,
+            };
+            last = last.max(own);
+            if let Item::Expr(expr) = item {
+                let key = std::ptr::from_ref(expr) as usize;
+                if remembered && !first {
+                    if let Some(&known) = lasts.get(&key) {
+                        last = last.max(known);
+                        continue;
+                    }
+                }
+                match &expr.node {
+                    Node::Try(attempt) => {
+                        for rescue in attempt.rescues.iter() {
+                            if self.step(1) {
+                                return last;
+                            }
+                            last = last.max(rescue.offset as usize);
+                        }
+                    }
+                    Node::BlockCall(_, block) => {
+                        last = last.max(block.offset as usize);
+                        walk.push(Next::Targets(block.params.iter()), (false, None));
+                    }
+                    _ => (),
+                }
+            }
+            first = false;
+            let below = remembered && matches!(item, Item::Expr(_));
+            walk.children(item, (below, None));
+        }
+        last
+    }
+
+    /// [`Self::furthest`] of a statement, measured once.
+    fn stmt_furthest(&self, stmt: &Stmt) -> usize {
+        let key = std::ptr::from_ref(stmt) as usize;
+        if let Some(&known) = self.furthest.borrow().get(&key) {
+            return known;
+        }
+        let furthest = self.furthest(Item::Stmt(stmt), false);
+        self.remember(&self.furthest, key, furthest);
+        furthest
     }
 
     /// The start of the member name `name` that follows a receiver whose
@@ -356,7 +638,9 @@ impl<'a> Spans<'a> {
         index += 1;
         let limit = self.tokens.len().min(index + 64);
         while index < limit {
-            self.step(1);
+            if self.step(1) {
+                return last;
+            }
             match &self.tokens[index].kind {
                 TokenKind::Punct(')' | ']' | '}') | TokenKind::Newline => index += 1,
                 TokenKind::Punct('.') | TokenKind::Operator("&." | "::") => break,
@@ -402,10 +686,13 @@ impl<'a> Spans<'a> {
 /// The start of an expression's first token. Binary operators, ranges,
 /// indexes and ternaries record their operator's position, so their span
 /// starts at their leftmost operand.
-pub(crate) fn first_offset(expr: &Expr) -> usize {
+fn first_offset(expr: &Expr, meter: &super::meter::Meter) -> usize {
     let mut first = expr.offset as usize;
     let mut current = expr;
     loop {
+        if meter.charge(1) {
+            break;
+        }
         current = match &current.node {
             Node::Binary(_, left, _) | Node::Range(Some(left), _, _) => left,
             Node::Index(receiver, _)
@@ -422,166 +709,4 @@ pub(crate) fn first_offset(expr: &Expr) -> usize {
         first = first.min(current.offset as usize);
     }
     first
-}
-
-/// The start of the last token-bearing child of an expression.
-pub(crate) fn last_offset(expr: &Expr) -> usize {
-    last_offset_counted(expr, &std::cell::RefCell::default()).0
-}
-
-/// [`last_offset`], reusing the results `memo` holds for subtrees, and the
-/// number of nodes it visited.
-fn last_offset_counted(
-    root: &Expr,
-    memo: &std::cell::RefCell<std::collections::HashMap<usize, usize>>,
-) -> (usize, usize) {
-    let mut last = root.offset as usize;
-    let mut visited = 0;
-    let mut pending = vec![root];
-    let mut visit_stmts: Vec<&Stmt> = Vec::new();
-    while let Some(expr) = pending.pop() {
-        visited += 1;
-        last = last.max(expr.offset as usize);
-        if !std::ptr::eq(expr, root) {
-            if let Some(&known) = memo.borrow().get(&(std::ptr::from_ref(expr) as usize)) {
-                last = last.max(known);
-                continue;
-            }
-        }
-        match &expr.node {
-            Node::Try(attempt) => {
-                visit_stmts.extend(attempt.body.iter());
-                visit_stmts.extend(attempt.alternate.iter());
-                visit_stmts.extend(attempt.ensure.iter());
-                for rescue in attempt.rescues.iter() {
-                    last = last.max(rescue.offset as usize);
-                    visit_stmts.extend(rescue.body.iter());
-                }
-            }
-            Node::Shape(_, Some(fallback), _) => pending.push(fallback),
-            Node::Template(values, _) | Node::Array(values) | Node::Yield(values) => {
-                pending.extend(values.iter())
-            }
-            Node::Hash(entries) => pending.extend(entries.iter().map(|(_, value)| value)),
-            Node::Unary(_, value) => pending.push(value),
-            Node::Binary(_, left, right) => {
-                pending.push(left);
-                pending.push(right);
-            }
-            Node::Range(start, end, _) => {
-                pending.extend(start.as_deref());
-                pending.extend(end.as_deref());
-            }
-            Node::Conditional(branches, alternate) => {
-                for (condition, value) in branches.iter() {
-                    pending.push(condition);
-                    pending.push(value);
-                }
-                pending.push(alternate);
-            }
-            Node::Case(subject, whens, alternate) => {
-                pending.extend(subject.as_deref());
-                for when in whens.iter() {
-                    pending.extend(when.values.iter().map(|(value, _)| value));
-                    pending.push(&when.result);
-                }
-                pending.extend(alternate.as_deref());
-            }
-            Node::Compound(stmt) => visit_stmts.push(stmt),
-            Node::Call(_, args, _) => pending.extend(arguments(args)),
-            Node::ComputedCall(receiver, args) => {
-                pending.push(receiver);
-                pending.extend(arguments(args));
-            }
-            Node::BlockCall(call, block) => {
-                pending.push(call);
-                last = last.max(block_last(block));
-            }
-            Node::Member(receiver, _) | Node::SafeMember(receiver, _) => pending.push(receiver),
-            Node::Scope(receiver, _, args) => {
-                pending.push(receiver);
-                if let Some(args) = args {
-                    pending.extend(arguments(args));
-                }
-            }
-            Node::Method(receiver, _, args, _) | Node::SafeMethod(receiver, _, args, _) => {
-                pending.push(receiver);
-                pending.extend(arguments(args));
-            }
-            Node::Index(receiver, selectors) => {
-                pending.push(receiver);
-                pending.extend(selectors.iter());
-            }
-            _ => (),
-        }
-        while let Some(stmt) = visit_stmts.pop() {
-            visited += 1;
-            last = last.max(stmt_last(stmt));
-        }
-    }
-    (last, visited)
-}
-
-fn arguments(args: &[Argument]) -> impl Iterator<Item = &Expr> {
-    args.iter().map(|arg| &arg.value)
-}
-
-fn block_last(block: &Block) -> usize {
-    let mut last = block.offset as usize;
-    for stmt in block.body.iter() {
-        last = last.max(stmt_last(stmt));
-    }
-    for target in block.params.iter() {
-        last = last.max(target_last(target));
-    }
-    last
-}
-
-fn target_last(target: &Target) -> usize {
-    match target {
-        Target::Value(expr) => last_offset(expr),
-        Target::Typed(target, _) => target_last(target),
-        Target::Tuple(parts) => parts
-            .iter()
-            .filter_map(|(part, _)| part.as_ref().map(target_last))
-            .max()
-            .unwrap_or(0),
-    }
-}
-
-/// The start of the last token-bearing part of a statement.
-pub(crate) fn stmt_last(stmt: &Stmt) -> usize {
-    let own = stmt.offset as usize;
-    match &stmt.node {
-        Statement::Expr(expr) => own.max(last_offset(expr)),
-        Statement::Assign(target, _, value) => own.max(target_last(target)).max(last_offset(value)),
-        Statement::If(branches, alternate, _) => {
-            let mut last = own;
-            for (condition, body) in branches.iter() {
-                last = last.max(last_offset(condition));
-                for stmt in body.iter() {
-                    last = last.max(stmt_last(stmt));
-                }
-            }
-            for stmt in alternate.iter() {
-                last = last.max(stmt_last(stmt));
-            }
-            last
-        }
-        Statement::While(condition, body, _) => body
-            .iter()
-            .map(stmt_last)
-            .fold(own.max(last_offset(condition)), usize::max),
-        Statement::For(target, iterable, body) => body.iter().map(stmt_last).fold(
-            own.max(target_last(target)).max(last_offset(iterable)),
-            usize::max,
-        ),
-        Statement::Return(value) | Statement::Break(value) | Statement::Next(value) => {
-            own.max(value.as_ref().map_or(0, last_offset))
-        }
-        Statement::Raise(value, message) => own
-            .max(value.as_deref().map_or(0, last_offset))
-            .max(message.as_deref().map_or(0, last_offset)),
-        _ => own,
-    }
 }

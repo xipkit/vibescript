@@ -16,6 +16,9 @@
 
 use super::{
     Checker,
+    counted::{CountedBTreeSet, CountedMap, CountedSet, CountedVec, ScratchMap, ScratchVec},
+    marks::Marks,
+    meter::{Heap, btree_storage},
     program::{FnId, NsId},
     ty::Ty,
 };
@@ -23,22 +26,145 @@ use crate::{
     diagnostic::{Code, Diagnostic, Span},
     syntax::{Expr, Node},
 };
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::{
+    collections::{BTreeSet, HashMap, HashSet},
+    rc::Rc,
+};
+
+/// A class's required instance variables, in name order, which the sets of
+/// those not assigned yet index.
+pub(crate) type Roster = Rc<[String]>;
+
+/// What a roster holds.
+pub(crate) fn roster_bytes(roster: &Roster) -> usize {
+    std::mem::size_of_val(&**roster) + roster.iter().map(String::capacity).sum::<usize>()
+}
+
+/// The variables of an instance being built that are not assigned yet at
+/// some point: places in their roster, shared with the points before and
+/// after it rather than copied.
+#[derive(Clone)]
+pub(crate) struct Unassigned {
+    roster: Roster,
+    marks: Marks,
+}
+
+impl Unassigned {
+    /// Every variable of `roster`.
+    pub fn all(roster: Roster) -> Self {
+        let marks = Marks::all(roster.len());
+        Self { roster, marks }
+    }
+
+    pub fn len(&self) -> usize {
+        self.marks.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.marks.is_empty()
+    }
+
+    /// The place of variable `name` in the roster.
+    fn place(&self, name: &str) -> Option<usize> {
+        self.roster
+            .binary_search_by(|ivar| ivar.as_str().cmp(name))
+            .ok()
+    }
+
+    pub fn contains(&self, name: &str) -> bool {
+        self.place(name)
+            .is_some_and(|place| self.marks.contains(place))
+    }
+
+    /// The bytes [`Self::remove`] of `name` would copy.
+    pub fn cost(&self, name: &str) -> usize {
+        self.place(name)
+            .map_or(0, |place| self.marks.cost(place, false))
+    }
+
+    /// Takes out variable `name`; returns the bytes this copied.
+    pub fn remove(&mut self, name: &str) -> usize {
+        match self.place(name) {
+            Some(place) => self.marks.set(place, false),
+            None => 0,
+        }
+    }
+
+    /// The variables, in name order.
+    fn names(&self) -> Vec<&str> {
+        self.marks
+            .indices()
+            .into_iter()
+            .map(|place| self.roster[place].as_str())
+            .collect()
+    }
+
+    /// Those of the variables `read` names, in name order, going through
+    /// whichever of the two is shorter; returns them with that length,
+    /// the work it took.
+    fn read<'s>(&'s self, read: &'s BTreeSet<String>) -> (Vec<&'s str>, usize) {
+        if read.len() < self.len() {
+            let names = read
+                .iter()
+                .filter(|name| self.contains(name))
+                .map(String::as_str)
+                .collect();
+            (names, read.len())
+        } else {
+            let names = self
+                .marks
+                .indices()
+                .into_iter()
+                .map(|place| self.roster[place].as_str())
+                .filter(|name| read.contains(*name))
+                .collect();
+            (names, self.len())
+        }
+    }
+
+    /// The most bytes [`Self::read`] of `read`, or [`Self::names`] when
+    /// `read` is `None`, lists.
+    fn listing(&self, read: Option<&BTreeSet<String>>) -> usize {
+        let entry = std::mem::size_of::<&str>();
+        match read {
+            Some(read) if read.len() < self.len() => read.len() * entry,
+            _ => self.len() * (std::mem::size_of::<usize>() + entry),
+        }
+    }
+}
 
 /// What the checker records about instance variable reads.
 #[derive(Default)]
 pub(crate) struct Construction {
     /// What each instance method does with `self`.
-    methods: HashMap<FnId, Uses>,
+    methods: CountedMap<FnId, Uses>,
     /// Uses of `self` while it has unassigned variables.
-    sites: Vec<Site>,
+    sites: CountedVec<Site>,
+    /// What the methods' uses and the sites hold beyond the tables' own
+    /// storage, for the checker's memory account.
+    held: usize,
+    /// The addresses of the rosters and of the nodes of the sets of
+    /// unassigned variables that the sites keep, which they share, so each
+    /// is counted in `held` once. The sites keep them after the frames
+    /// that made them are gone.
+    retained: CountedSet<usize>,
+}
+
+impl Construction {
+    /// What the records hold.
+    pub fn bytes(&self) -> usize {
+        super::meter::map(&self.methods)
+            + super::meter::vec(self.sites.as_vec())
+            + super::meter::set(&self.retained)
+            + self.held
+    }
 }
 
 /// What a method does with `self`, directly or in its blocks.
 #[derive(Default)]
 struct Uses {
-    reads: BTreeSet<String>,
-    calls: BTreeSet<FnId>,
+    reads: CountedBTreeSet<String>,
+    calls: CountedBTreeSet<FnId>,
     /// Whether `self` is used as a value, which lets any method read it.
     escapes: bool,
 }
@@ -47,8 +173,23 @@ struct Uses {
 struct Site {
     class: NsId,
     kind: SiteKind,
-    unassigned: Vec<String>,
+    unassigned: Unassigned,
     span: Span,
+}
+
+/// The name a read keeps; the roster and the set of variables it shares
+/// are counted as the sites first keep them.
+impl super::counted::Owned for Site {
+    fn owned(&self) -> usize {
+        self.kind.heap()
+    }
+}
+
+/// Its sets are counted as they grow.
+impl super::counted::Owned for Uses {
+    fn owned(&self) -> usize {
+        0
+    }
 }
 
 enum SiteKind {
@@ -57,36 +198,42 @@ enum SiteKind {
     Escape,
 }
 
+impl Heap for SiteKind {
+    fn heap(&self) -> usize {
+        match self {
+            SiteKind::Read(name) => name.heap(),
+            SiteKind::Call(_) | SiteKind::Escape => 0,
+        }
+    }
+}
+
 impl<'a> Checker<'a> {
     /// The variables of the instance being built that are not assigned
-    /// yet where the code being checked runs, if it builds one.
-    fn unassigned(&self) -> Vec<String> {
+    /// yet where the code being checked runs, if it builds one and some
+    /// are. They are shared with the other points that ask, not copied.
+    fn unassigned(&self) -> Option<Unassigned> {
         if !self.frame.flow.live {
-            return Vec::new();
+            return None;
         }
-        if let Some(building) = &self.frame.building {
-            return building.clone();
-        }
-        self.frame
-            .initialize
-            .iter()
-            .filter(|(_, id)| !self.frame.flow.get(*id).assigned)
-            .map(|(name, _)| name.clone())
-            .collect()
-    }
-
-    fn uses(&mut self) -> Option<&mut Uses> {
-        let function = self.frame.function?;
-        Some(self.construction.methods.entry(function).or_default())
+        let unassigned = match &self.frame.building {
+            Some(building) => building.clone(),
+            None => {
+                let (roster, _) = self.frame.initialize.as_ref()?;
+                Unassigned {
+                    roster: Rc::clone(roster),
+                    marks: self.frame.flow.unassigned()?.clone(),
+                }
+            }
+        };
+        (!unassigned.is_empty()).then_some(unassigned)
     }
 
     fn site(&mut self, kind: SiteKind, span: Span) {
         let Some(class) = self.frame.owner else {
             return;
         };
-        let unassigned = self.unassigned();
-        if !unassigned.is_empty() {
-            self.construction.sites.push(Site {
+        if let Some(unassigned) = self.unassigned() {
+            self.record_site(Site {
                 class,
                 kind,
                 unassigned,
@@ -95,18 +242,72 @@ impl<'a> Checker<'a> {
         }
     }
 
+    /// Keeps `site`, counting what it holds that no earlier site shares:
+    /// its roster, and the nodes of its set of unassigned variables that
+    /// the assignments before it copied. The addresses it records, and
+    /// room for the site, are counted before they are kept, and a check
+    /// the budget stops keeps no more sites.
+    fn record_site(&mut self, site: Site) {
+        let tables = self.meter.tables();
+        let construction = &mut self.construction;
+        let roster = Rc::as_ptr(&site.unassigned.roster).cast::<u8>() as usize;
+        match construction.retained.insert(tables, roster) {
+            Ok(true) => construction.held += roster_bytes(&site.unassigned.roster),
+            Ok(false) => (),
+            Err(_) => return,
+        }
+        let Some((bytes, visited)) = site
+            .unassigned
+            .marks
+            .retain(&mut construction.retained, tables)
+        else {
+            return;
+        };
+        construction.held += bytes + site.kind.heap();
+        // A check that finding what it shares stops keeps no more sites,
+        // and a site the budget refuses room for is not kept.
+        if self.meter.charge(visited as u64) || self.construction.sites.push(tables, site).is_err()
+        {
+            self.stopped = true;
+        }
+    }
+
     /// Records a read of instance variable `name` of `self` at `span`.
     pub(super) fn read_ivar(&mut self, name: &str, span: Span) {
-        if let Some(uses) = self.uses() {
-            uses.reads.insert(name.to_owned());
+        let tables = self.meter.tables();
+        if let Some(uses) = uses(&mut self.construction, self.frame.function, tables) {
+            // The name, and the set's room for it, are counted before it
+            // is kept; a check the budget stops records no more.
+            if !uses.reads.contains(name) {
+                let Ok(mut kept) = tables.keep(name.len()) else {
+                    return;
+                };
+                let before = btree_storage::<String>(uses.reads.len());
+                if uses
+                    .reads
+                    .insert_kept(tables, &mut kept, name.to_owned())
+                    .is_err()
+                {
+                    return;
+                }
+                let bytes = btree_storage::<String>(uses.reads.len()) - before + name.len();
+                self.construction.held += bytes;
+            }
         }
-        self.site(SiteKind::Read(name.to_owned()), span);
+        self.site(SiteKind::Read(self.copy(name)), span);
     }
 
     /// Records a call of method `callee` on `self` at `span`.
     pub(super) fn call_on_self(&mut self, callee: FnId, span: Span) {
-        if let Some(uses) = self.uses() {
-            uses.calls.insert(callee);
+        let tables = self.meter.tables();
+        if let Some(uses) = uses(&mut self.construction, self.frame.function, tables) {
+            let before = btree_storage::<FnId>(uses.calls.len());
+            // A check the budget stops records no more.
+            if uses.calls.insert(tables, callee).is_err() {
+                return;
+            }
+            let bytes = btree_storage::<FnId>(uses.calls.len()) - before;
+            self.construction.held += bytes;
         }
         self.site(SiteKind::Call(callee), span);
     }
@@ -123,22 +324,34 @@ impl<'a> Checker<'a> {
             self.self_receiver = false;
             return;
         }
-        if let Some(uses) = self.uses() {
+        let tables = self.meter.tables();
+        if let Some(uses) = uses(&mut self.construction, self.frame.function, tables) {
             uses.escapes = true;
         }
         let Some(class) = self.frame.owner else {
             return;
         };
-        let mut unassigned = self.unassigned();
-        unassigned.retain(|name| stored.as_ref() != Some(name));
+        let Some(mut unassigned) = self.unassigned() else {
+            return;
+        };
+        // The path the removal copies is held before it is made, until
+        // the site, which counts what it keeps, takes it.
+        let copied = stored.as_ref().map_or(0, |stored| unassigned.cost(stored));
+        let Some(held) = self.hold(copied) else {
+            return;
+        };
+        if let Some(stored) = &stored {
+            unassigned.remove(stored);
+        }
         if !unassigned.is_empty() {
-            self.construction.sites.push(Site {
+            self.record_site(Site {
                 class,
                 kind: SiteKind::Escape,
                 unassigned,
                 span,
             });
         }
+        self.release(held);
     }
 
     /// Checks `receiver` of a call of `member`. When it is `self` and the
@@ -170,31 +383,64 @@ impl<'a> Checker<'a> {
     /// Records which instance methods' results the checker proves: those
     /// of the classes whose instances no method can observe unassigned.
     pub(super) fn finish_construction(&mut self) {
-        let mut unproven: HashSet<NsId> = (0..self.program.namespaces.len() as NsId)
-            .filter(|&ns| !self.initializes(ns))
-            .collect();
-        let reads = self.method_reads();
-        for site in std::mem::take(&mut self.construction.sites) {
-            self.steps += site.unassigned.len() as u64;
-            let observed: Vec<String> = match &site.kind {
-                SiteKind::Read(name) => site
-                    .unassigned
-                    .iter()
-                    .filter(|ivar| *ivar == name)
-                    .cloned()
-                    .collect(),
-                SiteKind::Call(callee) => match reads.get(callee) {
-                    Some(Some(read)) => site
-                        .unassigned
-                        .iter()
-                        .filter(|ivar| read.contains(*ivar))
-                        .cloned()
-                        .collect(),
-                    Some(None) => site.unassigned.clone(),
-                    None => Vec::new(),
-                },
-                SiteKind::Escape => site.unassigned.clone(),
+        // The classes not proven, at most every namespace: held at that
+        // size, at which the set is made, so that the classes the sites
+        // add later fit without growing it, while the analysis runs.
+        let namespaces = self.program.namespaces.len();
+        let Some(set_held) = self.hold(super::meter::table::<NsId>(namespaces)) else {
+            return;
+        };
+        let mut unproven: HashSet<NsId> = HashSet::with_capacity(namespaces);
+        unproven.extend((0..namespaces as NsId).filter(|&ns| !self.initializes(ns)));
+        let (reads, reads_held) = self.method_reads();
+        let sites = std::mem::take(&mut self.construction.sites);
+        // Taken from the records, the sites are held while they are read,
+        // as the methods' reads are.
+        let Some(sites_held) = self.hold(super::meter::vec(sites.as_vec())) else {
+            self.release(reads_held + set_held);
+            return;
+        };
+        let taken = reads_held + sites_held + set_held;
+        for site in sites {
+            if self.over_budget() {
+                self.release(taken);
+                return;
+            }
+            // Each site costs what it looks at: its read variable, the
+            // shorter of its callee's reads and its unassigned variables,
+            // or all of those for `self` used as a value.
+            // The variables a call or `self` observes: those its callee
+            // reads, or all of them; the list of them is counted before it
+            // is made.
+            let listed = match &site.kind {
+                SiteKind::Read(_) => None,
+                SiteKind::Call(callee) => reads.get(callee).map(|read| (**read).as_ref()),
+                SiteKind::Escape => Some(None),
             };
+            if self.transient(listed.map_or(0, |read| site.unassigned.listing(read))) {
+                self.release(taken);
+                return;
+            }
+            let (observed, work) = match (&site.kind, listed) {
+                (SiteKind::Read(name), _) => {
+                    let found = site.unassigned.contains(name);
+                    (
+                        if found {
+                            vec![name.as_str()]
+                        } else {
+                            Vec::new()
+                        },
+                        1,
+                    )
+                }
+                (_, Some(Some(read))) => site.unassigned.read(read),
+                (_, Some(None)) => (site.unassigned.names(), site.unassigned.len()),
+                (_, None) => (Vec::new(), 1),
+            };
+            if self.meter.charge(work as u64) {
+                self.release(taken);
+                return;
+            }
             if !observed.is_empty() {
                 unproven.insert(site.class);
                 self.unassigned_read(&site, &observed);
@@ -202,39 +448,46 @@ impl<'a> Checker<'a> {
         }
         for decl in &self.program.fns {
             if let (Some(def), Some(owner), true) = (decl.def, decl.owner, decl.instance) {
-                if !unproven.contains(&owner) {
-                    self.facts.record_result(def);
+                if !unproven.contains(&owner) && !self.facts.record_result(self.meter.tables(), def)
+                {
+                    break;
                 }
             }
         }
+        self.release(taken);
     }
 
     /// Reports a read of variables `ivars` of an instance being built
     /// before they are assigned, which reads `nil` whatever their types.
-    fn unassigned_read(&mut self, site: &Site, ivars: &[String]) {
-        let names = ivars
-            .iter()
-            .map(|ivar| format!("@{ivar}"))
-            .collect::<Vec<_>>()
-            .join(", ");
+    fn unassigned_read(&mut self, site: &Site, ivars: &[&str]) {
+        let (names, _) = super::listed(&self.meter, ivars, |out, ivar| {
+            out.push('@');
+            out.push_str(ivar);
+        });
+        if self.halted() {
+            return;
+        }
         let (they, them, are, reads) = if ivars.len() == 1 {
             ("it", "it", "is", "reads")
         } else {
             ("they", "them", "are", "read")
         };
         let message = match &site.kind {
-            SiteKind::Read(_) => format!(
+            SiteKind::Read(_) => text!(
+                self,
                 "{names} {are} read before `initialize` assigns {them}, and {they} {reads} as nil; assign {them} first or give {them} a default in the class body"
             ),
             SiteKind::Call(callee) => {
                 let method = self.program.fns[*callee]
                     .def
-                    .map_or_else(String::new, |def| def.name.to_string());
-                format!(
+                    .map_or("", |def| def.name.as_str());
+                text!(
+                    self,
                     "`{method}` reads {names} before `initialize` assigns {them}, and {they} {reads} as nil; assign {them} before this call or give {them} a default in the class body"
                 )
             }
-            SiteKind::Escape => format!(
+            SiteKind::Escape => text!(
+                self,
                 "`self` is used before `initialize` assigns {names}, and {they} {reads} as nil; assign {them} first or give {them} a default in the class body"
             ),
         };
@@ -256,52 +509,271 @@ impl<'a> Checker<'a> {
         if namespace.methods.contains_key("initialize") {
             return true;
         }
-        let ivars: Vec<(bool, Ty)> = namespace
+        // Read in place rather than copied.
+        let types = &mut self.types;
+        namespace
             .ivars
             .values()
-            .map(|ivar| (ivar.default, ivar.ty))
-            .collect();
-        ivars
-            .into_iter()
-            .all(|(default, ty)| default || self.types.assignable(Ty::NIL, ty))
+            .all(|ivar| ivar.default || types.assignable(Ty::NIL, ivar.ty))
     }
 
     /// The instance variables each method reads, directly or through the
     /// methods it calls on `self`; `None` when `self` escapes, so it may
     /// read any.
-    fn method_reads(&mut self) -> HashMap<FnId, Option<BTreeSet<String>>> {
-        let mut reads: HashMap<FnId, Option<BTreeSet<String>>> = self
-            .construction
-            .methods
-            .iter()
-            .map(|(&id, uses)| (id, (!uses.escapes).then(|| uses.reads.clone())))
-            .collect();
-        let mut changed = true;
-        while changed {
-            changed = false;
-            for (id, uses) in &self.construction.methods {
-                for callee in &uses.calls {
-                    self.steps += 1;
-                    if callee == id {
+    ///
+    /// Methods that call each other in a cycle read the same variables, so
+    /// each cycle is found once, and each is done after those it calls,
+    /// adding what they read once per call rather than again on every pass
+    /// until nothing changes. Each call, and each variable a method or a
+    /// call adds, is a step, as is each method and call the search for
+    /// cycles visits. Returns the reads with the scratch that stays held
+    /// for them, for the caller to release; a check the budget stops finds
+    /// none.
+    fn method_reads(&mut self) -> (Reads, usize) {
+        // The graph's lists and index admit their actual growth before
+        // allocating, including the minimum capacity of each short list.
+        let methods = self.construction.methods.len();
+        let mut ids = ScratchVec::new(&self.meter);
+        for &id in self.construction.methods.keys() {
+            if ids.push(id).is_err() {
+                return (HashMap::new(), 0);
+            }
+        }
+        if super::counted::sort_unstable_by(&self.meter, &mut ids, Ord::cmp).is_err() {
+            return (HashMap::new(), 0);
+        }
+        let mut place = ScratchMap::new(&self.meter);
+        for (at, &id) in ids.iter().enumerate() {
+            if place.insert(id, at).is_err() {
+                return (HashMap::new(), 0);
+            }
+        }
+        let mut calls = ScratchVec::new(&self.meter);
+        for id in ids.iter() {
+            let mut row = ScratchVec::new(&self.meter);
+            for callee in self.construction.methods[id].calls.iter() {
+                let Some(&at) = place.get(callee) else {
+                    continue;
+                };
+                if row.push(at).is_err() {
+                    return (HashMap::new(), 0);
+                }
+            }
+            if calls.push(row).is_err() {
+                return (HashMap::new(), 0);
+            }
+        }
+        // The counted graph stays while its cycles are found and their
+        // reads gathered, with what that builds counted before it is: the
+        // search's scratch, and at most a cycle for each method, each with
+        // its list of methods and its shared reads, and the reads by method.
+        // A cycle's reads themselves are counted as they are kept.
+        let reads = std::mem::size_of::<Rc<Option<BTreeSet<String>>>>() + RC_COUNTS;
+        let Some(held) = self.hold(
+            methods * (SEARCH_SCRATCH + CYCLE + reads)
+                + super::meter::table::<(FnId, Rc<Option<BTreeSet<String>>>)>(methods),
+        ) else {
+            return (HashMap::new(), 0);
+        };
+        let Some((cycles, cycle_of)) = cycles(&calls, &self.meter) else {
+            self.release(held);
+            return (HashMap::new(), 0);
+        };
+        let mut found: Vec<Rc<Option<BTreeSet<String>>>> = Vec::with_capacity(cycles.len());
+        for (cycle, members) in cycles.iter().enumerate() {
+            // The reads it gathers are counted as each cycle's are kept.
+            if self.over_budget() {
+                self.release(held);
+                return (HashMap::new(), 0);
+            }
+            let mut escapes = false;
+            let mut read = CountedBTreeSet::new();
+            for &member in members {
+                let uses = &self.construction.methods[&ids[member]];
+                if self
+                    .meter
+                    .charge(uses.calls.len() as u64 + uses.reads.len() as u64)
+                {
+                    self.release(held);
+                    return (HashMap::new(), 0);
+                }
+                escapes |= uses.escapes;
+                let tables = self.meter.tables();
+                if !escapes && gather(&mut read, uses.reads.iter(), tables).is_err() {
+                    self.release(held);
+                    return (HashMap::new(), 0);
+                }
+                for &callee in calls[member].iter() {
+                    let other = cycle_of[callee];
+                    if other == cycle {
                         continue;
                     }
-                    let callee_reads = reads.get(callee).cloned().unwrap_or(Some(BTreeSet::new()));
-                    let caller = reads.get_mut(id).unwrap();
-                    match (caller.as_mut(), callee_reads) {
-                        (None, _) => {}
-                        (Some(_), None) => {
-                            *caller = None;
-                            changed = true;
-                        }
-                        (Some(caller), Some(callee_reads)) => {
-                            for ivar in callee_reads {
-                                changed |= caller.insert(ivar);
+                    match &*found[other] {
+                        None => escapes = true,
+                        Some(called) => {
+                            if self.meter.charge(called.len() as u64)
+                                || (!escapes && gather(&mut read, called.iter(), tables).is_err())
+                            {
+                                self.release(held);
+                                return (HashMap::new(), 0);
                             }
                         }
                     }
                 }
             }
+            let read = (!escapes).then(|| read.into_set());
+            self.construction.held += read.heap() + std::mem::size_of::<Option<BTreeSet<String>>>();
+            found.push(Rc::new(read));
         }
-        reads
+        let reads: Reads = ids
+            .iter()
+            .enumerate()
+            .map(|(at, &id)| (id, Rc::clone(&found[cycle_of[at]])))
+            .collect();
+        // The graph, the search's scratch and the cycles go here; only the
+        // reads by method stay, held while the sites are read.
+        drop((place, calls, cycles, cycle_of, found));
+        self.release(held);
+        let Some(kept) = self.hold(super::meter::map(&reads)) else {
+            return (HashMap::new(), 0);
+        };
+        (reads, kept)
     }
+}
+
+/// Adds `names` to the reads `read` gathers, each new one's copy counted
+/// to `tables`, with its room in the set, before it is kept.
+fn gather<'n>(
+    read: &mut CountedBTreeSet<String>,
+    names: impl Iterator<Item = &'n String>,
+    tables: super::counted::Ledger<'_>,
+) -> Result<(), super::counted::Refused> {
+    for name in names {
+        if !read.contains(name) {
+            let mut kept = tables.keep(name.len())?;
+            read.insert_kept(tables, &mut kept, name.clone())?;
+        }
+    }
+    Ok(())
+}
+
+/// What `function`, the function being checked, does with `self`, with
+/// its entry counted to `tables` before it is made; `None` outside one, or
+/// when the budget refuses it, which stops the check.
+fn uses<'c>(
+    construction: &'c mut Construction,
+    function: Option<FnId>,
+    tables: super::counted::Ledger<'_>,
+) -> Option<&'c mut Uses> {
+    construction
+        .methods
+        .get_or_insert_with(tables, function?, Uses::default)
+        .ok()
+}
+
+/// What each instance method reads of `self`, shared by the methods of a
+/// cycle; `None` for those that let it escape.
+type Reads = HashMap<FnId, Rc<Option<BTreeSet<String>>>>;
+
+/// What finding the cycles of a graph holds for each of its nodes at most:
+/// the search's order, low link, stack flag and cycle, its stack of nodes
+/// and of frames, each of which can double as it grows.
+const SEARCH_SCRATCH: usize = 3 * std::mem::size_of::<usize>()
+    + std::mem::size_of::<bool>()
+    + 2 * std::mem::size_of::<usize>()
+    + 2 * std::mem::size_of::<(usize, usize)>();
+
+/// What a cycle of one node holds at most: its place in the list of
+/// cycles, which can double as it grows, and its list of nodes, which
+/// starts with room for four.
+const CYCLE: usize = 2 * std::mem::size_of::<Vec<usize>>() + 4 * std::mem::size_of::<usize>();
+
+/// The counts beside an [`Rc`]'s value.
+const RC_COUNTS: usize = 2 * std::mem::size_of::<usize>();
+
+/// The cycles of the directed graph whose node `n` leads to each node in
+/// `edges[n]`, each a list of its nodes, in an order where every cycle
+/// comes after those its nodes lead to; with the cycle of each node.
+/// Tarjan's algorithm, keeping its place on the heap rather than the stack.
+/// Each node and edge it visits is a step of `meter`, which it asks every
+/// [`PACE`](super::walk::PACE) of them whether the check has stopped, and
+/// gives up, with `None`, if it has.
+fn cycles(
+    edges: &[impl std::ops::Deref<Target = [usize]>],
+    meter: &super::meter::Meter,
+) -> Option<(Vec<Vec<usize>>, Vec<usize>)> {
+    use super::walk::PACE;
+    const UNSEEN: usize = usize::MAX;
+    let count = edges.len();
+    let mut order = vec![UNSEEN; count];
+    let mut low = vec![0; count];
+    let mut on_stack = vec![false; count];
+    let mut stack = Vec::new();
+    let mut cycles: Vec<Vec<usize>> = Vec::new();
+    let mut cycle_of = vec![UNSEEN; count];
+    let mut next = 0;
+    let mut visited = 0;
+    let pace = |visited: &mut u64| {
+        *visited += 1;
+        if *visited == PACE {
+            *visited = 0;
+            meter.pace(PACE, 0)
+        } else {
+            false
+        }
+    };
+    for root in 0..count {
+        if pace(&mut visited) {
+            return None;
+        }
+        if order[root] != UNSEEN {
+            continue;
+        }
+        // Each frame is a node and how many of its edges it has followed.
+        let mut frames = vec![(root, 0)];
+        order[root] = next;
+        low[root] = next;
+        next += 1;
+        stack.push(root);
+        on_stack[root] = true;
+        while let Some(&mut (node, ref mut followed)) = frames.last_mut() {
+            if let Some(&to) = edges[node].get(*followed) {
+                *followed += 1;
+                if pace(&mut visited) {
+                    return None;
+                }
+                if order[to] == UNSEEN {
+                    order[to] = next;
+                    low[to] = next;
+                    next += 1;
+                    stack.push(to);
+                    on_stack[to] = true;
+                    frames.push((to, 0));
+                } else if on_stack[to] {
+                    low[node] = low[node].min(order[to]);
+                }
+                continue;
+            }
+            frames.pop();
+            if let Some(&(parent, _)) = frames.last() {
+                low[parent] = low[parent].min(low[node]);
+            }
+            if low[node] == order[node] {
+                let mut members = Vec::new();
+                while let Some(member) = stack.pop() {
+                    on_stack[member] = false;
+                    cycle_of[member] = cycles.len();
+                    members.push(member);
+                    if member == node {
+                        break;
+                    }
+                }
+                cycles.push(members);
+            }
+        }
+    }
+    if meter.charge(visited) {
+        return None;
+    }
+    Some((cycles, cycle_of))
 }

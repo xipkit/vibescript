@@ -3,9 +3,12 @@
 
 use super::{
     Checker, Input, Modules,
-    program::{Enum, FnDecl, Namespace, NsId},
+    counted::{CountedMap, CountedSet, CountedVec, ScratchVec, lossy},
+    meter::Heap,
+    program::{Enum, FnDecl, FnId, Namespace, NsId},
     sigs::{BlockSig, Param, Sig},
     ty::{Field, Kind, Ty, Types},
+    walk::{Item, Next, Walk},
 };
 use crate::{
     capability::Registered,
@@ -17,11 +20,14 @@ use std::{collections::HashMap, fmt, rc::Rc, sync::Arc};
 /// Files `require` may nest before the checker stops following them.
 const DEPTH: usize = 16;
 
+/// Why a file's own require of itself, while it loads, does not load.
+const CIRCULAR: &str = "circular require";
+
 /// The functions and enums a required file exports.
 pub(crate) struct Exports {
     pub path: String,
-    pub functions: HashMap<String, Rc<Sig>>,
-    pub enums: HashMap<String, u32>,
+    pub functions: CountedMap<String, Rc<Sig>>,
+    pub enums: CountedMap<String, u32>,
 }
 
 /// What a required file exports, typed by its declarations in the file's
@@ -31,7 +37,7 @@ pub(crate) struct Exported {
     /// Its public top-level functions.
     functions: Vec<(String, Sig)>,
     /// Its enums: name, members and each member's symbol.
-    enums: Vec<Enum>,
+    enums: Vec<Arc<Enum>>,
     /// Its classes, which are not exported by name, but whose instances
     /// are values its functions may return.
     classes: Vec<ExportedClass>,
@@ -44,6 +50,47 @@ struct ExportedClass {
     name: String,
     /// Its instance methods, by name, with their visibility.
     methods: Vec<(String, Sig, Visibility)>,
+}
+
+impl Exported {
+    /// What importing them lists beside them: the ids its enums and
+    /// classes take in the importer, at the lengths they take.
+    fn imports(&self) -> usize {
+        self.enums.len() * std::mem::size_of::<u32>()
+            + super::meter::table::<(NsId, NsId)>(self.classes.len())
+    }
+
+    /// What the file's type table, which the exports took from its check,
+    /// holds.
+    pub(super) fn types_bytes(&self) -> usize {
+        self.types.bytes()
+    }
+
+    /// What the file's exports hold while an importer reads them.
+    pub(super) fn bytes(&self) -> usize {
+        let classes: usize = self
+            .classes
+            .iter()
+            .map(|class| {
+                std::mem::size_of::<ExportedClass>()
+                    + class.name.heap()
+                    + class
+                        .methods
+                        .iter()
+                        .map(|(name, sig, _)| {
+                            std::mem::size_of::<(String, Sig, Visibility)>()
+                                + name.heap()
+                                + sig.heap()
+                        })
+                        .sum::<usize>()
+            })
+            .sum();
+        self.types.bytes()
+            + self.types.names.heap()
+            + self.functions.heap()
+            + self.enums.heap()
+            + classes
+    }
 }
 
 impl fmt::Debug for Exported {
@@ -80,20 +127,77 @@ struct Imports {
     classes: HashMap<NsId, NsId>,
 }
 
+/// The importer already holds the origin's shared name, and transfers that hold.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct SharedOrigin(crate::loading::Origin);
+
+impl std::borrow::Borrow<crate::loading::Origin> for SharedOrigin {
+    fn borrow(&self) -> &crate::loading::Origin {
+        &self.0
+    }
+}
+
+impl super::counted::Owned for SharedOrigin {
+    fn owned(&self) -> usize {
+        0
+    }
+}
+
 /// What the program requires.
 pub(crate) struct Required<'a> {
     resolve: Option<&'a Modules<'a>>,
     origin: Option<&'a crate::loading::Origin>,
-    hosts: Vec<(&'a String, &'a Registered)>,
+    hosts: &'a [(&'a String, &'a Registered)],
     declared: &'a crate::declared::Declarations,
     depth: usize,
-    pub loaded: Vec<Exports>,
-    by_path: HashMap<String, Result<u32, String>>,
-    by_origin: HashMap<crate::loading::Origin, u32>,
+    pub loaded: CountedVec<Exports>,
+    by_path: CountedMap<String, Result<u32, String>>,
+    by_origin: CountedMap<SharedOrigin, u32>,
     /// Aliases `require(..., as:)` binds, to the exports they name.
-    pub aliases: HashMap<String, u32>,
+    pub aliases: CountedMap<String, u32>,
     /// Exported functions, which `require` also publishes by name.
-    pub published: HashMap<String, Rc<Sig>>,
+    pub published: CountedMap<String, Rc<Sig>>,
+    /// The sources and file names that the diagnostics of required files
+    /// keep, by address, so each is counted once however many keep it.
+    retained: CountedSet<usize>,
+    /// What they hold.
+    pub kept: usize,
+}
+
+/// Its path; its tables are counted as they grow.
+impl super::counted::Owned for Exports {
+    fn owned(&self) -> usize {
+        self.path.capacity()
+    }
+}
+
+impl Heap for Exports {
+    fn heap(&self) -> usize {
+        self.path.heap() + self.functions.heap() + self.enums.heap()
+    }
+}
+
+impl Heap for Required<'_> {
+    fn heap(&self) -> usize {
+        use super::meter::map;
+        let origins: usize = self
+            .by_origin
+            .keys()
+            .filter(|origin| !self.retained.contains(&(origin.0.name().as_ptr() as usize)))
+            .map(|origin| origin.0.name().len())
+            .sum();
+        // The published signatures are the loaded modules' own.
+        let published: usize = self.published.keys().map(Heap::heap).sum();
+        self.loaded.heap()
+            // The paths and reasons it keeps are counted as they are kept.
+            + map(&self.by_path)
+            + map(&self.by_origin)
+            + origins
+            + self.aliases.heap()
+            + map(&self.published)
+            + published
+            + super::meter::set(&self.retained)
+    }
 }
 
 impl<'a> Required<'a> {
@@ -101,14 +205,16 @@ impl<'a> Required<'a> {
         Self {
             resolve: input.modules,
             origin: input.origin,
-            hosts: input.hosts.clone(),
+            hosts: input.hosts,
             declared: input.declared,
             depth,
-            loaded: Vec::new(),
-            by_path: HashMap::new(),
-            by_origin: HashMap::new(),
-            aliases: HashMap::new(),
-            published: HashMap::new(),
+            loaded: CountedVec::new(),
+            by_path: CountedMap::new(),
+            by_origin: CountedMap::new(),
+            aliases: CountedMap::new(),
+            published: CountedMap::new(),
+            retained: CountedSet::new(),
+            kept: 0,
         }
     }
 
@@ -129,52 +235,220 @@ impl<'a> Checker<'a> {
         if self.modules.resolve.is_none() {
             return;
         }
-        let mut requests = Vec::new();
-        let mut bodies: Vec<&[Stmt]> = parsed.functions.iter().map(|f| &f.body[..]).collect();
-        let mut pending: Vec<&crate::syntax::modules::Module> = parsed.modules.iter().collect();
-        while let Some(module) = pending.pop() {
-            bodies.push(&module.body);
-            bodies.extend(module.methods.iter().map(|(def, _)| &def.body[..]));
-            bodies.extend(module.instance_methods.iter().map(|(def, _)| &def.body[..]));
-            pending.extend(module.modules.iter().chain(&module.inner));
-        }
-        for body in bodies {
-            requires(body, &mut requests);
-        }
-        requests.sort_by_key(|request| request.2);
-        for (path, alias, offset) in requests {
-            let id = self.load_module(&path);
-            if let Err(reason) = &id {
-                self.report(Diagnostic::error(
-                    Code::UNDEFINED_NAME,
-                    self.spans.token(offset),
-                    format!("cannot statically resolve required module {path:?}: {reason}"),
-                ));
+        // The requests found, in a list counted, with the paths and aliases
+        // they copy, while it lives.
+        let mut requests = ScratchVec::new(&self.meter);
+        // A walk the budget stops visits no more declarations.
+        let mut walk = Walk::new(&self.meter);
+        for function in parsed.functions.iter() {
+            if self.halted() {
+                return;
             }
-            if let (Ok(id), Some(alias)) = (id, alias) {
-                self.modules
-                    .aliases
-                    .entry(alias.trim().to_owned())
-                    .or_insert(id);
+            requires(&mut walk, &function.body, &mut requests);
+        }
+        // What is left of the namespaces at each level of nesting, whose
+        // bodies and methods are walked in turn, in a list counted, with
+        // its growth admitted first, while it lives: a namespace's nested
+        // namespaces, above its inner ones, so they are walked first.
+        let mut levels = ScratchVec::new(&self.meter);
+        if levels.push(parsed.modules.iter()).is_err() {
+            return;
+        }
+        while let Some(level) = levels.last_mut() {
+            if self.halted() {
+                return;
+            }
+            let Some(module) = level.next() else {
+                levels.pop();
+                continue;
+            };
+            requires(&mut walk, &module.body, &mut requests);
+            for (def, _) in module.methods.iter().chain(module.instance_methods.iter()) {
+                if self.halted() {
+                    return;
+                }
+                requires(&mut walk, &def.body, &mut requests);
+            }
+            if levels.push(module.inner.iter()).is_err()
+                || levels.push(module.modules.iter()).is_err()
+            {
+                return;
+            }
+        }
+        drop(levels);
+        drop(walk);
+        if self.halted()
+            || super::counted::sort_unstable_by(&self.meter, &mut requests, |a, b| a.2.cmp(&b.2))
+                .is_err()
+        {
+            return;
+        }
+        for &(path, alias, offset) in requests.iter() {
+            if self.over_budget() {
+                return;
+            }
+            // Only the request being loaded needs owned lossy spellings.
+            let mut names = ScratchVec::new(&self.meter);
+            if names.push(lossy(path, &self.meter)).is_err() {
+                return;
+            }
+            if let Some(alias) = alias {
+                if names.push(lossy(alias, &self.meter)).is_err() {
+                    return;
+                }
+            }
+            let path = &names[0];
+            let id = self.load_module(path);
+            if self.halted() {
+                return;
+            }
+            let id = match id {
+                Ok(id) => id,
+                Err(reason) => {
+                    let mut reasons = ScratchVec::new(&self.meter);
+                    if reasons.push(reason).is_err() {
+                        return;
+                    }
+                    let reason = &reasons[0];
+                    self.report(Diagnostic::error(
+                        Code::UNDEFINED_NAME,
+                        self.spans.token(offset),
+                        text!(
+                            self,
+                            "cannot statically resolve required module {path:?}: {reason}"
+                        ),
+                    ));
+                    continue;
+                }
+            };
+            if let Some(alias) = names.get(1) {
+                let alias = alias.trim();
+                if !self.modules.aliases.contains_key(alias)
+                    && self
+                        .modules
+                        .aliases
+                        .insert_made(
+                            self.meter.declarations(),
+                            alias.len(),
+                            || alias.to_owned(),
+                            id,
+                        )
+                        .is_err()
+                {
+                    return;
+                }
             }
         }
     }
 
+    /// A context for work the check does through the compiler, such as
+    /// finding and parsing a required file, which what the check leaves of
+    /// its budget bounds, beside the `held` bytes: the steps, the memory, the
+    /// deadline and the cancellation.
+    fn context(&self, held: usize) -> crate::CallContext {
+        let budget = self.meter.budget();
+        let steps = self.total_steps();
+        crate::CallContext::new(crate::CallOptions {
+            limits: crate::Limits {
+                steps: budget.steps.map(|left| left.saturating_sub(steps)),
+                memory_bytes: budget.memory.map(|left| left.saturating_sub(held)),
+                ..crate::Limits::default()
+            },
+            cancellation: budget.cancellation.clone().unwrap_or_default(),
+            deadline: budget.deadline,
+            ..crate::CallOptions::default()
+        })
+    }
+
+    /// Counts the source and the file name `diagnostic` keeps, each once
+    /// however many diagnostics keep it. Returns whether the check has
+    /// stopped.
+    #[must_use = "the budget may have stopped the check, which must then do no more work"]
+    fn retain(&mut self, diagnostic: &Diagnostic, pending: &mut usize) -> bool {
+        let mut bytes = 0;
+        let declarations = self.meter.declarations();
+        let retained = &mut self.modules.retained;
+        for (address, length) in [
+            diagnostic
+                .source
+                .as_ref()
+                .map(|source| (Arc::as_ptr(source).cast::<u8>() as usize, source.len())),
+            diagnostic
+                .file
+                .as_ref()
+                .map(|file| (Arc::as_ptr(file).cast::<u8>() as usize, file.len())),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            match retained.insert(declarations, address) {
+                Ok(true) => bytes += length,
+                Ok(false) => (),
+                Err(_) => return true,
+            }
+        }
+        self.release(bytes);
+        *pending -= bytes;
+        self.modules.kept += bytes;
+        self.grown += bytes;
+        self.held();
+        self.halted()
+    }
+
     fn load_module(&mut self, path: &str) -> Result<u32, String> {
         if let Some(known) = self.modules.by_path.get(path) {
-            return known.clone();
+            return match known {
+                Ok(id) => Ok(*id),
+                Err(reason) => Err(self.copy(reason)),
+            };
+        }
+        // The table keeps a copy of the path, and of the reason a file did
+        // not load, each counted, with the path's room in the table, as it
+        // is kept, and by the measures after.
+        let circular: Result<u32, String> = Err(CIRCULAR.into());
+        let bytes = path.len() + super::counted::Owned::owned(&circular);
+        let Ok(mut kept) = self.meter.tables().keep(bytes) else {
+            return Err("the check ran out of its budget".into());
+        };
+        if self
+            .modules
+            .by_path
+            .reserve(self.meter.declarations(), 1)
+            .is_err()
+        {
+            return Err("the check ran out of its budget".into());
         }
         self.modules
             .by_path
-            .insert(path.to_owned(), Err("circular require".into()));
+            .insert_kept(&mut kept, path.to_owned(), circular);
+        self.grown += bytes;
         let result = self.load_module_uncached(path);
-        self.modules.by_path.insert(path.to_owned(), result.clone());
+        let Some(result_held) = self.hold(result.as_ref().err().map_or(0, String::capacity)) else {
+            return Err("the check ran out of its budget".into());
+        };
+        if let Err(reason) = &result {
+            if self.grow(reason.len()) {
+                self.release(result_held);
+                return Err("the check ran out of its budget".into());
+            }
+        }
+        // The placeholder gives back what it owned once the result takes
+        // its place.
+        if let Some(entry) = self.modules.by_path.get_mut(path) {
+            let placeholder = std::mem::replace(entry, result.clone());
+            self.grown = self
+                .grown
+                .saturating_sub(super::counted::Owned::owned(&placeholder));
+        }
+        self.release(result_held);
+        self.held();
         result
     }
 
     fn load_module_uncached(&mut self, path: &str) -> Result<u32, String> {
         if self.modules.depth >= DEPTH {
-            return Err(format!(
+            return Err(text!(
+                self,
                 "require nesting exceeds {DEPTH} files (possible circular require)"
             ));
         }
@@ -182,256 +456,725 @@ impl<'a> Checker<'a> {
             .modules
             .resolve
             .ok_or("no module resolver is configured")?;
-        let (source, origin) = resolve(path, self.modules.origin).map_err(|error| error.message)?;
+        // Finding the file and reading it take work and memory before they
+        // are counted, so they charge a context of their own, which what
+        // the check leaves of its budget bounds, as the file's parse does,
+        // and running out stops the check.
+        let held = self.held();
+        let mut context = self.context(held);
+        let resolved = resolve(path, self.modules.origin, &mut context);
+        let resolving = context.stats();
+        let charged = self.meter.charge(resolving.steps);
+        self.observed(held + resolving.peak_memory_bytes);
+        if charged {
+            self.stopped = true;
+            return Err("the check ran out of its budget".into());
+        }
+        let (source, origin) = match resolved {
+            Ok(resolved) => resolved,
+            Err(error) if context.exhausted() => {
+                self.stopped = true;
+                self.meter.stop();
+                return Err(text!(self, "{error}"));
+            }
+            Err(error) => return Err(error.message),
+        };
         if let Some(&id) = self.modules.by_origin.get(&origin) {
             return Ok(id);
         }
         let filename = origin.filename();
-        let (parsed, tokens) = crate::syntax::parse_with_tokens(&source, &()).map_err(|error| {
-            let error = crate::source::parse_error(
-                &source,
-                Some(&filename),
-                crate::syntax::canonical_syntax(&source, &(), error),
-                &(),
-            );
-            error.to_string()
-        })?;
+        // The file's source and syntax, and its origin's copy of its name,
+        // count toward this check's memory until it is imported. Its parse
+        // charges a context of its own, as a compilation does, which the
+        // steps and memory left bound, and its steps are this check's.
+        let read = source.len() + origin.name().len();
+        let held = self.held() + read;
+        let mut context = self.context(held);
+        let parse = crate::syntax::parse_with_tokens(
+            &source,
+            &crate::compilation::Meter(std::cell::RefCell::new(&mut context)),
+        );
+        let parsing = context.stats();
+        let charged = self.meter.charge(parsing.steps);
+        self.observed(held + parsing.peak_memory_bytes);
+        if charged {
+            self.stopped = true;
+            return Err("the check ran out of its budget".into());
+        }
+        let (parsed, tokens, _tokens_held) = match parse {
+            Ok(parsed) => parsed,
+            Err(error)
+                if matches!(
+                    error.kind,
+                    crate::ErrorKind::Steps
+                        | crate::ErrorKind::Memory
+                        | crate::ErrorKind::Deadline
+                        | crate::ErrorKind::Cancelled
+                ) =>
+            {
+                self.stopped = true;
+                self.meter.stop();
+                return Err(text!(self, "{error}"));
+            }
+            Err(error) => {
+                // The error is recovered and located within what the parse
+                // left of the budget, in the parse's context, as a host's
+                // syntax error is, and its steps are this check's too.
+                let error = {
+                    let work = crate::compilation::Meter(std::cell::RefCell::new(&mut context));
+                    let error = crate::syntax::host_syntax(&source, &work, error);
+                    crate::source::parse_error(&source, Some(&filename), error, &work)
+                };
+                let reporting = context.stats();
+                let charged = self
+                    .meter
+                    .charge(reporting.steps.saturating_sub(parsing.steps));
+                self.observed(held + reporting.peak_memory_bytes);
+                if charged || context.exhausted() {
+                    self.stopped = true;
+                    self.meter.stop();
+                    return Err("the check ran out of its budget".into());
+                }
+                return Err(text!(self, "{error}"));
+            }
+        };
+        let Some(mut tree) = self.hold(read + parsing.retained_memory_bytes) else {
+            self.stopped = true;
+            return Err("the check ran out of its budget".into());
+        };
+        // The file's check may spend what this one leaves.
+        let steps = self.total_steps();
+        let mut budget = self.meter.budget().less(steps);
+        let held = self.held();
+        budget.memory = budget.memory.map(|left| left.saturating_sub(held));
         let input = Input {
             source: &source,
             parsed: &parsed,
             tokens: &tokens,
-            hosts: self.modules.hosts.clone(),
+            hosts: self.modules.hosts,
             declared: self.modules.declared,
             file: true,
             origin: Some(&origin),
             modules: self.modules.resolve,
+            budget,
+            observe: None,
+            annotate: false,
         };
         let checked = super::check_nested(&input, self.modules.depth + 1);
-        self.steps += checked.steps;
-        let source: Arc<str> = source.into();
-        for mut diagnostic in checked.diagnostics.into_iter().filter(Diagnostic::is_error) {
-            if diagnostic.source.is_none() {
-                diagnostic.source = Some(source.clone());
-            }
-            let file = diagnostic
-                .file
-                .clone()
-                .or_else(|| Some(Arc::clone(&filename)));
-            self.report(diagnostic.in_file(file));
+        let charged = self.meter.charge(checked.steps);
+        let (peak, stopped) = (checked.peak(), checked.stopped);
+        // This check keeps the file's diagnostics and imports its exports;
+        // the rest of what the file's check found, its facts and its
+        // receivers, goes before this one measures again.
+        let (diagnostics, exported, retained) = checked.into_kept();
+        // What the file's check held at most beside this one's tables, its
+        // surface pass's with it.
+        self.observed(held + peak);
+        // The file's steps are checked against the budget, and its memory
+        // too, before its exports are imported.
+        if stopped || charged || self.over_budget() {
+            // The file's check stopped at the budget this one shares, or
+            // its steps took this one past it, so this one stops too,
+            // without its findings or exports.
+            self.stopped = true;
+            self.meter.stop();
+            self.release(tree);
+            return Err("the check ran out of its budget".into());
         }
-        let (functions, enums) = match &checked.exported {
-            Some(exported) => self.import(exported),
-            None => (HashMap::new(), HashMap::new()),
+        let Some(mut pending) = self.hold(retained) else {
+            self.release(tree);
+            return Err("the check ran out of its budget".into());
         };
+        // The diagnostics, until each is kept, and the exports, with what
+        // importing them builds, are held from here; a check that holding
+        // them stops keeps and imports none of them.
+        let vector = super::meter::vec(&diagnostics);
+        let found = vector
+            + diagnostics
+                .iter()
+                .map(super::meter::Heap::heap)
+                .sum::<usize>()
+            + exported
+                .as_ref()
+                .map_or(0, |exported| exported.bytes() + exported.imports());
+        let Some(mut found) = self.hold(found) else {
+            self.release(pending);
+            self.release(tree);
+            return Err("the check ran out of its budget".into());
+        };
+        // The copy of the source the file's diagnostics share is made only
+        // for a first diagnostic that needs it, and counted before it is,
+        // while the source it copies is held as well.
+        let mut shared: Option<Arc<str>> = None;
+        for mut diagnostic in diagnostics {
+            if self.meter.charge(1) {
+                self.release(found + pending + tree);
+                return Err("the check ran out of its budget".into());
+            }
+            let payload = diagnostic.heap();
+            if !diagnostic.is_error() {
+                self.release(payload);
+                found -= payload;
+                // The last discarded reference gives back its inherited source.
+                for (address, length, references) in [
+                    diagnostic
+                        .source
+                        .as_ref()
+                        .map(|s| (s.as_ptr() as usize, s.len(), Arc::strong_count(s))),
+                    diagnostic
+                        .file
+                        .as_ref()
+                        .map(|s| (s.as_ptr() as usize, s.len(), Arc::strong_count(s))),
+                ]
+                .into_iter()
+                .flatten()
+                {
+                    if references == 1 && !self.modules.retained.contains(&address) {
+                        self.release(length);
+                        pending -= length;
+                    }
+                }
+                continue;
+            }
+            if diagnostic.source.is_none() {
+                if shared.is_none() {
+                    let Some(bytes) = self.hold(source.len()) else {
+                        self.release(found + pending + tree);
+                        return Err("the check ran out of its budget".into());
+                    };
+                    pending += bytes;
+                    shared = Some(Arc::from(source.as_str()));
+                }
+                diagnostic.source = shared.clone();
+            }
+            if diagnostic.file.is_none() {
+                let address = filename.as_ptr() as usize;
+                if !self.modules.retained.contains(&address) {
+                    // The filename moves from the parse hold to the diagnostics.
+                    tree -= filename.len();
+                    pending += filename.len();
+                }
+                diagnostic.file = Some(Arc::clone(&filename));
+            }
+            if self.retain(&diagnostic, &mut pending) {
+                self.release(found + pending + tree);
+                return Err("the check ran out of its budget".into());
+            }
+            self.release(payload);
+            found -= payload;
+            self.held();
+            self.report(diagnostic);
+        }
+        self.release(vector + pending);
+        found -= vector;
+        self.held();
+        let (functions, enums) = match &exported {
+            Some(exported) => {
+                let imported = self.import(exported);
+                // A check that importing them stops publishes none of them.
+                if self.halted() {
+                    self.release(found);
+                    self.release(tree);
+                    return Err("the check ran out of its budget".into());
+                }
+                imported
+            }
+            None => (CountedMap::new(), CountedMap::new()),
+        };
+        let imports = exported.as_ref().map_or(0, |exported| exported.imports());
+        self.release(imports);
+        found -= imports;
+        self.held();
+        // Each function published by a new name, with its copy of its name
+        // and room for it, is counted as the table takes it; the file's
+        // exports and its origin, with their copies of their names and
+        // room for them in the tables, before they are kept.
         for (name, sig) in &functions {
-            self.modules
+            if self.meter.pace(1 + (name.len() / 64) as u64, 0) {
+                self.release(found + tree);
+                return Err("the check ran out of its budget".into());
+            }
+            if self.modules.published.contains_key(name) {
+                continue;
+            }
+            let declarations = self.meter.declarations();
+            if self
+                .modules
                 .published
-                .entry(name.clone())
-                .or_insert_with(|| sig.clone());
+                .insert_made(declarations, name.len(), || name.clone(), Rc::clone(sig))
+                .is_err()
+            {
+                self.release(found + tree);
+                return Err("the check ran out of its budget".into());
+            }
+        }
+        let declarations = self.meter.declarations();
+        let kept = declarations.keep(path.len());
+        let Ok(mut kept) = kept else {
+            self.release(found + tree);
+            return Err("the check ran out of its budget".into());
+        };
+        if self.modules.loaded.reserve(declarations, 1).is_err()
+            || self.modules.by_origin.reserve(declarations, 1).is_err()
+        {
+            self.release(found + tree);
+            return Err("the check ran out of its budget".into());
+        }
+        if !self
+            .modules
+            .retained
+            .contains(&(origin.name().as_ptr() as usize))
+        {
+            let bytes = origin.name().len();
+            self.release(bytes);
+            tree -= bytes;
+            self.held();
+            self.meter.declarations().kept(bytes);
         }
         let id = self.modules.loaded.len() as u32;
-        self.modules.loaded.push(Exports {
-            path: path.to_owned(),
-            functions,
-            enums,
-        });
-        self.modules.by_origin.insert(origin, id);
+        self.modules.loaded.push_kept(
+            &mut kept,
+            Exports {
+                path: path.to_owned(),
+                functions,
+                enums,
+            },
+        );
+        self.modules
+            .by_origin
+            .insert_within(SharedOrigin(origin), id);
+        drop(exported);
+        drop((parsed, tokens, _tokens_held, source, filename));
+        self.release(found + tree);
+        if self.declared() {
+            return Err("the check ran out of its budget".into());
+        }
         Ok(id)
     }
 
     /// What this check's file exports: its public functions, its enums and
     /// its classes, with its type table, which the check gives up.
-    pub(super) fn export(&mut self) -> Exported {
-        let mut functions: Vec<(String, Sig)> = self
-            .program
-            .functions
-            .iter()
-            .filter(|(_, id)| self.program.fns[**id].def.is_some_and(|def| !def.private))
-            .map(|(name, id)| ((*name).to_owned(), (*self.program.fns[*id].sig).clone()))
-            .collect();
-        functions.sort_by(|a, b| a.0.cmp(&b.0));
-        // The file's own enums come first; imported ones follow.
-        let enums = self.program.enums[..self.parsed.enums.len()].to_vec();
-        let mut classes = Vec::new();
-        for (ns, namespace) in self.program.namespaces.iter().enumerate() {
+    /// What [`Self::export`] copies beside the declarations it copies them
+    /// from: its public functions' names and signatures, the list of its
+    /// enums, and its classes' names and their methods' names and
+    /// signatures. The type table moves rather than being copied.
+    pub(super) fn export_bytes(&self) -> usize {
+        use std::mem::size_of;
+        let mut bytes = self.parsed.enums.len() * size_of::<Arc<Enum>>();
+        for (name, &id) in &self.program.functions {
+            if self.meter.charge(1) {
+                return 0;
+            }
+            if self.program.fns[id].def.is_some_and(|def| !def.private) {
+                let Some(sig) = sig_bytes(&self.program.fns[id].sig, &self.meter) else {
+                    return 0;
+                };
+                bytes += size_of::<(String, Sig)>() + name.len() + sig;
+            }
+        }
+        for namespace in self.program.namespaces.iter() {
+            if self.meter.charge(1) {
+                return 0;
+            }
             if namespace.module.is_none() || !namespace.is_class {
                 continue;
             }
-            let mut methods: Vec<(String, Sig, Visibility)> = namespace
+            bytes += size_of::<ExportedClass>() + namespace.name.len();
+            for (name, &id) in &namespace.methods {
+                if self.meter.charge(1) {
+                    return 0;
+                }
+                if name == "initialize" {
+                    continue;
+                }
+                let Some(sig) = sig_bytes(&self.program.fns[id].sig, &self.meter) else {
+                    return 0;
+                };
+                bytes += size_of::<(String, Sig, Visibility)>() + name.len() + sig;
+            }
+        }
+        bytes
+    }
+
+    /// `None` when a sort the budget refuses stops the check, which then
+    /// exports nothing.
+    pub(super) fn export(&mut self) -> Option<Exported> {
+        // Each list is made at the length it takes, which
+        // [`Self::export_bytes`] counted.
+        let program = &self.program;
+        let public = |id: FnId| program.fns[id].def.is_some_and(|def| !def.private);
+        let exported = program
+            .functions
+            .values()
+            .take_while(|_| !self.meter.charge(1))
+            .filter(|&&id| public(id))
+            .count();
+        if self.meter.stopped() {
+            return None;
+        }
+        let mut functions: Vec<(String, Sig)> = Vec::with_capacity(exported);
+        for (name, &id) in &program.functions {
+            if self.meter.pace(1 + (name.len() / 64) as u64, 0) {
+                return None;
+            }
+            if public(id) {
+                let sig = copy_sig(&program.fns[id].sig, &self.meter)?;
+                functions.push(((*name).to_owned(), sig));
+            }
+        }
+        super::counted::sort_unstable_by(&self.meter, &mut functions, |a, b| a.0.cmp(&b.0)).ok()?;
+        // The file's own enums come first; imported ones follow.
+        if self.meter.pace(self.parsed.enums.len() as u64, 0) {
+            return None;
+        }
+        let enums = program.enums[..self.parsed.enums.len()].to_vec();
+        let class = |namespace: &Namespace<'_>| namespace.module.is_some() && namespace.is_class;
+        let count = program
+            .namespaces
+            .iter()
+            .take_while(|_| !self.meter.charge(1))
+            .filter(|&namespace| class(namespace))
+            .count();
+        if self.meter.stopped() {
+            return None;
+        }
+        let mut classes = Vec::with_capacity(count);
+        for (ns, namespace) in program.namespaces.iter().enumerate() {
+            if self.meter.pace(1 + (namespace.name.len() / 64) as u64, 0) {
+                return None;
+            }
+            if !class(namespace) {
+                continue;
+            }
+            let exported = |name: &&String| name.as_str() != "initialize";
+            let count = namespace
                 .methods
-                .iter()
-                .filter(|(name, _)| name.as_str() != "initialize")
-                .map(|(name, &id)| {
-                    let decl = &self.program.fns[id];
-                    (name.clone(), (*decl.sig).clone(), decl.visibility)
-                })
-                .collect();
-            methods.sort_by(|a, b| a.0.cmp(&b.0));
+                .keys()
+                .take_while(|_| !self.meter.charge(1))
+                .filter(exported)
+                .count();
+            if self.meter.stopped() {
+                return None;
+            }
+            let mut methods: Vec<(String, Sig, Visibility)> = Vec::with_capacity(count);
+            for (name, &id) in &namespace.methods {
+                if self.meter.pace(1 + (name.len() / 64) as u64, 0) {
+                    return None;
+                }
+                if exported(&name) {
+                    let decl = &program.fns[id];
+                    methods.push((
+                        name.clone(),
+                        copy_sig(&decl.sig, &self.meter)?,
+                        decl.visibility,
+                    ));
+                }
+            }
+            super::counted::sort_unstable_by(&self.meter, &mut methods, |a, b| a.0.cmp(&b.0))
+                .ok()?;
             classes.push(ExportedClass {
                 id: ns as NsId,
                 name: namespace.name.clone(),
                 methods,
             });
         }
-        Exported {
+        Some(Exported {
             types: std::mem::replace(&mut self.types, Types::new()),
             functions,
             enums,
             classes,
-        }
+        })
     }
 
     /// Imports what a required file exports: its enums, bound by name
     /// where the name is free, as the runtime binds them; its classes,
     /// whose instances its functions may return but whose names stay
     /// private to it; and its functions, typed in this check's types.
-    fn import(&mut self, exported: &Exported) -> (HashMap<String, Rc<Sig>>, HashMap<String, u32>) {
+    fn import(
+        &mut self,
+        exported: &Exported,
+    ) -> (CountedMap<String, Rc<Sig>>, CountedMap<String, u32>) {
+        // Held by the caller, at the lengths they take.
         let mut imports = Imports {
-            enums: Vec::new(),
-            classes: HashMap::new(),
+            enums: Vec::with_capacity(exported.enums.len()),
+            classes: HashMap::with_capacity(exported.classes.len()),
         };
-        let mut enums = HashMap::new();
+        let mut enums = CountedMap::new();
         for declared in &exported.enums {
-            self.steps += 1;
-            let id = self.program.enums.len() as u32;
-            self.program.enums.push(declared.clone());
-            self.types.names.enums.push(declared.name.clone());
-            let free = !self.program.enum_names.contains_key(&declared.name)
-                && !self.program.roots.contains_key(declared.name.as_str());
-            if free {
-                self.program.enum_names.insert(declared.name.clone(), id);
+            // A check this stops imports no more, and its caller none of
+            // what it imported.
+            if self.meter.charge(1) {
+                break;
             }
-            enums.insert(declared.name.clone(), id);
+            // The enum, its copies of its name and room for it in every
+            // table it goes in are counted before any changes.
+            let declarations = self.meter.declarations();
+            let program = &mut self.program;
+            let free = !program.enum_names.contains_key(&declared.name)
+                && !program.roots.contains_key(declared.name.as_str());
+            let Ok(mut kept) = declarations.keep((2 + usize::from(free)) * declared.name.len())
+            else {
+                break;
+            };
+            if program.enums.reserve(declarations, 1).is_err()
+                || self.types.names.enums.reserve(declarations, 1).is_err()
+                || (free && program.enum_names.reserve(declarations, 1).is_err())
+                || enums.reserve(declarations, 1).is_err()
+            {
+                break;
+            }
+            let id = program.enums.len() as u32;
+            program.enums.push_within(declared.clone());
+            self.types
+                .names
+                .enums
+                .push_kept(&mut kept, declared.name.clone());
+            if free {
+                program
+                    .enum_names
+                    .insert_kept(&mut kept, declared.name.clone(), id);
+            }
+            enums.insert_kept(&mut kept, declared.name.clone(), id);
             imports.enums.push(id);
         }
         for class in &exported.classes {
+            if self.meter.pace(1 + (class.name.len() / 64) as u64, 0) {
+                break;
+            }
+            // The class, its two copies of its name and room for it in both
+            // tables are counted before either changes.
+            let declarations = self.meter.declarations();
+            let Ok(mut kept) = declarations.keep(2 * class.name.len()) else {
+                break;
+            };
+            if self.program.namespaces.reserve(declarations, 1).is_err()
+                || self
+                    .types
+                    .names
+                    .namespaces
+                    .reserve(declarations, 1)
+                    .is_err()
+            {
+                break;
+            }
             let id = self.program.namespaces.len() as NsId;
-            self.types.names.namespaces.push(class.name.clone());
-            self.program.namespaces.push(Namespace {
-                checked: false,
-                module: None,
-                name: class.name.clone(),
-                parent: None,
-                is_class: true,
-                methods: HashMap::new(),
-                statics: HashMap::new(),
-                ivars: HashMap::new(),
-                children: HashMap::new(),
-            });
+            self.types
+                .names
+                .namespaces
+                .push_kept(&mut kept, class.name.clone());
+            self.program.namespaces.push_kept(
+                &mut kept,
+                Namespace {
+                    checked: false,
+                    module: None,
+                    name: class.name.clone(),
+                    parent: None,
+                    is_class: true,
+                    methods: CountedMap::new(),
+                    statics: CountedMap::new(),
+                    ivars: CountedMap::new(),
+                    children: CountedMap::new(),
+                },
+            );
             imports.classes.insert(class.id, id);
         }
         for class in &exported.classes {
-            let owner = imports.classes[&class.id];
+            // A check that importing stops imports no more, and visits no
+            // more classes.
+            if self.halted() {
+                break;
+            }
+            // A class the budget refused to import has no methods either.
+            let Some(&owner) = imports.classes.get(&class.id) else {
+                break;
+            };
             for (name, sig, visibility) in &class.methods {
-                let sig = self.import_sig(&exported.types, sig, &imports);
+                // A check that importing stops imports no more.
+                if self.halted() {
+                    break;
+                }
+                // The method, its name, its copy of the signature, which
+                // holds no more than the file's, and room for it in both
+                // tables are counted before any is made.
+                let declarations = self.meter.declarations();
+                let methods = &mut self.program.namespaces[owner as usize].methods;
+                let Ok(mut kept) = declarations.keep(
+                    name.len()
+                        + sig.heap()
+                        + std::mem::size_of::<Sig>()
+                        + 2 * std::mem::size_of::<usize>(),
+                ) else {
+                    break;
+                };
+                if methods.reserve(declarations, 1).is_err()
+                    || self.program.fns.reserve(declarations, 1).is_err()
+                {
+                    break;
+                }
+                let Some(sig) = self.import_sig(&exported.types, sig, &imports) else {
+                    break;
+                };
+                let sig = Rc::new(sig);
                 let id = self.program.fns.len();
-                self.program.fns.push(FnDecl {
+                self.program.fns.push_within(FnDecl {
                     def: None,
                     owner: Some(owner),
                     instance: true,
-                    sig: Rc::new(sig),
+                    sig,
                     main: false,
                     visibility: *visibility,
                 });
-                self.program.namespaces[owner as usize]
-                    .methods
-                    .insert(name.clone(), id);
+                self.program.namespaces[owner as usize].methods.insert_kept(
+                    &mut kept,
+                    name.clone(),
+                    id,
+                );
             }
         }
-        let functions = exported
-            .functions
-            .iter()
-            .map(|(name, sig)| {
-                let sig = self.import_sig(&exported.types, sig, &imports);
-                (name.clone(), Rc::new(sig))
-            })
-            .collect();
+        let mut functions = CountedMap::new();
+        for (name, sig) in &exported.functions {
+            if self.halted() {
+                break;
+            }
+            // Its copy of the signature, which holds no more than the
+            // file's, is counted before it is made, and its name, with its
+            // room in the table, as the table takes it.
+            let declarations = self.meter.declarations();
+            let Ok(mut kept) = declarations.keep(
+                name.len()
+                    + sig.heap()
+                    + std::mem::size_of::<Sig>()
+                    + 2 * std::mem::size_of::<usize>(),
+            ) else {
+                break;
+            };
+            if functions.reserve(declarations, 1).is_err() {
+                break;
+            }
+            let Some(sig) = self.import_sig(&exported.types, sig, &imports) else {
+                break;
+            };
+            functions.insert_kept(&mut kept, name.clone(), Rc::new(sig));
+        }
         (functions, enums)
     }
 
-    /// A required file's signature in this check's types.
-    fn import_sig(&mut self, from: &Types, sig: &Sig, imports: &Imports) -> Sig {
-        let params = sig
-            .params
-            .iter()
-            .map(|param| Param {
-                ty: self.import_ty(from, param.ty, imports),
+    /// A required file's signature in this check's types, which its caller
+    /// counts before it is made; `None` once the check stops, which makes
+    /// no more of it.
+    fn import_sig(&mut self, from: &Types, sig: &Sig, imports: &Imports) -> Option<Sig> {
+        if self.meter.pace(1 + (sig.name.len() / 64) as u64, 0) {
+            return None;
+        }
+        let mut params = Vec::with_capacity(sig.params.len());
+        for param in &sig.params {
+            if self.meter.pace(1 + (param.name.len() / 64) as u64, 0) {
+                return None;
+            }
+            let ty = self.import_ty(from, param.ty, imports)?;
+            params.push(Param {
+                ty,
                 ..param.clone()
-            })
-            .collect();
-        let block = sig.block.as_ref().map(|block| BlockSig {
-            params: block
-                .params
-                .iter()
-                .map(|&ty| self.import_ty(from, ty, imports))
-                .collect(),
-            rest: block.rest.map(|ty| self.import_ty(from, ty, imports)),
-            result: block.result.map(|ty| self.import_ty(from, ty, imports)),
-            optional: block.optional,
-        });
-        Sig {
+            });
+        }
+        let block = match &sig.block {
+            Some(block) => Some(BlockSig {
+                params: self.import_all(from, &block.params, imports)?,
+                rest: self.import_some(from, block.rest, imports)?,
+                result: self.import_some(from, block.result, imports)?,
+                optional: block.optional,
+            }),
+            None => None,
+        };
+        Some(Sig {
             name: sig.name.clone(),
             params,
-            result: sig.result.map(|ty| self.import_ty(from, ty, imports)),
+            result: self.import_some(from, sig.result, imports)?,
             block,
             vars: Vec::new(),
             breaks: sig.breaks,
             converts: sig.converts,
             id: None,
+        })
+    }
+
+    /// [`Self::import_ty`] of each of `types`, in a list made at their
+    /// length; `None` once the check stops.
+    fn import_all(&mut self, from: &Types, types: &[Ty], imports: &Imports) -> Option<Vec<Ty>> {
+        let mut imported = Vec::with_capacity(types.len());
+        for &ty in types {
+            imported.push(self.import_ty(from, ty, imports)?);
+        }
+        Some(imported)
+    }
+
+    /// [`Self::import_ty`] of a type that may be absent; `None` once the
+    /// check stops.
+    fn import_some(
+        &mut self,
+        from: &Types,
+        ty: Option<Ty>,
+        imports: &Imports,
+    ) -> Option<Option<Ty>> {
+        match ty {
+            Some(ty) => self.import_ty(from, ty, imports).map(Some),
+            None => Some(None),
         }
     }
 
     /// A type of a required file's table in this check's: its enums and
     /// classes become the ones imported from it, and a type the file could
     /// not resolve, or one of a file it requires in turn, becomes `any`.
-    fn import_ty(&mut self, from: &Types, ty: Ty, imports: &Imports) -> Ty {
-        self.steps += 1;
-        match from.kind(ty).clone() {
+    /// The list a shape's, a tuple's or a union's parts are copied into is
+    /// held, with the names it copies, before it is made. `None` once the
+    /// check stops, which imports no more of it.
+    fn import_ty(&mut self, from: &Types, ty: Ty, imports: &Imports) -> Option<Ty> {
+        if self.meter.charge(1) {
+            return None;
+        }
+        let imported = match &*from.shared(ty) {
             Kind::Error | Kind::Namespace(_) | Kind::Exports(_) => Ty::ANY,
             Kind::Array(element) => {
-                let element = self.import_ty(from, element, imports);
+                let element = self.import_ty(from, *element, imports)?;
                 self.types.array(element)
             }
             Kind::Hash(value) => {
-                let value = self.import_ty(from, value, imports);
+                let value = self.import_ty(from, *value, imports)?;
                 self.types.hash(value)
             }
             Kind::Shape(fields, open) => {
-                let fields = fields
-                    .iter()
-                    .map(|field| Field {
-                        name: field.name.clone(),
-                        ty: self.import_ty(from, field.ty, imports),
-                        optional: field.optional,
-                    })
-                    .collect();
-                self.types.shape(fields, open)
+                let names: usize = fields.iter().map(|field| field.name.len()).sum();
+                let held = self.hold(std::mem::size_of_val(&**fields) + names)?;
+                let copied = self.import_fields(from, fields, imports);
+                let shape = copied.map(|fields| self.types.shape(fields, *open));
+                self.release(held);
+                shape?
             }
             Kind::Tuple(items) => {
-                let items = items
-                    .iter()
-                    .map(|&item| self.import_ty(from, item, imports))
-                    .collect();
-                self.types.tuple(items)
+                let held = self.hold(std::mem::size_of_val(&**items))?;
+                let copied = self.import_all(from, items, imports);
+                let tuple = copied.map(|items| self.types.tuple(items));
+                self.release(held);
+                tuple?
             }
             Kind::Union(items) => {
-                let items: Vec<Ty> = items
-                    .iter()
-                    .map(|&item| self.import_ty(from, item, imports))
-                    .collect();
-                self.types.union(&items)
+                let held = self.hold(std::mem::size_of_val(&**items))?;
+                let copied = self.import_all(from, items, imports);
+                let union = copied.map(|items| self.types.union(&items));
+                self.release(held);
+                union?
             }
             Kind::TypeLit(described) => {
-                let described = self.import_ty(from, described, imports);
+                let described = self.import_ty(from, *described, imports)?;
                 self.types.type_lit(described)
             }
-            Kind::Instance(ns) => match imports.classes.get(&ns) {
+            Kind::Instance(ns) => match imports.classes.get(ns) {
                 Some(&id) => self.types.intern(Kind::Instance(id)),
                 None => Ty::ANY,
             },
             Kind::EnumValue(id) | Kind::EnumType(id) => {
-                let Some(&imported) = imports.enums.get(id as usize) else {
-                    return Ty::ANY;
+                let Some(&imported) = imports.enums.get(*id as usize) else {
+                    return Some(Ty::ANY);
                 };
                 let kind = match from.kind(ty) {
                     Kind::EnumValue(_) => Kind::EnumValue(imported),
@@ -440,7 +1183,7 @@ impl<'a> Checker<'a> {
                 self.types.intern(kind)
             }
             Kind::Host(id) => {
-                let name = &from.names.hosts[id as usize];
+                let name = &from.names.hosts[*id as usize];
                 match self.types.names.hosts.iter().position(|host| host == name) {
                     Some(index) => self.types.intern(Kind::Host(index as u32)),
                     None => Ty::ANY,
@@ -448,8 +1191,33 @@ impl<'a> Checker<'a> {
             }
             // Scalars, builtin namespaces, type variables and symbols mean
             // the same in both tables.
-            kind => self.types.intern(kind),
+            kind => self.types.intern(kind.clone()),
+        };
+        // A check the table stopped as it took the type imports no more.
+        (!self.halted()).then_some(imported)
+    }
+
+    /// [`Self::import_ty`] of each of a shape's `fields`, with a copy of each
+    /// name, in a list made at their length; `None` once the check stops.
+    fn import_fields(
+        &mut self,
+        from: &Types,
+        fields: &[Field],
+        imports: &Imports,
+    ) -> Option<Vec<Field>> {
+        let mut imported = Vec::with_capacity(fields.len());
+        for field in fields {
+            let ty = self.import_ty(from, field.ty, imports)?;
+            if self.meter.pace(1 + (field.name.len() / 64) as u64, 0) {
+                return None;
+            }
+            imported.push(Field {
+                name: field.name.clone(),
+                ty,
+                optional: field.optional,
+            });
         }
+        Some(imported)
     }
 
     /// `receiver.name(...)` on the object `require` returned.
@@ -467,11 +1235,11 @@ impl<'a> Checker<'a> {
 
     /// Reports an unknown export.
     pub(super) fn unknown_export(&mut self, id: u32, name: &str, span: crate::diagnostic::Span) {
-        let path = self.modules.loaded[id as usize].path.clone();
+        let path = &self.modules.loaded[id as usize].path;
         self.report(Diagnostic::error(
             Code::UNKNOWN_MEMBER,
             span,
-            format!("the module \"{path}\" exports no function `{name}`"),
+            text!(self, "the module \"{path}\" exports no function `{name}`"),
         ));
     }
 
@@ -481,122 +1249,199 @@ impl<'a> Checker<'a> {
     }
 }
 
-/// The literal paths, and aliases, of the `require` calls in statements.
-fn requires(body: &[Stmt], out: &mut Vec<(String, Option<String>, usize)>) {
-    let mut statements: Vec<&Stmt> = body.iter().collect();
-    let mut expressions: Vec<&Expr> = Vec::new();
-    loop {
-        if let Some(expr) = expressions.pop() {
-            visit(expr, &mut statements, &mut expressions, out);
-            continue;
+type Request<'a> = (&'a [u8], Option<&'a [u8]>, usize);
+
+/// The exact payload copied by an exported signature, paced while measured.
+fn sig_bytes(sig: &Sig, meter: &super::meter::Meter) -> Option<usize> {
+    if meter.pace(1 + (sig.name.len() / 64) as u64, 0) {
+        return None;
+    }
+    let mut bytes = sig.name.len()
+        + sig.params.len() * std::mem::size_of::<Param>()
+        + sig.vars.len() * std::mem::size_of::<super::sigs::Var>()
+        + sig
+            .block
+            .as_ref()
+            .map_or(0, |block| block.params.len() * std::mem::size_of::<Ty>());
+    for name in sig
+        .params
+        .iter()
+        .map(|param| &param.name)
+        .chain(sig.vars.iter().map(|var| &var.name))
+    {
+        if meter.pace(1 + (name.len() / 64) as u64, 0) {
+            return None;
         }
-        let Some(stmt) = statements.pop() else {
-            break;
-        };
-        match &stmt.node {
-            Statement::Expr(e) => expressions.push(e),
-            Statement::Assign(_, _, e) => expressions.push(e),
-            Statement::If(branches, alternate, _) => {
-                for (condition, body) in branches.iter() {
-                    expressions.push(condition);
-                    statements.extend(body.iter());
+        bytes += name.len();
+    }
+    Some(bytes)
+}
+
+/// Copies a signature into space its exporter already holds.
+fn copy_sig(sig: &Sig, meter: &super::meter::Meter) -> Option<Sig> {
+    if meter.pace(1, 0) {
+        return None;
+    }
+    let mut params = Vec::with_capacity(sig.params.len());
+    for param in &sig.params {
+        if meter.pace(1 + (param.name.len() / 64) as u64, 0) {
+            return None;
+        }
+        params.push(param.clone());
+    }
+    let mut vars = Vec::with_capacity(sig.vars.len());
+    for var in &sig.vars {
+        if meter.pace(1 + (var.name.len() / 64) as u64, 0) {
+            return None;
+        }
+        vars.push(var.clone());
+    }
+    if meter.pace(
+        1 + (sig.name.len() / 64) as u64
+            + sig
+                .block
+                .as_ref()
+                .map_or(0, |block| block.params.len() as u64),
+        0,
+    ) {
+        return None;
+    }
+    Some(Sig {
+        name: sig.name.clone(),
+        params,
+        vars,
+        block: sig.block.clone(),
+        result: sig.result,
+        breaks: sig.breaks,
+        converts: sig.converts,
+        id: sig.id,
+    })
+}
+
+/// Adds the literal paths, and aliases, of the `require` calls in `body` to
+/// `out`, borrowing the literals while walking it with `walk`.
+fn requires<'x>(walk: &mut Walk<'x, '_>, body: &'x [Stmt], out: &mut ScratchVec<Request<'x>>) {
+    // The body is a visit, empty or not; the requests count themselves.
+    if walk.visit(0) {
+        return;
+    }
+    walk.stmts(body, ());
+    while let Some((item, ())) = walk.next(0) {
+        match item {
+            Item::Stmt(stmt) => match &stmt.node {
+                Statement::Expr(e)
+                | Statement::Assign(_, _, e)
+                | Statement::Return(Some(e))
+                | Statement::Break(Some(e))
+                | Statement::Next(Some(e)) => walk.expr(e, ()),
+                Statement::If(branches, alternate, _) => {
+                    walk.push(Next::Clauses(branches.iter()), ());
+                    walk.stmts(alternate, ());
                 }
-                statements.extend(alternate.iter());
+                Statement::While(condition, body, _) => {
+                    walk.expr(condition, ());
+                    walk.stmts(body, ());
+                }
+                Statement::For(_, iterable, body) => {
+                    walk.expr(iterable, ());
+                    walk.stmts(body, ());
+                }
+                _ => (),
+            },
+            Item::Expr(expr) => {
+                if visit(expr, walk, out) {
+                    return;
+                }
             }
-            Statement::While(condition, body, _) => {
-                expressions.push(condition);
-                statements.extend(body.iter());
-            }
-            Statement::For(_, iterable, body) => {
-                expressions.push(iterable);
-                statements.extend(body.iter());
-            }
-            Statement::Return(Some(e)) | Statement::Break(Some(e)) | Statement::Next(Some(e)) => {
-                expressions.push(e)
-            }
-            _ => (),
+            Item::Target(_) => (),
         }
     }
 }
 
-fn visit<'x>(
-    expr: &'x Expr,
-    statements: &mut Vec<&'x Stmt>,
-    expressions: &mut Vec<&'x Expr>,
-    out: &mut Vec<(String, Option<String>, usize)>,
-) {
+fn visit<'x>(expr: &'x Expr, walk: &mut Walk<'x, '_>, out: &mut ScratchVec<Request<'x>>) -> bool {
     match &expr.node {
         Node::Call(name, args, _) => {
             if name.as_str() == "require" {
-                let path = args
-                    .iter()
-                    .find_map(|arg| match (&arg.kind, &arg.value.node) {
-                        (crate::syntax::ArgumentKind::Positional, Node::Literal(value)) => value
-                            .as_bytes()
-                            .map(|b| String::from_utf8_lossy(b).into_owned()),
-                        _ => None,
-                    });
-                let alias = args
-                    .iter()
-                    .find_map(|arg| match (&arg.kind, &arg.value.node) {
-                        (crate::syntax::ArgumentKind::Keyword(key), Node::Literal(value))
-                            if key.as_str() == "as" =>
-                        {
-                            value
-                                .as_bytes()
-                                .map(|b| String::from_utf8_lossy(b).into_owned())
+                let (mut path, mut alias) = (None, None);
+                for arg in args {
+                    if walk.visit(0) {
+                        return true;
+                    }
+                    if let Node::Literal(value) = &arg.value.node {
+                        match &arg.kind {
+                            crate::syntax::ArgumentKind::Positional if path.is_none() => {
+                                path = value.as_bytes()
+                            }
+                            crate::syntax::ArgumentKind::Keyword(key)
+                                if key.as_str() == "as" && alias.is_none() =>
+                            {
+                                alias = value.as_bytes()
+                            }
+                            _ => (),
                         }
-                        _ => None,
-                    });
+                    }
+                }
                 if let Some(path) = path {
-                    out.push((path, alias, expr.offset as usize));
+                    if out.push((path, alias, expr.offset as usize)).is_err() {
+                        return true;
+                    }
                 }
             }
-            expressions.extend(args.iter().map(|a| &a.value));
+            walk.push(Next::Arguments(args.iter()), ());
         }
-        Node::Compound(stmt) => statements.push(stmt),
+        Node::Compound(stmt) => walk.push(Next::Item(Item::Stmt(stmt)), ()),
         Node::Try(attempt) => {
-            statements.extend(attempt.body.iter());
-            statements.extend(attempt.alternate.iter());
-            statements.extend(attempt.ensure.iter());
-            for rescue in attempt.rescues.iter() {
-                statements.extend(rescue.body.iter());
-            }
+            walk.stmts(&attempt.body, ());
+            walk.stmts(&attempt.alternate, ());
+            walk.stmts(&attempt.ensure, ());
+            walk.push(Next::Rescues(attempt.rescues.iter()), ());
         }
         Node::BlockCall(call, block) => {
-            expressions.push(call);
-            statements.extend(block.body.iter());
+            walk.expr(call, ());
+            walk.stmts(&block.body, ());
         }
         Node::Conditional(branches, alternate) => {
-            for (c, v) in branches.iter() {
-                expressions.push(c);
-                expressions.push(v);
-            }
-            expressions.push(alternate);
+            walk.push(Next::Branches(branches.iter()), ());
+            walk.expr(alternate, ());
         }
         Node::Case(subject, whens, alternate) => {
-            expressions.extend(subject.as_deref());
-            for when in whens.iter() {
-                expressions.push(&when.result);
+            for expr in subject.iter().chain(alternate) {
+                walk.expr(expr, ());
             }
-            expressions.extend(alternate.as_deref());
+            walk.push(Next::Results(whens.iter()), ());
         }
         Node::Binary(_, l, r) => {
-            expressions.push(l);
-            expressions.push(r);
+            walk.expr(l, ());
+            walk.expr(r, ());
         }
-        Node::Unary(_, v) => expressions.push(v),
+        Node::Unary(_, v) => walk.expr(v, ()),
         Node::Method(recv, _, args, _) | Node::SafeMethod(recv, _, args, _) => {
-            expressions.push(recv);
-            expressions.extend(args.iter().map(|a| &a.value));
+            walk.expr(recv, ());
+            walk.push(Next::Arguments(args.iter()), ());
         }
-        Node::Member(recv, _) | Node::SafeMember(recv, _) => expressions.push(recv),
-        Node::Array(items) | Node::Template(items, _) => expressions.extend(items.iter()),
-        Node::Hash(entries) => expressions.extend(entries.iter().map(|(_, v)| v)),
+        Node::Member(recv, _) | Node::SafeMember(recv, _) => walk.expr(recv, ()),
+        Node::Array(items) | Node::Template(items, _) => walk.push(Next::Exprs(items.iter()), ()),
+        Node::Hash(entries) => walk.push(Next::Pairs(entries.iter()), ()),
         Node::Index(recv, selectors) => {
-            expressions.push(recv);
-            expressions.extend(selectors.iter());
+            walk.expr(recv, ());
+            walk.push(Next::Exprs(selectors.iter()), ());
         }
         _ => (),
+    }
+    false
+}
+
+#[cfg(test)]
+mod budget_review_tests {
+    #[test]
+    fn requests_use_the_same_lossy_utf8_spelling() {
+        let meter = super::super::meter::Meter::new(Default::default(), None);
+        for bytes in [
+            &b"abc"[..],
+            &b"a\xffb\xe2\x82"[..],
+            &b"\xf0\x9f\x92\xa9"[..],
+        ] {
+            assert_eq!(super::lossy(bytes, &meter), String::from_utf8_lossy(bytes));
+        }
     }
 }

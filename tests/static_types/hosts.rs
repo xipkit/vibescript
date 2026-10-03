@@ -336,11 +336,23 @@ fn a_capability_of_data_has_the_type_its_template_shows() {
 }
 
 #[test]
-fn locals_shadow_declared_names_and_globals_precede_functions() {
+fn assignments_write_declared_names_and_globals_precede_functions() {
     let engine = engine();
+    // The runtime writes the global, which every function reads with its
+    // declared type; a parameter of the name is its own local.
     codes_with(
         &engine,
         "def run -> int\n  config = 3\n  config + 1\nend\n",
+        &["V0101", "V0108"],
+    );
+    codes_with(
+        &engine,
+        "def run -> int\n  config = { region: \"us\", limit: 2 }\n  config[\"limit\"] + 1\nend\n",
+        &[],
+    );
+    codes_with(
+        &engine,
+        "def run(config: int) -> int\n  config = 3\n  config + 1\nend\n",
         &[],
     );
     codes_with(

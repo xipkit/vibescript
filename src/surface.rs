@@ -11,6 +11,14 @@
 //! as a fix on its own. A removed spelling the rules cannot rewrite safely
 //! where it stands is a [`Finding`] instead.
 
+/// Text the walk writes, as `format!` writes it, taking from the room its
+/// copies may hold.
+macro_rules! written {
+    ($checker:expr, $($arg:tt)*) => {
+        $checker.written(format_args!($($arg)*))
+    };
+}
+
 mod checker;
 mod context;
 mod edits;
@@ -22,9 +30,9 @@ mod syntax;
 mod tests;
 mod walk;
 
-pub(crate) use checker::add_to;
 #[cfg(test)]
 use checker::check;
+pub(crate) use checker::{add_to, entries, footprint};
 
 use crate::diagnostic::Code;
 use syntax::Span;

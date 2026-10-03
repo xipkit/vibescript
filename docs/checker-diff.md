@@ -8,12 +8,12 @@ The [typed VM](vm.md#proven-checks) leaves out the runtime type checks the check
 
 ## Judging a program
 
-Each program is compiled in both builds. If the checker rejects it, the verdict is the first error's code. Otherwise both builds run it under a step, memory, recursion and time limit, with the same seeded random source, and the harness compares the results, rendered exactly (kinds, float bits, bytes, hash order), and the output:
+Each program is compiled in both builds, against the same host (`host.rs`): the globals and capabilities the program declares, and three host functions every engine registers. If the checker rejects it, the verdict is the first error's code. Otherwise both builds run it under a step, memory, recursion and time limit, with the same seeded random source and the host's globals and capabilities, then make each call the host makes into it with arguments, and the harness compares the results, rendered exactly (kinds, float bits, bytes, hash order), and the output:
 
 - **agreed**: the same observations;
 - **check-failed**: only the build with checks raised a type error, so the checker proved something false;
 - **mismatch**: any other difference;
-- **unexpected-error**: both raised an error the checker rules out in a program it accepts, such as a name that does not exist or an operator on operands it does not take; failed casts, `JSON.parse_as`, a `nil` result of an instance method whose class the checker does not prove, hash key types no string satisfies and builtins' range errors are legitimate;
+- **unexpected-error**: both raised an error the checker rules out in a program it accepts, such as a name that does not exist or an operator on operands it does not take; failed casts, `JSON.parse_as`, a `nil` result of an instance method whose class the checker does not prove, hash key types no string satisfies, builtins' range errors and a host call's arguments that its function's parameters refuse are legitimate;
 - **panic**, and **compile-mismatch**, when only one build compiles;
 - **inconclusive** when a limit stops either run.
 
@@ -23,9 +23,10 @@ A check of a result or a run that takes longer than two minutes is a hang: the h
 
 ## Programs
 
-- **Generated** (`generate.rs`): a type-directed generator that models each local's declared and narrowed type and builds expressions of a wanted type from literals, locals, operators, builtin members and the functions, methods, classes, enums, namespaces and required files it declares, with keyword and default parameters, blocks and `&block` parameters, early `return`, `break` and `next`, `case` over unions, optionals and enums, and tuples and shapes. Some statements are deliberately risky: narrowing cancelled by a reassignment in a block, closure, loop, rescue or branch, narrowed instance variables across method calls, narrowing of `any`, writes through shapes and tuples, symbols where enums are expected, break values of other types and properties read before `initialize` assigns them. A sound checker rejects the unsound variants; the others must agree.
+- **Generated** (`generate.rs`): a type-directed generator that models each local's declared and narrowed type and builds expressions of a wanted type from literals, locals, operators, builtin members and what it declares: functions, classes with class variables, class methods and operator methods (`+`, `==`, `<`, `[]` and `[]=`), enums, a module with a nested module, and a required file that may require another, or, in an unsound form, require it back. The required file keeps top-level locals its functions read and assign, and may declare functions whose parameters take the locals' names, called from its top level between a narrowing of a local and a use of it. A third of the programs run against a host: globals of JSON types, typed or `any`, capabilities whose methods take arguments and blocks, with and without signatures, host functions, and calls from the host into a function with positional and keyword arguments, a few of the wrong type. Keyword and default parameters, blocks and `&block` parameters, early `return`, `break` and `next`, `retry`, `case` over unions, optionals and enums, and tuples and shapes all appear, and one program in eleven is large, with tens of statements and hundreds of lines. Some statements are deliberately risky: narrowing cancelled by a reassignment in a block, even one inside an index or a member read, a closure, loop, rescue or branch, or before a `retry`, narrowing an `ensure` takes from the body's guards, or gives what follows with its own, narrowed instance variables across method calls, narrowing of `any`, writes through shapes and tuples, symbols where enums are expected, break values of other types, including out of a host method's block, and properties read before `initialize` assigns them. A sound checker rejects the unsound variants; the others must agree.
 - **Builtins** (`builtins.rs`), a quarter of the generated seeds: calls of every signature in `src/signatures/builtins.vibe` with arguments of its parameter types, so a runtime result outside the declared return type fails the build with checks.
 - **Corpus edits** (`mutate.rs`): type-changing edits of the language corpus cases and the site, upstream and glue programs, such as widening a declared type, flipping a nil test or replacing a literal with one of another type.
+- **Required files** (`files.rs`): a script that requires a file and calls into it, the file holding top-level locals, some optional, and functions that read and assign them, call one another and take parameters of the locals' names. Its top level narrows the optional locals, calls the functions, and uses each local as the calls leave it, guarded where a function may assign it `nil`, except in an unsound tenth of the uses. A generated program with such a file seldom passes a checker as a whole, so these programs keep the shape on its own, and a sound checker accepts every one but the unsound.
 
 Every program comes from its seed alone.
 
@@ -47,32 +48,48 @@ Long runs use the example, built with the `gate` profile:
 target/gate/examples/checker_diff run --from 0 --count 1000000 --jobs 12 --out DIR --source mixed
 ```
 
-`--source` is `generated`, `corpus` or `mixed`, where a fifth of the seeds are corpus edits. `run` prints totals and writes each finding, up to 200 of each kind, to `DIR` as a program headed by comments that describe it; after a hang, continue from the seed after the one in `DIR/hang-SEED.vibe`. Other commands:
+`--source` is `generated`, `corpus` or `mixed`, where a fifth of the seeds are corpus edits, or `files`, the required files. `run` prints totals and writes each finding, up to 200 of each kind, to `DIR` as a program headed by comments that describe it; after a hang, continue from the seed after the one in `DIR/hang-SEED.vibe`. Other commands:
 
 ```sh
 checker_diff judge FILE...     # judge programs, such as findings
 checker_diff minimize FILE...  # remove lines while the finding stays, into FILE.min.vibe
 checker_diff generate SEED     # print a seed's program; add `corpus` for an edit
+checker_diff verdicts ...      # print how a build takes each seed's program
+checker_diff rejections A B    # compare two verdicts files: see Rejections
 ```
 
-A program with required files lists each under a `#@ file PATH` line, then the script under `#@ main`.
+A program's host comes first, one directive a line: `#@ global NAME: TYPE = JSON`, or `#@ global NAME = JSON` for an `any` global; `#@ capability NAME`, `store` or `loose`; and `#@ call FUNCTION {"args": [...], "keywords": {...}}`. Each required file follows under a `#@ file PATH` line, then the script under `#@ main`.
 
 A fixed finding becomes a regression program in `tests/checker-diff`, whose first line says what it must now do: `# expect: rejected CODE`, for a program the checker now rejects, or `# expect: agreed`.
 
+## Rejections
+
+The runs above find programs the checker accepts wrongly. The other half is programs it rejects wrongly, which a change to the checker can introduce without a runtime ever disagreeing. `verdicts` prints how a build takes each seed's program, a line a seed: `rejected CODE`, or how running it with every check kept ends, `ran`, `failed`, `limited` or `panicked`, so a run the first checker's proofs do not hold for, which it should have rejected, fails rather than runs. Built from two versions of the library with the same harness, it gives two files, and `rejections` compares them:
+
+```sh
+checker_diff verdicts --from 0 --count 2000000 --jobs 12 --source mixed > before.txt
+checker_diff verdicts --from 0 --count 2000000 --jobs 12 --source mixed > after.txt
+checker_diff rejections before.txt after.txt --source mixed --out DIR
+```
+
+Both files must cover the same contiguous seed range with one valid verdict per seed. Comparison rejects malformed, duplicate or missing rows before creating `DIR`.
+
+It prints how many seeds went from each outcome to each other, and writes to `DIR` each program the second rejects that the first accepts and runs without an error, up to 200 of each kind, headed by its seed and the second's first error. Run by a build of the second version, it checks each such program again and counts them by that error's message, with names and numbers left out. Each is a regression, unless the second version means to reject it, as a new diagnostic or a limit does.
+
 ## Known disagreements
 
-ADR-008's 2026-09-27 addenda resolve the numeric and required-file findings:
-negative integer powers raise `ArgumentError`, float `<=>` returns an integer
-with NaNs first, and required-file calls retain their lexical function scope.
-The numeric integration tests also execute with every type check retained.
-The harness's historical `negative-power` and `nan-comparison` categories no
-longer describe accepted language behavior.
-
-Remaining findings:
+ADR-008's 2026-09-27 addenda resolved the numeric and required-file findings: negative integer powers raise `ArgumentError`, float `<=>` orders NaN first, and a required file's calls resolve within it. The numeric integration tests also run with every type check kept. The harness no longer counts any finding as known. Two remain, which it avoids generating:
 
 - A class with no `initialize` whose properties a setter assigns reads them as `nil` before then. Its methods keep their result check, and a `nil` surfaces as a type error where it is used.
-- A string repeated more times than an int holds raises "unsupported multiplication operands", a type error, instead of a range error.
+- A string repeated a float number of times beyond the int range raises "unsupported multiplication operands", a type error, instead of a range error.
+
+## Syntax
+
+The generator once avoided syntax the parser read another way. Each is now a parser fix or a rule of the language:
+
+- Fixed in the parser: a symbol after a keyword such as `then`, `else` or `rescue`, which read as a keyword label; a symbol statement on the line after a call without parentheses, which read as that call's label; a tuple parameter type whose first element is optional, a shape or a tuple, which read as a removed keyword default; and an index that abuts the end of an expression spanning lines, as in `(case x ... end)[0]`, which read as a second statement. Adjacent expressions are now an error, so none of these can hide a statement.
+- Rules of the language: an assignment is a statement, not a value, so it cannot appear in parentheses or as a `when` branch; a `begin` whose rescues are all empty needs an `ensure`; and a nested tuple in a type written as a call's argument, as in `JSON.parse_as(text, [[int, int], int])`, is an array of values, so such a type is named through an alias.
 
 ## Not covered yet
 
-The generator does not reach namespaces nested more than one level, class variables, `retry`, host functions, globals and capabilities, the calls a host makes with arguments, required files that require others, operator methods on classes, or programs larger than a few dozen lines. Regular expressions, times and money values come only from the builtin calls, not from typed positions the generator fills. The language has no generic functions of its own; generics with bounds and overloads by arity are reached through the builtin signatures only.
+The generator does not reach async host methods, capabilities built per call by a factory, host methods whose signatures name the script's classes or enums, host values of script classes, keyword arguments to host methods, REPL sessions, or regular expressions, times and money values in the typed positions it fills, which come only from the builtin calls. The language has no generic functions of its own; generics with bounds and overloads by arity are reached through the builtin signatures only.

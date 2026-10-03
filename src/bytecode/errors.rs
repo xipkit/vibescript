@@ -34,9 +34,11 @@ impl<'x> Compiling<'_, 'x> {
             let index = c.program.handlers.len();
             c.program.handlers.push(TrySpec::default());
             c.emit(Op::TryBegin(narrow(index)));
+            let (body_locals, held) = c.statement_bindings(&attempt.body)?.into_parts();
+            crate::budget::Charge::merge(&mut c.handler_locals, held);
             let spec = TrySpec {
                 body: c.code.len(),
-                body_locals: c.statement_bindings(&attempt.body)?.into_parts().0,
+                body_locals,
                 ..TrySpec::default()
             };
             (index, spec)
@@ -58,11 +60,10 @@ impl<'x> Compiling<'_, 'x> {
                 } else {
                     (None, false, None)
                 };
-                let locals = c
-                    .statement_bindings(&clause.body)?
-                    .into_iter()
-                    .filter(|slot| Some(*slot) != binding)
-                    .collect();
+                let (mut locals, held) = c.statement_bindings(&clause.body)?.into_parts();
+                crate::budget::Charge::merge(&mut c.handler_locals, held);
+                // Filtered in place, in the storage charged for them.
+                locals.retain(|slot| Some(*slot) != binding);
                 let start = c.code.len();
                 (saved_offset, previous, parameter, binding, locals, start)
             };
@@ -90,8 +91,10 @@ impl<'x> Compiling<'_, 'x> {
             });
         }
         {
-            let c = self.c();
-            spec.alternate_locals = c.statement_bindings(&attempt.alternate)?.into_parts().0;
+            let mut c = self.c();
+            let (alternate_locals, held) = c.statement_bindings(&attempt.alternate)?.into_parts();
+            crate::budget::Charge::merge(&mut c.handler_locals, held);
+            spec.alternate_locals = alternate_locals;
             if !attempt.alternate.is_empty() {
                 spec.alternate = Some(c.code.len());
             }

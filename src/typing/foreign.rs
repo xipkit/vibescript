@@ -246,6 +246,10 @@ impl<'a> Checker<'a> {
             return;
         };
         let span = self.spans.token(receiver.offset as usize);
+        // A pass back over the diagnostics, a step for each 64.
+        if self.types.work(self.diagnostics.len()) {
+            return;
+        }
         if let Some(diagnostic) =
             self.diagnostics.iter_mut().rev().find(|diagnostic| {
                 diagnostic.code == Code::UNDEFINED_NAME && diagnostic.span == span

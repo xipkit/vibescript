@@ -110,18 +110,25 @@ impl Loader {
         self.cache.clear();
     }
 
-    /// The source text and origin a `require` would load for the static checker.
-    pub fn source(&self, request: &str, caller: Option<&Origin>) -> Result<(String, Origin)> {
-        let mut ctx = CallContext::new(crate::CallOptions::default());
-        let mut candidates = self
-            .resolver
-            .candidates(&mut ctx, request.as_bytes(), caller)?;
-        while let Some(candidate) = candidates.next(&mut ctx)? {
-            if let Some(source) = self.resolver.read(&mut ctx, &candidate)? {
+    /// The source text and origin a `require` would load for the static
+    /// checker, charging the search for it and its read to `ctx`.
+    pub fn source(
+        &self,
+        request: &str,
+        caller: Option<&Origin>,
+        ctx: &mut CallContext,
+    ) -> Result<(String, Origin)> {
+        let mut candidates = self.resolver.candidates(ctx, request.as_bytes(), caller)?;
+        while let Some(candidate) = candidates.next(ctx)? {
+            if let Some(source) = self.resolver.read(ctx, &candidate)? {
                 let bytes = source.contents.as_bytes().unwrap();
                 let text = std::str::from_utf8(bytes).map_err(|_| {
                     Error::new(ErrorKind::Syntax, "required module source is not UTF-8")
                 })?;
+                // The copy returned, and the origin's copy of the file's
+                // name, are made beside the source read.
+                let name = candidate.relative.as_bytes().unwrap().len();
+                let _copy = ctx.reserve(text.len().saturating_add(name))?;
                 return Ok((text.to_owned(), candidate.origin()));
             }
         }
@@ -207,6 +214,9 @@ impl Loader {
                         )
                     })?;
                 ctx.work_bytes(source_text.len())?;
+                // The origin's copy of the file's name is reserved before it
+                // is made, while the file compiles beside it.
+                let _name = ctx.reserve(candidate.relative.as_bytes().unwrap().len())?;
                 let origin = candidate.origin();
                 let compiled = crate::code::Code::compile_module(
                     ctx,

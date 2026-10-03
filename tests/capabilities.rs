@@ -625,36 +625,24 @@ fn rejected_blocks_and_missing_members_skip_callback_effects() {
 }
 
 #[test]
-fn selected_methods_survive_argument_replacement_of_their_namespace() {
+fn a_capability_namespace_cannot_be_replaced() {
+    // Assigning the name writes the binding every function reads, so a
+    // replacement must keep the namespace's type, which only the namespace
+    // has.
     for name in ["deliver", "push", "call", "map", "send"] {
-        for args in ["replace", "*[replace]"] {
-            let method = HostMethod::new(format!("sms.{name}"), |_, args, _| Ok(args[0].clone()));
-            let member = name.as_bytes().to_vec();
-            let opts = CallOptions {
-                capabilities: vec![Capability::new("sms", move |_| {
-                    Ok(Value::object(vec![(member.clone(), method.value())]))
-                })],
-                ..CallOptions::default()
-            };
-            let template = HostMethod::new(format!("sms.{name}"), |_, _, _| Ok(Value::nil()));
-            let mut engine = Engine::new();
-            engine
-                .declare_capability(&Capability::from_value(
-                    "sms",
-                    Value::object(vec![(name.as_bytes().to_vec(), template.value())]),
-                ))
-                .unwrap();
+        let template = HostMethod::new(format!("sms.{name}"), |_, _, _| Ok(Value::nil()));
+        let mut engine = Engine::new();
+        engine
+            .declare_capability(&Capability::from_value(
+                "sms",
+                Value::object(vec![(name.as_bytes().to_vec(), template.value())]),
+            ))
+            .unwrap();
+        for (replace, code) in [("sms: nil = nil", "V0102"), ("sms = nil", "V0101")] {
             let source =
-                format!("def replace -> int; sms: nil = nil; 42; end; [sms.{name}({args}), sms]");
-            let script = engine.compile(&source).unwrap();
-            assert_eq!(
-                script
-                    .run(opts)
-                    .unwrap_or_else(|error| panic!("{source}: {error}"))
-                    .value
-                    .to_string(),
-                "[42, nil]"
-            );
+                format!("def replace -> int; {replace}; 42; end; [sms.{name}(replace), sms]");
+            let error = engine.compile(&source).err().unwrap();
+            assert_eq!(error.diagnostics()[0].code.to_string(), code, "{source}");
         }
     }
 }

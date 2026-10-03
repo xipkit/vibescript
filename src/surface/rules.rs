@@ -18,11 +18,20 @@ use std::collections::{HashMap, HashSet};
 
 /// The arguments a rename pattern captured.
 #[derive(Default)]
-pub struct Captures {
+pub struct Captures<'r> {
     /// Each `$name` and the span of the argument it matched.
     pub values: HashMap<String, Span>,
     /// The spans of the arguments `...` matched.
     pub rest: Vec<Span>,
+    room: Option<&'r super::edits::Room<'r>>,
+}
+
+impl Drop for Captures<'_> {
+    fn drop(&mut self) {
+        if let Some(room) = self.room {
+            room.give_back(self.rest.capacity() * size_of::<Span>());
+        }
+    }
 }
 
 /// The canonical surface's rules.
@@ -49,7 +58,9 @@ impl<'a> Checker<'a> {
             .or_else(|| {
                 patterns()
                     .iter()
-                    .find(|p| p.callee == Callee::Namespace(name.to_owned()))
+                    .find(
+                        |p| matches!(&p.callee, Callee::Namespace(namespace) if namespace == name),
+                    )
                     .filter(|_| table.module(name).is_none())
             });
             if let Some(pattern) = removed {
@@ -81,8 +92,14 @@ impl<'a> Checker<'a> {
             return;
         };
         let removed = excerpt(self.text(expr.span));
-        let mut items = Vec::new();
-        for entry in entries {
+        let mut literal = self.writer();
+        literal.push_str("[");
+        for (index, entry) in entries.iter().enumerate() {
+            // Each entry is a step the pass charged up front, and the walk
+            // asks now and then whether the compilation has stopped.
+            if self.halt() {
+                return;
+            }
             let Some(bytes) = entry else {
                 self.report(Finding::new(
                     Rule::PercentLiteral,
@@ -93,9 +110,9 @@ impl<'a> Checker<'a> {
                 return;
             };
             let Some(item) = (if *symbols {
-                symbol_literal(bytes)
+                symbol_literal(bytes, self.room)
             } else {
-                string_literal(bytes)
+                string_literal(bytes, self.room)
             }) else {
                 self.report(Finding::new(
                     Rule::PercentLiteral,
@@ -105,18 +122,23 @@ impl<'a> Checker<'a> {
                 ));
                 return;
             };
-            items.push(item);
+            if index > 0 {
+                literal.push_str(", ");
+            }
+            literal.push_str(&item);
+            let capacity = item.capacity();
+            drop(item);
+            self.room.give_back(capacity);
         }
+        literal.push_str("]");
+        let Some(literal) = literal.finish() else {
+            return;
+        };
         // A percent literal after a command name is an argument, which an
         // array literal after a space is as well.
         let _ = place;
-        let literal = format!("[{}]", items.join(", "));
-        let previous = self.enter(
-            Rule::PercentLiteral,
-            expr.span,
-            removed,
-            format!("use the array literal `{}`", excerpt(&literal)),
-        );
+        let advice = written!(self, "use the array literal `{}`", excerpt(&literal));
+        let previous = self.enter(Rule::PercentLiteral, expr.span, removed, advice);
         let group = self.rewrites.len() - 1;
         self.words.insert(expr.span, group);
         self.edits.text(expr.span, literal);
@@ -142,9 +164,9 @@ impl<'a> Checker<'a> {
             return;
         };
         let removed = self.text(selector.span);
-        match string_literal(name) {
+        match string_literal(name, self.room) {
             Some(literal) => {
-                let advice = format!("hash keys are strings: `{literal}`");
+                let advice = written!(self, "hash keys are strings: `{literal}`");
                 let previous = self.enter(Rule::SymbolKey, selector.span, removed, advice);
                 self.edits.text(selector.span, literal);
                 self.leave(previous);
@@ -224,15 +246,13 @@ impl<'a> Checker<'a> {
             start: self.tokens[*open].start,
             end: self.tokens[*close].end,
         };
-        let previous = self.enter(
-            Rule::EmptyParentheses,
-            span,
-            format!("{}()", call.name),
-            format!(
-                "a call without arguments has no parentheses: `{}`",
-                call.name
-            ),
+        let removed = written!(self, "{}()", call.name);
+        let advice = written!(
+            self,
+            "a call without arguments has no parentheses: `{}`",
+            call.name
         );
+        let previous = self.enter(Rule::EmptyParentheses, span, removed, advice);
         self.edits.text(span, "");
         self.leave(previous);
     }
@@ -289,18 +309,24 @@ impl<'a> Checker<'a> {
             self.report(Finding::new(Rule::Dispatch, span, &call.name, direct));
             return;
         };
-        let call_directly = format!("call `{name}` directly");
+        let call_directly = written!(self, "call `{name}` directly");
         if self.declared.private_methods.contains(&name) {
             self.report(Finding::new(
                 Rule::Dispatch,
                 span,
                 &call.name,
-                format!("{name} is private; call it from inside its class"),
+                written!(self, "{name} is private; call it from inside its class"),
             ));
             return;
         }
-        let rest: Vec<&Arg> = args.items.iter().skip(1).collect();
-        if rest.iter().any(|arg| arg.kind != ArgKind::Positional) {
+        let rest = &args.items[1..];
+        if rest
+            .iter()
+            .any(|arg| !self.room.charge(1) || arg.kind != ArgKind::Positional)
+        {
+            if self.halt() {
+                return;
+            }
             // Dispatch passes keywords as an options hash, and a direct call does not.
             self.report(Finding::new(
                 Rule::Dispatch,
@@ -312,18 +338,18 @@ impl<'a> Checker<'a> {
         }
         let mut pieces = vec![
             Piece::Source(receiver.span),
-            Piece::Text(
-                self.text(Span {
-                    start: receiver.span.end,
-                    end: self.tokens[call.name_tok].start,
-                })
-                .to_owned(),
-            ),
+            Piece::Text(self.copied(self.text(Span {
+                start: receiver.span.end,
+                end: self.tokens[call.name_tok].start,
+            }))),
             Piece::Text(name),
         ];
         if !rest.is_empty() {
             pieces.push(Piece::Text("(".into()));
             for (index, arg) in rest.iter().enumerate() {
+                if self.halt() {
+                    return;
+                }
                 if index > 0 {
                     pieces.push(Piece::Text(", ".into()));
                 }
@@ -413,11 +439,12 @@ impl<'a> Checker<'a> {
         }
         let span = self.token_span(operator);
         let receiver = excerpt(self.text(receiver.span));
-        let advice = format!(
+        let advice = written!(
+            self,
             "use `{receiver}.{}`; `::` names only constants, nested types and enum members",
             call.name
         );
-        let removed = format!("{receiver}::{}", call.name);
+        let removed = written!(self, "{receiver}::{}", call.name);
         let previous = self.enter(Rule::ScopedCall, span, removed, advice);
         self.edits.text(span, ".");
         self.leave(previous);
@@ -449,17 +476,20 @@ impl<'a> Checker<'a> {
             return;
         };
         for arg in &args.items {
+            if self.halt() {
+                return;
+            }
             if matches!(arg.value.kind, ExprKind::Symbol)
                 && let TokenKind::Symbol { name, .. } =
                     &self.tokens[self.token_at(arg.value.span.start)].kind
-                && let Some(literal) = string_literal(name)
+                && let Some(literal) = string_literal(name, self.room)
             {
                 let removed = self.text(arg.value.span);
                 let what = match &arg.kind {
                     ArgKind::Keyword(name) if name == "as" => "alias",
                     _ => "module",
                 };
-                let advice = format!("name the {what} with the string `{literal}`");
+                let advice = written!(self, "name the {what} with the string `{literal}`");
                 let previous = self.enter(Rule::Require, arg.value.span, removed, advice);
                 self.edits.text(arg.value.span, literal);
                 self.leave(previous);
@@ -513,7 +543,8 @@ impl<'a> Checker<'a> {
         let hashes = kinds.iter().filter(|kind| *kind == "hash").count();
         // A host or module object answers a dot with its own members.
         let object = kinds.iter().any(|kind| kind == "object");
-        let Some(key) = string_literal(call.name.as_bytes()).filter(|_| hashes > 0 && !object)
+        let Some(key) =
+            string_literal(call.name.as_bytes(), self.room).filter(|_| hashes > 0 && !object)
         else {
             return false;
         };
@@ -521,9 +552,9 @@ impl<'a> Checker<'a> {
             start: self.tokens[operator].start,
             end: self.tokens[call.name_tok].end,
         };
-        let removed = self.text(span).to_owned();
+        let removed = self.copied(self.text(span));
         let receiver_text = excerpt(self.text(receiver.span));
-        let indexed = format!("`{receiver_text}[{key}]`");
+        let indexed = written!(self, "`{receiver_text}[{key}]`");
         // The index joins its receiver, so nothing but space may part them.
         let between = self.text(Span {
             start: receiver.span.end,
@@ -557,21 +588,25 @@ impl<'a> Checker<'a> {
                 Rule::FieldAccess,
                 span,
                 removed,
-                format!("hash fields are indexed, as in {indexed}, once the value is a hash"),
+                written!(
+                    self,
+                    "hash fields are indexed, as in {indexed}, once the value is a hash"
+                ),
             ));
             return true;
         }
-        let advice = format!("hash fields are indexed: {indexed}");
+        let advice = written!(self, "hash fields are indexed: {indexed}");
         let previous = self.enter(Rule::FieldAccess, span, removed, advice);
         if wrap {
             self.edits.wrap(receiver.span, "(", ")");
         }
+        let index = written!(self, "[{key}]");
         self.edits.text(
             Span {
                 start: receiver.span.end,
                 end: span.end,
             },
-            format!("[{key}]"),
+            index,
         );
         self.leave(previous);
         true
@@ -585,8 +620,12 @@ impl<'a> Checker<'a> {
         let old: Vec<&'a Param> = def
             .params
             .iter()
+            .take_while(|_| self.room.within())
             .filter(|param| param.keyword_colon.is_some())
             .collect();
+        if self.halt() {
+            return;
+        }
         let (Some(first), Some(last)) = (old.first(), old.last()) else {
             return;
         };
@@ -594,13 +633,19 @@ impl<'a> Checker<'a> {
             start: first.span.start,
             end: last.span.end,
         };
-        let types: Vec<Option<String>> = old
-            .iter()
-            .map(|param| match (&param.ty, &param.default) {
+        // Each parameter is a step the pass charged up front, and the walk
+        // asks now and then whether the compilation has stopped, in each
+        // pass over them.
+        let mut types: Vec<Option<String>> = Vec::with_capacity(old.len());
+        for param in &old {
+            if self.halt() {
+                return;
+            }
+            types.push(match (&param.ty, &param.default) {
                 (None, Some(default)) => literal_type(self, default).map(str::to_owned),
                 _ => None,
-            })
-            .collect();
+            });
+        }
         let index = def
             .params
             .iter()
@@ -610,26 +655,38 @@ impl<'a> Checker<'a> {
             && !def.params[..index]
                 .iter()
                 .any(|param| param.kind == ParamKind::Rest);
-        let mut canonical = Vec::new();
-        for (param, ty) in old.iter().zip(&types) {
+        // The parameters in their new form, whose defaults the source
+        // sizes, written through the room.
+        let mut canonical = self.writer();
+        if star {
+            canonical.push_str("*, ");
+        }
+        for (at, (param, ty)) in old.iter().zip(&types).enumerate() {
+            if self.halt() {
+                return;
+            }
+            if at > 0 {
+                canonical.push_str(", ");
+            }
+            canonical.push_str(&param.name);
             let ty = match &param.ty {
                 Some(ty) => Some(self.text(ty.span)),
                 None => ty.as_deref(),
             };
-            let mut text = param.name.clone();
             if let Some(ty) = ty {
-                text.push_str(": ");
-                text.push_str(ty);
+                canonical.push_str(": ");
+                canonical.push_str(ty);
             }
             if let Some(default) = &param.default {
-                text.push_str(" = ");
-                text.push_str(self.text(default.span));
+                canonical.push_str(" = ");
+                canonical.push_str(self.text(default.span));
             }
-            canonical.push(text);
         }
-        let canonical = format!("{}{}", if star { "*, " } else { "" }, canonical.join(", "));
+        // A refusal leaves the room full, which stops the walk.
+        let canonical = canonical.finish().unwrap_or_default();
         let removed = excerpt(self.text(span));
-        let advice = format!(
+        let advice = written!(
+            self,
             "keyword parameters follow a bare `*`: `{}`",
             excerpt(&canonical)
         );
@@ -638,9 +695,12 @@ impl<'a> Checker<'a> {
             self.edits.insert(def.params[index].span.start, "*, ");
         }
         for (param, ty) in old.iter().zip(types) {
+            if self.halt() {
+                break;
+            }
             let colon = self.token_span(param.keyword_colon.expect("a removed keyword form"));
             let name_end = self.tokens[param.name_tok].end;
-            let declared = ty.map(|ty| format!(": {ty}")).unwrap_or_default();
+            let declared = ty.map(|ty| written!(self, ": {ty}")).unwrap_or_default();
             match (&param.ty, &param.default) {
                 (Some(ty), _) => self.edits.text(
                     Span {
@@ -649,13 +709,16 @@ impl<'a> Checker<'a> {
                     },
                     "",
                 ),
-                (None, Some(default)) => self.edits.text(
-                    Span {
-                        start: name_end,
-                        end: default.span.start,
-                    },
-                    format!("{declared} = "),
-                ),
+                (None, Some(default)) => {
+                    let text = written!(self, "{declared} = ");
+                    self.edits.text(
+                        Span {
+                            start: name_end,
+                            end: default.span.start,
+                        },
+                        text,
+                    );
+                }
                 (None, None) => self.edits.text(
                     Span {
                         start: name_end,
@@ -694,24 +757,34 @@ impl<'a> Checker<'a> {
                         let advice = if lower == "object" {
                             "use `hash`".to_owned()
                         } else {
-                            format!("type names are lowercase: `{canonical}`")
+                            written!(self, "type names are lowercase: `{canonical}`")
                         };
                         let previous = self.enter(Rule::TypeName, span, name, advice);
-                        self.edits.text(span, format!("{canonical}{suffix}"));
+                        let text = written!(self, "{canonical}{suffix}");
+                        self.edits.text(span, text);
                         self.leave(previous);
                     }
                 }
                 for arg in args {
+                    if self.halt() {
+                        return;
+                    }
                     self.type_names(arg);
                 }
             }
             TypeKind::Shape(fields, _) => {
                 for (_, field) in fields {
+                    if self.halt() {
+                        return;
+                    }
                     self.type_names(field);
                 }
             }
             TypeKind::Union(options) | TypeKind::Tuple(options) => {
                 for option in options {
+                    if self.halt() {
+                        return;
+                    }
                     self.type_names(option);
                 }
             }
@@ -749,18 +822,19 @@ impl<'a> Checker<'a> {
             {
                 let wrap = |text: &str, expr: &Expr| {
                     if super::context::primary(expr) {
-                        text.to_owned()
+                        self.copied(text)
                     } else {
-                        format!("({text})")
+                        written!(self, "({text})")
                     }
                 };
-                let mut text = format!(
+                let mut text = written!(
+                    self,
                     "{} == {}",
                     wrap(self.text(receiver.span), receiver),
                     wrap(self.text(arg.value.span), &arg.value)
                 );
                 if place == Place::Tight {
-                    text = format!("({text})");
+                    text = written!(self, "({text})");
                 }
                 finding.suggestion = vec![(expr.span, text)];
             }
@@ -826,7 +900,7 @@ impl<'a> Checker<'a> {
             // renamed below.
             if let Some((pattern, captures)) = candidates
                 .iter()
-                .filter(|p| p.callee == Callee::Namespace(name.clone()))
+                .filter(|p| matches!(&p.callee, Callee::Namespace(namespace) if namespace == name))
                 .find_map(|p| self.match_args(call, p).map(|c| (*p, c)))
             {
                 return self.apply_pattern(expr, Some(call), pattern, &captures, place);
@@ -839,7 +913,7 @@ impl<'a> Checker<'a> {
         if members.is_empty() {
             return false;
         }
-        let choose = |kind: &str, rules: &Self| -> Option<(&'static Pattern, Captures)> {
+        let choose = |kind: &str, rules: &Self| -> Option<(&'static Pattern, Captures<'a>)> {
             patterns()
                 .iter()
                 .filter(|p| p.callee == Callee::Member && p.name == call.name)
@@ -849,10 +923,13 @@ impl<'a> Checker<'a> {
         let kinds = self.kinds_of(expr, call);
         let decision = match &kinds {
             Some(kinds) if !kinds.is_empty() => {
-                let mut chosen: Option<(&Pattern, Captures)> = None;
+                let mut chosen: Option<(&Pattern, Captures<'a>)> = None;
                 let mut mixed = false;
                 let mut unmatched = false;
                 for kind in kinds {
+                    if !self.room.charge(1) {
+                        return false;
+                    }
                     let found = if kind == "any" {
                         mixed = true;
                         None
@@ -861,7 +938,7 @@ impl<'a> Checker<'a> {
                             .declared
                             .classes
                             .get(class)
-                            .is_some_and(|c| defines(c, &call.name));
+                            .is_some_and(|c| defines(c, &call.name, self.room));
                         if own { None } else { choose("instance", self) }
                     } else {
                         choose(kind, self)
@@ -893,27 +970,31 @@ impl<'a> Checker<'a> {
                                 && p.receiver == receiver
                         })
                     };
-                    let removed = kinds.iter().find_map(|kind| {
-                        let own = match kind.strip_prefix("class ") {
-                            Some(class) => self
-                                .declared
-                                .classes
-                                .get(class)
-                                .is_some_and(|c| defines(c, &call.name)),
-                            None => kind == "any" || declares(kind, &call.name),
-                        };
-                        if own {
-                            return None;
-                        }
-                        let receiver = if kind.starts_with("class ") {
-                            "instance"
-                        } else {
-                            kind
-                        };
-                        first(receiver)
-                            .or_else(|| first("T"))
-                            .filter(|p| p.canonical.is_none())
-                    });
+                    let removed =
+                        kinds
+                            .iter()
+                            .take_while(|_| self.room.charge(1))
+                            .find_map(|kind| {
+                                let own = match kind.strip_prefix("class ") {
+                                    Some(class) => self
+                                        .declared
+                                        .classes
+                                        .get(class)
+                                        .is_some_and(|c| defines(c, &call.name, self.room)),
+                                    None => kind == "any" || declares(kind, &call.name),
+                                };
+                                if own {
+                                    return None;
+                                }
+                                let receiver = if kind.starts_with("class ") {
+                                    "instance"
+                                } else {
+                                    kind
+                                };
+                                first(receiver)
+                                    .or_else(|| first("T"))
+                                    .filter(|p| p.canonical.is_none())
+                            });
                     if let Some(pattern) = removed {
                         self.unmatched(call, pattern);
                     }
@@ -924,7 +1005,7 @@ impl<'a> Checker<'a> {
                             Rule::Name,
                             span,
                             &call.name,
-                            format!(
+                            written!(self,
                                 "it is removed for some of the receiver's types ({}) but not others; call a member every type has",
                                 kinds.join(", ")
                             ),
@@ -941,7 +1022,7 @@ impl<'a> Checker<'a> {
                 if self.declared.methods.contains(&call.name) || self.host_rooted(receiver) {
                     return false;
                 }
-                let matched: Vec<(&'static Pattern, Captures)> = members
+                let matched: Vec<(&'static Pattern, Captures<'a>)> = members
                     .iter()
                     .filter_map(|p| self.match_args(call, p).map(|c| (*p, c)))
                     .collect();
@@ -966,7 +1047,7 @@ impl<'a> Checker<'a> {
                 if !same {
                     let choices: Vec<String> = matched
                         .iter()
-                        .map(|(p, _)| format!("{} on {}", p.advice(), p.receiver))
+                        .map(|(p, _)| written!(self, "{} on {}", p.advice(), p.receiver))
                         .collect();
                     self.report(Finding::new(
                         Rule::Name,
@@ -982,65 +1063,71 @@ impl<'a> Checker<'a> {
         let Some((pattern, captures)) = decision else {
             return false;
         };
+        if self.halt() {
+            return false;
+        }
         self.apply_pattern(expr, Some(call), pattern, &captures, place)
     }
 
     /// The arguments of `call` that `pattern` captures, if it matches.
-    pub(super) fn match_args(&self, call: &'a Call, pattern: &Pattern) -> Option<Captures> {
+    pub(super) fn match_args(&self, call: &'a Call, pattern: &Pattern) -> Option<Captures<'a>> {
         let mut captures = Captures::default();
-        let (positional, keywords, splats): (Vec<&Arg>, Vec<&Arg>, bool) = match &call.args {
-            None => (Vec::new(), Vec::new(), false),
-            Some(args) => {
-                let positional = args
-                    .items
-                    .iter()
-                    .filter(|arg| arg.kind == ArgKind::Positional)
-                    .collect();
-                let keywords = args
-                    .items
-                    .iter()
-                    .filter(|arg| matches!(arg.kind, ArgKind::Keyword(_)))
-                    .collect();
-                let splats = args
-                    .items
-                    .iter()
-                    .any(|arg| matches!(arg.kind, ArgKind::Splat | ArgKind::KeywordSplat));
-                (positional, keywords, splats)
-            }
-        };
+        let args = call
+            .args
+            .as_ref()
+            .map_or(&[][..], |args| args.items.as_slice());
         let Some(pattern_args) = &pattern.args else {
-            let empty = positional.is_empty() && keywords.is_empty() && !splats;
-            return (empty && call.block.is_none()).then_some(captures);
+            return (args.is_empty() && call.block.is_none()).then_some(captures);
         };
         let rest = pattern_args.contains(&ArgPattern::Rest);
+        let mut positional = args
+            .iter()
+            .take_while(|_| self.room.charge(1))
+            .filter(|arg| arg.kind == ArgKind::Positional);
         let mut next = 0;
         let mut used_keywords = HashSet::new();
         for arg in pattern_args {
+            if !self.room.charge(1) {
+                return None;
+            }
             match arg {
                 ArgPattern::Rest => (),
                 ArgPattern::Capture(name) => {
-                    let value = positional.get(next)?;
+                    let value = positional.next()?;
                     next += 1;
                     captures.values.insert(name.clone(), value.value.span);
                 }
                 ArgPattern::Symbol(symbol) => {
-                    let value = positional.get(next)?;
+                    let value = positional.next()?;
                     next += 1;
                     if !matches!(value.value.kind, ExprKind::Symbol)
-                        || self.text(value.value.span) != format!(":{symbol}")
+                        || self.text(value.value.span) != written!(self, ":{symbol}")
                     {
                         return None;
                     }
                 }
                 ArgPattern::Keyword(name, expected) => {
-                    let (index, arg) = keywords
-                        .iter()
-                        .enumerate()
-                        .find(|(_, arg)| arg.kind == ArgKind::Keyword(name.clone()))?;
+                    let mut found = None;
+                    for (index, arg) in args.iter().enumerate() {
+                        if !self.room.charge(1) {
+                            return None;
+                        }
+                        if let ArgKind::Keyword(key) = &arg.kind {
+                            if self.room.same_text(key, name)? {
+                                found = Some((index, arg));
+                                break;
+                            }
+                        }
+                    }
+                    let (index, arg) = found?;
                     used_keywords.insert(index);
                     match expected {
                         KeywordValue::Literal(literal) => {
-                            if self.text(arg.value.span) != literal {
+                            if !self
+                                .room
+                                .charge(1 + arg.value.span.range().len().div_ceil(64) as u64)
+                                || self.text(arg.value.span) != literal
+                            {
                                 return None;
                             }
                         }
@@ -1051,33 +1138,37 @@ impl<'a> Checker<'a> {
                 }
             }
         }
-        let remaining: Vec<Span> = match &call.args {
-            None => Vec::new(),
-            Some(args) => {
-                let mut positional_seen = 0;
-                let mut keyword_seen = 0;
-                args.items
-                    .iter()
-                    .filter(|arg| match arg.kind {
-                        ArgKind::Positional => {
-                            positional_seen += 1;
-                            positional_seen > next
-                        }
-                        ArgKind::Keyword(_) => {
-                            keyword_seen += 1;
-                            !used_keywords.contains(&(keyword_seen - 1))
-                        }
-                        _ => true,
-                    })
-                    .map(|arg| arg.span)
-                    .collect()
+        if rest {
+            if !self.room.take(args.len() * size_of::<Span>()) {
+                return None;
             }
-        };
-        if !rest && (!remaining.is_empty() || call.block.is_some()) {
+            captures.rest = Vec::with_capacity(args.len());
+            captures.room = Some(self.room);
+        }
+        let mut positional_seen = 0;
+        for (index, arg) in args.iter().enumerate() {
+            if !self.room.charge(1) {
+                return None;
+            }
+            let remaining = match arg.kind {
+                ArgKind::Positional => {
+                    positional_seen += 1;
+                    positional_seen > next
+                }
+                ArgKind::Keyword(_) => !used_keywords.contains(&index),
+                _ => true,
+            };
+            if remaining {
+                if !rest {
+                    return None;
+                }
+                captures.rest.push(arg.span);
+            }
+        }
+        if !rest && call.block.is_some() {
             return None;
         }
-        captures.rest = remaining;
-        Some(captures)
+        self.room.within().then_some(captures)
     }
 
     /// Reports a removed spelling that no rewrite takes as it is called,
@@ -1100,7 +1191,7 @@ impl<'a> Checker<'a> {
         &self,
         pieces: &[TemplatePiece],
         call: Option<&'a Call>,
-        captures: &Captures,
+        captures: &Captures<'_>,
     ) -> bool {
         let indexes = pieces.windows(2).any(|pair| {
             matches!(pair, [TemplatePiece::Text(text), TemplatePiece::Rest] if text.ends_with('['))
@@ -1121,7 +1212,7 @@ impl<'a> Checker<'a> {
         expr: &'a Expr,
         call: Option<&'a Call>,
         pattern: &Pattern,
-        captures: &Captures,
+        captures: &Captures<'_>,
         place: Place,
     ) -> bool {
         let span = call.map_or(expr.span, |call| self.token_span(call.name_tok));
@@ -1157,7 +1248,7 @@ impl<'a> Checker<'a> {
                 rule,
                 span,
                 &pattern.name,
-                format!("{advice}, where it behaves the same"),
+                written!(self, "{advice}, where it behaves the same"),
             ));
             return false;
         }
@@ -1166,7 +1257,10 @@ impl<'a> Checker<'a> {
                 rule,
                 span,
                 &pattern.name,
-                format!("{advice} with an index, a start and a length, or a range"),
+                written!(
+                    self,
+                    "{advice} with an index, a start and a length, or a range"
+                ),
             ));
             return false;
         }
@@ -1175,7 +1269,7 @@ impl<'a> Checker<'a> {
                 rule,
                 span,
                 &pattern.name,
-                format!("{advice}, binding the receiver to a local first"),
+                written!(self, "{advice}, binding the receiver to a local first"),
             ));
             return false;
         }
@@ -1192,7 +1286,7 @@ impl<'a> Checker<'a> {
                 rule,
                 span,
                 &pattern.name,
-                format!("{advice}, where it behaves the same"),
+                written!(self, "{advice}, where it behaves the same"),
             ));
             return false;
         }
@@ -1264,6 +1358,9 @@ impl<'a> Checker<'a> {
                 },
                 TemplatePiece::Rest => {
                     for (index, span) in captures.rest.iter().enumerate() {
+                        if self.halt() {
+                            return true;
+                        }
                         let separated = matches!(out.last(), Some(Piece::Text(t))
                             if t.ends_with('(') || t.ends_with('[') || t.ends_with(", "));
                         if index > 0 || !separated {
@@ -1278,6 +1375,9 @@ impl<'a> Checker<'a> {
         let mut pieces = Vec::new();
         // Tidy `name()` left by an empty `...` into `name`, and `(, ` into `(`.
         for piece in out {
+            if self.halt() {
+                return true;
+            }
             match piece {
                 Piece::Text(text) => text_only.push_str(&text),
                 Piece::Source(span) => {
@@ -1292,6 +1392,9 @@ impl<'a> Checker<'a> {
             pieces.push(Piece::Text(text_only));
         }
         for piece in &mut pieces {
+            if self.halt() {
+                return true;
+            }
             if let Piece::Text(text) = piece {
                 *text = text.replace("(, ", "(").replace("()", "");
             }
@@ -1376,7 +1479,7 @@ impl<'a> Checker<'a> {
                 .iter()
                 .map(|piece| match piece {
                     Piece::Text(text) => text.clone(),
-                    Piece::Source(span) => self.text(*span).to_owned(),
+                    Piece::Source(span) => self.copied(self.text(*span)),
                 })
                 .collect();
             self.edits.insert(previous, text);
@@ -1447,7 +1550,7 @@ impl<'a> Checker<'a> {
                     .next_back()
                     .is_some_and(|c| c.is_alphanumeric() || matches!(c, '_' | '?' | '!'));
                 let text = if glued {
-                    format!(" {flipped}")
+                    written!(self, " {flipped}")
                 } else {
                     flipped.to_owned()
                 };
@@ -1536,7 +1639,7 @@ fn template_text(rewrite: &Change) -> String {
 
 /// Whether some builtin type spells `name` canonically, beside the types
 /// whose patterns matched.
-fn canonical_member(name: &str, matched: &[(&Pattern, Captures)]) -> bool {
+fn canonical_member(name: &str, matched: &[(&Pattern, Captures<'_>)]) -> bool {
     crate::tooling::member_names()
         .iter()
         .filter(|(kind, _)| {
@@ -1560,9 +1663,38 @@ fn universal(name: &str) -> bool {
         .all(|(_, names)| names.contains(&name))
 }
 
-fn defines(class: &Class, name: &str) -> bool {
-    class.members.iter().any(|member| match member {
-        Member::Def(def) => def.name == name,
-        _ => false,
-    })
+fn defines(class: &Class, name: &str, room: &super::edits::Room<'_>) -> bool {
+    for member in &class.members {
+        if !room.charge(1) {
+            return false;
+        }
+        if let Member::Def(def) = member {
+            match room.same_text(&def.name, name) {
+                Some(true) => return true,
+                Some(false) => (),
+                None => return false,
+            }
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn class_method_search_stops_before_the_last_member() {
+        let methods = (0..1000)
+            .map(|i| format!("def f{i}; end;"))
+            .collect::<String>();
+        let source = format!("class C; {methods} end");
+        let tree = super::super::parse::parse(&source).unwrap();
+        let StmtKind::Class(class) = &tree.body[0].kind else {
+            panic!("class")
+        };
+        let room = super::super::edits::Room::new(None, &|steps| steps <= 8, 0);
+        assert!(!defines(class, "f999", &room));
+        assert!(!room.within());
+    }
 }

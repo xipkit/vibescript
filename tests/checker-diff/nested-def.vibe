@@ -1,0 +1,9 @@
+# expect: rejected V0001
+# The runtime refuses a function declared inside a function when it runs.
+def f -> int
+  def g -> int
+    1
+  end
+  2
+end
+p(f)

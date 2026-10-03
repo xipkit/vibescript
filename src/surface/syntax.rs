@@ -5,6 +5,7 @@
 //! yet, so new rules need no parser changes.
 #![allow(dead_code)]
 
+use super::parse::{POLL, Stop};
 use crate::tooling::TokenKind;
 use std::ops::Range;
 
@@ -25,7 +26,72 @@ pub struct Token {
 #[derive(Debug)]
 pub struct Tree {
     pub tokens: Vec<Token>,
+    /// Where the tokens start.
+    pub starts: Starts,
     pub body: Vec<Stmt>,
+}
+
+/// Finds the token that starts at an offset. The source's tokens come
+/// first, sorted, up to their end of file, which a search finds; each
+/// interpolation's follow them, which a table finds by where they start.
+#[derive(Clone, Debug, Default)]
+pub struct Starts {
+    /// One past the source's own end of file.
+    end: usize,
+    /// The first interpolation token starting at each offset.
+    tail: std::collections::HashMap<usize, Tok>,
+}
+
+impl Starts {
+    /// Where `tokens` start; `None` once `stop`, which it asks every
+    /// [`POLL`] tokens, says the compilation has stopped.
+    pub fn new(tokens: &[Token], stop: Stop<'_>) -> Option<Self> {
+        let mut end = tokens.len();
+        for (index, token) in tokens.iter().enumerate() {
+            if index % POLL as usize == 0 && stop() {
+                return None;
+            }
+            if token.kind == TokenKind::Eof {
+                end = index + 1;
+                break;
+            }
+        }
+        let mut starts = Self {
+            end,
+            tail: std::collections::HashMap::new(),
+        };
+        starts.extend(tokens, end, stop)?;
+        Some(starts)
+    }
+
+    /// Adds the tokens from `from`, which an interpolation appended; `None`
+    /// once `stop`, which it asks every [`POLL`] tokens, says the
+    /// compilation has stopped.
+    pub fn extend(&mut self, tokens: &[Token], from: usize, stop: Stop<'_>) -> Option<()> {
+        for (index, token) in tokens.iter().enumerate().skip(from) {
+            if (index - from) % POLL as usize == 0 && stop() {
+                return None;
+            }
+            if token.kind != TokenKind::Eof {
+                self.tail.entry(token.start).or_insert(index);
+            }
+        }
+        Some(())
+    }
+
+    /// The token of `tokens` that starts at `offset`, or the nearest one
+    /// after it among the source's own.
+    pub fn find(&self, tokens: &[Token], offset: usize) -> Tok {
+        let end = self.end.min(tokens.len());
+        let index = tokens[..end].partition_point(|token| token.start < offset);
+        if index < end && tokens[index].start == offset {
+            return index;
+        }
+        self.tail
+            .get(&offset)
+            .copied()
+            .unwrap_or(index.min(tokens.len() - 1))
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -106,21 +172,24 @@ impl Target {
     }
 
     /// Visits the names this target binds.
-    pub fn names(&self, visit: &mut impl FnMut(&str, &Expr)) {
+    pub fn names(&self, visit: &mut impl FnMut(&str, &Expr) -> bool) -> bool {
         match self {
             Self::Expr(expr) => {
                 if let ExprKind::Name(name) = &expr.kind {
-                    visit(name, expr);
+                    return visit(name, expr);
                 }
             }
-            Self::Splat(_, Some(inner)) | Self::Typed(inner, _) => inner.names(visit),
+            Self::Splat(_, Some(inner)) | Self::Typed(inner, _) => return inner.names(visit),
             Self::Splat(_, None) => (),
             Self::Group(_, parts) => {
                 for part in parts {
-                    part.names(visit);
+                    if !part.names(visit) {
+                        return false;
+                    }
                 }
             }
         }
+        true
     }
 }
 

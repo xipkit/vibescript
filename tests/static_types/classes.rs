@@ -48,6 +48,16 @@ fn initialize_assigns_every_instance_variable_without_a_default() {
     );
     clean("class C\n  @a: int?\n  def initialize\n  end\nend\n");
     clean("class C\n  property a: int\n  def initialize(@a: int)\n  end\nend\n");
+    // An ensure runs on every path through its `begin`, so what it assigns
+    // is assigned after it, as master's checker found.
+    clean(
+        "class C\n  @a: int\n  def initialize\n    begin\n      nil\n    ensure\n      @a = 1\n    end\n  end\n  def value -> int\n    @a\n  end\nend\np(C.new.value)\n",
+    );
+    error(
+        "class C\n  @a: int\n  def initialize(flag: bool)\n    begin\n      nil\n    ensure\n      @a = 1 if flag\n    end\n  end\nend\n",
+        "V0205",
+        "@a",
+    );
 }
 
 #[test]
@@ -191,24 +201,16 @@ fn properties_declare_their_types() {
 }
 
 #[test]
-fn nested_classes_are_named_through_their_scope() {
-    let nested = "class Outer\n  class Inner\n    def label -> string\n      \"inner\"\n    end\n  end\nend\n";
-    clean(&format!(
-        "{nested}def keep(x: Outer::Inner, *, other: Outer::Inner? = nil) -> Outer::Inner\n  n: Outer::Inner? = other\n  x\nend\ndef label(x: Outer::Inner) -> string\n  x.label\nend\n"
-    ));
-    codes(
-        &format!("{nested}def keep(x: Outer::Inner) -> Outer::Inner\n  x\nend\nkeep(3)\n"),
-        &["V0101"],
-    );
-    codes(
-        &format!("{nested}def keep(x: Outer::Missing) -> int\n  1\nend\n"),
-        &["V0116"],
-    );
-    // The canonical surface's rules read the annotation too.
-    codes(
-        &format!("{nested}def keep(x: Outer::Inner) -> int\n  [1].size\nend\n"),
-        &["V0401"],
-    );
+fn nested_classes_are_refused() {
+    // The runtime never binds a class declared below the top level, and
+    // fails as soon as the declaration runs.
+    for source in [
+        "class Outer\n  class Inner\n  end\nend\n",
+        "def make\n  class Inner\n  end\nend\n",
+    ] {
+        let diagnostic = error(source, "V0001", "only supported at the top level");
+        assert_eq!(spanned(source, &diagnostic), "class", "{source}");
+    }
 }
 
 #[test]

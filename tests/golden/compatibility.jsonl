@@ -177,10 +177,10 @@
 {"error":{"at":[1,31],"class":"TypeError","kind":"Type","message":"error[V0112]: JSON cannot be indexed with 1 selector(s)","phase":"compile"},"id":"policies/host_globals/module_constant/Parser/2/True/strict"}
 {"error":{"at":[1,31],"class":"TypeError","kind":"Type","message":"error[V0112]: JSON cannot be indexed with 1 selector(s)","phase":"compile"},"id":"policies/host_globals/module_constant/Parser/3/True/ordinary"}
 {"error":{"at":[1,31],"class":"TypeError","kind":"Type","message":"error[V0112]: JSON cannot be indexed with 1 selector(s)","phase":"compile"},"id":"policies/host_globals/module_constant/Parser/3/True/strict"}
-{"id":"policies/host_signatures/bad_break/capability/ordinary/metered","ok":["string","72657475726e2076616c756520666f722074797065642e6563686f20657870656374656420696e742c20676f7420737472696e67"]}
-{"id":"policies/host_signatures/bad_break/capability/ordinary/unlimited","ok":["string","72657475726e2076616c756520666f722074797065642e6563686f20657870656374656420696e742c20676f7420737472696e67"]}
-{"id":"policies/host_signatures/bad_break/capability/strict/metered","ok":["string","72657475726e2076616c756520666f722074797065642e6563686f20657870656374656420696e742c20676f7420737472696e67"]}
-{"id":"policies/host_signatures/bad_break/capability/strict/unlimited","ok":["string","72657475726e2076616c756520666f722074797065642e6563686f20657870656374656420696e742c20676f7420737472696e67"]}
+{"error":{"at":[4,30],"class":"TypeError","kind":"Type","message":"error[V0101]: a `break` out of the block returns from `echo`, which returns int, found string","phase":"compile"},"id":"policies/host_signatures/bad_break/capability/ordinary/metered"}
+{"error":{"at":[4,30],"class":"TypeError","kind":"Type","message":"error[V0101]: a `break` out of the block returns from `echo`, which returns int, found string","phase":"compile"},"id":"policies/host_signatures/bad_break/capability/ordinary/unlimited"}
+{"error":{"at":[4,30],"class":"TypeError","kind":"Type","message":"error[V0101]: a `break` out of the block returns from `echo`, which returns int, found string","phase":"compile"},"id":"policies/host_signatures/bad_break/capability/strict/metered"}
+{"error":{"at":[4,30],"class":"TypeError","kind":"Type","message":"error[V0101]: a `break` out of the block returns from `echo`, which returns int, found string","phase":"compile"},"id":"policies/host_signatures/bad_break/capability/strict/unlimited"}
 {"id":"policies/host_signatures/class_shadow/capability/ordinary/metered","ok":["int","7"]}
 {"id":"policies/host_signatures/class_shadow/capability/ordinary/unlimited","ok":["int","7"]}
 {"id":"policies/host_signatures/class_shadow/capability/strict/metered","ok":["int","7"]}

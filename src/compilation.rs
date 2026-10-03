@@ -8,18 +8,56 @@ mod storage;
 mod table;
 mod tasks;
 mod types;
-pub(crate) use buffer::Buffer;
+pub(crate) use buffer::{Buffer, IntoIter};
 pub(crate) use diagnostics::{error, formatted};
 pub(crate) use name::Name;
 pub(crate) use storage::{Boxed, Bytes, Text};
 pub(crate) use table::Table;
-pub(crate) use tasks::{Task, Tasks};
+pub(crate) use tasks::{Frame, Tasks, framed, task};
 pub(crate) use types::{Field, Type, TypeKind};
+
+/// What compilation may still spend, as a copy another thread can check
+/// without the context it came from: the type checker runs on a thread of
+/// its own for long sources, and stops when it passes these.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Budget {
+    /// The steps left before the step quota, if there is one.
+    pub steps: Option<u64>,
+    /// The bytes left before the memory quota, if there is one.
+    pub memory: Option<usize>,
+    pub deadline: Option<std::time::Instant>,
+    pub cancellation: Option<crate::CancellationToken>,
+}
+
+impl Budget {
+    /// The budget left after `steps` more steps.
+    pub fn less(&self, steps: u64) -> Self {
+        Self {
+            steps: self.steps.map(|left| left.saturating_sub(steps)),
+            ..self.clone()
+        }
+    }
+
+    /// Whether the deadline has passed or the host cancelled.
+    pub fn interrupted(&self) -> bool {
+        self.cancellation
+            .as_ref()
+            .is_some_and(crate::CancellationToken::is_cancelled)
+            || self
+                .deadline
+                .is_some_and(|deadline| std::time::Instant::now() >= deadline)
+    }
+}
 
 pub(crate) trait Work {
     /// Whether compilation runs outside an invocation's budget.
     fn unmetered(&self) -> bool {
         false
+    }
+
+    /// What the work may still spend; unlimited unless metered.
+    fn budget(&self) -> Budget {
+        Budget::default()
     }
 
     fn charge(&self, steps: usize) -> Result<()>;
@@ -87,6 +125,9 @@ impl Work for () {
 pub(crate) struct Meter<'a>(pub RefCell<&'a mut CallContext>);
 
 impl Work for Meter<'_> {
+    fn budget(&self) -> Budget {
+        self.0.borrow().budget()
+    }
     fn charge(&self, steps: usize) -> Result<()> {
         self.0.borrow_mut().charge(steps as u64)
     }

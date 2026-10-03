@@ -1,0 +1,11 @@
+# expect: agreed
+#@ capability store
+#@ capability loose
+#@ main
+a: int = store.each([1, 2]) { |x| break 7 if x == 2 }
+b: array<any> = store.collect([1, 2]) { |x| break ["any"] if x == 2
+  x
+}
+c = around(3) { |x| break "anything" }
+d = loose.visit([1]) { |x| break :sym }
+p(a, b, c, d)

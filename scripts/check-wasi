@@ -11,6 +11,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import platform
 import shutil
 import subprocess
 import sys
@@ -132,6 +133,12 @@ def main():
     maps = [(ROOT, ROOT), (Path(os.path.realpath(ROOT / ".cache")), ROOT / ".cache")]
     zone = local_zone()
     hosts = {"wasmtime": [wasmtime, "run", *[a for host, guest in maps for a in ("--dir", f"{host}::{guest}")]]}
+    # Wasmtime compiles a module's frames larger on x86_64, CI's host, than
+    # on aarch64, so recursion that fits the default 512 KiB wasm stack here
+    # can exhaust it there. Elsewhere the suite runs with half that stack,
+    # so that what passes here passes on CI too.
+    if platform.machine() not in ("x86_64", "AMD64"):
+        hosts["wasmtime"] += ["-W", f"max-wasm-stack={256 << 10}"]
     if zone:
         hosts["wasmtime"] += ["--env", f"TZ={zone}"]
         env["TZ"] = zone

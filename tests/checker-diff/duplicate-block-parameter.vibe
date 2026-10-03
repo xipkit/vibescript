@@ -1,0 +1,6 @@
+# expect: rejected V0209
+# A block's parameters that repeat a name, here one it destructures, are
+# refused like a function's.
+t = 0
+[[1, [2, 3]]].each { |a, (b, a)| t += b }
+p(t)

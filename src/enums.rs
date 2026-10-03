@@ -100,16 +100,31 @@ where
     }))))
 }
 
-/// The symbol an enum member name normalizes to.
+/// The symbol an enum member name normalizes to, made at the length it
+/// takes, so it never grows.
 pub(crate) fn symbol(name: &str) -> String {
-    let mut output = String::new();
+    let mut output = String::with_capacity(symbol_len(name));
+    symbol_chars(name, |c| output.push(c));
+    output
+}
+
+/// The bytes of the symbol `name` normalizes to.
+pub(crate) fn symbol_len(name: &str) -> usize {
+    let mut length = 0;
+    symbol_chars(name, |c| length += c.len_utf8());
+    length
+}
+
+/// Gives `push` each character of the symbol `name` normalizes to.
+fn symbol_chars(name: &str, mut push: impl FnMut(char)) {
+    let mut wrote = false;
     let mut chars = name.chars().peekable();
     let mut previous = None;
     let mut underscore = false;
     while let Some(c) = chars.next() {
         if c == '_' {
-            if !output.is_empty() && !underscore {
-                output.push('_');
+            if wrote && !underscore {
+                push('_');
                 underscore = true;
             }
         } else {
@@ -121,14 +136,14 @@ pub(crate) fn symbol(name: &str) -> String {
                             || chars.peek().is_some_and(|&n| unicode::lower(n)))
                 })
             {
-                output.push('_');
+                push('_');
             }
-            output.push(crate::casing::map(c, false));
+            push(crate::casing::map(c, false));
+            wrote = true;
             underscore = false;
         }
         previous = Some(c);
     }
-    output
 }
 
 impl Enumeration {

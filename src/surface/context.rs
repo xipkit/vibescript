@@ -71,7 +71,7 @@ pub struct Declared<'a> {
     /// Classes by their dotted name, and the methods each defines.
     pub classes: HashMap<String, &'a Class>,
     /// Enums by name, with their members.
-    pub enums: HashMap<String, Vec<String>>,
+    pub enums: HashMap<String, &'a [String]>,
     /// Every method name a class or top-level function defines.
     pub methods: HashSet<String>,
     /// Methods a direct call from outside their class cannot reach.
@@ -89,6 +89,10 @@ pub struct Scope<'a> {
     pub locals: HashSet<String>,
     /// The names `rescue => name` binds.
     pub rescues: HashSet<String>,
+    /// Whether the scope is a block's, whose collection stops at the blocks
+    /// nested in it: they collect their own, and the enclosing function's
+    /// scope already holds what they assign.
+    pub block: bool,
 }
 
 /// The state the canonical-surface rules share while they walk one source.
@@ -97,6 +101,8 @@ pub struct Surface<'a> {
     pub source: &'a str,
     /// Every token of the tree, interpolations' after the source's own.
     pub tokens: &'a [Token],
+    /// Where the tokens start.
+    pub starts: &'a Starts,
     /// The edits made so far.
     pub edits: Edits,
     /// The source's classes, functions and enums.
@@ -119,11 +125,14 @@ pub struct Surface<'a> {
 }
 
 impl<'a> Surface<'a> {
-    /// Prepares to walk `tree`, parsed from `source`.
-    pub fn new(source: &'a str, tree: &'a Tree) -> Self {
+    /// Prepares to walk `tree`, parsed from `source`; `None` once `stop`,
+    /// which it asks every [`parse::POLL`] tokens and declarations it
+    /// reads, says the compilation has stopped.
+    pub fn new(source: &'a str, tree: &'a Tree, stop: parse::Stop<'_>) -> Option<Self> {
         let mut surface = Self {
             source,
             tokens: &tree.tokens,
+            starts: &tree.starts,
             edits: Edits::default(),
             declared: Declared::default(),
             scopes: Vec::new(),
@@ -134,14 +143,23 @@ impl<'a> Surface<'a> {
             words: HashMap::new(),
             negation: None,
         };
+        let poll = parse::POLL as usize;
         for (index, token) in tree.tokens.iter().enumerate() {
+            if index % poll == 0 && stop() {
+                return None;
+            }
             if matches!(token.kind, TokenKind::Operator("&&" | "||")) {
                 let offset = surface.operator_offset(index);
                 surface.short_circuits.insert(offset);
             }
         }
-        surface.declare(&tree.body, "");
-        surface
+        let mut read = 0;
+        let mut stopped = || {
+            read += 1;
+            read % poll == 0 && stop()
+        };
+        surface.declare(&tree.body, "", &mut stopped)?;
+        Some(surface)
     }
 
     /// The source text of `span`.
@@ -165,7 +183,7 @@ impl<'a> Surface<'a> {
 
     /// The token that starts at `offset`.
     pub fn token_at(&self, offset: usize) -> Tok {
-        parse::token_at(self.tokens, offset)
+        self.starts.find(self.tokens, offset)
     }
 
     /// Starts a rewrite of a removed spelling at `span`: edits made until
@@ -193,8 +211,16 @@ impl<'a> Surface<'a> {
         self.edits.enter(previous);
     }
 
-    fn declare(&mut self, body: &'a [Stmt], prefix: &str) {
+    fn declare(
+        &mut self,
+        body: &'a [Stmt],
+        prefix: &str,
+        stopped: &mut dyn FnMut() -> bool,
+    ) -> Option<()> {
         for stmt in body {
+            if stopped() {
+                return None;
+            }
             match &stmt.kind {
                 StmtKind::Def(def) => {
                     self.declared.methods.insert(def.name.clone());
@@ -204,18 +230,24 @@ impl<'a> Surface<'a> {
                         self.declared.functions.insert(def.name.clone(), def);
                     }
                 }
-                StmtKind::Class(class) => self.declare_class(class, prefix),
+                StmtKind::Class(class) => self.declare_class(class, prefix, stopped)?,
                 StmtKind::Enum(declared) => {
                     self.declared
                         .enums
-                        .insert(declared.name.clone(), declared.members.clone());
+                        .insert(declared.name.clone(), &declared.members);
                 }
                 _ => (),
             }
         }
+        Some(())
     }
 
-    fn declare_class(&mut self, class: &'a Class, prefix: &str) {
+    fn declare_class(
+        &mut self,
+        class: &'a Class,
+        prefix: &str,
+        stopped: &mut dyn FnMut() -> bool,
+    ) -> Option<()> {
         let name = if prefix.is_empty() {
             class.name.clone()
         } else {
@@ -224,6 +256,9 @@ impl<'a> Surface<'a> {
         self.declared.classes.insert(name.clone(), class);
         let mut private = false;
         for member in &class.members {
+            if stopped() {
+                return None;
+            }
             match member {
                 Member::Def(def) => {
                     self.declared.methods.insert(def.name.clone());
@@ -235,12 +270,15 @@ impl<'a> Surface<'a> {
                 }
                 Member::Property(property) => {
                     for (tok, _) in &property.names {
+                        if stopped() {
+                            return None;
+                        }
                         let name = self.token_text(*tok);
                         self.declared.methods.insert(name.to_owned());
                         self.declared.methods.insert(format!("{name}="));
                     }
                 }
-                Member::Class(inner) => self.declare_class(inner, &name),
+                Member::Class(inner) => self.declare_class(inner, &name, stopped)?,
                 Member::Ivar(..) | Member::ClassVar(..) => (),
                 Member::Other(span) => {
                     // `send` reaches private and protected methods, which a
@@ -255,6 +293,9 @@ impl<'a> Surface<'a> {
                         .or_else(|| text.strip_prefix("protected "))
                     {
                         for name in names.split(',') {
+                            if stopped() {
+                                return None;
+                            }
                             let name = name.trim().trim_start_matches(':');
                             self.declared.private_methods.insert(name.to_owned());
                         }
@@ -263,6 +304,7 @@ impl<'a> Surface<'a> {
                 Member::Stmt(_) => (),
             }
         }
+        Some(())
     }
 
     /// Whether a class or enum of that dotted name is declared here.
@@ -282,61 +324,6 @@ impl<'a> Surface<'a> {
             .rev()
             .take_while(|_| true)
             .any(|scope| scope.locals.contains(name))
-    }
-
-    /// A receiver kind the syntax decides: a literal, a builtin namespace,
-    /// a rescued error or an annotated parameter.
-    pub fn static_kind(&self, receiver: &Expr) -> Option<String> {
-        Some(
-            match &receiver.kind {
-                ExprKind::Str | ExprKind::Template(_) => "string",
-                ExprKind::Symbol => "symbol",
-                ExprKind::Array(_) | ExprKind::Words => "array",
-                ExprKind::Hash(_) => "hash",
-                ExprKind::Integer => "int",
-                ExprKind::Float => "float",
-                ExprKind::Range(..) => "range",
-                ExprKind::Group(_, inner, _) => return self.static_kind(inner),
-                ExprKind::Name(name) => {
-                    if self.local(name) {
-                        let scope = self.scope();
-                        if scope.rescues.contains(name) {
-                            return Some("error".to_owned());
-                        }
-                        let def = scope.def?;
-                        let param = def.params.iter().find(|param| param.name == *name)?;
-                        let ty = param.ty.as_ref()?;
-                        if ty.nullable {
-                            return None;
-                        }
-                        let TypeKind::Named(tok, _) = &ty.kind else {
-                            return None;
-                        };
-                        let written = self.token_text(*tok).to_ascii_lowercase();
-                        return matches!(
-                            written.as_str(),
-                            "string"
-                                | "symbol"
-                                | "array"
-                                | "hash"
-                                | "int"
-                                | "float"
-                                | "money"
-                                | "duration"
-                                | "time"
-                                | "range"
-                        )
-                        .then(|| written.replace("object", "hash"));
-                    }
-                    if namespace_name(name) && !self.declared.classes.contains_key(name.as_str()) {
-                        return Some(name.clone());
-                    }
-                    return None;
-                }
-                _ => return None,
-            }
-            .to_owned(),
-        )
     }
 
     /// Whether an expression starts from a name the script never binds,
@@ -463,12 +450,18 @@ pub fn method_name(name: &str) -> bool {
 }
 
 /// Spells bytes as a double-quoted string literal, when every byte can be.
-pub fn string_literal(bytes: &[u8]) -> Option<String> {
+pub fn string_literal(bytes: &[u8], room: &super::edits::Room<'_>) -> Option<String> {
+    if !room.charge(bytes.len().div_ceil(64) as u64) {
+        return None;
+    }
     let text = std::str::from_utf8(bytes).ok()?;
-    let mut out = String::with_capacity(text.len() + 2);
-    out.push('"');
+    let mut out = super::edits::Written::new(room);
+    out.push_str("\"");
     let mut chars = text.chars().peekable();
     while let Some(c) = chars.next() {
+        if !room.within() {
+            return None;
+        }
         match c {
             '"' => out.push_str("\\\""),
             '\\' => out.push_str("\\\\"),
@@ -477,128 +470,187 @@ pub fn string_literal(bytes: &[u8]) -> Option<String> {
             '\r' => out.push_str("\\r"),
             '#' if chars.peek() == Some(&'{') => out.push_str("\\#"),
             c if c.is_control() => return None,
-            c => out.push(c),
+            c => {
+                out.push_str(c.encode_utf8(&mut [0; 4]));
+            }
         }
     }
-    out.push('"');
-    Some(out)
+    out.push_str("\"");
+    out.finish()
 }
 
 /// Spells bytes as a symbol literal, quoted when they are not a name.
-pub fn symbol_literal(bytes: &[u8]) -> Option<String> {
+pub fn symbol_literal(bytes: &[u8], room: &super::edits::Room<'_>) -> Option<String> {
+    if !room.charge(bytes.len().div_ceil(64) as u64) {
+        return None;
+    }
     let text = std::str::from_utf8(bytes).ok()?;
     if method_name(text) {
-        return Some(format!(":{text}"));
+        let mut out = super::edits::Written::new(room);
+        out.push_str(":");
+        out.push_str(text);
+        return out.finish();
     }
-    string_literal(bytes).map(|quoted| format!(":{quoted}"))
+    let quoted = string_literal(bytes, room)?;
+    let mut out = super::edits::Written::new(room);
+    out.push_str(":");
+    out.push_str(&quoted);
+    let capacity = quoted.capacity();
+    drop(quoted);
+    room.give_back(capacity);
+    out.finish()
 }
 
-/// Gathers the names a body binds, without entering nested functions.
-pub fn collect_locals(body: &[Stmt], scope: &mut Scope<'_>) {
+/// Asks whether the walk has stopped, counting what it reads as the walk
+/// counts what it visits.
+pub type Halt<'h> = &'h mut dyn FnMut() -> bool;
+
+/// Gathers the names a body binds, without entering nested functions,
+/// asking `halt`, the walk's, at each statement whether the walk has
+/// stopped, and gathering no more once it has.
+pub fn collect_locals(body: &[Stmt], scope: &mut Scope<'_>, halt: Halt<'_>) {
     for stmt in body {
-        collect_stmt(stmt, scope);
+        if halt() {
+            return;
+        }
+        collect_stmt(stmt, scope, halt);
     }
 }
 
 /// Gathers the names a function's rescue clauses bind.
-pub fn collect_rescued(rescued: &Rescued, scope: &mut Scope<'_>) {
+pub fn collect_rescued(rescued: &Rescued, scope: &mut Scope<'_>, halt: Halt<'_>) {
     for clause in &rescued.rescues {
+        if halt() {
+            return;
+        }
         if let Some(name) = &clause.binding {
             scope.locals.insert(name.clone());
             scope.rescues.insert(name.clone());
         }
-        collect_locals(&clause.body, scope);
+        collect_locals(&clause.body, scope, halt);
     }
     for body in rescued.alternate.iter().chain(&rescued.ensure) {
-        collect_locals(body, scope);
+        if halt() {
+            return;
+        }
+        collect_locals(body, scope, halt);
     }
 }
 
-fn collect_stmt(stmt: &Stmt, scope: &mut Scope<'_>) {
+fn collect_stmt(stmt: &Stmt, scope: &mut Scope<'_>, halt: Halt<'_>) {
     match &stmt.kind {
         StmtKind::Assign(assign) => {
+            // A name the walk has stopped by is not gathered, nor any after.
             for target in &assign.targets {
+                if halt() {
+                    return;
+                }
                 target.names(&mut |name, _| {
+                    if halt() {
+                        return false;
+                    }
                     scope.locals.insert(name.to_owned());
+                    true
                 });
             }
             for value in &assign.values {
-                collect_expr(value, scope);
+                if halt() {
+                    return;
+                }
+                collect_expr(value, scope, halt);
             }
         }
-        StmtKind::Expr(expr) => collect_expr(expr, scope),
-        StmtKind::If(node) => collect_if(node, scope),
+        StmtKind::Expr(expr) => collect_expr(expr, scope, halt),
+        StmtKind::If(node) => collect_if(node, scope, halt),
         StmtKind::While(node) => {
-            collect_expr(&node.condition, scope);
-            collect_locals(&node.body, scope);
+            collect_expr(&node.condition, scope, halt);
+            collect_locals(&node.body, scope, halt);
         }
         StmtKind::For(node) => {
             node.target.names(&mut |name, _| {
+                if halt() {
+                    return false;
+                }
                 scope.locals.insert(name.to_owned());
+                true
             });
-            collect_expr(&node.iterable, scope);
-            collect_locals(&node.body, scope);
+            collect_expr(&node.iterable, scope, halt);
+            collect_locals(&node.body, scope, halt);
         }
         StmtKind::Modifier(node) => {
-            collect_stmt(&node.body, scope);
-            collect_expr(&node.condition, scope);
+            collect_stmt(&node.body, scope, halt);
+            collect_expr(&node.condition, scope, halt);
         }
-        StmtKind::Flow(_, Some(value)) => collect_expr(value, scope),
+        StmtKind::Flow(_, Some(value)) => collect_expr(value, scope, halt),
         StmtKind::Raise(_, value, message) => {
             for expr in value.iter().chain(message) {
-                collect_expr(expr, scope);
+                if halt() {
+                    return;
+                }
+                collect_expr(expr, scope, halt);
             }
         }
         _ => (),
     }
 }
 
-fn collect_if(node: &If, scope: &mut Scope<'_>) {
+fn collect_if(node: &If, scope: &mut Scope<'_>, halt: Halt<'_>) {
     for (condition, body) in &node.branches {
-        collect_expr(condition, scope);
-        collect_locals(body, scope);
+        if halt() {
+            return;
+        }
+        collect_expr(condition, scope, halt);
+        collect_locals(body, scope, halt);
     }
     if let Some((_, body)) = &node.alternate {
-        collect_locals(body, scope);
+        collect_locals(body, scope, halt);
     }
 }
 
 /// Gathers the names an expression binds, such as locals assigned inside
 /// an `if` expression or a block.
-pub fn collect_expr(expr: &Expr, scope: &mut Scope<'_>) {
+pub fn collect_expr(expr: &Expr, scope: &mut Scope<'_>, halt: Halt<'_>) {
     match &expr.kind {
-        ExprKind::If(node) => collect_if(node, scope),
-        ExprKind::Loop(stmt) => collect_stmt(stmt, scope),
+        ExprKind::If(node) => collect_if(node, scope, halt),
+        ExprKind::Loop(stmt) => collect_stmt(stmt, scope, halt),
         ExprKind::Begin(node) => {
-            collect_locals(&node.body, scope);
-            collect_rescued(&node.rescued, scope);
+            collect_locals(&node.body, scope, halt);
+            collect_rescued(&node.rescued, scope, halt);
         }
         ExprKind::Case(node) => {
             if let Some(subject) = &node.subject {
-                collect_expr(subject, scope);
+                collect_expr(subject, scope, halt);
             }
             for when in &node.whens {
-                collect_expr(&when.result, scope);
+                if halt() {
+                    return;
+                }
+                collect_expr(&when.result, scope, halt);
             }
             if let Some((_, alternate)) = &node.alternate {
-                collect_expr(alternate, scope);
+                collect_expr(alternate, scope, halt);
             }
         }
-        ExprKind::Group(_, inner, _) => collect_expr(inner, scope),
+        ExprKind::Group(_, inner, _) => collect_expr(inner, scope, halt),
         ExprKind::Binary(_, left, right) => {
-            collect_expr(left, scope);
-            collect_expr(right, scope);
+            collect_expr(left, scope, halt);
+            collect_expr(right, scope, halt);
         }
         ExprKind::Call(call) => {
             if let Some(receiver) = &call.receiver {
-                collect_expr(receiver, scope);
+                collect_expr(receiver, scope, halt);
             }
             for arg in call.args.iter().flat_map(|args| &args.items) {
-                collect_expr(&arg.value, scope);
+                if halt() {
+                    return;
+                }
+                collect_expr(&arg.value, scope, halt);
             }
             // Blocks see the enclosing locals and may assign them.
-            if let Some(block) = &call.block {
-                collect_locals(&block.body, scope);
+            if let Some(block) = &call.block
+                && !scope.block
+            {
+                collect_locals(&block.body, scope, halt);
             }
         }
         _ => (),

@@ -3,14 +3,17 @@
 
 use super::{
     Checker,
+    assigns::TrySpans,
     check::{Purpose, Want, is_constant},
+    counted::ScratchVec,
+    flow::{Branch, VarState},
     program::{FnId, NsId},
     sigs,
     ty::{Field, Kind, Ty},
 };
 use crate::{
     diagnostic::{Code, Diagnostic, Edit, Fix, Span},
-    syntax::{Expr, Node, Try, When},
+    syntax::{Expr, Node, Stmt, Try, When},
     value::Kind as ValueKind,
 };
 
@@ -25,9 +28,33 @@ impl<'a> Checker<'a> {
     /// Checks that an expression's value is assignable to `expected`,
     /// reporting at the innermost expression that produces the value.
     pub(super) fn expr_against(&mut self, expr: &'a Expr, expected: Ty, purpose: &Purpose) -> Ty {
+        // The names its caller copied into the purpose are held while the
+        // value is checked.
+        let Some(held) = self.hold(super::meter::Heap::heap(purpose)) else {
+            return Ty::ERROR;
+        };
+        let ty = self.expr_against_held(expr, expected, purpose);
+        self.release(held);
+        ty
+    }
+
+    /// [`Self::expr_against`] for a caller that holds what `purpose`
+    /// copies.
+    pub(super) fn expr_against_held(
+        &mut self,
+        expr: &'a Expr,
+        expected: Ty,
+        purpose: &Purpose,
+    ) -> Ty {
         match &expr.node {
             Node::Conditional(..) | Node::Case(..) | Node::Try(_) | Node::Compound(_) => {
-                self.purposes.push(purpose.clone());
+                // The purpose, and its room on the stack, are counted as it
+                // is kept; a check the budget stops checks no more.
+                let owned = purpose.copied_bytes();
+                if self.purposes.reserve_with(1, owned).is_err() {
+                    return Ty::ERROR;
+                }
+                self.purposes.push_within(purpose.clone());
                 let ty = self.expr_want(expr, Want::Check(expected));
                 self.purposes.pop();
                 ty
@@ -57,7 +84,14 @@ impl<'a> Checker<'a> {
         self.mismatch(span, expected, found, purpose);
         if self.diagnostics.len() > before {
             if let Some(fix) = self.fetch_fix(expr, found, expected) {
-                self.diagnostics.last_mut().unwrap().fixes.push(fix);
+                // The fix, with one more place in its diagnostic's list,
+                // is counted with the checker's growth before it is kept.
+                if self.grow(std::mem::size_of::<Fix>() + super::meter::Heap::heap(&fix)) {
+                    return;
+                }
+                let fixes = &mut self.diagnostics.last_mut().unwrap().fixes;
+                fixes.reserve_exact(1);
+                fixes.push(fix);
             }
         }
     }
@@ -88,7 +122,7 @@ impl<'a> Checker<'a> {
                     return None;
                 };
                 let key = key.as_bytes()?;
-                fields.iter().find(|field| field.name.as_bytes() == key)?.ty
+                self.types.field(fields, key)?.ty
             }
             _ => return None,
         };
@@ -103,24 +137,35 @@ impl<'a> Checker<'a> {
         let brackets = self.spans.index_brackets(receiver, expr)?;
         let selector = self.spans.expr(&selectors[0]);
         let text = self.source.get(selector.start..selector.end)?;
+        // Each text spells the key; the message, once written, is held
+        // while the replacement is.
+        let message = text!(
+            self,
+            "read it with `fetch({text})`, which raises when it is missing"
+        );
+        let held = self.hold(message.capacity())?;
+        let replacement = text!(self, ".fetch({text})");
+        self.release(held);
         Some(Fix::edits(
-            format!("read it with `fetch({text})`, which raises when it is missing"),
+            message,
             vec![Edit {
                 span: brackets,
-                replacement: format!(".fetch({text})"),
+                replacement,
             }],
         ))
     }
 
     pub(super) fn expr_want(&mut self, expr: &'a Expr, want: Want) -> Ty {
-        self.steps += 1;
+        if self.meter.charge(1) || self.over_budget() {
+            return Ty::ERROR;
+        }
         if super::too_tall(expr.height()) {
             let span = self.spans.expr(expr);
             self.too_deep(span);
             return Ty::ANY;
         }
         let key = std::ptr::from_ref(expr) as usize;
-        if let Some(memo) = &self.memo {
+        if let Some(memo) = self.memo.get() {
             if memo.replay {
                 if let Some(&ty) = memo.types.get(&key) {
                     return ty;
@@ -128,9 +173,12 @@ impl<'a> Checker<'a> {
             }
         }
         let ty = self.expr_uncached(expr, want);
-        if let Some(memo) = &mut self.memo {
-            if !memo.replay {
-                memo.types.insert(key, ty);
+        let tables = self.meter.tables();
+        if let Some(memo) = self.memo.get_mut() {
+            // A type the budget refuses room for is not recorded: the
+            // check has stopped, and replays nothing more.
+            if !memo.replay && memo.types.insert(tables, key, ty).is_err() {
+                self.stopped = true;
             }
         }
         // A discarded compound form reports no value, although it has one.
@@ -150,7 +198,8 @@ impl<'a> Checker<'a> {
                 Ty::FLOAT => Some(super::Number::Float),
                 _ => None,
             };
-            self.facts.record_value(expr, plain, number);
+            self.facts
+                .record_value(self.meter.tables(), expr, plain, number);
         }
         ty
     }
@@ -222,8 +271,16 @@ impl<'a> Checker<'a> {
             ValueKind::Int(_) | ValueKind::Big(_) => Ty::INT,
             ValueKind::Float(_) => Ty::FLOAT,
             ValueKind::Bytes(_) => Ty::STRING,
+            ValueKind::Symbol(_) if hint.is_none() => Ty::SYMBOL,
             ValueKind::Symbol(symbol) => {
-                let name = String::from_utf8_lossy(&symbol.data).into_owned();
+                // A name that is not UTF-8 is copied with a replacement of
+                // up to three bytes for each byte, counted before it is.
+                if std::str::from_utf8(&symbol.data).is_err()
+                    && self.transient(3 * symbol.data.len())
+                {
+                    return Ty::ERROR;
+                }
+                let name = String::from_utf8_lossy(&symbol.data);
                 self.symbol_literal(expr, &name, hint)
             }
             _ => Ty::ANY,
@@ -236,42 +293,56 @@ impl<'a> Checker<'a> {
         let Some(hint) = hint else {
             return Ty::SYMBOL;
         };
+        // The hint's alternatives are a step for each 64 of them, and each
+        // enum's members, searched for the symbol, a step more, charged
+        // before the search, which may end at any of them.
         let alternatives = self.types.members(hint);
-        let mut enums = Vec::new();
+        if self.types.work(alternatives.len()) {
+            return Ty::ERROR;
+        }
+        let mut enum_hint = None;
+        let mut enum_count = 0_usize;
         for &alternative in &alternatives {
-            match self.types.kind(alternative).clone() {
-                Kind::SymbolLit(literal) if &*literal == name => return alternative,
+            match &*self.types.shared(alternative) {
+                Kind::SymbolLit(literal) if &**literal == name => return alternative,
                 Kind::Symbol | Kind::Any => return Ty::SYMBOL,
                 Kind::EnumValue(id) => {
-                    if self.program.enums[id as usize]
-                        .symbols
-                        .iter()
-                        .any(|s| s == name)
-                    {
+                    if self.meter.charge(1) {
+                        return Ty::ERROR;
+                    }
+                    if self.program.enums[*id as usize].symbol(name).is_some() {
                         if let Some(why) = self.symbols_stay {
-                            self.enum_symbol(expr, id, name, why);
+                            self.enum_symbol(expr, *id, name, why);
                         }
                         return alternative;
                     }
-                    enums.push(id);
+                    enum_hint = Some(*id);
+                    enum_count += 1;
                 }
                 _ => (),
             }
         }
-        if let [id] = enums[..] {
-            let decl = &self.program.enums[id as usize];
-            let members = decl
-                .symbols
-                .iter()
-                .map(|s| format!(":{s}"))
-                .collect::<Vec<_>>()
-                .join(", ");
-            let enum_name = decl.name.clone();
+        if let (1, Some(id)) = (enum_count, enum_hint) {
+            let decl = std::sync::Arc::clone(&self.program.enums[id as usize]);
+            if self.types.work(decl.symbols.len()) || self.over_budget() {
+                return Ty::ERROR;
+            }
+            let (members, _) = super::listed(&self.meter, &decl.symbols, |out, symbol| {
+                out.push(':');
+                out.push_str(symbol);
+            });
+            if self.halted() {
+                return Ty::ERROR;
+            }
+            let enum_name = &decl.name;
             let span = self.spans.expr(expr);
             self.report(Diagnostic::error(
                 Code::UNKNOWN_ENUM_MEMBER,
                 span,
-                format!("`:{name}` is not a member of `{enum_name}`, whose members are {members}"),
+                text!(
+                    self,
+                    "`:{name}` is not a member of `{enum_name}`, whose members are {members}"
+                ),
             ));
             return Ty::ERROR;
         }
@@ -285,7 +356,7 @@ impl<'a> Checker<'a> {
             return self.self_type();
         }
         if name.starts_with("@@") {
-            let key = (self.frame.owner, name.to_owned());
+            let key = (self.frame.owner, self.copy(name));
             if let Some(&ty) = self.constants.get(&key) {
                 return ty;
             }
@@ -294,8 +365,8 @@ impl<'a> Checker<'a> {
                 Code::UNDECLARED_IVAR,
                 span,
                 if self.frame.owner.is_none() {
-                    format!("class variable `{name}` is outside a class")
-                } else { format!(
+                    text!(self, "class variable `{name}` is outside a class")
+                } else { text!(self,
                     "class variable `{name}` is not declared; declare it in the class body, as in `{name}: T = value`"
                 ) },
             ));
@@ -320,7 +391,10 @@ impl<'a> Checker<'a> {
                     Diagnostic::error(
                         Code::UNASSIGNED_LOCAL,
                         span,
-                        format!("`{name}` is not assigned on every path that reaches this read"),
+                        text!(
+                            self,
+                            "`{name}` is not assigned on every path that reaches this read"
+                        ),
                     )
                     .with_label(self.spans.token(declared), "first assigned here"),
                 );
@@ -340,7 +414,7 @@ impl<'a> Checker<'a> {
         }
         if is_constant(name) {
             if let Some(ns) = self.frame.owner {
-                if let Some(&ty) = self.constants.get(&(Some(ns), name.to_owned())) {
+                if let Some(&ty) = self.constants.get(&(Some(ns), self.copy(name))) {
                     return ty;
                 }
                 if let Some(&child) = self.program.namespaces[ns as usize].children.get(name) {
@@ -388,7 +462,7 @@ impl<'a> Checker<'a> {
     pub(super) fn constant(&mut self, name: &str, scope: Option<NsId>) -> Option<Ty> {
         let mut current = scope;
         while let Some(ns) = current {
-            if let Some(&ty) = self.constants.get(&(Some(ns), name.to_owned())) {
+            if let Some(&ty) = self.constants.get(&(Some(ns), self.copy(name))) {
                 return Some(ty);
             }
             if let Some(&child) = self.program.namespaces[ns as usize].children.get(name) {
@@ -405,7 +479,7 @@ impl<'a> Checker<'a> {
         if let Some(index) = sigs::index().module(name) {
             return Some(self.types.intern(Kind::Builtin(index)));
         }
-        self.constants.get(&(None, name.to_owned())).copied()
+        self.constants.get(&(None, self.copy(name))).copied()
     }
 
     // Literals ---------------------------------------------------------
@@ -421,48 +495,73 @@ impl<'a> Checker<'a> {
 
     fn array_literal(&mut self, items: &'a [Expr], hint: Option<Ty>) -> Ty {
         if let Some(hint) = hint {
-            let alternatives: Vec<Ty> = self
-                .types
-                .members(hint)
-                .into_iter()
-                .filter(|&ty| matches!(self.types.kind(ty), Kind::Array(_) | Kind::Tuple(_)))
-                .collect();
+            // The hint's lists, in a list counted while it lives, since
+            // checking the items against them checks what they hold.
+            let mut alternatives = ScratchVec::new(&self.meter);
+            for ty in self.types.members(hint) {
+                if matches!(self.types.kind(ty), Kind::Array(_) | Kind::Tuple(_)) {
+                    alternatives.add(ty);
+                }
+            }
             if alternatives.len() > 1 {
-                let mut values = Vec::new();
+                let Some(held) = self.hold(2 * types_bytes(items.len())) else {
+                    return Ty::ERROR;
+                };
+                let mut values = Vec::with_capacity(items.len());
                 for (index, item) in items.iter().enumerate() {
-                    let hints: Vec<Ty> = alternatives
-                        .iter()
-                        .filter_map(|&ty| match self.types.kind(ty) {
-                            Kind::Array(element) => Some(*element),
-                            Kind::Tuple(elements) => elements.get(index).copied(),
-                            _ => None,
-                        })
-                        .collect();
-                    let element = self.types.union(&hints);
+                    // A check an item stops lists no more hints.
+                    if self.halted() {
+                        self.release(held);
+                        return Ty::ERROR;
+                    }
+                    // The item's hints are dropped before it is checked.
+                    let element = {
+                        let hints: Vec<Ty> = alternatives
+                            .iter()
+                            .filter_map(|&ty| match self.types.kind(ty) {
+                                Kind::Array(element) => Some(*element),
+                                Kind::Tuple(elements) => elements.get(index).copied(),
+                                _ => None,
+                            })
+                            .collect();
+                        self.types.union(&hints)
+                    };
                     values.push(self.expr(item, Some(element)));
                 }
                 let tuple = self.types.tuple(values.clone());
-                for alternative in alternatives {
-                    if self.types.assignable(tuple, alternative) {
-                        return alternative;
+                let fitting = alternatives
+                    .iter()
+                    .copied()
+                    .find(|&alternative| self.types.assignable(tuple, alternative));
+                let result = match fitting {
+                    Some(alternative) => alternative,
+                    None => {
+                        let element = self.types.union(&values);
+                        self.types.array(element)
                     }
-                }
-                let element = self.types.union(&values);
-                return self.types.array(element);
+                };
+                self.release(held);
+                return result;
             }
         }
         let hint = self.literal_hint(hint, |kind| {
             matches!(kind, Kind::Array(_) | Kind::Tuple(_) | Kind::Any)
         });
-        match hint.map(|hint| (hint, self.types.kind(hint).clone())) {
+        let shared = hint.map(|hint| (hint, self.types.shared(hint)));
+        match shared.as_ref().map(|(hint, kind)| (*hint, &**kind)) {
             Some((hint, Kind::Tuple(elements))) if elements.len() == items.len() => {
                 if self.types.has_var(hint) {
+                    let Some(held) = self.hold(types_bytes(items.len())) else {
+                        return Ty::ERROR;
+                    };
                     let actual = items
                         .iter()
                         .zip(elements.iter())
                         .map(|(item, &element)| self.expr(item, Some(element)))
                         .collect();
-                    return self.types.tuple(actual);
+                    let tuple = self.types.tuple(actual);
+                    self.release(held);
+                    return tuple;
                 }
                 for (item, &element) in items.iter().zip(elements.iter()) {
                     self.expr_against(item, element, &Purpose::Element);
@@ -471,21 +570,29 @@ impl<'a> Checker<'a> {
             }
             Some((hint, Kind::Array(element))) => {
                 if self.types.has_var(hint) {
+                    let Some(held) = self.hold(types_bytes(items.len())) else {
+                        return Ty::ERROR;
+                    };
                     let actual: Vec<Ty> = items
                         .iter()
-                        .map(|item| self.expr(item, Some(element)))
+                        .map(|item| self.expr(item, Some(*element)))
                         .collect();
                     let element = self.types.union(&actual);
+                    self.release(held);
                     return self.types.array(element);
                 }
                 for item in items {
-                    self.expr_against(item, element, &Purpose::Element);
+                    self.expr_against(item, *element, &Purpose::Element);
                 }
                 hint
             }
             _ => {
+                let Some(held) = self.hold(types_bytes(items.len())) else {
+                    return Ty::ERROR;
+                };
                 let types: Vec<Ty> = items.iter().map(|item| self.expr(item, None)).collect();
                 let element = self.types.union(&types);
+                self.release(held);
                 self.types.array(element)
             }
         }
@@ -495,47 +602,99 @@ impl<'a> Checker<'a> {
     /// be checked against: those whose fields its keys fit, preferring
     /// those that declare no field the literal leaves out, and of them the
     /// widest, which accepts the values the others do, when there is one.
+    /// They are listed in a list counted while it lives, since checking
+    /// the literal against them checks what its entries hold.
     fn fitting_shapes(
         &mut self,
         entries: &[(crate::compilation::Bytes, Expr)],
         hint: Option<Ty>,
-    ) -> Vec<Ty> {
-        let mut exact = Vec::new();
-        let mut loose = Vec::new();
+    ) -> ScratchVec<Ty> {
+        let mut exact = ScratchVec::new(&self.meter);
+        let mut loose = ScratchVec::new(&self.meter);
         let Some(hint) = hint else {
-            return Vec::new();
+            return exact;
         };
         for alternative in self.types.members(hint) {
-            let Kind::Shape(fields, open) = self.types.kind(alternative) else {
+            if self.halted() {
+                return ScratchVec::new(&self.meter);
+            }
+            let shared = self.types.shared(alternative);
+            let Kind::Shape(fields, open) = &*shared else {
                 continue;
             };
-            let has = |name: &str| entries.iter().any(|(key, _)| name.as_bytes() == &key[..]);
-            let keys_fit = entries.iter().all(|(key, _)| {
-                *open || fields.iter().any(|field| field.name.as_bytes() == &key[..])
-            });
-            if !keys_fit
-                || fields
-                    .iter()
-                    .any(|field| !field.optional && !has(&field.name))
-            {
+            let Some(given) = self.given_fields(fields, *open, entries) else {
+                continue;
+            };
+            let required = fields
+                .iter()
+                .zip(given.iter())
+                .all(|(field, &given)| field.optional || given);
+            if !required {
                 continue;
             }
-            if fields.iter().all(|field| has(&field.name)) {
-                exact.push(alternative);
+            if given.iter().all(|&given| given) {
+                exact.add(alternative);
             } else {
-                loose.push(alternative);
+                loose.add(alternative);
             }
         }
         let candidates = if exact.is_empty() { loose } else { exact };
+        // Each candidate is compared with each other, a step for each 64
+        // comparisons, since a relation decided before is charged nothing.
+        if self
+            .types
+            .work(candidates.len().saturating_mul(candidates.len()))
+        {
+            return ScratchVec::new(&self.meter);
+        }
         let widest = candidates.iter().copied().find(|&wide| {
             candidates
                 .iter()
                 .all(|&other| self.types.assignable(other, wide))
         });
         match widest {
-            Some(widest) => vec![widest],
+            Some(widest) => {
+                let mut widest_only = ScratchVec::new(&self.meter);
+                widest_only.add(widest);
+                widest_only
+            }
             None => candidates,
         }
+    }
+
+    /// Which of a shape's `fields` a literal with `entries` gives, found by
+    /// searching the sorted fields for each key, so the keys need no table
+    /// of their own; `None` when a key names no field of a closed shape,
+    /// or the check stopped at its budget.
+    fn given_fields(
+        &mut self,
+        fields: &[Field],
+        open: bool,
+        entries: &[(crate::compilation::Bytes, Expr)],
+    ) -> Option<ScratchVec<bool>> {
+        if self.types.work(fields.len() + entries.len()) {
+            return None;
+        }
+        let mut given = ScratchVec::new(&self.meter);
+        given.reserve(fields.len()).ok()?;
+        for _ in fields {
+            given.push_within(false);
+        }
+        for (index, (key, _)) in entries.iter().enumerate() {
+            if index % 4096 == 4095 && self.over_budget() {
+                return None;
+            }
+            match super::counted::find_bytes(&self.meter, fields, key, |field| {
+                field.name.as_bytes()
+            })
+            .ok()?
+            {
+                Some(at) => given[at] = true,
+                None if open => (),
+                None => return None,
+            }
+        }
+        (!self.types.stopped()).then_some(given)
     }
 
     /// Types a record literal that fits several shapes, none of which
@@ -547,27 +706,37 @@ impl<'a> Checker<'a> {
         entries: &'a [(crate::compilation::Bytes, Expr)],
         shapes: &[Ty],
     ) -> Ty {
-        let mut fields = Vec::new();
+        let mut fields = ScratchVec::new(&self.meter);
+        if fields.reserve(entries.len()).is_err() {
+            return Ty::ERROR;
+        }
         for (key, entry) in entries {
-            let hints: Vec<Ty> = shapes
-                .iter()
-                .filter_map(|&shape| match self.types.kind(shape) {
-                    Kind::Shape(fields, _) => fields
-                        .iter()
-                        .find(|field| field.name.as_bytes() == &key[..])
-                        .map(|field| field.ty),
-                    _ => None,
-                })
-                .collect();
-            let hint = (!hints.is_empty()).then(|| self.types.union(&hints));
+            // A check an entry stops lists no more hints nor names.
+            if self.halted() {
+                return Ty::ERROR;
+            }
+            // The entry's hints are dropped before it is checked.
+            let hint = {
+                let hints: Vec<Ty> = shapes
+                    .iter()
+                    .filter_map(|&shape| match self.types.kind(shape) {
+                        Kind::Shape(fields, _) => {
+                            self.types.field(fields, key).map(|field| field.ty)
+                        }
+                        _ => None,
+                    })
+                    .collect();
+                (!hints.is_empty()).then(|| self.types.union(&hints))
+            };
             let ty = self.expr(entry, hint);
-            fields.push(Field {
-                name: String::from_utf8_lossy(key).as_ref().into(),
+            fields.add(Field {
+                name: super::counted::lossy(key, &self.meter).into(),
                 ty,
                 optional: false,
             });
         }
-        let actual = self.types.shape(fields, false);
+        // The fields move into the type table, which holds them from here.
+        let actual = self.types.shape(fields.into_vec(), false);
         shapes
             .iter()
             .copied()
@@ -593,77 +762,123 @@ impl<'a> Checker<'a> {
                 )
             })
         });
-        match hint.map(|hint| (hint, self.types.kind(hint).clone())) {
+        let shared = hint.map(|hint| (hint, self.types.shared(hint)));
+        match shared.as_ref().map(|(hint, kind)| (*hint, &**kind)) {
             Some((hint, Kind::Hash(value))) => {
                 if self.types.has_var(hint) {
+                    let Some(held) = self.hold(types_bytes(entries.len())) else {
+                        return Ty::ERROR;
+                    };
                     let actual: Vec<Ty> = entries
                         .iter()
-                        .map(|(_, entry)| self.expr(entry, Some(value)))
+                        .map(|(_, entry)| self.expr(entry, Some(*value)))
                         .collect();
                     let value = self.types.union(&actual);
+                    self.release(held);
                     return self.types.hash(value);
                 }
                 for (_, entry) in entries {
-                    self.expr_against(entry, value, &Purpose::Element);
+                    self.expr_against(entry, *value, &Purpose::Element);
                 }
                 hint
             }
             Some((hint, Kind::Shape(fields, open))) => {
-                let mut present = Vec::new();
-                let mut actual = Vec::new();
+                // Which fields the literal gives, by position, and its
+                // values' types, which name its own shape only if it lacks
+                // one.
+                let Some(held) = self.hold(fields.len() + types_bytes(entries.len())) else {
+                    return Ty::ERROR;
+                };
+                let mut present = vec![false; fields.len()];
+                let mut types = Vec::with_capacity(entries.len());
                 for (key, entry) in entries {
-                    let key = String::from_utf8_lossy(key).into_owned();
-                    match fields.iter().find(|field| *field.name == *key) {
-                        Some(field) => {
-                            let ty =
-                                self.expr_against(entry, field.ty, &Purpose::Field(key.clone()));
-                            actual.push(Field {
-                                name: key.as_str().into(),
-                                ty,
-                                optional: false,
-                            });
-                            present.push(key);
+                    // A check past its budget names no more fields.
+                    if self.halted() {
+                        self.release(held);
+                        return Ty::ERROR;
+                    }
+                    let key = super::counted::lossy(key, &self.meter);
+                    let Some(key_held) = self.hold(key.capacity()) else {
+                        self.release(held);
+                        return Ty::ERROR;
+                    };
+                    match super::counted::find_bytes(&self.meter, fields, key.as_bytes(), |field| {
+                        field.name.as_bytes()
+                    }) {
+                        Ok(Some(index)) => {
+                            let expected = fields[index].ty;
+                            types.push(self.expr_against_held(
+                                entry,
+                                expected,
+                                &Purpose::Field(key),
+                            ));
+                            present[index] = true;
                         }
-                        None => {
-                            let ty = self.expr(entry, None);
+                        Ok(None) => {
+                            types.push(self.expr(entry, None));
                             if !open {
                                 let span = self.spans.expr(entry);
                                 let shape = self.types.display(hint);
                                 self.report(Diagnostic::error(
                                     Code::UNKNOWN_FIELD,
                                     span,
-                                    format!("{shape} has no field `{key}`"),
+                                    text!(self, "{shape} has no field `{key}`"),
                                 ));
                             }
-                            actual.push(Field {
-                                name: key.as_str().into(),
-                                ty,
-                                optional: false,
-                            });
+                        }
+                        Err(_) => {
+                            self.release(key_held);
+                            self.release(held);
+                            return Ty::ERROR;
                         }
                     }
+                    self.release(key_held);
                 }
-                let missing: Vec<String> = fields
-                    .iter()
-                    .filter(|field| !field.optional && !present.iter().any(|p| **p == *field.name))
-                    .map(|field| format!("`{}`", field.name))
-                    .collect();
-                if !missing.is_empty() {
+                let (missing, count) = super::listed(
+                    &self.meter,
+                    fields
+                        .iter()
+                        .zip(&present)
+                        .take_while(|_| !self.meter.charge(1))
+                        .filter(|(field, present)| !field.optional && !**present),
+                    |out, (field, _)| out.write(format_args!("`{}`", field.name)),
+                );
+                if self.halted() {
+                    self.release(held);
+                    return Ty::ERROR;
+                }
+                if count == 0 {
+                    self.release(held);
+                } else {
                     let span = self.spans.expr(expr);
                     let shape = self.types.display(hint);
-                    let found = self.types.shape(actual, false);
+                    let mut actual = ScratchVec::new(&self.meter);
+                    if actual.reserve(entries.len()).is_err() {
+                        self.release(held);
+                        return Ty::ERROR;
+                    }
+                    for ((key, _), ty) in entries.iter().zip(types) {
+                        if self.halted() {
+                            self.release(held);
+                            return Ty::ERROR;
+                        }
+                        actual.add(Field {
+                            name: super::counted::lossy(key, &self.meter).into(),
+                            ty,
+                            optional: false,
+                        });
+                    }
+                    let found = self.types.shape(actual.into_vec(), false);
                     let found = self.types.display(found);
                     self.report(
                         Diagnostic::error(
                             Code::TYPE_MISMATCH,
                             span,
-                            format!(
-                                "this hash lacks {} that {shape} requires",
-                                missing.join(", ")
-                            ),
+                            text!(self, "this hash lacks {missing} that {shape} requires"),
                         )
                         .with_types(shape, found),
                     );
+                    self.release(held);
                     return Ty::ERROR;
                 }
                 hint
@@ -680,16 +895,23 @@ impl<'a> Checker<'a> {
 
     /// The exact shape of a hash literal, checking each entry once.
     fn shape_of(&mut self, entries: &'a [(crate::compilation::Bytes, Expr)]) -> Ty {
-        let mut fields = Vec::with_capacity(entries.len());
+        let mut fields = ScratchVec::new(&self.meter);
+        if fields.reserve(entries.len()).is_err() {
+            return Ty::ERROR;
+        }
         for (key, entry) in entries {
+            if self.halted() {
+                return Ty::ERROR;
+            }
             let ty = self.expr(entry, None);
-            fields.push(Field {
-                name: String::from_utf8_lossy(key).into(),
+            fields.add(Field {
+                name: super::counted::lossy(key, &self.meter).into(),
                 ty,
                 optional: false,
             });
         }
-        self.types.shape(fields, false)
+        // The fields move into the type table, which holds them from here.
+        self.types.shape(fields.into_vec(), false)
     }
 
     /// A braced group that is a type literal unless one of its names is a
@@ -739,7 +961,7 @@ impl<'a> Checker<'a> {
                     Diagnostic::error(
                         Code::LOGICAL_NOT_BOOL,
                         span,
-                        format!("`!` takes a bool, found {found}"),
+                        text!(self, "`!` takes a bool, found {found}"),
                     )
                     .with_types("bool", found),
                 );
@@ -763,7 +985,7 @@ impl<'a> Checker<'a> {
             Diagnostic::error(
                 Code::NO_OPERATOR,
                 span,
-                format!("unary `{op}` is not defined for {found}"),
+                text!(self, "unary `{op}` is not defined for {found}"),
             )
             .with_types("number", found),
         );
@@ -786,7 +1008,7 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::ANY_USE,
                 span,
-                format!(
+                text!(self,
                     "this value has type any; narrow it with `is_type?`, `.as(T)` or `JSON.parse_as` before {doing}"
                 ),
             ));
@@ -799,7 +1021,10 @@ impl<'a> Checker<'a> {
             let mut diagnostic = Diagnostic::error(
                 Code::OPTIONAL_USE,
                 span,
-                format!("this value may be nil ({found}); test it with `!= nil` before {doing}"),
+                text!(
+                    self,
+                    "this value may be nil ({found}); test it with `!= nil` before {doing}"
+                ),
             );
             if let Some(fix) = self.fetch_fix(expr, ty, without) {
                 diagnostic = diagnostic.with_fix(fix);
@@ -822,35 +1047,68 @@ impl<'a> Checker<'a> {
                 // The runtime never finds an enum member equal to a symbol.
                 for (member, other, value) in [(lt, rt, right), (rt, lt, left)] {
                     if let (Kind::EnumValue(id), true, Node::Literal(v)) = (
-                        self.types.kind(member).clone(),
+                        &*self.types.shared(member),
                         other == Ty::SYMBOL,
                         &value.node,
                     ) {
                         if let Some(symbol) = super::symbol_text(v) {
-                            self.enum_symbol(value, id, &symbol, "they never compare equal");
+                            self.enum_symbol(value, *id, &symbol, "they never compare equal");
                         }
                     }
                 }
+                if op == "===" {
+                    return Ty::BOOL;
+                }
                 // A class's own `==` or `!=` gives what its method returns,
                 // `nil` without `-> T`; a `!=` the runtime answers by
-                // negating `==` is a `bool`.
-                if op != "==="
-                    && let Kind::Instance(ns) = self.types.kind(lt).clone()
-                {
+                // negating `==` is a `bool`. Each instance the left operand
+                // may be runs its class's method with the right operand, a
+                // `nil` too, as in a nil test of an optional instance.
+                // The alternatives are a step for each 64 of them, and each
+                // method they run is checked once, found in a set of those
+                // checked, counted while it lives.
+                let alternatives = self.types.members(lt);
+                if self.types.work(alternatives.len()) {
+                    return Ty::ERROR;
+                }
+                let mut results = ScratchVec::new(&self.meter);
+                let mut checked = super::counted::ScratchSet::new(&self.meter);
+                for alternative in alternatives {
+                    let Kind::Instance(ns) = *self.types.kind(alternative) else {
+                        if results.push(Ty::BOOL).is_err() {
+                            return Ty::ERROR;
+                        }
+                        continue;
+                    };
                     let methods = &self.program.namespaces[ns as usize].methods;
-                    if let Some(&id) = methods.get(op) {
-                        let span = self.spans.operator(expr.offset as usize);
-                        self.operator_operand(id, rt, span);
-                        return self.program.fns[id].sig.result.unwrap_or(Ty::NIL);
+                    let (id, result) = match (methods.get(op), methods.get("==")) {
+                        (Some(&id), _) => (id, self.program.fns[id].sig.result.unwrap_or(Ty::NIL)),
+                        // The runtime answers `!=` by negating the class's
+                        // `==`, which takes the right operand.
+                        (None, Some(&id)) if op == "!=" => (id, Ty::BOOL),
+                        _ => {
+                            if results.push(Ty::BOOL).is_err() {
+                                return Ty::ERROR;
+                            }
+                            continue;
+                        }
+                    };
+                    match checked.insert(id) {
+                        Ok(true) => {
+                            let span = self.spans.operator(expr.offset as usize);
+                            self.operator_operand(id, rt, span);
+                        }
+                        Ok(false) => (),
+                        Err(_) => return Ty::ERROR,
                     }
-                    // The runtime answers `!=` by negating the class's `==`,
-                    // which takes the right operand.
-                    if let (Some(&id), "!=") = (methods.get("=="), op) {
-                        let span = self.spans.operator(expr.offset as usize);
-                        self.operator_operand(id, rt, span);
+                    if results.push(result).is_err() {
+                        return Ty::ERROR;
                     }
                 }
-                Ty::BOOL
+                if checked.is_empty() {
+                    return Ty::BOOL;
+                }
+                self.types.union(&results)
             }
             _ => {
                 if op == "<<" {
@@ -873,17 +1131,19 @@ impl<'a> Checker<'a> {
     /// Reports `==` or `!=` on an instance whose class hides the method the
     /// runtime calls: its own, or for `!=` without one, `==`.
     fn equality_visibility(&mut self, expr: &'a Expr, op: &str, left: Ty) {
-        let Kind::Instance(ns) = self.types.kind(left).clone() else {
-            return;
-        };
-        let methods = &self.program.namespaces[ns as usize].methods;
-        let (name, method) = match methods.get(op) {
-            None if op == "!=" => ("==", methods.get("==")),
-            method => (op, method),
-        };
-        if let Some(&id) = method {
-            let span = self.spans.containing(expr.offset as usize);
-            self.visibility(name, span, id, ns, true);
+        for alternative in self.types.members(left) {
+            let Kind::Instance(ns) = *self.types.kind(alternative) else {
+                continue;
+            };
+            let methods = &self.program.namespaces[ns as usize].methods;
+            let (name, method) = match methods.get(op) {
+                None if op == "!=" => ("==", methods.get("==")),
+                method => (op, method),
+            };
+            if let Some(&id) = method {
+                let span = self.spans.containing(expr.offset as usize);
+                self.visibility(name, span, id, ns, true);
+            }
         }
     }
 
@@ -916,7 +1176,7 @@ impl<'a> Checker<'a> {
         if left == Ty::NEVER || right == Ty::NEVER {
             return Ty::NEVER;
         }
-        if let Kind::Instance(ns) = self.types.kind(left).clone() {
+        if let Kind::Instance(ns) = *self.types.kind(left) {
             return self.operator_method(ns, op, left, right, span);
         }
         if let Some((left_expr, right_expr)) = operands {
@@ -949,7 +1209,10 @@ impl<'a> Checker<'a> {
         self.report(Diagnostic::error(
             Code::NO_OPERATOR,
             span,
-            format!("`{op}` is not defined for {left_text} and {right_text}"),
+            text!(
+                self,
+                "`{op}` is not defined for {left_text} and {right_text}"
+            ),
         ));
         Ty::ERROR
     }
@@ -969,7 +1232,7 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::NO_OPERATOR,
                 span,
-                format!("`{op}` is not defined for {left_text} and {right_text}; `{left_text}` defines no `{op}` method"),
+                text!(self, "`{op}` is not defined for {left_text} and {right_text}; `{left_text}` defines no `{op}` method"),
             ));
             return Ty::ERROR;
         };
@@ -1010,8 +1273,8 @@ impl<'a> Checker<'a> {
                 Ty::NUMBER
             }
         };
-        let lk = self.types.kind(left).clone();
-        let rk = self.types.kind(right).clone();
+        let lk = &*self.types.shared(left);
+        let rk = &*self.types.shared(right);
         let is_array = |kind: &Kind| matches!(kind, Kind::Array(_) | Kind::Tuple(_));
         Some(match op {
             "+" => {
@@ -1019,7 +1282,7 @@ impl<'a> Checker<'a> {
                     numeric()
                 } else if left == Ty::STRING && right == Ty::STRING {
                     Ty::STRING
-                } else if is_array(&lk) && is_array(&rk) {
+                } else if is_array(lk) && is_array(rk) {
                     let a = self.types.element(left)?;
                     let b = self.types.element(right)?;
                     let element = self.types.union(&[a, b]);
@@ -1049,7 +1312,7 @@ impl<'a> Checker<'a> {
                     Ty::DURATION
                 } else if left == Ty::MONEY && right == Ty::MONEY {
                     Ty::MONEY
-                } else if is_array(&lk) && is_array(&rk) {
+                } else if is_array(lk) && is_array(rk) {
                     let a = self.types.element(left)?;
                     self.types.array(a)
                 } else {
@@ -1143,14 +1406,14 @@ impl<'a> Checker<'a> {
                 let Kind::Array(element) = lk else {
                     return None;
                 };
-                if !self.types.assignable(right, element) {
-                    let expected = self.types.display(element);
+                if !self.types.assignable(right, *element) {
+                    let expected = self.types.display(*element);
                     let found = self.types.display(right);
                     self.report(
                         Diagnostic::error(
                             Code::TYPE_MISMATCH,
                             span,
-                            format!("`<<` appends to array<{expected}>, found {found}"),
+                            text!(self, "`<<` appends to array<{expected}>, found {found}"),
                         )
                         .with_types(expected, found),
                     );
@@ -1158,7 +1421,7 @@ impl<'a> Checker<'a> {
                 }
                 left
             }
-            "&" if is_array(&lk) && is_array(&rk) => {
+            "&" if is_array(lk) && is_array(rk) => {
                 let a = self.types.element(left)?;
                 self.types.array(a)
             }
@@ -1172,12 +1435,14 @@ impl<'a> Checker<'a> {
         let ty = self.member_receiver(receiver, "[]");
         let read = self.index_type(expr, receiver, ty, selectors);
         if self.types.has_nil(read) {
-            let recorded = self
-                .fetch_receivers
-                .entry(super::key(expr))
-                .or_insert(Some(ty));
-            if *recorded != Some(ty) {
-                *recorded = None;
+            let tables = self.meter.tables();
+            if let Ok(recorded) =
+                self.fetch_receivers
+                    .get_or_insert_with(tables, super::key(expr), || Some(ty))
+            {
+                if *recorded != Some(ty) {
+                    *recorded = None;
+                }
             }
         }
         if !self.in_write_chain(expr) {
@@ -1216,12 +1481,20 @@ impl<'a> Checker<'a> {
             }
             return Ty::ERROR;
         }
-        let kind = self.types.kind(ty).clone();
+        let kind = &*self.types.shared(ty);
         match (&kind, selectors) {
             (Kind::Array(element), [selector]) => {
                 let key = self.expr(selector, Some(Ty::INT));
                 if key == Ty::RANGE {
-                    self.fetch_receivers.insert(super::key(expr), None);
+                    // A receiver the budget refuses room for offers no fix.
+                    let tables = self.meter.tables();
+                    if self
+                        .fetch_receivers
+                        .insert(tables, super::key(expr), None)
+                        .is_err()
+                    {
+                        return Ty::ERROR;
+                    }
                     return self.types.optional(ty);
                 }
                 self.selector(selector, key, Ty::INT);
@@ -1249,7 +1522,8 @@ impl<'a> Checker<'a> {
                             self.report(Diagnostic::error(
                                 Code::TUPLE_INDEX,
                                 span,
-                                format!(
+                                text!(
+                                    self,
                                     "{tuple} has {} elements; index {index} is outside it",
                                     items.len()
                                 ),
@@ -1280,7 +1554,7 @@ impl<'a> Checker<'a> {
             (Kind::Shape(fields, open), [selector]) => {
                 let key = self.expr(selector, Some(Ty::STRING));
                 match string_literal(selector) {
-                    Some(name) => match fields.iter().find(|field| *field.name == *name) {
+                    Some(name) => match self.types.field(fields, name.as_bytes()) {
                         Some(field) if field.optional => self.types.optional(field.ty),
                         Some(field) => field.ty,
                         None if *open => Ty::ANY,
@@ -1290,7 +1564,7 @@ impl<'a> Checker<'a> {
                             self.report(Diagnostic::error(
                                 Code::UNKNOWN_FIELD,
                                 span,
-                                format!("{shape} has no field \"{name}\""),
+                                text!(self, "{shape} has no field \"{name}\""),
                             ));
                             Ty::ERROR
                         }
@@ -1356,11 +1630,16 @@ impl<'a> Checker<'a> {
             }
             (Kind::Union(_), _) => {
                 let alternatives = self.types.members(ty);
-                let outer = self.memo.replace(super::Memo::default());
+                let outer = self.set_memo(Some(super::Memo::default()));
                 let result = self.index_type(expr, receiver, alternatives[0], selectors);
+                // A check past its budget indexes no other alternative.
+                if self.halted() {
+                    self.restore_memo(outer);
+                    return Ty::ERROR;
+                }
                 let mut results = vec![result];
                 // The other alternatives reuse the selectors' types.
-                self.memo.as_mut().unwrap().replay = true;
+                self.memo.get_mut().unwrap().replay = true;
                 for &alternative in &alternatives[1..] {
                     let mark = self.frame.flow.mark();
                     results.push(self.index_type(expr, receiver, alternative, selectors));
@@ -1378,7 +1657,8 @@ impl<'a> Checker<'a> {
                 self.report(Diagnostic::error(
                     Code::NOT_INDEXABLE,
                     span,
-                    format!(
+                    text!(
+                        self,
                         "{found} cannot be indexed with {} selector(s)",
                         selectors.len()
                     ),
@@ -1408,7 +1688,8 @@ impl<'a> Checker<'a> {
         let mut diagnostic = Diagnostic::error(
             Code::DYNAMIC_KEY,
             span,
-            format!(
+            text!(
+                self,
                 "{shape_text} is a record, not a dictionary: read its fields with literal keys, or declare it as `hash<string, V>`"
             ),
         );
@@ -1419,9 +1700,9 @@ impl<'a> Checker<'a> {
                     let value_text = self.types.display(value);
                     let name_span = self.spans.token(local.offset);
                     diagnostic = diagnostic.with_fix(Fix::insert(
-                        format!("declare `{name}: hash<string, {value_text}>`"),
+                        text!(self, "declare `{name}: hash<string, {value_text}>`"),
                         name_span.end,
-                        format!(": hash<string, {value_text}>"),
+                        text!(self, ": hash<string, {value_text}>"),
                     ));
                 }
             }
@@ -1449,17 +1730,22 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::UNKNOWN_MEMBER,
                 span,
-                format!("{found} has no member `[]=`"),
+                text!(self, "{found} has no member `[]=`"),
             ));
             return;
         };
         self.visibility("[]=", span, id, ns, true);
         let sig = self.program.fns[id].sig.clone();
-        let mut values: Vec<(Ty, Span)> = selectors
-            .iter()
-            .map(|selector| (self.expr(selector, None), self.spans.expr(selector)))
-            .collect();
+        let Some(held) = self.hold((selectors.len() + 1) * std::mem::size_of::<(Ty, Span)>())
+        else {
+            return;
+        };
+        let mut values: Vec<(Ty, Span)> = Vec::with_capacity(selectors.len() + 1);
+        for selector in selectors {
+            values.push((self.expr(selector, None), self.spans.expr(selector)));
+        }
         values.push((value_ty, self.spans.expr(value)));
+        self.release(held);
         for (index, (ty, span)) in values.into_iter().enumerate() {
             if let Some(param) = sig.params.get(index) {
                 if !self.types.assignable(ty, param.ty) {
@@ -1508,14 +1794,14 @@ impl<'a> Checker<'a> {
                 value_ty
             };
         }
-        let element = match (self.types.kind(ty).clone(), selectors) {
+        let element = match (&*self.types.shared(ty), selectors) {
             (Kind::Array(element), [selector]) => {
                 if evaluate {
                     // Only a single index is assignable, not a range.
                     let key = self.expr(selector, Some(Ty::INT));
                     self.selector(selector, key, Ty::INT);
                 }
-                Some(element)
+                Some(*element)
             }
             (Kind::Tuple(items), [selector]) => {
                 let element = int_literal(selector).and_then(|index| {
@@ -1546,19 +1832,19 @@ impl<'a> Checker<'a> {
                     let key = self.expr(selector, Some(Ty::STRING));
                     self.selector(selector, key, Ty::STRING);
                 }
-                Some(value)
+                Some(*value)
             }
             (Kind::Shape(fields, open), [selector]) => match string_literal(selector) {
-                Some(name) => match fields.iter().find(|field| *field.name == *name) {
+                Some(name) => match self.types.field(fields, name.as_bytes()) {
                     Some(field) => Some(field.ty),
-                    None if open => Some(Ty::ANY),
+                    None if *open => Some(Ty::ANY),
                     None => {
                         let span = self.spans.expr(selector);
                         let shape = self.types.display(ty);
                         self.report(Diagnostic::error(
                             Code::UNKNOWN_FIELD,
                             span,
-                            format!("{shape} has no field \"{name}\""),
+                            text!(self, "{shape} has no field \"{name}\""),
                         ));
                         None
                     }
@@ -1573,14 +1859,14 @@ impl<'a> Checker<'a> {
             },
             (Kind::Instance(ns), _) => {
                 if evaluate {
-                    let outer = self.memo.replace(super::Memo::default());
+                    let outer = self.set_memo(Some(super::Memo::default()));
                     self.method_on(expr, ty, "[]=", None, selectors, Some(value));
-                    self.memo.as_mut().unwrap().replay = true;
+                    self.memo.get_mut().unwrap().replay = true;
                     let assigned = self.expr(value, None);
                     self.restore_memo(outer);
                     return assigned;
                 }
-                self.computed_index_write(expr, ns, selectors, value_ty, value);
+                self.computed_index_write(expr, *ns, selectors, value_ty, value);
                 None
             }
             _ => {
@@ -1594,7 +1880,7 @@ impl<'a> Checker<'a> {
                 self.report(Diagnostic::error(
                     Code::NOT_INDEXABLE,
                     span,
-                    format!("{found} cannot be assigned through an index"),
+                    text!(self, "{found} cannot be assigned through an index"),
                 ));
                 None
             }
@@ -1626,26 +1912,35 @@ impl<'a> Checker<'a> {
     // Conditionals, case and rescue ------------------------------------
 
     fn conditional(&mut self, branches: &'a [(Expr, Expr)], alternate: &'a Expr, want: Want) -> Ty {
-        let mut results = Vec::new();
-        let mut explored = Vec::new();
+        // The branches' values, in a list counted while it lives.
+        let mut results = super::counted::ScratchVec::new(&self.meter);
+        let mut explored = ScratchVec::new(&self.meter);
         let entry = self.frame.flow.mark();
         for (condition, value) in branches {
             let narrow = self.condition(condition);
             let mark = self.frame.flow.mark();
             self.apply(&narrow.then);
             let ty = self.branch_value(value, want);
-            if self.frame.flow.live {
-                results.push(ty);
+            // A check past its budget unwinds without the work of the
+            // branches it nests in.
+            if self.halted() {
+                self.frame.flow.rollback(entry);
+                return Ty::ERROR;
             }
-            explored.push(self.frame.flow.rollback(mark));
+            if self.frame.flow.live {
+                results.add(ty);
+            }
+            let branch = self.frame.flow.rollback(mark);
+            self.explore(&mut explored, branch);
             self.apply(&narrow.otherwise);
         }
         let ty = self.branch_value(alternate, want);
         if self.frame.flow.live {
-            results.push(ty);
+            results.add(ty);
         }
-        explored.push(self.frame.flow.rollback(entry));
-        self.join(explored);
+        let branch = self.frame.flow.rollback(entry);
+        self.explore(&mut explored, branch);
+        self.join_explored(explored);
         self.types.union(&results)
     }
 
@@ -1653,8 +1948,10 @@ impl<'a> Checker<'a> {
     fn branch_value(&mut self, value: &'a Expr, want: Want) -> Ty {
         match want {
             Want::Check(expected) => {
-                let purpose = self.purposes.last().cloned().unwrap_or(Purpose::Result);
-                self.expr_against(value, expected, &purpose)
+                let Some(purpose) = self.current_purpose() else {
+                    return Ty::ERROR;
+                };
+                self.expr_against_held(value, expected, &purpose)
             }
             Want::Infer(hint) => self.expr(value, hint),
             Want::Discard => self.expr_want(value, Want::Discard),
@@ -1670,9 +1967,13 @@ impl<'a> Checker<'a> {
         want: Want,
     ) -> Ty {
         let subject_ty = subject.map(|subject| self.expr(subject, None));
-        let mut covered: Vec<String> = Vec::new();
-        let mut results = Vec::new();
-        let mut explored = Vec::new();
+        // The places of the values the `when`s name, among the enum's
+        // members or the bools, kept while the rest are checked, in a list
+        // counted while it lives.
+        let mut covered = ScratchVec::new(&self.meter);
+        // The branches' values, in a list counted while it lives.
+        let mut results = super::counted::ScratchVec::new(&self.meter);
+        let mut explored = ScratchVec::new(&self.meter);
         let entry = self.frame.flow.mark();
         for when in whens {
             for (value, _splat) in when.values.iter() {
@@ -1683,8 +1984,8 @@ impl<'a> Checker<'a> {
                         let hint = (!matches!(self.types.kind(subject), Kind::EnumValue(_)))
                             .then_some(subject);
                         let ty = self.expr(value, hint);
-                        if let Some(name) = self.covered_value(value, ty, subject) {
-                            covered.push(name);
+                        if let Some(place) = self.covered_value(value, ty, subject) {
+                            covered.add(place);
                         }
                     }
                     None => {
@@ -1694,20 +1995,27 @@ impl<'a> Checker<'a> {
             }
             let mark = self.frame.flow.mark();
             let ty = self.branch_value(&when.result, want);
-            if self.frame.flow.live {
-                results.push(ty);
+            if self.halted() {
+                self.frame.flow.rollback(entry);
+                self.join_explored(explored);
+                return Ty::ERROR;
             }
-            explored.push(self.frame.flow.rollback(mark));
+            if self.frame.flow.live {
+                results.add(ty);
+            }
+            let branch = self.frame.flow.rollback(mark);
+            self.explore(&mut explored, branch);
         }
         let exhaustive = match subject_ty {
             Some(subject) => self.exhaustive(expr, subject, &covered, alternate.is_some()),
             None => false,
         };
+        drop(covered);
         match alternate {
             Some(alternate) => {
                 let ty = self.branch_value(alternate, want);
                 if self.frame.flow.live {
-                    results.push(ty);
+                    results.add(ty);
                 }
             }
             None if !exhaustive => {
@@ -1719,24 +2027,27 @@ impl<'a> Checker<'a> {
                             Diagnostic::error(
                                 Code::TYPE_MISMATCH,
                                 span,
-                                format!("this `case` gives nil when no `when` matches, but {expected_text} is expected; add an `else`"),
+                                text!(self, "this `case` gives nil when no `when` matches, but {expected_text} is expected; add an `else`"),
                             )
                             .with_types(expected_text, "nil"),
                         );
                     }
                 }
-                results.push(Ty::NIL);
+                results.add(Ty::NIL);
             }
             None => (),
         }
-        explored.push(self.frame.flow.rollback(entry));
-        self.join(explored);
+        let branch = self.frame.flow.rollback(entry);
+        self.explore(&mut explored, branch);
+        self.join_explored(explored);
         self.types.union(&results)
     }
 
-    /// The enum member or bool a `when` value names, for exhaustiveness.
-    fn covered_value(&mut self, value: &Expr, ty: Ty, subject: Ty) -> Option<String> {
-        match self.types.kind(subject).clone() {
+    /// The place of the enum member or bool a `when` value names, for
+    /// exhaustiveness: the member's among its enum's, or 1 for `true` and
+    /// 0 for `false`. Finding it is part of checking the value.
+    fn covered_value(&mut self, value: &Expr, ty: Ty, subject: Ty) -> Option<u32> {
+        match *self.types.kind(subject) {
             Kind::EnumValue(id) => {
                 if let (Node::Literal(v), true) = (&value.node, ty == Ty::SYMBOL) {
                     let symbol = super::symbol_text(v)?;
@@ -1747,7 +2058,9 @@ impl<'a> Checker<'a> {
                         "a `when` over it never matches a symbol",
                     );
                     // The fix makes it the member, so it counts as covered.
-                    return Some(symbol);
+                    return self.program.enums[id as usize]
+                        .symbol(&symbol)
+                        .map(|place| place as u32);
                 }
                 if self.types.kind(ty) != &Kind::EnumValue(id) {
                     if ty != Ty::ERROR && !self.types.assignable(ty, subject) {
@@ -1756,18 +2069,16 @@ impl<'a> Checker<'a> {
                     }
                     return None;
                 }
-                match &value.node {
-                    Node::Literal(v) => super::symbol_text(v),
-                    Node::Scope(_, name, None) => {
-                        let decl = &self.program.enums[id as usize];
-                        let index = decl.members.iter().position(|m| m == name.as_str())?;
-                        Some(decl.symbols[index].clone())
-                    }
-                    _ => None,
-                }
+                let decl = &self.program.enums[id as usize];
+                let place = match &value.node {
+                    Node::Literal(v) => decl.symbol(&super::symbol_text(v)?)?,
+                    Node::Scope(_, name, None) => decl.member(name)?,
+                    _ => return None,
+                };
+                Some(place as u32)
             }
             Kind::Bool => match &value.node {
-                Node::Literal(v) if v.type_name() == "bool" => Some(v.truthy().to_string()),
+                Node::Literal(v) if v.type_name() == "bool" => Some(u32::from(v.truthy())),
                 _ => None,
             },
             _ => None,
@@ -1777,126 +2088,368 @@ impl<'a> Checker<'a> {
     /// Reports a symbol compared with a member of enum `id`, which the
     /// runtime never finds equal, offering the member it names.
     fn enum_symbol(&mut self, value: &Expr, id: u32, symbol: &str, why: &str) {
-        let decl = &self.program.enums[id as usize];
-        let enum_name = decl.name.clone();
-        let member = decl
-            .symbols
-            .iter()
-            .position(|s| s == symbol)
-            .map(|index| decl.members[index].clone());
+        let decl = std::sync::Arc::clone(&self.program.enums[id as usize]);
+        let enum_name = &decl.name;
+        let member = decl.symbol(symbol).map(|index| &decl.members[index]);
         let span = self.spans.expr(value);
         let mut diagnostic = Diagnostic::error(
             Code::TYPE_MISMATCH,
             span,
-            format!("`:{symbol}` is a symbol, not a member of `{enum_name}`, and {why}"),
-        )
-        .with_types(enum_name.clone(), "symbol");
+            text!(
+                self,
+                "`:{symbol}` is a symbol, not a member of `{enum_name}`, and {why}"
+            ),
+        );
+        // Each part already written stays beside the writer of the next,
+        // until the completed diagnostic moves into the findings.
+        let Some(mut held) = self.hold(super::Heap::heap(&diagnostic)) else {
+            return;
+        };
+        diagnostic = diagnostic.with_types(self.copy(enum_name), "symbol");
+        let Some(types_held) = self
+            .hold(super::Heap::heap(&diagnostic.expected) + super::Heap::heap(&diagnostic.found))
+        else {
+            self.release(held);
+            return;
+        };
+        held += types_held;
         match member {
             Some(member) => {
-                let replacement = format!("{enum_name}::{member}");
+                let replacement = text!(self, "{enum_name}::{member}");
+                let Some(replacement_held) = self.hold(replacement.capacity()) else {
+                    self.release(held);
+                    return;
+                };
+                held += replacement_held;
                 diagnostic = diagnostic.with_fix(Fix::replace(
-                    format!("name the member: `{replacement}`"),
+                    text!(self, "name the member: `{replacement}`"),
                     span,
                     replacement,
                 ));
             }
             None => diagnostic.code = Code::UNKNOWN_ENUM_MEMBER,
         }
+        self.release(held);
         self.report(diagnostic);
     }
 
     /// Reports a `case` over an enum or bool that misses a value; returns
-    /// whether it covers every value.
-    fn exhaustive(
-        &mut self,
-        expr: &Expr,
-        subject: Ty,
-        covered: &[String],
-        alternate: bool,
-    ) -> bool {
-        let (all, name): (Vec<String>, String) = match self.types.kind(subject).clone() {
-            Kind::EnumValue(id) => {
-                let decl = &self.program.enums[id as usize];
-                (decl.symbols.clone(), decl.name.clone())
-            }
-            Kind::Bool => (vec!["true".into(), "false".into()], "bool".into()),
+    /// whether it covers every value. `covered` holds the places of the
+    /// values its `when`s name, as [`Self::covered_value`] finds them.
+    fn exhaustive(&mut self, expr: &Expr, subject: Ty, covered: &[u32], alternate: bool) -> bool {
+        let decl = match *self.types.kind(subject) {
+            Kind::EnumValue(id) => Some(std::sync::Arc::clone(&self.program.enums[id as usize])),
+            Kind::Bool => None,
             _ => return false,
         };
-        let missing: Vec<&String> = all
-            .iter()
-            .filter(|value| !covered.contains(value))
-            .collect();
-        if missing.is_empty() {
+        let count = decl.as_ref().map_or(2, |decl| decl.members.len());
+        // A bit for each value, set for each place covered, in a list
+        // counted while it lives, and a step for each 64 values, as a pass
+        // over them takes; a check past its budget reports nothing more.
+        let words = count.div_ceil(64);
+        let mut seen = ScratchVec::new(&self.meter);
+        if self.types.work(count) || seen.reserve(words).is_err() {
             return true;
         }
-        if !alternate {
-            let span = self.spans.token(expr.offset as usize);
-            let list = missing
-                .iter()
-                .map(|m| {
-                    if name == "bool" {
-                        format!("`{m}`")
-                    } else if let Kind::EnumValue(id) = self.types.kind(subject) {
-                        let decl = &self.program.enums[*id as usize];
-                        let index = decl.symbols.iter().position(|symbol| symbol == *m).unwrap();
-                        format!("`{name}::{}`", decl.members[index])
-                    } else {
-                        unreachable!()
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join(", ");
-            self.report(Diagnostic::error(
-                Code::NON_EXHAUSTIVE_CASE,
-                span,
-                format!("this `case` over {name} does not handle {list}; add a `when` for each, or an `else`"),
-            ));
+        for _ in 0..words {
+            seen.add(0_u64);
         }
+        for &place in covered {
+            seen[place as usize / 64] |= 1 << (place % 64);
+        }
+        let known: usize = seen.iter().map(|word| word.count_ones() as usize).sum();
+        if known == count {
+            return true;
+        }
+        if alternate {
+            return false;
+        }
+        let missed = |place: usize| seen[place / 64] & (1 << (place % 64)) == 0;
+        // The values the `case` misses, as their `when`s name them.
+        let (missing, name): (super::counted::HeldText, &str) = match &decl {
+            Some(decl) => {
+                if self.types.work(count) || self.over_budget() {
+                    return false;
+                }
+                let (missing, _) = super::listed(
+                    &self.meter,
+                    decl.members
+                        .iter()
+                        .enumerate()
+                        .take_while(|_| !self.meter.charge(1))
+                        .filter(|&(place, _)| missed(place)),
+                    |out, (_, member)| {
+                        out.write(format_args!("`{}::{member}`", decl.name));
+                    },
+                );
+                (missing, &decl.name)
+            }
+            None => (
+                super::listed(
+                    &self.meter,
+                    [("true", 1), ("false", 0)]
+                        .into_iter()
+                        .filter(|&(_, place)| missed(place)),
+                    |out, (value, _)| out.write(format_args!("`{value}`")),
+                )
+                .0,
+                "bool",
+            ),
+        };
+        drop(seen);
+        if self.halted() {
+            return false;
+        }
+        let span = self.spans.token(expr.offset as usize);
+        self.non_exhaustive(span, name, &missing);
         false
     }
 
+    /// Reports a `case` over `name` that does not handle the `missing`
+    /// values.
+    fn non_exhaustive(&mut self, span: crate::diagnostic::Span, name: &str, missing: &str) {
+        self.report(Diagnostic::error(
+            Code::NON_EXHAUSTIVE_CASE,
+            span,
+            text!(self, "this `case` over {name} does not handle {missing}; add a `when` for each, or an `else`"),
+        ));
+    }
+
     fn attempt(&mut self, attempt: &'a Try, want: Want) -> Ty {
+        // A rescue or the ensure may run after any part of the body, so
+        // what the body assigns may have its value or its earlier one; the
+        // ensure, or a `retry` running the body again, may also follow any
+        // part of a rescue, and the ensure any part of the `else`.
+        let spans = self.assigns.attempt(&self.meter, attempt);
+        if spans.retry {
+            self.widen(spans.retried());
+        }
         let entry = self.frame.flow.mark();
         let body_want = if attempt.alternate.is_empty() {
             want
         } else {
             Want::Discard
         };
-        let mut results = Vec::new();
+        // The branches' values, in a list counted while it lives.
+        let mut results = super::counted::ScratchVec::new(&self.meter);
         let body = self.stmts(&attempt.body, body_want);
+        // A check past its budget skips the rescues and the ensure, and
+        // the work of joining them.
+        if self.halted() {
+            self.frame.flow.rollback(entry);
+            return Ty::ERROR;
+        }
         if !attempt.alternate.is_empty() {
             let alternate = self.stmts(&attempt.alternate, want);
             if self.frame.flow.live {
-                results.push(alternate);
+                results.add(alternate);
             }
         } else if self.frame.flow.live {
-            results.push(body);
+            results.add(body);
         }
-        let mut explored = vec![self.frame.flow.rollback(entry)];
+        let mut explored = ScratchVec::new(&self.meter);
+        let branch = self.frame.flow.rollback(entry);
+        self.explore(&mut explored, branch);
+        if !attempt.rescues.is_empty() {
+            self.widen(spans.body);
+        }
         for rescue in attempt.rescues.iter() {
-            // A rescue may run after any part of the body: only what held
-            // before it is known.
-            self.open_scope();
+            if !self.open_scope() {
+                break;
+            }
             if let Some(binding) = &rescue.binding {
-                let id = self.declare(binding, Ty::ERROR_VALUE, rescue.offset as usize, true);
-                self.assign_local(id, Ty::ERROR_VALUE);
+                if let Some(id) =
+                    self.declare(binding, Ty::ERROR_VALUE, rescue.offset as usize, true)
+                {
+                    self.assign_local(id, Ty::ERROR_VALUE);
+                }
             }
             let mark = self.frame.flow.mark();
             let ty = self.stmts(&rescue.body, want);
             if self.frame.flow.live {
-                results.push(ty);
+                results.add(ty);
             }
-            explored.push(self.frame.flow.rollback(mark));
+            let branch = self.frame.flow.rollback(mark);
+            self.explore(&mut explored, branch);
             self.close_scope();
         }
-        self.join(explored);
-        if !attempt.ensure.is_empty() {
-            let live = self.frame.flow.live;
-            self.stmts(&attempt.ensure, Want::Discard);
-            self.frame.flow.live = live && self.frame.flow.live;
+        if attempt.ensure.is_empty() {
+            self.join_explored(explored);
+        } else {
+            self.ensure(&attempt.ensure, explored, spans);
         }
         self.types.union(&results)
     }
+
+    /// Checks an ensure from what holds wherever it may start: before the
+    /// body, less the narrowing of what the body, the `else` and the rescues
+    /// assign. Then joins the `explored` ends of the body and the rescues,
+    /// and applies what the ensure proves on the way out. A definite write
+    /// replaces the body's state; a conditional write keeps its possible
+    /// values beside what unwritten paths retain from the body.
+    fn ensure(&mut self, ensure: &'a [Stmt], explored: ScratchVec<Branch>, spans: TrySpans) {
+        let mark = self.frame.flow.mark();
+        let names = self.assigns.distinct(&self.meter, spans.ensure);
+        if self
+            .frame
+            .ensure_writes
+            .push(self.meter.tables(), super::counted::CountedMap::new())
+            .is_err()
+        {
+            drop(names);
+            self.join_explored(explored);
+            return;
+        }
+        for name in names.iter().copied() {
+            if self.meter.charge(1) {
+                break;
+            }
+            let Some(id) = self.local(name) else { continue };
+            let Some(flag) = self.pseudo_local() else {
+                break;
+            };
+            // Never contributes no incoming value: this fact contains
+            // only values written while the ensure runs.
+            self.frame.locals[flag as usize].declared = Ty::NEVER;
+            self.frame.flow.set(
+                flag,
+                VarState {
+                    ty: Ty::NEVER,
+                    assigned: false,
+                },
+            );
+            if self
+                .frame
+                .ensure_writes
+                .last_mut()
+                .unwrap()
+                .insert(self.meter.tables(), id, flag)
+                .is_err()
+            {
+                break;
+            }
+        }
+        drop(names);
+        self.widen(spans.ensured());
+        self.stmts(ensure, Want::Discard);
+        let ensured = self.frame.flow.live;
+        let mut finals = super::counted::ScratchMap::new(&self.meter);
+        for (&id, &flag) in self.frame.ensure_writes.last().unwrap().iter() {
+            if self.meter.charge(1)
+                || finals
+                    .insert(id, (self.frame.flow.get(id), self.frame.flow.get(flag)))
+                    .is_err()
+            {
+                break;
+            }
+        }
+        self.frame.ensure_writes.pop();
+        let branch = self.frame.flow.rollback(mark);
+        // Taken from the flow, the ensure's changes are held until they
+        // apply.
+        let Some(held) = self.hold(super::meter::Heap::heap(&branch)) else {
+            self.join_explored(explored);
+            return;
+        };
+        self.join_explored(explored);
+        if self.halted() {
+            self.release(held);
+            return;
+        }
+        for (id, state) in branch.changes {
+            let local = &self.frame.locals[id as usize];
+            if !finals.contains_key(&id) && !(local.name.is_empty() && local.declared == Ty::NEVER)
+            {
+                // What the ensure does not assign by name keeps what the
+                // body or rescues leave, narrowed by the ensure's guards,
+                // and is assigned if either assigns it: a fact that is not
+                // a named local, such as whether `initialize` has assigned
+                // an instance variable, is assigned once the ensure, which
+                // every path through the `begin` runs, assigns it.
+                let joined = self.frame.flow.get(id);
+                let ty = self.both(joined.ty, state.ty);
+                let assigned = joined.assigned || state.assigned;
+                self.frame.flow.set(id, VarState { ty, assigned });
+            }
+        }
+        for (&id, &(state, written_state)) in finals.iter() {
+            if self.meter.charge(1) {
+                break;
+            }
+            let final_state = if written_state.assigned {
+                state
+            } else {
+                let joined = self.frame.flow.get(id);
+                let unwritten = self.both(joined.ty, state.ty);
+                let written = self.both(written_state.ty, state.ty);
+                let ty = self.types.union(&[unwritten, written]);
+                VarState {
+                    ty,
+                    assigned: joined.assigned || state.assigned,
+                }
+            };
+            self.frame.flow.set(id, final_state);
+            // An enclosing ensure sees the inner ensure's transfer,
+            // rather than values the inner ensure overwrote.
+            if let Some(writes) = self.frame.ensure_writes.last() {
+                if self.meter.charge(1) {
+                    break;
+                }
+                let Some(flag) = writes.get(&id).copied() else {
+                    continue;
+                };
+                let tracked = if written_state.assigned {
+                    VarState {
+                        ty: final_state.ty,
+                        assigned: true,
+                    }
+                } else {
+                    let before = self.frame.flow.get(flag);
+                    let retained = self.both(before.ty, final_state.ty);
+                    let written = self.both(written_state.ty, final_state.ty);
+                    VarState {
+                        ty: self.types.union(&[retained, written]),
+                        assigned: before.assigned,
+                    }
+                };
+                self.frame.flow.set(flag, tracked);
+            }
+        }
+        self.release(held);
+        self.frame.flow.live = self.frame.flow.live && ensured;
+    }
+
+    /// The type of a value known to have both types `a` and `b`: the
+    /// narrower when one accepts the other, else the alternatives of `a`
+    /// that `b` accepts, and `never` when none does, since no value has
+    /// both.
+    fn both(&mut self, a: Ty, b: Ty) -> Ty {
+        if a == b || b == Ty::ANY {
+            return a;
+        }
+        if a == Ty::ANY || self.types.assignable(b, a) {
+            return b;
+        }
+        if self.types.assignable(a, b) {
+            return a;
+        }
+        let mut members = ScratchVec::new(&self.meter);
+        for member in self.types.members(a) {
+            if self.types.assignable(member, b) && members.push(member).is_err() {
+                return Ty::ERROR;
+            }
+        }
+        if members.is_empty() {
+            Ty::NEVER
+        } else {
+            self.types.union(&members)
+        }
+    }
+}
+
+/// The bytes of a list of one type for each of `count` elements.
+fn types_bytes(count: usize) -> usize {
+    count * std::mem::size_of::<Ty>()
 }
 
 /// The integer a literal selector spells, including a negated one.

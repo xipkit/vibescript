@@ -167,9 +167,9 @@ fn reserved_words_label_parenless_keyword_arguments() {
         result(source),
         serde_json::json!([{"rescue": 1}, {"rescue": "retry"}, {"begin": 1, "ensure": 3}, 5])
     );
-    let source = "def boom\n  raise \"x\"\nend\ndef run\n  boom() rescue :fallback\nend";
-    let error = Engine::new().compile(source).err().unwrap();
-    assert_eq!(error.kind, ErrorKind::Syntax);
+    // A spaced colon after `rescue` starts the fallback symbol.
+    let source = "def boom(n: int) -> symbol\n  raise \"x\"\nend\ndef run -> symbol\n  boom(1) rescue :fallback\nend";
+    assert_eq!(result(source), serde_json::json!("fallback"));
 }
 
 #[test]
@@ -314,4 +314,26 @@ fn separators_and_parenless_calls_keep_their_meaning() {
             .value;
         assert_eq!(value.as_int(), Some(expected), "{source}");
     }
+}
+
+#[test]
+fn spaced_colons_after_keyword_hash_labels_keep_their_values() {
+    for key in ["if", "then", "else", "rescue", "begin", "ensure", "when"] {
+        let source = format!("def run -> int?; h = {{ {key} :1 }}; h[\"{key}\"]; end");
+        let checked = Engine::new().type_check(&source).unwrap();
+        assert!(
+            checked.diagnostics.is_empty(),
+            "{source}: {:?}",
+            checked.diagnostics
+        );
+        assert_eq!(result(&source), serde_json::json!(1));
+    }
+}
+
+#[test]
+fn spaced_colons_after_control_keywords_start_symbols() {
+    assert_eq!(
+        result("def run -> symbol; case 1; when 1 then :a; else :b; end; end"),
+        serde_json::json!("a")
+    );
 }

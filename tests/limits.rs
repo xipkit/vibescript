@@ -397,3 +397,357 @@ fn memory_limits_do_not_change_step_accounting() {
         assert_eq!(limited.stats.steps, unlimited.stats.steps, "{source}");
     }
 }
+
+/// Nested `begin`s around assignments of distinct locals, each narrowed
+/// before them: every level's rescue and ensure forget what the levels
+/// inside assign, so checking takes work proportional to the depth times
+/// the locals, which the compile budget must be able to stop.
+fn nested_begins(levels: usize, locals: usize) -> String {
+    let mut source: String = (0..locals).map(|i| format!("x{i}: int? = 1\n")).collect();
+    source.push_str(&"begin\n".repeat(levels));
+    source.extend((0..locals).map(|i| format!("x{i} = nil\n")));
+    source.push_str(&"rescue\nc = 1\nensure\nc = 2\nend\n".repeat(levels));
+    source
+}
+
+#[test]
+fn type_checking_stops_at_the_compile_budget() {
+    // WASI checks syntax at most 128 levels tall.
+    let (levels, locals) = if cfg!(target_os = "wasi") {
+        (100, 8_000)
+    } else {
+        (400, 2_000)
+    };
+    let source = nested_begins(levels, locals);
+    let engine = Engine::new();
+    let checked = engine.type_check(&source).unwrap();
+    assert!(checked.steps > 4 * Limits::default().steps.unwrap());
+    // The default step quota fails the compilation, and so do a deadline
+    // that has passed and a cancellation without one. That the check
+    // itself stops within its budget's work, long before it would end, is
+    // measured in steps by the checker's own tests rather than by a clock.
+    assert_compile_stops(&engine, &source);
+}
+
+/// Compiles `source` under the default step quota, which it must pass,
+/// and without a step quota once its deadline has passed and once it is
+/// cancelled, each failing with its own error.
+fn assert_compile_stops(engine: &Engine, source: &str) {
+    let error = engine
+        .compile_with_options(source, &CallOptions::default())
+        .err()
+        .unwrap();
+    assert_eq!(error.kind, ErrorKind::Steps, "{error}");
+    let unlimited = Limits {
+        steps: None,
+        ..Limits::default()
+    };
+    let options = CallOptions {
+        limits: unlimited.clone(),
+        deadline: Some(Instant::now()),
+        ..CallOptions::default()
+    };
+    let error = engine.compile_with_options(source, &options).err().unwrap();
+    assert_eq!(error.kind, ErrorKind::Deadline, "{error}");
+    let cancellation = CancellationToken::new();
+    cancellation.cancel();
+    let options = CallOptions {
+        limits: unlimited,
+        cancellation,
+        ..CallOptions::default()
+    };
+    let error = engine.compile_with_options(source, &options).err().unwrap();
+    assert_eq!(error.kind, ErrorKind::Cancelled, "{error}");
+}
+
+/// Two unions of shapes with optional fields, which a value of one may fit
+/// in any alternative of the other, so relating them compares every pair.
+fn loose_unions(arms: usize) -> String {
+    let union = |prefix: &str, extra: &str| {
+        (0..arms)
+            .map(|i| format!("{{{prefix}{i}?: int{extra}}}"))
+            .collect::<Vec<_>>()
+            .join(" | ")
+    };
+    format!(
+        "type A = {}\ntype B = {}\ndef f(x: A, y: B?) -> B?\n  z: A? = x\n  y\nend\ndef g(x: A) -> B\n  x\nend\n",
+        union("a", ""),
+        union("b", ", x: int")
+    )
+}
+
+#[test]
+fn type_operations_stop_at_the_compile_budget() {
+    let source = loose_unions(1_000);
+    let engine = Engine::new();
+    let checked = engine.type_check(&source).unwrap();
+    assert!(checked.steps > 2 * Limits::default().steps.unwrap());
+    // The step quota stops the comparison inside one assignment, as the
+    // checker's own tests measure.
+    assert_compile_stops(&engine, &source);
+}
+
+#[test]
+fn the_checkers_memory_counts_every_table_it_keeps() {
+    // The checker's type table stays small here, but each wrong call keeps
+    // a diagnostic rendering the wide type, which the default memory quota
+    // must bound as it grows.
+    let arms = (0..1_000)
+        .map(|i| format!("{{a{i}: int}}"))
+        .collect::<Vec<_>>()
+        .join(" | ");
+    let calls = if cfg!(target_os = "wasi") { 500 } else { 2_000 };
+    let source = format!(
+        "type Wide = {arms}\ndef f(x: Wide) -> int\n  1\nend\n{}",
+        "f(1)\n".repeat(calls)
+    );
+    let engine = Engine::new();
+    assert!(engine.type_check(&source).unwrap().peak_bytes > 16 << 20);
+    let options = CallOptions {
+        limits: Limits {
+            steps: None,
+            ..Limits::default()
+        },
+        ..CallOptions::default()
+    };
+    let error = engine
+        .compile_with_options(&source, &options)
+        .err()
+        .unwrap();
+    assert_eq!(error.kind, ErrorKind::Memory);
+}
+
+#[test]
+fn a_union_past_its_bound_fails_before_it_is_related() {
+    // The shape of Codex's witness: a 5,000-arm union of shapes, an
+    // optional of it, and an ensure that narrows it.
+    let arms = (0..5_000)
+        .map(|i| format!("{{a{i}: int}}"))
+        .collect::<Vec<_>>()
+        .join(" | ");
+    let source = format!(
+        "type Wide = {arms}\ndef f(x: Wide?) -> Wide?\n  begin\n    1\n  ensure\n    return nil if x == nil\n  end\n  x\nend\n"
+    );
+    let error = Engine::new()
+        .compile_with_options(&source, &CallOptions::default())
+        .err()
+        .unwrap();
+    assert_eq!(error.kind, ErrorKind::Type, "{error}");
+    let codes: Vec<String> = error
+        .diagnostics()
+        .iter()
+        .map(|diagnostic| diagnostic.code.to_string())
+        .collect();
+    assert_eq!(codes, ["V0124"]);
+}
+
+/// Union indexes nested `depth` deep on a parameter of type `receiver`,
+/// each adding the length of a `width`-element literal before the next.
+/// Checking an index on a union's first alternative records the types of
+/// everything under it for the others to replay, and sets aside the record
+/// of the index around it while it does.
+fn nested_indexes(receiver: &str, depth: usize, width: usize) -> String {
+    let wide = format!("[{}].length", vec!["1"; width].join(", "));
+    let mut index = "0".to_owned();
+    for _ in 0..depth {
+        index = format!("u[{wide} + g({index})]");
+    }
+    format!(
+        "def g(v: int | float | nil) -> int\n  0\nend\ndef f(u: {receiver}) -> int\n  x = {index}\n  0\nend\n"
+    )
+}
+
+#[test]
+fn nested_union_indexes_count_the_records_they_set_aside() {
+    // WASI checks syntax at most 128 levels tall.
+    let (depth, width) = if cfg!(target_os = "wasi") {
+        (20, 500)
+    } else {
+        (50, 400)
+    };
+    let plain = nested_indexes("array<int>", depth, width);
+    let union = nested_indexes("array<int> | array<float>", depth, width);
+    let engine = Engine::new();
+    let peak = |source: &str| engine.type_check(source).unwrap().peak_bytes;
+    let (alone, nested) = (peak(&plain), peak(&union));
+    // The records set aside at the innermost index hold about as much as
+    // the literals' types in the plain check's tables.
+    assert!(nested > alone * 5 / 4, "{nested} nested, {alone} alone");
+    let compiles = |source: &str, quota: usize| {
+        let options = CallOptions {
+            limits: Limits {
+                steps: None,
+                memory_bytes: Some(quota),
+                ..Limits::default()
+            },
+            ..CallOptions::default()
+        };
+        engine
+            .compile_with_options(source, &options)
+            .map(|_| ())
+            .map_err(|error| error.kind)
+    };
+    // The least quota the plain source compiles under, to within a
+    // sixteenth of what its check holds.
+    let mut quota = alone;
+    while compiles(&plain, quota).is_err() {
+        quota *= 2;
+    }
+    let mut least = quota / 2;
+    while quota - least > alone / 16 {
+        let middle = least + (quota - least) / 2;
+        if compiles(&plain, middle).is_ok() {
+            quota = middle;
+        } else {
+            least = middle;
+        }
+    }
+    // The records count toward the union's checker peak, which passes
+    // before the surface pass starts; the pass, whose footprint the wide
+    // literals make larger than the records, holds as much beside either
+    // source's tables. A quota that leaves the plain source an eighth of
+    // its check to spare fits the union's too, as it fits what the union
+    // holds at once, and its checker peak stays within it.
+    let quota = quota + alone / 8;
+    assert_eq!(compiles(&plain, quota), Ok(()));
+    assert!(
+        nested < quota,
+        "{nested} at the checker's peak, {quota} allowed"
+    );
+    assert_eq!(compiles(&union, quota), Ok(()));
+}
+
+#[test]
+fn a_required_files_parse_counts_toward_the_check() {
+    // Parsing a file costs the checker more steps than checking it, and
+    // the steps of both count toward the compile budget.
+    let file: String = (0..2_000)
+        .map(|i| format!("x{i} = [{i}, {i}].length\n"))
+        .collect();
+    let mut engine = Engine::new();
+    engine
+        .set_module_sources(std::collections::BTreeMap::from([(
+            "big.vibe".to_owned(),
+            file.clone(),
+        )]))
+        .unwrap();
+    let checked = engine.type_check(&file).unwrap().steps;
+    let required = engine.type_check("require(\"big\")\n").unwrap().steps;
+    assert!(
+        required > 2 * checked,
+        "{required} steps requiring it, {checked} checking it"
+    );
+}
+
+#[test]
+fn diagnostics_spell_out_bounded_lists_and_types() {
+    // An unknown symbol for, and a `case` missing, members of a wide enum
+    // name the first members and count the rest.
+    let members = if cfg!(target_os = "wasi") {
+        20_000
+    } else {
+        100_000
+    };
+    let source = format!(
+        "enum E\n{}end\ndef f(e: E) -> int\n  case e\n  when E::M0 then 0\n  end\nend\np(f(:nope))\n",
+        (0..members)
+            .map(|i| format!("  M{i}\n"))
+            .collect::<String>()
+    );
+    // A quota that admits the enum itself.
+    let options = CallOptions {
+        limits: Limits {
+            steps: None,
+            memory_bytes: Some(128 << 20),
+            ..Limits::default()
+        },
+        ..CallOptions::default()
+    };
+    let error = Engine::new()
+        .compile_with_options(&source, &options)
+        .err()
+        .unwrap();
+    assert_eq!(error.kind, ErrorKind::Type, "{error}");
+    let messages: Vec<&str> = error
+        .diagnostics()
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect();
+    assert_eq!(messages.len(), 3, "{messages:?}");
+    assert!(messages[0].ends_with(&format!(
+        "`E::M20` and {} more; add a `when` for each, or an `else`",
+        members - 21
+    )));
+    assert!(messages[2].ends_with(&format!(":m19 and {} more", members - 20)));
+    // A shape whose fields are shapes, through aliases, is spelled out up to
+    // a bound rather than 8^6 times over.
+    let mut source = format!(
+        "type T0 = {{ {} }}\n",
+        (0..8)
+            .map(|i| format!("x{i}: int"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    for depth in 1..7 {
+        source.push_str(&format!(
+            "type T{depth} = {{ {} }}\n",
+            (0..8)
+                .map(|i| format!("f{i}: T{}", depth - 1))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    source.push_str("x: T6 = 1\n");
+    let error = Engine::new()
+        .compile_with_options(&source, &CallOptions::default())
+        .err()
+        .unwrap();
+    assert_eq!(error.kind, ErrorKind::Type, "{error}");
+    let message = &error.diagnostics()[0].message;
+    assert!(message.len() < 64 << 10, "{} bytes", message.len());
+    assert!(message.contains("..."), "{message}");
+}
+
+#[test]
+fn a_long_chain_of_aliases_is_checked_within_the_stack() {
+    // The checker resolves an alias through the alias it names, so a long
+    // chain of them recursed as deep as it is long, past the stack a WASI
+    // build checks on; it now resolves no deeper than the compiler accepts,
+    // and the rest is unknown.
+    let renames: String = (1..4_000)
+        .map(|k| format!("type R{k} = R{}\n", k - 1))
+        .collect();
+    let nested: String = (1..1_000)
+        .map(|k| format!("type N{k} = {{ a: int }} | array<N{}>\n", k - 1))
+        .collect();
+    let source = format!(
+        "type R0 = int\n{renames}type N0 = int\n{nested}def f(x: R3999, y: N999) -> int\n  y\nend\np(1)\n"
+    );
+    let checked = Engine::new()
+        .type_check(&source)
+        .expect("the source parses");
+    assert!(!checked.diagnostics.is_empty(), "{:?}", checked.diagnostics);
+}
+
+#[test]
+fn a_deeply_nested_inferred_type_is_refused_within_the_stack() {
+    // Each local wraps the one before it in an array, so the last one's
+    // inferred type nests as deep as the chain is long, though no line of
+    // the source is deeper than a few levels; relating and displaying it
+    // recursed as deep as it nests, past the stack a WASI build checks on.
+    // The checker now refuses a type nesting deeper than it relates.
+    let depth = 5_000;
+    let wraps: String = (1..=depth)
+        .map(|k| format!("a{k} = [a{}]\n", k - 1))
+        .collect();
+    let source = format!("a0 = 1\n{wraps}x: int = a{depth}\np(1)\n");
+    let checked = Engine::new()
+        .type_check(&source)
+        .expect("the source parses");
+    let codes: Vec<String> = checked
+        .diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.code.to_string())
+        .collect();
+    assert!(codes.iter().any(|code| code == "V0124"), "{codes:?}");
+}

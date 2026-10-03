@@ -1,0 +1,13 @@
+# expect: rejected V0107
+# An `ensure` may run before a guard in the body, as when the body raises
+# first, so the guard's narrowing does not hold there.
+def f(c: bool, y: int?) -> int
+  begin
+    raise "e" if c
+    return 0 if y == nil
+  ensure
+    p(y + 1)
+  end
+  y
+end
+p(f(true, nil))

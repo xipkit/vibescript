@@ -18,7 +18,7 @@ Every expression has a static type, and a program that does not type check does 
 | `hash<string, V>` | A dictionary with string keys and values of type `V`. |
 | `{ name: string, age?: int }` | A shape: a hash with exactly these string keys. `age?:` may be absent, while `age: int?` must be present and may hold nil. A final `...` permits extra keys. |
 | `[A, B]` | A tuple: an array of exactly these elements, in order. |
-| `Status`, `Account`, `Outer::Inner` | An enum or class, named through its scope. |
+| `Status`, `Account` | An enum or class the script declares. |
 | `type<T>` | A type literal describing `T`, such as the second argument of `JSON.parse_as`. |
 
 Builtin type names are lowercase; `Int` and `object` are removed spellings of `int` and `hash` (V0413). `type Reward = { id: string, points: int }` names a type at top level or in a module or class body; aliases are transparent, and may refer to other aliases but not to themselves.
@@ -121,7 +121,7 @@ packet = JSON.parse_as("{\"name\":\"Ada\",\"active\":true}", schema)
 packet["name"].upcase # "ADA"
 ```
 
-The second argument can be any type an annotation can name: `JSON.parse_as("[1,2]", array<int>)` has type `array<int>` and `JSON.parse_as("null", int?)` has type `int?`. A shape literal can be stored in a local and passed later, as `schema` is above. Written in the call, as in a cast's `value.as(array<Account>)` or `value.as({ owner: Account, status: Status })`, the type may name the script's classes and enums, also through their scope as `Outer::Inner`; elsewhere a braced group that names a class is a hash of values, so a stored type names classes through an alias, `type Owned = { owner: Account }`.
+The second argument can be any type an annotation can name: `JSON.parse_as("[1,2]", array<int>)` has type `array<int>` and `JSON.parse_as("null", int?)` has type `int?`. A shape literal can be stored in a local and passed later, as `schema` is above. Written in the call, as in a cast's `value.as(array<Account>)` or `value.as({ owner: Account, status: Status })`, the type may name the script's classes and enums; elsewhere a braced group that names a class is a hash of values, so a stored type names classes through an alias, `type Owned = { owner: Account }`.
 
 An enum names its own type, and a JSON string names a member by its symbol, as `JSON.stringify` writes it: `"in_review"` is `Status::InReview`. Any other value is the typed boundary error. Braces that name a class or enum are a hash, since the name is a value, so a shape with an enum field is named with a type alias:
 

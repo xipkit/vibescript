@@ -1,0 +1,15 @@
+# expect: rejected V0107
+# An `ensure` runs after any part of the body.
+def f -> int
+  x: int? = 5
+  if x != nil
+    begin
+      x = nil
+      raise "e"
+    ensure
+      return x
+    end
+  end
+  0
+end
+p(f)

@@ -133,7 +133,19 @@ const EDITS: &[(&str, &[&str])] = &[
 fn edit(source: &str, rng: &mut Rng) -> Option<String> {
     for _ in 0..8 {
         let (pattern, replacements) = EDITS[rng.below(EDITS.len())];
-        let places: Vec<usize> = source.match_indices(pattern).map(|(at, _)| at).collect();
+        // A word or number is replaced whole: `1` in `10` is not a literal.
+        let word = |c: char| c.is_ascii_alphanumeric() || c == '_' || c == '.';
+        let whole = |at: usize| {
+            let starts = pattern.starts_with(word);
+            let ends = pattern.ends_with(word);
+            (!starts || !source[..at].ends_with(word))
+                && (!ends || !source[at + pattern.len()..].starts_with(word))
+        };
+        let places: Vec<usize> = source
+            .match_indices(pattern)
+            .map(|(at, _)| at)
+            .filter(|&at| whole(at))
+            .collect();
         if places.is_empty() {
             continue;
         }

@@ -339,10 +339,6 @@ fn signatures_validate_break_results_and_preserve_nonlocal_returns() {
         ("typed.echo(1) { next 7 }", "7"),
         ("typed.echo(1) { break 8 }", "8"),
         ("typed.echo(1) { return \"ok\" }; 99", "ok"),
-        (
-            "begin; typed.echo(1) { break \"bad\" }; rescue => e; e.message; end",
-            "return value for typed.echo expected int, got string",
-        ),
     ] {
         let result = engine(&method)
             .compile(&format!("def run -> any; {body}; end"))
@@ -351,6 +347,22 @@ fn signatures_validate_break_results_and_preserve_nonlocal_returns() {
             .unwrap();
         assert_eq!(result.value.to_string(), expected, "{body}");
     }
+    // A break's value becomes the result, so it must have the result's
+    // type, which the runtime also checks where the script was compiled
+    // without the signature.
+    let source =
+        "def run -> any; begin; typed.echo(1) { break \"bad\" }; rescue => e; e.message; end; end";
+    refused(&method, source, &["V0101"], "\"bad\"");
+    let unsigned = HostMethod::new_with_block("typed.echo", |call, args, _| call.call_block(args));
+    let result = engine(&unsigned)
+        .compile(source)
+        .unwrap()
+        .call("run", &[], options(method.clone()))
+        .unwrap();
+    assert_eq!(
+        result.value.to_string(),
+        "return value for typed.echo expected int, got string"
+    );
     let method = HostMethod::new("typed.echo", |_, _, _| Ok(Value::int(7)))
         .with_signature(signature(&[], "int", true))
         .unwrap();

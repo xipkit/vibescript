@@ -1,6 +1,6 @@
 use crate::{
     Error, Result, Value,
-    compilation::{Boxed, Buffer, Bytes, Name, Table, Task, Tasks, Text, Work},
+    compilation::{Boxed, Buffer, Bytes, Frame, Name, Table, Tasks, Text, Work, framed, task},
 };
 use std::cell::{RefCell, RefMut};
 
@@ -580,46 +580,68 @@ impl Target {
             };
         }
     }
-    // Destructuring nests as deeply as the syntax limit, so walk it without recursion.
-    fn parts(&self, mut visit: impl FnMut(&Self, u32) -> bool) -> bool {
-        let mut pending = vec![(self, 0)];
-        while let Some((target, depth)) = pending.pop() {
-            if !visit(target, depth) {
-                return false;
+    // Destructuring nests as deeply as the syntax limit, so walk it without
+    // recursion, in source order, keeping what is left of each level's
+    // parts rather than every part at once, in a list reserved from `work`
+    // as it grows.
+    fn parts(
+        &self,
+        work: &dyn Work,
+        mut visit: impl FnMut(&Self, u32) -> Result<bool>,
+    ) -> Result<bool> {
+        // What is left of each level's parts, and its depth.
+        type Level<'t> = (std::slice::Iter<'t, (Option<Target>, bool)>, u32);
+        let mut levels: Buffer<Level<'_>> = Buffer::new();
+        let mut next = Some((self, 0));
+        loop {
+            work.checkpoint()?;
+            work.charge(1)?;
+            let (target, depth) = match next.take() {
+                Some(next) => next,
+                None => {
+                    let Some((level, depth)) = levels.last_mut() else {
+                        return Ok(true);
+                    };
+                    let depth = *depth;
+                    match level.next() {
+                        Some((Some(target), _)) => (target, depth),
+                        Some((None, _)) => continue,
+                        None => {
+                            levels.pop();
+                            continue;
+                        }
+                    }
+                }
+            };
+            if !visit(target, depth)? {
+                return Ok(false);
             }
             match target {
-                Self::Typed(target, _) => pending.push((target, depth)),
+                Self::Typed(target, _) => next = Some((target, depth)),
                 Self::Value(_) => (),
-                Self::Tuple(parts) => {
-                    pending.extend(
-                        parts
-                            .iter()
-                            .rev()
-                            .filter_map(|(t, _)| t.as_ref())
-                            .map(|t| (t, depth + 1)),
-                    );
-                }
+                Self::Tuple(parts) => levels.push(work, (parts.iter(), depth + 1))?,
             }
         }
-        true
     }
-    fn is_binding(&self) -> bool {
-        self.parts(|target, _| match target {
-            Self::Value(e) => matches!(&e.node, Node::Var(name) if !name.starts_with('@')),
-            _ => true,
+    fn is_binding(&self, work: &dyn Work) -> Result<bool> {
+        self.parts(work, |target, _| {
+            Ok(match target {
+                Self::Value(e) => matches!(&e.node, Node::Var(name) if !name.starts_with('@')),
+                _ => true,
+            })
         })
     }
-    fn depth(&self) -> u32 {
+    fn depth(&self, work: &dyn Work) -> Result<u32> {
         let mut deepest = 0;
-        self.parts(|target, depth| {
+        self.parts(work, |target, depth| {
             if let Self::Value(e) = target {
                 deepest = deepest.max(depth + e.depth);
             } else if let Self::Tuple(_) = target {
                 deepest = deepest.max(depth + 1);
             }
-            true
-        });
-        deepest
+            Ok(true)
+        })?;
+        Ok(deepest)
     }
 }
 #[derive(Debug)]
@@ -656,17 +678,18 @@ impl Stmt {
     }
 }
 impl Statement {
-    fn at(self, offset: u32) -> Stmt {
-        Stmt {
-            depth: self.depth(),
+    fn at(self, work: &dyn Work, offset: u32) -> Result<Stmt> {
+        Ok(Stmt {
+            depth: self.depth(work)?,
             node: self,
             offset,
-        }
+        })
     }
-    // Match Go's syntax tree height; children carry their own heights.
-    fn depth(&self) -> u32 {
+    // Match Go's syntax tree height; children carry their own heights. A
+    // target's height is found with a walk that `work` reserves for.
+    fn depth(&self, work: &dyn Work) -> Result<u32> {
         let body = |s: &[Stmt]| s.iter().map(|s| s.depth).max().unwrap_or(0);
-        match self {
+        Ok(match self {
             Statement::Module(_)
             | Statement::UnboundClass(_)
             | Statement::Retry
@@ -686,7 +709,7 @@ impl Statement {
                 ..
             }) if !attempt.modifier => *depth,
             Statement::Expr(e) => 1 + e.depth,
-            Statement::Assign(t, _, e) => 1 + t.depth().max(e.depth),
+            Statement::Assign(t, _, e) => 1 + t.depth(work)?.max(e.depth),
             Statement::If(branches, alternate, _) => {
                 let branches = branches.iter().enumerate().map(|(i, (condition, body_))| {
                     // Each elsif is its own node beside the first branch.
@@ -695,11 +718,11 @@ impl Statement {
                 1 + branches.max().unwrap_or(0).max(body(alternate))
             }
             Statement::While(e, b, _) => 1 + e.depth.max(body(b)),
-            Statement::For(t, e, b) => 1 + t.depth().max(e.depth).max(body(b)),
+            Statement::For(t, e, b) => 1 + t.depth(work)?.max(e.depth).max(body(b)),
             Statement::Return(e) | Statement::Break(e) | Statement::Next(e) => {
                 1 + e.as_ref().map_or(0, |e| e.depth)
             }
-        }
+        })
     }
 }
 #[derive(Debug)]
@@ -762,6 +785,29 @@ pub(crate) struct Declarations {
     /// The byte span of every string interpolation's content, for tooling
     /// that reports positions relative to an interpolation as Go does.
     pub interpolations: Buffer<(u32, u32)>,
+    /// What the interpolations hold beside the source's own tokens, when
+    /// it was parsed with them.
+    pub interpolated: Interpolated,
+}
+
+/// What a source's string interpolations hold, at every depth, which a
+/// pass that lexes each interpolation again reads beside the source's own
+/// tokens.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct Interpolated {
+    /// The tokens inside them, each one's end among them.
+    pub tokens: usize,
+    /// What the payloads of those tokens hold once the tooling lists them,
+    /// as an ordinary token's do: strings, symbols' names and percent
+    /// literals' entries; and the spans of the interpolations nested in
+    /// them.
+    pub bytes: usize,
+    /// The bytes of the identifiers among those tokens.
+    pub words: usize,
+    /// The entries of the percent literals among those tokens.
+    pub entries: usize,
+    /// The bytes of those entries without interpolations of their own.
+    pub rewritten: usize,
 }
 
 /// A top-level declaration's kind, name and source byte range, in source order.
@@ -773,14 +819,14 @@ pub(crate) struct Outline {
 }
 
 fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result<Parser<'a>> {
-    Ok(parser_from_tokens(
-        source,
-        work,
-        Tokens::new(lex(source, work)?, work)?,
-    ))
+    parser_from_tokens(source, work, Tokens::new(lex(source, work)?, work)?)
 }
 
-fn parser_from_tokens<'a>(source: &'a str, work: &'a dyn Work, tokens: Tokens<'a>) -> Parser<'a> {
+fn parser_from_tokens<'a>(
+    source: &'a str,
+    work: &'a dyn Work,
+    tokens: Tokens<'a>,
+) -> Result<Parser<'a>> {
     Parser::with_type_names(Parser {
         work,
         source,
@@ -986,36 +1032,97 @@ enum Place {
     Group(bool),
 }
 
-/// Writes a destructuring target as Go's `FormatDestructureTarget` does.
-fn target_text(target: &Target, out: &mut Vec<u8>) -> Result<()> {
+/// The prefix needed by `source_text`, including enough bytes to finish a
+/// UTF-8 character at its truncation boundary.
+struct TargetText<'w> {
+    work: &'w dyn Work,
+    bytes: [u8; 68],
+    len: usize,
+    clipped: bool,
+}
+
+impl TargetText<'_> {
+    fn text(&self) -> &str {
+        let bytes = &self.bytes[..self.len];
+        match std::str::from_utf8(bytes) {
+            Ok(text) => text,
+            Err(error) => std::str::from_utf8(&bytes[..error.valid_up_to()]).unwrap(),
+        }
+    }
+}
+
+impl crate::shapes::TypeWriter for TargetText<'_> {
+    fn node(&mut self) -> Result<()> {
+        self.work.checkpoint()?;
+        self.work.charge(1)?;
+        if self.len == self.bytes.len() {
+            self.clipped = true;
+            return Err(Error::new(crate::ErrorKind::Syntax, ""));
+        }
+        Ok(())
+    }
+
+    fn write(&mut self, bytes: &[u8]) -> Result<()> {
+        self.node()?;
+        let count = bytes.len().min(self.bytes.len() - self.len);
+        self.work.bytes(count)?;
+        self.bytes[self.len..self.len + count].copy_from_slice(&bytes[..count]);
+        self.len += count;
+        if count < bytes.len() {
+            self.clipped = true;
+            return Err(Error::new(crate::ErrorKind::Syntax, ""));
+        }
+        Ok(())
+    }
+}
+
+/// Writes only the diagnostic prefix of a destructuring target.
+fn target_text(target: &Target, out: &mut TargetText<'_>) -> Result<()> {
+    use crate::shapes::TypeWriter;
+    out.node()?;
     match target {
         Target::Value(Expr {
             node: Node::Var(name),
             ..
-        }) => out.extend_from_slice(name.as_bytes()),
+        }) => out.write(name.as_bytes())?,
         Target::Tuple(parts) => {
-            out.push(b'(');
+            out.write(b"(")?;
             for (index, (part, rest)) in parts.iter().enumerate() {
+                out.node()?;
                 if index > 0 {
-                    out.extend_from_slice(b", ");
+                    out.write(b", ")?;
                 }
                 if *rest {
-                    out.push(b'*');
+                    out.write(b"*")?;
                 }
                 if let Some(part) = part {
                     target_text(part, out)?;
                 }
             }
-            out.push(b')');
+            out.write(b")")?;
         }
         Target::Typed(target, ty) => {
             target_text(target, out)?;
-            out.extend_from_slice(b": ");
+            out.write(b": ")?;
             crate::shapes::format(ty, out)?;
         }
         Target::Value(_) => (),
     }
     Ok(())
+}
+
+fn target_excerpt<'w>(target: &Target, work: &'w dyn Work) -> Result<TargetText<'w>> {
+    let mut text = TargetText {
+        work,
+        bytes: [0; 68],
+        len: 0,
+        clipped: false,
+    };
+    let result = target_text(target, &mut text);
+    if !text.clipped {
+        result?;
+    }
+    Ok(text)
 }
 
 /// Recursive parsing steps that run as tasks instead of native calls.
@@ -1054,14 +1161,18 @@ struct Parsing<'a, M: recovery::Mode = recovery::FailFast> {
     parser: RefCell<Parser<'a>>,
     tasks: Tasks<Call, Parsed>,
     recovery: RefCell<M::State>,
+    /// The parser's work, which the boxed steps of its tasks charge.
+    work: &'a dyn Work,
 }
 
 impl<'a, M: recovery::Mode> Parsing<'a, M> {
     fn new(parser: Parser<'a>) -> Self {
+        let work = parser.work;
         Self {
             parser: RefCell::new(parser),
             tasks: Tasks::new(),
             recovery: RefCell::new(M::State::default()),
+            work,
         }
     }
 
@@ -1070,30 +1181,37 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
     }
 
     fn run(&self, call: Call) -> Result<Parsed> {
-        self.tasks.run(call, |call| self.start(call))
+        self.tasks.run(call, |call| self.start(call), self.work)
     }
 
-    fn start(&self, call: Call) -> Task<'_, Parsed> {
+    fn start(&self, call: Call) -> Result<Frame<'_, Parsed>> {
+        let work = self.work;
         match call {
-            Call::Program => Box::pin(async { Ok(Parsed::Program(self.program().await?)) }),
-            Call::Interpolation => Box::pin(async { Ok(Parsed::Expr(self.interpolated().await?)) }),
-            Call::Expr(min) => {
-                Box::pin(async move { Ok(Parsed::Expr(self.expression(min).await?)) })
+            Call::Program => task(work, async { Ok(Parsed::Program(self.program().await?)) }),
+            Call::Interpolation => {
+                task(work, async { Ok(Parsed::Expr(self.interpolated().await?)) })
             }
-            Call::Tail(lhs, suffix, min) => Box::pin(async move {
+            Call::Expr(min) => task(work, async move {
+                Ok(Parsed::Expr(self.expression(min).await?))
+            }),
+            Call::Tail(lhs, suffix, min) => task(work, async move {
                 let result = self.expr_tail(lhs, min, Some(suffix), None, false).await;
                 self.p().depth -= 1;
                 Ok(Parsed::Expr(result?))
             }),
-            Call::Block(stop) => {
-                Box::pin(async move { Ok(Parsed::Body(self.block_task(stop).await?)) })
-            }
-            Call::Target(typed) => Box::pin(async move {
+            Call::Block(stop) => task(work, async move {
+                Ok(Parsed::Body(self.block_task(stop).await?))
+            }),
+            Call::Target(typed) => task(work, async move {
                 let (target, tuple) = self.target(Place::Group(typed)).await?;
                 Ok(Parsed::Target(target, tuple))
             }),
-            Call::Class => Box::pin(async { Ok(Parsed::Module(self.class_like(false).await?)) }),
-            Call::Module => Box::pin(async { Ok(Parsed::Module(self.class_like(true).await?)) }),
+            Call::Class => task(work, async {
+                Ok(Parsed::Module(self.class_like(false).await?))
+            }),
+            Call::Module => task(work, async {
+                Ok(Parsed::Module(self.class_like(true).await?))
+            }),
         }
     }
 
@@ -1131,7 +1249,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
         let Some(brace) = brace else {
             return Ok(expr);
         };
-        Box::pin(self.block_expression(expr, brace)).await
+        framed(self.work, self.block_expression(expr, brace))?.await
     }
 
     /// Parses a line expression that may take a `do` block from a later line.
@@ -1229,7 +1347,10 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
             p.enter()?;
             p.tokens[p.pos].offset as u32
         };
-        let stmt = self.modified_statement(offset).await?.at(offset);
+        let stmt = self
+            .modified_statement(offset)
+            .await?
+            .at(self.work, offset)?;
         let mut p = self.p();
         p.expression_separator()?;
         p.check_depth(stmt.depth, stmt.offset)?;
@@ -1241,7 +1362,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
         self.p().work.charge(1)?;
         let starts_begin = matches!(self.p().token(), Token::Word(word) if word == "begin");
         let mut stmt = if starts_begin {
-            Box::pin(self.begin_statement()).await?
+            framed(self.work, self.begin_statement())?.await?
         } else {
             self.plain_statement().await?
         };
@@ -1249,7 +1370,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
             stmt,
             Statement::If(..) | Statement::While(..) | Statement::For(..)
         ) {
-            stmt = Box::pin(self.continued_statement(stmt, offset)).await?;
+            stmt = framed(self.work, self.continued_statement(stmt, offset))?.await?;
         }
         let modifier = match self.p().token() {
             Token::Word(w) if matches!(w.as_str(), "if" | "while") => *w,
@@ -1270,7 +1391,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
                     | Statement::Next(_)
             )
         {
-            Box::pin(self.reject_modifier()).await?;
+            framed(self.work, self.reject_modifier())?.await?;
             return Ok(stmt);
         }
         let keyword = {
@@ -1285,7 +1406,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
         if matches!(modifier.as_str(), "unless" | "until") {
             condition = p.negate(condition)?;
         }
-        let body = Buffer::from_array(work, [stmt.at(offset)])?;
+        let body = Buffer::from_array(work, [stmt.at(work, offset)?])?;
         Ok(if matches!(modifier.as_str(), "while" | "until") {
             Statement::While(condition, body, Some(keyword))
         } else {
@@ -1306,7 +1427,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
             if !p.statement_continues()? {
                 return Ok(stmt);
             }
-            let stmt = stmt.at(offset);
+            let stmt = stmt.at(p.work, offset)?;
             let depth = stmt.depth;
             p.make_at(Node::Compound(Boxed::new(p.work, stmt)?), depth, offset)?
         };
@@ -1602,7 +1723,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
         let (target, _) = self.target(Place::For).await?;
         let previous = {
             let mut p = self.p();
-            if !target.is_binding() {
+            if !target.is_binding(p.work)? {
                 let offset = target
                     .offset()
                     .map_or(p.position(p.pos), |offset| offset as usize);
@@ -1737,16 +1858,14 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
                 let start = p.tokens[p.pos].offset;
                 let ty = p.type_expr(1, false)?;
                 if rest && !ty.captures(false) {
-                    let mut text = Vec::new();
-                    target_text(value.as_ref().unwrap(), &mut text)?;
-                    work.bytes(text.len())?;
-                    let text = String::from_utf8_lossy(&text);
+                    let excerpt = target_excerpt(value.as_ref().unwrap(), work)?;
+                    let text = excerpt.text();
                     return Err(Error::syntax(
                         work,
                         start,
                         format_args!(
                             "rest destructuring target {} captures an array; annotate it as array<...> or any",
-                            source_text(if text.is_empty() { "*" } else { &text })
+                            source_text(if text.is_empty() { "*" } else { text })
                         ),
                     ));
                 }
@@ -1778,7 +1897,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
         };
         let p = self.p();
         let offset = target.offset().unwrap_or(p.tokens[p.pos].offset as u32);
-        p.check_depth(target.depth(), offset)?;
+        p.check_depth(target.depth(p.work)?, offset)?;
         Ok((target, tuple))
     }
 
@@ -1995,12 +2114,14 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
             (offset, p.bump()?)
         };
         match token {
-            Token::Word(w) => Box::pin(self.word_expression(w.as_str(), offset)).await,
+            Token::Word(w) => framed(self.work, self.word_expression(w.as_str(), offset))?.await,
             Token::P('(') => self.group_expression().await,
             Token::P('[') => self.array_expression().await,
-            Token::P('{') => Box::pin(self.hash_expr()).await,
-            Token::Op(op @ (".." | "...")) => Box::pin(self.open_range_expression(op)).await,
-            Token::Op(op @ ("-" | "+" | "!")) => Box::pin(self.unary_prefix(op)).await,
+            Token::P('{') => framed(self.work, self.hash_expr())?.await,
+            Token::Op(op @ (".." | "...")) => {
+                framed(self.work, self.open_range_expression(op))?.await
+            }
+            Token::Op(op @ ("-" | "+" | "!")) => framed(self.work, self.unary_prefix(op))?.await,
             token => self.p().leaf(token),
         }
     }
@@ -2082,7 +2203,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
         } else {
             self.while_stmt(word == "until").await?
         };
-        let stmt = stmt.at(offset);
+        let stmt = stmt.at(self.work, offset)?;
         let depth = stmt.depth;
         let p = self.p();
         p.make(Node::Compound(Boxed::new(p.work, stmt)?), depth)
@@ -2176,17 +2297,19 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
                 return Ok(lhs);
             };
             lhs = match suffix {
-                Suffix::Rescue => Box::pin(self.rescue_modifier(lhs)).await,
+                Suffix::Rescue => framed(self.work, self.rescue_modifier(lhs))?.await,
                 Suffix::Command => self.command_expression(lhs).await,
-                Suffix::Block(brace) => Box::pin(self.block_expression(lhs, brace)).await,
+                Suffix::Block(brace) => framed(self.work, self.block_expression(lhs, brace))?.await,
                 Suffix::Call => {
                     let args = self.call_arguments().await?;
                     self.p().parenthesized_call(lhs, args)
                 }
-                Suffix::Scope => Box::pin(self.scoped_expression(lhs)).await,
+                Suffix::Scope => framed(self.work, self.scoped_expression(lhs))?.await,
                 Suffix::Member(safe) => self.member_expression(lhs, safe).await,
                 Suffix::Index(offset) => self.index_expression(lhs, offset).await,
-                Suffix::Ternary(offset) => Box::pin(self.ternary_expression(lhs, offset)).await,
+                Suffix::Ternary(offset) => {
+                    framed(self.work, self.ternary_expression(lhs, offset))?.await
+                }
                 Suffix::Binary(op, right, offset) => {
                     self.binary_expression(lhs, op, right, offset).await
                 }
@@ -2321,7 +2444,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
     async fn block_expression(&self, mut lhs: Expr, brace: bool) -> Result<Expr> {
         self.p().work.charge(1)?;
         if brace {
-            Box::pin(self.hash_block(&lhs)).await?;
+            framed(self.work, self.hash_block(&lhs))?.await?;
         }
         let offset = lhs.offset;
         let block = self.attached_block(brace).await?;
@@ -2332,12 +2455,10 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
             lhs = call.into_inner();
         }
         // Go counts the block literal as a node below its call.
-        let params = block
-            .params
-            .iter()
-            .map(|target| target.depth())
-            .max()
-            .unwrap_or(0);
+        let mut params = 0;
+        for target in block.params.iter() {
+            params = params.max(target.depth(self.work)?);
+        }
         let body = block.body.iter().map(|s| s.depth).max().unwrap_or(0);
         let depth = 1 + lhs.depth.max(1 + body.max(params));
         let p = self.p();
@@ -2575,7 +2696,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
                 loop {
                     let target = self.block_parameter().await?;
                     let mut p = self.p();
-                    p.declare_target(&target)?;
+                    p.declare_block_parameter(&target, &params)?;
                     params.push(work, target)?;
                     let comma = p.significant(p.pos);
                     if p.tokens[comma].token != Token::P(',') {
@@ -2652,7 +2773,7 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
         } else {
             Target::Tuple(Buffer::from_array(work, [(Some(target), false)])?)
         };
-        if !target.is_binding() {
+        if !target.is_binding(work)? {
             return Err(Error::syntax(
                 work,
                 open,
@@ -3321,31 +3442,74 @@ impl<'a> Parser<'a> {
     fn declare_target(&mut self, target: &Target) -> Result<()> {
         self.work.charge(1)?;
         let mut names = Buffer::new();
-        let mut invalid = None;
-        target.parts(|part, _| {
+        target.parts(self.work, |part, _| {
             if let Target::Value(Expr {
                 node: Node::Var(name),
                 offset,
                 ..
             }) = part
             {
-                if let Err(error) = self.binding_name(name, *offset as usize) {
-                    invalid = Some(error);
-                    return false;
-                }
-                names.push(self.work, (name.clone(), *offset)).is_ok()
-            } else {
-                true
+                self.binding_name(name, *offset as usize)?;
+                names.push(self.work, (name.clone(), *offset))?;
             }
-        });
-        if let Some(error) = invalid {
-            return Err(error);
-        }
+            Ok(true)
+        })?;
         for (name, offset) in names {
             self.work.charge(1)?;
             self.declared_it |= name == "it";
             let id = self.local_id(&name, offset as usize)?;
             self.locals.insert(self.work, name, id)?;
+        }
+        Ok(())
+    }
+    /// Declares the names a block parameter binds, as
+    /// [`Self::declare_target`] does, and fails with V0209 at one that it
+    /// or an `earlier` parameter of the same list binds already. A block's
+    /// parameters may shadow the enclosing locals, so only a name the
+    /// locals already have is looked for among them.
+    fn declare_block_parameter(&mut self, target: &Target, earlier: &[Target]) -> Result<()> {
+        self.work.charge(1)?;
+        let mut names = Buffer::new();
+        target.parts(self.work, |part, _| {
+            if let Target::Value(Expr {
+                node: Node::Var(name),
+                offset,
+                ..
+            }) = part
+            {
+                self.binding_name(name, *offset as usize)?;
+                names.push(self.work, (name.clone(), *offset))?;
+            }
+            Ok(true)
+        })?;
+        for (index, (name, offset)) in names.iter().enumerate() {
+            self.work.charge(1)?;
+            self.declared_it |= name == "it";
+            let id = self.local_id(name, *offset as usize)?;
+            if self.locals.insert(self.work, name.clone(), id)?.is_none() {
+                continue;
+            }
+            let mut repeated = false;
+            for (other, _) in &names[..index] {
+                if same_binding(self.work, other, name)? {
+                    repeated = true;
+                    break;
+                }
+            }
+            for other in earlier {
+                if repeated {
+                    break;
+                }
+                repeated = binds(other, name, self.work)?;
+            }
+            if repeated {
+                return Err(duplicate_parameter(
+                    self.work,
+                    name,
+                    *offset as usize,
+                    name.len(),
+                ));
+            }
         }
         Ok(())
     }
@@ -4025,6 +4189,10 @@ impl<'a> Parser<'a> {
     fn limit_continues(&self, index: usize) -> Result<bool> {
         Ok(match &self.tokens[index].token {
             Token::P('.' | '?') => true,
+            // An index that abuts the end of an expression spanning lines, as
+            // in `(case x ... end)[0]`, indexes it; adjacent expressions are
+            // an error.
+            Token::P('[') => index > 0 && self.tokens[index - 1].end == self.tokens[index].offset,
             Token::Words(words) => words.ambiguous,
             Token::Op("*") => !self.splat_assignment_ahead(index)?,
             Token::Op("+" | "-") => {
@@ -4493,6 +4661,76 @@ impl std::fmt::Display for Label<'_> {
         }
     }
 }
+/// The error for a parameter named like an earlier one of its list: a
+/// syntax error with V0209 at the name, which starts at `at` and is `width`
+/// bytes long.
+fn duplicate_parameter(work: &dyn Work, name: &str, at: usize, width: usize) -> Error {
+    let error = Error::syntax(
+        work,
+        at,
+        format_args!("duplicate parameter {}", source_text(name)),
+    );
+    if error.kind != crate::ErrorKind::Syntax {
+        return error;
+    }
+    let build = || {
+        let mut error = error;
+        let (message, mut held) =
+            crate::compilation::formatted(work, format_args!("{}", error.message))?;
+        // The diagnostic's box and Arc<Extra>: its slice pointer, enum
+        // discriminant, and two reference counts.
+        crate::budget::Charge::merge(
+            &mut held,
+            work.reserve(size_of::<crate::diagnostic::Diagnostic>() + 5 * size_of::<usize>())?,
+        );
+        error.retain(work, held)?;
+        let diagnostic = crate::diagnostic::Diagnostic::error(
+            crate::diagnostic::Code::DUPLICATE_NAME,
+            crate::diagnostic::Span::new(at, at + width),
+            message,
+        );
+        Ok::<_, Error>(error.with_diagnostic(diagnostic))
+    };
+    build().unwrap_or_else(|error| error)
+}
+
+/// Whether a block parameter binds `name`, charging a step for each part of
+/// it looked at.
+fn binds(target: &Target, name: &str, work: &dyn Work) -> Result<bool> {
+    let mut found = false;
+    target.parts(work, |part, _| {
+        if let Target::Value(Expr {
+            node: Node::Var(bound),
+            ..
+        }) = part
+        {
+            found = same_binding(work, bound, name)?;
+        }
+        Ok(!found)
+    })?;
+    Ok(found)
+}
+
+fn same_binding(work: &dyn Work, left: &str, right: &str) -> Result<bool> {
+    work.checkpoint()?;
+    work.charge(1)?;
+    if left.len() != right.len() {
+        return Ok(false);
+    }
+    for (left, right) in left
+        .as_bytes()
+        .chunks(4096)
+        .zip(right.as_bytes().chunks(4096))
+    {
+        work.checkpoint()?;
+        work.bytes(left.len())?;
+        if left != right {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
 /// Go's bound on source text quoted in a diagnostic: at most 64 bytes, cut at
 /// a character boundary and marked.
 pub(super) struct SourceText<'a>(&'a str);
@@ -4559,4 +4797,97 @@ pub(crate) fn keyword(w: &str) -> bool {
 }
 pub(crate) fn unsupported(work: &dyn Work, message: &str) -> Error {
     crate::compilation::error(work, None, format_args!("{message}"))
+}
+
+#[cfg(test)]
+mod walk_tests {
+    use super::{Statement, Target};
+    use crate::{CallContext, CallOptions, compilation::Meter};
+    use std::cell::RefCell;
+
+    #[test]
+    fn duplicate_parameter_keeps_a_budget_refusal_unchanged() {
+        let mut context = CallContext::new(CallOptions::default());
+        context.options.limits.memory_bytes = Some(0);
+        let error = super::duplicate_parameter(&Meter(RefCell::new(&mut context)), "x", 0, 1);
+        assert_eq!(error.kind, crate::ErrorKind::Memory);
+        assert!(error.diagnostics().is_empty());
+    }
+
+    #[test]
+    fn duplicate_parameter_owns_and_releases_its_diagnostic_storage() {
+        let mut context = CallContext::new(CallOptions::default());
+        let error = super::duplicate_parameter(&Meter(RefCell::new(&mut context)), "x", 0, 1);
+        let diagnostic = &error.diagnostics()[0];
+        assert_eq!(diagnostic.message, "duplicate parameter x");
+        assert!(
+            context.stats().retained_memory_bytes
+                >= 2 * error.message.len() + size_of::<crate::diagnostic::Diagnostic>()
+        );
+        drop(error);
+        assert_eq!(context.stats().retained_memory_bytes, 0);
+    }
+
+    #[test]
+    fn a_rest_target_excerpt_never_builds_its_full_spelling() {
+        let source = format!("{} = 1", "x".repeat(1 << 20));
+        let parsed = super::parse(&source, &()).unwrap();
+        let Statement::Assign(target, _, _) = &parsed.functions[0].body[0].node else {
+            panic!("assignment")
+        };
+        let mut context = CallContext::new(CallOptions::default());
+        context.options.limits.steps = Some(8);
+        let work = Meter(RefCell::new(&mut context));
+        let text = super::target_excerpt(target, &work).unwrap();
+        assert_eq!(text.text().len(), 68);
+        assert_eq!(work.0.borrow().stats().peak_memory_bytes, 0);
+    }
+
+    #[test]
+    fn a_target_walk_stops_before_visiting_a_refused_part() {
+        let parsed = super::parse("a, b = [1, 2]", &()).unwrap();
+        let Statement::Assign(target, _, _) = &parsed.functions[0].body[0].node else {
+            panic!("assignment")
+        };
+        let mut context = CallContext::new(CallOptions::default());
+        context.options.limits.steps = Some(0);
+        let mut visited = 0;
+        let result = target.parts(&Meter(RefCell::new(&mut context)), |_, _| {
+            visited += 1;
+            Ok(true)
+        });
+        assert_eq!(result.unwrap_err().kind, crate::ErrorKind::Steps);
+        assert_eq!(visited, 0);
+    }
+
+    #[test]
+    fn a_walk_over_a_deep_target_reserves_its_levels() {
+        // A target of pairs nested as deep as the parser allows, whose
+        // walk keeps a level for each.
+        let depth = 1_000;
+        let mut target = format!("a{}", depth - 1);
+        for i in (0..depth - 1).rev() {
+            target = format!("a{i}, ({target})");
+        }
+        let source = format!("def f(x: any)\n  {target} = x\nend\n");
+        let parsed = super::parse(&source, &()).unwrap();
+        let target = parsed
+            .functions
+            .iter()
+            .flat_map(|function| function.body.iter())
+            .find_map(|stmt| match &stmt.node {
+                Statement::Assign(target, _, _) => Some(target),
+                _ => None,
+            })
+            .unwrap();
+        let mut context = CallContext::new(CallOptions::default());
+        let found = super::binds(target, "absent", &Meter(RefCell::new(&mut context))).unwrap();
+        assert!(!found);
+        let level = std::mem::size_of::<(std::slice::Iter<'static, (Option<Target>, bool)>, u32)>();
+        let peak = context.stats().peak_memory_bytes;
+        assert!(
+            peak >= (depth - 1) * level,
+            "{peak} bytes reserved for {depth} levels of {level}"
+        );
+    }
 }

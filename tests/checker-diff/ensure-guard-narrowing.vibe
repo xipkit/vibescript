@@ -1,0 +1,31 @@
+# expect: agreed
+# A guard or exit in an `ensure` narrows what follows the `begin`, and so
+# do the body's guards and assignments when the ensure keeps them.
+def guarded(x: int?) -> int
+  begin
+    1
+  ensure
+    return 0 if x == nil
+  end
+  x + 1
+end
+def kept(y: int?) -> int
+  z: int? = nil
+  begin
+    return 0 if y == nil
+    z = 5
+  ensure
+    p(1)
+  end
+  y + z
+end
+def reassigned(c: bool) -> int
+  x: int? = 1
+  begin
+    x = nil if c
+  ensure
+    return -1 if x == nil
+  end
+  x + 1
+end
+p(guarded(nil), guarded(4), kept(nil), kept(2), reassigned(true), reassigned(false))

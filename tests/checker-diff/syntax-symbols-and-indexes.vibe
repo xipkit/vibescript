@@ -1,0 +1,23 @@
+# expect: agreed
+# Syntax the generator once avoided: symbols after `then` and `else`, a
+# symbol statement after a call without parentheses, an index abutting a
+# `case` that spans lines, and tuple parameters whose first element is
+# optional, a shape or a tuple.
+def pick(n: int) -> symbol
+  case n
+  when 1 then :one
+  else :other
+  end
+end
+def first(a: [int?, string], b: [{ x: int }, int], c: [[int, int], int]) -> int?
+  a[0]
+end
+y = if pick(1) == :one then :yes else :no end
+z = 3
+p z
+:done
+v = (case z
+when 3 then [5, 6]
+else [7]
+end)[0]
+p(pick(2), y, v, first([1, "s"], [{ x: 1 }, 2], [[1, 2], 3]))

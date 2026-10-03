@@ -1798,6 +1798,42 @@ fn required_files_read_receiving_globals_and_keep_private_assignments() {
 }
 
 #[test]
+fn a_required_files_assignment_of_a_host_globals_name_binds_its_own_variable() {
+    // The runtime binds the file's own variable, which shadows the global,
+    // so the checker types it by the value assigned, not the global's
+    // declared type.
+    let files = Files::new();
+    files.write(
+        "private.vibe",
+        "payload=[\"local\"];def read -> array<string>;payload;end",
+    );
+    files.write(
+        "mistyped.vibe",
+        "payload=[\"local\"];def read -> array<int>;payload;end",
+    );
+    let mut engine = files.engine();
+    engine.declare_global("payload", "array<int>").unwrap();
+    let opts = CallOptions {
+        globals: [("payload".to_owned(), Value::array(vec![Value::int(1)]))]
+            .into_iter()
+            .collect(),
+        ..CallOptions::default()
+    };
+    let script = engine
+        .compile("p=require(\"private\");[p.read,payload]")
+        .unwrap();
+    assert_eq!(
+        json(&script.run(opts).unwrap().value),
+        serde_json::json!([["local"], [1]])
+    );
+    let error = engine
+        .compile("p=require(\"mistyped\");p.read")
+        .err()
+        .expect("the file's variable holds strings");
+    assert!(error.to_string().contains("array<string>"), "{error}");
+}
+
+#[test]
 fn receiving_module_aliases_do_not_replace_foreign_static_call_targets() {
     // An instance of another script's class is `any` and never called, so a
     // required file's function and method call their own `helper`.
@@ -2271,4 +2307,50 @@ fn writes_through_module_function_names_update_their_results() {
             .value;
         assert_eq!(json(&value), expected, "{source}");
     }
+}
+
+#[test]
+fn finding_a_required_file_counts_toward_the_compilations_budget() {
+    // The file is in the last of many roots, in each of which the search
+    // looks first, and the compilation's static check finds it.
+    let roots: Vec<Files> = (0..100).map(|_| Files::new()).collect();
+    roots
+        .last()
+        .unwrap()
+        .write("answer.vibe", "def value -> int\n  42\nend\n");
+    let script = "x = require(\"answer\").value\n";
+    let engine = |roots: &[Files]| {
+        let mut engine = Engine::new();
+        engine
+            .set_module_config(ModuleConfig {
+                paths: roots.iter().map(|root| root.0.clone()).collect(),
+                ..ModuleConfig::default()
+            })
+            .unwrap();
+        engine
+    };
+    // The least step quota the script compiles under.
+    let least = |engine: &Engine| {
+        let (mut low, mut high) = (0, 1 << 24);
+        while high - low > 1 {
+            let quota = low + (high - low) / 2;
+            let mut options = CallOptions::default();
+            options.limits.steps = Some(quota);
+            match engine.compile_with_options(script, &options) {
+                Ok(_) => high = quota,
+                Err(error) if error.kind == ErrorKind::Steps => low = quota,
+                Err(error) => panic!("{error}"),
+            }
+        }
+        high
+    };
+    let one = least(&engine(&roots[roots.len() - 1..]));
+    let many = least(&engine(&roots));
+    // Each root the search looks in is a step for each byte of the path it
+    // tries, and one more.
+    assert!(
+        many >= one + 99 * 10,
+        "{one} steps with the file's root alone, {many} with {} roots",
+        roots.len()
+    );
 }

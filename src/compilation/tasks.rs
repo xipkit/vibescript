@@ -1,4 +1,4 @@
-use crate::Result;
+use crate::{Result, budget::Charge};
 use std::{
     cell::{Cell, RefCell},
     future::{Future, poll_fn},
@@ -9,6 +9,19 @@ use std::{
 /// A suspended piece of nested compiler work.
 pub(crate) type Task<'a, T> = Pin<Box<dyn Future<Output = Result<T>> + 'a>>;
 
+/// A task with the reservation of its frame, which it holds while it runs.
+pub(crate) type Frame<'a, T> = (Task<'a, T>, Option<Charge>);
+
+/// Boxes `future` as a task, reserving its frame from `work` before the box
+/// is made.
+pub(crate) fn task<'a, T, F: Future<Output = Result<T>> + 'a>(
+    work: &dyn super::Work,
+    future: F,
+) -> Result<Frame<'a, T>> {
+    let held = work.reserve(std::mem::size_of::<F>())?;
+    Ok((Box::pin(future), held))
+}
+
 /// Runs recursive compiler passes on a heap stack instead of the native stack.
 ///
 /// Source nesting is bounded by the syntax depth limit rather than by the
@@ -16,9 +29,11 @@ pub(crate) type Task<'a, T> = Pin<Box<dyn Future<Output = Result<T>> + 'a>>;
 /// an async task. A task that needs nested work names it with [`Tasks::call`]
 /// and suspends; [`Tasks::run`] then starts the nested task on top of its
 /// stack and resumes the caller with the result. Only the innermost task is
-/// ever polled, so native stack use does not grow with nesting. Like the
-/// native stack it replaces, the task stack is bounded by the syntax depth
-/// limit and is not charged to compilation budgets.
+/// ever polled, so native stack use does not grow with nesting. The task
+/// stack is bounded by the syntax depth limit, but each suspended task holds
+/// a frame of up to a kilobyte or more, so a deeply nested source keeps
+/// megabytes of them: each frame is charged to the compilation's memory
+/// before its task starts, for as long as it runs.
 pub(crate) struct Tasks<C, T> {
     call: Cell<Option<C>>,
     result: RefCell<Option<Result<T>>>,
@@ -32,12 +47,36 @@ impl<C, T> Tasks<C, T> {
         }
     }
 
-    /// Runs `call`, starting it and every nested call with `start`.
-    pub fn run<'a>(&self, call: C, start: impl Fn(C) -> Task<'a, T>) -> Result<T> {
-        let mut stack = vec![start(call)];
+    /// Runs `call`, starting it and every nested call with `start`, which
+    /// makes each task with [`task`], reserving its frame from `work` before
+    /// it is made and while it runs; and charging the stack's storage to
+    /// `work` while it holds it.
+    pub fn run<'a>(
+        &self,
+        call: C,
+        start: impl Fn(C) -> Result<Frame<'a, T>>,
+        work: &dyn super::Work,
+    ) -> Result<T> {
+        // The stack's own storage is reserved before it grows, with its
+        // old storage and its new while it does, and for as long as it
+        // keeps it.
+        let entry = std::mem::size_of::<Frame<'a, T>>();
+        let mut stack = Vec::new();
+        let mut storage: Option<Charge> = None;
+        let mut push = |stack: &mut Vec<_>, task| -> Result<()> {
+            if stack.len() == stack.capacity() {
+                let capacity = (2 * stack.capacity()).max(4);
+                let held = work.reserve(capacity * entry)?;
+                stack.reserve_exact(capacity - stack.len());
+                storage = held;
+            }
+            stack.push(task);
+            Ok(())
+        };
+        push(&mut stack, start(call)?)?;
         let mut context = Context::from_waker(Waker::noop());
         loop {
-            let task = stack.last_mut().unwrap();
+            let (task, _) = stack.last_mut().unwrap();
             match task.as_mut().poll(&mut context) {
                 Poll::Ready(result) => {
                     stack.pop();
@@ -48,7 +87,8 @@ impl<C, T> Tasks<C, T> {
                 }
                 Poll::Pending => {
                     let call = self.call.take();
-                    stack.push(start(call.expect("a suspended task names its nested work")));
+                    let task = start(call.expect("a suspended task names its nested work"))?;
+                    push(&mut stack, task)?;
                 }
             }
         }
@@ -70,5 +110,69 @@ impl<C, T> Tasks<C, T> {
             .borrow_mut()
             .take()
             .expect("nested work finishes before its caller resumes")
+    }
+}
+
+/// A step a task awaits in a box of its own, since its frame is too large to
+/// hold in the task's, with the reservation of that box while it runs.
+pub(crate) struct Framed<'a, T> {
+    future: Task<'a, T>,
+    _held: Option<Charge>,
+}
+
+impl<T> Future for Framed<'_, T> {
+    type Output = Result<T>;
+
+    fn poll(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Result<T>> {
+        self.get_mut().future.as_mut().poll(context)
+    }
+}
+
+/// Boxes `future`, a step a task awaits, charging its frame to `work`
+/// before it is made.
+pub(crate) fn framed<'a, T, F: Future<Output = Result<T>> + 'a>(
+    work: &dyn super::Work,
+    future: F,
+) -> Result<Framed<'a, T>> {
+    let held = work.reserve(std::mem::size_of::<F>())?;
+    Ok(Framed {
+        future: Box::pin(future),
+        _held: held,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{CallOptions, budget::CallContext, compilation::Meter};
+
+    #[test]
+    fn the_task_stack_reserves_its_own_storage() {
+        let depth = 2_000;
+        let mut context = CallContext::new(CallOptions::default());
+        let (frame, entry) = {
+            let work = Meter(RefCell::new(&mut context));
+            let tasks: Tasks<usize, usize> = Tasks::new();
+            let start = |n: usize| -> Result<Frame<'_, usize>> {
+                let tasks = &tasks;
+                task(&work, async move {
+                    if n == 0 {
+                        return Ok(0);
+                    }
+                    Ok(tasks.call(n - 1).await? + 1)
+                })
+            };
+            let frame = std::mem::size_of_val(&*start(0).unwrap().0);
+            assert_eq!(tasks.run(depth, start, &work).unwrap(), depth);
+            (frame, std::mem::size_of::<Frame<'_, usize>>())
+        };
+        // Every frame is held at the deepest point, beside the stack that
+        // lists them, which holds at least an entry for each.
+        let peak = context.stats().peak_memory_bytes;
+        let frames = (depth + 1) * frame;
+        assert!(
+            peak >= frames + (depth + 1) * entry,
+            "{peak} bytes at the peak, {frames} of them the frames"
+        );
     }
 }

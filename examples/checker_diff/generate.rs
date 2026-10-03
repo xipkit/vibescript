@@ -15,7 +15,11 @@
 //! them. A sound checker rejects the unsound ones; the rest must run the
 //! same in both builds.
 
-use super::{harness::Case, rng::Rng};
+use super::{
+    harness::Case,
+    host::{Global, Host},
+    rng::Rng,
+};
 
 /// A type, as the generator models it.
 #[derive(Clone, Debug, PartialEq)]
@@ -152,6 +156,16 @@ struct ClassDef {
     init: Vec<Param>,
     methods: Vec<FnDef>,
     to_s: bool,
+    /// Class variables, which instance and class methods share.
+    class_vars: Vec<(String, Ty)>,
+    /// Class methods, called on the class.
+    statics: Vec<FnDef>,
+    /// Whether it defines `+`, taking and giving an instance, and `==` and
+    /// `<`, taking an instance and giving a bool.
+    plus: bool,
+    compare: bool,
+    /// The element type `[]` gives and `[]=` takes, with an int index.
+    element: Option<Ty>,
 }
 
 #[derive(Clone, Debug)]
@@ -163,6 +177,9 @@ struct Local {
     /// parameter. A block parameter may have a narrower type, such as a
     /// shape where the generator modelled a dictionary.
     exact: bool,
+    /// Whether it is a global the host declares, which the checker never
+    /// narrows and every function sees.
+    global: bool,
 }
 
 impl Local {
@@ -172,6 +189,7 @@ impl Local {
             declared: ty.clone(),
             current: ty,
             exact: true,
+            global: false,
         }
     }
 
@@ -191,6 +209,9 @@ struct Env {
     function: Option<Option<Ty>>,
     /// The class whose method this is, and whether it is `initialize`.
     class: Option<(usize, bool)>,
+    /// The class whose class method this is, whose class variables are in
+    /// scope but not its instance variables.
+    statics: Option<usize>,
     rank: usize,
     /// Inside a block: the type `next` and the block's value must have,
     /// or `None` when the block's value is discarded.
@@ -199,6 +220,9 @@ struct Env {
     yields: Option<BlockSig>,
     /// Whether the required file's names are in scope.
     library: bool,
+    /// Whether the file the required file requires in turn is in scope, as
+    /// `util`.
+    util: bool,
 }
 
 impl Env {
@@ -207,11 +231,13 @@ impl Env {
             locals: Vec::new(),
             function: None,
             class: None,
+            statics: None,
             rank: usize::MAX,
             block: None,
             in_loop: false,
             yields: None,
             library: false,
+            util: false,
         }
     }
 
@@ -259,13 +285,23 @@ struct Gen {
     classes: Vec<ClassDef>,
     functions: Vec<FnDef>,
     namespace: Vec<FnDef>,
+    /// Functions of the module nested in `N`, `N::M`.
+    inner: Vec<FnDef>,
     library: Vec<FnDef>,
     library_state: bool,
+    /// The functions of the file the required file requires, as `util`.
+    util: Vec<FnDef>,
     /// How many more risky constructs may take their unsound form.
     unsound: u32,
     fresh: std::cell::Cell<usize>,
     lines: Vec<String>,
     indent: usize,
+    /// The host's globals, with the generator's model of their types, and
+    /// what [`super::host::Host`] declares.
+    globals: Vec<(String, Ty)>,
+    host: Host,
+    /// The script's function the host calls with arguments.
+    entry: Option<FnDef>,
 }
 
 impl Gen {
@@ -276,13 +312,30 @@ impl Gen {
             classes: Vec::new(),
             functions: Vec::new(),
             namespace: Vec::new(),
+            inner: Vec::new(),
             library: Vec::new(),
             library_state: false,
+            util: Vec::new(),
             unsound: 0,
             fresh: std::cell::Cell::new(0),
             lines: Vec::new(),
             indent: 0,
+            globals: Vec::new(),
+            host: Host::default(),
+            entry: None,
         }
+    }
+
+    /// The scope code at a file's top level starts with: the host's
+    /// globals.
+    fn top_env(&self) -> Env {
+        let mut env = Env::top();
+        for (name, ty) in &self.globals {
+            let mut local = Local::typed(name.clone(), ty.clone());
+            local.global = true;
+            env.locals.push(local);
+        }
+        env
     }
 
     fn name(&self, prefix: &str) -> String {
@@ -398,23 +451,12 @@ impl Gen {
 
     /// A random type a parameter annotation can name.
     fn param_ty(&mut self, depth: usize) -> Ty {
-        loop {
-            let ty = self.ty(depth);
-            if param_safe(&ty) {
-                return ty;
-            }
-        }
+        self.ty(depth)
     }
 
-    /// A random type a block signature's parameter list can name: the
-    /// parser reads a shape there as a hash.
+    /// A random type a block signature's parameter list can name.
     fn block_param_ty(&mut self) -> Ty {
-        loop {
-            let ty = self.param_ty(1);
-            if !matches!(ty, Ty::Shape(_)) {
-                return ty;
-            }
-        }
+        self.param_ty(1)
     }
 
     /// Whether a value of type `value` is assignable to `target`, as the
@@ -458,48 +500,90 @@ impl Gen {
 
     fn program(&mut self) -> Case {
         self.unsound = u32::from(self.rng.chance(75));
-        match self.rng.weighted(&[6, 4]) {
-            0 => self.structural(),
-            _ => self.focused(),
+        if self.rng.chance(35) {
+            self.setup_host();
         }
+        let mut case = match self.rng.weighted(&[6, 4, 1]) {
+            0 => self.structural(false),
+            1 => self.focused(),
+            _ => self.structural(true),
+        };
+        case.host = self.host.clone();
+        case
     }
 
-    /// A program of declarations and top-level statements.
-    fn structural(&mut self) -> Case {
+    /// A program of declarations and top-level statements; a `large` one
+    /// has several of each declaration and tens of statements, hundreds of
+    /// lines in all.
+    fn structural(&mut self, large: bool) -> Case {
         let mut modules = Vec::new();
-        if self.rng.chance(20) {
+        if self.rng.chance(if large { 50 } else { 20 }) {
+            // The required file may require one of its own, which in the
+            // unsound form requires it back.
+            let util = self.rng.chance(40).then(|| self.util_file());
             modules.push(("lib.vibe".to_owned(), self.library_file()));
+            if let Some(util) = util {
+                modules.push(("util.vibe".to_owned(), util));
+            }
         }
         self.enums = self.rng.below(3);
-        let class_count = self.rng.weighted(&[3, 3, 1]);
+        let class_count = if large {
+            2 + self.rng.below(4)
+        } else {
+            self.rng.weighted(&[3, 3, 1])
+        };
         for index in 0..class_count {
             let class = self.class_sig(index);
             self.classes.push(class);
         }
-        for rank in 0..1 + self.rng.below(4) {
+        let function_count = if large {
+            3 + self.rng.below(6)
+        } else {
+            1 + self.rng.below(4)
+        };
+        for rank in 0..function_count {
             let def = self.fn_sig(format!("f{rank}"), 10 + rank);
             self.functions.push(def);
         }
-        if self.rng.chance(25) {
+        if self.rng.chance(if large { 60 } else { 25 }) {
             for rank in 0..1 + self.rng.below(2) {
                 let def = self.fn_sig(format!("g{rank}"), 6 + rank);
                 self.namespace.push(def);
             }
+            if self.rng.chance(40) {
+                for rank in 0..1 + self.rng.below(2) {
+                    let def = self.fn_sig(format!("k{rank}"), 4 + rank);
+                    self.inner.push(def);
+                }
+            }
         }
         let mut text = self.declarations();
-        let mut env = Env::top();
+        let mut env = self.top_env();
         if !modules.is_empty() {
             env.library = true;
             self.line("lib = require(\"lib\")");
         }
-        for _ in 0..3 + self.rng.below(6) {
-            self.stmt(&mut env, 2);
+        let statements = if large {
+            20 + self.rng.below(40)
+        } else {
+            3 + self.rng.below(6)
+        };
+        for _ in 0..statements {
+            if large && self.rng.chance(10) {
+                self.risky(&mut env, 2);
+            } else {
+                self.stmt(&mut env, 2);
+            }
         }
         self.observe_all(&env);
         text.push_str(&self.take_lines());
+        if !self.host.is_empty() && self.rng.chance(50) {
+            text.push_str(&self.entry());
+        }
         Case {
             main: text,
             modules,
+            host: Host::default(),
         }
     }
 
@@ -514,7 +598,7 @@ impl Gen {
         let def = self.fn_sig("f0".to_owned(), 10);
         self.functions.push(def);
         let mut text = self.declarations();
-        let mut env = Env::top();
+        let mut env = self.top_env();
         if self.rng.chance(50) {
             let result = self.rng.chance(70).then(|| self.ty(1));
             let def = FnDef {
@@ -556,12 +640,21 @@ impl Gen {
         for index in 0..self.classes.len() {
             text.push_str(&self.class_source(index));
         }
-        if !self.namespace.is_empty() {
+        if !self.namespace.is_empty() || !self.inner.is_empty() {
             self.line("module N");
             self.indent += 1;
             self.line("LIMIT = 3");
             for def in self.namespace.clone() {
                 self.function(&def, None, true);
+            }
+            if !self.inner.is_empty() {
+                self.line("module M");
+                self.indent += 1;
+                for def in self.inner.clone() {
+                    self.function(&def, None, true);
+                }
+                self.indent -= 1;
+                self.line("end");
             }
             self.indent -= 1;
             self.line("end");
@@ -576,7 +669,32 @@ impl Gen {
 
     /// A required file: exported functions, an enum, and state its
     /// functions share. It declares before the script's own types exist.
+    /// The file the required file requires: functions of low rank, and in
+    /// the unsound form a `require` of the requiring file, a cycle the
+    /// compiler rejects.
+    fn util_file(&mut self) -> String {
+        if self.rng.chance(10) && self.unsound() {
+            self.line("back = require(\"lib\")");
+        }
+        for rank in 0..1 + self.rng.below(2) {
+            let mut def = self.fn_sig(format!("u{rank}"), rank);
+            def.block = None;
+            self.util.push(def.clone());
+            let prefix = if self.rng.chance(50) { "export " } else { "" };
+            let mut env = self.fn_env(&def, None);
+            self.line(format!("{prefix}{}", self.signature(&def)));
+            self.indent += 1;
+            self.body(&mut env, def.result.clone(), 1);
+            self.indent -= 1;
+            self.line("end");
+        }
+        self.take_lines()
+    }
+
     fn library_file(&mut self) -> String {
+        if !self.util.is_empty() {
+            self.line("util = require(\"util\")");
+        }
         if self.rng.chance(50) {
             self.line("enum L\n  Up\n  Down\nend");
         }
@@ -593,6 +711,7 @@ impl Gen {
             self.library.push(def.clone());
             let prefix = if self.rng.chance(50) { "export " } else { "" };
             let mut env = self.fn_env(&def, None);
+            env.util = !self.util.is_empty();
             self.line(format!("{prefix}{}", self.signature(&def)));
             self.indent += 1;
             if self.library_state && def.result == Some(Ty::Int) && self.rng.chance(70) {
@@ -614,7 +733,45 @@ impl Gen {
             self.indent -= 1;
             self.line("end");
         }
+        if self.library_state && self.rng.chance(50) {
+            self.shadows();
+        }
         self.take_lines()
+    }
+
+    /// Functions whose parameters take the names of the file's locals,
+    /// which are the functions' own, and calls between them: assigning one
+    /// leaves the local as the file narrowed it, while a function that
+    /// assigns the local itself widens it, after which the unsound form
+    /// uses it as narrowed.
+    fn shadows(&mut self) {
+        let shadowed = if self.rng.chance(70) {
+            "limit"
+        } else {
+            "count"
+        };
+        self.line(format!(
+            "def s0({shadowed}: int) -> int\n  {shadowed} = {shadowed} + 1\n  count += 1\n  {shadowed}\nend"
+        ));
+        let relay = if self.rng.chance(50) {
+            "limit"
+        } else {
+            "count"
+        };
+        self.line(format!(
+            "def s1({relay}: int, step: int = 1) -> int\n  {relay} = s0({relay} + step)\n  {relay}\nend"
+        ));
+        let value = self.rng.below(9);
+        self.line(format!("limit = {value}"));
+        for _ in 0..1 + self.rng.below(3) {
+            let call = if self.rng.chance(50) { "s0" } else { "s1" };
+            let argument = self.rng.below(9);
+            self.line(format!("{call}({argument})"));
+        }
+        if self.rng.chance(20) && self.unsound() {
+            self.line("reset_limit");
+        }
+        self.line("held = limit + 1");
     }
 
     // ----- Declarations -----
@@ -726,7 +883,7 @@ impl Gen {
     }
 
     fn fn_env(&self, def: &FnDef, class: Option<usize>) -> Env {
-        let mut env = Env::top();
+        let mut env = self.top_env();
         env.function = Some(def.result.clone());
         env.class = class.map(|class| (class, false));
         env.rank = def.rank;
@@ -833,12 +990,42 @@ impl Gen {
             def.block = None;
             methods.push(def);
         }
+        let mut class_vars = Vec::new();
+        if self.rng.chance(35) {
+            for var in 0..1 + self.rng.below(2) {
+                let ty = match self.rng.below(4) {
+                    0 => Ty::opt(Ty::Int),
+                    1 => Ty::Str,
+                    2 => Ty::array(Ty::Int),
+                    _ => Ty::Int,
+                };
+                class_vars.push((format!("@@c{var}"), ty));
+            }
+        }
+        let mut statics = Vec::new();
+        if self.rng.chance(30) {
+            for rank in 0..1 + self.rng.below(2) {
+                let mut def = self.fn_sig(format!("s{rank}"), 2 + rank);
+                def.block = None;
+                statics.push(def);
+            }
+        }
+        let element = self.rng.chance(25).then(|| match self.rng.below(3) {
+            0 => Ty::Int,
+            1 => Ty::Str,
+            _ => Ty::opt(Ty::Int),
+        });
         ClassDef {
             name: format!("C{index}"),
             fields,
             init,
             methods,
             to_s: self.rng.chance(30),
+            class_vars,
+            statics,
+            plus: self.rng.chance(25),
+            compare: self.rng.chance(25),
+            element,
         }
     }
 
@@ -857,6 +1044,10 @@ impl Gen {
                 (Access::Property, _) => self.line(format!("property {}: {ty}", field.name)),
             }
         }
+        for (name, ty) in &class.class_vars {
+            let value = self.literal(ty, 1);
+            self.line(format!("{name}: {} = {value}", self.render(ty)));
+        }
         let params: Vec<String> = class
             .init
             .iter()
@@ -869,7 +1060,7 @@ impl Gen {
         };
         self.line(format!("def initialize{params}"));
         self.indent += 1;
-        let mut env = Env::top();
+        let mut env = self.top_env();
         env.function = Some(None);
         env.class = Some((index, true));
         env.rank = 0;
@@ -920,6 +1111,16 @@ impl Gen {
         for method in &class.methods {
             self.function(method, Some(index), false);
         }
+        for def in &class.statics {
+            let mut env = self.fn_env(def, None);
+            env.statics = Some(index);
+            self.line(self.signature(def).replacen("def ", "def self.", 1));
+            self.indent += 1;
+            self.body(&mut env, def.result.clone(), 1);
+            self.indent -= 1;
+            self.line("end");
+        }
+        self.operators(index);
         if class.to_s {
             self.line("def to_s -> string");
             let field = &class.fields[0];
@@ -961,7 +1162,11 @@ impl Gen {
             },
             2 * nested,
             if env.yields.is_some() { 3 } else { 0 },
-            if env.class.is_some() { 3 } else { 0 },
+            if env.class.is_some() || env.statics.is_some() {
+                3
+            } else {
+                0
+            },
         ]);
         match choice {
             0 => {
@@ -984,7 +1189,15 @@ impl Gen {
             3 => {
                 let ty = self.ty(2);
                 let value = self.expr(env, &ty, depth, false);
-                self.line(format!("p({value})"));
+                let simple = value.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+                if simple && self.rng.chance(20) {
+                    // A call without parentheses ends at the line's end, so
+                    // a symbol on the next line is a statement of its own.
+                    self.line(format!("p {value}"));
+                    self.line(":done");
+                } else {
+                    self.line(format!("p({value})"));
+                }
             }
             4 => self.if_stmt(env, depth),
             5 => self.while_stmt(env, depth),
@@ -1035,6 +1248,22 @@ impl Gen {
     }
 
     fn ivar_write(&mut self, env: &mut Env, depth: usize) {
+        if let Some(class) = env.class_index().or(env.statics) {
+            let vars = self.classes[class].class_vars.clone();
+            if !vars.is_empty() && (env.statics.is_some() || self.rng.chance(40)) {
+                let (name, ty) = self.rng.pick(&vars).clone();
+                let value = self.expr(env, &ty, depth.saturating_sub(1), true);
+                match (&ty, self.rng.below(2)) {
+                    (Ty::Int, 0) => self.line(format!("{name} += {value}")),
+                    (Ty::Array(element), 0) => {
+                        let item = self.expr(env, element, 0, true);
+                        self.line(format!("{name} << {item}"));
+                    }
+                    _ => self.line(format!("{name} = {value}")),
+                }
+                return;
+            }
+        }
         let Some(class) = env.class_index() else {
             return;
         };
@@ -1259,6 +1488,20 @@ impl Gen {
                     _ => self.line(format!("{name}.clear")),
                 }
             }
+            Ty::Class(class) if self.rng.chance(50) && self.classes[*class].element.is_some() => {
+                let element = self.classes[*class].element.clone().unwrap();
+                let index = self.expr(env, &Ty::Int, 0, false);
+                if element == Ty::Int && self.rng.chance(40) {
+                    self.line(format!("{name}[{index}] += 1"));
+                } else {
+                    let value = self.expr(env, &element, d, true);
+                    self.line(format!("{name}[{index}] = {value}"));
+                }
+            }
+            Ty::Class(class) if self.rng.chance(50) && self.classes[*class].plus => {
+                let other = self.expr(env, &Ty::Class(*class), d, false);
+                self.line(format!("{name} += {other}"));
+            }
             Ty::Class(class) => {
                 let fields: Vec<FieldDef> = self.classes[*class]
                     .fields
@@ -1294,7 +1537,9 @@ impl Gen {
     /// One construct from the areas where checkers go wrong.
     fn risky(&mut self, env: &mut Env, depth: usize) {
         let unsound = self.unsound();
-        match self.rng.weighted(&[12, 3, 3, 3, 3, 3, 2, 3, 2, 2, 2]) {
+        match self.rng.weighted(&[12, 3, 3, 3, 3, 3, 2, 3, 2, 2, 2, 2, 2]) {
+            12 => self.ensure_flow(env, unsound),
+            11 => self.retry_flow(env, unsound),
             0 => self.narrow_and_interfere(env, unsound),
             1 => self.any_narrowing(env, unsound),
             2 => self.enum_symbols(env, unsound),
@@ -1350,7 +1595,7 @@ impl Gen {
         };
         let assign = format!("{name} = {spoil}");
         let condition = self.expr(env, &Ty::Bool, 0, false);
-        let interference = match self.rng.below(17) {
+        let interference = match self.rng.below(19) {
             0 => assign.clone(),
             1 => format!("[1].each {{ |_q| {assign} }}"),
             2 => format!("[1, 2].map {{ |_q|\n  {assign}\n  _q\n}}"),
@@ -1367,6 +1612,9 @@ impl Gen {
             13 => format!("(0..1).each {{ |_q| {assign} }}"),
             14 => format!("[1].each_with_index {{ |_q, _n| {assign} }}"),
             15 => format!("{assign} if {condition}"),
+            // A block written inside an index or a member read assigns too.
+            16 => format!("_i = [1].map {{ |_q| {assign}; _q }}[0]"),
+            17 => format!("_i = [1].map {{ |_q| {assign}; _q }}.length"),
             _ => match self.functions.iter().find(|def| {
                 def.block
                     .as_ref()
@@ -1499,7 +1747,15 @@ impl Gen {
             _ => Ty::Sym,
         };
         let name = self.name("d");
-        let source = match self.rng.below(3) {
+        let untyped: Vec<String> = self
+            .globals
+            .iter()
+            .filter(|(_, ty)| *ty == Ty::Any)
+            .map(|(name, _)| name.clone())
+            .collect();
+        let source = match self.rng.below(4) {
+            // A global the host declares as `any` narrows through a local.
+            3 if !untyped.is_empty() => self.rng.pick(&untyped).clone(),
             0 if target != Ty::Sym => {
                 let json = self.json_of(&target).replace('"', "\\\"");
                 format!("JSON.parse(\"{json}\")")
@@ -2150,6 +2406,13 @@ impl Gen {
                 }
             }
         }
+        if let Some(class) = env.class_index().or(env.statics) {
+            for (name, var) in &self.classes[class].class_vars {
+                if Self::assignable(ty, var) {
+                    names.push(name.clone());
+                }
+            }
+        }
         names
     }
 
@@ -2169,11 +2432,18 @@ impl Gen {
             let condition = self.expr(env, &Ty::Bool, depth - 1, false);
             let a = self.expr(env, ty, depth - 1, context);
             let b = self.expr(env, ty, depth - 1, context);
-            return if self.rng.chance(50) {
-                format!("({condition} ? {a} : {b})")
-            } else {
-                format!("(if {condition} then ({a}) else ({b}) end)")
+            return match self.rng.below(3) {
+                0 => format!("({condition} ? {a} : {b})"),
+                1 => format!("(if {condition} then ({a}) else ({b}) end)"),
+                // A symbol may follow `then` and `else` directly.
+                _ => format!("(if {condition} then {a} else {b} end)"),
             };
+        }
+        if let (true, Ty::Opt(inner)) = (depth > 0 && self.rng.chance(10), ty) {
+            // An index abutting a `case` that spans lines indexes its value,
+            // an array whose element may be missing.
+            let value = self.case_expr(env, &Ty::array((**inner).clone()), depth - 1);
+            return format!("{value}[{}]", self.rng.below(2));
         }
         if depth > 0 && self.rng.chance(4) {
             return self.case_expr(env, ty, depth - 1);
@@ -2741,13 +3011,12 @@ impl Gen {
                 if !complete && position == members.len() - 1 {
                     break;
                 }
-                arms.push(format!(
-                    "when E{index}::{member} then ({})",
-                    self.expr(env, ty, depth, true)
-                ));
+                let value = self.expr(env, ty, depth, true);
+                arms.push(format!("when E{index}::{member} then {}", self.wrap(value)));
             }
             if !complete {
-                arms.push(format!("else ({})", self.expr(env, ty, depth, true)));
+                let value = self.expr(env, ty, depth, true);
+                arms.push(format!("else {}", self.wrap(value)));
             }
             return format!("(case {subject}\n{}\nend)", arms.join("\n"));
         }
@@ -2755,7 +3024,17 @@ impl Gen {
         let a = self.expr(env, ty, depth, true);
         let b = self.expr(env, ty, depth, true);
         let c = self.expr(env, ty, depth, true);
-        format!("(case {subject}\nwhen 0 then ({a})\nwhen 1..3 then ({b})\nelse ({c})\nend)")
+        let (a, b, c) = (self.wrap(a), self.wrap(b), self.wrap(c));
+        format!("(case {subject}\nwhen 0 then {a}\nwhen 1..3 then {b}\nelse {c}\nend)")
+    }
+
+    /// A `when` or `else` value, in parentheses or not.
+    fn wrap(&mut self, value: String) -> String {
+        if self.rng.chance(50) {
+            format!("({value})")
+        } else {
+            value
+        }
     }
 
     // ----- Calls -----
@@ -2763,6 +3042,16 @@ impl Gen {
     /// A call of a declared function, method, accessor or namespace
     /// function whose result is assignable to `ty`.
     fn call_of(&mut self, env: &mut Env, ty: &Ty, depth: usize) -> Option<String> {
+        if self.rng.chance(20) {
+            if let Some(call) = self.host_call(env, ty, depth) {
+                return Some(call);
+            }
+        }
+        if self.rng.chance(25) {
+            if let Some(call) = self.class_expr(env, ty, depth) {
+                return Some(call);
+            }
+        }
         let fits = |result: &Option<Ty>| {
             result
                 .as_ref()
@@ -2777,6 +3066,18 @@ impl Gen {
         for (index, def) in self.namespace.iter().enumerate() {
             if def.rank < env.rank && fits(&def.result) {
                 options.push((1, index, 0));
+            }
+        }
+        for (index, def) in self.inner.iter().enumerate() {
+            if def.rank < env.rank && fits(&def.result) {
+                options.push((6, index, 0));
+            }
+        }
+        if env.util {
+            for (index, def) in self.util.iter().enumerate() {
+                if fits(&def.result) {
+                    options.push((5, index, 0));
+                }
             }
         }
         if env.library {
@@ -2820,6 +3121,14 @@ impl Gen {
                 } else {
                     call
                 }
+            }
+            5 => {
+                let def = self.util[a].clone();
+                format!("util.{}", self.call_with_block(env, &def, depth, None))
+            }
+            6 => {
+                let def = self.inner[a].clone();
+                format!("N::M.{}", self.call_with_block(env, &def, depth, None))
             }
             3 => {
                 let receiver = if env.class_index() == Some(a) {
@@ -2960,6 +3269,511 @@ impl Gen {
     }
 }
 
+impl Gen {
+    // ----- Classes' operators -----
+
+    /// Writes the class's operator methods, whose bodies see the instance.
+    fn operators(&mut self, index: usize) {
+        let class = self.classes[index].clone();
+        let own = Ty::Class(index);
+        let mut env = self.top_env();
+        env.function = Some(None);
+        env.class = Some((index, false));
+        env.rank = 1;
+        if class.plus {
+            let other = if self.rng.chance(50) { "other" } else { "self" };
+            self.line(format!(
+                "def +(other: {}) -> {}",
+                self.render(&own),
+                self.render(&own)
+            ));
+            self.line(format!("  {other}"));
+            self.line("end");
+        }
+        if class.compare {
+            for op in ["==", "<"] {
+                let mut inner = env.clone();
+                inner.function = Some(Some(Ty::Bool));
+                self.line(format!("def {op}(other: {}) -> bool", self.render(&own)));
+                self.indent += 1;
+                let value = self.expr(&mut inner, &Ty::Bool, 1, false);
+                self.line(value);
+                self.indent -= 1;
+                self.line("end");
+            }
+        }
+        if let Some(element) = &class.element {
+            let mut inner = env.clone();
+            inner.function = Some(Some(element.clone()));
+            inner.locals.push(Local::typed("index".to_owned(), Ty::Int));
+            self.line(format!("def [](index: int) -> {}", self.render(element)));
+            self.indent += 1;
+            let value = self.expr(&mut inner, element, 1, true);
+            self.line(value);
+            self.indent -= 1;
+            self.line("end");
+            self.line(format!(
+                "def []=(index: int, value: {})",
+                self.render(element)
+            ));
+            let field = class
+                .fields
+                .iter()
+                .find(|field| Self::assignable(&field.ty, element))
+                .map(|field| field.name.clone());
+            match field {
+                Some(field) => self.line(format!("  @{field} = value")),
+                None => self.line("  p(value)"),
+            }
+            self.line("end");
+        }
+    }
+
+    /// An expression using a class's operators, or calling a class method,
+    /// whose type `ty` accepts.
+    fn class_expr(&mut self, env: &mut Env, ty: &Ty, depth: usize) -> Option<String> {
+        let d = depth.saturating_sub(1);
+        let mut options = Vec::new();
+        for (index, class) in self.classes.iter().enumerate() {
+            if class.plus && Self::assignable(ty, &Ty::Class(index)) {
+                options.push((0, index, 0));
+            }
+            if class.compare && *ty == Ty::Bool {
+                options.push((1, index, 0));
+            }
+            if class
+                .element
+                .as_ref()
+                .is_some_and(|element| Self::assignable(ty, element))
+            {
+                options.push((2, index, 0));
+            }
+            for (position, def) in class.statics.iter().enumerate() {
+                let own = env.statics == Some(index) || env.class_index() == Some(index);
+                let result = def.result.as_ref();
+                if result.is_some_and(|result| Self::assignable(ty, result))
+                    && (!own || def.rank < env.rank)
+                {
+                    options.push((3, index, position));
+                }
+            }
+        }
+        if options.is_empty() {
+            return None;
+        }
+        let (kind, index, position) = *self.rng.pick(&options);
+        let own = Ty::Class(index);
+        Some(match kind {
+            0 => format!(
+                "({} + {})",
+                self.expr(env, &own, d, false),
+                self.expr(env, &own, d, false)
+            ),
+            1 => format!(
+                "({} {} {})",
+                self.expr(env, &own, d, false),
+                ["==", "<", "!="][self.rng.below(3)],
+                self.expr(env, &own, d, false)
+            ),
+            2 => format!(
+                "{}[{}]",
+                self.expr(env, &own, d, false),
+                self.expr(env, &Ty::Int, d, false)
+            ),
+            _ => {
+                let def = self.classes[index].statics[position].clone();
+                let name = self.classes[index].name.clone();
+                format!("{name}.{}", self.call_with_block(env, &def, depth, None))
+            }
+        })
+    }
+
+    /// A `begin` whose `rescue` retries it, directly or from the body,
+    /// `else` or ensure of a `begin` nested there: narrowing from before it
+    /// must not survive the rescue's assignment when it runs again. In the
+    /// unsound form the body relies on it.
+    fn retry_flow(&mut self, env: &mut Env, unsound: bool) {
+        let count = self.name("n");
+        let value = self.name("v");
+        let inner = match self.rng.below(3) {
+            0 => Ty::Int,
+            1 => Ty::Str,
+            _ => Ty::array(Ty::Int),
+        };
+        let literal = self.literal(&inner, 1);
+        self.line(format!("{count} = 0"));
+        self.line(format!("{value}: {}? = {literal}", self.render(&inner)));
+        self.line(format!("if {value} != nil"));
+        self.indent += 1;
+        self.line("begin");
+        self.indent += 1;
+        self.line(format!("{count} += 1"));
+        if unsound {
+            let used = self.name("t");
+            self.line(format!("{used}: {} = {value}", self.render(&inner)));
+            self.line(format!("p({used})"));
+        } else {
+            self.line(format!("p({value})"));
+        }
+        self.line(format!("raise \"again\" if {count} < 2"));
+        self.indent -= 1;
+        self.line("rescue");
+        self.indent += 1;
+        self.line(format!("{value} = nil"));
+        if self.rng.chance(30) {
+            // A nested `begin` rescuing its own error, whose `retry` reruns
+            // only it.
+            let tries = self.name("k");
+            self.line(format!(
+                "{tries} = 0\nbegin\n  {tries} += 1\n  raise \"inner\" if {tries} < 2\nrescue\n  retry\nend"
+            ));
+            env.locals.push(Local::typed(tries, Ty::Int));
+        }
+        // A `retry` in a nested `begin`'s body, `else` or ensure reruns
+        // this one, since the nested one is not rescuing then.
+        let again = format!("retry if {count} < 3");
+        let placed = match self.rng.below(5) {
+            0 => again,
+            1 => format!("begin\n  p(0)\nensure\n  {again}\nend"),
+            2 => format!("begin\n  {again}\nrescue ArgumentError\n  p(1)\nend"),
+            3 => format!("begin\n  p(0)\nrescue\n  p(1)\nelse\n  {again}\nend"),
+            _ => format!("if {count} < 3\n  begin\n    retry\n  ensure\n    p(2)\n  end\nend"),
+        };
+        self.line(placed);
+        self.indent -= 1;
+        self.line("end");
+        self.indent -= 1;
+        self.line("end");
+        env.locals.push(Local::typed(count, Ty::Int));
+        env.locals.push(Local::typed(value, Ty::opt(inner)));
+    }
+
+    /// An optional local an `ensure` narrows or relies on, inside a
+    /// `begin` that rescues what it raises. The sound form guards the local
+    /// in the ensure, which narrows it after the `begin` however the body
+    /// assigned it; the unsound form uses it narrowed in the ensure, which
+    /// may start before the body's guard or after the body assigned it.
+    fn ensure_flow(&mut self, env: &mut Env, unsound: bool) {
+        let value = self.name("v");
+        let inner = if self.rng.chance(50) {
+            Ty::Int
+        } else {
+            Ty::Str
+        };
+        let literal = self.literal(&inner, 1);
+        let initial = if self.rng.chance(50) {
+            "nil".to_owned()
+        } else {
+            literal.clone()
+        };
+        let condition = self.expr(env, &Ty::Bool, 0, false);
+        self.line(format!("{value}: {}? = {initial}", self.render(&inner)));
+        self.line("begin");
+        self.indent += 1;
+        self.line("begin");
+        self.indent += 1;
+        self.line(format!("raise \"early\" if {condition}"));
+        let assigned = self.rng.chance(50);
+        if assigned {
+            let spoil = if self.rng.chance(50) {
+                "nil".to_owned()
+            } else {
+                literal
+            };
+            self.line(format!("{value} = {spoil}"));
+        }
+        if unsound && !assigned {
+            self.line(format!("raise \"none\" if {value} == nil"));
+        }
+        self.indent -= 1;
+        self.line("ensure");
+        self.indent += 1;
+        if unsound {
+            let use_it = self.use_narrowed(env, &value, &inner);
+            self.line(use_it);
+        } else {
+            self.line(format!("raise \"none\" if {value} == nil"));
+        }
+        self.indent -= 1;
+        self.line("end");
+        let use_it = self.use_narrowed(env, &value, &inner);
+        self.line(use_it);
+        self.indent -= 1;
+        self.line("rescue => failure");
+        self.indent += 1;
+        self.line("p(failure.message)");
+        self.indent -= 1;
+        self.line("end");
+        env.locals.push(Local::typed(value, Ty::opt(inner)));
+    }
+
+    // ----- Host -----
+
+    /// A type a host value can have: one JSON writes, which leaves out
+    /// symbols, enums and classes.
+    fn host_ty(&mut self, depth: usize) -> Ty {
+        loop {
+            let ty = self.ty(depth);
+            if Self::jsonable(&ty) {
+                return ty;
+            }
+        }
+    }
+
+    /// Declares the globals the host supplies, typed or `any`, and the
+    /// capabilities it grants.
+    fn setup_host(&mut self) {
+        for index in 0..self.rng.below(4) {
+            let name = format!("hv{index}");
+            let ty = self.host_ty(2);
+            let value = self.json_of(&ty);
+            let (model, annotation) = if self.rng.chance(75) {
+                (ty.clone(), self.render(&ty))
+            } else {
+                (Ty::Any, String::new())
+            };
+            self.host.globals.push(Global {
+                name: name.clone(),
+                ty: annotation,
+                value,
+            });
+            self.globals.push((name, model));
+        }
+        for name in super::host::CAPABILITIES {
+            if self.rng.chance(50) {
+                self.host.capabilities.push(name.to_owned());
+            }
+        }
+    }
+
+    fn granted(&self, name: &str) -> bool {
+        self.host.capabilities.iter().any(|granted| granted == name)
+    }
+
+    /// A call of a capability's method, a capability's data or a host
+    /// function whose result `ty` accepts.
+    fn host_call(&mut self, env: &mut Env, ty: &Ty, depth: usize) -> Option<String> {
+        let store = self.granted("store");
+        let loose = self.granted("loose");
+        let results = [
+            (store, Ty::opt(Ty::Int)),
+            (store, Ty::Int),
+            (store, Ty::array(Ty::Str)),
+            (store, Ty::Int),
+            (store, Ty::Any),
+            (store, Ty::Int),
+            (store, Ty::array(Ty::Any)),
+            (store, Ty::opt(Ty::Int)),
+            (store, Ty::Str),
+            (store, Ty::Int),
+            (store, Ty::Str),
+            (loose, Ty::Any),
+            (loose, Ty::Any),
+            (loose, Ty::Any),
+            (true, Ty::Int),
+            (true, Ty::Str),
+            (true, Ty::Any),
+        ];
+        let options: Vec<usize> = results
+            .iter()
+            .enumerate()
+            .filter(|(_, (granted, result))| *granted && Self::assignable(ty, result))
+            .map(|(index, _)| index)
+            .collect();
+        if options.is_empty() {
+            return None;
+        }
+        let d = depth.saturating_sub(1);
+        let ints = |this: &mut Self, env: &mut Env| this.expr(env, &Ty::array(Ty::Int), d, true);
+        Some(match *self.rng.pick(&options) {
+            0 => format!("store.get({})", self.expr(env, &Ty::Str, d, false)),
+            1 => format!(
+                "store.put({}, {})",
+                self.expr(env, &Ty::Str, d, false),
+                self.expr(env, &Ty::Int, d, false)
+            ),
+            2 => "store.keys".to_owned(),
+            3 => {
+                let values = ints(self, env);
+                if self.rng.chance(50) {
+                    format!("store.total({values})")
+                } else {
+                    format!(
+                        "store.total({values}, {})",
+                        self.expr(env, &Ty::Int, d, false)
+                    )
+                }
+            }
+            4 => format!(
+                "store.lookup({})",
+                ["\"n\"", "\"s\"", "\"l\"", "\"x\""][self.rng.below(4)]
+            ),
+            5 => {
+                let values = ints(self, env);
+                let block = self.host_block(env, None, Some(Ty::Int), d);
+                format!("store.each({values}) {block}")
+            }
+            6 => {
+                let values = ints(self, env);
+                let result = self.ty(1);
+                let block = self.host_block(env, Some(result), Some(Ty::array(Ty::Any)), d);
+                format!("store.collect({values}) {block}")
+            }
+            7 => {
+                let values = ints(self, env);
+                let block = self.host_block(env, Some(Ty::Bool), Some(Ty::opt(Ty::Int)), d);
+                format!("store.first({values}) {block}")
+            }
+            8 => "store.meta.version".to_owned(),
+            9 => "store.limit".to_owned(),
+            10 => "store.label".to_owned(),
+            11 => {
+                let ty = self.ty(1);
+                format!("loose.echo({})", self.expr(env, &ty, d, true))
+            }
+            12 => {
+                let (a, b) = (self.ty(1), self.ty(1));
+                format!(
+                    "loose.pair({}, {})",
+                    self.expr(env, &a, d, true),
+                    self.expr(env, &b, d, true)
+                )
+            }
+            13 => {
+                let values = ints(self, env);
+                let block = self.host_block(env, Some(Ty::Any), None, d);
+                format!("loose.visit({values}) {block}")
+            }
+            14 => format!("twice({})", self.expr(env, &Ty::Int, d, false)),
+            15 => {
+                let a = self.expr(env, &Ty::Str, d, false);
+                if self.rng.chance(50) {
+                    format!("joined({a})")
+                } else {
+                    format!("joined({a}, {})", self.expr(env, &Ty::Str, d, false))
+                }
+            }
+            _ => {
+                let value = self.expr(env, &Ty::Int, d, false);
+                let block = self.host_block(env, Some(Ty::Any), None, d);
+                format!("around({value}) {block}")
+            }
+        })
+    }
+
+    /// A block passed to a host method, whose parameters are `any`: its
+    /// value, of type `result` or discarded, and possibly a `break` with a
+    /// value of the method's declared result, `breaks`, or of another type
+    /// in the unsound form.
+    fn host_block(
+        &mut self,
+        env: &mut Env,
+        result: Option<Ty>,
+        breaks: Option<Ty>,
+        depth: usize,
+    ) -> String {
+        let param = self.name("e");
+        let mut inner = env.clone();
+        inner.locals.push(Local::inferred(param.clone(), Ty::Any));
+        let value = match &result {
+            Some(Ty::Bool) => format!("{param} == {}", self.expr(&mut inner, &Ty::Int, 0, false)),
+            Some(Ty::Any) if self.rng.chance(50) => param.clone(),
+            Some(ty) => self.expr(&mut inner, ty, depth, true),
+            None => format!("p({param})"),
+        };
+        if self.rng.chance(20) {
+            let ty = match &breaks {
+                Some(ty) if !self.unsound() => ty.clone(),
+                _ => self.ty(1),
+            };
+            let value_ty = self.expr(&mut inner, &ty, 0, true);
+            return format!("{{ |{param}|\n  break {value_ty} if {param} == 1\n  {value}\n}}");
+        }
+        format!("{{ |{param}| {value} }}")
+    }
+
+    /// The script function the host calls with arguments, and the calls:
+    /// arguments of the parameters' types, or in a few calls one of
+    /// another type, which the call's entry check rejects.
+    fn entry(&mut self) -> String {
+        let mut params = Vec::new();
+        let mut keywords = false;
+        for index in 0..1 + self.rng.below(3) {
+            let ty = self.host_ty(2);
+            let name = format!("a{index}");
+            let kind = if keywords || self.rng.chance(20) {
+                keywords = true;
+                ParamKind::Keyword(self.rng.chance(50).then(|| self.literal(&ty, 1)))
+            } else if self.rng.chance(20) {
+                ParamKind::Default(self.literal(&ty, 1))
+            } else {
+                ParamKind::Required
+            };
+            // A required parameter cannot follow one with a default.
+            let kind = match (&kind, params.last()) {
+                (
+                    ParamKind::Required,
+                    Some(Param {
+                        kind: ParamKind::Default(_),
+                        ..
+                    }),
+                ) => ParamKind::Default(self.literal(&ty, 1)),
+                _ => kind,
+            };
+            params.push(Param { name, ty, kind });
+        }
+        let def = FnDef {
+            name: "entry".to_owned(),
+            params,
+            result: self.rng.chance(80).then(|| self.host_ty(1)),
+            block: None,
+            rank: 40,
+        };
+        self.function(&def, None, false);
+        for _ in 0..1 + self.rng.below(2) {
+            let mut args = Vec::new();
+            let mut keywords = Vec::new();
+            let wrong = self.rng.chance(15);
+            // Positional arguments fill parameters in order, so one default
+            // left out leaves out the rest.
+            let mut omitted = false;
+            for (index, param) in def.params.iter().enumerate() {
+                let value = if wrong && index == 0 {
+                    "[\"wrong\"]".to_owned()
+                } else {
+                    self.json_of(&param.ty)
+                };
+                match &param.kind {
+                    ParamKind::Required => args.push(value),
+                    ParamKind::Default(_) => {
+                        if !omitted && self.rng.chance(60) {
+                            args.push(value);
+                        } else {
+                            omitted = true;
+                        }
+                    }
+                    ParamKind::Keyword(default) => {
+                        if default.is_none() || self.rng.chance(50) {
+                            keywords.push(format!("\"{}\":{value}", param.name));
+                        }
+                    }
+                    ParamKind::Rest => {}
+                }
+            }
+            self.host.calls.push(super::host::Call {
+                function: def.name.clone(),
+                args: format!(
+                    "{{\"args\":[{}],\"keywords\":{{{}}}}}",
+                    args.join(","),
+                    keywords.join(",")
+                ),
+            });
+        }
+        self.entry = Some(def);
+        self.take_lines()
+    }
+}
+
 fn enum_source(index: usize) -> String {
     let mut text = format!("enum E{index}\n");
     for member in MEMBERS[index] {
@@ -2967,21 +3781,6 @@ fn enum_source(index: usize) -> String {
     }
     text.push_str("end\n");
     text
-}
-
-/// Whether a parameter annotation of this type parses: the parser reads a
-/// tuple type holding an optional, a shape or a tuple, such as
-/// `[int?, string]`, as the removed `name: default` keyword form.
-fn param_safe(ty: &Ty) -> bool {
-    match ty {
-        Ty::Tuple(items) => items.iter().all(|item| {
-            !matches!(item, Ty::Opt(_) | Ty::Shape(_) | Ty::Tuple(_)) && param_safe(item)
-        }),
-        Ty::Opt(inner) | Ty::Array(inner) | Ty::Hash(inner) => param_safe(inner),
-        Ty::Union(options) => options.iter().all(param_safe),
-        Ty::Shape(fields) => fields.iter().all(|field| param_safe(&field.ty)),
-        _ => true,
-    }
 }
 
 fn has_tuple(ty: &Ty) -> bool {

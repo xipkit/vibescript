@@ -1,7 +1,7 @@
 use crate::{
     Result, Value,
     builtin::{Builtin, Global},
-    compilation::{Buffer, Name, Table, Task, Tasks},
+    compilation::{Buffer, Frame, Name, Table, Tasks, framed},
     syntax::{
         self, Argument, ArgumentKind, Block, CallForm, Expr, Node, ParamKind, Statement, Stmt,
         Target,
@@ -619,8 +619,9 @@ pub(crate) struct Program {
     /// [`Op::Shared`] reads by slot.
     pub shared: Vec<usize>,
     /// The slot of each literal in [`Self::shared`] by whether it is a
-    /// symbol and its text, while compiling.
-    shared_slots: HashMap<(bool, Vec<u8>), usize>,
+    /// symbol and its text, which the literal's value shares, while
+    /// compiling.
+    shared_slots: HashMap<(bool, std::sync::Arc<Vec<u8>>), usize>,
     pub names: HashMap<String, usize>,
     pub hosts: Vec<String>,
     pub members: Vec<String>,
@@ -732,6 +733,9 @@ pub(crate) fn compile_parsed(
             _ => None,
         })
         .collect();
+    // The program keeps a copy of the source, which counts while it
+    // compiles.
+    let _source = work.reserve(source.len())?;
     let mut program = Program {
         file,
         owner: std::sync::Weak::new(),
@@ -768,13 +772,21 @@ pub(crate) fn compile_parsed(
         program.register_module(module, "", &mut defs, &mut contexts, &mut typing, work)?;
     }
     program.functions = (0..defs.len()).map(|_| Function::default()).collect();
+    // The locals each function's `begin`s have their handlers reset, which
+    // the program keeps: charged until the whole program is compiled, not
+    // only until each function is.
+    let mut handler_locals = None;
     for (index, def) in defs.into_iter().enumerate() {
         work.bytes(def.name.len())?;
-        let binds_parameters = def
-            .params
-            .iter()
-            .any(|p| p.default.is_some() || p.ty.is_some());
-        let plain = !binds_parameters && def.params.iter().all(|p| p.kind == ParamKind::Positional);
+        let mut binds_parameters = false;
+        let mut plain = true;
+        for param in &def.params {
+            work.checkpoint()?;
+            work.charge(1)?;
+            binds_parameters |= param.default.is_some() || param.ty.is_some();
+            plain &= param.kind == ParamKind::Positional;
+        }
+        plain &= !binds_parameters;
         let compiling = Compiling::new(Compiler {
             work,
             facts,
@@ -797,6 +809,7 @@ pub(crate) fn compile_parsed(
             outer: Buffer::new(),
             reads: Table::new(),
             assigned: Table::new(),
+            handler_locals: None,
         });
         let additions = Additions {
             block: if index == 0 {
@@ -810,6 +823,7 @@ pub(crate) fn compile_parsed(
         let params = compiling.params.take();
         let proven = compiling.proven.take();
         let mut c = compiling.compiler.into_inner();
+        crate::budget::Charge::merge(&mut handler_locals, c.handler_locals.take());
         let finish = c.emit(Op::Finish);
         c.locations[finish] = def.body.last().map_or(def.offset, |stmt| stmt.offset);
         // The top level, a namespace body and an accessor keep their
@@ -866,6 +880,8 @@ pub(crate) fn compile_parsed(
     program.prove_instance_variables(work)?;
     if facts.keep_type_checks {
         for function in &mut program.functions {
+            work.checkpoint()?;
+            work.charge(1)?;
             function.proven_ivars = Bits::default();
         }
     }
@@ -882,6 +898,8 @@ impl Program {
     /// as the runtime would find them.
     fn prove_instance_variables(&mut self, work: &dyn crate::compilation::Work) -> Result<()> {
         for index in 0..self.functions.len() {
+            work.checkpoint()?;
+            work.charge(1)?;
             let function = &self.functions[index];
             let (true, Some(class)) = (function.instance, function.namespace) else {
                 continue;
@@ -901,7 +919,7 @@ impl Program {
                     || (raw.starts_with('@') && !raw.starts_with("@@"));
                 if checked
                     && self
-                        .instance_variable_type(class, field)
+                        .instance_variable_type(class, field, work)?
                         .is_none_or(|ty| !self.types[ty].unproven())
                 {
                     proven.insert(ip);
@@ -910,6 +928,8 @@ impl Program {
             self.functions[index].proven_ivars = proven;
             let layout = &self.field_layouts[&class];
             for op in &mut self.functions[index].code {
+                work.checkpoint()?;
+                work.charge(1)?;
                 let name = match *op {
                     Op::BindIvar(name, _) => self.members[name as usize].as_str(),
                     Op::NamespaceVariable(name, _)
@@ -923,12 +943,14 @@ impl Program {
                     }
                     _ => continue,
                 };
-                let slot = narrow(
-                    layout
-                        .iter()
-                        .position(|field| field == name)
-                        .expect("declared field"),
-                );
+                let mut slot = None;
+                for (index, field) in layout.iter().enumerate() {
+                    if same_name(work, field, name)? {
+                        slot = Some(narrow(index));
+                        break;
+                    }
+                }
+                let slot = slot.expect("declared field");
                 *op = match *op {
                     Op::BindIvar(_, local) => Op::BindField(slot, local),
                     Op::NamespaceVariable(..) => Op::InstanceField(slot),
@@ -944,42 +966,70 @@ impl Program {
     /// The type an instance of `class` checks its variable `name` against,
     /// as the runtime's `property_type` finds it: the declared type, or else
     /// the type of a generated setter's value or getter's result.
-    fn instance_variable_type(&self, class: usize, name: &str) -> Option<usize> {
-        if let Some(&(_, ty)) = self
-            .ivars
-            .get(&class)
-            .and_then(|ivars| ivars.iter().find(|(field, _)| field == name))
-        {
-            return Some(ty);
+    fn instance_variable_type(
+        &self,
+        class: usize,
+        name: &str,
+        work: &dyn crate::compilation::Work,
+    ) -> Result<Option<usize>> {
+        if let Some(ivars) = self.ivars.get(&class) {
+            for (field, ty) in ivars {
+                if same_name(work, field, name)? {
+                    return Ok(Some(*ty));
+                }
+            }
         }
         let methods = &self.namespaces[class].instance_methods;
         let mut getter = None;
         let mut setter = None;
         for method in methods {
-            if method.name.strip_suffix('=') == Some(name) {
-                setter = Some(method.function);
+            if let Some(field) = method.name.strip_suffix('=') {
+                if same_name(work, field, name)? {
+                    setter = Some(method.function);
+                }
             }
-            if method.name == name {
+            if same_name(work, &method.name, name)? {
                 getter = Some(method.function);
             }
         }
         if let Some(setter) = setter {
             let function = &self.functions[setter];
-            return function
+            return Ok(function
                 .accessor
                 .as_ref()
                 .filter(|(field, setter)| field == name && *setter)
-                .and_then(|_| function.params.first().and_then(|param| param.ty));
+                .and_then(|_| function.params.first().and_then(|param| param.ty)));
         }
-        getter.and_then(|getter| {
+        Ok(getter.and_then(|getter| {
             let function = &self.functions[getter];
             function
                 .accessor
                 .as_ref()
                 .filter(|(field, setter)| field == name && !setter)
                 .and(function.return_type)
-        })
+        }))
     }
+}
+
+/// Compares source names in bounded, charged pieces.
+fn same_name(work: &dyn crate::compilation::Work, left: &str, right: &str) -> Result<bool> {
+    work.checkpoint()?;
+    work.charge(1)?;
+    if left.len() != right.len() {
+        return Ok(false);
+    }
+    for (left, right) in left
+        .as_bytes()
+        .chunks(4096)
+        .zip(right.as_bytes().chunks(4096))
+    {
+        work.checkpoint()?;
+        work.bytes(left.len())?;
+        if left != right {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 fn local_names(
@@ -996,9 +1046,15 @@ fn local_names(
     Ok(names)
 }
 
-fn expanded(args: &[Argument]) -> bool {
-    args.iter()
-        .any(|a| !matches!(a.kind, ArgumentKind::Positional))
+fn expanded(args: &[Argument], work: &dyn crate::compilation::Work) -> Result<bool> {
+    for arg in args {
+        work.checkpoint()?;
+        work.charge(1)?;
+        if !matches!(arg.kind, ArgumentKind::Positional) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 struct Compiler<'a> {
@@ -1030,6 +1086,11 @@ struct Compiler<'a> {
     outer: Buffer<Table<usize>>,
     reads: Table<()>,
     assigned: Table<()>,
+    /// The reservation of the locals each `begin`'s handlers reset, which
+    /// the generated code keeps. Nested `begin`s each list the locals of
+    /// every level inside them, so the lists can grow with the square of
+    /// the source; they stay charged until the program is compiled.
+    handler_locals: Option<crate::budget::Charge>,
 }
 
 /// A declared block's argument and result types, each with its check
@@ -1426,7 +1487,7 @@ impl Compiler<'_> {
             crate::value::Kind::Symbol(bytes) => (true, bytes),
             _ => return self.constant(value),
         };
-        let text = (symbol, bytes.data.to_vec());
+        let text = (symbol, std::sync::Arc::clone(&bytes.data));
         let slot = match self.program.shared_slots.get(&text) {
             Some(&slot) => slot,
             None => {
@@ -1646,18 +1707,22 @@ impl Compiler<'_> {
     /// The instance method `name` and its class, when the checker proved
     /// that `call` always calls it on an instance of a class this program
     /// declares.
-    fn method_of(&self, call: &Expr, name: &str) -> Option<(usize, usize)> {
-        let class = self.facts.class(call)?;
-        let index = self
-            .program
-            .namespaces
-            .iter()
-            .position(|definition| definition.name == class)?;
-        let method = self.program.namespaces[index]
-            .instance_methods
-            .iter()
-            .find(|method| method.name == name)?;
-        Some((method.function, index))
+    fn method_of(&self, call: &Expr, name: &str) -> Result<Option<(usize, usize)>> {
+        let Some(class) = self.facts.class(call) else {
+            return Ok(None);
+        };
+        for (index, definition) in self.program.namespaces.iter().enumerate() {
+            if !same_name(self.work, &definition.name, class)? {
+                continue;
+            }
+            for method in &definition.instance_methods {
+                if same_name(self.work, &method.name, name)? {
+                    return Ok(Some((method.function, index)));
+                }
+            }
+            break;
+        }
+        Ok(None)
     }
     /// Records that the value instruction `ip` leaves is plain.
     fn mark_plain(&mut self, ip: usize, plain: bool) {
@@ -1841,6 +1906,8 @@ enum Call<'x> {
 /// Generates one function over shared compiler state, so syntax nesting grows
 /// a heap task stack instead of the native one.
 struct Compiling<'a, 'x> {
+    /// The compiler's work, which the boxed steps of its tasks charge.
+    work: &'a dyn crate::compilation::Work,
     compiler: std::cell::RefCell<Compiler<'a>>,
     tasks: Tasks<Call<'x>, ()>,
     params: std::cell::RefCell<Vec<Parameter>>,
@@ -1851,6 +1918,7 @@ struct Compiling<'a, 'x> {
 impl<'a, 'x> Compiling<'a, 'x> {
     fn new(compiler: Compiler<'a>) -> Self {
         Self {
+            work: compiler.work,
             compiler: std::cell::RefCell::new(compiler),
             tasks: Tasks::new(),
             params: std::cell::RefCell::new(Vec::new()),
@@ -1863,19 +1931,20 @@ impl<'a, 'x> Compiling<'a, 'x> {
     }
 
     fn run(&self, call: Call<'x>) -> Result<()> {
-        self.tasks.run(call, |call| self.start(call))
+        self.tasks.run(call, |call| self.start(call), self.work)
     }
 
-    fn start(&self, call: Call<'x>) -> Task<'_, ()> {
+    fn start(&self, call: Call<'x>) -> Result<Frame<'_, ()>> {
+        use crate::compilation::task;
         match call {
             Call::Function(def, binds_parameters, additions) => {
-                Box::pin(self.function(def, binds_parameters, additions))
+                task(self.work, self.function(def, binds_parameters, additions))
             }
-            Call::Expr(e) => Box::pin(self.expr_task(e)),
-            Call::Block(body) => Box::pin(self.block_task(body)),
-            Call::Assign(target) => Box::pin(self.assign_value(target)),
-            Call::Address(receiver) => Box::pin(self.address(receiver)),
-            Call::AssignmentAddress(receiver) => Box::pin(self.assignment_address(receiver)),
+            Call::Expr(e) => task(self.work, self.expr_task(e)),
+            Call::Block(body) => task(self.work, self.block_task(body)),
+            Call::Assign(target) => task(self.work, self.assign_value(target)),
+            Call::Address(receiver) => task(self.work, self.address(receiver)),
+            Call::AssignmentAddress(receiver) => task(self.work, self.assignment_address(receiver)),
         }
     }
 
@@ -2001,13 +2070,15 @@ impl<'a, 'x> Compiling<'a, 'x> {
             if binds_parameters {
                 c.emit(Op::BindEnd);
             }
-            let direct = additions.prologue.is_empty()
-                && def.params.iter().zip(&params).all(|(param, compiled)| {
-                    param.kind == ParamKind::Positional
-                        && param.default.is_none()
-                        && !(c.instance && param.ivar.is_some())
-                        && compiled.ty.is_none_or(|ty| !c.program.types[ty].unproven())
-                });
+            let mut direct = additions.prologue.is_empty();
+            for (param, compiled) in def.params.iter().zip(&params) {
+                work.checkpoint()?;
+                work.charge(1)?;
+                direct &= param.kind == ParamKind::Positional
+                    && param.default.is_none()
+                    && !(c.instance && param.ivar.is_some())
+                    && compiled.ty.is_none_or(|ty| !c.program.types[ty].unproven());
+            }
             self.proven.set(direct.then_some(c.code.len()));
             if c.facts.keep_type_checks {
                 for param in &params {
@@ -2140,7 +2211,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
         self.c().work.charge(1)?;
         match &stmt.node {
             Statement::Raise(value, message) => {
-                Box::pin(self.raise(value.as_deref(), message.as_deref())).await?
+                framed(self.work, self.raise(value.as_deref(), message.as_deref()))?.await?
             }
             Statement::Retry => {
                 self.c().emit(Op::Retry);
@@ -2614,9 +2685,13 @@ impl<'a, 'x> Compiling<'a, 'x> {
         }
         self.c().work.charge(1)?;
         match &e.node {
-            Node::Try(attempt) => Box::pin(self.attempt(attempt, None)).await?,
+            Node::Try(attempt) => framed(self.work, self.attempt(attempt, None))?.await?,
             Node::Shape(ty, fallback, names) => {
-                return Box::pin(self.shape_expression(ty, fallback.as_deref(), names)).await;
+                return framed(
+                    self.work,
+                    self.shape_expression(ty, fallback.as_deref(), names),
+                )?
+                .await;
             }
             Node::Unary("-", value) if matches!(value.node, Node::Integer(n) if n == i64::MAX as u64 + 1) =>
             {
@@ -2682,17 +2757,16 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     c.patch(done, end);
                 }
             }
-            Node::Compound(stmt) => Box::pin(self.stmt(stmt, true)).await?,
+            Node::Compound(stmt) => framed(self.work, self.stmt(stmt, true))?.await?,
             Node::Case(target, clauses, alternate) => {
-                return Box::pin(self.case_expression(
-                    target.as_deref(),
-                    clauses,
-                    alternate.as_deref(),
-                ))
+                return framed(
+                    self.work,
+                    self.case_expression(target.as_deref(), clauses, alternate.as_deref()),
+                )?
                 .await;
             }
             Node::Binary("<<", a, b) => {
-                Box::pin(self.address(a)).await?;
+                framed(self.work, self.address(a))?.await?;
                 self.expr(b).await?;
                 let mut c = self.c();
                 let site = c.call_site("push", false);
@@ -2747,9 +2821,11 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     None => (),
                 }
             }
-            Node::BlockCall(call, block) => Box::pin(self.block_call(e, call, block)).await?,
+            Node::BlockCall(call, block) => {
+                framed(self.work, self.block_call(e, call, block))?.await?
+            }
             Node::ComputedCall(call, args) => {
-                Box::pin(self.computed_call(call, args, None)).await?
+                framed(self.work, self.computed_call(call, args, None))?.await?
             }
             Node::Call(name, args, _) => self.named_call(e, name, args).await?,
             Node::Member(recv, name) | Node::SafeMember(recv, name) => {
@@ -2767,7 +2843,11 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 .await?;
             }
             Node::Scope(recv, name, args) => {
-                Box::pin(self.scoped_call(recv, name, args.as_deref(), None)).await?
+                framed(
+                    self.work,
+                    self.scoped_call(recv, name, args.as_deref(), None),
+                )?
+                .await?
             }
             Node::Method(recv, name, args, form) | Node::SafeMethod(recv, name, args, form) => {
                 let direct = self.c().facts.base(e);
@@ -2829,14 +2909,22 @@ impl<'a, 'x> Compiling<'a, 'x> {
     ) -> Result<()> {
         let guard = {
             let mut c = self.c();
-            c.work.names(names)?;
-            let guard = fallback.map(|_| {
+            let guard = if fallback.is_some() {
+                let mut copied = Buffer::with_capacity(c.work, names.len())?;
+                for name in names {
+                    let (name, held) =
+                        crate::compilation::formatted(c.work, format_args!("{name}"))?;
+                    crate::budget::Charge::merge(&mut c.handler_locals, held);
+                    copied.push(c.work, name)?;
+                }
+                let (copied, held) = copied.into_parts();
+                crate::budget::Charge::merge(&mut c.handler_locals, held);
                 let index = c.program.type_guards.len();
-                c.program
-                    .type_guards
-                    .push(names.iter().map(|name| name.as_str().to_owned()).collect());
-                c.emit(Op::TypeShadowed(narrow(index), 0))
-            });
+                c.program.type_guards.push(copied);
+                Some(c.emit(Op::TypeShadowed(narrow(index), 0)))
+            } else {
+                None
+            };
             let scope = aliases::scope(&c.program.namespaces, c.namespace);
             let shape = crate::shapes::compile(c.aliases.compile(scope, ty, c.work)?);
             c.constant(shape);
@@ -2948,11 +3036,12 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 })
             });
             let site = c.call_site(name, form == CallForm::Auto);
+            let listed = expanded(args, c.work)?;
             let direct = direct.filter(|&base| {
                 !mutating
                     && name != "call"
                     && block.is_none()
-                    && !expanded(args)
+                    && !listed
                     && site.method.is_some_and(|method| {
                         crate::members::direct::serves(base, method, args.len())
                     })
@@ -2966,7 +3055,12 @@ impl<'a, 'x> Compiling<'a, 'x> {
         };
         let (plain, plain_args) = {
             let c = self.c();
-            let plain_args = args.iter().all(|arg| c.facts.plain(&arg.value));
+            let mut plain_args = true;
+            for arg in args {
+                c.work.checkpoint()?;
+                c.work.charge(1)?;
+                plain_args &= c.facts.plain(&arg.value);
+            }
             (c.facts.plain(whole), plain_args)
         };
         if direct.is_some() {
@@ -3003,7 +3097,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             }
             return Ok(());
         }
-        if expanded(args)
+        if expanded(args, self.c().work)?
             || block.is_some()
             || crate::iteration::method(name)
             || name == "is_type?"
@@ -3025,7 +3119,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             }
             let mut c = self.c();
             if !mutating {
-                if let Some((function, class)) = c.method_of(whole, name) {
+                if let Some((function, class)) = c.method_of(whole, name)? {
                     c.emit(Op::MethodOf(
                         narrow(function),
                         narrow(class),
@@ -3112,7 +3206,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             site
         };
         let args = args.unwrap_or(&[]);
-        if expanded(args) || block.is_some() {
+        if expanded(args, self.c().work)? || block.is_some() {
             self.call_arguments(args).await?;
             let mut c = self.c();
             if let Some(block) = block {
@@ -3224,7 +3318,8 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 };
                 // A script function called with plain arguments takes them
                 // from the stack, without an argument list.
-                let listed = expanded(args) || !matches!(target, Some(Invocation::Function(_)));
+                let listed =
+                    expanded(args, c.work)? || !matches!(target, Some(Invocation::Function(_)));
                 if target.is_some() {
                     let name = c.call_site(name, false).name;
                     c.emit(Op::RootCall(name, listed));
@@ -3232,7 +3327,8 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 target
             }
         };
-        if let (Some(Invocation::Function(callee)), false) = (target, expanded(args)) {
+        let listed = expanded(args, self.c().work)?;
+        if let (Some(Invocation::Function(callee)), false) = (target, listed) {
             for arg in args {
                 self.expr(&arg.value).await?;
             }
@@ -3825,4 +3921,26 @@ pub(crate) fn mutating_member(name: &str) -> bool {
             | "fill"
             | "replace"
     )
+}
+
+#[cfg(test)]
+mod budget_tests {
+    use super::*;
+    use crate::{CallContext, CallOptions, ErrorKind, compilation::Meter};
+    use std::cell::RefCell;
+
+    #[test]
+    fn field_type_search_charges_each_candidate() {
+        let mut source = String::from("class Box\n");
+        for i in 0..256 {
+            source.push_str(&format!("@field{i}: int\n"));
+        }
+        source.push_str("end\n");
+        let program = compile(&source, Vec::new(), &()).unwrap();
+        let mut context = CallContext::new(CallOptions::default());
+        context.options.limits.steps = Some(8);
+        let result =
+            program.instance_variable_type(0, "field255", &Meter(RefCell::new(&mut context)));
+        assert_eq!(result.unwrap_err().kind, ErrorKind::Steps);
+    }
 }
