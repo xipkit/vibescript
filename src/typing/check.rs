@@ -615,7 +615,9 @@ impl<'a> Checker<'a> {
         let (defaults, bytes) = self.defaults.take().unwrap();
         let mut defaults = defaults;
         let taken = defaults.remove(&offset).unwrap_or_default();
-        self.defaults = Some((defaults, bytes));
+        // The caller keeps the removed list charged until its defaults
+        // have been checked, then releases that list's actual storage.
+        self.defaults = Some((defaults, bytes - super::meter::vec(&taken)));
         taken
     }
 
@@ -702,8 +704,22 @@ impl<'a> Checker<'a> {
         }));
         // Instance-variable defaults run for each instance.
         let defaults = self.defaults_of(module.offset);
+        let bytes = super::meter::vec(&defaults);
+        self.namespace_defaults(ns, &defaults);
+        drop(defaults);
+        self.release(bytes);
+        self.leave_frame(previous);
+        for (name, state) in changes {
+            if let Some(id) = self.local(&name) {
+                self.frame.flow.set(id, state);
+            }
+        }
+    }
+
+    /// Checks a class's defaults while their list remains charged to the
+    /// caller, restoring the namespace frame on every return.
+    fn namespace_defaults(&mut self, ns: NsId, defaults: &[(&'a Stmt, Option<&'a str>)]) {
         if self.meter.tables().keep(self.frame.name.len()).is_err() {
-            self.leave_frame(previous);
             return;
         }
         let name = self.frame.name.clone();
@@ -721,7 +737,6 @@ impl<'a> Checker<'a> {
         }
         let Some(held) = self.hold(2 * count * std::mem::size_of::<String>() + bytes) else {
             self.leave_frame(body);
-            self.leave_frame(previous);
             return;
         };
         let mut unassigned: Vec<String> = Vec::with_capacity(count);
@@ -735,7 +750,6 @@ impl<'a> Checker<'a> {
         if super::counted::sort_unstable_by(&self.meter, &mut unassigned, Ord::cmp).is_err() {
             self.release(held);
             self.leave_frame(body);
-            self.leave_frame(previous);
             return;
         }
         let roster: super::construction::Roster = unassigned.into();
@@ -745,7 +759,6 @@ impl<'a> Checker<'a> {
         let Some(set) = self.hold(super::marks::Marks::most(roster.len())) else {
             self.release(held);
             self.leave_frame(body);
-            self.leave_frame(previous);
             return;
         };
         let held = held + set;
@@ -768,12 +781,6 @@ impl<'a> Checker<'a> {
         }
         self.release(held);
         self.leave_frame(body);
-        self.leave_frame(previous);
-        for (name, state) in changes {
-            if let Some(id) = self.local(&name) {
-                self.frame.flow.set(id, state);
-            }
-        }
     }
 
     fn check_function(&mut self, id: FnId) {
