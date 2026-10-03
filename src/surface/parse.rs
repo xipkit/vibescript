@@ -2132,7 +2132,14 @@ impl<'s> Parser<'s> {
         match self.kind_at(next) {
             TokenKind::Punct(',' | ')' | ':' | '|') | TokenKind::Operator("=") => false,
             TokenKind::Operator("<") => {
-                !matches!(name, "array" | "hash" | "object") && self.locals.contains(name)
+                !matches!(
+                    crate::types::builtin_name(name),
+                    Some(
+                        crate::types::BuiltinName::Array
+                            | crate::types::BuiltinName::Hash
+                            | crate::types::BuiltinName::Type
+                    )
+                ) && self.locals.contains(name)
             }
             TokenKind::Punct('.') => !self.dotted_type_follows(peek, next, parenthesized),
             TokenKind::Operator("::") => !self.scoped_type_follows(peek, parenthesized),
@@ -3383,13 +3390,15 @@ impl<'s> Parser<'s> {
     }
 
     /// Whether every name in a type argument names a type: a builtin one,
-    /// or an alias, class or enum the source declares, also through its
-    /// scope, as the compiler reads a cast's type.
+    /// a table alias, or a class or enum the source declares, as the
+    /// compiler reads a cast's type.
     fn builtin_leaves(&self, ty: &TypeExpr) -> bool {
         match &ty.kind {
             TypeKind::Named(tok, args) => {
                 let name = self.text(*tok).trim_end_matches('?');
-                (builtin_type(name) || self.type_names.contains(name))
+                (crate::types::builtin_name(name).is_some()
+                    || crate::signatures::alias_type(name).is_some()
+                    || self.type_names.contains(name))
                     && args.iter().all(|arg| self.builtin_leaves(arg))
             }
             TypeKind::Qualified(names) => {
@@ -3803,8 +3812,13 @@ impl<'s> Parser<'s> {
         let tok = self.bump();
         let written = self.text(tok);
         let nullable = written.ends_with('?');
+        // As in the compiler, a builtin type is not a namespace, however
+        // it is spelled: only a declared type scopes through `::` or `.`.
+        // A builtin's name folds in any case, and ADR-007's names — such
+        // as a class spelled `Error` — keep naming the class.
+        let builtin = crate::types::builtin_name(written.trim_end_matches('?')).is_some();
         let scope = self.significant(self.pos);
-        if !builtin_type(written.trim_end_matches('?')) && self.is_op(scope, "::") && !nullable {
+        if !builtin && self.is_op(scope, "::") && !nullable {
             // A nested class or module, `Outer::Inner`.
             let mut names = vec![tok];
             loop {
@@ -3829,7 +3843,7 @@ impl<'s> Parser<'s> {
             });
         }
         let dot = self.significant(self.pos);
-        if !builtin_type(written.trim_end_matches('?')) && self.is_p(dot, '.') && !nullable {
+        if !builtin && self.is_p(dot, '.') && !nullable {
             self.pos = self.significant(dot + 1);
             if !self.ident(self.pos) {
                 return self.fail("expected identifier");
@@ -3855,7 +3869,17 @@ impl<'s> Parser<'s> {
                 nullable,
             });
         }
-        if !matches!(written, "array" | "hash" | "object" | "type") {
+        // As in the compiler, a container's name folds in any case, so only
+        // `array`, `hash` and `object`, or the `type` of a type literal,
+        // takes type arguments.
+        if !matches!(
+            crate::types::builtin_name(written),
+            Some(
+                crate::types::BuiltinName::Array
+                    | crate::types::BuiltinName::Hash
+                    | crate::types::BuiltinName::Type
+            )
+        ) {
             return self.fail("type does not accept type arguments");
         }
         self.pos = open + 1;
@@ -3970,33 +3994,4 @@ pub fn token_at(tokens: &[Token], offset: usize) -> Tok {
         .iter()
         .position(|token| token.start == offset && token.kind != TokenKind::Eof)
         .map_or(index.min(tokens.len() - 1), |found| end + found)
-}
-
-/// Whether a lowercase type name is one of the builtin types.
-pub fn builtin_type(name: &str) -> bool {
-    matches!(
-        name.to_ascii_lowercase().as_str(),
-        "any"
-            | "int"
-            | "float"
-            | "number"
-            | "string"
-            | "symbol"
-            | "bool"
-            | "nil"
-            | "duration"
-            | "time"
-            | "money"
-            | "range"
-            | "array"
-            | "hash"
-            | "object"
-            | "regex"
-            | "match_data"
-            | "error"
-            | "enum_value"
-            | "enum_type"
-            | "type"
-            | "comparable"
-    )
 }
