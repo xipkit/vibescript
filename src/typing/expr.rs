@@ -625,7 +625,7 @@ impl<'a> Checker<'a> {
             };
             let required = fields
                 .iter()
-                .zip(&given)
+                .zip(given.iter())
                 .all(|(field, &given)| field.optional || given);
             if !required {
                 continue;
@@ -669,11 +669,15 @@ impl<'a> Checker<'a> {
         fields: &[Field],
         open: bool,
         entries: &[(crate::compilation::Bytes, Expr)],
-    ) -> Option<Vec<bool>> {
-        if self.types.work(fields.len() + entries.len()) || self.transient(fields.len()) {
+    ) -> Option<ScratchVec<bool>> {
+        if self.types.work(fields.len() + entries.len()) {
             return None;
         }
-        let mut given = vec![false; fields.len()];
+        let mut given = ScratchVec::new(&self.meter);
+        given.reserve(fields.len()).ok()?;
+        for _ in fields {
+            given.push_within(false);
+        }
         for (index, (key, _)) in entries.iter().enumerate() {
             if index % 4096 == 4095 && self.over_budget() {
                 return None;

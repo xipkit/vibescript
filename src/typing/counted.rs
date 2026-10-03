@@ -2268,7 +2268,7 @@ mod tests {
         ("calls.rs", [0, 1, 4, 5]),
         ("check.rs", [3, 0, 0, 11]),
         ("construction.rs", [1, 0, 0, 11]),
-        ("expr.rs", [2, 6, 0, 6]),
+        ("expr.rs", [2, 6, 0, 5]),
         ("flow.rs", [0, 0, 0, 6]),
         ("foreign.rs", [1, 0, 0, 0]),
         ("marks.rs", [2, 0, 0, 1]),
