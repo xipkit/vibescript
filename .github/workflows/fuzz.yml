@@ -1,0 +1,138 @@
+name: Fuzz
+
+on:
+  pull_request:
+  schedule:
+    - cron: '17 7 * * *'
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: Seconds per coverage-guided target
+        default: '3600'
+      count:
+        description: Checker programs to generate
+        default: '100000'
+      seed:
+        description: First checker seed (blank picks a random seed)
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_JOBS: 3
+  PYTHONUNBUFFERED: '1'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  coverage:
+    name: Fuzz ${{ matrix.target }} (${{ matrix.mode }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 80
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [parser, compiler]
+        mode: [simd, portable]
+    env:
+      RUSTUP_TOOLCHAIN: nightly-2026-10-02
+      CARGO_FUZZ_VERSION: 0.13.2
+      FUZZ_SECONDS: ${{ github.event_name == 'pull_request' && '60' || inputs.seconds || '3600' }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up Rust and Cargo
+        uses: ./.github/actions/setup
+        with:
+          cache-key: fuzz-${{ matrix.mode }}
+      - name: Cache cargo-fuzz
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: .cache/cargo-fuzz
+          key: cargo-fuzz-${{ runner.os }}-${{ runner.arch }}-${{ env.RUSTUP_TOOLCHAIN }}-${{ env.CARGO_FUZZ_VERSION }}
+      - name: Install cargo-fuzz
+        run: |
+          ./scripts/cargo install cargo-fuzz --version "$CARGO_FUZZ_VERSION" --locked --root "$PWD/.cache/cargo-fuzz"
+          echo "$PWD/.cache/cargo-fuzz/bin" >> "$GITHUB_PATH"
+      - name: Restore corpus
+        uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: fuzz/corpus/${{ matrix.target }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ matrix.mode }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: fuzz-corpus-${{ matrix.target }}-${{ matrix.mode }}-
+      - name: Seed corpus
+        run: python3 scripts/fuzz-seeds
+      - name: Fetch locked fuzz dependencies
+        run: ./scripts/cargo fetch --locked --manifest-path fuzz/Cargo.toml
+      - name: Check fuzz formatting
+        run: ./scripts/cargo fmt --manifest-path fuzz/Cargo.toml --check
+      - name: Fuzz
+        env:
+          FUZZ_TARGET: ${{ matrix.target }}
+          FUZZ_MODE: ${{ matrix.mode }}
+          CARGO_NET_OFFLINE: 'true'
+        run: |
+          [[ "$FUZZ_SECONDS" =~ ^[1-9][0-9]*$ ]] || { echo 'seconds must be a positive integer' >&2; exit 2; }
+          args=()
+          if [[ "$FUZZ_MODE" == portable ]]; then args+=(--no-default-features); fi
+          ./scripts/cargo fuzz run "$FUZZ_TARGET" --debug-assertions --codegen-units 16 "${args[@]}" -- \
+            -max_total_time="$FUZZ_SECONDS" -max_len=16384 -timeout=10 -rss_limit_mb=2048 \
+            -dict=fuzz/vibescript.dict
+      - name: Save nightly corpus
+        if: ${{ !cancelled() && github.event_name != 'pull_request' }}
+        uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: fuzz/corpus/${{ matrix.target }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ matrix.mode }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Upload failing inputs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fuzz-${{ matrix.target }}-${{ matrix.mode }}-${{ github.run_id }}
+          path: fuzz/artifacts/${{ matrix.target }}
+          if-no-files-found: ignore
+          retention-days: 30
+
+  checker:
+    name: Fuzz checker
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      RUSTUP_TOOLCHAIN: 1.98.1
+      CHECKER_COUNT: ${{ github.event_name == 'pull_request' && '1000' || inputs.count || '100000' }}
+      CHECKER_SEED: ${{ github.event_name == 'pull_request' && '0' || inputs.seed }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up Rust and Cargo
+        uses: ./.github/actions/setup
+        with:
+          cache-key: fuzz-checker
+      - name: Build checker harness
+        run: ./scripts/cargo build --locked --offline --profile gate --example checker_diff
+      - name: Test checker failure reporting
+        run: python3 -m unittest discover -s scripts -p test_fuzz_checker.py
+      - name: Fuzz checker
+        run: |
+          args=()
+          if [[ -n "$CHECKER_SEED" ]]; then args+=(--from "$CHECKER_SEED"); fi
+          python3 scripts/fuzz-checker --count "$CHECKER_COUNT" --jobs 2 "${args[@]}"
+      - name: Upload checker log and findings
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fuzz-checker-${{ github.run_id }}
+          path: .cache/fuzz-checker
+          if-no-files-found: ignore
+          retention-days: 30

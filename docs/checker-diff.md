@@ -31,6 +31,9 @@ Every program comes from its seed alone.
 
 ## Commands
 
+The [fuzz workflow](fuzzing.md) runs a longer mixed-source campaign nightly,
+preserves reproducers, and fails on new findings or incomplete seed ranges.
+
 The smoke test judges a few hundred fixed seeds and every regression program in `tests/checker-diff`, in the normal test suite:
 
 ```sh

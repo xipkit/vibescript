@@ -90,3 +90,8 @@ their documented tolerance for counter drift between platforms.
 CI also runs `python3 scripts/check-wasi` on Linux with `wasm32-wasip1` and
 Wasmtime 48.0.2. Dependencies are fetched with locked versions before offline
 checks, and the checkout-local Cargo and build directories are cached.
+
+[Fuzzing](docs/fuzzing.md) runs parser/compiler coverage targets in SIMD and
+portable builds and compares generated checker programs with the runtime.
+Pull requests run short checks; nightly campaigns retain corpora and upload
+failing inputs for reproduction.

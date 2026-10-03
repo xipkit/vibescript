@@ -1,0 +1,33 @@
+[package]
+name = "vibescript-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+members = ["."]
+
+[features]
+default = ["simd"]
+simd = ["vibescript/simd"]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+vibescript = { path = "..", default-features = false }
+
+[[bin]]
+name = "parser"
+path = "fuzz_targets/parser.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "compiler"
+path = "fuzz_targets/compiler.rs"
+test = false
+doc = false
+bench = false
