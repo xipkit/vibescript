@@ -212,6 +212,15 @@ impl Owned for String {
     }
 }
 
+impl Owned for std::borrow::Cow<'_, str> {
+    fn owned(&self) -> usize {
+        match self {
+            Self::Borrowed(_) => 0,
+            Self::Owned(text) => text.capacity(),
+        }
+    }
+}
+
 impl Owned for Box<str> {
     fn owned(&self) -> usize {
         self.len()
@@ -2271,7 +2280,7 @@ mod tests {
     const MADE: &[(&str, [usize; 4])] = &[
         ("typing.rs", [0, 0, 0, 1]),
         ("assigns.rs", [0, 0, 0, 2]),
-        ("calls.rs", [0, 1, 4, 5]),
+        ("calls.rs", [0, 1, 4, 4]),
         ("check.rs", [3, 0, 0, 9]),
         ("construction.rs", [1, 0, 0, 11]),
         ("expr.rs", [2, 6, 0, 5]),

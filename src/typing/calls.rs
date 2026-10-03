@@ -1779,18 +1779,24 @@ impl<'a> Checker<'a> {
                 .flatten()
         };
         let count = call.keywords().count() + splatted().count();
-        let copied: usize = splatted()
-            .filter(|name| std::str::from_utf8(name).is_err())
-            .map(|name| 3 * name.len())
-            .sum();
         // A check past its budget chooses the first candidate, which it
         // checks no further.
-        if self.transient(count * std::mem::size_of::<std::borrow::Cow<'_, str>>() + copied) {
+        let mut keywords = ScratchVec::new(&self.meter);
+        if keywords.reserve(count).is_err() {
             return Some(0);
         }
-        let mut keywords: Vec<std::borrow::Cow<'_, str>> = Vec::with_capacity(count);
-        keywords.extend(call.keywords().map(std::borrow::Cow::Borrowed));
-        keywords.extend(splatted().map(|name| String::from_utf8_lossy(name)));
+        for name in call.keywords() {
+            keywords.push_within(std::borrow::Cow::Borrowed(name));
+        }
+        for name in splatted() {
+            let name = match std::str::from_utf8(name) {
+                Ok(name) => std::borrow::Cow::Borrowed(name),
+                Err(_) => std::borrow::Cow::Owned(super::counted::lossy(name, &self.meter)),
+            };
+            if keywords.push(name).is_err() {
+                return Some(0);
+            }
+        }
         let declared = match call.block {
             Some(block) => {
                 let (arity, scratch) = block_arity(&self.meter, block);
