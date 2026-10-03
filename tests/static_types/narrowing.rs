@@ -31,6 +31,22 @@ fn early_returns_narrow_the_rest_of_the_function() {
 }
 
 #[test]
+fn unreachable_statements_share_their_speculative_state() {
+    let source = "def f -> int\n  return 0\n  x = 1\n  x + 1\nend\nf\n";
+    clean(source);
+    assert_eq!(
+        vibescript::Engine::new()
+            .compile(source)
+            .unwrap()
+            .run(Default::default())
+            .unwrap()
+            .value
+            .as_int(),
+        Some(0)
+    );
+}
+
+#[test]
 fn shadowed_assignments_do_not_widen_enclosing_locals() {
     for body in [
         "[1].each { |x| x = 2 }",
@@ -70,6 +86,7 @@ fn conditional_ensure_writes_preserve_the_body_state() {
         ("begin; x = 2 if c; ensure; nil; end", 8),
         ("if c; x = nil; return 0; end", 2),
         ("if c; return 0; x = nil; end", 2),
+        ("if c; return 0; x = nil; x = 1; x + 1; end", 2),
         ("[c].each { |go| x = 2 if go }", 8),
     ] {
         let source = format!(

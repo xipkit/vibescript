@@ -1637,23 +1637,45 @@ impl<'a> Checker<'a> {
         let Some((last, rest)) = body.split_last() else {
             return Ty::NIL;
         };
+        let mut unreachable = None;
         for stmt in rest {
             // A check a statement stops checks no more of them.
             if self.halted() {
+                if let Some(mark) = unreachable {
+                    self.frame.flow.rollback(mark);
+                }
                 return Ty::ERROR;
+            }
+            if !self.frame.flow.live {
+                unreachable.get_or_insert_with(|| self.frame.flow.mark());
+                self.frame.flow.live = true;
             }
             self.stmt(stmt, Want::Discard);
         }
+        if !self.frame.flow.live {
+            unreachable.get_or_insert_with(|| self.frame.flow.mark());
+            self.frame.flow.live = true;
+        }
         let ty = self.statement(last, want, true);
         self.too_large(last.offset as usize);
+        if let Some(mark) = unreachable {
+            self.frame.flow.rollback(mark);
+        }
         ty
     }
 
     pub(super) fn stmt(&mut self, stmt: &'a Stmt, want: Want) -> Ty {
+        let unreachable = (!self.frame.flow.live).then(|| self.frame.flow.mark());
+        if unreachable.is_some() {
+            self.frame.flow.live = true;
+        }
         let ty = self.statement(stmt, want, false);
         // A type the statement inferred too large to build, such as the
         // union of a literal's many shapes, is reported at it.
         self.too_large(stmt.offset as usize);
+        if let Some(mark) = unreachable {
+            self.frame.flow.rollback(mark);
+        }
         ty
     }
 
@@ -1669,12 +1691,7 @@ impl<'a> Checker<'a> {
             self.too_deep(span);
             return Ty::ANY;
         }
-        let unreachable = (!self.frame.flow.live).then(|| self.frame.flow.mark());
-        if unreachable.is_some() {
-            // Unreachable code is checked without changing the live paths.
-            self.frame.flow.live = true;
-        }
-        let ty = match &stmt.node {
+        match &stmt.node {
             Statement::Expr(expr) => match want {
                 Want::Discard => {
                     self.expr_want(expr, Want::Discard);
@@ -1747,11 +1764,7 @@ impl<'a> Checker<'a> {
                 );
                 self.statement_value(stmt, Ty::NIL, want)
             }
-        };
-        if let Some(mark) = unreachable {
-            self.frame.flow.rollback(mark);
         }
-        ty
     }
 
     /// Reports a declaration nested in a body, which the runtime refuses
