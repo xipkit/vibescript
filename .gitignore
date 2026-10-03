@@ -2,5 +2,3 @@
 /.cache/
 /benchmarks/bin/
 __pycache__/
-/fuzz/corpus/
-/fuzz/artifacts/

@@ -2476,14 +2476,9 @@ impl<'s> Parser<'s> {
         match self.kind_at(next) {
             TokenKind::Punct(',' | ')' | ':' | '|') | TokenKind::Operator("=") => false,
             TokenKind::Operator("<") => {
-                !matches!(
-                    crate::types::builtin_name(name),
-                    Some(
-                        crate::types::BuiltinName::Array
-                            | crate::types::BuiltinName::Hash
-                            | crate::types::BuiltinName::Type
-                    )
-                ) && self.locals.contains(name)
+                !crate::types::builtin_name(name)
+                    .is_some_and(crate::types::BuiltinName::takes_type_arguments)
+                    && self.locals.contains(name)
             }
             TokenKind::Punct('.') => !self.dotted_type_follows(peek, next, parenthesized),
             TokenKind::Operator("::") => !self.scoped_type_follows(peek, parenthesized),
@@ -3792,16 +3787,12 @@ impl<'s> Parser<'s> {
         })
     }
 
-    /// Whether every name in a type argument names a type: a builtin one,
-    /// a table alias, or a class or enum the source declares, as the
-    /// compiler reads a cast's type.
+    /// Whether every name in a type argument is one [`Self::type_name`]
+    /// accepts, as the compiler reads a cast's type.
     fn builtin_leaves(&self, ty: &TypeExpr) -> bool {
         match &ty.kind {
             TypeKind::Named(tok, args) => {
-                let name = self.text(*tok).trim_end_matches('?');
-                (crate::types::builtin_name(name).is_some()
-                    || crate::signatures::alias_type(name).is_some()
-                    || self.type_names.contains(name))
+                self.type_name(self.text(*tok).trim_end_matches('?'))
                     && args.iter().all(|arg| self.builtin_leaves(arg))
             }
             TypeKind::Qualified(names) => {
@@ -4282,15 +4273,11 @@ impl<'s> Parser<'s> {
         }
         // As in the compiler, a container's name folds in any case, so only
         // `array`, `hash` and `object`, or the `type` of a type literal,
-        // takes type arguments.
-        if !matches!(
-            crate::types::builtin_name(written),
-            Some(
-                crate::types::BuiltinName::Array
-                    | crate::types::BuiltinName::Hash
-                    | crate::types::BuiltinName::Type
-            )
-        ) {
+        // takes type arguments. The name is untrimmed on purpose: a
+        // nullable `arraY?<int>` fails here, as the compiler refuses it.
+        if !crate::types::builtin_name(written)
+            .is_some_and(crate::types::BuiltinName::takes_type_arguments)
+        {
             return self.fail("type does not accept type arguments");
         }
         self.pos = open + 1;

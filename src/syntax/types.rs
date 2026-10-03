@@ -712,14 +712,9 @@ impl Parser<'_> {
         Ok(match &self.tokens[next].token {
             Token::P(',' | ')' | ':' | '|') | Token::Op("=") => false,
             Token::Op("<") => {
-                !matches!(
-                    crate::types::builtin_name(name),
-                    Some(
-                        crate::types::BuiltinName::Array
-                            | crate::types::BuiltinName::Hash
-                            | crate::types::BuiltinName::Type
-                    )
-                ) && self.locals.contains(self.work, name.as_str())?
+                !crate::types::builtin_name(name)
+                    .is_some_and(crate::types::BuiltinName::takes_type_arguments)
+                    && self.locals.contains(self.work, name.as_str())?
             }
             Token::P('.') => !self.dotted_type_follows(peek, next, parenthesized)?,
             Token::Op("::") => !self.scoped_type_follows(peek, parenthesized)?,

@@ -510,12 +510,15 @@ fn sources_the_compiler_accepts_still_walk() {
         "def f(x: Error::Foo)\nend\n",
         "def f(x: comparable::Foo)\nend\n",
     ] {
-        let tokens = crate::tooling::tokens(source).expect("tokens");
+        let tokens = crate::tooling::tokens(source).unwrap();
         assert!(
-            super::parse::parse_tokens(source, &tokens, 48, &|| false).is_ok(),
+            super::parse::parse_tokens(source, &tokens, super::checker::NESTING, &|| false).is_ok(),
             "{source:?}"
         );
-        // With debug assertions this is the path the fuzzer crashed on.
+        // `compile` runs the removed-spelling walk too; its debug
+        // assertion fires when the rules cannot read what the compiler
+        // accepted. A static-check failure is fine: the walk has already
+        // run.
         let _ = Engine::new().compile(source);
     }
 }

@@ -10,7 +10,6 @@ fuzz_target!(|source: &str| {
     let options = CallOptions {
         limits: Limits {
             steps: Some(100_000),
-            memory_bytes: Some(16 << 20),
             ..Limits::default()
         },
         ..CallOptions::default()
