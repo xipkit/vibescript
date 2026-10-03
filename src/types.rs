@@ -55,6 +55,17 @@ pub(crate) enum BuiltinName {
     Type,
 }
 
+impl BuiltinName {
+    /// Whether the builtin takes type arguments: one of the containers,
+    /// however cased, whose name the caller folds and trims.
+    pub(crate) fn takes_type_arguments(self) -> bool {
+        matches!(
+            self,
+            BuiltinName::Array | BuiltinName::Hash | BuiltinName::Type
+        )
+    }
+}
+
 /// Classifies a builtin type name. The older names match in any case; the
 /// names ADR-007 adds are lowercase only, so a class or enum spelled `Error`
 /// or `Regex` keeps naming itself.
