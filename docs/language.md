@@ -2,6 +2,8 @@
 
 Vibescript is a small, statically typed scripting language for workflows that a host program embeds and runs under step, memory and time limits. This guide is written for authors, human or AI, who need the whole language on one page. Put it in a model's context next to the output of `vibes prelude`, which lists every builtin function and member with its exact signature; hosts extend that listing with their own functions, capabilities and globals through `Engine::prelude`.
 
+Run `vibes guide` to print this bundled Markdown reference, or retrieve it from an embedding application with `vibescript::guide()`. It is included in the interpreter at build time, so it works offline and matches the interpreter version. Before writing Vibescript, read the guide and the configured host's prelude, then check and test the generated scripts.
+
 Every example here compiles with static types. The design is recorded in [ADR-007](adr/007-static-types.md) (static types) and [ADR-008](adr/008-canonical-surface-for-ai-authors.md) (one spelling for everything).
 
 ## The rules in brief

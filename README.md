@@ -35,7 +35,8 @@ total([{ price: 250, qty: 2 }, { price: 100, qty: 1 }]) # 600
 ```
 
 The [language guide](docs/language.md) walks through the whole language with
-examples. Run `vibes prelude` to see the built-in functions and their signatures.
+examples. Run `vibes guide` to print the bundled guide and `vibes prelude` to see
+the built-in functions and their signatures.
 
 ## Try it
 
@@ -66,6 +67,9 @@ assert_eq!(result.value.as_int(), Some(42));
 You can expose typed host functions and capabilities, then set the limits for
 each run. The [embedding docs](docs/capabilities.md) show how host code and
 scripts fit together.
+
+Give an AI author `vibescript::guide()` for the language reference and
+`engine.prelude(&options)` for the built-in and configured host signatures.
 
 ## A few more places to look
 

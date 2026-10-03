@@ -90,6 +90,20 @@ use std::{
 };
 pub use value::Value;
 
+/// Returns the Markdown language guide bundled with this interpreter version.
+///
+/// Give authors this guide alongside [`Engine::prelude`] to describe both the
+/// language and the host's available functions, capabilities and globals.
+/// The guide is embedded at compile time and requires no filesystem access.
+///
+/// ```
+/// let guide: &'static str = vibescript::guide();
+/// assert!(guide.starts_with("# Vibescript language guide\n"));
+/// ```
+pub fn guide() -> &'static str {
+    include_str!("../docs/language.md")
+}
+
 // Compiles the session guide's examples as doctests.
 #[cfg(doctest)]
 #[doc = include_str!("../docs/sessions.md")]

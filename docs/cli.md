@@ -12,6 +12,7 @@
 | `vibes help [command]`, `--help`, `-h` | Print the command list or one command's help. |
 | `vibes repl [options]` | Start the interactive REPL. |
 | `vibes lsp` | Serve the language server over stdin and stdout for editors. |
+| `vibes guide` | Print the bundled language guide as Markdown. |
 | `vibes prelude` | Print every builtin signature as Vibescript declarations. |
 | `vibes fix [--dry-run] <file or directory>...` | Apply the machine-applicable fixes of the static language's diagnostics. |
 
@@ -31,7 +32,7 @@ The formatter, analyzer, fixer, test runner, REPL session and language server ar
 The first argument alone decides what runs, in this order:
 
 1. `-h` or `--help` prints the root help. A first argument such as `--`, one with leading or trailing whitespace, `-help`, `--h` or a help flag with a value such as `--help=false`, prints the root help and `unknown command "..."` on stderr.
-2. A command name (`run`, `check`, `fmt`, `analyze`, `test`, `lsp`, `repl`, `prelude`, `fix`, `help` or `h`) runs that command. A file named after a command therefore needs `vibes run check`, or a flat-form option before it.
+2. A command name (`run`, `check`, `fmt`, `analyze`, `test`, `lsp`, `repl`, `guide`, `prelude`, `fix`, `help` or `h`) runs that command. A file named after a command therefore needs `vibes run check`, or a flat-form option before it.
 3. `--version` prints `vibescript VERSION`.
 4. A flat-form option (`-e`, `--eval`, `--function`, `--module-path`, `--arg`, `--kwarg`, `--steps`, `--memory`, `--recursion`, `--timeout-ms` or `--stats`), or a script path, runs the flat form. A script path is an existing file, or a spelling that contains a path separator or ends in `.vibe`.
 5. Anything else fails: `vibes` alone reports `command required` after the root help, a flag such as `-x` or `--bogus` reports `flag provided but not defined: -x`, and any other word reports `unknown command "word"` after the root help.
@@ -54,6 +55,12 @@ invalid boolean value "yes" for -check: parse error
 invalid value "nope" for flag -step-quota: parse error
 help flag does not accept a value
 ```
+
+## `vibes guide`
+
+`vibes guide` prints the [language guide](language.md) as Markdown on stdout. It is bundled with the interpreter, works offline from any directory and needs no installed documentation files. It accepts no positional arguments; `vibes guide --help` and `vibes help guide` print command help.
+
+Give an AI author this guide alongside `vibes prelude`, which prints exact builtin signatures. Embedding hosts can retrieve the same guide with `vibescript::guide()` and use `Engine::prelude(&options)` to include their registered functions, capabilities and globals. Add the app's own conventions and examples to that context.
 
 ## `vibes run`
 
