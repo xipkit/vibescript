@@ -1128,6 +1128,46 @@ mod budget_tests {
     }
 
     #[test]
+    fn repeated_shape_literals_charge_their_shared_field_name_prefixes() {
+        let prefix = "a".repeat(4_096);
+        let fields = (0..64)
+            .map(|i| format!("{prefix}{i:02}?: int"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let declaration = format!("type Wide = {{ {fields} }}\ndef f(x: Wide) -> int\n  1\nend\n");
+        let before = checked(&declaration, Budget::default());
+        assert!(before.diagnostics.is_empty());
+        let sources = [
+            format!("f({{{prefix}00: 1}})\n").repeat(100),
+            format!(
+                "def reads(x: Wide) -> int?\n{}end\n",
+                format!("x[\"{prefix}00\"]\n").repeat(100)
+            ),
+        ];
+        for uses in sources {
+            let source = declaration.clone() + &uses;
+            let full = checked(&source, Budget::default());
+            assert!(full.diagnostics.is_empty());
+            let minimum = 100 * 6 * (prefix.len() / 64) as u64;
+            assert!(
+                full.steps - before.steps > minimum,
+                "only {} steps for repeated shape-field name comparisons",
+                full.steps - before.steps
+            );
+            let quota = before.steps + minimum;
+            let stopped = checked(
+                &source,
+                Budget {
+                    steps: Some(quota),
+                    ..Budget::default()
+                },
+            );
+            assert!(stopped.stopped);
+            assert!(stopped.steps < quota + 1_024);
+        }
+    }
+
+    #[test]
     fn repeated_keyword_calls_charge_their_shared_name_prefixes() {
         let prefix = "a".repeat(4_096);
         let params = (0..64)

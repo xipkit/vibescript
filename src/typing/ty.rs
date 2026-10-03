@@ -1262,12 +1262,11 @@ impl Types {
         kept.into_vec()
     }
 
-    /// The field of a shape's `fields` named `name`, by binary search:
-    /// shapes keep their fields sorted by name.
-    pub fn field<'f>(fields: &'f [Field], name: &[u8]) -> Option<&'f Field> {
-        fields
-            .binary_search_by(|field| field.name.as_bytes().cmp(name))
-            .ok()
+    /// The field of a shape's `fields` named `name`, charging each name
+    /// comparison; none when it is absent or the budget stops the search.
+    pub fn field<'f>(&self, fields: &'f [Field], name: &[u8]) -> Option<&'f Field> {
+        super::counted::find_bytes(&self.meter, fields, name, |field| field.name.as_bytes())
+            .ok()?
             .map(|index| &fields[index])
     }
 

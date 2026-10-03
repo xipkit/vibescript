@@ -360,10 +360,20 @@ pub(crate) fn compare_names(
     a: &str,
     b: &str,
 ) -> Result<std::cmp::Ordering, Refused> {
-    if meter.charge(1) {
+    compare_bytes(meter, a.as_bytes(), b.as_bytes())
+}
+
+/// Compares byte names without requiring UTF-8, charging and polling each
+/// 64-byte piece before comparing it.
+pub(crate) fn compare_bytes(
+    meter: &Meter,
+    a: &[u8],
+    b: &[u8],
+) -> Result<std::cmp::Ordering, Refused> {
+    if meter.stopped() || meter.charge(1) {
         return Err(Refused);
     }
-    for (a, b) in a.as_bytes().chunks(64).zip(b.as_bytes().chunks(64)) {
+    for (a, b) in a.chunks(64).zip(b.chunks(64)) {
         if meter.charge(1) {
             return Err(Refused);
         }
@@ -430,17 +440,31 @@ pub(crate) fn find_name<T>(
     wanted: &str,
     name: impl Fn(&T) -> &str,
 ) -> Result<Option<usize>, Refused> {
+    find_bytes(meter, list, wanted.as_bytes(), |item| name(item).as_bytes())
+}
+
+/// Finds a byte name in a sorted list, charging each comparison and
+/// refusing the search as soon as the budget stops it.
+pub(crate) fn find_bytes<T>(
+    meter: &Meter,
+    list: &[T],
+    wanted: &[u8],
+    name: impl Fn(&T) -> &[u8],
+) -> Result<Option<usize>, Refused> {
+    if meter.stopped() {
+        return Err(Refused);
+    }
     let (mut left, mut right) = (0, list.len());
     while left < right {
         let middle = left + (right - left) / 2;
-        if compare_names(meter, name(&list[middle]), wanted)? == std::cmp::Ordering::Less {
+        if compare_bytes(meter, name(&list[middle]), wanted)? == std::cmp::Ordering::Less {
             left = middle + 1;
         } else {
             right = middle;
         }
     }
     if left < list.len()
-        && compare_names(meter, name(&list[left]), wanted)? == std::cmp::Ordering::Equal
+        && compare_bytes(meter, name(&list[left]), wanted)? == std::cmp::Ordering::Equal
     {
         Ok(Some(left))
     } else {
@@ -1443,6 +1467,15 @@ mod tests {
         let name = "a".repeat(100_000);
         assert_eq!(compare_names(&limited, &name, &name), Err(Refused));
         assert_eq!(limited.steps(), 11);
+        assert_eq!(
+            compare_bytes(&meter, b"a\xff", b"a\xfe").unwrap(),
+            std::cmp::Ordering::Greater
+        );
+        let names: [&[u8]; 3] = [b"\0", b"a", b"\xff"];
+        assert_eq!(
+            find_bytes(&meter, &names, b"\xff", |name| name),
+            Ok(Some(2))
+        );
     }
 
     #[test]

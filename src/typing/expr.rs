@@ -9,7 +9,7 @@ use super::{
     flow::{Branch, VarState},
     program::{FnId, NsId},
     sigs,
-    ty::{Field, Kind, Ty, Types},
+    ty::{Field, Kind, Ty},
 };
 use crate::{
     diagnostic::{Code, Diagnostic, Edit, Fix, Span},
@@ -125,7 +125,7 @@ impl<'a> Checker<'a> {
                     return None;
                 };
                 let key = key.as_bytes()?;
-                Types::field(fields, key)?.ty
+                self.types.field(fields, key)?.ty
             }
             _ => return None,
         };
@@ -616,6 +616,9 @@ impl<'a> Checker<'a> {
             return exact;
         };
         for alternative in self.types.members(hint) {
+            if self.halted() {
+                return ScratchVec::new(&self.meter);
+            }
             let shared = self.types.shared(alternative);
             let Kind::Shape(fields, open) = &*shared else {
                 continue;
@@ -682,10 +685,14 @@ impl<'a> Checker<'a> {
             if index % 4096 == 4095 && self.over_budget() {
                 return None;
             }
-            match fields.binary_search_by(|field| field.name.as_bytes().cmp(key)) {
-                Ok(at) => given[at] = true,
-                Err(_) if open => (),
-                Err(_) => return None,
+            match super::counted::find_bytes(&self.meter, fields, key, |field| {
+                field.name.as_bytes()
+            })
+            .ok()?
+            {
+                Some(at) => given[at] = true,
+                None if open => (),
+                None => return None,
             }
         }
         (!self.types.stopped()).then_some(given)
@@ -714,7 +721,9 @@ impl<'a> Checker<'a> {
                 let hints: Vec<Ty> = shapes
                     .iter()
                     .filter_map(|&shape| match self.types.kind(shape) {
-                        Kind::Shape(fields, _) => Types::field(fields, key).map(|field| field.ty),
+                        Kind::Shape(fields, _) => {
+                            self.types.field(fields, key).map(|field| field.ty)
+                        }
                         _ => None,
                     })
                     .collect();
@@ -794,9 +803,10 @@ impl<'a> Checker<'a> {
                         self.release(held);
                         return Ty::ERROR;
                     };
-                    match fields.binary_search_by(|field| field.name.as_bytes().cmp(key.as_bytes()))
-                    {
-                        Ok(index) => {
+                    match super::counted::find_bytes(&self.meter, fields, key.as_bytes(), |field| {
+                        field.name.as_bytes()
+                    }) {
+                        Ok(Some(index)) => {
                             let expected = fields[index].ty;
                             types.push(self.expr_against_held(
                                 entry,
@@ -805,7 +815,7 @@ impl<'a> Checker<'a> {
                             ));
                             present[index] = true;
                         }
-                        Err(_) => {
+                        Ok(None) => {
                             types.push(self.expr(entry, None));
                             if !open {
                                 let span = self.spans.expr(entry);
@@ -816,6 +826,11 @@ impl<'a> Checker<'a> {
                                     text!(self, "{shape} has no field `{key}`"),
                                 ));
                             }
+                        }
+                        Err(_) => {
+                            self.release(key_held);
+                            self.release(held);
+                            return Ty::ERROR;
                         }
                     }
                     self.release(key_held);
@@ -1534,7 +1549,7 @@ impl<'a> Checker<'a> {
             (Kind::Shape(fields, open), [selector]) => {
                 let key = self.expr(selector, Some(Ty::STRING));
                 match string_literal(selector) {
-                    Some(name) => match Types::field(fields, name.as_bytes()) {
+                    Some(name) => match self.types.field(fields, name.as_bytes()) {
                         Some(field) if field.optional => self.types.optional(field.ty),
                         Some(field) => field.ty,
                         None if *open => Ty::ANY,
@@ -1815,7 +1830,7 @@ impl<'a> Checker<'a> {
                 Some(*value)
             }
             (Kind::Shape(fields, open), [selector]) => match string_literal(selector) {
-                Some(name) => match Types::field(fields, name.as_bytes()) {
+                Some(name) => match self.types.field(fields, name.as_bytes()) {
                     Some(field) => Some(field.ty),
                     None if *open => Some(Ty::ANY),
                     None => {

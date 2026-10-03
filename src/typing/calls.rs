@@ -8,7 +8,7 @@ use super::{
     counted::{CountedVec, ScratchVec},
     program::{FnId, NsId},
     sigs::{self, BlockSig, ParamKind, Sig},
-    ty::{Kind, Ty, Types},
+    ty::{Kind, Ty},
 };
 use crate::{
     diagnostic::{Code, Diagnostic, Fix, Span},
@@ -865,7 +865,7 @@ impl<'a> Checker<'a> {
                     && self.types.members(inner_ty).into_iter().any(|ty| {
                         match self.types.kind(ty) {
                             Kind::Shape(fields, open) => {
-                                *open || Types::field(fields, member.as_bytes()).is_some()
+                                *open || self.types.field(fields, member.as_bytes()).is_some()
                             }
                             Kind::Hash(_) => true,
                             _ => false,
@@ -2312,7 +2312,7 @@ impl<'a> Checker<'a> {
             (&*self.types.shared(receiver), call.name, call.args.first())
         {
             if let Some(key) = super::expr::string_literal(&first.value) {
-                if let Some(field) = Types::field(fields, key.as_bytes()) {
+                if let Some(field) = self.types.field(fields, key.as_bytes()) {
                     return field.ty;
                 }
             }
@@ -2474,7 +2474,10 @@ impl<'a> Checker<'a> {
             (Kind::TypeLit(p), Kind::TypeLit(a)) => self.unify(*p, *a, bindings),
             (Kind::Shape(pf, _), Kind::Shape(af, _)) => {
                 for field in pf.iter() {
-                    if let Some(found) = Types::field(af, field.name.as_bytes()) {
+                    if self.halted() {
+                        return;
+                    }
+                    if let Some(found) = self.types.field(af, field.name.as_bytes()) {
                         self.unify(field.ty, found.ty, bindings);
                     }
                 }
