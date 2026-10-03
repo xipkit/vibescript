@@ -1699,8 +1699,10 @@ impl<'a> Checker<'a> {
                 }
                 Want::Infer(hint) => self.expr(expr, hint),
                 Want::Check(expected) => {
-                    let purpose = self.purposes.last().cloned().unwrap_or(Purpose::Result);
-                    self.expr_against(expr, expected, &purpose)
+                    let Some(purpose) = self.current_purpose() else {
+                        return Ty::ERROR;
+                    };
+                    self.expr_against_held(expr, expected, &purpose)
                 }
             },
             Statement::Assign(target, op, value) => {
@@ -1779,7 +1781,9 @@ impl<'a> Checker<'a> {
         if let Want::Check(expected) = want {
             if self.frame.flow.live && !self.types.assignable(ty, expected) {
                 let span = self.spans.stmt(stmt);
-                let purpose = self.purposes.last().cloned().unwrap_or(Purpose::Result);
+                let Some(purpose) = self.current_purpose() else {
+                    return Ty::ERROR;
+                };
                 self.mismatch(span, expected, ty, &purpose);
             }
         }
@@ -1820,7 +1824,9 @@ impl<'a> Checker<'a> {
                 if !self.types.assignable(Ty::NIL, expected) {
                     let span = self.spans.token(if_offset);
                     let expected_text = self.types.display(expected);
-                    let purpose = self.purposes.last().cloned().unwrap_or(Purpose::Result);
+                    let Some(purpose) = self.current_purpose() else {
+                        return Ty::ERROR;
+                    };
                     let what = self.purpose_text(&purpose, &expected_text);
                     self.report(
                         Diagnostic::error(
@@ -1857,7 +1863,9 @@ impl<'a> Checker<'a> {
         let span = self.spans.token(stmt.offset as usize);
         let expected_text = self.types.display(expected);
         let found = self.types.display(ty);
-        let purpose = self.purposes.last().cloned().unwrap_or(Purpose::Result);
+        let Some(purpose) = self.current_purpose() else {
+            return Ty::ERROR;
+        };
         let what = self.purpose_text(&purpose, &expected_text);
         let without = self.types.without_nil(ty);
         let (code, message) = if self.types.has_nil(ty)
@@ -3833,7 +3841,60 @@ impl Heap for Purpose {
     }
 }
 
+/// A copy admitted before its names are allocated, held as scratch for
+/// as long as the caller checks or describes its value.
+pub(super) struct CurrentPurpose {
+    value: Purpose,
+    bytes: usize,
+    meter: std::sync::Arc<super::meter::Meter>,
+}
+
+impl std::ops::Deref for CurrentPurpose {
+    type Target = Purpose;
+
+    fn deref(&self) -> &Purpose {
+        &self.value
+    }
+}
+
+impl Drop for CurrentPurpose {
+    fn drop(&mut self) {
+        self.meter.dropped(self.bytes);
+    }
+}
+
 impl<'a> Checker<'a> {
+    /// Copies the current purpose once its names fit the budget; the
+    /// returned guard counts them until the caller drops it.
+    pub(super) fn current_purpose(&self) -> Option<CurrentPurpose> {
+        let purpose = self.purposes.last().unwrap_or(&Purpose::Result);
+        let bytes = match purpose {
+            Purpose::Local(name)
+            | Purpose::Global(name)
+            | Purpose::Ivar(name)
+            | Purpose::Field(name)
+            | Purpose::Break(name, _) => name.len(),
+            Purpose::Argument { name, function, .. } | Purpose::Keyword { name, function } => {
+                name.len() + function.len()
+            }
+            Purpose::Result
+            | Purpose::BlockResult
+            | Purpose::Element
+            | Purpose::Annotation
+            | Purpose::Yield(_)
+            | Purpose::Operand => 0,
+        };
+        if self.meter.charge((bytes / 64) as u64) || self.meter.scratch_lists().keep(bytes).is_err()
+        {
+            return None;
+        }
+        Some(CurrentPurpose {
+            value: purpose.clone(),
+            bytes,
+            meter: std::sync::Arc::clone(&self.meter),
+        })
+    }
+
     /// What a position expects, for messages: "`f` returns int".
     pub(super) fn purpose_text(&self, purpose: &Purpose, expected_text: &str) -> String {
         match purpose {

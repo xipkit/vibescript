@@ -668,6 +668,7 @@ fn adversarial() -> Vec<(String, String)> {
         "an incomplete shape with a long non-UTF-8 key",
         "an enum-symbol mismatch of long matching names",
         "an unknown member of a long named enum",
+        "checked arguments copying long purposes",
     ];
     for (name, shape) in shapes() {
         if reviewed.contains(&name) {
@@ -975,6 +976,17 @@ fn shapes() -> Vec<Shape> {
             (
                 Vec::new(),
                 format!("enum {name}\n  A\nend\n{name}::Missing\n"),
+            )
+        }),
+        ("checked arguments copying long purposes", |n| {
+            let pad = "a".repeat(n * 32);
+            let function = format!("f{pad}");
+            let parameter = format!("p{pad}");
+            (
+                Vec::new(),
+                format!(
+                    "def {function}({parameter}: int) -> int\n  {parameter}\nend\n{function}(true ? 1 : 's')\n{function}(case true; when true; 1; else; 's'; end)\n{function}(begin; x = 's'; ensure; nil; end)\n"
+                ),
             )
         }),
         ("an enum with a very long normalized member", |n| {

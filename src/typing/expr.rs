@@ -1924,8 +1924,10 @@ impl<'a> Checker<'a> {
     fn branch_value(&mut self, value: &'a Expr, want: Want) -> Ty {
         match want {
             Want::Check(expected) => {
-                let purpose = self.purposes.last().cloned().unwrap_or(Purpose::Result);
-                self.expr_against(value, expected, &purpose)
+                let Some(purpose) = self.current_purpose() else {
+                    return Ty::ERROR;
+                };
+                self.expr_against_held(value, expected, &purpose)
             }
             Want::Infer(hint) => self.expr(value, hint),
             Want::Discard => self.expr_want(value, Want::Discard),
