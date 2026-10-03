@@ -1,6 +1,6 @@
 [package]
 name = "vibescript-tools"
-version = "0.80.0"
+version = "0.80.1"
 edition = "2024"
 rust-version = "1.85"
 description = "Formatter, analyzer, fixer, test runner, REPL session and language server for Vibescript"

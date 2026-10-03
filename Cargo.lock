@@ -432,7 +432,7 @@ checksum = "b4ac048d71ede7ee76d585517add45da530660ef4390e49b098733c6e897f254"
 
 [[package]]
 name = "vibes"
-version = "0.80.0"
+version = "0.80.1"
 dependencies = [
  "cap-std",
  "crossterm",
@@ -445,7 +445,7 @@ dependencies = [
 
 [[package]]
 name = "vibescript"
-version = "0.80.0"
+version = "0.80.1"
 dependencies = [
  "cap-fs-ext",
  "cap-std",
@@ -459,7 +459,7 @@ dependencies = [
 
 [[package]]
 name = "vibescript-tools"
-version = "0.80.0"
+version = "0.80.1"
 dependencies = [
  "serde",
  "serde_json",
