@@ -292,7 +292,8 @@ fn rejections(args: &[String]) -> i32 {
         if *count <= KEEP {
             let path = out.join(format!("{code}-{seed}.vibe"));
             let header = format!("# seed {seed}: ran before, rejected after: {message}\n");
-            let _ = std::fs::write(path, format!("{header}{}", case.render()));
+            std::fs::write(path, format!("{header}{}", case.render()))
+                .expect("write a rejected program");
         }
     }
     let _ = std::fs::remove_dir_all(scratch_root(0));
@@ -365,6 +366,32 @@ type Watch = Arc<Mutex<Vec<Option<(u64, Instant)>>>>;
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn rejections_fail_when_a_program_cannot_be_saved() {
+        let root = super::scratch_root(usize::MAX - 1);
+        let before = root.join("before.txt");
+        let after = root.join("after.txt");
+        let out = root.join("out");
+        std::fs::create_dir_all(out.join("VTEST-0.vibe")).unwrap();
+        std::fs::write(&before, "0 ran\n").unwrap();
+        std::fs::write(&after, "0 rejected VTEST\n").unwrap();
+        let args = vec![
+            before.to_str().unwrap().to_owned(),
+            after.to_str().unwrap().to_owned(),
+            "--out".to_owned(),
+            out.to_str().unwrap().to_owned(),
+            "--source".to_owned(),
+            "files".to_owned(),
+        ];
+        let result = std::panic::catch_unwind(|| super::rejections(&args));
+        std::fs::remove_dir_all(root).unwrap();
+        let _ = std::fs::remove_dir_all(super::scratch_root(0));
+        assert!(
+            result.is_err(),
+            "a missing regression file must fail the command"
+        );
+    }
+
     #[test]
     fn batch_rejects_zero_workers_before_creating_output() {
         let out = super::scratch_root(usize::MAX).join("zero-workers");
@@ -527,7 +554,8 @@ fn batch(args: &[String]) -> i32 {
         if let Some((seed, _)) = stuck {
             let case = case_for(seed, &source);
             let path = out.join(format!("hang-{seed}.vibe"));
-            let _ = std::fs::write(&path, format!("# hang: seed {seed}\n{}", case.render()));
+            std::fs::write(&path, format!("# hang: seed {seed}\n{}", case.render()))
+                .expect("write a hanging program");
             eprintln!(
                 "seed {seed} did not finish in two minutes; wrote {}",
                 path.display()
@@ -537,7 +565,7 @@ fn batch(args: &[String]) -> i32 {
         }
     }
     for handle in handles {
-        let _ = handle.join();
+        handle.join().expect("differential worker panicked");
     }
     summary(&totals.lock().unwrap(), started, &out);
     0
@@ -552,7 +580,8 @@ fn record(totals: &Mutex<Totals>, out: &Path, seed: u64, case: &Case, verdict: &
             *totals.rejected.entry(code.clone()).or_default() += 1;
             if std::env::var_os("CHECKER_DIFF_REJECTED").is_some() {
                 let path = out.join(format!("rejected-{code}-{seed}.vibe"));
-                let _ = std::fs::write(path, format!("# {reason}\n{}", case.render()));
+                std::fs::write(path, format!("# {reason}\n{}", case.render()))
+                    .expect("write a rejected program");
             }
         }
         Verdict::Agreed(result) => {
@@ -585,7 +614,8 @@ fn record(totals: &Mutex<Totals>, out: &Path, seed: u64, case: &Case, verdict: &
                 .lines()
                 .map(|line| format!("# {line}\n"))
                 .collect();
-            let _ = std::fs::write(path, format!("# seed {seed}\n{header}{}", case.render()));
+            std::fs::write(path, format!("# seed {seed}\n{header}{}", case.render()))
+                .expect("write a finding");
         }
     }
 }
@@ -610,10 +640,11 @@ fn annotated(totals: &Mutex<Totals>, out: &Path, seed: u64, case: &Case, scratch
                 .lines()
                 .map(|line| format!("# {line}\n"))
                 .collect();
-            let _ = std::fs::write(
+            std::fs::write(
                 path,
                 format!("# seed {seed}, annotated\n{header}{}", annotated.render()),
-            );
+            )
+            .expect("write an annotated finding");
         }
         Verdict::Rejected(reason) => {
             let count = counts.findings.entry("annotation-rejected").or_default();
@@ -622,10 +653,11 @@ fn annotated(totals: &Mutex<Totals>, out: &Path, seed: u64, case: &Case, scratch
                 return;
             }
             let path = out.join(format!("annotation-rejected-{seed}.vibe"));
-            let _ = std::fs::write(
+            std::fs::write(
                 path,
                 format!("# seed {seed}: {reason}\n{}", annotated.render()),
-            );
+            )
+            .expect("write a rejected annotation");
         }
         _ => {}
     }
