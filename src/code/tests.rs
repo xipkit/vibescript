@@ -82,7 +82,6 @@ fn compilation_keeps_host_registry_storage_in_the_checkers_budget() {
         };
         let code = super::Code::compile_mode("1", registered.iter(), false, None, &work).unwrap();
         let held = work.held.get();
-        drop(work);
         assert_eq!(context.stats().retained_memory_bytes, 0);
         drop(code);
         held
