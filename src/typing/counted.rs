@@ -2490,9 +2490,8 @@ mod tests {
         // The cycle search's stack, cycles and their members, counted
         // before the search starts.
         ("construction.rs", [14, 0, 3]),
-        // A hint's enums, and the results of an operator's alternatives,
-        // which relate types but check no syntax.
-        ("expr.rs", [1, 2, 0]),
+        // A hint's enums, bounded by the type's alternatives.
+        ("expr.rs", [1, 1, 0]),
         // A stopped check's branches.
         ("flow.rs", [4, 0, 0]),
         // The size of an empty node.

@@ -1069,11 +1069,13 @@ impl<'a> Checker<'a> {
                 if self.types.work(alternatives.len()) {
                     return Ty::ERROR;
                 }
-                let mut results = Vec::new();
+                let mut results = ScratchVec::new(&self.meter);
                 let mut checked = super::counted::ScratchSet::new(&self.meter);
                 for alternative in alternatives {
                     let Kind::Instance(ns) = *self.types.kind(alternative) else {
-                        results.push(Ty::BOOL);
+                        if results.push(Ty::BOOL).is_err() {
+                            return Ty::ERROR;
+                        }
                         continue;
                     };
                     let methods = &self.program.namespaces[ns as usize].methods;
@@ -1083,7 +1085,9 @@ impl<'a> Checker<'a> {
                         // `==`, which takes the right operand.
                         (None, Some(&id)) if op == "!=" => (id, Ty::BOOL),
                         _ => {
-                            results.push(Ty::BOOL);
+                            if results.push(Ty::BOOL).is_err() {
+                                return Ty::ERROR;
+                            }
                             continue;
                         }
                     };
@@ -1095,7 +1099,9 @@ impl<'a> Checker<'a> {
                         Ok(false) => (),
                         Err(_) => return Ty::ERROR,
                     }
-                    results.push(result);
+                    if results.push(result).is_err() {
+                        return Ty::ERROR;
+                    }
                 }
                 if checked.is_empty() {
                     return Ty::BOOL;

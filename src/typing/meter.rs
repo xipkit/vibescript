@@ -1063,6 +1063,31 @@ mod budget_tests {
     use crate::{CancellationToken, compilation::Budget};
 
     #[test]
+    fn maximum_width_class_equality_keeps_boolean_results_and_obeys_memory_limits() {
+        let classes: String = (0..1_024).map(|i| format!("class C{i}\nend\n")).collect();
+        let names: Vec<_> = (0..1_024).map(|i| format!("C{i}")).collect();
+        let union = names.join(" | ");
+        for operator in ["==", "!=", "==="] {
+            let source = format!("{classes}def f(x: {union}) -> bool\nx {operator} nil\nend\n");
+            let found = checked(&source, Budget::default());
+            assert!(!found.stopped);
+            assert!(
+                !found.diagnostics.iter().any(|d| d.is_error()),
+                "{:?}",
+                found.diagnostics
+            );
+            let limited = checked(
+                &source,
+                Budget {
+                    memory: Some(found.peak() - 1),
+                    ..Budget::default()
+                },
+            );
+            assert!(limited.stopped);
+        }
+    }
+
+    #[test]
     fn short_lived_purposes_do_not_accumulate_between_measures() {
         let parameter = format!("p{}", "a".repeat(2_048));
         let source = format!(
