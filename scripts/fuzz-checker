@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+"""Run the checker differential harness, failing on findings or incomplete runs."""
+
+import argparse
+import re
+import secrets
+import subprocess
+from pathlib import Path
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--from", dest="seed", type=int)
+    parser.add_argument("--count", type=int, default=100_000)
+    parser.add_argument("--jobs", type=int, default=2)
+    parser.add_argument("--out", type=Path, default=Path(".cache/fuzz-checker"))
+    args = parser.parse_args()
+    seed = args.seed if args.seed is not None else secrets.randbits(32)
+    if seed < 0 or args.count <= 0 or seed + args.count >= 2**64 or args.jobs <= 0:
+        parser.error("use a nonnegative seed, positive count and jobs, and a seed range below 2**64")
+    root = Path(__file__).resolve().parent.parent
+    out = args.out.resolve()
+    out.mkdir(parents=True, exist_ok=True)
+    command = [
+        str(root / "target/gate/examples/checker_diff"), "run",
+        "--from", str(seed), "--count", str(args.count),
+        "--jobs", str(args.jobs), "--out", str(out), "--source", "mixed",
+    ]
+    summary = None
+    with (out / "run.log").open("w") as log:
+        header = " ".join(command)
+        print(header, flush=True)
+        log.write(header + "\n")
+        with subprocess.Popen(command, cwd=root, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, text=True) as process:
+            for line in process.stdout:
+                print(line, end="", flush=True)
+                log.write(line)
+                log.flush()
+                match = re.match(r"^generated (\d+) .*\bfindings (\d+)\b", line)
+                if match:
+                    summary = tuple(map(int, match.groups()))
+        if process.returncode:
+            return 1
+    if summary is None or summary[0] != args.count:
+        print("Checker run did not complete every requested seed", flush=True)
+        return 1
+    if summary[1]:
+        print(f"Checker found {summary[1]} new disagreements; reproducers are in {out}", flush=True)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

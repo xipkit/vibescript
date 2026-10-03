@@ -485,7 +485,39 @@ fn type_names_are_lowercase() {
         "object",
         "def f(x: hash) -> int\n  1\nend\n",
     );
+    // A builtin type name folds in any case, so the removed spelling still
+    // reads, as the compiler reads it.
+    round_trip(
+        "def f(x: arraY<int>) -> int\n  1\nend\n",
+        Code::TYPE_NAME,
+        "arraY",
+        "def f(x: array<int>) -> int\n  1\nend\n",
+    );
     assert!(with_code("def f(x: int) -> int\n  x\nend\n", Code::TYPE_NAME).is_empty());
+}
+
+/// Type names the compiler accepts must parse for the rules too. `Error`
+/// names a class there, not the builtin `error` type, and `comparable`
+/// names a table alias, so both scope like a declared type; a builtin
+/// name in any case still takes type arguments. The rules' parser read
+/// none of these, rejecting sources the compiler accepts, which the
+/// compile-time walk refuses to leave unexplained.
+#[test]
+fn sources_the_compiler_accepts_still_walk() {
+    for source in [
+        "# \ndef c-> arraY<t>\nend\n",
+        "def f(x: arraY<int>) -> int\n  1\nend\n",
+        "def f(x: Error::Foo)\nend\n",
+        "def f(x: comparable::Foo)\nend\n",
+    ] {
+        let tokens = crate::tooling::tokens(source).expect("tokens");
+        assert!(
+            super::parse::parse_tokens(source, &tokens, 48, &|| false).is_ok(),
+            "{source:?}"
+        );
+        // With debug assertions this is the path the fuzzer crashed on.
+        let _ = Engine::new().compile(source);
+    }
 }
 
 #[test]

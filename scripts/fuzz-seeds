@@ -1,0 +1,22 @@
+#!/usr/bin/env python3
+"""Seed the coverage-guided fuzzers with the repository's Vibescript programs."""
+
+import hashlib
+from pathlib import Path
+
+
+def main():
+    root = Path(__file__).resolve().parent.parent
+    programs = [b"", b"1\n", b"def identity(x: int) -> int\n  x\nend\n"]
+    programs.extend(path.read_bytes() for path in sorted((root / "tests").rglob("*.vibe")))
+    programs = {program for program in programs if len(program) <= 16_384}
+    for target in ("parser", "compiler"):
+        corpus = root / "fuzz/corpus" / target
+        corpus.mkdir(parents=True, exist_ok=True)
+        for program in programs:
+            (corpus / hashlib.sha256(program).hexdigest()).write_bytes(program)
+    print(f"Seeded each fuzz target with {len(programs)} programs")
+
+
+if __name__ == "__main__":
+    main()

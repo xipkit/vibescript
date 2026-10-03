@@ -75,7 +75,8 @@ impl<'a> Checker<'a> {
             if let Some(pattern) = on_self
                 && self.scope().class.is_some()
                 && self.scope().def.is_some()
-                && !super::parse::builtin_type(name)
+                && crate::types::builtin_name(name).is_none()
+                && crate::signatures::alias_type(name).is_none()
             {
                 self.unmatched_at(expr.span, name, pattern);
             }
