@@ -147,6 +147,7 @@ fn verdicts(args: &[String], make_case: fn(u64, &str) -> Case) -> i32 {
     let jobs: usize = option(args, "--jobs")
         .and_then(|value| value.parse().ok())
         .unwrap_or_else(|| std::thread::available_parallelism().map_or(1, |n| n.get()));
+    assert!(jobs > 0, "verdicts needs at least one worker");
     let source = option(args, "--source").unwrap_or_else(|| "generated".to_owned());
     if matches!(source.as_str(), "corpus" | "mixed") {
         mutate::corpus();
@@ -352,6 +353,12 @@ type Watch = Arc<Mutex<Vec<Option<(u64, Instant)>>>>;
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn verdicts_reject_zero_workers() {
+        let args = ["--count", "1", "--jobs", "0"].map(str::to_owned);
+        assert!(std::panic::catch_unwind(|| super::verdicts(&args, super::case_for)).is_err());
+    }
+
     #[test]
     fn verdicts_fail_when_generating_a_case_panics() {
         let args = ["--count", "1", "--jobs", "1"].map(str::to_owned);
