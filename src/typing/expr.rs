@@ -300,7 +300,8 @@ impl<'a> Checker<'a> {
         if self.types.work(alternatives.len()) {
             return Ty::ERROR;
         }
-        let mut enums = Vec::new();
+        let mut enum_hint = None;
+        let mut enum_count = 0_usize;
         for &alternative in &alternatives {
             match &*self.types.shared(alternative) {
                 Kind::SymbolLit(literal) if &**literal == name => return alternative,
@@ -315,12 +316,13 @@ impl<'a> Checker<'a> {
                         }
                         return alternative;
                     }
-                    enums.push(*id);
+                    enum_hint = Some(*id);
+                    enum_count += 1;
                 }
                 _ => (),
             }
         }
-        if let [id] = enums[..] {
+        if let (1, Some(id)) = (enum_count, enum_hint) {
             let decl = std::sync::Arc::clone(&self.program.enums[id as usize]);
             if self.types.work(decl.symbols.len()) || self.over_budget() {
                 return Ty::ERROR;

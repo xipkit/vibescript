@@ -1063,6 +1063,43 @@ mod budget_tests {
     use crate::{CancellationToken, compilation::Budget};
 
     #[test]
+    fn enum_hints_keep_single_and_multiple_candidate_diagnostics() {
+        for count in [1, 2, 1_024] {
+            let enums: String = (0..count)
+                .map(|i| format!("enum E{i}\nValue\nend\n"))
+                .collect();
+            let names: Vec<_> = (0..count).map(|i| format!("E{i}")).collect();
+            let prefix = format!(
+                "{enums}def f(x: {}) -> bool\ntrue\nend\n",
+                names.join(" | ")
+            );
+            let accepted = checked(&format!("{prefix}f(:value)\n"), Budget::default());
+            assert!(!accepted.stopped);
+            assert!(
+                !accepted.diagnostics.iter().any(|d| d.is_error()),
+                "{:?}",
+                accepted.diagnostics
+            );
+            let rejected = checked(&format!("{prefix}f(:missing)\n"), Budget::default());
+            assert!(!rejected.stopped);
+            let errors: Vec<_> = rejected
+                .diagnostics
+                .iter()
+                .filter(|d| d.is_error())
+                .collect();
+            assert_eq!(errors.len(), 1, "{:?}", errors);
+            assert_eq!(
+                errors[0].code,
+                if count == 1 {
+                    crate::diagnostic::Code::UNKNOWN_ENUM_MEMBER
+                } else {
+                    crate::diagnostic::Code::TYPE_MISMATCH
+                }
+            );
+        }
+    }
+
+    #[test]
     fn maximum_width_class_equality_keeps_boolean_results_and_obeys_memory_limits() {
         let classes: String = (0..1_024).map(|i| format!("class C{i}\nend\n")).collect();
         let names: Vec<_> = (0..1_024).map(|i| format!("C{i}")).collect();
