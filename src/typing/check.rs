@@ -1957,7 +1957,12 @@ impl<'a> Checker<'a> {
         mut context: Context,
         ends: bool,
     ) -> Vec<Ty> {
+        // Popping the context removed its values from the frame's account;
+        // they still live beside the branch tables built by the join.
         let exits = std::mem::take(context.exits());
+        let Some(held) = self.hold(super::meter::vec(exits.values.as_vec())) else {
+            return exits.values.into_vec();
+        };
         let end = self.frame.flow.rollback(before);
         let mut branches = exits.breaks;
         if ends {
@@ -1967,9 +1972,11 @@ impl<'a> Checker<'a> {
             // joins none of them.
             let kept = tables.keep(super::counted::Owned::owned(&end));
             let Ok(mut kept) = kept else {
+                self.release(held);
                 return exits.values.into_vec();
             };
             if branches.reserve(tables, exits.nexts.len() + 2).is_err() {
+                self.release(held);
                 return exits.values.into_vec();
             }
             for branch in exits.nexts {
@@ -1982,6 +1989,7 @@ impl<'a> Checker<'a> {
             });
         }
         self.join(branches.into_vec());
+        self.release(held);
         exits.values.into_vec()
     }
 
