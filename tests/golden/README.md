@@ -450,3 +450,14 @@ using the rewritten sources preserve all stable counters; replay `call10334`
 reads the clock and retains its original record. Existing path and quota drift
 also occurs in the baseline. See `.cache/name-suffix/counter-rewrite-audit.json`
 and `counter-audit.json`.
+
+Counter log addendum: keeping the temporary host registry charged through the
+required-file check adds 16 peak bytes in 16 registered host-signature modes.
+`module_default` rises from 45,837 to 45,853 and `module_enum` from 29,692 to
+29,708; compatibility `class_shadow` rises from 45,839 to 45,855 and
+`enum_shadow` from 29,694 to 29,710. Paired runs of 197,907 engine cases keep
+every stable outcome, step count and retained-byte count unchanged. Only the
+16-byte increases were recorded, preserving the checkout path's existing
+two-byte offset. Clock and UUID observations keep their original records;
+`call10334` can also retain one more byte when its clock strings have another
+fractional digit.
