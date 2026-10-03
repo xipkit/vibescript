@@ -527,7 +527,11 @@ impl<'a> Checker<'a> {
                 let Some(bases) = self.types.bases(called) else {
                     return Ty::ERROR;
                 };
-                let mut receiver_type = ReceiverType::new(self.types.display(called), bases);
+                let display = self.types.display(called);
+                if self.halted() {
+                    return Ty::ERROR;
+                }
+                let mut receiver_type = ReceiverType::new(display, bases.into_vec());
                 receiver_type.user_method = self.types.members(called).iter().all(|&ty| match self
                     .types
                     .kind(ty)
@@ -1479,7 +1483,11 @@ impl<'a> Checker<'a> {
             let Some(bases) = self.types.bases(ty) else {
                 return Ty::ERROR;
             };
-            let receiver_type = ReceiverType::new(self.types.display(ty), bases);
+            let display = self.types.display(ty);
+            if self.halted() {
+                return Ty::ERROR;
+            }
+            let receiver_type = ReceiverType::new(display, bases.into_vec());
             // A check that counting it stops keeps no more receivers; one
             // it keeps is counted, with what it owns, as it is kept, and by
             // the measures after.

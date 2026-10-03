@@ -669,6 +669,7 @@ fn adversarial() -> Vec<(String, String)> {
         "an enum-symbol mismatch of long matching names",
         "an unknown member of a long named enum",
         "checked arguments copying long purposes",
+        "member calls on a union of long named classes",
     ];
     for (name, shape) in shapes() {
         if reviewed.contains(&name) {
@@ -959,6 +960,22 @@ fn listed(n: usize, item: impl Fn(usize) -> String, separator: &str) -> String {
 /// required files, construction checks and diagnostics.
 fn shapes() -> Vec<Shape> {
     vec![
+        ("member calls on a union of long named classes", |n| {
+            let names: Vec<_> = (0..16)
+                .map(|i| format!("C{i}{}", "a".repeat(n * 4)))
+                .collect();
+            let classes: String = names
+                .iter()
+                .map(|name| format!("class {name}\n  property value: int = 0\nend\n"))
+                .collect();
+            (
+                Vec::new(),
+                format!(
+                    "{classes}def f(x: {}) -> int\n  x.value = 1\n  x.value\nend\np(1)\n",
+                    names.join(" | ")
+                ),
+            )
+        }),
         // Each enum takes its places in three tables once it fits the
         // budget, and a check that stops declares no more.
         ("enums of a member each", |n| {

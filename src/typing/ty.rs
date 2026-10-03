@@ -1679,7 +1679,7 @@ impl Types {
     /// list counted while it is built, each name a display spells counted
     /// before it is spelled, and in order through the meter; `None` once
     /// the budget refuses them, which stops the check.
-    pub fn bases(&self, ty: Ty) -> Option<Vec<String>> {
+    pub fn bases(&self, ty: Ty) -> Option<ScratchVec<String>> {
         let members = self.members(ty);
         if members.len() >= 64 && (self.charge((members.len() / 64) as u64) || self.poll()) {
             return None;
@@ -1704,7 +1704,7 @@ impl Types {
             return None;
         }
         bases.dedup();
-        Some(bases.into_vec())
+        Some(bases)
     }
 
     /// The one base of all `ty`'s alternatives when it is one the runtime
@@ -1926,7 +1926,7 @@ mod tests {
             (symbol, vec![":name"], None),
         ];
         for (ty, bases, base) in cases {
-            assert_eq!(types.bases(ty).unwrap(), bases, "{}", types.display(ty));
+            assert_eq!(&*types.bases(ty).unwrap(), bases, "{}", types.display(ty));
             assert_eq!(types.direct_base(ty), base, "{}", types.display(ty));
         }
     }
