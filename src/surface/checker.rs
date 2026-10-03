@@ -12,8 +12,9 @@ use std::ops::{Deref, DerefMut};
 /// How deeply nested statements and expressions may be before the check
 /// moves to a thread with a larger stack. The rules' parser and walk
 /// recurse once per level, taking about 2.5 KiB of stack per level in an
-/// optimized build and 25 KiB in a debug one.
-const NESTING: usize = 48;
+/// optimized build and 25 KiB in a debug one. The tests walk to the same
+/// limit the compiler does.
+pub(super) const NESTING: usize = 48;
 
 /// The stack for sources nested more deeply than [`NESTING`].
 #[cfg(not(target_os = "wasi"))]
