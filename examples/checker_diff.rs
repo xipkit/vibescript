@@ -131,6 +131,14 @@ fn option(args: &[String], name: &str) -> Option<String> {
         .cloned()
 }
 
+/// Claims a seed below `end`, leaving an exhausted counter unchanged.
+fn next_seed(next: &AtomicU64, end: u64) -> Option<u64> {
+    next.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |seed| {
+        (seed < end).then(|| seed + 1)
+    })
+    .ok()
+}
+
 /// Prints how a build takes the programs of seeds N to N+M-1, a line a
 /// seed in the order they finish: the seed, then `rejected CODE`, or how
 /// running it with every check kept ended: `ran`, `failed`, `limited` or
@@ -171,11 +179,7 @@ fn verdicts(args: &[String], make_case: fn(u64, &str) -> Case) -> i32 {
             .spawn(move || {
                 let root = scratch_root(worker + 1);
                 let mut scratch = Scratch::new(&root);
-                loop {
-                    let seed = next.fetch_add(1, Ordering::Relaxed);
-                    if seed >= end {
-                        break;
-                    }
+                while let Some(seed) = next_seed(&next, end) {
                     current.lock().unwrap()[worker] = Some((seed, Instant::now()));
                     let case = make_case(seed, &source);
                     let outcome = harness::outcome(&case, &mut scratch);
@@ -356,6 +360,23 @@ type Watch = Arc<Mutex<Vec<Option<(u64, Instant)>>>>;
 #[cfg(test)]
 mod tests {
     #[test]
+    fn seed_claims_do_not_wrap_at_the_end_of_u64() {
+        let next = super::AtomicU64::new(u64::MAX - 1);
+        std::thread::scope(|scope| {
+            let claims: Vec<_> = (0..8)
+                .map(|_| scope.spawn(|| super::next_seed(&next, u64::MAX)))
+                .collect();
+            let seeds: Vec<_> = claims
+                .into_iter()
+                .filter_map(|worker| worker.join().unwrap())
+                .collect();
+            assert_eq!(seeds, [u64::MAX - 1]);
+        });
+        assert_eq!(super::next_seed(&next, u64::MAX), None);
+        assert_eq!(next.load(super::Ordering::Relaxed), u64::MAX);
+    }
+
+    #[test]
     fn verdicts_reject_zero_workers() {
         let args = ["--count", "1", "--jobs", "0"].map(str::to_owned);
         assert!(std::panic::catch_unwind(|| super::verdicts(&args, super::case_for)).is_err());
@@ -436,9 +457,11 @@ fn batch(args: &[String]) -> i32 {
         // Load the corpus once, before the workers need it.
         mutate::corpus();
     }
+    let end = from
+        .checked_add(count)
+        .expect("batch seed range overflows u64");
     std::fs::create_dir_all(&out).expect("create the findings directory");
     let next = Arc::new(AtomicU64::new(from));
-    let end = from + count;
     let totals = Arc::new(Mutex::new(Totals::default()));
     let current: Watch = Arc::new(Mutex::new(vec![None; jobs]));
     let started = Instant::now();
@@ -454,11 +477,7 @@ fn batch(args: &[String]) -> i32 {
             .spawn(move || {
                 let root = scratch_root(worker + 1);
                 let mut scratch = Scratch::new(&root);
-                loop {
-                    let seed = next.fetch_add(1, Ordering::Relaxed);
-                    if seed >= end {
-                        break;
-                    }
+                while let Some(seed) = next_seed(&next, end) {
                     current.lock().unwrap()[worker] = Some((seed, Instant::now()));
                     let case = case_for(seed, &source);
                     let verdict = harness::judge(&case, &mut scratch);
