@@ -20,7 +20,7 @@ To check or re-record only affected cases, pass `--cases FILE`, where the JSON f
 | `compatibility` | 219 | the selected differences from Go: `docs/compatibility-cases.json`, the generators' policy cases and the sources in `docs/*-differences.json` and `docs/computed-call-gaps.json` |
 | `replay` | 56,827 | the calls and compiles Go v0.70.0's test suite made, in `replay/` |
 | `parse` | 35,965 | the site and upstream programs with a token deleted, duplicated or inserted, or cut after a line, as `scripts/mutations.py` makes them; parsed only |
-| `cli` | 2,859 | `vibes` help and flag errors, `run`, `analyze` and `fmt` on each program in `tests/site`, `tests/upstream` and `examples`, `fmt` on generated whitespace files and whole trees, and `test` on a small suite |
+| `cli` | 2,867 | `vibes` help and flag errors, the bundled language guide, `run`, `analyze` and `fmt` on each program in `tests/site`, `tests/upstream` and `examples`, `fmt` on generated whitespace files and whole trees, and `test` on a small suite |
 | `lsp` | 216 sessions, 291,062 messages | `vibes lsp` over `tests/site`, `tests/upstream/examples` and `tests/lsp`, in the sessions of `scripts/lsp_sessions.py`, plus its malformed-message session |
 
 ## Format
@@ -50,6 +50,10 @@ Every source in these corpora is written in the language of [ADR-007](../../docs
 The `parse` corpus records only whether each source parses: its token mutations deliberately produce malformed or partially valid programs, so a case records `compiled` when its source parses and otherwise the syntax error `Engine::compile` reports, whatever it would report about types. Static rejections belong in the semantic corpora, where their first diagnostic is recorded explicitly.
 
 ## History
+
+The `guide` command adds eight CLI records for its Markdown output, help and
+argument errors. Only the 23 existing records containing root help change, to
+include its command entry; all other observations and counters are preserved.
 
 The corpora were validated against Go v0.70.0 until the Rust implementation became the reference, and moved to the static language when static types became the only mode (2026-09-26). The migration rewrote their sources, turned the cases that tested removed features into static rejections and recorded each non-mechanical decision, one per case, in `migration-decisions.jsonl`; that file and the migration tooling are in the repository's history. Until the ADR-004 escape hatch and the runtime support for removed spellings were deleted, a static rejection's golden kept the outcome it had in the ADR-004 language; those goldens now record the compile error, and 611 more cases whose removed spellings the checker had missed became static rejections. Accounting counters were not re-recorded with either change; they were brought up to date afterwards, as the counter log records.
 
