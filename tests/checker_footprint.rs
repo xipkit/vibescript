@@ -667,6 +667,7 @@ fn adversarial() -> Vec<(String, String)> {
         "a hash literal with a long non-UTF-8 key",
         "an incomplete shape with a long non-UTF-8 key",
         "an enum-symbol mismatch of long matching names",
+        "an unknown member of a long named enum",
     ];
     for (name, shape) in shapes() {
         if reviewed.contains(&name) {
@@ -968,6 +969,13 @@ fn shapes() -> Vec<Shape> {
         ("an enum with a very long declaration name", |n| {
             let name = "E".repeat(n * 64);
             (Vec::new(), format!("enum {name}\n  A\nend\np(1)\n"))
+        }),
+        ("an unknown member of a long named enum", |n| {
+            let name = format!("E{}", "a".repeat(n * 64));
+            (
+                Vec::new(),
+                format!("enum {name}\n  A\nend\n{name}::Missing\n"),
+            )
         }),
         ("an enum with a very long normalized member", |n| {
             let member = "Aa".repeat(n * 64);

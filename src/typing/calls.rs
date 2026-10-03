@@ -1407,11 +1407,11 @@ impl<'a> Checker<'a> {
                 self.dispatch(&call, receiver, ty)
             }
             Kind::EnumType(id) if args.is_none() => {
-                let decl = &self.program.enums[id as usize];
+                let decl = std::sync::Arc::clone(&self.program.enums[id as usize]);
                 if decl.member(name).is_some() {
                     return self.types.intern(Kind::EnumValue(id));
                 }
-                let enum_name = decl.name.clone();
+                let enum_name = &decl.name;
                 self.report(Diagnostic::error(
                     Code::UNKNOWN_ENUM_MEMBER,
                     call.name_span,
