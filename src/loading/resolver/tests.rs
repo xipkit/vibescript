@@ -28,6 +28,25 @@ fn candidate(resolver: &Resolver, ctx: &mut CallContext, name: &[u8]) -> Candida
 }
 
 #[test]
+fn canonical_root_paths_resolve_nested_unicode_modules_with_reserved_storage() {
+    let directory = Directory::new();
+    directory.write("root space/pkg/café.vibe", b"unicode module");
+    let root = directory.0.join("root space");
+    let resolver = Resolver::new(std::slice::from_ref(&root), &[], &[], 100).unwrap();
+    let mut ctx = CallContext::new(CallOptions::default());
+    let module = candidate(&resolver, &mut ctx, "pkg/café".as_bytes());
+    assert_eq!(
+        module.path.strip_prefix(canonical(&root)).unwrap(),
+        Path::new("pkg").join("café.vibe")
+    );
+    let source = resolver.read(&mut ctx, &module).unwrap().unwrap();
+    assert_eq!(source.contents.as_bytes().unwrap(), b"unicode module");
+    drop(source);
+    drop(module);
+    assert_eq!(ctx.stats().retained_memory_bytes, 0);
+}
+
+#[test]
 fn search_preserves_root_precedence_and_falls_through_absent_or_misspelled_files() {
     let directory = Directory::new();
     directory.write("first/choice.vibe", b"first");
@@ -142,7 +161,10 @@ fn receiver_policy_is_applied_to_the_normalized_origin_relative_name_before_io()
         .unwrap();
     assert_eq!(source.contents.as_bytes().unwrap(), b"shared");
     drop(source);
+    #[cfg(not(windows))]
     fs::rename(directory.0.join("root"), directory.0.join("removed-root")).unwrap();
+    #[cfg(windows)]
+    fs::remove_file(directory.0.join("root/shared.vibe")).unwrap();
     let error = denied
         .candidates(&mut ctx, b"../shared", Some(&origin))
         .err()
@@ -218,6 +240,8 @@ fn candidate_creation_does_not_access_files_and_disappearing_sources_are_missing
     let first = candidate(&resolver, &mut ctx, b"tool");
     fs::remove_file(path).unwrap();
     assert!(resolver.read(&mut ctx, &first).unwrap().is_none());
+    // Windows keeps the configured root open without delete sharing.
+    #[cfg(not(windows))]
     fs::rename(&root, directory.0.join("renamed")).unwrap();
     let later = candidate(&resolver, &mut ctx, b"dir/../tool");
     assert_eq!(first.origin(), later.origin());
