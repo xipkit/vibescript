@@ -28,6 +28,25 @@ fn candidate(resolver: &Resolver, ctx: &mut CallContext, name: &[u8]) -> Candida
 }
 
 #[test]
+fn canonical_root_paths_resolve_nested_unicode_modules_with_reserved_storage() {
+    let directory = Directory::new();
+    directory.write("root space/pkg/café.vibe", b"unicode module");
+    let root = directory.0.join("root space");
+    let resolver = Resolver::new(std::slice::from_ref(&root), &[], &[], 100).unwrap();
+    let mut ctx = CallContext::new(CallOptions::default());
+    let module = candidate(&resolver, &mut ctx, "pkg/café".as_bytes());
+    assert_eq!(
+        module.path.strip_prefix(canonical(&root)).unwrap(),
+        Path::new("pkg").join("café.vibe")
+    );
+    let source = resolver.read(&mut ctx, &module).unwrap().unwrap();
+    assert_eq!(source.contents.as_bytes().unwrap(), b"unicode module");
+    drop(source);
+    drop(module);
+    assert_eq!(ctx.stats().retained_memory_bytes, 0);
+}
+
+#[test]
 fn search_preserves_root_precedence_and_falls_through_absent_or_misspelled_files() {
     let directory = Directory::new();
     directory.write("first/choice.vibe", b"first");

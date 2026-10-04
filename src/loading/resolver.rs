@@ -5,7 +5,7 @@ use crate::{
 };
 use std::{
     borrow::Cow,
-    path::{Path, PathBuf},
+    path::{Component, MAIN_SEPARATOR_STR, Path, PathBuf},
     sync::Arc,
 };
 
@@ -235,8 +235,23 @@ impl Candidates<'_> {
         })?;
         let relative = native_path(bytes);
         let mut path = PathBuf::with_capacity(capacity);
-        path.push(root.path());
-        path.push(relative.as_ref());
+        // PathBuf::push rebuilds verbatim Windows paths in an unreserved
+        // buffer. Append normalized components into the reserved storage.
+        path.as_mut_os_string().push(root.path());
+        for part in relative.components() {
+            let Component::Normal(name) = part else {
+                return Err(files::escape());
+            };
+            if path
+                .as_os_str()
+                .as_encoded_bytes()
+                .last()
+                .is_some_and(|&byte| !std::path::is_separator(char::from(byte)))
+            {
+                path.as_mut_os_string().push(MAIN_SEPARATOR_STR);
+            }
+            path.as_mut_os_string().push(name);
+        }
         if path.capacity() > capacity {
             return ctx.fail(ErrorKind::Memory, "module path exceeded reserved storage");
         }

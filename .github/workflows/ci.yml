@@ -81,6 +81,22 @@ jobs:
         if: ${{ !cancelled() }}
         run: ./scripts/cargo test --locked --workspace --doc --all-features
 
+  windows-modules:
+    name: Windows module loading
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up Rust and Cargo
+        uses: ./.github/actions/setup
+        with:
+          cache-key: windows-modules
+      - name: Test filesystem module loading
+        run: './scripts/cargo test --locked -p vibescript --lib --all-features loading::'
+
   golden:
     name: Golden (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
