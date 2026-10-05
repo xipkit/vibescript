@@ -186,9 +186,12 @@ impl Walk<'_> {
                 }
                 let relative = if target.is_absolute() {
                     ctx.charge(self.root.path().as_os_str().as_encoded_bytes().len() as u64)?;
-                    let target = target
-                        .strip_prefix(self.root.path())
-                        .map_err(|_| escape())?;
+                    let target = platform::absolute_target(
+                        ctx,
+                        self.root.0.handle.as_ref().unwrap(),
+                        self.root.path(),
+                        &target,
+                    )?;
                     self.directories.data.clear();
                     target
                 } else {

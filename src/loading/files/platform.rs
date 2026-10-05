@@ -14,6 +14,34 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[cfg(windows)]
+mod windows;
+
+#[cfg(target_vendor = "apple")]
+mod apple;
+
+pub(super) fn absolute_target<'a>(
+    ctx: &mut CallContext,
+    root: &Dir,
+    root_path: &Path,
+    target: &'a Path,
+) -> Result<&'a Path> {
+    #[cfg(target_vendor = "apple")]
+    return apple::absolute_target(ctx, root, root_path, target);
+    #[cfg(not(target_vendor = "apple"))]
+    {
+        #[cfg(windows)]
+        let relative = windows::absolute_target(root, root_path, target);
+        #[cfg(not(windows))]
+        let relative = {
+            let _ = root;
+            target.strip_prefix(root_path).map_err(|_| ())
+        };
+        ctx.checkpoint()?;
+        relative.map_err(|_| super::root::escape())
+    }
+}
+
 #[cfg(unix)]
 pub(super) const PATH_WORKSPACE: usize = libc::PATH_MAX as usize;
 // wasi-libc's PATH_MAX, which the libc crate does not export for WASI.
