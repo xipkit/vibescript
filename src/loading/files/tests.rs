@@ -339,6 +339,190 @@ fn symlink_checks_preserve_alias_names_and_reject_outside_missing_targets() {
     assert_eq!(ctx.stats().retained_memory_bytes, 0);
 }
 
+#[cfg(windows)]
+#[test]
+fn absolute_symlinks_accept_physical_casing_and_preserve_logical_names() {
+    use crate::{Engine, ModuleConfig};
+    use std::os::windows::fs::{symlink_dir, symlink_file};
+
+    let directory = Directory::new();
+    directory.write(
+        "Mixed É Root/Mixed Nested/helpers.vibe",
+        b"def answer -> int\n  42\nend\n",
+    );
+    let path = directory.0.join("Mixed É Root");
+    let nested = path.join("Mixed Nested");
+    let root = Root::new(&path).unwrap();
+    for uppercase in [false, true] {
+        let spelling = |path: &Path| {
+            let text = path.to_str().unwrap();
+            std::path::PathBuf::from(if uppercase {
+                text.to_uppercase()
+            } else {
+                text.to_lowercase()
+            })
+        };
+        symlink_file(
+            spelling(&nested.join("helpers.vibe")),
+            path.join("Alias.vibe"),
+        )
+        .unwrap();
+        symlink_dir(spelling(&nested), path.join("directory_alias")).unwrap();
+        let mut ctx = CallContext::new(CallOptions::default());
+        assert!(found(&mut ctx, &root, "Alias.vibe"));
+        assert!(found(&mut ctx, &root, "directory_alias/helpers.vibe"));
+        assert!(!found(&mut ctx, &root, "alias.vibe"));
+        assert!(!found(&mut ctx, &root, "Directory_alias/helpers.vibe"));
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+
+        let mut engine = Engine::new();
+        engine
+            .set_module_config(ModuleConfig {
+                paths: vec![path.clone()],
+                ..ModuleConfig::default()
+            })
+            .unwrap();
+        let script = engine.compile("def run -> int\n  file = require(\"Alias\")\n  directory = require(\"directory_alias/helpers\")\n  file.answer + directory.answer\nend\n").unwrap();
+        assert_eq!(
+            script
+                .call(
+                    "run",
+                    &[],
+                    CallOptions {
+                        allow_require: true,
+                        ..CallOptions::default()
+                    }
+                )
+                .unwrap()
+                .value
+                .as_int(),
+            Some(84)
+        );
+        fs::remove_file(path.join("Alias.vibe")).unwrap();
+        fs::remove_dir(path.join("directory_alias")).unwrap();
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn absolute_symlinks_reject_outside_roots_and_reparse_prefixes() {
+    use std::os::windows::fs::{symlink_dir, symlink_file};
+
+    let directory = Directory::new();
+    directory.write("root/inside.vibe", b"inside");
+    directory.write("outside/secret.vibe", b"outside");
+    let path = directory.0.join("root");
+    symlink_dir(directory.0.join("outside"), path.join("outside")).unwrap();
+    symlink_file(
+        directory.0.join("outside/secret.vibe"),
+        path.join("escape.vibe"),
+    )
+    .unwrap();
+    symlink_file(
+        directory.0.join("outside/absent.vibe"),
+        path.join("missing.vibe"),
+    )
+    .unwrap();
+    symlink_dir(&path, directory.0.join("root_alias")).unwrap();
+    symlink_file(
+        directory.0.join("root_alias/inside.vibe"),
+        path.join("reparse.vibe"),
+    )
+    .unwrap();
+    let root = Root::new(&path).unwrap();
+    let mut ctx = CallContext::new(CallOptions::default());
+    for name in [
+        "outside/secret.vibe",
+        "escape.vibe",
+        "missing.vibe",
+        "reparse.vibe",
+    ] {
+        let error = root.open(&mut ctx, Path::new(name)).unwrap_err();
+        assert!(
+            error.message.contains("escapes module root"),
+            "{name}: {error}"
+        );
+        assert!(!ctx.exhausted());
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+    assert!(found(&mut ctx, &root, "inside.vibe"));
+}
+
+#[cfg(target_vendor = "apple")]
+#[test]
+fn absolute_symlinks_accept_macos_ancestor_aliases_and_physical_casing() {
+    use crate::{Engine, ModuleConfig};
+    use std::os::unix::fs::symlink;
+
+    let directory = Directory::new();
+    directory.write(
+        "Mixed É Root/Nested/helpers.vibe",
+        b"def answer -> int\n  42\nend\n",
+    );
+    directory.write("outside/helpers.vibe", b"outside");
+    let path = directory.0.join("Mixed É Root");
+    let canonical = fs::canonicalize(&path).unwrap();
+    let root = Root::new(&path).unwrap();
+    let mut targets = vec![canonical.join("Nested/helpers.vibe")];
+    if let Ok(relative) = canonical.strip_prefix("/private/tmp") {
+        targets.push(Path::new("/tmp").join(relative).join("Nested/helpers.vibe"));
+    }
+    let different_case = canonical
+        .parent()
+        .unwrap()
+        .join("mIXED é rOOT")
+        .join("nESTED/helpers.vibe");
+    if different_case.exists() {
+        targets.push(different_case);
+    }
+    for target in targets {
+        symlink(target, path.join("Alias.vibe")).unwrap();
+        let mut ctx = CallContext::new(CallOptions::default());
+        assert!(found(&mut ctx, &root, "Alias.vibe"));
+        assert!(!found(&mut ctx, &root, "alias.vibe"));
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        let mut engine = Engine::new();
+        engine
+            .set_module_config(ModuleConfig {
+                paths: vec![path.clone()],
+                ..ModuleConfig::default()
+            })
+            .unwrap();
+        let script = engine
+            .compile("def run -> int\n  file = require(\"Alias\")\n  file.answer\nend\n")
+            .unwrap();
+        assert_eq!(
+            script
+                .call(
+                    "run",
+                    &[],
+                    CallOptions {
+                        allow_require: true,
+                        ..CallOptions::default()
+                    }
+                )
+                .unwrap()
+                .value
+                .as_int(),
+            Some(42)
+        );
+        fs::remove_file(path.join("Alias.vibe")).unwrap();
+    }
+    symlink(
+        directory.0.join("outside/helpers.vibe"),
+        path.join("Escape.vibe"),
+    )
+    .unwrap();
+    let mut ctx = CallContext::new(CallOptions::default());
+    assert!(
+        root.open(&mut ctx, Path::new("Escape.vibe"))
+            .unwrap_err()
+            .message
+            .contains("escapes module root")
+    );
+    assert_eq!(ctx.stats().retained_memory_bytes, 0);
+}
+
 #[cfg(unix)]
 #[test]
 fn non_regular_sources_use_nonblocking_close_on_exec_descriptors() {
