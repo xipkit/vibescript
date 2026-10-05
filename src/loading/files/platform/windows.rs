@@ -64,5 +64,35 @@ fn identity(handle: &impl AsRawHandle) -> io::Result<(u64, [u8; 16])> {
     }
     // SAFETY: the successful FileIdInfo call initialized the complete structure.
     let info = unsafe { info.assume_init() };
-    Ok((info.VolumeSerialNumber, info.FileId.Identifier))
+    checked_identity(info.VolumeSerialNumber, info.FileId.Identifier)
+}
+
+fn checked_identity(volume: u64, id: [u8; 16]) -> io::Result<(u64, [u8; 16])> {
+    if id == [0; 16] || id == [u8::MAX; 16] {
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "module directory has no unique file identity",
+        ));
+    }
+    Ok((volume, id))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unsupported_and_nonunique_file_ids_cannot_identify_a_directory() {
+        for id in [[0; 16], [u8::MAX; 16]] {
+            assert_eq!(
+                checked_identity(42, id).unwrap_err().kind(),
+                io::ErrorKind::Unsupported
+            );
+        }
+        assert_eq!(checked_identity(42, [7; 16]).unwrap(), (42, [7; 16]));
+        assert_ne!(
+            checked_identity(42, [7; 16]).unwrap(),
+            checked_identity(43, [7; 16]).unwrap()
+        );
+    }
 }
