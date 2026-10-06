@@ -448,9 +448,9 @@ fn absolute_symlinks_reject_outside_roots_and_reparse_prefixes() {
     assert!(found(&mut ctx, &root, "inside.vibe"));
 }
 
-#[cfg(target_vendor = "apple")]
+#[cfg(unix)]
 #[test]
-fn absolute_symlinks_accept_macos_ancestor_aliases_and_physical_casing() {
+fn absolute_symlinks_accept_unix_root_identity_and_physical_casing() {
     use crate::{Engine, ModuleConfig};
     use std::os::unix::fs::symlink;
 
@@ -464,6 +464,9 @@ fn absolute_symlinks_accept_macos_ancestor_aliases_and_physical_casing() {
     let canonical = fs::canonicalize(&path).unwrap();
     let root = Root::new(&path).unwrap();
     let mut targets = vec![canonical.join("Nested/helpers.vibe")];
+    let alias = directory.0.join("root alias");
+    symlink(&path, &alias).unwrap();
+    targets.push(alias.join("Nested/helpers.vibe"));
     if let Ok(relative) = canonical.strip_prefix("/private/tmp") {
         targets.push(Path::new("/tmp").join(relative).join("Nested/helpers.vibe"));
     }
