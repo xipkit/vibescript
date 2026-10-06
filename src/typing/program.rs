@@ -795,11 +795,16 @@ impl<'a> Checker<'a> {
                     }
                 }
                 // A replaced accessor must not erase a still-active generated setter's field type.
-                let storage = if replaced {
+                let storage = if replaced && existing.is_none() {
                     let Some(storage) = self.property_storage(ns, name) else {
                         return;
                     };
-                    storage
+                    // Preserve declaration-order diagnostics for incompatible accessor types.
+                    if self.types.assignable(storage, ty) {
+                        storage
+                    } else {
+                        ty
+                    }
                 } else {
                     ty
                 };
