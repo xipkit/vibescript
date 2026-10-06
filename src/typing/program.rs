@@ -755,21 +755,6 @@ impl<'a> Checker<'a> {
                     sig.result
                 }
                 .unwrap_or(Ty::ANY);
-                // Runtime storage uses the winning generated setter before the getter.
-                let Some(storage) = self.property_storage(ns, name) else {
-                    return;
-                };
-                if !self.declare_ivar(
-                    ns,
-                    name,
-                    Ivar {
-                        ty: storage,
-                        default: false,
-                    },
-                    false,
-                ) {
-                    return;
-                }
                 // A getter's result must hold the variable's values, and a
                 // setter's parameter must be one of them, whichever
                 // declaration came first.
@@ -808,6 +793,26 @@ impl<'a> Checker<'a> {
                             .with_types(declared_text, found),
                         );
                     }
+                }
+                // A replaced accessor must not erase a still-active generated setter's field type.
+                let storage = if replaced {
+                    let Some(storage) = self.property_storage(ns, name) else {
+                        return;
+                    };
+                    storage
+                } else {
+                    ty
+                };
+                if !self.declare_ivar(
+                    ns,
+                    name,
+                    Ivar {
+                        ty: storage,
+                        default: false,
+                    },
+                    false,
+                ) {
+                    return;
                 }
             }
         }
