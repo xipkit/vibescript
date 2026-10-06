@@ -17,8 +17,8 @@ use std::{
 #[cfg(windows)]
 mod windows;
 
-#[cfg(target_vendor = "apple")]
-mod apple;
+#[cfg(all(unix, not(target_os = "wasi")))]
+mod unix;
 
 pub(super) fn absolute_target<'a>(
     ctx: &mut CallContext,
@@ -26,9 +26,9 @@ pub(super) fn absolute_target<'a>(
     root_path: &Path,
     target: &'a Path,
 ) -> Result<&'a Path> {
-    #[cfg(target_vendor = "apple")]
-    return apple::absolute_target(ctx, root, root_path, target);
-    #[cfg(not(target_vendor = "apple"))]
+    #[cfg(all(unix, not(target_os = "wasi")))]
+    return unix::absolute_target(ctx, root, root_path, target);
+    #[cfg(not(all(unix, not(target_os = "wasi"))))]
     {
         #[cfg(windows)]
         let relative = windows::absolute_target(root, root_path, target);

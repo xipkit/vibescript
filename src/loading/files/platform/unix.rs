@@ -19,14 +19,14 @@ pub(super) fn absolute_target<'a>(
     let retained = root.dir_metadata();
     ctx.checkpoint()?;
     let retained = retained.map_err(|_| escape())?;
-    // macOS may resolve casing and ancestor aliases such as /tmp differently
-    // from the canonical root spelling. Query identity without reading content;
+    // Unix mount aliases and macOS casing can differ from the root spelling.
+    // Query directory identity without reading content;
     // subsequent component opens still use the retained capability directory.
     for prefix in target.ancestors() {
         ctx.charge(prefix.as_os_str().as_encoded_bytes().len() as u64 + 1)?;
         let directory = OpenOptions::new()
             .read(true)
-            .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK)
+            .custom_flags(libc::O_DIRECTORY | libc::O_CLOEXEC | libc::O_NONBLOCK)
             .open(prefix);
         ctx.checkpoint()?;
         let Ok(directory) = directory else {
