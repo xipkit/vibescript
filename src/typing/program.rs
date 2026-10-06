@@ -750,11 +750,11 @@ impl<'a> Checker<'a> {
                 let id = self.program.namespaces[ns].methods[def.name.as_str()];
                 let sig = self.program.fns[id].sig.clone();
                 let ty = if *setter {
-                    sig.params.first().map(|p| p.ty)
+                    sig.params.first().map(|param| param.ty)
                 } else {
                     sig.result
-                };
-                let ty = ty.unwrap_or(Ty::ANY);
+                }
+                .unwrap_or(Ty::ANY);
                 // A getter's result must hold the variable's values, and a
                 // setter's parameter must be one of them, whichever
                 // declaration came first.
@@ -794,12 +794,67 @@ impl<'a> Checker<'a> {
                         );
                     }
                 }
-                if !self.declare_ivar(ns, name, Ivar { ty, default: false }, false) {
+                // A replaced accessor must not erase a still-active generated setter's field type.
+                let storage = if replaced && existing.is_none() {
+                    let Some(storage) = self.property_storage(ns, name) else {
+                        return;
+                    };
+                    // Preserve declaration-order diagnostics for incompatible accessor types.
+                    if self.types.assignable(storage, ty) {
+                        storage
+                    } else {
+                        ty
+                    }
+                } else {
+                    ty
+                };
+                if !self.declare_ivar(
+                    ns,
+                    name,
+                    Ivar {
+                        ty: storage,
+                        default: false,
+                    },
+                    false,
+                ) {
                     return;
                 }
             }
         }
         self.check_names(parsed);
+    }
+
+    fn property_storage(&self, ns: usize, name: &str) -> Option<Ty> {
+        let mut setter_name = ScratchVec::new(&self.meter);
+        setter_name.extend_from_slice(name.as_bytes()).ok()?;
+        setter_name.push(b'=').ok()?;
+        let setter_name =
+            std::str::from_utf8(&setter_name).expect("source name followed by equals");
+        let methods = &self.program.namespaces[ns].methods;
+        if let Some(&id) = methods.get(setter_name) {
+            let function = &self.program.fns[id];
+            if function.def.is_some_and(|def| {
+                def.accessor
+                    .as_ref()
+                    .is_some_and(|(field, setter)| field == name && *setter)
+            }) {
+                return Some(
+                    function
+                        .sig
+                        .params
+                        .first()
+                        .map(|param| param.ty)
+                        .unwrap_or(Ty::ANY),
+                );
+            }
+        }
+        // Custom setters have checked bodies; retain getter inference for their field reads.
+        Some(
+            methods
+                .get(name)
+                .and_then(|&id| self.program.fns[id].sig.result)
+                .unwrap_or(Ty::ANY),
+        )
     }
 
     /// Declares method `name` of namespace `ns`, a static one when

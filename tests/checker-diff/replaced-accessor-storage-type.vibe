@@ -1,0 +1,9 @@
+# expect: rejected V0101
+class C
+  property x: float
+  getter x: any
+  def initialize
+    @x = 7
+  end
+end
+p(C.new.x)

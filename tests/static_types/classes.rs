@@ -5,6 +5,21 @@ use super::support::{clean, codes, error, fixed, spanned};
 const POINT: &str = "class Point\n  property x: int\n  @label: string = \"p\"\n  @y: int\n  def initialize(x: int, y: int)\n    @x = x\n    @y = y\n  end\n  def sum -> int\n    @x + @y\n  end\n  def label -> string\n    @label\n  end\nend\n";
 
 #[test]
+fn replaced_accessors_use_the_runtime_storage_annotation() {
+    for source in [
+        "class C\nproperty x: float\ngetter x: any\ndef initialize; @x=7; end\nend\np(C.new.x)\n",
+        "class C\nproperty x: float\ndef x -> any; @x; end\ndef initialize; @x=7; end\nend\np(C.new.x)\n",
+    ] {
+        codes(source, &["V0101"]);
+        clean(&source.replace("@x=7", "@x=7.0"));
+    }
+    clean("class C\ngetter x: float\ngetter x: any\ndef initialize; @x=7; end\nend\np(C.new.x)\n");
+    clean(
+        "class C\nproperty x: int\nproperty x: string\ndef initialize; @x=\"new type\"; end\nend\np(C.new.x)\n",
+    );
+}
+
+#[test]
 fn classes_type_their_constructors_properties_and_methods() {
     clean(&format!(
         "{POINT}point = Point.new(1, 2)\ntotal: int = point.sum + point.x\npoint.x = 3\n"
