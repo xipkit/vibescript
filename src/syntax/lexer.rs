@@ -489,6 +489,9 @@ impl<'a, 'w> Lexer<'a, 'w> {
                         continue;
                     }
                     Err(error) if error.kind == crate::ErrorKind::Syntax && !interpolation => {
+                        if self.scan.is_some() {
+                            self.memo.charge(self.work, start, self.pos - start)?;
+                        }
                         let token = self.invalid(start, &error.message, Failure::Diagnostic)?;
                         out.push(
                             self.work,
@@ -1821,34 +1824,44 @@ mod tests {
         }
     }
 
+    fn assert_bounded_label_lookahead(source: &str) {
+        let mut context = CallContext::new(CallOptions {
+            limits: crate::Limits {
+                steps: Some((source.len() * 256) as u64),
+                ..crate::Limits::default()
+            },
+            ..CallOptions::default()
+        });
+        let work = Meter(RefCell::new(&mut context));
+        let tokens = lex(source, &work).unwrap();
+        assert!(tokens.iter().any(|lexeme| matches!(
+            &lexeme.token,
+            Token::Invalid(invalid) if invalid.message == super::super::TOO_DEEP
+        )));
+        drop(tokens);
+        assert_eq!(context.stats().retained_memory_bytes, 0);
+
+        for result in [
+            crate::tooling::tokens(source).map(|_| ()),
+            crate::tooling::outline(source).map(|_| ()),
+            crate::tooling::unreachable(source).map(|_| ()),
+        ] {
+            assert_eq!(result.unwrap_err().kind, crate::ErrorKind::Syntax);
+        }
+    }
+
     #[test]
     fn repeated_label_lookahead_is_bounded_without_a_caller_quota() {
         for (questions, labels) in [(1, 24), (32, 24), (32, 32)] {
             let source = format!("{}a b: ", "?".repeat(questions)).repeat(labels);
-            let mut context = CallContext::new(CallOptions {
-                limits: crate::Limits {
-                    steps: Some((source.len() * 256) as u64),
-                    ..crate::Limits::default()
-                },
-                ..CallOptions::default()
-            });
-            let work = Meter(RefCell::new(&mut context));
-            let tokens = lex(&source, &work).unwrap();
-            assert!(tokens.iter().any(|lexeme| matches!(
-                &lexeme.token,
-                Token::Invalid(invalid) if invalid.message == super::super::TOO_DEEP
-            )));
-            drop(tokens);
-            assert_eq!(context.stats().retained_memory_bytes, 0);
-
-            for result in [
-                crate::tooling::tokens(&source).map(|_| ()),
-                crate::tooling::outline(&source).map(|_| ()),
-                crate::tooling::unreachable(&source).map(|_| ()),
-            ] {
-                assert_eq!(result.unwrap_err().kind, crate::ErrorKind::Syntax);
-            }
+            assert_bounded_label_lookahead(&source);
         }
+    }
+
+    #[test]
+    fn label_lookahead_bounds_unterminated_block_comments() {
+        let source = format!("{}\n=begin\n{}", "? a b: ".repeat(24), "x".repeat(4096));
+        assert_bounded_label_lookahead(&source);
     }
 
     #[test]
