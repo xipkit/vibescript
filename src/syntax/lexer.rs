@@ -2,7 +2,7 @@ use crate::{
     Error, Result,
     compilation::{Boxed, Buffer, Bytes, Text, Work},
 };
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 #[derive(Clone, Copy, Debug, Eq)]
 pub(super) struct Word<'a>(&'a str);
@@ -290,7 +290,34 @@ impl Nesting {
 }
 
 /// Answers to Go's label-colon scans, by colon offset and ternary depth.
-type Memo = RefCell<Buffer<(usize, usize, bool)>>;
+struct Memo {
+    answers: RefCell<Buffer<(usize, usize, bool)>>,
+    remaining: Cell<usize>,
+}
+
+impl Memo {
+    fn new(bytes: usize) -> Self {
+        Self {
+            answers: RefCell::new(Buffer::new()),
+            remaining: Cell::new(bytes.saturating_mul(64)),
+        }
+    }
+
+    // Nested scans share a work bound even for unmetered editor tooling.
+    // A depth limit alone still allows repeated scans of the same suffix.
+    fn charge(&self, work: &dyn Work, offset: usize, amount: usize) -> Result<()> {
+        match self.remaining.get().checked_sub(amount) {
+            Some(remaining) => {
+                self.remaining.set(remaining);
+                Ok(())
+            }
+            None => {
+                self.remaining.set(0);
+                Err(Error::syntax(work, offset, super::TOO_DEEP))
+            }
+        }
+    }
+}
 
 struct Lexer<'a, 'w> {
     work: &'w dyn crate::compilation::Work,
@@ -315,7 +342,7 @@ pub(super) fn lex<'a>(
     if source.len() > super::MAX_SOURCE {
         return Err(Error::syntax(work, 0, "source exceeds 8 MiB"));
     }
-    let memo = RefCell::new(Buffer::new());
+    let memo = Memo::new(source.len());
     Lexer::new(
         source,
         0,
@@ -335,7 +362,7 @@ pub(super) fn modulo<'a>(
     depth: usize,
     work: &dyn crate::compilation::Work,
 ) -> Result<Buffer<Lexeme<'a>>> {
-    let memo = RefCell::new(Buffer::new());
+    let memo = Memo::new(source.len());
     let speculative = limit.saturating_sub(start.offset).saturating_mul(4);
     Lexer::new(source, start.offset, limit, depth, speculative, work, &memo)
         .tokens(start.end, start.line, false, true, None)
@@ -350,7 +377,7 @@ pub(super) fn resume<'a>(
     previous: Option<&Lexeme<'a>>,
     work: &dyn crate::compilation::Work,
 ) -> Result<Buffer<Lexeme<'a>>> {
-    let memo = RefCell::new(Buffer::new());
+    let memo = Memo::new(source.len());
     let speculative = limit.saturating_sub(start.offset).saturating_mul(4);
     Lexer::new(source, start.offset, limit, depth, speculative, work, &memo)
         .tokens(until, start.line, false, false, previous)
@@ -363,7 +390,7 @@ pub(super) fn regex<'a>(
     depth: usize,
     work: &dyn crate::compilation::Work,
 ) -> Result<Buffer<Lexeme<'a>>> {
-    let memo = RefCell::new(Buffer::new());
+    let memo = Memo::new(source.len());
     Lexer::new(source, start.offset, limit, depth, 0, work, &memo).tokens(
         start.offset + 1,
         start.line,
@@ -421,6 +448,9 @@ impl<'a, 'w> Lexer<'a, 'w> {
         while self.pos < until {
             self.work.charge(1)?;
             let start = self.pos;
+            if self.scan.is_some() {
+                self.memo.charge(self.work, start, 1)?;
+            }
             let mut i = start;
             if interpolation && s[i] == b'}' && braces == 0 && brackets == 0 && parens == 0 {
                 out.push(
@@ -446,10 +476,18 @@ impl<'a, 'w> Lexer<'a, 'w> {
                         self.work.charge(1)?;
                         self.pos += 1;
                     }
+                    if self.scan.is_some() {
+                        self.memo.charge(self.work, start, self.pos - start)?;
+                    }
                     continue;
                 }
                 b'=' if self.block_comment_starts(start) => match self.block_comment(&mut line) {
-                    Ok(()) => continue,
+                    Ok(()) => {
+                        if self.scan.is_some() {
+                            self.memo.charge(self.work, start, self.pos - start)?;
+                        }
+                        continue;
+                    }
                     Err(error) if error.kind == crate::ErrorKind::Syntax && !interpolation => {
                         let token = self.invalid(start, &error.message, Failure::Diagnostic)?;
                         out.push(
@@ -625,6 +663,9 @@ impl<'a, 'w> Lexer<'a, 'w> {
                 }
                 Err(error) => return Err(error),
             };
+            if self.scan.is_some() {
+                self.memo.charge(self.work, start, i - start)?;
+            }
             self.work.bytes(i - start)?;
             let start_line = line;
             line += s[start..i].iter().filter(|&&b| b == b'\n').count();
@@ -1182,7 +1223,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
         let outer = self.nesting.ternaries.len();
         let key = (start, outer);
         let found = {
-            let memo = self.memo.borrow();
+            let memo = self.memo.answers.borrow();
             memo.binary_search_by(|&(offset, depth, _)| (offset, depth).cmp(&key))
                 .map(|index| memo[index].2)
         };
@@ -1193,6 +1234,11 @@ impl<'a, 'w> Lexer<'a, 'w> {
         if scans > MAX_SCANS {
             return Err(Error::syntax(self.work, start, super::TOO_DEEP));
         }
+        self.memo.charge(
+            self.work,
+            start,
+            1 + self.nesting.brackets.len() + self.nesting.ternaries.len(),
+        )?;
         let mut scan = Lexer {
             work: self.work,
             source: self.source,
@@ -1208,10 +1254,11 @@ impl<'a, 'w> Lexer<'a, 'w> {
         };
         scan.tokens(self.limit, line, false, false, None)?;
         let answer = scan.found;
-        let mut memo = self.memo.borrow_mut();
+        let mut memo = self.memo.answers.borrow_mut();
         let index = memo
             .binary_search_by(|&(offset, depth, _)| (offset, depth).cmp(&key))
             .unwrap_or_else(|index| index);
+        self.memo.charge(self.work, start, memo.len() - index)?;
         memo.insert(self.work, index, (start, outer, answer))?;
         Ok(answer)
     }
@@ -1771,6 +1818,36 @@ mod tests {
             assert_eq!(invalid.message.as_str(), message, "{source}");
             assert_eq!(invalid.failure, Failure::Literal(label), "{source}");
             assert_eq!(tokens[1].token, Token::Int(1), "{source}");
+        }
+    }
+
+    #[test]
+    fn repeated_label_lookahead_is_bounded_without_a_caller_quota() {
+        for (questions, labels) in [(1, 24), (32, 24), (32, 32)] {
+            let source = format!("{}a b: ", "?".repeat(questions)).repeat(labels);
+            let mut context = CallContext::new(CallOptions {
+                limits: crate::Limits {
+                    steps: Some((source.len() * 256) as u64),
+                    ..crate::Limits::default()
+                },
+                ..CallOptions::default()
+            });
+            let work = Meter(RefCell::new(&mut context));
+            let tokens = lex(&source, &work).unwrap();
+            assert!(tokens.iter().any(|lexeme| matches!(
+                &lexeme.token,
+                Token::Invalid(invalid) if invalid.message == super::super::TOO_DEEP
+            )));
+            drop(tokens);
+            assert_eq!(context.stats().retained_memory_bytes, 0);
+
+            for result in [
+                crate::tooling::tokens(&source).map(|_| ()),
+                crate::tooling::outline(&source).map(|_| ()),
+                crate::tooling::unreachable(&source).map(|_| ()),
+            ] {
+                assert_eq!(result.unwrap_err().kind, crate::ErrorKind::Syntax);
+            }
         }
     }
 
