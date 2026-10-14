@@ -155,17 +155,38 @@ impl Mutation {
     pub fn apply(
         self,
         ctx: &mut CallContext,
-        mut receiver: Value,
+        receiver: Value,
         result: Value,
     ) -> Result<(Value, Value)> {
         match self {
             Self::Replace(value) => Ok((value, result)),
             Self::DeleteKeys(mut keys) => {
+                // Resolve every key once against the hash as it stands after
+                // the block ran, then compact, shrink, recompute depth and
+                // rebuild the index in one batched pass. Removing the keys one
+                // at a time shifts the buffer and rebuilds the whole index per
+                // key, which makes a bulk `delete_if` quadratic in the hash
+                // size. A key the block already removed resolves to none and
+                // is skipped, as `delete_hash` would skip it.
+                let Kind::Hash(mut hash) = receiver.0 else {
+                    unreachable!()
+                };
+                let mut indices = Buffer::with_capacity(ctx, keys.data.len())?;
                 for key in keys.data.drain(..) {
                     ctx.charge(1)?;
-                    receiver = receiver.delete_hash(ctx, &key)?.0;
+                    if let Some(index) = hash.find(ctx, key.require_bytes()?)? {
+                        indices.push(ctx, index)?;
+                    }
                 }
-                Ok((receiver.clone(), receiver))
+                if !indices.data.is_empty() {
+                    // Positions arrive from an ordered walk, but a block can
+                    // also remove and reinsert keys during iteration, so sort
+                    // defensively before the batched compaction consumes them.
+                    indices.data.sort_unstable();
+                    Hash::make_mut(ctx, &mut hash)?.remove_keys(ctx, &indices.data)?;
+                }
+                let updated = Value(Kind::Hash(hash));
+                Ok((updated.clone(), updated))
             }
         }
     }
