@@ -195,14 +195,21 @@ The [differential tests](../../docs/checker-diff.md), extended to hosts, nested 
   Every container gains an eight-byte field, so peak and retained bytes rise
   by eight per live array and hash in about 99,600 language, 16,900 replay,
   900 conformance and 30 compatibility cases, and steps fall where the skipped
-  walks were charged. Only those cases were re-recorded, from live counters
+  walks were charged. Compiler scratch also shrinks where the field replaces
+  a walk's stack usage: 2,361 language and 293 replay cases peak up to 480
+  bytes lower with unchanged steps, and 28 conformance file-loading cases
+  take 27 fewer steps where the skipped walk was charged to the call. Only
+  those cases were re-recorded, from live counters
   measured against the merged deletion change's records; the checkout-dependent
   `required_files`, `policies` and `same_name_call_*` counters stay as
   recorded. The 6,248 replay observations whose quota outcomes follow the
-  moved accounting are re-recorded with them, all error-or-success flips near
-  their memory boundaries; no value or stream changes. Two new conformance
-  benchmark cases (`array_depth_overwrite`, `hash_depth_overwrite`, both
-  metering modes) pin the workloads.
+  moved accounting are re-recorded with them, all error-or-success flips
+  near their memory boundaries; an audit of the unmodified parent build
+  on exactly those cases finds every one of its recorded failures already
+  succeeding, so the baseline now matches what the code does on both
+  sides of the branch point. No value or stream changes. Two new
+  conformance benchmark cases (`array_depth_overwrite`,
+  `hash_depth_overwrite`, both metering modes) pin the workloads.
 - Batched hash key removal (2026-10-13): `hash.delete_if`, `hash.keep_if` and
   their mutation now resolve the deleted keys once and mark them in a byte
   table that is allocated through the fallible buffer path, reserved against
