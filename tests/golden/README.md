@@ -191,13 +191,14 @@ The [differential tests](../../docs/checker-diff.md), extended to hosts, nested 
   loop that clears deep values quadratic in the container size (#1333). The
   recorded count also keeps the new maximum exact when the replacement itself
   is deep. Overwriting 1,200 depth-4 array elements with scalars drops from
-  1,492,839 to 57,639 steps and the hash equivalent from 1,529,256 to 91,656.
+  1,492,839 to 54,039 steps and the hash equivalent from 1,529,256 to 90,456.
   Every container gains an eight-byte field, so peak and retained bytes rise
-  by eight per live array and hash in about 79,000 language, 7,000 replay, 670
-  conformance and 70 compatibility cases, and steps fall where the skipped
-  walks were charged. All counters were re-recorded; the 8,297 replay cases
-  whose quota outcomes follow accounting drift mostly complete now that the
-  walks are gone. Two new conformance benchmark cases
+  by eight per live array and hash in about 99,600 language, 16,900 replay, 900
+  conformance and 30 compatibility cases, and steps fall where the skipped
+  walks were charged. Only those cases were re-recorded, from live counters
+  measured against the parent's records; the checkout-dependent
+  `required_files`, `policies` and `same_name_call_*` counters and the replay
+  quota outcomes stay as recorded. Two new conformance benchmark cases
   (`array_depth_overwrite`, `hash_depth_overwrite`, both metering modes) pin
   the workloads. Every observation is unchanged.
 - Batched hash key removal (2026-10-13): `hash.delete_if`, `hash.keep_if` and
