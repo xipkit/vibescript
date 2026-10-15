@@ -182,6 +182,11 @@ impl Mutation {
                         indices.push(ctx, index)?;
                     }
                 }
+                // The drained keys' storage is dead: release it before the
+                // batched allocations, so a deletion near the quota does not
+                // carry the empty buffer's reservation through the hash copy,
+                // the position bitmap and the index rebuild.
+                drop(keys);
                 if !indices.data.is_empty() {
                     Hash::make_mut(ctx, &mut hash)?.remove_keys(ctx, indices)?;
                 }
