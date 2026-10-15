@@ -101,6 +101,10 @@ pub(crate) struct Hash {
     index: Option<Arc<Index>>,
     pub header: Option<Charge>,
     pub depth: usize,
+    /// How many values sit at `depth - 1`, so overwriting one of them with
+    /// a shallower value only rescans for a new maximum when the last one
+    /// leaves.
+    pub(crate) at_max: usize,
     pub object: bool,
     pub tag: Tag,
     pub(crate) drop_parent: Option<Value>,
@@ -123,6 +127,7 @@ impl Hash {
             index: None,
             header: None,
             depth: 1,
+            at_max: 0,
             object: false,
             tag: Tag::None,
             drop_parent: None,
@@ -130,9 +135,14 @@ impl Hash {
     }
 
     pub fn untracked(data: Vec<(Value, Value)>, depth: usize) -> Arc<Self> {
+        let at_max = data
+            .iter()
+            .filter(|(_, v)| v.depth() + 1 == depth && depth > 1)
+            .count();
         let mut hash = Self::empty();
         hash.buffer = Buffer::untracked(data);
         hash.depth = depth;
+        hash.at_max = at_max;
         Arc::new(hash)
     }
 
@@ -143,10 +153,9 @@ impl Hash {
     pub fn from_entries(ctx: &mut CallContext, buffer: Buffer<(Value, Value)>) -> Result<Self> {
         let mut hash = Self::empty();
         hash.buffer = buffer;
-        for (_, value) in &hash.buffer.data {
-            ctx.charge(1)?;
-            hash.depth = hash.depth.max(value.depth() + 1);
-        }
+        let (depth, at_max) = values_depth(ctx, &hash.buffer.data, None)?;
+        hash.depth = depth;
+        hash.at_max = at_max;
         hash.check_depth(ctx)?;
         hash.ensure_index(ctx, hash.buffer.data.len())?;
         Ok(hash)
@@ -170,6 +179,7 @@ impl Hash {
                 index: hash.index.clone(),
                 header: None,
                 depth: hash.depth,
+                at_max: hash.at_max,
                 object: hash.object,
                 tag: hash.tag,
                 drop_parent: None,
@@ -177,6 +187,13 @@ impl Hash {
             .into_arc(ctx)?;
         }
         Ok(Arc::get_mut(hash).unwrap())
+    }
+
+    /// Records a container's nesting depth and the count of entries at that
+    /// maximum, as a builder that tracks them itself stores them.
+    pub(crate) fn set_depth_count(&mut self, depth: usize, at_max: usize) {
+        self.depth = depth;
+        self.at_max = at_max;
     }
 
     pub fn find(&self, ctx: &mut CallContext, key: &[u8]) -> Result<Option<usize>> {
@@ -247,20 +264,39 @@ impl Hash {
             0
         };
         let existing = self.find_hashed(ctx, key.bytes()?, hash)?;
-        let mut depth = self.depth.max(value.depth() + 1);
-        if let Some(i) = existing {
-            if self.depth > 1
-                && self.buffer.data[i].1.depth() + 1 == self.depth
-                && value.depth() + 1 < self.depth
-            {
-                depth = value.depth() + 1;
-                for (j, (_, v)) in self.buffer.data.iter().enumerate() {
-                    ctx.charge(1)?;
-                    if i != j {
-                        depth = depth.max(v.depth() + 1);
-                    }
-                }
+        let old_depth = existing
+            .map(|i| self.buffer.data[i].1.depth() + 1)
+            .unwrap_or(0);
+        let new_depth = value.depth() + 1;
+        let mut depth = self.depth.max(new_depth);
+        let mut at_max = self.at_max;
+        if new_depth > self.depth {
+            // The new value is deeper than any current maximum, so it is the
+            // only one at the new maximum.
+            at_max = 1;
+        } else if existing.is_some()
+            && old_depth == self.depth
+            && self.depth > 1
+            && new_depth < self.depth
+        {
+            // The overwritten value sat at the maximum and the new one is
+            // shallower. Only walk for a new maximum when it was the last
+            // one; otherwise the count alone says the maximum stands.
+            if at_max > 1 {
+                at_max -= 1;
+            } else {
+                let (walked, count) = values_depth(ctx, &self.buffer.data, existing)?;
+                depth = walked.max(new_depth);
+                at_max = if depth == walked {
+                    count + usize::from(new_depth == walked && walked > 1)
+                } else {
+                    1
+                };
             }
+        } else if new_depth == depth && depth > 1 && old_depth != depth {
+            // The new value joins the current maximum without replacing one
+            // there.
+            at_max += 1;
         }
         if depth > limit {
             return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
@@ -289,6 +325,7 @@ impl Hash {
             }
         }
         self.depth = depth;
+        self.at_max = at_max;
         Ok(())
     }
 
@@ -318,6 +355,7 @@ impl Hash {
         ctx.work_bytes(len)?;
         let mut write = 0;
         let mut depth = 1;
+        let mut at_max = 0;
         let mut deepest_removed = false;
         for read in 0..len {
             ctx.charge(1)?;
@@ -330,8 +368,13 @@ impl Hash {
             if write != read {
                 self.buffer.data.swap(write, read);
             }
-            let (_, value) = &self.buffer.data[write];
-            depth = depth.max(value.depth() + 1);
+            let child = self.buffer.data[write].1.depth() + 1;
+            if child > depth {
+                depth = child;
+                at_max = 1;
+            } else if child == depth && depth > 1 {
+                at_max += 1;
+            }
             write += 1;
         }
         for _ in write..len {
@@ -339,6 +382,7 @@ impl Hash {
         }
         if deepest_removed {
             self.depth = depth;
+            self.at_max = at_max;
         }
         if self.buffer.data.is_empty() {
             self.buffer = Buffer::empty();
@@ -366,11 +410,9 @@ impl Hash {
             self.buffer = buffer;
         }
         if removed.depth() + 1 == self.depth {
-            self.depth = 1;
-            for (_, value) in &self.buffer.data {
-                ctx.charge(1)?;
-                self.depth = self.depth.max(value.depth() + 1);
-            }
+            let (depth, at_max) = values_depth(ctx, &self.buffer.data, None)?;
+            self.depth = depth;
+            self.at_max = at_max;
         }
         self.ensure_index(ctx, self.buffer.data.len())?;
         Ok(removed)
@@ -420,6 +462,33 @@ fn hash_key(ctx: &mut CallContext, key: &[u8]) -> Result<usize> {
         hasher.write(chunk);
     }
     Ok(hasher.finish() as usize)
+}
+
+/// Returns a hash's value nesting depth and how many values sit at that
+/// maximum, charging one step per entry, as the walks it replaces did.
+/// `except` excludes an entry being replaced, whose old value must not
+/// count toward the maximum.
+fn values_depth(
+    ctx: &mut CallContext,
+    entries: &[(Value, Value)],
+    except: Option<usize>,
+) -> Result<(usize, usize)> {
+    let mut depth = 1;
+    let mut at_max = 0;
+    for (i, (_, value)) in entries.iter().enumerate() {
+        ctx.charge(1)?;
+        if Some(i) == except {
+            continue;
+        }
+        let child = value.depth() + 1;
+        if child > depth {
+            depth = child;
+            at_max = 1;
+        } else if child == depth && depth > 1 {
+            at_max += 1;
+        }
+    }
+    Ok((depth, at_max))
 }
 
 #[cfg(test)]
