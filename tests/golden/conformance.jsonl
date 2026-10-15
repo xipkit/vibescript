@@ -236,9 +236,15 @@
 {"id":"hash_byte_keys_25","ok":["array",[["string","656d707479"],["string","756e69636f6465"],["string","696e76616c6964"],["int","7"],["string","ff"]]]}
 {"id":"hash_byte_keys_511","ok":["array",[["string","656d707479"],["string","756e69636f6465"],["string","696e76616c6964"],["int","7"],["string","ff"]]]}
 {"id":"hash_byte_keys_512","ok":["array",[["string","656d707479"],["string","756e69636f6465"],["string","696e76616c6964"],["int","7"],["string","ff"]]]}
+{"id":"hash_delete_if_all/metered","ok":["int","0"]}
+{"id":"hash_delete_if_all/unlimited","ok":["int","0"]}
+{"id":"hash_delete_if_half/metered","ok":["int","512"]}
+{"id":"hash_delete_if_half/unlimited","ok":["int","512"]}
 {"id":"hash_equal_512/metered","ok":["bool",true]}
 {"id":"hash_equal_512/unlimited","ok":["bool",true]}
 {"id":"hash_equality","ok":["array",[["bool",true],["bool",false],["int","2"]]]}
+{"id":"hash_keep_if_thirds/metered","ok":["int","342"]}
+{"id":"hash_keep_if_thirds/unlimited","ok":["int","342"]}
 {"id":"hash_lookup/metered","ok":["int","31000"]}
 {"id":"hash_lookup/unlimited","ok":["int","31000"]}
 {"id":"hash_lookup_2048/metered","ok":["int","262016"]}

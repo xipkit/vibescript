@@ -292,6 +292,98 @@ impl Hash {
         Ok(())
     }
 
+    /// Removes the entries at the distinct positions in `indices` in one
+    /// linear pass, charging one step per entry the compaction visits and
+    /// for marking the deletion bitmap, then shrinking, recomputing depth
+    /// and rebuilding the index once. A batch costs the same finds and
+    /// per-entry work as repeated [`Self::remove`] calls without shifting
+    /// the buffer and rebuilding the whole index after every key, which
+    /// makes a bulk `delete_if` quadratic in the hash size. Positions need
+    /// no ordering: a bitmap marks them, so the pass stays linear whatever
+    /// order the block's mutations leave them in. The position buffer is
+    /// consumed, so its reservation is released with the bitmap before the
+    /// replacement allocations begin.
+    pub fn remove_keys(&mut self, ctx: &mut CallContext, indices: Buffer<usize>) -> Result<()> {
+        self.index = None;
+        let len = self.buffer.data.len();
+        // A byte mark flags each removed position without ordering them. The
+        // marks are allocated through the fallible `Buffer` path so allocator
+        // exhaustion surfaces as the invocation's memory error, their bytes
+        // are reserved against the quota, and their zeroing is charged per 64
+        // bytes, as the index fill charges per bucket word, so the allocation
+        // cannot bypass the step quota. (`Vec<bool>` would pack eight marks
+        // per byte, so a byte per mark keeps the reservation and the charge
+        // honest.)
+        let mut marked = Buffer::with_capacity(ctx, len)?;
+        while marked.data.len() < len {
+            let end = len.min(marked.data.len() + CHUNK);
+            ctx.work_bytes(end - marked.data.len())?;
+            marked.data.resize(end, 0);
+        }
+        // Mark in bounded groups, resting at a checkpoint between each, so a
+        // cancellation or deadline raised while a large batch is being marked
+        // stops it instead of waiting for the compaction below to notice.
+        for slots in indices.data.chunks(CHUNK) {
+            for slot in slots {
+                if *slot < len {
+                    marked.data[*slot] = 1;
+                }
+            }
+            ctx.checkpoint()?;
+        }
+        // The positions are spent; release their reservation before the
+        // compaction so a deletion near the quota does not carry the dead
+        // buffer alongside the marks.
+        drop(indices);
+        let mut write = 0;
+        let mut depth = 1;
+        let mut deepest_removed = false;
+        for read in 0..len {
+            ctx.charge(1)?;
+            if marked.data[read] != 0 {
+                if self.buffer.data[read].1.depth() + 1 == self.depth {
+                    deepest_removed = true;
+                }
+                continue;
+            }
+            if write != read {
+                self.buffer.data.swap(write, read);
+            }
+            let (_, value) = &self.buffer.data[write];
+            depth = depth.max(value.depth() + 1);
+            write += 1;
+        }
+        // Discard the removed entries in bounded groups with a checkpoint
+        // between each, so destroying them observes a cancellation raised
+        // after the compaction instead of dropping them all unwatched.
+        let mut removed = len - write;
+        while removed > 0 {
+            let step = removed.min(CHUNK);
+            ctx.work_bytes(step)?;
+            ctx.checkpoint()?;
+            for _ in 0..step {
+                self.buffer.data.pop();
+            }
+            removed -= step;
+        }
+        if deepest_removed {
+            self.depth = depth;
+        }
+        // The bitmap's work is done; release its reservation before the
+        // replacement allocations so a deletion near the quota does not need
+        // the headroom for both at once.
+        drop(marked);
+        if self.buffer.data.is_empty() {
+            self.buffer = Buffer::empty();
+        } else if self.buffer.data.len() < self.buffer.data.capacity() / 2 {
+            let mut buffer = Buffer::with_capacity(ctx, self.buffer.data.len())?;
+            buffer.extend(ctx, &self.buffer.data)?;
+            self.buffer = buffer;
+        }
+        self.ensure_index(ctx, self.buffer.data.len())?;
+        Ok(())
+    }
+
     pub fn remove(&mut self, ctx: &mut CallContext, index: usize) -> Result<Value> {
         self.index = None;
         for i in index..self.buffer.data.len() - 1 {
@@ -414,6 +506,105 @@ mod tests {
         );
         assert_eq!(ctx.checkpoint().unwrap_err().kind, ErrorKind::Steps);
         drop(hash);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+
+    #[test]
+    fn batched_removal_compacts_once_and_rebuilds_the_index_once() {
+        let batched = |keys: &[&str]| -> (u64, Hash) {
+            let mut ctx = CallContext::new(CallOptions::default());
+            let mut hash = Hash::empty();
+            for (i, key) in keys.iter().enumerate() {
+                let key = ctx.bytes(key.as_bytes()).unwrap();
+                hash.insert(&mut ctx, key, Value::int(i as i64)).unwrap();
+            }
+            let indices: Vec<usize> = keys
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| i % 2 == 0)
+                .map(|(i, _)| i)
+                .collect();
+            let before = ctx.stats().steps;
+            hash.remove_keys(&mut ctx, Buffer::untracked(indices))
+                .unwrap();
+            (ctx.stats().steps - before, hash)
+        };
+        let singles = |keys: &[&str]| -> (u64, Hash) {
+            let mut ctx = CallContext::new(CallOptions::default());
+            let mut hash = Hash::empty();
+            for (i, key) in keys.iter().enumerate() {
+                let key = ctx.bytes(key.as_bytes()).unwrap();
+                hash.insert(&mut ctx, key, Value::int(i as i64)).unwrap();
+            }
+            let before = ctx.stats().steps;
+            for (i, key) in keys.iter().enumerate().filter(|(i, _)| i % 2 == 0) {
+                let index = hash.find(&mut ctx, key.as_bytes()).unwrap().unwrap();
+                let removed = hash.remove(&mut ctx, index).unwrap();
+                assert_eq!(removed.as_int(), Some(i as i64));
+            }
+            (ctx.stats().steps - before, hash)
+        };
+        let keys: Vec<String> = (0..40).map(|i| format!("k{i}")).collect();
+        let keys: Vec<&str> = keys.iter().map(String::as_str).collect();
+        let (batched_steps, batched_hash) = batched(&keys);
+        let (single_steps, single_hash) = singles(&keys);
+        // The batch must charge strictly less than one-at-a-time removal,
+        // which shifts the buffer and rebuilds the whole index per key.
+        assert!(
+            batched_steps < single_steps,
+            "{batched_steps} !< {single_steps}"
+        );
+        let mut ctx = CallContext::new(CallOptions::default());
+        // Both orders keep exactly the odd keys, in order, with a working index.
+        assert_eq!(batched_hash.buffer.data.len(), 20);
+        assert_eq!(single_hash.buffer.data.len(), 20);
+        for (i, key) in keys.iter().enumerate() {
+            let expected = if i % 2 == 1 { Some(i / 2) } else { None };
+            assert_eq!(
+                batched_hash.find(&mut ctx, key.as_bytes()).unwrap(),
+                expected
+            );
+        }
+        for (i, key) in keys.iter().enumerate() {
+            let expected = if i % 2 == 1 { Some(i / 2) } else { None };
+            assert_eq!(
+                single_hash.find(&mut ctx, key.as_bytes()).unwrap(),
+                expected
+            );
+        }
+        // The rebuilt index stays correct for new inserts.
+        let key = ctx.bytes(b"new").unwrap();
+        let mut hash = batched_hash;
+        hash.insert(&mut ctx, key, Value::int(40)).unwrap();
+        assert_eq!(hash.find(&mut ctx, b"new").unwrap(), Some(20));
+        assert_eq!(hash.buffer.data.len(), 21);
+    }
+
+    #[test]
+    fn batched_removal_recovers_depth_when_the_deepest_entries_leave() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let mut hash = Hash::empty();
+        for i in 0..20 {
+            let key = ctx.bytes(format!("k{i}").as_bytes()).unwrap();
+            hash.insert(&mut ctx, key, Value::int(i)).unwrap();
+        }
+        let mut nested = Value::int(0);
+        for _ in 0..64 {
+            nested = Value::array(vec![nested]);
+        }
+        let key = ctx.bytes(b"deep").unwrap();
+        hash.insert(&mut ctx, key, nested).unwrap();
+        assert!(hash.depth > 64);
+        // Removing every scalar entry keeps the deep one, so the depth stays.
+        let scalars: Vec<usize> = (0..20).collect();
+        hash.remove_keys(&mut ctx, Buffer::untracked(scalars))
+            .unwrap();
+        assert!(hash.depth > 64);
+        // Removing the deep entry recovers a depth of one for the empty hash.
+        let deep = hash.find(&mut ctx, b"deep").unwrap().unwrap();
+        hash.remove_keys(&mut ctx, Buffer::untracked(vec![deep]))
+            .unwrap();
+        assert_eq!(hash.depth, 1);
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
 

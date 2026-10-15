@@ -155,17 +155,43 @@ impl Mutation {
     pub fn apply(
         self,
         ctx: &mut CallContext,
-        mut receiver: Value,
+        receiver: Value,
         result: Value,
     ) -> Result<(Value, Value)> {
         match self {
             Self::Replace(value) => Ok((value, result)),
             Self::DeleteKeys(mut keys) => {
+                // Resolve every key once against the hash as it stands after
+                // the block ran, then compact, shrink, recompute depth and
+                // rebuild the index in one batched pass. Removing the keys one
+                // at a time shifts the buffer and rebuilds the whole index per
+                // key, which makes a bulk `delete_if` quadratic in the hash
+                // size. A key the block already removed resolves to none and
+                // is skipped, as `delete_hash` would skip it.
+                let Kind::Hash(mut hash) = receiver.0 else {
+                    unreachable!()
+                };
+                // Reserve nothing up front: a block that removed many of its
+                // own keys leaves them unresolvable, and the eager worst-case
+                // reservation could refuse a deletion whose every key is
+                // skipped. The buffer grows as keys resolve.
+                let mut indices = Buffer::empty();
                 for key in keys.data.drain(..) {
                     ctx.charge(1)?;
-                    receiver = receiver.delete_hash(ctx, &key)?.0;
+                    if let Some(index) = hash.find(ctx, key.require_bytes()?)? {
+                        indices.push(ctx, index)?;
+                    }
                 }
-                Ok((receiver.clone(), receiver))
+                // The drained keys' storage is dead: release it before the
+                // batched allocations, so a deletion near the quota does not
+                // carry the empty buffer's reservation through the hash copy,
+                // the position bitmap and the index rebuild.
+                drop(keys);
+                if !indices.data.is_empty() {
+                    Hash::make_mut(ctx, &mut hash)?.remove_keys(ctx, indices)?;
+                }
+                let updated = Value(Kind::Hash(hash));
+                Ok((updated.clone(), updated))
             }
         }
     }

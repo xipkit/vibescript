@@ -125,6 +125,10 @@ def benchmark_cases():
     obj=dict(zip(keys,range(512)))
     add("hash_build_512",'h: hash<string, int> = {}\ni=0\nwhile i<input.length\n h[input.fetch(i)]=i\n i+=1\nend\nh["k00511"]',keys,511,returns="int?",param="array<string>")
     add("hash_replace_512",'h=input\ni=0\nwhile i<128\n h["k00511"]=i\n i+=1\nend\nh["k00511"]',obj,127,returns="int?",param="hash<string, int>")
+    bulk=dict(zip((f"key-{i:04}" for i in range(1024)),range(1024)))
+    add("hash_delete_if_half",'input.delete_if { |k, v| v % 2 == 0 }\ninput.length',bulk,512,returns="int",param="hash<string, int>")
+    add("hash_delete_if_all",'input.delete_if { |k, v| true }\ninput.length',bulk,0,returns="int",param="hash<string, int>")
+    add("hash_keep_if_thirds",'input.keep_if { |k, v| v % 3 == 0 }\ninput.length',bulk,342,returns="int",param="hash<string, int>")
     add("hash_equal_512","input[0]==input[1]",[obj,dict(reversed(list(obj.items())))],True,returns="bool",param="array<hash<string, int>>")
     duplicates="{"+",".join(json.dumps(k)+":"+str(v) for k,v in [*obj.items(),*((k,1024+i) for i,k in enumerate(reversed(keys)))])+"}"
     expected={k:1024+511-i for i,k in enumerate(keys)}
