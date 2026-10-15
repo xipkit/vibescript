@@ -183,7 +183,7 @@ impl Mutation {
                     }
                 }
                 if !indices.data.is_empty() {
-                    Hash::make_mut(ctx, &mut hash)?.remove_keys(ctx, &indices.data)?;
+                    Hash::make_mut(ctx, &mut hash)?.remove_keys(ctx, indices)?;
                 }
                 let updated = Value(Kind::Hash(hash));
                 Ok((updated.clone(), updated))

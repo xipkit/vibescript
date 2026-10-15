@@ -337,15 +337,17 @@ impl Hash {
     /// the buffer and rebuilding the whole index after every key, which
     /// makes a bulk `delete_if` quadratic in the hash size. Positions need
     /// no ordering: a bitmap marks them, so the pass stays linear whatever
-    /// order the block's mutations leave them in.
-    pub fn remove_keys(&mut self, ctx: &mut CallContext, indices: &[usize]) -> Result<()> {
+    /// order the block's mutations leave them in. The position buffer is
+    /// consumed, so its reservation is released with the bitmap before the
+    /// replacement allocations begin.
+    pub fn remove_keys(&mut self, ctx: &mut CallContext, indices: Buffer<usize>) -> Result<()> {
         self.index = None;
         let len = self.buffer.data.len();
         // A bitmap marks the removed positions without ordering them. It is
-        // allocated through the fallible `Buffer` path so allocator
-        // exhaustion surfaces as the invocation's memory error, its bytes are
-        // reserved against the quota, and its zeroing is charged per 64 bytes,
-        // as the index fill charges per bucket word, so marking cannot bypass
+        // allocated through the fallible `Buffer` path so allocator exhaustion
+        // surfaces as the invocation's memory error, its bytes are reserved
+        // against the quota, and its zeroing is charged per 64 bytes, as the
+        // index fill charges per bucket word, so the allocation cannot bypass
         // the step quota.
         let mut marked = Buffer::with_capacity(ctx, len)?;
         while marked.data.len() < len {
@@ -353,11 +355,22 @@ impl Hash {
             ctx.work_bytes(end - marked.data.len())?;
             marked.data.resize(end, false);
         }
-        for slot in indices {
-            if *slot < len {
-                marked.data[*slot] = true;
+        // Mark in bounded groups, resting at a checkpoint between each, so a
+        // cancellation or deadline raised while a large batch is being marked
+        // stops it instead of waiting for the compaction below to notice.
+        let group = CHUNK / size_of::<bool>();
+        for slots in indices.data.chunks(group.max(1)) {
+            for slot in slots {
+                if *slot < len {
+                    marked.data[*slot] = true;
+                }
             }
+            ctx.checkpoint()?;
         }
+        // The positions are spent; release their reservation before the
+        // compaction so a deletion near the quota does not carry the dead
+        // buffer alongside the bitmap.
+        drop(indices);
         let mut write = 0;
         let mut depth = 1;
         let mut at_max = 0;
@@ -570,7 +583,8 @@ mod tests {
                 .map(|(i, _)| i)
                 .collect();
             let before = ctx.stats().steps;
-            hash.remove_keys(&mut ctx, &indices).unwrap();
+            hash.remove_keys(&mut ctx, Buffer::untracked(indices))
+                .unwrap();
             (ctx.stats().steps - before, hash)
         };
         let singles = |keys: &[&str]| -> (u64, Hash) {
@@ -641,11 +655,13 @@ mod tests {
         assert!(hash.depth > 64);
         // Removing every scalar entry keeps the deep one, so the depth stays.
         let scalars: Vec<usize> = (0..20).collect();
-        hash.remove_keys(&mut ctx, &scalars).unwrap();
+        hash.remove_keys(&mut ctx, Buffer::untracked(scalars))
+            .unwrap();
         assert!(hash.depth > 64);
         // Removing the deep entry recovers a depth of one for the empty hash.
         let deep = hash.find(&mut ctx, b"deep").unwrap().unwrap();
-        hash.remove_keys(&mut ctx, &[deep]).unwrap();
+        hash.remove_keys(&mut ctx, Buffer::untracked(vec![deep]))
+            .unwrap();
         assert_eq!(hash.depth, 1);
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
