@@ -457,3 +457,117 @@ fn scalar_runs_import_at_one_step_per_element_under_every_quota() {
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
 }
+
+/// Builds a value of exactly `depth` levels: a scalar has depth zero, and
+/// each wrap adds one.
+fn deep(depth: usize) -> Value {
+    let mut value = Value::int(0);
+    for _ in 0..depth {
+        value = Value::array(vec![value]);
+    }
+    value
+}
+
+#[cfg(test)]
+mod at_max_tests {
+    use super::*;
+
+    /// A small deterministic generator, so failures reproduce.
+    struct Steps(u64);
+    impl Steps {
+        fn next(&mut self) -> u64 {
+            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1);
+            self.0 >> 11
+        }
+    }
+
+    fn true_depth(values: &[usize]) -> usize {
+        values.iter().copied().max().map_or(1, |d| d + 1)
+    }
+
+    fn true_at_max(values: &[usize], depth: usize) -> usize {
+        values
+            .iter()
+            .filter(|&&d| d + 1 == depth && depth > 1)
+            .count()
+    }
+
+    #[test]
+    fn array_overwrites_keep_the_recorded_depth_exact() {
+        let mut rng = Steps(1);
+        for trial in 0..200 {
+            let mut ctx = context();
+            let mut slots: Vec<usize> = Vec::new();
+            let mut value = Value::from_array(&mut ctx, Buffer::empty()).unwrap();
+            for _ in 0..60 {
+                let op = rng.next() % 3;
+                if op == 0 || slots.is_empty() {
+                    let depth = (rng.next() % 7) as usize;
+                    value = value.push(&mut ctx, &[deep(depth)]).unwrap();
+                    slots.push(depth);
+                } else {
+                    let index = (rng.next() as usize) % slots.len();
+                    let depth = (rng.next() % 7) as usize;
+                    value = value.set_array_index(&mut ctx, index, deep(depth)).unwrap();
+                    slots[index] = depth;
+                }
+                let Kind::Array(heap) = &value.0 else {
+                    unreachable!()
+                };
+                let expected = true_depth(&slots);
+                assert_eq!(heap.depth, expected, "trial {trial} depth");
+                let expected_at = true_at_max(&slots, expected);
+                assert_eq!(heap.at_max, expected_at, "trial {trial} at_max");
+            }
+        }
+    }
+
+    #[test]
+    fn hash_overwrites_keep_the_recorded_depth_exact() {
+        let mut rng = Steps(7);
+        for trial in 0..200 {
+            let mut ctx = context();
+            let mut slots: Vec<(Value, usize)> = Vec::new();
+            let mut value = Value::from_hash(&mut ctx, Hash::empty()).unwrap();
+            for _ in 0..60 {
+                let op = rng.next() % 3;
+                let slot = (rng.next() as usize) % 8;
+                let depth = (rng.next() % 7) as usize;
+                if op == 0 || slots.len() < 2 {
+                    let key = Value::bytes(format!("k{slot}"));
+                    if let Some(old) = slots.iter().position(|(k, _)| {
+                        k.require_bytes().unwrap() == key.require_bytes().unwrap()
+                    }) {
+                        value = value
+                            .clone()
+                            .set_hash_index(&mut ctx, key.clone(), deep(depth))
+                            .unwrap();
+                        slots[old].1 = depth;
+                    } else {
+                        value = value
+                            .clone()
+                            .set_hash_index(&mut ctx, key.clone(), deep(depth))
+                            .unwrap();
+                        slots.push((key, depth));
+                    }
+                } else {
+                    let pick = (rng.next() as usize) % slots.len();
+                    let (key, _) = &slots[pick];
+                    value = value
+                        .clone()
+                        .set_hash_index(&mut ctx, key.clone(), deep(depth))
+                        .unwrap();
+                    slots[pick].1 = depth;
+                }
+                let Kind::Hash(hash) = &value.0 else {
+                    unreachable!()
+                };
+                let depths: Vec<usize> = slots.iter().map(|(_, d)| *d).collect();
+                let expected = true_depth(&depths);
+                assert_eq!(hash.depth, expected, "trial {trial} depth");
+                let expected_at = true_at_max(&depths, expected);
+                assert_eq!(hash.at_max, expected_at, "trial {trial} at_max");
+            }
+        }
+    }
+}

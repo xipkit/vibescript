@@ -32,6 +32,10 @@ pub(crate) struct Heap<T: Element> {
     pub buffer: Buffer<T>,
     header: Option<Charge>,
     depth: usize,
+    /// How many elements sit at `depth - 1`, so overwriting one of them
+    /// with a shallower value only rescans for a new maximum when the last
+    /// one leaves.
+    pub(crate) at_max: usize,
     drop_parent: Option<Value>,
 }
 
@@ -48,7 +52,12 @@ impl<T: Element> Heap<T> {
         size_of::<Self>() + 2 * size_of::<usize>()
     }
 
-    pub fn new(ctx: &mut CallContext, buffer: Buffer<T>, depth: usize) -> Result<Arc<Self>> {
+    pub fn new(
+        ctx: &mut CallContext,
+        buffer: Buffer<T>,
+        depth: usize,
+        at_max: usize,
+    ) -> Result<Arc<Self>> {
         if depth > MAX_VALUE_DEPTH {
             return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
         }
@@ -57,14 +66,16 @@ impl<T: Element> Heap<T> {
             buffer,
             header,
             depth,
+            at_max,
             drop_parent: None,
         }))
     }
-    fn untracked(data: Vec<T>, depth: usize) -> Arc<Self> {
+    fn untracked(data: Vec<T>, depth: usize, at_max: usize) -> Arc<Self> {
         Arc::new(Self {
             buffer: Buffer::untracked(data),
             header: None,
             depth,
+            at_max,
             drop_parent: None,
         })
     }
@@ -79,10 +90,31 @@ impl<T: Element + Clone> Heap<T> {
         if Arc::get_mut(heap).is_none() {
             let mut buffer = Buffer::with_capacity(ctx, capacity)?;
             buffer.extend(ctx, &heap.buffer.data)?;
-            *heap = Self::new(ctx, buffer, heap.depth)?;
+            let (depth, at_max) = (heap.depth, heap.at_max);
+            *heap = Self::new(ctx, buffer, depth, at_max)?;
         }
         Ok(Arc::get_mut(heap).unwrap())
     }
+}
+
+/// Returns an array's nesting depth and how many elements sit at the
+/// depth's maximum, so a caller can track when the last deepest element
+/// leaves without walking the buffer again. Charges one step per element,
+/// as the walks it replaces did.
+pub(crate) fn depth_count(ctx: &mut CallContext, values: &[Value]) -> Result<(usize, usize)> {
+    let mut depth = 1;
+    let mut at_max = 0;
+    for value in values {
+        ctx.charge(1)?;
+        let child = value.depth() + 1;
+        if child > depth {
+            depth = child;
+            at_max = 1;
+        } else if child == depth && depth > 1 {
+            at_max += 1;
+        }
+    }
+    Ok((depth, at_max))
 }
 
 #[derive(Debug)]
@@ -273,7 +305,8 @@ impl Value {
     /// Creates a caller-owned array.
     pub fn array(values: Vec<Value>) -> Self {
         let depth = 1 + values.iter().map(Self::depth).max().unwrap_or(0);
-        Self(Kind::Array(Heap::untracked(values, depth)))
+        let at_max = values.iter().filter(|v| v.depth() + 1 == depth).count();
+        Self(Kind::Array(Heap::untracked(values, depth, at_max)))
     }
     /// Creates a caller-owned insertion-ordered hash with string keys, replacing duplicate values.
     pub fn hash(entries: Vec<(Vec<u8>, Value)>) -> Self {
@@ -474,12 +507,23 @@ impl Value {
     }
     pub(crate) fn from_array(ctx: &mut CallContext, values: Buffer<Value>) -> Result<Self> {
         ctx.charge_each(values.data.len() as u64)?;
-        let depth = values
-            .data
-            .iter()
-            .map(|v| v.depth() + 1)
-            .fold(1, usize::max);
-        Ok(Self(Kind::Array(Heap::new(ctx, values, depth)?)))
+        // The elements are already charged; only the fold for the depth
+        // maximum and its count runs here.
+        let (depth, at_max) = {
+            let mut depth = 1;
+            let mut at_max = 0;
+            for value in &values.data {
+                let child = value.depth() + 1;
+                if child > depth {
+                    depth = child;
+                    at_max = 1;
+                } else if child == depth && depth > 1 {
+                    at_max += 1;
+                }
+            }
+            (depth, at_max)
+        };
+        Ok(Self(Kind::Array(Heap::new(ctx, values, depth, at_max)?)))
     }
     pub(crate) fn from_hash(ctx: &mut CallContext, hash: Hash) -> Result<Self> {
         Ok(Self(Kind::Hash(hash.into_arc(ctx)?)))
@@ -511,9 +555,16 @@ impl Value {
             return Err(Error::new(ErrorKind::Type, "expected array"));
         };
         let mut depth = heap.depth;
+        let mut at_max = heap.at_max;
         for value in values {
             ctx.charge(1)?;
-            depth = depth.max(value.depth() + 1);
+            let child = value.depth() + 1;
+            if child > depth {
+                depth = child;
+                at_max = 1;
+            } else if child == depth && depth > 1 {
+                at_max += 1;
+            }
         }
         if depth > MAX_VALUE_DEPTH {
             return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
@@ -534,6 +585,7 @@ impl Value {
             }
             writable.buffer.extend(ctx, values)?;
             writable.depth = depth;
+            writable.at_max = at_max;
         }
         Ok(Self(Kind::Array(heap)))
     }
@@ -570,11 +622,9 @@ impl Value {
             writable.buffer.data.pop();
         }
         if writable.depth > 1 {
-            writable.depth = 1;
-            for value in &writable.buffer.data {
-                ctx.charge(1)?;
-                writable.depth = writable.depth.max(value.depth() + 1);
-            }
+            let (depth, at_max) = depth_count(ctx, &writable.buffer.data)?;
+            writable.depth = depth;
+            writable.at_max = at_max;
         }
         Ok(Self(Kind::Array(heap)))
     }
@@ -597,18 +647,49 @@ impl Value {
         let Kind::Array(mut heap) = self.0 else {
             return Err(Error::new(ErrorKind::Type, "expected array"));
         };
-        let mut depth = heap.depth.max(value.depth() + 1);
-        if heap.depth > 1
-            && heap.buffer.data[index].depth() + 1 == heap.depth
-            && value.depth() + 1 < heap.depth
-        {
-            depth = value.depth() + 1;
-            for (i, item) in heap.buffer.data.iter().enumerate() {
-                ctx.charge(1)?;
-                if i != index {
-                    depth = depth.max(item.depth() + 1);
-                }
+        let old = heap.buffer.data[index].depth() + 1;
+        let new = value.depth() + 1;
+        let mut depth = heap.depth.max(new);
+        let mut at_max = heap.at_max;
+        if new > heap.depth {
+            // The new element is deeper than any current maximum, so it is
+            // the only one at the new maximum.
+            at_max = 1;
+        } else if old == heap.depth && heap.depth > 1 && new < heap.depth {
+            // The overwritten element sat at the maximum and the new one is
+            // shallower. Only walk for a new maximum when it was the last
+            // one; otherwise the count alone says the maximum stands.
+            if at_max > 1 {
+                at_max -= 1;
+            } else {
+                let (walked, count) = {
+                    let mut walked = 1;
+                    let mut count = 0;
+                    for (i, item) in heap.buffer.data.iter().enumerate() {
+                        ctx.charge(1)?;
+                        if i != index {
+                            let child = item.depth() + 1;
+                            if child > walked {
+                                walked = child;
+                                count = 1;
+                            } else if child == walked && walked > 1 {
+                                count += 1;
+                            }
+                        }
+                    }
+                    (walked, count)
+                };
+                depth = walked.max(new);
+                at_max = if depth == walked {
+                    count + usize::from(new == walked && walked > 1)
+                } else {
+                    1
+                };
             }
+        } else if new == depth && depth > 1 && old != depth {
+            // The new element joins the current maximum without replacing
+            // one there.
+            at_max += 1;
         }
         if depth > MAX_VALUE_DEPTH {
             return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
@@ -617,6 +698,7 @@ impl Value {
         let writable = Heap::make_mut(ctx, &mut heap, len)?;
         writable.buffer.data[index] = value;
         writable.depth = depth;
+        writable.at_max = at_max;
         Ok(Self(Kind::Array(heap)))
     }
     pub(crate) fn depth(&self) -> usize {
