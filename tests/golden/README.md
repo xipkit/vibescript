@@ -184,6 +184,22 @@ The [differential tests](../../docs/checker-diff.md), extended to hosts, nested 
 
 ## Counter log
 
+- Deepest-element tracking (2026-10-14): arrays and hashes now record how many
+  elements sit at their nesting maximum, so overwriting a deepest element with
+  a shallower value only walks for a new maximum when the last deepest element
+  leaves, instead of rescanning every element on each such write, which made a
+  loop that clears deep values quadratic in the container size (#1333). The
+  recorded count also keeps the new maximum exact when the replacement itself
+  is deep. Overwriting 1,200 depth-4 array elements with scalars drops from
+  1,492,839 to 57,639 steps and the hash equivalent from 1,529,256 to 91,656.
+  Every container gains an eight-byte field, so peak and retained bytes rise
+  by eight per live array and hash in about 79,000 language, 7,000 replay, 670
+  conformance and 70 compatibility cases, and steps fall where the skipped
+  walks were charged. All counters were re-recorded; the 8,297 replay cases
+  whose quota outcomes follow accounting drift mostly complete now that the
+  walks are gone. Two new conformance benchmark cases
+  (`array_depth_overwrite`, `hash_depth_overwrite`, both metering modes) pin
+  the workloads. Every observation is unchanged.
 - Batched hash key removal (2026-10-13): `hash.delete_if`, `hash.keep_if` and
   their mutation now resolve the deleted keys once and mark them in a bitmap
   that is reserved against the memory quota and charged per 64 bytes, then
