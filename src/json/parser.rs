@@ -383,7 +383,8 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                             }
                             out.buffer.ensure(&mut self.ctx, capacity)?;
                             out.buffer.data.push((std::mem::take(key), value));
-                            out.depth = depth;
+                            let at_max = usize::from(depth > 1);
+                            out.set_depth_count(depth, at_max);
                         } else {
                             let previous = out.buffer.data.len();
                             out.insert(&mut self.ctx, std::mem::take(key), value)?;

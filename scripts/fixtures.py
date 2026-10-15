@@ -126,6 +126,8 @@ def benchmark_cases():
     add("hash_build_512",'h: hash<string, int> = {}\ni=0\nwhile i<input.length\n h[input.fetch(i)]=i\n i+=1\nend\nh["k00511"]',keys,511,returns="int?",param="array<string>")
     add("hash_replace_512",'h=input\ni=0\nwhile i<128\n h["k00511"]=i\n i+=1\nend\nh["k00511"]',obj,127,returns="int?",param="hash<string, int>")
     bulk=dict(zip((f"key-{i:04}" for i in range(1024)),range(1024)))
+    add("array_depth_overwrite",'a: array<any> = []\ni=0\nwhile i<input\n a << [[ [i] ]]\n i+=1\nend\ni=0\nwhile i<a.length\n a[i]=i\n i+=1\nend\na.length',600,600,returns="int",param="int")
+    add("hash_depth_overwrite",'h: hash<string, any> = {}\ni=0\nwhile i<input\n h["k" + i.to_s] = { v: [i] }\n i+=1\nend\ni=0\nwhile i<input\n h["k" + i.to_s] = i\n i+=1\nend\nh.length',600,600,returns="int",param="int")
     add("hash_delete_if_half",'input.delete_if { |k, v| v % 2 == 0 }\ninput.length',bulk,512,returns="int",param="hash<string, int>")
     add("hash_delete_if_all",'input.delete_if { |k, v| true }\ninput.length',bulk,0,returns="int",param="hash<string, int>")
     add("hash_keep_if_thirds",'input.keep_if { |k, v| v % 3 == 0 }\ninput.length',bulk,342,returns="int",param="hash<string, int>")

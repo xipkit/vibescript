@@ -32,6 +32,8 @@
 {"id":"array_add_branch","ok":["array",[["array",[["int","1"],["int","1"]]],["array",[["int","1"]]]]]}
 {"id":"array_add_self","ok":["array",[["int","1"],["int","1"]]]}
 {"id":"array_arguments_before_update","ok":["array",[["int","1"],["int","1"],["int","1"]]]}
+{"id":"array_depth_overwrite/metered","ok":["int","600"]}
+{"id":"array_depth_overwrite/unlimited","ok":["int","600"]}
 {"id":"array_each/metered","ok":["int","499500"]}
 {"id":"array_each/unlimited","ok":["int","499500"]}
 {"id":"array_each_index/metered","ok":["int","1001000"]}
@@ -240,6 +242,8 @@
 {"id":"hash_delete_if_all/unlimited","ok":["int","0"]}
 {"id":"hash_delete_if_half/metered","ok":["int","512"]}
 {"id":"hash_delete_if_half/unlimited","ok":["int","512"]}
+{"id":"hash_depth_overwrite/metered","ok":["int","600"]}
+{"id":"hash_depth_overwrite/unlimited","ok":["int","600"]}
 {"id":"hash_equal_512/metered","ok":["bool",true]}
 {"id":"hash_equal_512/unlimited","ok":["bool",true]}
 {"id":"hash_equality","ok":["array",[["bool",true],["bool",false],["int","2"]]]}
