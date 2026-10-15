@@ -304,18 +304,23 @@ impl Hash {
     pub fn remove_keys(&mut self, ctx: &mut CallContext, indices: &[usize]) -> Result<()> {
         self.index = None;
         let len = self.buffer.data.len();
-        // A bitmap marks the removed positions without ordering them. Its
-        // bytes are reserved against the invocation's memory quota and its
-        // zeroing is charged per 64 bytes, as the index fill charges per
-        // bucket word, so marking cannot bypass the step quota.
-        let _mark = ctx.reserve(len)?;
-        let mut marked = Buffer::untracked(vec![false; len]);
+        // A bitmap marks the removed positions without ordering them. It is
+        // allocated through the fallible `Buffer` path so allocator
+        // exhaustion surfaces as the invocation's memory error, its bytes are
+        // reserved against the quota, and its zeroing is charged per 64 bytes,
+        // as the index fill charges per bucket word, so marking cannot bypass
+        // the step quota.
+        let mut marked = Buffer::with_capacity(ctx, len)?;
+        while marked.data.len() < len {
+            let end = len.min(marked.data.len() + CHUNK / size_of::<bool>());
+            ctx.work_bytes(end - marked.data.len())?;
+            marked.data.resize(end, false);
+        }
         for slot in indices {
             if *slot < len {
                 marked.data[*slot] = true;
             }
         }
-        ctx.work_bytes(len)?;
         let mut write = 0;
         let mut depth = 1;
         let mut deepest_removed = false;
@@ -340,6 +345,10 @@ impl Hash {
         if deepest_removed {
             self.depth = depth;
         }
+        // The bitmap's work is done; release its reservation before the
+        // replacement allocations so a deletion near the quota does not need
+        // the headroom for both at once.
+        drop(marked);
         if self.buffer.data.is_empty() {
             self.buffer = Buffer::empty();
         } else if self.buffer.data.len() < self.buffer.data.capacity() / 2 {
