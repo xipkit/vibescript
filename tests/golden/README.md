@@ -185,19 +185,21 @@ The [differential tests](../../docs/checker-diff.md), extended to hosts, nested 
 ## Counter log
 
 - Batched hash key removal (2026-10-13): `hash.delete_if`, `hash.keep_if` and
-  their mutation now resolve the deleted keys once and mark them in a bitmap
-  that is allocated through the fallible buffer path, reserved against the
-  memory quota and released before the index rebuild, then compact, shrink,
-  recompute depth and rebuild the bucket index in a single linear pass,
-  instead of shifting the entry buffer and rebuilding the whole index after
-  each key, which made a bulk deletion quadratic in the hash size. Removing
-  half of a 1,024-entry hash drops from 1,742,235 to 38,133 steps; the
-  language corpus's tiny 3-entry `delete_if` cases gain 2–3 steps and 16–24
-  peak bytes for the tracked buffers that batch them, and eight replay cases
-  drift by one or two steps in either direction. Re-recorded fifteen
-  `language` and eight `replay` counters, plus six new `conformance` benchmark
-  cases (`hash_delete_if_half`, `hash_delete_if_all`, `hash_keep_if_thirds`,
-  both metering modes). Every observation is unchanged.
+  their mutation now resolve the deleted keys once and mark them in a byte
+  table that is allocated through the fallible buffer path, reserved against
+  the memory quota, marked and discarded in bounded groups with cancellation
+  checkpoints, and released with the drained key and position buffers before
+  the shrink and index rebuild, then compact, shrink, recompute depth and
+  rebuild the bucket index in a single linear pass, instead of shifting the
+  entry buffer and rebuilding the whole index after each key, which made a
+  bulk deletion quadratic in the hash size. Removing half of a 1,024-entry
+  hash drops from 1,742,235 to 38,157 steps; the language corpus's tiny
+  3-entry `delete_if` cases gain a few steps for the marks, the bounded
+  discard and the tracked buffers that batch them, and eight replay cases
+  drift by a few steps in either direction. Re-recorded fifteen `language`
+  and eight `replay` counters, plus six new `conformance` benchmark cases
+  (`hash_delete_if_half`, `hash_delete_if_all`, `hash_keep_if_thirds`, both
+  metering modes). Every observation is unchanged.
 - Scoped assignment and cleanup tracking (2026-10-02): the assignment index
   distinguishes captured writes from shadowed block parameters and rescue
   bindings, and cleanup follows writes on live paths. Re-recorded 1–10 extra

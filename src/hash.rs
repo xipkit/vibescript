@@ -306,40 +306,41 @@ impl Hash {
     pub fn remove_keys(&mut self, ctx: &mut CallContext, indices: Buffer<usize>) -> Result<()> {
         self.index = None;
         let len = self.buffer.data.len();
-        // A bitmap marks the removed positions without ordering them. It is
-        // allocated through the fallible `Buffer` path so allocator exhaustion
-        // surfaces as the invocation's memory error, its bytes are reserved
-        // against the quota, and its zeroing is charged per 64 bytes, as the
-        // index fill charges per bucket word, so the allocation cannot bypass
-        // the step quota.
+        // A byte mark flags each removed position without ordering them. The
+        // marks are allocated through the fallible `Buffer` path so allocator
+        // exhaustion surfaces as the invocation's memory error, their bytes
+        // are reserved against the quota, and their zeroing is charged per 64
+        // bytes, as the index fill charges per bucket word, so the allocation
+        // cannot bypass the step quota. (`Vec<bool>` would pack eight marks
+        // per byte, so a byte per mark keeps the reservation and the charge
+        // honest.)
         let mut marked = Buffer::with_capacity(ctx, len)?;
         while marked.data.len() < len {
-            let end = len.min(marked.data.len() + CHUNK / size_of::<bool>());
+            let end = len.min(marked.data.len() + CHUNK);
             ctx.work_bytes(end - marked.data.len())?;
-            marked.data.resize(end, false);
+            marked.data.resize(end, 0);
         }
         // Mark in bounded groups, resting at a checkpoint between each, so a
         // cancellation or deadline raised while a large batch is being marked
         // stops it instead of waiting for the compaction below to notice.
-        let group = CHUNK / size_of::<bool>();
-        for slots in indices.data.chunks(group.max(1)) {
+        for slots in indices.data.chunks(CHUNK) {
             for slot in slots {
                 if *slot < len {
-                    marked.data[*slot] = true;
+                    marked.data[*slot] = 1;
                 }
             }
             ctx.checkpoint()?;
         }
         // The positions are spent; release their reservation before the
         // compaction so a deletion near the quota does not carry the dead
-        // buffer alongside the bitmap.
+        // buffer alongside the marks.
         drop(indices);
         let mut write = 0;
         let mut depth = 1;
         let mut deepest_removed = false;
         for read in 0..len {
             ctx.charge(1)?;
-            if marked.data[read] {
+            if marked.data[read] != 0 {
                 if self.buffer.data[read].1.depth() + 1 == self.depth {
                     deepest_removed = true;
                 }
@@ -352,8 +353,18 @@ impl Hash {
             depth = depth.max(value.depth() + 1);
             write += 1;
         }
-        for _ in write..len {
-            self.buffer.data.pop();
+        // Discard the removed entries in bounded groups with a checkpoint
+        // between each, so destroying them observes a cancellation raised
+        // after the compaction instead of dropping them all unwatched.
+        let mut removed = len - write;
+        while removed > 0 {
+            let step = removed.min(CHUNK);
+            ctx.work_bytes(step)?;
+            ctx.checkpoint()?;
+            for _ in 0..step {
+                self.buffer.data.pop();
+            }
+            removed -= step;
         }
         if deepest_removed {
             self.depth = depth;
