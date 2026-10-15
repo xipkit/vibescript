@@ -171,7 +171,11 @@ impl Mutation {
                 let Kind::Hash(mut hash) = receiver.0 else {
                     unreachable!()
                 };
-                let mut indices = Buffer::with_capacity(ctx, keys.data.len())?;
+                // Reserve nothing up front: a block that removed many of its
+                // own keys leaves them unresolvable, and the eager worst-case
+                // reservation could refuse a deletion whose every key is
+                // skipped. The buffer grows as keys resolve.
+                let mut indices = Buffer::empty();
                 for key in keys.data.drain(..) {
                     ctx.charge(1)?;
                     if let Some(index) = hash.find(ctx, key.require_bytes()?)? {
