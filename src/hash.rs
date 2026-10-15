@@ -292,22 +292,36 @@ impl Hash {
         Ok(())
     }
 
-    /// Removes the entries at the sorted, distinct positions in `indices` in
-    /// one pass, charging one step per entry the compaction visits, then
-    /// shrinking, recomputing depth and rebuilding the index once. A batch
-    /// costs the same finds and per-entry work as repeated [`Self::remove`]
-    /// calls without shifting the buffer and rebuilding the whole index after
-    /// every key, which makes a bulk `delete_if` quadratic in the hash size.
+    /// Removes the entries at the distinct positions in `indices` in one
+    /// linear pass, charging one step per entry the compaction visits and
+    /// for marking the deletion bitmap, then shrinking, recomputing depth
+    /// and rebuilding the index once. A batch costs the same finds and
+    /// per-entry work as repeated [`Self::remove`] calls without shifting
+    /// the buffer and rebuilding the whole index after every key, which
+    /// makes a bulk `delete_if` quadratic in the hash size. Positions need
+    /// no ordering: a bitmap marks them, so the pass stays linear whatever
+    /// order the block's mutations leave them in.
     pub fn remove_keys(&mut self, ctx: &mut CallContext, indices: &[usize]) -> Result<()> {
         self.index = None;
-        let mut next = 0;
+        let len = self.buffer.data.len();
+        // A bitmap marks the removed positions without ordering them. Its
+        // bytes are reserved against the invocation's memory quota and its
+        // zeroing is charged per 64 bytes, as the index fill charges per
+        // bucket word, so marking cannot bypass the step quota.
+        let _mark = ctx.reserve(len)?;
+        let mut marked = Buffer::untracked(vec![false; len]);
+        for slot in indices {
+            if *slot < len {
+                marked.data[*slot] = true;
+            }
+        }
+        ctx.work_bytes(len)?;
         let mut write = 0;
         let mut depth = 1;
         let mut deepest_removed = false;
-        for read in 0..self.buffer.data.len() {
+        for read in 0..len {
             ctx.charge(1)?;
-            if next < indices.len() && indices[next] == read {
-                next += 1;
+            if marked.data[read] {
                 if self.buffer.data[read].1.depth() + 1 == self.depth {
                     deepest_removed = true;
                 }
@@ -320,7 +334,7 @@ impl Hash {
             depth = depth.max(value.depth() + 1);
             write += 1;
         }
-        for _ in write..self.buffer.data.len() {
+        for _ in write..len {
             self.buffer.data.pop();
         }
         if deepest_removed {

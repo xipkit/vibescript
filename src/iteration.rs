@@ -179,10 +179,6 @@ impl Mutation {
                     }
                 }
                 if !indices.data.is_empty() {
-                    // Positions arrive from an ordered walk, but a block can
-                    // also remove and reinsert keys during iteration, so sort
-                    // defensively before the batched compaction consumes them.
-                    indices.data.sort_unstable();
                     Hash::make_mut(ctx, &mut hash)?.remove_keys(ctx, &indices.data)?;
                 }
                 let updated = Value(Kind::Hash(hash));
