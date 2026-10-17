@@ -251,9 +251,16 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
         }
         let a = to_string(ctx, &a)?;
         let b = to_string(ctx, &b)?;
-        let mut out = Buffer::empty();
-        out.extend(ctx, a.require_bytes()?)?;
-        out.extend(ctx, b.require_bytes()?)?;
+        let a_bytes = a.require_bytes()?;
+        let b_bytes = b.require_bytes()?;
+        let Some(length) = a_bytes.len().checked_add(b_bytes.len()) else {
+            return ctx.fail(ErrorKind::Memory, "concatenation size overflow");
+        };
+        // Reserve the full length up front, so one allocation holds the
+        // result instead of growing through a second that copies `a` again.
+        let mut out = Buffer::with_capacity(ctx, length)?;
+        out.extend(ctx, a_bytes)?;
+        out.extend(ctx, b_bytes)?;
         return Value::from_bytes(ctx, out);
     }
     if crate::time::stamp(&a).is_some() || crate::time::stamp(&b).is_some() {

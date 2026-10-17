@@ -184,6 +184,18 @@ The [differential tests](../../docs/checker-diff.md), extended to hosts, nested 
 
 ## Counter log
 
+- Exact concatenation storage (2026-10-15): `string + string` reserves the
+  full result length before copying either side, instead of growing an empty
+  buffer through a second reservation that copies the left side again, so a
+  concatenation's peak and retained bytes track its result exactly rather
+  than doubling through the old capacity rule. Peaks fall where concatenation
+  built a call's largest allocation: the `unicode_boundary_*` conformance
+  cases drop from about 22,200 to 18,100 peak bytes, and 263 `language` and
+  304 `replay` counters move with them, mostly downward, with steps
+  unchanged except where a case fell past a quota boundary. Only those
+  cases were re-recorded from live measurements; the checkout-dependent
+  `required_files`, `policies` and `same_name_call_*` counters stay as
+  recorded. Every observation is unchanged.
 - Deepest-element tracking (2026-10-15): arrays and hashes now record how many
   elements sit at their nesting maximum, so overwriting a deepest element with
   a shallower value only walks for a new maximum when the last deepest element
