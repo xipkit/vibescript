@@ -10,9 +10,37 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Put Git Bash on the Windows path
+      if: runner.os == 'Windows'
+      shell: powershell
+      run: |
+        $gitRoot = Split-Path -Parent (Split-Path -Parent (Get-Command git.exe).Source)
+        if (!(Test-Path (Join-Path $gitRoot 'bin\bash.exe'))) { throw "Git Bash is missing from $gitRoot" }
+        foreach ($folder in 'usr\bin', 'bin') {
+          Join-Path $gitRoot $folder | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        }
     - name: Install Rust
       shell: bash
-      run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --component rustfmt --component clippy
+      run: |
+        # Self-hosted runners keep rustup in the runner user's Cargo home
+        # without always putting it on PATH.
+        if ! command -v rustup >/dev/null 2>&1; then
+          rustup_bin="$HOME/.cargo/bin"
+          if [ ! -x "$rustup_bin/rustup" ]; then
+            curl --proto '=https' --tlsv1.2 --retry 3 -sSfL https://sh.rustup.rs |
+              sh -s -- -y --no-modify-path --default-toolchain none --profile minimal
+          fi
+          echo "$rustup_bin" >> "$GITHUB_PATH"
+          export PATH="$rustup_bin:$PATH"
+        fi
+        # Runners on one machine share the rustup home, so a concurrent first
+        # install of a toolchain can fail and is retried.
+        for attempt in 1 2 3 4 5; do
+          rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --component rustfmt --component clippy --no-self-update && break
+          if [ "$attempt" = 5 ]; then exit 1; fi
+          echo "Retrying rustup toolchain install in 30 seconds" >&2
+          sleep 30
+        done
     - name: Install target
       if: inputs.target != ''
       shell: bash
@@ -25,7 +53,7 @@ runs:
         uname -m
         rustc --version --verbose
         ./scripts/cargo --version
-        python3 --version
+        if [ "$RUNNER_OS" != Windows ]; then python3 --version; fi
     - name: Cache Cargo dependencies and builds
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
