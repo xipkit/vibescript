@@ -26,7 +26,8 @@ defaults:
 jobs:
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, xipkit]
     timeout-minutes: 20
     steps:
       - name: Check out the repository
@@ -46,15 +47,18 @@ jobs:
 
   tests:
     name: Tests (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: Linux
+            runner: [self-hosted, Linux, X64, xipkit]
             arch: x86_64
-          - os: macos-latest
+          - os: macOS
+            runner: [self-hosted, macOS, ARM64, xipkit]
             arch: arm64
     steps:
       - name: Check out the repository
@@ -83,7 +87,8 @@ jobs:
 
   windows-modules:
     name: Windows module loading
-    runs-on: windows-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Windows, X64, ramanujan, unit]
     timeout-minutes: 20
     steps:
       - name: Check out the repository
@@ -99,15 +104,18 @@ jobs:
 
   golden:
     name: Golden (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: Linux
+            runner: [self-hosted, Linux, X64, xipkit]
             arch: x86_64
-          - os: macos-latest
+          - os: macOS
+            runner: [self-hosted, macOS, ARM64, xipkit]
             arch: arm64
     steps:
       - name: Check out the repository
@@ -137,7 +145,8 @@ jobs:
 
   wasi:
     name: WASI
-    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, xipkit]
     timeout-minutes: 30
     steps:
       - name: Check out the repository
