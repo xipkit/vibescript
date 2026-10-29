@@ -82,7 +82,7 @@ jobs:
         run: ./scripts/cargo test --locked --workspace --doc --all-features
 
   windows-modules:
-    name: Windows module loading
+    name: Windows CLI and module loading
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
@@ -96,6 +96,10 @@ jobs:
           cache-key: windows-modules
       - name: Test filesystem module loading
         run: './scripts/cargo test --locked -p vibescript --lib --all-features loading::'
+      - name: Install CLI with default features
+        run: ./scripts/cargo install --locked --path cli --root .cache/cli-install
+      - name: Run installed CLI
+        run: ./.cache/cli-install/bin/vibes.exe --version
 
   golden:
     name: Golden (${{ matrix.os }})
