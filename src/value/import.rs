@@ -119,18 +119,18 @@ impl Keys {
         let Kind::Bytes(bytes) = &key.0 else {
             return ctx.import_scalar(key);
         };
-        if ctx.owns(&bytes.header) || bytes.data.len() > Self::LENGTH {
+        if ctx.owns(bytes.charge()) || bytes.data().len() > Self::LENGTH {
             return ctx.import_scalar(key);
         }
         let slot = bytes
-            .data
+            .data()
             .iter()
             .fold(0xcbf2_9ce4_8422_2325_u64, |hash, &byte| {
                 (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
             }) as usize
             % Self::SLOTS;
         if let Some(Some(imported)) = self.slots.data.get(slot) {
-            if imported.as_bytes() == Some(bytes.data.as_slice()) {
+            if imported.as_bytes() == Some(bytes.data().as_slice()) {
                 return Ok(imported.clone());
             }
         }

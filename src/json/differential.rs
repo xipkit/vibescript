@@ -14,9 +14,9 @@ fn repeated_short_strings_share_values_without_retaining_the_document() {
         let crate::value::Kind::Bytes(bytes) = &value.0 else {
             panic!("string")
         };
-        assert!(std::sync::Arc::ptr_eq(first, bytes));
-        assert_eq!(bytes.data.as_slice(), b"api");
-        assert_eq!(bytes.data.capacity(), 3);
+        assert!(first.ptr_eq(bytes));
+        assert_eq!(bytes.data().as_slice(), b"api");
+        assert_eq!(bytes.data().capacity(), 3);
     }
     drop(parsed);
     assert_eq!(ctx.stats().retained_memory_bytes, 0);

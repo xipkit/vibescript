@@ -178,7 +178,7 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
     if op == "%" {
         if let Kind::Bytes(pattern) = &a.0 {
             let values = b.as_array().unwrap_or_else(|| std::slice::from_ref(&b));
-            return crate::format::format(ctx, &pattern.data, values);
+            return crate::format::format(ctx, pattern.data(), values);
         }
     }
     if matches!(op, "=~" | "!~") {
@@ -338,13 +338,13 @@ fn integers(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Result<Value
             let n = crate::sequence::integer(&b).map_err(|_| unsupported(op))?;
             let n = usize::try_from(n).map_err(|_| negative_repetition())?;
             let len = s
-                .data
+                .data()
                 .len()
                 .checked_mul(n)
                 .ok_or_else(|| Error::new(ErrorKind::Memory, "string size overflow"))?;
             let mut out = Buffer::with_capacity(ctx, len)?;
-            if !s.data.is_empty() && n != 0 {
-                out.extend(ctx, &s.data)?;
+            if !s.data().is_empty() && n != 0 {
+                out.extend(ctx, s.data())?;
                 // Each pass copies everything written so far, doubling it.
                 while out.data.len() < len {
                     ctx.charge(1)?;
@@ -485,14 +485,14 @@ pub(crate) fn compare(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Opt
             Ok(a.as_float().unwrap().partial_cmp(&b.as_float().unwrap()))
         }
         (Kind::Bytes(a), Kind::Bytes(b)) | (Kind::Symbol(a), Kind::Symbol(b)) => {
-            for (a, b) in a.data.chunks(CHUNK).zip(b.data.chunks(CHUNK)) {
+            for (a, b) in a.data().chunks(CHUNK).zip(b.data().chunks(CHUNK)) {
                 ctx.work_bytes(a.len().min(b.len()))?;
                 let cmp = a.cmp(b);
                 if cmp != Ordering::Equal {
                     return Ok(Some(cmp));
                 }
             }
-            Ok(Some(a.data.len().cmp(&b.data.len())))
+            Ok(Some(a.data().len().cmp(&b.data().len())))
         }
         _ => Err(unsupported("<")),
     }
@@ -673,7 +673,7 @@ fn equal_step<'a>(
         }
         (Kind::Float(a), Kind::Float(b)) => a == b,
         (Kind::Bytes(a), Kind::Bytes(b)) | (Kind::Symbol(a), Kind::Symbol(b)) => {
-            json::bytes_equal(ctx, &a.data, &b.data)?
+            json::bytes_equal(ctx, a.data(), b.data())?
         }
         (Kind::Array(a), Kind::Array(b)) => {
             if a.buffer.data.len() != b.buffer.data.len() {
@@ -763,7 +763,7 @@ pub(crate) fn index(ctx: &mut CallContext, value: &Value, index: &Value) -> Resu
                 .unwrap_or_default())
         }
         Kind::Bytes(h) => {
-            let bytes = &h.data;
+            let bytes = h.data();
             let n = index_selector(index)?;
             let n = if n < 0 {
                 let (count, _) = runes(ctx, bytes)?;
@@ -944,7 +944,7 @@ pub(crate) fn method(
         Empty => {
             member_arity(&value, name, args)?;
             Ok(Value::boolean(match &value.0 {
-                Kind::Bytes(h) => h.data.is_empty(),
+                Kind::Bytes(h) => h.data().is_empty(),
                 Kind::Array(h) => h.buffer.data.is_empty(),
                 Kind::Hash(h) => h.buffer.data.is_empty(),
                 _ => return Err(type_error()),
@@ -987,7 +987,7 @@ pub(crate) fn method(
         Length => {
             member_arity(&value, name, args)?;
             let n = match &value.0 {
-                Kind::Bytes(h) => runes(ctx, &h.data)?.0,
+                Kind::Bytes(h) => runes(ctx, h.data())?.0,
                 Kind::Array(h) => h.buffer.data.len(),
                 Kind::Hash(h) => h.buffer.data.len(),
                 _ => return Err(type_error()),
@@ -1332,7 +1332,7 @@ pub(crate) fn to_string(ctx: &mut CallContext, value: &Value) -> Result<Value> {
             return Value::from_bytes(ctx, text);
         }
         Kind::Bytes(_) => return Ok(value.clone()),
-        Kind::Symbol(h) => return ctx.bytes(&h.data),
+        Kind::Symbol(h) => return ctx.bytes(h.data()),
         Kind::Nil => return ctx.bytes(b""),
         Kind::Bool(v) => return ctx.bytes(if *v { b"true" } else { b"false" }),
         Kind::Int(n) => write!(text, "{n}").unwrap(),

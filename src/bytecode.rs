@@ -1487,7 +1487,7 @@ impl Compiler<'_> {
             crate::value::Kind::Symbol(bytes) => (true, bytes),
             _ => return self.constant(value),
         };
-        let text = (symbol, std::sync::Arc::clone(&bytes.data));
+        let text = (symbol, bytes.shared());
         let slot = match self.program.shared_slots.get(&text) {
             Some(&slot) => slot,
             None => {

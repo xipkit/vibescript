@@ -7,10 +7,10 @@ pub(super) fn string_bytes(
 ) -> Result<usize> {
     if let Kind::Bytes(bytes) | Kind::Symbol(bytes) = &value.0 {
         return match precision {
-            Some(count) => precision_bytes(ctx, &bytes.data, count),
+            Some(count) => precision_bytes(ctx, bytes.data(), count),
             None => {
-                ctx.work_bytes(bytes.data.len())?;
-                Ok(bytes.data.len())
+                ctx.work_bytes(bytes.data().len())?;
+                Ok(bytes.data().len())
             }
         };
     }
@@ -20,7 +20,7 @@ pub(super) fn string_bytes(
 
 fn string_runes(ctx: &mut CallContext, value: &Value, precision: Option<usize>) -> Result<usize> {
     let count = if let Kind::Bytes(bytes) | Kind::Symbol(bytes) = &value.0 {
-        crate::ops::runes(ctx, &bytes.data)?.0
+        crate::ops::runes(ctx, bytes.data())?.0
     } else {
         crate::text::bounded::measure_runes(ctx, value)?
     };
@@ -35,8 +35,8 @@ pub(super) fn field(ctx: &mut CallContext, value: &Value, verb: u8, field: Field
         b'q' => quoted(string_bytes(ctx, value, precision)?),
         b'x' | b'X' => match &value.0 {
             Kind::Bytes(bytes) | Kind::Symbol(bytes) => {
-                ctx.work_bytes(bytes.data.len())?;
-                let count = bytes.data.len();
+                ctx.work_bytes(bytes.data().len())?;
+                let count = bytes.data().len();
                 let mut length = count.saturating_mul(if field.flag(SPACE) { 3 } else { 2 });
                 if field.flag(SHARP) {
                     length = length.saturating_add(2);

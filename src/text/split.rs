@@ -43,7 +43,7 @@ impl<'a> Split<'a> {
         };
         let mode = match args.first() {
             None | Some(Value(Kind::Nil)) => Mode::Whitespace,
-            Some(Value(Kind::Bytes(bytes))) => match bytes.data.as_slice() {
+            Some(Value(Kind::Bytes(bytes))) => match bytes.data().as_slice() {
                 b" " => Mode::Whitespace,
                 b"" => Mode::Characters,
                 other => Mode::Literal(other),
@@ -196,7 +196,7 @@ pub(crate) fn call(ctx: &mut CallContext, receiver: &Value, args: &[Value]) -> R
     let Kind::Bytes(bytes) = &receiver.0 else {
         return Err(Error::new(ErrorKind::Type, "split requires a string"));
     };
-    let text = bytes.data.as_slice();
+    let text = bytes.data().as_slice();
     let split = Split::new(ctx, text, args)?;
     let mut count = 0usize;
     let mut pending = 0usize;

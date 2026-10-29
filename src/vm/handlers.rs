@@ -697,7 +697,7 @@ pub(super) fn raise(
                 .with_class(ErrorClass::Type),
         );
     }
-    Ok(Error::from_bytes(ctx, &bytes.data)?.with_class(class.unwrap_or(ErrorClass::Runtime)))
+    Ok(Error::from_bytes(ctx, bytes.data())?.with_class(class.unwrap_or(ErrorClass::Runtime)))
 }
 
 /// Whether frame `index` has an active loop. A frame's loops end where the

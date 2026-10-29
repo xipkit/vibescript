@@ -1075,7 +1075,7 @@ impl Memo {
 fn symbol_text(value: &crate::Value) -> Option<String> {
     match &value.0 {
         crate::value::Kind::Symbol(symbol) => {
-            Some(String::from_utf8_lossy(&symbol.data).into_owned())
+            Some(String::from_utf8_lossy(symbol.data()).into_owned())
         }
         _ => None,
     }

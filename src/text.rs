@@ -120,7 +120,7 @@ fn string(value: &Value) -> Result<&[u8]> {
     let Kind::Bytes(bytes) = &value.0 else {
         return Err(Error::new(ErrorKind::Type, "expected string"));
     };
-    Ok(&bytes.data)
+    Ok(bytes.data())
 }
 
 /// Rejects arguments to the string member `name`, which takes none.

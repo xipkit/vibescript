@@ -28,7 +28,7 @@ pub(crate) fn type_atom<'a>(
         ));
     }
     let bytes = match &args[0].0 {
-        Kind::Bytes(bytes) | Kind::Symbol(bytes) => &bytes.data,
+        Kind::Bytes(bytes) | Kind::Symbol(bytes) => &bytes.data(),
         _ => {
             return Err(Error::new(
                 ErrorKind::Type,

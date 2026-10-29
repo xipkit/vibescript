@@ -357,7 +357,7 @@ fn same_storage(a: &Value, b: &Value) -> bool {
     match (&a.0, &b.0) {
         (Kind::Array(a), Kind::Array(b)) => Arc::ptr_eq(a, b),
         (Kind::Hash(a), Kind::Hash(b)) => Arc::ptr_eq(a, b),
-        (Kind::Bytes(a), Kind::Bytes(b)) | (Kind::Symbol(a), Kind::Symbol(b)) => Arc::ptr_eq(a, b),
+        (Kind::Bytes(a), Kind::Bytes(b)) | (Kind::Symbol(a), Kind::Symbol(b)) => a.ptr_eq(b),
         (Kind::Range(a), Kind::Range(b)) => Arc::ptr_eq(a, b),
         (Kind::Big(a), Kind::Big(b)) => Arc::ptr_eq(a, b),
         (Kind::Nil, Kind::Nil) => true,

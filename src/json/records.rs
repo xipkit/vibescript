@@ -221,7 +221,6 @@ impl<'a> Records<'a> {
     #[cold]
     pub fn discard_unused(&mut self, keys: Option<&[[Value; 2]; 32]>) {
         use crate::value::Kind;
-        use std::sync::Arc;
 
         // All values are still private to this parser. Count its bounded cache
         // references before releasing any, so names shared across shapes are
@@ -232,7 +231,8 @@ impl<'a> Records<'a> {
                 let Some(Value(Kind::Bytes(name))) = record.fields.get(field) else {
                     continue;
                 };
-                let same = |value: &Value| matches!(&value.0, Kind::Bytes(other) if Arc::ptr_eq(name, other));
+                let same =
+                    |value: &Value| matches!(&value.0, Kind::Bytes(other) if name.ptr_eq(other));
                 let fields = self
                     .entries()
                     .flat_map(|record| {
@@ -246,7 +246,7 @@ impl<'a> Records<'a> {
                     .flatten()
                     .filter(|value| same(value))
                     .count();
-                discard[slot * FIELD_CHUNK + field] = Arc::strong_count(name) == fields + cached;
+                discard[slot * FIELD_CHUNK + field] = name.strong_count() == fields + cached;
             }
         }
         for (slot, record) in self
@@ -617,7 +617,7 @@ mod tests {
                 let (Kind::Bytes(first), Kind::Bytes(second)) = (&first.0.0, &second.0.0) else {
                     panic!("ordinary keys")
                 };
-                assert!(std::sync::Arc::ptr_eq(first, second));
+                assert!(first.ptr_eq(second));
             }
             let mut ordinary = CallContext::new(CallOptions::default());
             let expected = crate::json::parse(&mut ordinary, &input).unwrap();
@@ -668,7 +668,7 @@ mod tests {
                 let (Kind::Bytes(key), Kind::Bytes(shared)) = (&key.0, &shared.0.0) else {
                     panic!("ordinary keys")
                 };
-                assert!(std::sync::Arc::ptr_eq(key, shared));
+                assert!(key.ptr_eq(shared));
             }
         }
         let first = rows[0].as_hash().unwrap();

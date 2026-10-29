@@ -97,10 +97,10 @@ pub(crate) fn prefix(ctx: &mut CallContext, value: &Value, limit: usize) -> Resu
 
 pub(crate) fn render(ctx: &mut CallContext, value: &Value, limit: usize) -> Result<Value> {
     if let Kind::Bytes(bytes) = &value.0 {
-        if bytes.data.len() > limit {
+        if bytes.data().len() > limit {
             return ctx.guard(ErrorKind::OutputLimit, "output exceeds limit 1048576 bytes");
         }
-        ctx.work_bytes(bytes.data.len())?;
+        ctx.work_bytes(bytes.data().len())?;
         return Ok(value.clone());
     }
     let mut output = Output {
@@ -213,7 +213,7 @@ fn walk(ctx: &mut CallContext, value: &Value, output: &mut Output, limit: usize)
 fn leaf(ctx: &mut CallContext, value: &Value, output: &mut Output) -> Result<()> {
     let mut scalar = json::Number::new();
     match &value.0 {
-        Kind::Bytes(bytes) | Kind::Symbol(bytes) => output.append(ctx, &bytes.data),
+        Kind::Bytes(bytes) | Kind::Symbol(bytes) => output.append(ctx, bytes.data()),
         Kind::Nil => output.append(ctx, b""),
         Kind::Builtin(_) | Kind::Offset(_) => output.append(ctx, b"<builtin>"),
         Kind::Regex(regex) => regex.render(ctx, |ctx, bytes| output.append(ctx, bytes)),
@@ -276,7 +276,7 @@ mod tests {
         ctx.options.limits.steps = Some(100);
         let result = prefix(&mut ctx, &value, 1).unwrap();
         assert_eq!(result.as_bytes(), Some(b"[".as_slice()));
-        assert!(ctx.stats().peak_memory_bytes < 128);
+        assert!(ctx.stats().peak_memory_bytes < Bytes::header_bytes() + 32);
         drop(result);
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }

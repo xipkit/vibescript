@@ -519,3 +519,24 @@ every stable outcome, step count and retained-byte count unchanged. Only the
 two-byte offset. Clock and UUID observations keep their original records;
 `call10334` can also retain one more byte when its clock strings have another
 fractional digit.
+
+## Runtime string storage, 2026-10-28
+
+Runtime strings now allocate their vector directly in one Arc and reserve a
+possible shared-vector owner before publication. On 64-bit targets their
+header reservation rises from 96 to 112 bytes, while the smaller shared
+representation used by imports and compiler strings drops from 96 to 80 bytes.
+Buffer-capacity charges and logical work are unchanged.
+
+Paired runs of all 233,882 engine/parser cases preserve every stable non-quota
+observation and every step count among cases successful in both builds.
+Recorded 92,956 affected memory counters twice: 914 conformance, 72,050
+language, one rejection, 54 compatibility, and 19,937 replay cases. Preserved
+all observations, unaffected counters, the four existing varying replay
+cases, and 168 pre-existing counter offsets.
+
+Among tight replay quotas, 3,203 former memory failures now succeed, one former
+success exceeds its memory limit, and 1,654 memory failures move to another
+point. No compile outcomes change. These remain accounting drift against the
+preserved observations. The [string storage report](../../benchmarks/string-storage.md)
+includes measured allocation savings, timing tradeoffs, and the full audit.

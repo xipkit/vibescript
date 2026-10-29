@@ -789,10 +789,10 @@ pub(super) fn call(
     let Kind::Bytes(input) = &args[0].0 else {
         return Err(shape());
     };
-    let input = input.data.as_slice();
+    let input = input.data().as_slice();
     let custom = match args.get(1).map(|v| &v.0) {
         None | Some(Kind::Nil) => None,
-        Some(Kind::Bytes(bytes)) => Some(bytes.data.as_slice()),
+        Some(Kind::Bytes(bytes)) => Some(bytes.data().as_slice()),
         _ => {
             return Err(Error::new(
                 ErrorKind::Argument,

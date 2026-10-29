@@ -359,7 +359,7 @@ fn start<'a>(
             }
             out.extend(ctx, text.bytes())?;
         }
-        Kind::Bytes(h) | Kind::Symbol(h) => write_string(ctx, &h.data, out, open)?,
+        Kind::Bytes(h) | Kind::Symbol(h) => write_string(ctx, h.data(), out, open)?,
         Kind::Array(h) => {
             enter(ctx, open)?;
             out.push(ctx, b'[')?;

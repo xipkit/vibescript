@@ -247,7 +247,7 @@ pub(crate) fn member(
         return Err(negative());
     }
     let text = receiver.require_bytes()?;
-    if matches!(&args[0].0, Kind::Bytes(pattern) if pattern.data.len() > MAX_PATTERN) {
+    if matches!(&args[0].0, Kind::Bytes(pattern) if pattern.data().len() > MAX_PATTERN) {
         return pattern_limit(ctx, "string.match?");
     }
     text_limit(ctx, text, "string.match?", "text")?;

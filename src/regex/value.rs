@@ -429,8 +429,11 @@ mod tests {
                 unreachable!()
             };
             assert!(Arc::ptr_eq(&a.code, &b.code));
+            let savings = usize::from(flags != 0)
+                * (crate::value::Bytes::header_bytes()
+                    - crate::value::Bytes::shared_header_bytes());
             assert_eq!(
-                first.stats().retained_memory_bytes,
+                first.stats().retained_memory_bytes - savings,
                 second.stats().retained_memory_bytes
             );
             drop(original);

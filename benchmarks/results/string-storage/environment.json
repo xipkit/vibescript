@@ -1,0 +1,36 @@
+{
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "machine": "arm64",
+  "cpu": "Apple M1 Max",
+  "rustc": "rustc 1.98.1 (48a229cea 2026-09-01) (Homebrew)\nbinary: rustc\ncommit-hash: 48a229ceaefd4985c50990b14116b6d856af0985\ncommit-date: 2026-09-01\nhost: aarch64-apple-darwin\nrelease: 1.98.1\nLLVM version: 22.1.8\n",
+  "source_revision": "690d834b64203f2667fa46fa178519689fd5464f",
+  "dirty": " M src/address.rs\n M src/builtin.rs\n M src/bytecode.rs\n M src/bytecode/regex.rs\n M src/compilation/storage.rs\n M src/duration.rs\n M src/format/project.rs\n M src/json/differential.rs\n M src/json/records.rs\n M src/json/writer.rs\n M src/members/introspection.rs\n M src/ops.rs\n M src/output.rs\n M src/records.rs\n M src/regex.rs\n M src/regex/operations.rs\n M src/regex/value.rs\n M src/sequence.rs\n M src/sets.rs\n M src/text.rs\n M src/text/basic.rs\n M src/text/bounded.rs\n M src/text/case.rs\n M src/text/charset.rs\n M src/text/index.rs\n M src/text/inspect.rs\n M src/text/split.rs\n M src/text/transform.rs\n M src/time.rs\n M src/time/parse.rs\n M src/time/zone.rs\n M src/types.rs\n M src/typing.rs\n M src/typing/expr.rs\n M src/value.rs\n M src/value/import.rs\n M src/value/render.rs\n M src/vm/handlers.rs\n?? src/value/bytes.rs\n",
+  "binary_sha256": {
+    "rust-portable": "b2d72ee1a679ccac8db3267ea1c39ec84081cba675a0fff995a393e99bc053bd",
+    "rust-simd": "f86eb013ffd359a9dfb10a4944a52b12e3bbbb683e47e3ac78f71735c5911eff",
+    "rust-before-portable": "80ed14566ed4567fde183b153d03923a9d9d63f358c71c73d947a58844762917",
+    "rust-before-simd": "ad11f2f306a60433a1300356495bd5a5297ab2affd11083f222eeec866325d21"
+  },
+  "RUSTFLAGS": "",
+  "target_ms": 75,
+  "command": [
+    "scripts/compare.py",
+    "--skip-build",
+    "--suite",
+    "json",
+    "--rounds",
+    "8",
+    "--baseline",
+    "/tmp/vibescript-json-baseline",
+    "--out",
+    "/tmp/vibescript-json-final-measured"
+  ],
+  "baseline_source_revision": "690d834b64203f2667fa46fa178519689fd5464f",
+  "execution_path": "/private/tmp/vibescript-json-final-measured/compare-runner",
+  "allocation_binary_sha256": {
+    "rust-portable-alloc": "4dbb2b15ef776fee2bafe4ff27496dbcdec4a97dc438c93b9f3072ce8c2079b9",
+    "rust-simd-alloc": "bd703705ddbf690ec84e2d8ef7fc0e9dc5a9bf32555a83b249a5d6dba6ec43ec",
+    "rust-before-portable-alloc": "0d7f1b1d7fdeb54c28aea2c2edb50b073841cbbf60597f094385b015e3b0dc8f",
+    "rust-before-simd-alloc": "ffb6466c996e3727e64845bb37b69c2b0d3482ba66102b2bde31f6ce3816b0e0"
+  }
+}

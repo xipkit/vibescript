@@ -9,7 +9,7 @@ fn argument(message: impl Into<String>) -> Error {
 
 fn string(value: &Value) -> Result<&[u8]> {
     if let Kind::Bytes(bytes) = &value.0 {
-        Ok(&bytes.data)
+        Ok(bytes.data())
     } else {
         Err(Error::new(ErrorKind::Type, "expected string"))
     }
@@ -325,7 +325,7 @@ pub(crate) fn call(
         return Ok(None);
     }
     ctx.charge(1)?;
-    let bytes = &input.data;
+    let bytes = input.data();
     let (start, end) = match name {
         "strip" | "lstrip" | "rstrip" => {
             nullary()?;

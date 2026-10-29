@@ -146,7 +146,7 @@ pub(crate) fn slice(
             "slice requires an array or string",
         ));
     };
-    let bytes = &bytes.data;
+    let bytes = bytes.data();
     if !byte_slice && args.len() == 1 && matches!(args[0].0, Kind::Bytes(_)) {
         return Ok(
             if ops::find(ctx, bytes, args[0].require_bytes()?, false)?.is_some() {

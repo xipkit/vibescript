@@ -140,7 +140,7 @@ fn overflow() -> Error {
 }
 
 fn absent_zone(value: &Value) -> bool {
-    matches!(&value.0, Kind::Nil) || matches!(&value.0, Kind::Bytes(b) if b.data.is_empty())
+    matches!(&value.0, Kind::Nil) || matches!(&value.0, Kind::Bytes(b) if b.data().is_empty())
 }
 
 fn location(
@@ -392,7 +392,7 @@ impl Constructor {
                     let Kind::Symbol(name) = &unit.0 else {
                         return Err(unexpected_unit(ctx, unit)?);
                     };
-                    match name.data.as_slice() {
+                    match name.data().as_slice() {
                         b"microsecond" => 1000,
                         b"millisecond" => 1_000_000,
                         b"nanosecond" => 1,
@@ -498,27 +498,28 @@ pub(crate) fn anchor(
 ) -> Result<Value> {
     ctx.checkpoint()?;
     let name = if before { "before" } else { "after" };
-    let start = match start {
-        None => Stamp::now(),
-        Some(input) => match &input.0 {
-            Kind::Bytes(bytes) => {
-                parse::rfc3339(ctx, &bytes.data).map_err(|error| match parse::rfc3339_rejection(
-                    &bytes.data,
-                )
-                .filter(|_| error.kind == ErrorKind::Argument)
-                {
-                    Some(text) => Error::new(ErrorKind::Argument, format!("invalid time: {text}")),
-                    None => error,
-                })?
-            }
-            _ => stamp(input).ok_or_else(|| {
-                Error::new(
-                    ErrorKind::Type,
-                    format!("{name} expects a Time or RFC3339 string"),
-                )
-            })?,
-        },
-    };
+    let start =
+        match start {
+            None => Stamp::now(),
+            Some(input) => match &input.0 {
+                Kind::Bytes(bytes) => parse::rfc3339(ctx, bytes.data()).map_err(|error| {
+                    match parse::rfc3339_rejection(bytes.data())
+                        .filter(|_| error.kind == ErrorKind::Argument)
+                    {
+                        Some(text) => {
+                            Error::new(ErrorKind::Argument, format!("invalid time: {text}"))
+                        }
+                        None => error,
+                    }
+                })?,
+                _ => stamp(input).ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Type,
+                        format!("{name} expects a Time or RFC3339 string"),
+                    )
+                })?,
+            },
+        };
     // Duration anchors retain Go's wrapping nanosecond conversion, unlike Time arithmetic.
     let delta = seconds.wrapping_mul(NANOS);
     Ok(Value(Kind::Time(start.add(if before {
@@ -736,9 +737,9 @@ pub(crate) fn member(
                 _ => return Err(argument("time.strftime expects a format string")),
             };
             if name == "format" {
-                format::format(ctx, receiver, &layout.data)?
+                format::format(ctx, receiver, layout.data())?
             } else {
-                strftime::format(ctx, receiver, &layout.data)?
+                strftime::format(ctx, receiver, layout.data())?
             }
         }
         "iso8601" => {

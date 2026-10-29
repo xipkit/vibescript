@@ -159,7 +159,7 @@ mod tests {
         let (Kind::Bytes(a), Kind::Bytes(b)) = (&first.0, &second.0) else {
             panic!("keys are strings");
         };
-        assert!(std::sync::Arc::ptr_eq(a, b));
+        assert!(a.ptr_eq(b));
         assert!(fields.key(&mut ctx, b"missing").unwrap().is_none());
         assert!(
             Fields::of(&mut ctx, &Type::named("int".into()))
