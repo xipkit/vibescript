@@ -433,7 +433,7 @@ fn visit(
                 Kind::Symbol(name) | Kind::Bytes(name)
                     if json || matches!(value.0, Kind::Symbol(_)) =>
                 {
-                    if let Some(index) = enumeration.lookup_symbol(ctx, &name.data)? {
+                    if let Some(index) = enumeration.lookup_symbol(ctx, name.data())? {
                         let value = crate::enums::Member::new(ctx, enumeration.clone(), index)?;
                         Ok(Some((Value(Kind::EnumMember(value)), true)))
                     } else {

@@ -68,7 +68,11 @@ mod tests {
             let literal = Literal::new(source.clone(), flags, true);
             let mut reference = CallContext::new(CallOptions::default());
             let compiled = Regex::compile(&mut reference, source, flags, "regex literal").unwrap();
-            let retained = reference.stats().retained_memory_bytes;
+            // Flags build a private pattern string; importing it uses the compact shared header.
+            let savings = usize::from(flags != 0)
+                * (crate::value::Bytes::header_bytes()
+                    - crate::value::Bytes::shared_header_bytes());
+            let retained = reference.stats().retained_memory_bytes - savings;
             for _ in 0..3 {
                 let mut ctx = CallContext::new(CallOptions::default());
                 let memory = Arc::downgrade(&ctx.identity());

@@ -173,7 +173,7 @@ pub(crate) fn call(
     let Kind::Bytes(input) = &receiver.0 else {
         return Ok(None);
     };
-    let bytes = &input.data;
+    let bytes = input.data();
     if matches!(name, "casecmp" | "casecmp?") {
         ctx.charge(1)?;
         if args.len() != 1 {
@@ -186,9 +186,9 @@ pub(crate) fn call(
             return Ok(Some(Value::nil()));
         };
         return Ok(Some(if name == "casecmp?" {
-            Value::boolean(equal(ctx, bytes, &other.data)?)
+            Value::boolean(equal(ctx, bytes, other.data())?)
         } else {
-            Value::int(match ascii_compare(ctx, bytes, &other.data)? {
+            Value::int(match ascii_compare(ctx, bytes, other.data())? {
                 Ordering::Less => -1,
                 Ordering::Equal => 0,
                 Ordering::Greater => 1,

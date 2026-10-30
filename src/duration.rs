@@ -91,7 +91,7 @@ pub(crate) fn parse(ctx: &mut CallContext, args: &[Value]) -> Result<Value> {
             "Duration.parse expects a duration string",
         ));
     };
-    parse::parse(ctx, &bytes.data).map(Value::duration)
+    parse::parse(ctx, bytes.data()).map(Value::duration)
 }
 
 pub(crate) fn text(ctx: &mut CallContext, seconds: i64) -> Result<Value> {

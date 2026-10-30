@@ -353,7 +353,7 @@ impl Builtin {
                     return Err(refuse(kind, "expects a single JSON string argument"));
                 };
                 modifiers()?;
-                json::parse_builtin(ctx, &bytes.data, name)
+                json::parse_builtin(ctx, bytes.data(), name)
             }
             Self::JsonParseAs => {
                 modifiers()?;
@@ -443,7 +443,7 @@ impl Builtin {
                     "money expects a string literal",
                 ));
             };
-            return crate::money::parse(ctx, &bytes.data).map(|value| Value(Kind::Money(value)));
+            return crate::money::parse(ctx, bytes.data()).map(|value| Value(Kind::Money(value)));
         }
         if self == Self::MoneyCents {
             if args.len() != 2 {
@@ -470,7 +470,7 @@ impl Builtin {
                     "money_cents expects currency string",
                 ));
             };
-            return crate::money::Money::new(cents, &bytes.data)
+            return crate::money::Money::new(cents, bytes.data())
                 .map(|value| Value(Kind::Money(value)));
         }
         if let Self::Math(method) = self {
@@ -519,7 +519,7 @@ impl Builtin {
                     "to_int cannot convert non-integer float",
                 )),
                 Kind::Float(number) => crate::integer::from_float(ctx, *number, "to_int"),
-                Kind::Bytes(bytes) => crate::conversion::integer(ctx, &bytes.data, "to_int"),
+                Kind::Bytes(bytes) => crate::conversion::integer(ctx, bytes.data(), "to_int"),
                 _ => Err(Error::new(
                     ErrorKind::Type,
                     "to_int expects int, float, or string",
@@ -530,7 +530,7 @@ impl Builtin {
                     Ok(Value::float(value.as_float().unwrap()))
                 }
                 Kind::Bytes(bytes) => {
-                    crate::conversion::float(ctx, &bytes.data, "to_float").map(Value::float)
+                    crate::conversion::float(ctx, bytes.data(), "to_float").map(Value::float)
                 }
                 _ => Err(Error::new(
                     ErrorKind::Type,
@@ -583,7 +583,7 @@ pub(crate) fn parse_as(
         _ => None,
     };
     if let Some(nominal) = nominal {
-        let parsed = json::parse_builtin(ctx, &bytes.data, name)?;
+        let parsed = json::parse_builtin(ctx, bytes.data(), name)?;
         let ty = crate::types::Type {
             name: nominal,
             kind: crate::types::TypeKind::Named,
@@ -601,7 +601,7 @@ pub(crate) fn parse_as(
             "expects a type literal as its second argument",
         ));
     };
-    let (parsed, checked) = json::parse_typed(ctx, &bytes.data, name, Some(&shape.definition.ty))?;
+    let (parsed, checked) = json::parse_typed(ctx, bytes.data(), name, Some(&shape.definition.ty))?;
     let prepared = crate::types::prepare(ctx, &shape.definition.ty, resolve)?;
     if let Some(steps) = checked {
         ctx.charge_each(steps)?;

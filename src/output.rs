@@ -72,11 +72,11 @@ impl Kind {
         } else {
             if self == Self::Print {
                 if let ValueKind::Bytes(bytes) = &value.0 {
-                    if bytes.data.len() > LIMIT {
+                    if bytes.data().len() > LIMIT {
                         return ctx.guard(ErrorKind::OutputLimit, &self.limit_message());
                     }
-                    ctx.work_bytes(bytes.data.len())?;
-                    return self.write_bytes(ctx, &bytes.data);
+                    ctx.work_bytes(bytes.data().len())?;
+                    return self.write_bytes(ctx, bytes.data());
                 }
             }
             text::bounded::output(ctx, value, LIMIT, self != Self::Print)

@@ -579,7 +579,7 @@ impl Zone {
         use crate::value::Kind;
         let bytes = match &value.0 {
             Kind::Nil => return Ok(None),
-            Kind::Bytes(b) => b.data.as_slice(),
+            Kind::Bytes(b) => b.data().as_slice(),
             _ => return Err(Error::new(ErrorKind::Argument, "invalid timezone spec")),
         };
         // Go quotes the unknown name; the scan below has already charged for reading it.

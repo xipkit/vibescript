@@ -111,11 +111,11 @@ fn hash_value(
         }
         Kind::Bytes(value) => {
             hasher.write_u8(8);
-            hash_bytes(ctx, hasher, &value.data)?;
+            hash_bytes(ctx, hasher, value.data())?;
         }
         Kind::Symbol(value) => {
             hasher.write_u8(9);
-            hash_bytes(ctx, hasher, &value.data)?;
+            hash_bytes(ctx, hasher, value.data())?;
         }
         Kind::Range(value) => {
             hasher.write_u8(10);

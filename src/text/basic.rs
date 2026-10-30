@@ -68,12 +68,12 @@ pub(crate) fn call(
     }
     let value = match name {
         "concat" => concat(ctx, receiver, args)?,
-        "index" | "rindex" => super::index::call(ctx, &bytes.data, args, name == "rindex")?,
+        "index" | "rindex" => super::index::call(ctx, bytes.data(), args, name == "rindex")?,
         "hex" | "oct" => {
             if !args.is_empty() {
                 return Err(argument(&format!("string.{name} does not take arguments")));
             }
-            inum(ctx, &bytes.data, name == "oct")?
+            inum(ctx, bytes.data(), name == "oct")?
         }
         "clamp" => clamp(ctx, receiver, args)?,
         "between?" => {
@@ -91,8 +91,8 @@ pub(crate) fn call(
             match name {
                 "to_sym" => Value(Kind::Symbol(bytes.clone())),
                 "to_s" => receiver.clone(),
-                "to_i" => crate::conversion::integer(ctx, &bytes.data, "string.to_i")?,
-                "to_f" => Value::float(crate::conversion::float(ctx, &bytes.data, "string.to_f")?),
+                "to_i" => crate::conversion::integer(ctx, bytes.data(), "string.to_i")?,
+                "to_f" => Value::float(crate::conversion::float(ctx, bytes.data(), "string.to_f")?),
                 _ => unreachable!(),
             }
         }
@@ -110,7 +110,7 @@ fn concat(ctx: &mut CallContext, receiver: &Value, args: &[Value]) -> Result<Val
                 "string.concat expects string arguments",
             ));
         };
-        length = match length.checked_add(bytes.data.len()) {
+        length = match length.checked_add(bytes.data().len()) {
             Some(length) => length,
             None => return ctx.fail(ErrorKind::Memory, "concatenation size overflow"),
         };
@@ -280,11 +280,12 @@ mod tests {
         assert_eq!(origin.stats().retained_memory_bytes, baseline);
         let mut other = CallContext::new(CallOptions::default());
         let imported = other.import(&symbol).unwrap();
-        assert_eq!(other.stats().retained_memory_bytes, baseline);
+        let imported_bytes = Bytes::shared_header_bytes() + 6;
+        assert_eq!(other.stats().retained_memory_bytes, imported_bytes);
         drop(symbol);
         assert_eq!(origin.stats().retained_memory_bytes, 0);
         assert_eq!(imported.as_bytes().unwrap(), b"name\xff\0");
-        assert_eq!(other.stats().retained_memory_bytes, baseline);
+        assert_eq!(other.stats().retained_memory_bytes, imported_bytes);
         drop(imported);
         assert_eq!(other.stats().retained_memory_bytes, 0);
     }

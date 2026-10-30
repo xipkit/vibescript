@@ -217,10 +217,9 @@ fn parsed_zone_imports_charge_each_call_and_release_abandoned_headers() {
             .unwrap();
         assert_eq!(short.value.as_time(), original.value.as_time());
         assert_eq!(long.value.to_string(), original.value.to_string());
-        assert_eq!(
-            short.stats.retained_memory_bytes,
-            original.stats.retained_memory_bytes
-        );
+        // Import can use a smaller shared string header for the zone name.
+        assert!(short.stats.retained_memory_bytes > 0);
+        assert!(short.stats.retained_memory_bytes <= original.stats.retained_memory_bytes);
         assert_eq!(
             long.stats.retained_memory_bytes,
             short.stats.retained_memory_bytes

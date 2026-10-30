@@ -217,10 +217,10 @@ fn walk(ctx: &mut CallContext, value: &Value, out: &mut Output, limit: usize) ->
 fn leaf(ctx: &mut CallContext, value: &Value, out: &mut Output) -> Result<()> {
     let mut scalar = json::Number::new();
     match &value.0 {
-        Kind::Bytes(bytes) => return quoted(ctx, &bytes.data, out),
+        Kind::Bytes(bytes) => return quoted(ctx, bytes.data(), out),
         Kind::Symbol(bytes) => {
             out.append(ctx, b":")?;
-            return label(ctx, &bytes.data, out);
+            return label(ctx, bytes.data(), out);
         }
         Kind::Regex(regex) => return regex.render(ctx, |ctx, piece| out.append(ctx, piece)),
         Kind::Nil => return out.append(ctx, b"nil"),

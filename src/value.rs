@@ -6,6 +6,7 @@ use crate::{
 };
 use std::{collections::HashMap, fmt, mem::size_of, sync::Arc};
 
+mod bytes;
 #[cfg(test)]
 mod depth_tests;
 pub(crate) mod destroy;
@@ -117,56 +118,7 @@ pub(crate) fn depth_count(ctx: &mut CallContext, values: &[Value]) -> Result<(us
     Ok((depth, at_max))
 }
 
-#[derive(Debug)]
-pub(crate) struct Bytes {
-    pub data: Arc<Vec<u8>>,
-    _storage: Option<Charge>,
-    header: Option<Charge>,
-}
-
-impl Bytes {
-    pub(crate) fn header_bytes() -> usize {
-        size_of::<Self>() + size_of::<Vec<u8>>() + 4 * size_of::<usize>()
-    }
-    fn new(ctx: &mut CallContext, buffer: Buffer<u8>) -> Result<Arc<Self>> {
-        let header = ctx.reserve(Self::header_bytes())?;
-        let (data, storage) = buffer.into_parts();
-        Ok(Self::from_parts(data, storage, header))
-    }
-    pub(crate) fn from_parts(
-        data: Vec<u8>,
-        storage: Option<Charge>,
-        header: Option<Charge>,
-    ) -> Arc<Self> {
-        Arc::new(Self {
-            data: Arc::new(data),
-            _storage: storage,
-            header,
-        })
-    }
-    fn untracked(data: Vec<u8>) -> Arc<Self> {
-        Arc::new(Self {
-            data: Arc::new(data),
-            _storage: None,
-            header: None,
-        })
-    }
-    /// Shares `bytes` with `ctx`, charging it for the backing storage and a
-    /// header unless it already owns them.
-    pub(crate) fn import(ctx: &mut CallContext, bytes: &Arc<Self>) -> Result<Arc<Self>> {
-        if ctx.owns(&bytes.header) {
-            return Ok(bytes.clone());
-        }
-        // Charge the entire backing capacity, including unused space retained from the host.
-        let storage = ctx.reserve(bytes.data.capacity())?;
-        let header = ctx.reserve(Self::header_bytes())?;
-        Ok(Arc::new(Self {
-            data: bytes.data.clone(),
-            _storage: storage,
-            header,
-        }))
-    }
-}
+pub(crate) use bytes::Bytes;
 
 #[derive(Clone, Debug)]
 pub(crate) enum Kind {
@@ -189,8 +141,8 @@ pub(crate) enum Kind {
     Duration(i64),
     Time(crate::time::Stamp),
     Zoned(Arc<crate::time::Zoned>),
-    Bytes(Arc<Bytes>),
-    Symbol(Arc<Bytes>),
+    Bytes(Bytes),
+    Symbol(Bytes),
     Array(Arc<Heap<Value>>),
     Hash(Arc<Hash>),
     Range(Arc<Range>),
@@ -317,7 +269,7 @@ impl Value {
                 values[i].1 = value;
             } else {
                 let bytes = Bytes::untracked(key);
-                positions.insert(bytes.data.clone(), values.len());
+                positions.insert(bytes.shared(), values.len());
                 values.push((Self(Kind::Bytes(bytes)), value));
             }
         }
@@ -420,7 +372,7 @@ impl Value {
     /// Returns the raw bytes of a string or symbol, including invalid UTF-8.
     pub fn as_bytes(&self) -> Option<&[u8]> {
         match &self.0 {
-            Kind::Bytes(h) | Kind::Symbol(h) => Some(&h.data),
+            Kind::Bytes(h) | Kind::Symbol(h) => Some(h.data()),
             _ => None,
         }
     }
@@ -489,16 +441,7 @@ impl Value {
         let (Kind::Bytes(bytes) | Kind::Symbol(bytes)) = &self.0 else {
             return self.clone();
         };
-        if bytes._storage.is_none() && bytes.header.is_none() {
-            return self.clone();
-        }
-        // Compiled constants share the backing bytes, but must not retain the
-        // temporary syntax tree's invocation budget through the module cache.
-        let compiled = Arc::new(Bytes {
-            data: bytes.data.clone(),
-            _storage: None,
-            header: None,
-        });
+        let compiled = bytes.compiler_constant();
         Self(if matches!(self.0, Kind::Symbol(_)) {
             Kind::Symbol(compiled)
         } else {
@@ -716,7 +659,7 @@ impl Value {
     /// other kind is rejected, naming what a key must be.
     pub(crate) fn hash_key(&self) -> Result<&[u8]> {
         match &self.0 {
-            Kind::Bytes(bytes) => Ok(&bytes.data),
+            Kind::Bytes(bytes) => Ok(bytes.data()),
             _ => Err(Error::new(
                 ErrorKind::Type,
                 UnsupportedKey(self).to_string(),
@@ -727,7 +670,7 @@ impl Value {
     /// in `hash.fetch key is an`. The site is rendered only on failure.
     pub(crate) fn hash_key_for(&self, site: impl fmt::Display) -> Result<&[u8]> {
         match &self.0 {
-            Kind::Bytes(bytes) => Ok(&bytes.data),
+            Kind::Bytes(bytes) => Ok(bytes.data()),
             _ => Err(Error::new(
                 ErrorKind::Type,
                 format!("{site} unsupported hash key: {}", UnsupportedKey(self)),

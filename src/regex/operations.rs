@@ -70,7 +70,7 @@ fn arguments(
             format!("{method} pattern must be string or regex"),
         ));
     }
-    if matches!(&args[0].0, Kind::Bytes(bytes) if bytes.data.len() > super::MAX_PATTERN) {
+    if matches!(&args[0].0, Kind::Bytes(bytes) if bytes.data().len() > super::MAX_PATTERN) {
         return super::pattern_limit(ctx, method);
     }
     super::text_limit(ctx, receiver.require_bytes()?, method, "text")?;

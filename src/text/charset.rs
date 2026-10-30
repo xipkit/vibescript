@@ -278,30 +278,30 @@ pub(crate) fn call(
         sets.data.push(Set::parse(
             ctx,
             name,
-            &bytes.data,
+            bytes.data(),
             !matches!(operation, Operation::Translate) || index == 0,
         )?);
     }
     if matches!(operation, Operation::Count) {
-        let count = walk(ctx, operation, &sets.data, &bytes.data, |_, _| Ok(()))?;
+        let count = walk(ctx, operation, &sets.data, bytes.data(), |_, _| Ok(()))?;
         return Ok(Some(Value::int(count as i64)));
     }
     let mut length = 0_usize;
     let mut changed = false;
-    walk(ctx, operation, &sets.data, &bytes.data, |ctx, piece| {
+    walk(ctx, operation, &sets.data, bytes.data(), |ctx, piece| {
         let Some(end) = length.checked_add(piece.len()) else {
             return ctx.fail(ErrorKind::Memory, "character-set output size overflow");
         };
-        changed |= bytes.data.get(length..end) != Some(piece);
+        changed |= bytes.data().get(length..end) != Some(piece);
         length = end;
         Ok(())
     })?;
     let bang = name.ends_with('!');
-    if !changed && length == bytes.data.len() {
+    if !changed && length == bytes.data().len() {
         return Ok(Some(if bang { Value::nil() } else { receiver.clone() }));
     }
     let mut output = Buffer::with_capacity(ctx, length)?;
-    walk(ctx, operation, &sets.data, &bytes.data, |ctx, piece| {
+    walk(ctx, operation, &sets.data, bytes.data(), |ctx, piece| {
         output.extend(ctx, piece)
     })?;
     Value::from_bytes(ctx, output).map(Some)

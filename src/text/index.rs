@@ -5,7 +5,7 @@ use crate::{
 
 fn string<'a>(value: &'a Value, member: &str) -> Result<&'a [u8]> {
     match &value.0 {
-        Kind::Bytes(bytes) => Ok(&bytes.data),
+        Kind::Bytes(bytes) => Ok(bytes.data()),
         _ => Err(Error::new(
             ErrorKind::Type,
             format!("{member} substring must be string"),
