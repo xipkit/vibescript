@@ -20,6 +20,7 @@ pub mod asynchronous;
 mod budget;
 mod builtin;
 mod bytecode;
+mod bytes;
 mod capability;
 mod casing;
 mod code;

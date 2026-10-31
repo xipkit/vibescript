@@ -2,8 +2,8 @@ use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK, MAX_VALUE_DEPTH},
     bytecode::{Method, Operator},
+    bytes,
     hash::Hash,
-    json,
     scan::{self, Class},
     value::Kind,
 };
@@ -632,7 +632,7 @@ fn equal_step<'a>(
         (Kind::Nil, Kind::Nil) => true,
         (Kind::Regex(a), Kind::Regex(b)) => a.equal(ctx, b)?,
         (Kind::Shape(a), Kind::Shape(b)) => {
-            json::bytes_equal(ctx, &a.definition.text, &b.definition.text)?
+            bytes::bytes_equal(ctx, &a.definition.text, &b.definition.text)?
         }
         (Kind::Instance(a), Kind::Instance(b)) => a.same(b),
         (Kind::Namespace(a), Kind::Namespace(b)) => a.same_binding(b),
@@ -673,7 +673,7 @@ fn equal_step<'a>(
         }
         (Kind::Float(a), Kind::Float(b)) => a == b,
         (Kind::Bytes(a), Kind::Bytes(b)) | (Kind::Symbol(a), Kind::Symbol(b)) => {
-            json::bytes_equal(ctx, a.data(), b.data())?
+            bytes::bytes_equal(ctx, a.data(), b.data())?
         }
         (Kind::Array(a), Kind::Array(b)) => {
             if a.buffer.data.len() != b.buffer.data.len() {
@@ -1317,7 +1317,7 @@ fn join_into<'a>(
 }
 
 pub(crate) fn to_string(ctx: &mut CallContext, value: &Value) -> Result<Value> {
-    let mut text = json::Number::new();
+    let mut text = bytes::Number::new();
     match &value.0 {
         Kind::Regex(regex) => return regex.text(ctx),
         Kind::Offset(offset) => return Err(offset.value_error()),
@@ -1343,7 +1343,7 @@ pub(crate) fn to_string(ctx: &mut CallContext, value: &Value) -> Result<Value> {
     ctx.bytes(text.bytes())
 }
 
-pub(crate) fn format_float(out: &mut json::Number, value: f64) {
+pub(crate) fn format_float(out: &mut bytes::Number, value: f64) {
     if value.is_nan() {
         out.write_str("NaN").unwrap();
     } else if value.is_infinite() {
@@ -1354,7 +1354,7 @@ pub(crate) fn format_float(out: &mut json::Number, value: f64) {
         })
         .unwrap();
     } else if value != 0.0 && !(1e-4..1e6).contains(&value.abs()) {
-        let mut scientific = json::Number::new();
+        let mut scientific = bytes::Number::new();
         write!(scientific, "{value:e}").unwrap();
         let text = std::str::from_utf8(scientific.bytes()).unwrap();
         let (mantissa, exponent) = text.split_once('e').unwrap();

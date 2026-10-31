@@ -1,5 +1,5 @@
-#[cfg(test)]
 use crate::CallContext;
+use crate::bytes::Number;
 use crate::scan::Class;
 use crate::{
     Error, ErrorKind, Result, Value,
@@ -7,6 +7,7 @@ use crate::{
     hash::Hash,
     scan,
 };
+use std::fmt::Write;
 
 /// Small documents use ordinary hashes instead of setting up schema tables.
 pub(super) const RECORD_MIN_BYTES: usize = CHUNK / 2;
@@ -144,6 +145,89 @@ fn integer(text: &[u8]) -> Option<i64> {
             n.checked_add(digit)
         }
     })
+}
+
+pub(crate) fn parse_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
+    const DIGITS: usize = 1100;
+    if input.len() <= DIGITS {
+        return std::str::from_utf8(input)
+            .unwrap()
+            .parse()
+            .map_err(|_| Error::new(ErrorKind::Json, "invalid JSON number"));
+    }
+    // Binary64 rounding boundaries need at most 768 significant decimal digits.
+    // Keep extra digits and a nonzero tail marker, bounding the library conversion.
+    let mut text = [0u8; DIGITS + 80];
+    let negative = input[0] == b'-';
+    let mut used = usize::from(negative);
+    text[0] = b'-';
+    let mut at = used;
+    let mut significant = 0usize;
+    let mut kept = 0usize;
+    let mut fractional = false;
+    let mut fraction_digits = 0usize;
+    let mut tail = false;
+    while at < input.len() && !matches!(input[at], b'e' | b'E') {
+        if (at - usize::from(negative)) % 1024 == 0 {
+            ctx.work_bytes((input.len() - at).min(1024))?;
+        }
+        let byte = input[at];
+        at += 1;
+        if byte == b'.' {
+            fractional = true;
+            continue;
+        }
+        fraction_digits += usize::from(fractional);
+        if significant != 0 || byte != b'0' {
+            significant += 1;
+            if kept < DIGITS {
+                text[used] = byte;
+                used += 1;
+                kept += 1;
+            } else {
+                tail |= byte != b'0';
+            }
+        }
+    }
+    let mut exponent = 0i128;
+    if at < input.len() {
+        at += 1;
+        let exponent_negative = input.get(at) == Some(&b'-');
+        if matches!(input.get(at), Some(b'+' | b'-')) {
+            at += 1;
+        }
+        while at < input.len() {
+            if at % 1024 == 0 {
+                ctx.work_bytes((input.len() - at).min(1024))?;
+            }
+            exponent = exponent
+                .saturating_mul(10)
+                .saturating_add((input[at] - b'0') as i128);
+            at += 1;
+        }
+        if exponent_negative {
+            exponent = -exponent;
+        }
+    }
+    if significant == 0 {
+        return Ok(if negative { -0.0 } else { 0.0 });
+    }
+    exponent = exponent
+        .saturating_sub(fraction_digits as i128)
+        .saturating_add((significant - kept) as i128);
+    if tail {
+        text[used] = b'1';
+        used += 1;
+        exponent = exponent.saturating_sub(1);
+    }
+    let mut suffix = Number::new();
+    write!(suffix, "e{exponent}").unwrap();
+    text[used..used + suffix.bytes().len()].copy_from_slice(suffix.bytes());
+    used += suffix.bytes().len();
+    std::str::from_utf8(&text[..used])
+        .unwrap()
+        .parse()
+        .map_err(|_| Error::new(ErrorKind::Json, "invalid JSON number"))
 }
 
 /// Quotes one input byte as Go's `%q` renders a byte: a rune literal.
@@ -957,7 +1041,7 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
         let text = &self.input[start..self.pos];
         self.ctx.work_bytes(text.len())?;
         if float {
-            let n = super::parse_float(&mut self.ctx, text)?;
+            let n = parse_float(&mut self.ctx, text)?;
             if !n.is_finite() {
                 return self.err(
                     "JSON number outside finite f64 range",
