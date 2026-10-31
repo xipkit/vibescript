@@ -199,6 +199,7 @@ fn reserved_symbol_keys_are_runtime_errors() {
 
 #[test]
 fn arguments_and_keywords_are_rejected_before_the_block_runs() {
+    // The checker refuses these calls, so the block never runs.
     let (engine, _) = effect_engine(Engine::new());
     for (expression, code, text) in [
         ("[1].chunk(2) { effect }", "V0301", "chunk"),

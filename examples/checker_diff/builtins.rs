@@ -7,6 +7,7 @@
 use super::{harness::Case, rng::Rng};
 use std::sync::OnceLock;
 
+/// A type as the signature table writes it.
 #[derive(Clone, Debug, PartialEq)]
 pub enum T {
     Named(String),
@@ -282,6 +283,7 @@ impl<'a> Parser<'a> {
         })
     }
 
+    /// Skips a default value.
     fn value(&mut self) {
         self.skip();
         let mut depth = 0i32;
@@ -543,6 +545,7 @@ struct Out<'r> {
     small: bool,
 }
 
+/// Types the generator can bind a type variable to.
 const SIMPLE: [&str; 5] = ["int", "string", "float", "symbol", "bool"];
 
 impl Out<'_> {

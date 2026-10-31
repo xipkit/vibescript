@@ -276,6 +276,8 @@ fn breaking_a_receiving_loop_restores_local_call_lookup() {
     );
 }
 
+/// Runs `source`'s top-level statements with static types and returns the
+/// result of the last one.
 fn value_of(source: &str) -> Value {
     vibescript::Engine::new()
         .compile(source)

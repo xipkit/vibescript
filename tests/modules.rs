@@ -240,6 +240,7 @@ fn namespace_identity_and_collection_values_have_distinct_mutation_rules() {
 
 #[test]
 fn methods_preserve_visibility_binding_blocks_and_setter_results() {
+    // `respond_to?` is removed, so `check` only calls the private method.
     assert_eq!(
         run(r#"
 module M

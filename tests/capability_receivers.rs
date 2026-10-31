@@ -77,6 +77,7 @@ fn value() -> Value {
     ])
 }
 
+/// Grants `cap`.
 fn options() -> CallOptions {
     CallOptions {
         capabilities: vec![Capability::from_value("cap", value())],
@@ -84,6 +85,8 @@ fn options() -> CallOptions {
     }
 }
 
+/// An engine that declares the value template of every capability
+/// `options` grants.
 fn declaring(options: &CallOptions) -> Engine {
     let mut engine = Engine::new();
     for capability in &options.capabilities {
@@ -92,6 +95,8 @@ fn declaring(options: &CallOptions) -> Engine {
     engine
 }
 
+/// Runs `body` as a function returning `any`, with the capabilities that
+/// `options` grants declared.
 fn run(body: &str, options: CallOptions) -> vibescript::Result<vibescript::Outcome> {
     declaring(&options)
         .compile(&format!("def run -> any\n{body}\nend"))

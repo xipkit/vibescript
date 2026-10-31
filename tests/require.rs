@@ -2030,6 +2030,7 @@ fn configured_cache_source_limits_and_mid_initializer_cancellation_are_enforced(
     let script = engine.compile("require(\"one\");require(\"two\")").unwrap();
     let error = script.run(CallOptions::default()).unwrap_err();
     assert!(error.message.contains("cache limit reached"), "{error:?}");
+    // A file grows past the source limit after the script compiles.
     files.write("one.vibe", "1");
     engine
         .set_module_config(ModuleConfig {

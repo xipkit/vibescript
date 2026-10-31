@@ -16,6 +16,7 @@ fn options(entries: &[(&str, Value)]) -> CallOptions {
     }
 }
 
+/// An engine that declares each global's type, as static types need.
 fn declaring(globals: &[(&str, &str)]) -> Engine {
     let mut engine = Engine::new();
     for (name, ty) in globals {
@@ -24,6 +25,8 @@ fn declaring(globals: &[(&str, &str)]) -> Engine {
     engine
 }
 
+/// A host method that parses its string argument as an integer, as
+/// `JSON.parse` would.
 fn parse() -> Value {
     HostMethod::new("parse", |_, args, _| {
         let text = std::str::from_utf8(args[0].as_bytes().unwrap()).unwrap();

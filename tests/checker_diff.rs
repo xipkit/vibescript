@@ -35,6 +35,7 @@ fn scratch() -> (PathBuf, Scratch) {
     (root, scratch)
 }
 
+/// Seeds the smoke test judges; a few seconds in a debug build.
 const SMOKE_SEEDS: u64 = 300;
 
 #[test]

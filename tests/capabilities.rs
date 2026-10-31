@@ -32,6 +32,8 @@ fn engine() -> Engine {
     engine
 }
 
+/// Asserts that `source` is refused at compile time with `code` at the first
+/// occurrence of `at`.
 #[track_caller]
 fn refused(engine: &mut Engine, source: &str, code: &str, at: &str) {
     let error = engine.compile(source).err().unwrap();

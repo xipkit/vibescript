@@ -23,6 +23,8 @@ fn describe(source: &str, diagnostics: &[Diagnostic]) -> String {
     diagnostics.iter().map(|d| d.render(source)).collect()
 }
 
+/// Asserts that `source` has exactly errors with these codes, in source
+/// order, and returns them.
 #[track_caller]
 fn codes_with(engine: &Engine, source: &str, expected: &[Code]) -> Vec<Diagnostic> {
     let found = errors_with(engine, source);

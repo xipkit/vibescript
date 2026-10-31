@@ -52,6 +52,8 @@ fn engine(method: &HostMethod) -> Engine {
     engine
 }
 
+/// Asserts that `source` is refused with `codes`, the first at `at`, where
+/// the `typed` capability's `echo` is `method`.
 #[track_caller]
 fn refused(method: &HostMethod, source: &str, codes: &[&str], at: &str) {
     let mut engine = vibescript::Engine::new();

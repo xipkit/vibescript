@@ -322,6 +322,8 @@ impl Gen {
         }
     }
 
+    /// The scope code at a file's top level starts with: the host's
+    /// globals.
     fn top_env(&self) -> Env {
         let mut env = Env::top();
         for (name, ty) in &self.globals {
@@ -3259,6 +3261,7 @@ impl Gen {
 impl Gen {
     // ----- Classes' operators -----
 
+    /// Writes the class's operator methods, whose bodies see the instance.
     fn operators(&mut self, index: usize) {
         let class = self.classes[index].clone();
         let own = Ty::Class(index);
@@ -3779,6 +3782,7 @@ fn has_tuple(ty: &Ty) -> bool {
     }
 }
 
+/// The `is_type?` atom of a type.
 fn atom(ty: &Ty) -> &'static str {
     match ty {
         Ty::Int => "int",

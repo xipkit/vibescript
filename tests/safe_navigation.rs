@@ -9,6 +9,7 @@ fn json(value: &Value) -> serde_json::Value {
     serde_json::from_slice(encoded.value.as_bytes().unwrap()).unwrap()
 }
 
+/// A host function without parameters whose result has type `result`.
 fn typed(
     name: &str,
     result: &str,

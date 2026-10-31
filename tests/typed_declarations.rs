@@ -43,6 +43,8 @@ fn diagnostics(expected: &[(&str, (usize, usize))]) -> Vec<(String, (usize, usiz
         .collect()
 }
 
+/// The runtime failure of `source` as a host call of `function` with
+/// `args`, with its message.
 fn call_failure(source: &str, function: &str, args: &[vibescript::Value]) -> (ErrorKind, String) {
     let error = Engine::new()
         .compile(source)

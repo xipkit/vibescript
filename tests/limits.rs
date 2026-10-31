@@ -654,6 +654,7 @@ fn diagnostics_spell_out_bounded_lists_and_types() {
             .map(|i| format!("  M{i}\n"))
             .collect::<String>()
     );
+    // A quota that admits the enum itself.
     let options = CallOptions {
         limits: Limits {
             steps: None,
