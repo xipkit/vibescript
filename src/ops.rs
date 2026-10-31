@@ -1068,14 +1068,15 @@ pub(crate) fn method(
                 // Integers add in place until one would overflow, each still
                 // charged its step; `binary` handles every other addition.
                 if let Kind::Int(mut total) = sum.0 {
-                    let run = rest
-                        .iter()
-                        .take(CHUNK)
-                        .take_while(|item| match item.0 {
-                            Kind::Int(n) => total.checked_add(n).map(|n| total = n).is_some(),
-                            _ => false,
-                        })
-                        .count();
+                    let mut run = 0;
+                    for item in rest.iter().take(CHUNK) {
+                        let Kind::Int(n) = item.0 else { break };
+                        let Some(next) = total.checked_add(n) else {
+                            break;
+                        };
+                        total = next;
+                        run += 1;
+                    }
                     if run > 0 {
                         ctx.charge_each(run as u64)?;
                         sum = Value::int(total);

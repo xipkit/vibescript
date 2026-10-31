@@ -36,6 +36,18 @@ fn promotion_normalizes_results_without_expanding_the_value_representation() {
 }
 
 #[test]
+fn array_sum_promotes_where_an_integer_run_overflows() {
+    for (source, expected) in [
+        ("[1, 2, 9223372036854775807, -9223372036854775807].sum", "3"),
+        ("[9223372036854775807, 1, 2].sum", "9223372036854775810"),
+        ("[1, 2.5, 3].sum(0)", "6.5"),
+        ("[1, 2, 2**70, 3].sum", "1180591620717411303430"),
+    ] {
+        assert_eq!(run(source).value.to_string(), expected, "{source}");
+    }
+}
+
+#[test]
 fn source_and_host_integers_preserve_every_digit_through_json() {
     let text = "1234567890".repeat(150);
     let expected = Value::parse_integer(&text, 10).unwrap();
