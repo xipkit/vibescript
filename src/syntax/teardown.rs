@@ -191,7 +191,11 @@ fn node(node: Node, pending: &mut Vec<Part>) {
         | Node::Literal(_)
         | Node::Var(_) => {}
         Node::Try(attempt) => attempted(attempt.into_inner(), pending),
-        Node::Shape(_, value, _) => value.into_iter().for_each(|e| expr(e.into_inner())),
+        Node::Shape(_, value, _) => {
+            if let Some(value) = value {
+                expr(value.into_inner());
+            }
+        }
         Node::Template(values, _) | Node::Array(values) | Node::Yield(values) => {
             push(pending, Part::Exprs(values.into_iter()));
         }
@@ -205,20 +209,18 @@ fn node(node: Node, pending: &mut Vec<Part>) {
             expr(right.into_inner());
         }
         Node::Range(start, end, _) => {
-            start
-                .into_iter()
-                .chain(end)
-                .for_each(|e| expr(e.into_inner()));
+            for bound in start.into_iter().chain(end) {
+                expr(bound.into_inner());
+            }
         }
         Node::Conditional(branches, alternate) => {
             expr(alternate.into_inner());
             push(pending, Part::Branches(branches.into_iter()));
         }
         Node::Case(subject, whens, alternate) => {
-            subject
-                .into_iter()
-                .chain(alternate)
-                .for_each(|e| expr(e.into_inner()));
+            for value in subject.into_iter().chain(alternate) {
+                expr(value.into_inner());
+            }
             push(pending, Part::Whens(whens.into_iter()));
         }
         Node::Compound(stmt) => pending.push(Part::Stmt(stmt.into_inner())),

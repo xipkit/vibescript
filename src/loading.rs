@@ -8,6 +8,11 @@ mod files;
 mod policy;
 mod resolver;
 
+/// Compiled modules cached when [`ModuleConfig::cache_limit`] is zero.
+const DEFAULT_CACHE_LIMIT: usize = 1000;
+/// Source bytes allowed per file when [`ModuleConfig::source_limit`] is zero.
+const DEFAULT_SOURCE_LIMIT: usize = 1 << 20;
+
 /// Filesystem roots, policy and compilation-cache bounds for required source files.
 #[derive(Clone, Debug)]
 pub struct ModuleConfig {
@@ -32,8 +37,8 @@ impl Default for ModuleConfig {
             allow: Vec::new(),
             deny: Vec::new(),
             development: false,
-            cache_limit: 1000,
-            source_limit: 1 << 20,
+            cache_limit: DEFAULT_CACHE_LIMIT,
+            source_limit: DEFAULT_SOURCE_LIMIT,
         }
     }
 }
@@ -66,15 +71,15 @@ impl Loader {
         Ok(Self {
             keep_type_checks: false,
             resolver: Arc::new(resolver::Resolver::memory(sources)?),
-            cache: cache::Cache::new(1000),
-            cache_limit: 1000,
+            cache: cache::Cache::new(DEFAULT_CACHE_LIMIT),
+            cache_limit: DEFAULT_CACHE_LIMIT,
             development: false,
         })
     }
 
     pub fn new(config: ModuleConfig) -> Result<Self> {
         let cache_limit = if config.cache_limit == 0 {
-            1000
+            DEFAULT_CACHE_LIMIT
         } else {
             config.cache_limit
         };
@@ -85,7 +90,7 @@ impl Loader {
                 &config.allow,
                 &config.deny,
                 if config.source_limit == 0 {
-                    1 << 20
+                    DEFAULT_SOURCE_LIMIT
                 } else {
                     config.source_limit
                 },
