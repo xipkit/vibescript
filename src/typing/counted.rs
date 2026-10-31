@@ -550,7 +550,6 @@ impl<'m> Text<'m> {
 
     /// Writes `args`, as `write!` writes them; a refusal stops the writing.
     pub fn write(&mut self, args: std::fmt::Arguments<'_>) {
-        // A refusal is recorded, and writes nothing more.
         if std::fmt::Write::write_fmt(self, args).is_err() {
             self.refused = true;
         }
@@ -626,7 +625,6 @@ impl std::fmt::Write for Text<'_> {
 /// budget refuses it, which stops the check.
 pub(crate) fn text(meter: &Meter, args: std::fmt::Arguments<'_>) -> String {
     let mut text = Text::new(meter);
-    // A refusal leaves the text empty, and the check stopped.
     if std::fmt::write(&mut text, args).is_err() {
         text.refused = true;
     }

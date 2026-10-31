@@ -291,7 +291,6 @@ impl<'a> Spans<'a> {
         Span::new(self.open(start, end), end)
     }
 
-    /// The span of a statement.
     pub fn stmt(&self, stmt: &Stmt) -> Span {
         let start = stmt.offset as usize;
         let value = match &stmt.node {

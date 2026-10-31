@@ -1233,7 +1233,6 @@ impl<'a> Checker<'a> {
         self.modules.loaded[id as usize].enums.get(name).copied()
     }
 
-    /// Reports an unknown export.
     pub(super) fn unknown_export(&mut self, id: u32, name: &str, span: crate::diagnostic::Span) {
         let path = &self.modules.loaded[id as usize].path;
         self.report(Diagnostic::error(

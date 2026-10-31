@@ -522,7 +522,6 @@ impl<'a> Checker<'a> {
         let name_span = self.spans.member(receiver, name);
         if let Some(span) = name_span {
             if ty != Ty::ERROR {
-                // A safe call runs the member on the value without nil.
                 let called = if safe { self.types.without_nil(ty) } else { ty };
                 let Some(bases) = self.types.bases(called) else {
                     return Ty::ERROR;
