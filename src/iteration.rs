@@ -687,9 +687,13 @@ pub(crate) fn start_pooled(
         } else {
             args[0].clone()
         };
-        if let Some(value) =
-            collections::lookup(ctx, receiver, &key, true, Some("hash.fetch key is an"))?
-        {
+        if let Some(value) = collections::lookup(
+            ctx,
+            receiver,
+            &key,
+            collections::Lookup::Fetch,
+            Some("hash.fetch key is an"),
+        )? {
             state.accumulator = Some(value);
             state.length = 0;
         } else {
@@ -796,7 +800,7 @@ impl Loop {
                     ctx,
                     &self.receiver,
                     &args[0],
-                    true,
+                    collections::Lookup::Fetch,
                     Some("hash.fetch_values key is an"),
                 )? {
                     self.output.push(ctx, value)?;
