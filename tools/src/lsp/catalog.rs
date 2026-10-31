@@ -3,7 +3,6 @@
 use std::collections::HashSet;
 use std::sync::OnceLock;
 
-/// The catalog of the runtime's builtins, built once.
 pub(crate) fn catalog() -> &'static Catalog {
     static CATALOG: OnceLock<Catalog> = OnceLock::new();
     CATALOG.get_or_init(Catalog::new)

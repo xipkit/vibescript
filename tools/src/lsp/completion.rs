@@ -60,8 +60,6 @@ pub(crate) fn static_entries(catalog: &Catalog) -> Entries {
         .collect()
 }
 
-/// Documentation for a member item: unambiguous prose, then the signature
-/// table's receiver-qualified signatures.
 fn member_documentation(label: &str) -> Option<String> {
     let mut documentation = unambiguous_member_doc(label);
     let signatures = table_signatures(label);
@@ -268,7 +266,6 @@ fn last_statement_line(last: Option<vibescript::Position>) -> i64 {
     }
 }
 
-/// The document's functions and aliases with the declarations they run.
 fn functions(compiled: &Outline) -> Vec<(&str, &Item)> {
     let declared: HashMap<&str, &Item> = compiled
         .items
@@ -429,7 +426,6 @@ fn function_end<S: AsRef<str>>(lines: &[S], start: i64, extent: i64) -> i64 {
     textual
 }
 
-/// The completion items at a position.
 pub(crate) struct Request<'a, S> {
     pub source: &'a str,
     pub lines: &'a [S],

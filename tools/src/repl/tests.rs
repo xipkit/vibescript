@@ -70,9 +70,7 @@ struct EvaluateCase {
     input: &'static str,
     want_error: bool,
     check: fn(&ReplSession, &str),
-    /// A substring the output must contain.
     want_output: &'static str,
-    /// A substring the last error must contain when the input fails.
     error_in_last: &'static str,
 }
 
@@ -486,7 +484,6 @@ fn declarations_persist_across_inputs() {
     assert!(!s.variables().contains_key("Counter"));
     s.feed_line("rate = \"three\"");
     assert!(last(&s).output.contains("error[V0102]"), "{:?}", last(&s));
-    // A redefinition replaces the earlier declaration.
     feed_all(
         &mut s,
         &["def scale(n: int) -> int", "  n * 10", "end", "scale(2)"],

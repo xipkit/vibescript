@@ -224,7 +224,6 @@ fn the_outline_includes_modules_constants_and_visibility_prefixed_defs() {
         names(symbols[1]["children"].as_array().unwrap()),
         ["guard", "shown"]
     );
-    // Repeated requests reuse the cached outline.
     let cached = document(&server, uri).symbols.get().unwrap().clone();
     self::symbols(&mut server, uri);
     assert!(Arc::ptr_eq(

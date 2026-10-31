@@ -106,7 +106,6 @@ pub(crate) fn character_index(line: &str, offset: i64) -> usize {
     index
 }
 
-/// The characters that make up a word: identifier characters plus `?` and `!`.
 pub(crate) fn word_char(c: char) -> bool {
     c == '?' || c == '!' || vibescript::tooling::identifier_char(c)
 }
@@ -184,7 +183,6 @@ pub(crate) fn mask_strings(chars: &[char]) -> Vec<char> {
     masked
 }
 
-/// Blanks string literals and then the trailing comment.
 pub(crate) fn mask_code(chars: &[char]) -> Vec<char> {
     let mut masked = mask_strings(chars);
     if let Some(comment) = masked.iter().position(|c| *c == '#') {

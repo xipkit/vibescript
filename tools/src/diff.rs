@@ -1,6 +1,5 @@
 //! Unified diffs of a rewrite, as `vibes fix --dry-run` prints them.
 
-/// Lines of context around each change.
 const CONTEXT: usize = 3;
 
 /// Renders the change from `old` to `new` as a unified diff labelled `path`,
@@ -17,13 +16,11 @@ pub fn unified_diff(path: &str, old: &str, new: &str) -> String {
     let a: Vec<&str> = old.split_inclusive('\n').collect();
     let b: Vec<&str> = new.split_inclusive('\n').collect();
     let script = edit_script(&a, &b);
-    // An absolute path is labelled as it is, a relative one as git does.
     let mut out = if path.starts_with('/') {
         format!("--- {path}\n+++ {path}\n")
     } else {
         format!("--- a/{path}\n+++ b/{path}\n")
     };
-    // Group changes into hunks with their context.
     let mut index = 0;
     while index < script.len() {
         if matches!(script[index], Op::Keep(..)) {
@@ -76,7 +73,6 @@ enum Op {
     Insert(usize),
 }
 
-/// How many old and new lines a run of operations covers.
 fn position(ops: &[Op]) -> (usize, usize) {
     ops.iter().fold((0, 0), |(a, b), op| match op {
         Op::Keep(..) => (a + 1, b + 1),
