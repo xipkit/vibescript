@@ -1,8 +1,9 @@
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK},
+    bytes,
     hash::Hash,
-    json, ops,
+    ops,
     value::Kind,
 };
 
@@ -30,7 +31,7 @@ pub(crate) fn call(
     }
     let strict = match keywords {
         [] => false,
-        [(key, value)] if json::bytes_equal(ctx, key.require_bytes()?, b"strict")? => {
+        [(key, value)] if bytes::bytes_equal(ctx, key.require_bytes()?, b"strict")? => {
             let Kind::Bool(strict) = value.0 else {
                 return Err(Error::new(
                     ErrorKind::Type,

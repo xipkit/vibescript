@@ -70,7 +70,6 @@ struct EvaluateCase {
     input: &'static str,
     want_error: bool,
     check: fn(&ReplSession, &str),
-    /// A substring the output must contain.
     want_output: &'static str,
     /// A substring the last error must contain when the input fails.
     error_in_last: &'static str,

@@ -31,7 +31,6 @@ use std::{
 };
 use vibescript::{Engine, ErrorKind, ModuleConfig};
 
-/// One fenced example.
 struct Block {
     /// The one-based line of the block's first source line.
     line: usize,
@@ -39,7 +38,6 @@ struct Block {
     source: String,
 }
 
-/// What a block's info string asks for.
 #[derive(Default)]
 struct Attributes {
     errors: Option<BTreeSet<String>>,
@@ -256,7 +254,6 @@ fn diagnostics(engine: &Engine, source: &str) -> Result<Vec<(String, String)>, S
     }
 }
 
-/// A fresh directory for one document's required files.
 fn module_directory() -> PathBuf {
     let base = Path::new(env!("CARGO_MANIFEST_DIR")).join(".cache/tmp");
     fs::create_dir_all(&base).unwrap();

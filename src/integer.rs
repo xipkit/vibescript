@@ -374,7 +374,6 @@ fn product(ctx: &mut CallContext, a: &[u32], b: &[u32]) -> Result<Buffer<u32>> {
 /// three half-size products, so an n-word product costs O(n^1.59) work, and
 /// the longest convolve through number-theoretic transforms in O(n log n).
 fn multiply_into(ctx: &mut CallContext, out: &mut [u32], a: &[u32], b: &[u32]) -> Result<()> {
-    // `b` is the shorter operand.
     let (a, b) = if a.len() < b.len() { (b, a) } else { (a, b) };
     if b.is_empty() {
         return Ok(());
@@ -707,7 +706,6 @@ fn power_of_two(exponent: i64) -> f64 {
     f64::from_bits(((exponent + 1023) as u64) << 52)
 }
 
-/// `value` shifted left by `bits`.
 fn shift_left(ctx: &mut CallContext, value: Magnitude<'_>, bits: usize) -> Result<Buffer<u32>> {
     let (words, offset) = (bits / 32, (bits % 32) as u32);
     let mut out = zeros(ctx, words + value.len() + 1)?;
@@ -1160,7 +1158,6 @@ mod tests {
                 match shape {
                     // The largest normalizing shift.
                     0 => b[y - 1] = 1,
-                    // All ones.
                     1 => b.fill(u32::MAX),
                     // A power of 2^32.
                     2 => {

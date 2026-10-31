@@ -1,5 +1,5 @@
 use crate::{
-    CallContext, Error, ErrorKind, Result, Value, bytecode::CallSite, hash::Hash, json, ops,
+    CallContext, Error, ErrorKind, Result, Value, bytecode::CallSite, bytes, hash::Hash, ops,
     value::Kind,
 };
 use std::{cmp::Ordering, fmt::Write};
@@ -95,7 +95,7 @@ pub(crate) fn parse(ctx: &mut CallContext, args: &[Value]) -> Result<Value> {
 }
 
 pub(crate) fn text(ctx: &mut CallContext, seconds: i64) -> Result<Value> {
-    let mut out = json::Number::new();
+    let mut out = bytes::Number::new();
     write!(out, "{seconds}s").unwrap();
     ctx.bytes(out.bytes())
 }
@@ -118,7 +118,7 @@ fn iso8601(ctx: &mut CallContext, seconds: i64) -> Result<Value> {
     if seconds == 0 {
         return ctx.bytes(b"PT0S");
     }
-    let mut out = json::Number::new();
+    let mut out = bytes::Number::new();
     if seconds < 0 {
         out.write_char('-').unwrap();
     }

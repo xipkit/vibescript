@@ -274,7 +274,6 @@ fn top_level_scripts_select_receivers_like_called_functions() {
     }
 }
 
-/// A snapshot that the callback drops leaves nothing behind once the call ends.
 #[test]
 fn dropped_receiver_snapshots_retain_no_memory_after_the_call() {
     let with = run("cap.read(); 0", options()).unwrap();

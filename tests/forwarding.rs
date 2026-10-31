@@ -10,20 +10,16 @@ use vibescript::{CallOptions, Engine, ErrorKind, Value};
 #[test]
 fn dispatch_by_name_is_refused_on_values_receivers_and_through_forwarding() {
     for (source, count, at) in [
-        // Universal helpers on values of every kind.
         ("[nil.send(:nil?), true.public_send(:nil?)]", 2, "send"),
         ("1.send(:seconds)", 1, "send"),
         ("nil&.send(:nil?)", 1, "send"),
-        // Blocks and forwarding chains.
         ("[1,2].send(:map) { |x| x + 3 }", 1, "send"),
         ("[1,2].send(:public_send, :map) { |x| x + 3 }", 1, "send"),
-        // Visibility.
         (
             "class C\n  private def hidden -> int\n    3\n  end\nend\nC.new.send(:hidden)",
             1,
             "send(",
         ),
-        // Names known only at run time.
         (
             "def run(name: string) -> any\n  {}.send(name)\nend",
             1,
@@ -34,7 +30,6 @@ fn dispatch_by_name_is_refused_on_values_receivers_and_through_forwarding() {
             1,
             "send",
         ),
-        // Arguments that mutate the receiver, and protected receivers.
         ("a = [1, 2]\na.send(:include?, a.pop)", 1, "send"),
         ("m = \"ab\".match(/(a)(b)/)\nm&.send(:clear)", 1, "send"),
     ] {

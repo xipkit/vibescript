@@ -54,8 +54,6 @@ static LAST: AtomicUsize = AtomicUsize::new(0);
 /// account.
 static INTERVAL: Mutex<(usize, usize)> = Mutex::new((0, 0));
 
-/// How many allocations the process has made, and how many bytes they
-/// took in all.
 static ALLOCATIONS: AtomicUsize = AtomicUsize::new(0);
 static ALLOCATED: AtomicUsize = AtomicUsize::new(0);
 
@@ -179,8 +177,6 @@ fn observe(observed: Observed) {
     }
 }
 
-/// What each measured peak is: the checker's, the surface pass's, and the
-/// checker's worst between two of its measures.
 const PASSES: [&str; 3] = ["checker", "surface pass", "checker between measures"];
 
 /// How bad `real` bytes are for an account of `account`: first by how far
@@ -218,7 +214,6 @@ fn measure(engine: &Engine, source: &str) -> Measured {
     }
 }
 
-/// Programs whose shapes stress the checker's tables.
 fn adversarial() -> Vec<(String, String)> {
     let small = cfg!(target_os = "wasi");
     let scale = |n: usize| if small { n / 8 } else { n };
@@ -959,9 +954,6 @@ fn listed(n: usize, item: impl Fn(usize) -> String, separator: &str) -> String {
     (0..n).map(item).collect::<Vec<_>>().join(separator)
 }
 
-/// Programs that grow wide or deep: wide enums, shapes and unions, many
-/// interpolations, many locals of one wide type, nested and deep syntax,
-/// required files, construction checks and diagnostics.
 fn shapes() -> Vec<Shape> {
     vec![
         ("a literal fitting multiple wide shapes", |n| {
@@ -2133,7 +2125,6 @@ fn after_trip(
     (after, result)
 }
 
-/// Options with a step quota, a memory quota, or neither.
 fn limited(steps: Option<u64>, memory: Option<usize>) -> vibescript::CallOptions {
     vibescript::CallOptions {
         limits: vibescript::Limits {

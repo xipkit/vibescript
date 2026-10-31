@@ -18,9 +18,8 @@ pub(super) enum Declared {
     TypeAlias(super::TypeAlias),
 }
 
-/// A top-level declaration in source order, for Go's compile checks.
-/// A top-level declaration in source order; a function's and an alias's
-/// carry the offset of the name they declare.
+/// A top-level declaration in source order, for Go's compile checks; a
+/// function's and an alias's carry the offset of the name they declare.
 enum Order {
     Function(Name, usize),
     Module(usize),

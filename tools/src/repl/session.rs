@@ -33,7 +33,6 @@ const TOP_LEVEL_FUNCTION: &str = "<script>";
 /// The declared global that holds the session's variables for each input.
 const SESSION: &str = "__session__";
 
-/// Evaluation state that persists across inputs.
 pub struct Session {
     engine: Engine,
     limits: Limits,
@@ -269,8 +268,6 @@ impl Session {
         }
     }
 
-    /// Compiles `source` after the carried declarations other than
-    /// `names`, which it declares itself, and the variables' bindings.
     fn compile_after(&self, source: Arc<str>, names: &[String]) -> Result<Compiled, Error> {
         let kept: Vec<Carried> = self
             .prelude
@@ -342,7 +339,6 @@ impl Session {
     }
 }
 
-/// The names of the top-level declarations in an outline.
 fn declared_names(outline: &tooling::Outline) -> Vec<String> {
     use tooling::ItemKind;
     outline
@@ -371,7 +367,6 @@ struct Compiled {
     declared: Vec<Carried>,
     /// The type of each top-level local assigned on every path.
     locals: BTreeMap<String, String>,
-    /// The type of the input's result.
     result: String,
 }
 
@@ -396,7 +391,6 @@ impl Compiled {
     }
 }
 
-/// An evaluation's display text and its value or error.
 pub struct Evaluated {
     pub output: String,
     pub result: Result<Value, Error>,
@@ -480,7 +474,6 @@ impl SourceMap {
         (combined, map)
     }
 
-    /// Finds the typed text and position for a combined-source position.
     fn locate(&self, position: Position) -> (&str, Position) {
         if position.line > self.lines {
             let line = position.line - self.lines;
@@ -496,7 +489,6 @@ impl SourceMap {
         (&carried.source, Position { line, ..position })
     }
 
-    /// Rewrites an error's positions, code frame and top-level frame names.
     fn remap(&self, mut error: Error) -> Error {
         let Some(diagnostic) = error.diagnostic.as_deref() else {
             return error;

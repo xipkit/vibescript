@@ -1710,8 +1710,6 @@ impl<'a> Checker<'a> {
         self.report(diagnostic);
     }
 
-    /// Checks `receiver[selectors] = value`, or its compound form when
-    /// `value_ty` already holds the computed value.
     /// Checks a write of a computed value of type `value_ty` through the
     /// `[]=` of an instance of class `ns`, as a compound assignment makes:
     /// the method must take the selectors, whose types replay from the
@@ -1760,6 +1758,8 @@ impl<'a> Checker<'a> {
         }
     }
 
+    /// Checks `receiver[selectors] = value`, or its compound form when
+    /// `value_ty` already holds the computed value.
     pub(super) fn index_write(
         &mut self,
         expr: &'a Expr,

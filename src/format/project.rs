@@ -146,7 +146,7 @@ fn fixed_float(value: &Value, field: Field) -> usize {
         _ if n.abs() < 1.0 => 1,
         _ => {
             use std::fmt::Write;
-            let mut number = crate::json::Number::new();
+            let mut number = crate::bytes::Number::new();
             write!(number, "{:e}", n.abs()).unwrap();
             let bytes = number.bytes();
             let exponent = bytes.iter().rposition(|b| *b == b'e').unwrap();

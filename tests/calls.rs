@@ -507,11 +507,9 @@ fn invalid_parameter_and_argument_order_is_rejected() {
         );
     }
     // A parameter after a rest parameter is a keyword parameter.
-    assert!(
-        Engine::new()
-            .compile("def f(*a: array<any>,b: any)\nend")
-            .is_ok()
-    );
+    Engine::new()
+        .compile("def f(*a: array<any>,b: any)\nend")
+        .unwrap();
     let source = format!(
         "def f(a={}1{})\na\nend",
         "f(".repeat(1100),

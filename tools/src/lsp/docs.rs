@@ -17,7 +17,6 @@ const HASHES: &str = include_str!("reference/hashes.md");
 const TIME: &str = include_str!("reference/time.md");
 const DURATIONS: &str = include_str!("reference/durations.md");
 
-/// One builtin documentation entry.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct BuiltinDoc {
     /// The code-formatted usage line, such as "`assert(condition, message)`".
@@ -111,8 +110,6 @@ fn description(lines: &[&str], start: usize) -> String {
     paragraphs.join("\n\n")
 }
 
-/// Joins a bullet with its indented continuation lines, returning the text and
-/// the index of the bullet's last line.
 fn joined_bullet(lines: &[&str], mut index: usize) -> (String, usize) {
     let mut parts = vec![lines[index].trim()];
     while let Some(next) = lines.get(index + 1) {
@@ -126,7 +123,6 @@ fn joined_bullet(lines: &[&str], mut index: usize) -> (String, usize) {
     (parts.join(" "), index)
 }
 
-/// Splits "- `name(sig)` – description" around its en or em dash.
 fn split_bullet(bullet: &str) -> Option<(String, String)> {
     let body = bullet.strip_prefix("- ").unwrap_or(bullet);
     for separator in [" – ", " — "] {
@@ -140,7 +136,6 @@ fn split_bullet(bullet: &str) -> Option<(String, String)> {
     None
 }
 
-/// The code spans of `text`: runs of non-backtick characters between backticks.
 fn code_spans(text: &str) -> Vec<(&str, &str)> {
     let mut spans = Vec::new();
     let mut index = 0;
@@ -158,7 +153,6 @@ fn code_spans(text: &str) -> Vec<(&str, &str)> {
     spans
 }
 
-/// Whether `name` is an identifier with an optional `?` or `!` suffix.
 fn member_name(name: &str) -> bool {
     let name = name
         .strip_suffix('?')
@@ -302,7 +296,6 @@ pub(crate) fn keyword_doc_words() -> Vec<&'static str> {
 /// The pseudo-receiver of the helpers every value answers.
 pub(crate) const UNIVERSAL: &str = "universal";
 
-/// One member documentation entry.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MemberDoc {
     pub receiver: String,
@@ -317,7 +310,6 @@ pub(crate) struct MemberDocs {
     pub universal: HashMap<String, MemberDoc>,
 }
 
-/// Section titles of the stdlib reference and the receiver each documents.
 fn stdlib_section(title: &str) -> &'static str {
     match title {
         "Strings" => "string",
@@ -521,7 +513,6 @@ fn leading_member_names(text: &str, receiver: &str) -> (Vec<(String, String)>, S
     }
 }
 
-/// Removes the separators an alias list uses between its code spans.
 fn trim_separators(text: &str) -> String {
     let mut text = text.to_owned();
     loop {
@@ -591,7 +582,6 @@ fn member_ref(span: &str, receiver: &str) -> Option<(String, String)> {
     Some((receiver.to_owned(), name.to_owned()))
 }
 
-/// The text after a leading `<...>` type parameter list, or all of `text`.
 fn skip_type_parameters(text: &str) -> &str {
     if !text.starts_with('<') {
         return text;
@@ -703,7 +693,6 @@ pub(crate) fn unambiguous_member_doc(name: &str) -> String {
     String::new()
 }
 
-/// The introduction of each "## " section of the builtins reference.
 fn namespace_intros() -> &'static HashMap<String, String> {
     static INTROS: OnceLock<HashMap<String, String>> = OnceLock::new();
     INTROS.get_or_init(|| {

@@ -3,7 +3,7 @@
 // See licenses/Go-BSD-3-Clause.txt.
 
 use super::{Stamp, calendar, offset, stamp, zone};
-use crate::{CallContext, Error, ErrorKind, Result, Value, budget::Buffer, json};
+use crate::{CallContext, Error, ErrorKind, Result, Value, budget::Buffer, bytes};
 use std::fmt::Write;
 
 pub(super) const OUTPUT_LIMIT: usize = 1 << 20;
@@ -285,7 +285,7 @@ pub(super) fn next(ctx: &mut CallContext, input: &[u8]) -> Result<(usize, Option
     Ok((input.len(), None, input.len()))
 }
 
-fn integer(out: &mut json::Number, value: i64, width: usize, pad: u8) {
+fn integer(out: &mut bytes::Number, value: i64, width: usize, pad: u8) {
     if pad == b' ' {
         write!(out, "{value:width$}").unwrap();
     } else {
@@ -296,7 +296,7 @@ fn integer(out: &mut json::Number, value: i64, width: usize, pad: u8) {
     }
 }
 
-fn numeric_zone(out: &mut json::Number, offset: i32, token: NumericZone) {
+fn numeric_zone(out: &mut bytes::Number, offset: i32, token: NumericZone) {
     if token.iso && offset == 0 {
         out.write_char('Z').unwrap();
         return;
@@ -341,7 +341,7 @@ pub(super) fn render(
         let Some(token) = token else {
             break;
         };
-        let mut number = json::Number::new();
+        let mut number = bytes::Number::new();
         match token {
             Token::Number(part, width, pad) => integer(&mut number, view.part(part), width, pad),
             Token::Name(part, full) => {

@@ -14,7 +14,6 @@ fn failure(source: &str) -> Error {
         .unwrap_err()
 }
 
-/// The code and offset of each static diagnostic that refuses `source`.
 fn refused(source: &str) -> Vec<(String, usize)> {
     let error = vibescript::Engine::new()
         .compile(source)
@@ -104,7 +103,6 @@ fn failures_point_at_operators_members_indices_and_nested_calls() {
 
 #[test]
 fn writes_and_their_compound_operators_point_at_the_target() {
-    // Each is refused before running, at its target.
     for (body, expected) in [
         (
             "arr = [1, [2]]\n  arr[1].first = 3",
@@ -195,7 +193,6 @@ fn interpolation_and_unicode_use_the_original_source() {
 
 #[test]
 fn argument_and_return_checks_point_to_the_calling_expression() {
-    // A default is checked against its parameter before running.
     for (declaration, expected) in [
         (
             "def target(a: int = \"x\")\n a\nend",
@@ -209,7 +206,6 @@ fn argument_and_return_checks_point_to_the_calling_expression() {
         let source = format!("{declaration}\ndef run(input: any)\n  target()\nend");
         assert_eq!(refused(&source), at(&source, expected), "{source}");
     }
-    // So are arguments and results, at the value.
     for (declaration, call, text) in [
         ("def target(a:int)\n a\nend", "target(\"x\")", "\"x\")"),
         ("def target -> int\n \"x\"\nend", "target", "\"x\""),
@@ -572,8 +568,6 @@ fn operator_diagnostics_span_the_whole_operator() {
 
 #[test]
 fn duplicate_and_reserved_function_names_are_coded() {
-    // A second top-level definition, or an alias over a function, is
-    // refused at its name.
     for source in [
         "def g -> int\n  1\nend\ndef g -> int\n  2\nend\n",
         "def f -> int\n  1\nend\ndef g -> int\n  2\nend\nalias g f\n",

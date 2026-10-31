@@ -1,4 +1,4 @@
-use super::Number;
+use crate::bytes::Number;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK, MAX_VALUE_DEPTH},
