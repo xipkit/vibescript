@@ -2,7 +2,7 @@ use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, Charge},
     bytecode::CallSite,
-    json, ops,
+    bytes, ops,
     value::Kind,
 };
 use std::{
@@ -292,7 +292,7 @@ fn required_year(year: &Value) -> Result<i64> {
             if n > 0.0 { '+' } else { '-' }
         ))),
         Kind::Float(n) => {
-            let mut text = json::Number::new();
+            let mut text = bytes::Number::new();
             ops::format_float(&mut text, n);
             Err(argument(format!(
                 "Time constructor year {} is out of range",
@@ -529,14 +529,14 @@ pub(crate) fn anchor(
     }))))
 }
 
-fn year(out: &mut json::Number, year: i64) {
+fn year(out: &mut bytes::Number, year: i64) {
     if year < 0 {
         out.write_char('-').unwrap();
     }
     write!(out, "{:04}", year.unsigned_abs()).unwrap();
 }
 
-fn numeric_zone(out: &mut json::Number, seconds: i32, colon: bool) {
+fn numeric_zone(out: &mut bytes::Number, seconds: i32, colon: bool) {
     let minutes = seconds / 60;
     let sign = if minutes < 0 { '-' } else { '+' };
     let magnitude = minutes.unsigned_abs();
@@ -558,7 +558,7 @@ pub(crate) fn text(
     let stamp = stamp(value).unwrap();
     let offset = offset(ctx, value)?;
     let date = calendar::civil(stamp.seconds(), offset.seconds);
-    let mut out = json::Number::new();
+    let mut out = bytes::Number::new();
     year(&mut out, date.year);
     write!(
         out,
@@ -602,7 +602,7 @@ fn mail_date(ctx: &mut CallContext, receiver: &Value, http: bool) -> Result<Valu
     let month = [
         "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
     ][date.month as usize - 1];
-    let mut out = json::Number::new();
+    let mut out = bytes::Number::new();
     write!(out, "{weekday}, {:02} {month} ", date.day).unwrap();
     year(&mut out, date.year);
     write!(

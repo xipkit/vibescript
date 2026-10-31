@@ -1,5 +1,5 @@
 use crate::{
-    CallContext, Error, ErrorKind, Result, Value, bytecode::CallSite, json, ops, scan, value::Kind,
+    CallContext, Error, ErrorKind, Result, Value, bytecode::CallSite, bytes, ops, scan, value::Kind,
 };
 use std::{
     cmp::Ordering,
@@ -50,7 +50,7 @@ impl Money {
         (self.currency() == other.currency()).then(|| self.cents().cmp(&other.cents()))
     }
     pub fn text(self, ctx: &mut CallContext) -> Result<Value> {
-        let mut buffer = json::Number::new();
+        let mut buffer = bytes::Number::new();
         write!(buffer, "{self}").unwrap();
         ctx.bytes(buffer.bytes())
     }

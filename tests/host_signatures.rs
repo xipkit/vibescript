@@ -172,8 +172,6 @@ fn signatures_reject_invalid_calls_before_the_callback_and_keep_omissions() {
         false,
     ))
     .unwrap();
-    // A declared capability's calls are checked against its signature
-    // before anything runs.
     for (source, code, at) in [
         ("typed.echo()", "V0301", "echo"),
         ("typed.echo(1,true,2)", "V0301", "echo"),
@@ -406,7 +404,6 @@ fn registered_methods_keep_compiled_snapshots_and_call_resolution() {
         earlier.run(CallOptions::default()).unwrap().value.as_int(),
         Some(7)
     );
-    // The new signature refuses the old call before it runs.
     let mut checked = vibescript::Engine::new();
     checked.register_method("echo", echo("string"));
     let error = checked.compile("echo(7)").err().unwrap();

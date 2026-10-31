@@ -19,8 +19,6 @@ fn message(body: &str) -> String {
     }
 }
 
-/// The code of the first diagnostic that refuses `source` at compile time,
-/// and the text it points at.
 fn refusal(source: &str) -> (String, String) {
     let error = vibescript::Engine::new()
         .compile(source)
@@ -186,7 +184,6 @@ fn index_operator_errors_name_the_selector_or_receiver() {
         let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
         assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
     }
-    // An instance whose class defines no index members cannot be indexed.
     let plain = "class Plain\nend\n";
     for (body, text) in [
         ("Plain.new[1]", "Plain.new[1]"),
@@ -887,7 +884,6 @@ fn range_members_check_calls_in_reference_order() {
 
 #[test]
 fn universal_members_and_conversions_refuse_extra_input_in_reference_order() {
-    // `nil?` is removed, with any arguments.
     for body in [
         "nil.nil?(1)",
         "[1].nil?(a: 1)",

@@ -1,5 +1,5 @@
-use crate::{CallContext, Error, ErrorKind, Result, Value, budget::CHUNK};
-use std::fmt::{self, Write};
+use crate::{CallContext, Error, ErrorKind, Result, Value};
+use std::fmt;
 
 mod accounting;
 #[cfg(test)]
@@ -9,6 +9,8 @@ mod records;
 mod scan;
 mod typed;
 mod writer;
+
+pub(crate) use parser::parse_float;
 
 const MAX_PAYLOAD: usize = 1 << 20;
 
@@ -168,102 +170,6 @@ fn parse_error<C: accounting::Context>(
     }
 }
 
-pub(crate) fn parse_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
-    const DIGITS: usize = 1100;
-    if input.len() <= DIGITS {
-        return std::str::from_utf8(input)
-            .unwrap()
-            .parse()
-            .map_err(|_| Error::new(ErrorKind::Json, "invalid JSON number"));
-    }
-    // Binary64 rounding boundaries need at most 768 significant decimal digits.
-    // Keep extra digits and a nonzero tail marker, bounding the library conversion.
-    let mut text = [0u8; DIGITS + 80];
-    let negative = input[0] == b'-';
-    let mut used = usize::from(negative);
-    text[0] = b'-';
-    let mut at = used;
-    let mut significant = 0usize;
-    let mut kept = 0usize;
-    let mut fractional = false;
-    let mut fraction_digits = 0usize;
-    let mut tail = false;
-    while at < input.len() && !matches!(input[at], b'e' | b'E') {
-        if (at - usize::from(negative)) % 1024 == 0 {
-            ctx.work_bytes((input.len() - at).min(1024))?;
-        }
-        let byte = input[at];
-        at += 1;
-        if byte == b'.' {
-            fractional = true;
-            continue;
-        }
-        fraction_digits += usize::from(fractional);
-        if significant != 0 || byte != b'0' {
-            significant += 1;
-            if kept < DIGITS {
-                text[used] = byte;
-                used += 1;
-                kept += 1;
-            } else {
-                tail |= byte != b'0';
-            }
-        }
-    }
-    let mut exponent = 0i128;
-    if at < input.len() {
-        at += 1;
-        let exponent_negative = input.get(at) == Some(&b'-');
-        if matches!(input.get(at), Some(b'+' | b'-')) {
-            at += 1;
-        }
-        while at < input.len() {
-            if at % 1024 == 0 {
-                ctx.work_bytes((input.len() - at).min(1024))?;
-            }
-            exponent = exponent
-                .saturating_mul(10)
-                .saturating_add((input[at] - b'0') as i128);
-            at += 1;
-        }
-        if exponent_negative {
-            exponent = -exponent;
-        }
-    }
-    if significant == 0 {
-        return Ok(if negative { -0.0 } else { 0.0 });
-    }
-    exponent = exponent
-        .saturating_sub(fraction_digits as i128)
-        .saturating_add((significant - kept) as i128);
-    if tail {
-        text[used] = b'1';
-        used += 1;
-        exponent = exponent.saturating_sub(1);
-    }
-    let mut suffix = Number::new();
-    write!(suffix, "e{exponent}").unwrap();
-    text[used..used + suffix.bytes().len()].copy_from_slice(suffix.bytes());
-    used += suffix.bytes().len();
-    std::str::from_utf8(&text[..used])
-        .unwrap()
-        .parse()
-        .map_err(|_| Error::new(ErrorKind::Json, "invalid JSON number"))
-}
-
-pub(crate) fn bytes_equal(ctx: &mut CallContext, a: &[u8], b: &[u8]) -> Result<bool> {
-    if a.len() != b.len() {
-        return Ok(false);
-    }
-    for (a, b) in a.chunks(CHUNK).zip(b.chunks(CHUNK)) {
-        ctx.work_bytes(a.len())?;
-        if a != b {
-            return Ok(false);
-        }
-    }
-    Ok(true)
-}
-
 pub(crate) fn stringify(ctx: &mut CallContext, value: &Value) -> Result<Value> {
     stringify_with_limit(ctx, value, None)
 }
@@ -282,33 +188,6 @@ fn stringify_with_limit(
     let mut out = writer::Output::new(limit, limit.is_some());
     writer::write_value(ctx, value, &mut out)?;
     Value::from_bytes(ctx, out.buffer)
-}
-
-pub(crate) struct Number {
-    buf: [u8; 512],
-    len: usize,
-}
-impl Number {
-    pub fn new() -> Self {
-        Self {
-            buf: [0; 512],
-            len: 0,
-        }
-    }
-    pub fn bytes(&self) -> &[u8] {
-        &self.buf[..self.len]
-    }
-}
-impl Write for Number {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        let end = self.len + s.len();
-        if end > self.buf.len() {
-            return Err(fmt::Error);
-        }
-        self.buf[self.len..end].copy_from_slice(s.as_bytes());
-        self.len = end;
-        Ok(())
-    }
 }
 
 #[cfg(test)]
@@ -357,7 +236,10 @@ mod limit_tests {
 #[cfg(test)]
 mod depth_tests {
     use super::*;
-    use crate::{CallOptions, ErrorClass, budget::MAX_VALUE_DEPTH};
+    use crate::{
+        CallOptions, ErrorClass,
+        budget::{CHUNK, MAX_VALUE_DEPTH},
+    };
     use std::time::Instant;
 
     const DEEP_MESSAGE: &str = "JSON nesting too deep";

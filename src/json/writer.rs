@@ -1,4 +1,4 @@
-use super::Number;
+use crate::bytes::Number;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK, MAX_VALUE_DEPTH},
@@ -101,6 +101,7 @@ impl Output {
             self.grow(ctx, length, pending)?;
         }
         let len = self.buffer.data.len();
+        // Faster than extend_from_slice for short escapes; see commit 6170b8669.
         let spare = &mut self.buffer.data.spare_capacity_mut()[..2];
         spare[0].write(b'\\');
         spare[1].write(code);

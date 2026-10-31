@@ -1,7 +1,7 @@
 use crate::{
     CallContext, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK, Charge, MAX_VALUE_DEPTH},
-    json::bytes_equal,
+    bytes::bytes_equal,
 };
 use std::{collections::hash_map::DefaultHasher, hash::Hasher, mem::size_of, sync::Arc};
 

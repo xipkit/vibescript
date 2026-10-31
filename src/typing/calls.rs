@@ -522,7 +522,6 @@ impl<'a> Checker<'a> {
         let name_span = self.spans.member(receiver, name);
         if let Some(span) = name_span {
             if ty != Ty::ERROR {
-                // A safe call runs the member on the value without nil.
                 let called = if safe { self.types.without_nil(ty) } else { ty };
                 let Some(bases) = self.types.bases(called) else {
                     return Ty::ERROR;
@@ -2520,10 +2519,8 @@ impl<'a> Checker<'a> {
         }
     }
 
-    /// Reports a type variable bound to a type outside its bound, such as
-    /// `sort` on an array of a union.
-    /// Reports each type variable of `sig` bound outside its bound, and
-    /// returns whether they all held.
+    /// Reports each type variable of `sig` bound outside its bound, such as
+    /// `sort` on an array of a union, and returns whether they all held.
     fn bounds(&mut self, call: &Call<'a, '_>, sig: &Sig, bindings: &[Option<Ty>]) -> bool {
         let mut held = true;
         for (index, var) in sig.vars.iter().enumerate() {

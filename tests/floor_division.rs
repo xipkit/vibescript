@@ -298,7 +298,6 @@ fn compound_floor_division_assigns_the_floored_value() {
         .unwrap()
         .value;
     assert_eq!(value.as_int(), Some(4));
-    // A zero divisor raises as `//` does.
     let error = failure("y = 1\n  y //= 0");
     assert_eq!(error.kind, ErrorKind::Arithmetic);
     assert_eq!(error.class(), Some(ErrorClass::ZeroDivision));

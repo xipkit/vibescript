@@ -240,8 +240,6 @@ fn numeric_validation_fails_during_execution_before_later_host_effects() {
         );
         assert_eq!(effects.load(Ordering::SeqCst), 0, "{expression}");
     }
-    // Arguments of the wrong type and blocks are refused before anything
-    // runs.
     let mut checked = vibescript::Engine::new();
     checked.register("effect", |_, _| panic!("effect ran"));
     for (expression, code) in [

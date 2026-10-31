@@ -336,7 +336,6 @@ def recursive -> int?
   c&.recur
 end
 "##;
-    // A safe call to `hidden` or `guarded` from outside `C` is refused.
     for method in ["hidden", "guarded"] {
         let source = format!("{class}def outside -> int?\n  c: C? = C.new\n  c&.{method}\nend\n");
         let error = Engine::new().compile(&source).err().unwrap();

@@ -136,7 +136,7 @@ pub(crate) fn endpoint(value: &Value) -> Result<i64> {
             if let Some(n) = truncate(n) {
                 return Ok(n);
             }
-            let mut text = crate::json::Number::new();
+            let mut text = crate::bytes::Number::new();
             crate::ops::format_float(&mut text, n);
             let text = std::str::from_utf8(text.bytes()).unwrap();
             if n.is_finite() {

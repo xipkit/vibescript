@@ -3,7 +3,7 @@ use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, MAX_VALUE_DEPTH},
     bytecode::Method,
-    json, ops, scan,
+    bytes, ops, scan,
     value::Kind,
 };
 use std::fmt::Write;
@@ -104,7 +104,7 @@ fn leaf(ctx: &mut CallContext, value: &Value, out: &mut Buffer<u8>) -> Result<()
         Kind::Shape(shape) => crate::shapes::append(ctx, shape, out)?,
         Kind::Enum(_) | Kind::EnumMember(_) => crate::enums::append(ctx, value, out)?,
         Kind::Range(r) => {
-            let mut text = json::Number::new();
+            let mut text = bytes::Number::new();
             write!(text, "{r}").unwrap();
             out.extend(ctx, text.bytes())?;
         }
@@ -176,7 +176,7 @@ pub(crate) fn method(
                 } else {
                     &bytes[bytes.len() - candidate.len()..]
                 };
-                if json::bytes_equal(ctx, part, candidate)? {
+                if bytes::bytes_equal(ctx, part, candidate)? {
                     return Ok(Value::boolean(true));
                 }
             }

@@ -48,7 +48,7 @@ pub(super) struct Candidate {
 
 impl Resolver {
     pub fn memory(sources: std::collections::BTreeMap<String, String>) -> Result<Self> {
-        let limit = 1 << 20;
+        let limit = super::DEFAULT_SOURCE_LIMIT;
         for (name, source) in &sources {
             let mut ctx = CallContext::new(crate::CallOptions::default());
             let parsed = Name::parse(&mut ctx, name.as_bytes())?;

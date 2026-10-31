@@ -35,7 +35,6 @@ fn keyword_arguments_are_checked_by_name() {
         "def f(a: int, *, loud: bool = false) -> int\n  a\nend\nf(1, loud: 3)\n",
         &["V0101"],
     );
-    // A keyword parameter is not passed by position.
     codes(
         "def f(a: int, *, loud: bool = false) -> int\n  a\nend\nf(1, true)\n",
         &["V0301"],

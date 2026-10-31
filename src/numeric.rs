@@ -1,4 +1,4 @@
-use crate::{CallContext, Error, ErrorKind, Result, Value, integer, json, ops, value::Kind};
+use crate::{CallContext, Error, ErrorKind, Result, Value, bytes, integer, ops, value::Kind};
 use std::{cmp::Ordering, fmt::Write};
 
 pub(crate) fn call(
@@ -427,7 +427,7 @@ fn rational_round(ctx: &mut CallContext, number: f64, digits: u32) -> Result<f64
     // A decimal token gives the final division one correctly rounded conversion.
     // The precision guards bound this token and all preceding scratch storage.
     let mut text = integer::format(ctx, &rounded, 10)?;
-    let mut suffix = json::Number::new();
+    let mut suffix = bytes::Number::new();
     write!(suffix, "e-{digits}").unwrap();
     text.extend(ctx, suffix.bytes())?;
     ctx.work_bytes(text.data.len())?;

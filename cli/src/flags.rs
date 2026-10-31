@@ -9,7 +9,6 @@
 use crate::compat::{self, IntError};
 use std::ffi::{OsStr, OsString};
 
-/// The value a flag accepts.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Kind {
     Bool,
@@ -20,7 +19,6 @@ pub enum Kind {
     Strings,
 }
 
-/// One flag of a command.
 #[derive(Clone, Copy)]
 pub struct Flag {
     /// The primary name first, then aliases.
@@ -42,7 +40,6 @@ impl Flag {
     }
 }
 
-/// A command's name, summary, usage lines and flags.
 pub struct Spec {
     pub name: &'static str,
     pub aliases: &'static [&'static str],
@@ -59,7 +56,6 @@ pub struct Parsed {
     pub positionals: Vec<OsString>,
 }
 
-/// The result of parsing a command line.
 pub enum Outcome {
     /// `-h` or `--help` appeared before any error; nothing else applies.
     Help,

@@ -40,7 +40,6 @@ pub const SPEC: Spec = Spec {
     flags: &FLAGS,
 };
 
-/// The label inline source carries in reports.
 const EVAL_LABEL: &str = "<eval>";
 
 /// Runs `vibes check` with the arguments after the command name.
@@ -89,8 +88,6 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
     human_check(&engine, &text, &label, snippet)
 }
 
-/// `vibes check`: compiles the script and prints every diagnostic with its
-/// source line and fixes, or `No issues found`.
 fn human_check(
     engine: &vibescript::Engine,
     text: &str,
@@ -170,8 +167,6 @@ fn json_check(
     }
 }
 
-/// The text of a required file, by its root-relative name, or nothing when
-/// no module directory holds it.
 fn module_text(file: &[u8], module_dirs: &[PathBuf]) -> String {
     let name = String::from_utf8_lossy(file);
     module_dirs

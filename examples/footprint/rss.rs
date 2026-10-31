@@ -24,22 +24,19 @@ pub fn current() -> Option<usize> {
 #[cfg(target_os = "linux")]
 /// Returns the process's current resident memory in bytes.
 pub fn current() -> Option<usize> {
+    use std::{fs::File, io::Read};
+
     let mut buffer = [0_u8; 256];
-    // SAFETY: The path is NUL terminated, and read receives the writable buffer
-    // and its length. The descriptor is closed before leaving this function.
-    let (length, page) = unsafe {
-        let fd = libc::open(c"/proc/self/statm".as_ptr(), libc::O_RDONLY);
-        if fd < 0 {
-            return None;
-        }
-        let length = libc::read(fd, buffer.as_mut_ptr().cast(), buffer.len());
-        libc::close(fd);
-        (length, libc::sysconf(libc::_SC_PAGESIZE))
-    };
-    if length <= 0 || page <= 0 {
+    let length = File::open("/proc/self/statm")
+        .ok()?
+        .read(&mut buffer)
+        .ok()?;
+    // SAFETY: sysconf takes a valid configuration name and no pointers.
+    let page = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
+    if length == 0 || page <= 0 {
         return None;
     }
-    std::str::from_utf8(&buffer[..length as usize])
+    std::str::from_utf8(&buffer[..length])
         .ok()?
         .split_whitespace()
         .nth(1)?

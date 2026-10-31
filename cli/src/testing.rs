@@ -152,7 +152,6 @@ fn statement_type(kind: StatementKind) -> &'static str {
     }
 }
 
-/// Runs one file's tests and prints its report lines.
 fn run_file(
     file: &Path,
     module_paths: &[OsString],
@@ -216,7 +215,6 @@ fn run_file(
     Ok(())
 }
 
-/// Compiles a test file with its directory first on the module path.
 fn load(file: &Path, module_paths: &[OsString]) -> Result<Script, (&'static str, String)> {
     let absolute = compat::absolute(file).map_err(|error| ("(resolve)", compat::reason(&error)))?;
     let directory = absolute.parent().unwrap_or(Path::new("/"));
@@ -230,7 +228,6 @@ fn load(file: &Path, module_paths: &[OsString]) -> Result<Script, (&'static str,
         .map_err(|error| ("(compile)", render::error(&error, None)))
 }
 
-/// Indents every line of a failure message by four spaces.
 fn indent(text: &str) -> String {
     text.trim_end_matches('\n')
         .split('\n')

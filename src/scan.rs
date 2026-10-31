@@ -13,8 +13,7 @@ pub(crate) fn ascii_mismatch(bytes: &[u8], needle: u8) -> usize {
     let bytes = {
         let mut chunks = bytes.chunks_exact(16);
         for chunk in chunks.by_ref() {
-            // SAFETY: each load stays within a complete vector on a baseline target.
-            let found = unsafe { vector_ascii_mismatch(chunk, needle) };
+            let found = vector_ascii_mismatch(chunk.try_into().unwrap(), needle);
             if found < 16 {
                 return position + found;
             }
@@ -88,9 +87,9 @@ mod byte_search_tests {
 }
 
 #[cfg(all(feature = "simd", target_arch = "aarch64"))]
-unsafe fn vector_ascii_mismatch(bytes: &[u8], needle: u8) -> usize {
+fn vector_ascii_mismatch(bytes: &[u8; 16], needle: u8) -> usize {
     use std::arch::aarch64::*;
-    // SAFETY: the caller provides sixteen readable bytes; NEON is baseline.
+    // SAFETY: the load reads exactly the sixteen bytes of `bytes`; NEON is baseline.
     unsafe {
         let input = vld1q_u8(bytes.as_ptr());
         let mask = vorrq_u8(vceqq_u8(input, vdupq_n_u8(needle)), input);
@@ -109,9 +108,9 @@ unsafe fn vector_ascii_mismatch(bytes: &[u8], needle: u8) -> usize {
 }
 
 #[cfg(all(feature = "simd", target_arch = "x86_64"))]
-unsafe fn vector_ascii_mismatch(bytes: &[u8], needle: u8) -> usize {
+fn vector_ascii_mismatch(bytes: &[u8; 16], needle: u8) -> usize {
     use std::arch::x86_64::*;
-    // SAFETY: the caller provides sixteen readable bytes; SSE2 is baseline.
+    // SAFETY: the load reads exactly the sixteen bytes of `bytes`; SSE2 is baseline.
     unsafe {
         let input = _mm_loadu_si128(bytes.as_ptr().cast());
         let mask = _mm_or_si128(_mm_cmpeq_epi8(input, _mm_set1_epi8(needle as i8)), input);
@@ -131,9 +130,8 @@ pub(crate) fn ordinary(b: u8, class: Class) -> bool {
 
 pub(crate) fn prefix(s: &[u8], class: Class) -> usize {
     #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
-    if s.len() == 16 {
-        // SAFETY: this input is exactly one full vector on a baseline target.
-        if unsafe { vector_clean(s, class) } {
+    if let Ok(block) = <&[u8; 16]>::try_from(s) {
+        if vector_clean(block, class) {
             return 16;
         }
     }
@@ -144,8 +142,7 @@ pub(crate) fn prefix(s: &[u8], class: Class) -> usize {
     #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
     if matches!(class, Class::Ascii) {
         for chunk in s.chunks_exact(64) {
-            // SAFETY: all four vector loads are within this complete chunk.
-            if !unsafe { vector_ascii64(chunk) } {
+            if !vector_ascii64(chunk.try_into().unwrap()) {
                 break;
             }
             i += 64;
@@ -153,9 +150,7 @@ pub(crate) fn prefix(s: &[u8], class: Class) -> usize {
     }
     #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
     for chunk in s[i..].chunks_exact(16) {
-        // SAFETY: each unaligned vector load stays within this 16-byte slice;
-        // NEON and SSE2 are baseline features of the respective target architectures.
-        if !unsafe { vector_clean(chunk, class) } {
+        if !vector_clean(chunk.try_into().unwrap(), class) {
             break;
         }
         i += 16;
@@ -242,8 +237,7 @@ pub(crate) fn text_span(s: &[u8], class: Class) -> TextSpan {
 /// Counts a run of valid non-ASCII characters without constructing code points.
 pub(crate) fn unicode_span(s: &[u8]) -> TextSpan {
     #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
-    // SAFETY: NEON and SSE2 are baseline features of these architectures.
-    let (mut len, mut runes) = unsafe { vector_unicode(s) };
+    let (mut len, mut runes) = vector_unicode(s);
     #[cfg(not(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64"))))]
     let (mut len, mut runes) = (0, 0);
     // While a whole four-byte sequence fits, the width comes from the lead's
@@ -288,11 +282,7 @@ pub(crate) fn ascii_case(s: &mut [u8], upper: bool) {
     let tail = {
         let mut chunks = s.chunks_exact_mut(16);
         for chunk in &mut chunks {
-            // SAFETY: the exclusive chunk contains all 16 bytes loaded and
-            // stored; the instructions are baseline target features.
-            unsafe {
-                vector_case(chunk, upper);
-            }
+            vector_case(chunk.try_into().unwrap(), upper);
         }
         chunks.into_remainder()
     };
@@ -308,9 +298,9 @@ pub(crate) fn ascii_case(s: &mut [u8], upper: bool) {
 }
 
 #[cfg(all(feature = "simd", target_arch = "aarch64"))]
-unsafe fn vector_ascii64(s: &[u8]) -> bool {
+fn vector_ascii64(s: &[u8; 64]) -> bool {
     use std::arch::aarch64::*;
-    // SAFETY: caller supplies 64 bytes on a baseline NEON target.
+    // SAFETY: the four loads read the 64 bytes of `s`; NEON is baseline.
     unsafe {
         let p = s.as_ptr();
         let a = vorrq_u8(vld1q_u8(p), vld1q_u8(p.add(16)));
@@ -320,9 +310,9 @@ unsafe fn vector_ascii64(s: &[u8]) -> bool {
 }
 
 #[cfg(all(feature = "simd", target_arch = "x86_64"))]
-unsafe fn vector_ascii64(s: &[u8]) -> bool {
+fn vector_ascii64(s: &[u8; 64]) -> bool {
     use std::arch::x86_64::*;
-    // SAFETY: caller supplies 64 bytes; SSE2 is baseline on x86_64.
+    // SAFETY: the four loads read the 64 bytes of `s`; SSE2 is baseline.
     unsafe {
         let p = s.as_ptr();
         let a = _mm_or_si128(_mm_loadu_si128(p.cast()), _mm_loadu_si128(p.add(16).cast()));
@@ -335,9 +325,9 @@ unsafe fn vector_ascii64(s: &[u8]) -> bool {
 }
 
 #[cfg(all(feature = "simd", target_arch = "aarch64"))]
-unsafe fn vector_clean(s: &[u8], class: Class) -> bool {
+fn vector_clean(s: &[u8; 16], class: Class) -> bool {
     use std::arch::aarch64::*;
-    // SAFETY: caller supplies a full vector on a NEON target.
+    // SAFETY: the load reads exactly the sixteen bytes of `s`; NEON is baseline.
     unsafe {
         let v = vld1q_u8(s.as_ptr());
         if matches!(class, Class::Ascii) {
@@ -359,9 +349,9 @@ unsafe fn vector_clean(s: &[u8], class: Class) -> bool {
 }
 
 #[cfg(all(feature = "simd", target_arch = "x86_64"))]
-unsafe fn vector_clean(s: &[u8], class: Class) -> bool {
+fn vector_clean(s: &[u8; 16], class: Class) -> bool {
     use std::arch::x86_64::*;
-    // SAFETY: caller supplies a full vector; SSE2 is baseline on x86_64.
+    // SAFETY: the load reads exactly the sixteen bytes of `s`; SSE2 is baseline.
     unsafe {
         let v = _mm_loadu_si128(s.as_ptr().cast());
         if matches!(class, Class::Ascii) {
@@ -381,7 +371,7 @@ unsafe fn vector_clean(s: &[u8], class: Class) -> bool {
 }
 
 #[cfg(all(feature = "simd", target_arch = "x86_64"))]
-unsafe fn vector_unicode(s: &[u8]) -> (usize, usize) {
+fn vector_unicode(s: &[u8]) -> (usize, usize) {
     use std::arch::x86_64::*;
     // SAFETY: the loop bounds every unaligned 16-byte load; SSE2 is baseline.
     unsafe {
@@ -436,10 +426,10 @@ unsafe fn vector_unicode(s: &[u8]) -> (usize, usize) {
 /// past it and so is left to the scalar decoder, and the number of complete
 /// runes before that point.
 #[cfg(all(feature = "simd", target_arch = "aarch64"))]
-unsafe fn vector_unicode(s: &[u8]) -> (usize, usize) {
+fn vector_unicode(s: &[u8]) -> (usize, usize) {
     use std::arch::aarch64::*;
     // SAFETY: every load reads the 16 bytes at `start`, which the loop keeps
-    // within `s`; the caller guarantees a NEON-capable target.
+    // within `s`; NEON is baseline.
     unsafe {
         let at_least = |v, b| vcgeq_u8(v, vdupq_n_u8(b));
         let below = |v, b| vcltq_u8(v, vdupq_n_u8(b));
@@ -499,9 +489,10 @@ unsafe fn vector_unicode(s: &[u8]) -> (usize, usize) {
 }
 
 #[cfg(all(feature = "simd", target_arch = "aarch64"))]
-unsafe fn vector_case(s: &mut [u8], upper: bool) {
+fn vector_case(s: &mut [u8; 16], upper: bool) {
     use std::arch::aarch64::*;
-    // SAFETY: caller provides exclusive access to 16 bytes on a NEON target.
+    // SAFETY: the load and store touch exactly the sixteen bytes of `s`, which
+    // the exclusive borrow owns; NEON is baseline.
     unsafe {
         let v = vld1q_u8(s.as_ptr());
         let lo = if upper { b'a' } else { b'A' };
@@ -513,9 +504,10 @@ unsafe fn vector_case(s: &mut [u8], upper: bool) {
 }
 
 #[cfg(all(feature = "simd", target_arch = "x86_64"))]
-unsafe fn vector_case(s: &mut [u8], upper: bool) {
+fn vector_case(s: &mut [u8; 16], upper: bool) {
     use std::arch::x86_64::*;
-    // SAFETY: caller provides exclusive access to 16 bytes; x86_64 guarantees SSE2.
+    // SAFETY: the load and store touch exactly the sixteen bytes of `s`, which
+    // the exclusive borrow owns; SSE2 is baseline.
     unsafe {
         let v = _mm_loadu_si128(s.as_ptr().cast());
         let lo = if upper { b'a' } else { b'A' };

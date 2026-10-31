@@ -60,25 +60,37 @@ pub(crate) fn missing_key(ctx: &mut CallContext, member: &str, key: &Value) -> R
     Ok(error)
 }
 
-/// Reads one array element or hash entry. `strict` is fetch's lookup, which
-/// rejects a fractional index; array index errors name fetch when strict and
-/// values_at otherwise. `site` names the member input that supplied a hash
-/// key, for an unsupported key's message.
+/// How [`lookup`] reads an array index.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Lookup {
+    /// Fetch's lookup, which rejects a fractional index and names fetch in
+    /// its errors.
+    Fetch,
+    /// A lenient lookup whose index errors name values_at.
+    ValuesAt,
+}
+
+/// Reads one array element or hash entry, reading an array index as `mode`
+/// says. `site` names the member input that supplied a hash key, for an
+/// unsupported key's message.
 pub(crate) fn lookup(
     ctx: &mut CallContext,
     value: &Value,
     key: &Value,
-    strict: bool,
+    mode: Lookup,
     site: Option<&str>,
 ) -> Result<Option<Value>> {
     ctx.charge(1)?;
     match &value.0 {
         Kind::Array(h) => {
-            let member = if strict { "fetch" } else { "values_at" };
+            let member = match mode {
+                Lookup::Fetch => "fetch",
+                Lookup::ValuesAt => "values_at",
+            };
             let n = integer(key).map_err(|error| {
                 error.with_message(format!("array.{member} index must be integer"))
             })?;
-            if strict && matches!(key.0, Kind::Float(f) if f.trunc() != f) {
+            if mode == Lookup::Fetch && matches!(key.0, Kind::Float(f) if f.trunc() != f) {
                 return Err(argument("array.fetch index must be integer"));
             }
             let n = if n < 0 {
@@ -125,7 +137,7 @@ pub(crate) fn method(
                         ctx,
                         &value,
                         selector,
-                        false,
+                        Lookup::ValuesAt,
                         Some("hash.values_at key is an"),
                     )?
                     .unwrap_or_default();
@@ -142,8 +154,13 @@ pub(crate) fn method(
                     _ => "fetch expects a key and optional default",
                 }));
             }
-            if let Some(found) = lookup(ctx, &value, &args[0], true, Some("hash.fetch key is an"))?
-            {
+            if let Some(found) = lookup(
+                ctx,
+                &value,
+                &args[0],
+                Lookup::Fetch,
+                Some("hash.fetch key is an"),
+            )? {
                 return Ok(found);
             }
             if let Some(default) = args.get(1) {
@@ -196,7 +213,7 @@ pub(crate) fn method(
                         }
                     }
                 }
-                current = lookup(ctx, &current, key, false, None)?.unwrap_or_default();
+                current = lookup(ctx, &current, key, Lookup::ValuesAt, None)?.unwrap_or_default();
             }
             Ok(current)
         }
@@ -313,7 +330,13 @@ pub(crate) fn method(
         Slice if matches!(value.0, Kind::Hash(_)) => {
             let mut out = Hash::empty();
             for key in args {
-                if let Some(v) = lookup(ctx, &value, key, false, Some("hash.slice key is an"))? {
+                if let Some(v) = lookup(
+                    ctx,
+                    &value,
+                    key,
+                    Lookup::ValuesAt,
+                    Some("hash.slice key is an"),
+                )? {
                     let key = ctx.bytes(key.hash_key()?)?;
                     out.insert(ctx, key, v)?;
                 }

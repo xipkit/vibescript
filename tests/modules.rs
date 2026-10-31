@@ -199,7 +199,6 @@ fn bodies_and_blocks_keep_their_assignment_boundaries() {
 
 #[test]
 fn namespace_identity_and_collection_values_have_distinct_mutation_rules() {
-    // A module's fields are its constants, assigned in its body.
     for receiver in ["M.Data", "M::Data", "M.Data.dup"] {
         let source = format!(
             "module M\n Data=\"a\".match(/(a)/).as(match_data)\nend\n{receiver}.captures.push(\"x\")"

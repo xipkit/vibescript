@@ -2,8 +2,10 @@ use super::traversal::{Entries, Frame, Stack};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK, MAX_VALUE_DEPTH},
+    bytes,
     hash::Hash,
-    json, ops, scan,
+    ops, scan,
+    sort::{Action, Sort},
     syntax::unicode,
     value::Kind,
 };
@@ -215,7 +217,7 @@ fn walk(ctx: &mut CallContext, value: &Value, out: &mut Output, limit: usize) ->
 }
 
 fn leaf(ctx: &mut CallContext, value: &Value, out: &mut Output) -> Result<()> {
-    let mut scalar = json::Number::new();
+    let mut scalar = bytes::Number::new();
     match &value.0 {
         Kind::Bytes(bytes) => return quoted(ctx, bytes.data(), out),
         Kind::Symbol(bytes) => {
@@ -290,19 +292,19 @@ fn object_order(ctx: &mut CallContext, hash: &Hash) -> Result<Buffer<usize>> {
         ctx.charge(1)?;
         order.data.push(index);
     }
-    let mut sort = crate::sort::Sort::new(order.data.len());
+    let mut sort = Sort::new(order.data.len());
     let mut comparison = None;
     loop {
         match sort.advance(ctx, comparison.take())? {
-            crate::sort::Action::Compare(a, b) => {
+            Action::Compare(a, b) => {
                 comparison = Some(crate::enums::compare_names(
                     ctx,
                     hash.buffer.data[order.data[a]].0.require_bytes()?,
                     hash.buffer.data[order.data[b]].0.require_bytes()?,
                 )?);
             }
-            crate::sort::Action::Swap(a, b) => order.data.swap(a, b),
-            crate::sort::Action::Done => return Ok(order),
+            Action::Swap(a, b) => order.data.swap(a, b),
+            Action::Done => return Ok(order),
         }
     }
 }
