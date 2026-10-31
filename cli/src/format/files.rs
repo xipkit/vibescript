@@ -23,7 +23,6 @@ use std::{
     time::SystemTime,
 };
 
-/// How many directory operands keep an open handle at once.
 const MAX_OPEN_ROOTS: usize = 8;
 
 /// Discovered candidates, sorted by path, and the roots they belong to.
@@ -34,7 +33,6 @@ pub struct Inputs {
     next_eviction: usize,
 }
 
-/// One file to format.
 pub struct Candidate {
     /// The directory operand that contains it, or `None` for an explicit file.
     root: Option<usize>,
@@ -42,7 +40,6 @@ pub struct Candidate {
     name: PathBuf,
     /// The absolute path reported in messages and used for ordering.
     pub path: PathBuf,
-    /// The file found during discovery.
     identity: Identity,
 }
 

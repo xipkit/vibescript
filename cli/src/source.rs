@@ -94,8 +94,6 @@ mod tests {
         }
     }
 
-    /// The reference's property: the script directory first, then each extra
-    /// directory in order, absolute and without repeats.
     #[test]
     fn module_paths_match_the_directory_model() {
         // WASI has neither process ids nor canonical paths below a preopen,

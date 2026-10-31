@@ -126,7 +126,6 @@ fn remove_all(path: &Path) -> std::io::Result<()> {
     fs::remove_dir_all(path)
 }
 
-/// A finished process: status, stdout and stderr.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Run {
     pub status: Option<i32>,
