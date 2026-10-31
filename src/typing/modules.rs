@@ -752,8 +752,6 @@ impl<'a> Checker<'a> {
         Ok(id)
     }
 
-    /// What this check's file exports: its public functions, its enums and
-    /// its classes, with its type table, which the check gives up.
     /// What [`Self::export`] copies beside the declarations it copies them
     /// from: its public functions' names and signatures, the list of its
     /// enums, and its classes' names and their methods' names and
@@ -796,6 +794,9 @@ impl<'a> Checker<'a> {
         bytes
     }
 
+    /// What this check's file exports: its public functions, its enums and
+    /// its classes, with its type table, which the check gives up.
+    ///
     /// `None` when a sort the budget refuses stops the check, which then
     /// exports nothing.
     pub(super) fn export(&mut self) -> Option<Exported> {

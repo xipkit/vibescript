@@ -2519,10 +2519,8 @@ impl<'a> Checker<'a> {
         }
     }
 
-    /// Reports a type variable bound to a type outside its bound, such as
-    /// `sort` on an array of a union.
-    /// Reports each type variable of `sig` bound outside its bound, and
-    /// returns whether they all held.
+    /// Reports each type variable of `sig` bound outside its bound, such as
+    /// `sort` on an array of a union, and returns whether they all held.
     fn bounds(&mut self, call: &Call<'a, '_>, sig: &Sig, bindings: &[Option<Ty>]) -> bool {
         let mut held = true;
         for (index, var) in sig.vars.iter().enumerate() {

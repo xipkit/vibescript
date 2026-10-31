@@ -3689,7 +3689,7 @@ impl<'a> Checker<'a> {
         }
     }
 
-    /// The function a frame is checking, by id, for messages.
+    /// The name of the function a frame is checking, for messages.
     pub(super) fn current_function(&self) -> &str {
         &self.frame.name
     }
