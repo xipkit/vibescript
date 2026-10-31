@@ -122,6 +122,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     snapshot::pause("calls_1000");
     drop(scripts);
     let dropped = Stage::capture("scripts_dropped", 0);
+    for stage in [
+        &start,
+        &new,
+        &registered,
+        &first,
+        &ten,
+        &hundred,
+        &calls,
+        &dropped,
+    ] {
+        println!(
+            "{}",
+            serde_json::json!({
+                "stage": stage.name, "allocations": stage.allocations[0],
+                "allocated_bytes": stage.allocations[1], "live_bytes": stage.allocations[2],
+                "peak_live_bytes": stage.allocations[3], "rss_bytes": stage.rss,
+                "elapsed_ns": stage.elapsed_ns,
+            })
+        );
+    }
     if std::env::args().any(|arg| arg == "--check") {
         if !cfg!(feature = "allocation-stats") {
             return Err("--check requires allocation-stats".into());
@@ -141,17 +161,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         assert!(
             hundred.allocations[2] - ten.allocations[2] <= 90 * 28 * 1024,
             "per-script retained heap"
-        );
-    }
-    for stage in [start, new, registered, first, ten, hundred, calls, dropped] {
-        println!(
-            "{}",
-            serde_json::json!({
-                "stage": stage.name, "allocations": stage.allocations[0],
-                "allocated_bytes": stage.allocations[1], "live_bytes": stage.allocations[2],
-                "peak_live_bytes": stage.allocations[3], "rss_bytes": stage.rss,
-                "elapsed_ns": stage.elapsed_ns,
-            })
         );
     }
     println!(
