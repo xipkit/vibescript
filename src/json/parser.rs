@@ -147,7 +147,6 @@ fn integer(text: &[u8]) -> Option<i64> {
     })
 }
 
-/// Quotes one input byte as Go's `%q` renders a byte: a rune literal.
 pub(crate) fn parse_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
     const DIGITS: usize = 1100;
     if input.len() <= DIGITS {
@@ -231,6 +230,7 @@ pub(crate) fn parse_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
         .map_err(|_| Error::new(ErrorKind::Json, "invalid JSON number"))
 }
 
+/// Quotes one input byte as Go's `%q` renders a byte: a rune literal.
 fn quote_byte(byte: u8, out: &mut impl std::fmt::Write) -> std::fmt::Result {
     let rune = char::from(byte);
     out.write_char('\'')?;
