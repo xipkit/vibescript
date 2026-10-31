@@ -25,7 +25,6 @@ fn typed(
         .unwrap()
 }
 
-/// The code and offset of each static diagnostic that refuses `source`.
 fn refused(engine: &Engine, source: &str) -> Vec<(String, usize)> {
     let error = engine
         .compile(source)

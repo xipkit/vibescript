@@ -4,7 +4,7 @@ use super::{
     value::Regex,
 };
 use crate::{
-    CallContext, Error, ErrorKind, Result, Value, budget::Buffer, iteration::Progress, json, ops,
+    CallContext, Error, ErrorKind, Result, Value, budget::Buffer, bytes, iteration::Progress, ops,
     scan, value::Kind,
 };
 use std::sync::Arc;
@@ -261,7 +261,7 @@ impl Matcher {
                     let mut group = None;
                     for (index, &(start, end)) in view.names.iter().enumerate().skip(1) {
                         ctx.charge(1)?;
-                        if start == end || !json::bytes_equal(ctx, &view.source[start..end], name)?
+                        if start == end || !bytes::bytes_equal(ctx, &view.source[start..end], name)?
                         {
                             continue;
                         }
@@ -351,7 +351,7 @@ pub(crate) fn member(
         }));
     };
     if !spec.regex {
-        if json::bytes_equal(ctx, spec.pattern.require_bytes()?, template)? {
+        if bytes::bytes_equal(ctx, spec.pattern.require_bytes()?, template)? {
             return Ok(Some(receiver.clone()));
         }
         super::text_limit(ctx, template, spec.method(), "replacement")?;
@@ -378,7 +378,7 @@ pub(crate) fn member(
             }
             let end = length + bytes.len();
             unchanged &= end <= text.len()
-                && json::bytes_equal(
+                && bytes::bytes_equal(
                     ctx,
                     &text[length.min(text.len())..end.min(text.len())],
                     bytes,
@@ -470,7 +470,7 @@ impl Driver {
         if !self.matched && self.spec.bang {
             return Ok(Progress::Done(Value::nil()));
         }
-        if json::bytes_equal(ctx, &output.data, receiver.require_bytes()?)? {
+        if bytes::bytes_equal(ctx, &output.data, receiver.require_bytes()?)? {
             return Ok(Progress::Done(receiver));
         }
         Value::from_bytes(ctx, output).map(Progress::Done)

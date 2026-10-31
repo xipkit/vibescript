@@ -1,5 +1,5 @@
 use crate::{
-    CallContext, Error, ErrorKind, Result, Value, budget::Buffer, bytecode::Method, json, ops,
+    CallContext, Error, ErrorKind, Result, Value, budget::Buffer, bytecode::Method, bytes, ops,
     scan, sequence, value::Kind,
 };
 
@@ -132,7 +132,7 @@ fn squish(ctx: &mut CallContext, receiver: &Value, bang: bool) -> Result<Value> 
     let mut changed = false;
     fields(ctx, bytes, |ctx, field| {
         let end = length + field.len();
-        changed |= !json::bytes_equal(ctx, &bytes[length..end], field)?;
+        changed |= !bytes::bytes_equal(ctx, &bytes[length..end], field)?;
         length = end;
         Ok(())
     })?;
@@ -154,7 +154,7 @@ fn affix(ctx: &mut CallContext, bytes: &[u8], part: &[u8], suffix: bool) -> Resu
     } else {
         &bytes[..part.len()]
     };
-    json::bytes_equal(ctx, window, part)
+    bytes::bytes_equal(ctx, window, part)
 }
 
 // Pad sizes are planned in 64 bits, so widths beyond a 32-bit address space are
@@ -413,7 +413,7 @@ pub(crate) fn call(
         }
         "reverse" => {
             let result = super::method(ctx, Method::Reverse, full, receiver.clone(), args)?;
-            let same = json::bytes_equal(ctx, bytes, result.require_bytes()?)?;
+            let same = bytes::bytes_equal(ctx, bytes, result.require_bytes()?)?;
             return Ok(Some(if same { Value::nil() } else { result }));
         }
         _ => unreachable!(),

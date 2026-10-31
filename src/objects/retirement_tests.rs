@@ -112,11 +112,15 @@ fn imported_host_callbacks_retire_after_object_collection_unlocks() {
             drop(result);
             drop(receiver);
             if ending == "keep" {
-                assert!(succeeded);
+                assert!(succeeded, "{ending}, captured={captured}, error={error:?}");
             } else if ending.ends_with("stop()") || cancel_on_drop {
-                assert_eq!(error, Some(ErrorKind::Cancelled), "{ending}");
+                assert_eq!(
+                    error,
+                    Some(ErrorKind::Cancelled),
+                    "{ending}, captured={captured}, error={error:?}"
+                );
             } else {
-                assert!(!succeeded);
+                assert!(!succeeded, "{ending}, captured={captured}, error={error:?}");
             }
             assert_eq!(
                 observation, 2,

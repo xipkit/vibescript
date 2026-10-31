@@ -202,7 +202,7 @@ impl<'a> Atom<'a> {
             Kind::EnumMember(member) => &member.enumeration.definition.name,
             _ => return Ok(false),
         };
-        crate::json::bytes_equal(ctx, self.name.as_bytes(), name.as_bytes())
+        crate::bytes::bytes_equal(ctx, self.name.as_bytes(), name.as_bytes())
     }
 }
 

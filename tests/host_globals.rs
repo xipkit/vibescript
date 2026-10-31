@@ -52,7 +52,6 @@ fn json(value: &Value) -> serde_json::Value {
     serde_json::from_slice(encoded.value.as_bytes().unwrap()).unwrap()
 }
 
-/// Runs `source` for its value, such as a namespace, a class or a type.
 fn value(source: &str) -> Value {
     Engine::new()
         .compile(source)
@@ -313,7 +312,6 @@ fn module_initializers_call_enclosing_bindings() {
     ] {
         let source = format!("helper=[3];module M;Result={expression};end;M.Result");
         let script = Engine::new().compile(&source).unwrap();
-        // The assignment writes the global the host declares.
         for opts in [
             CallOptions::default(),
             options(&[("helper", Value::array(Vec::new()))]),
@@ -636,7 +634,6 @@ fn captured_overrides_cover_host_declaration_block_and_error_paths() {
                 "{form}"
             );
         }
-        // The host method takes no block, which the checker refuses.
         let source = format!(
             "def helper(*args: array<any>) -> int;99;end;class Box;end;begin;{name}(\"3\"){{42}};rescue;7;end"
         );

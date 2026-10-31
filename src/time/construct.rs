@@ -1,5 +1,5 @@
 use super::{NANOS, Stamp, argument, calendar, location, parse, scaled_float, value};
-use crate::{CallContext, Error, ErrorKind, Result, Value, json, ops, value::Kind};
+use crate::{CallContext, Error, ErrorKind, Result, Value, bytes, ops, value::Kind};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Constructor {
@@ -239,7 +239,7 @@ fn required_year(year: &Value) -> Result<i64> {
             if n > 0.0 { '+' } else { '-' }
         ))),
         Kind::Float(n) => {
-            let mut text = json::Number::new();
+            let mut text = bytes::Number::new();
             ops::format_float(&mut text, n);
             Err(argument(format!(
                 "Time constructor year {} is out of range",

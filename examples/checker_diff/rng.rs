@@ -32,15 +32,18 @@ impl Rng {
         self.next() % 100 < u64::from(percent)
     }
 
+    /// A number in `low..=high`; `low <= high` and `high - low + 1` must fit in `i64`.
     pub fn range(&mut self, low: i64, high: i64) -> i64 {
         low + (self.next() % (high - low + 1) as u64) as i64
     }
 
+    /// An item chosen from a nonempty slice.
     pub fn pick<'a, T>(&mut self, items: &'a [T]) -> &'a T {
         &items[self.below(items.len())]
     }
 
-    /// An index chosen with the given weights.
+    /// An index chosen with the given nonempty weights, whose sum must fit in `u32`.
+    /// If all weights are zero, returns the last index.
     pub fn weighted(&mut self, weights: &[u32]) -> usize {
         let total: u32 = weights.iter().sum();
         let mut roll = (self.next() % u64::from(total.max(1))) as u32;

@@ -24,7 +24,6 @@ fn text(value: &Value) -> Result<&str> {
         .map_err(|_| Error::new(ErrorKind::Argument, "SMS arguments must be valid UTF-8"))
 }
 
-/// A text parameter of the published signature.
 fn text_param(name: &str) -> SignatureParam {
     SignatureParam {
         name: name.into(),

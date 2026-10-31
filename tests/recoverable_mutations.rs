@@ -100,7 +100,6 @@ fn prior_writes_and_explicit_callback_writes_survive_later_failures() {
         ),
         serde_json::json!([1, 2, 7])
     );
-    // Updates with arguments of the wrong type are refused before they run.
     for (source, at) in [
         ("s=\"ab\";begin\ns.insert(:x,\"c\")\nrescue\ns\nend", ":x"),
         ("h={a:1};begin\nh.replace([1])\nrescue\nh\nend", "[1]"),

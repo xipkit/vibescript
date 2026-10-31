@@ -125,7 +125,6 @@ end
         assert_eq!(result.value.as_bytes(), Some(expected.as_bytes()));
         assert_eq!(writes.lock().unwrap().concat(), effects.as_bytes());
     }
-    // A pattern that is not a string is refused before anything runs.
     let error = vibescript::Engine::new()
         .compile("class C\nend\nformat(7,C.new,C.new)")
         .err()

@@ -183,7 +183,11 @@ fn small_results_do_not_retain_large_inputs_or_search_scratch() {
                 CallOptions::default(),
             )
             .unwrap();
-        assert!(imported.stats.retained_memory_bytes < 256);
+        assert!(
+            imported.stats.retained_memory_bytes < 256,
+            "{call}: {:?}",
+            imported.stats
+        );
         drop(result);
         assert_eq!(imported.value.as_bytes(), Some(expected.as_bytes()));
     }
@@ -206,7 +210,11 @@ fn small_results_do_not_retain_large_inputs_or_search_scratch() {
         )
         .unwrap();
     assert_eq!(result.value.as_bytes().unwrap().len(), 7680);
-    assert!(result.stats.retained_memory_bytes < 8192);
+    assert!(
+        result.stats.retained_memory_bytes < 8192,
+        "repeated chop: {:?}",
+        result.stats
+    );
 }
 
 #[test]

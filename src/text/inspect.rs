@@ -2,8 +2,9 @@ use super::traversal::{Entries, Frame, Stack};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK, MAX_VALUE_DEPTH},
+    bytes,
     hash::Hash,
-    json, ops, scan,
+    ops, scan,
     sort::{Action, Sort},
     syntax::unicode,
     value::Kind,
@@ -216,7 +217,7 @@ fn walk(ctx: &mut CallContext, value: &Value, out: &mut Output, limit: usize) ->
 }
 
 fn leaf(ctx: &mut CallContext, value: &Value, out: &mut Output) -> Result<()> {
-    let mut scalar = json::Number::new();
+    let mut scalar = bytes::Number::new();
     match &value.0 {
         Kind::Bytes(bytes) => return quoted(ctx, bytes.data(), out),
         Kind::Symbol(bytes) => {

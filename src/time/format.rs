@@ -3,7 +3,7 @@
 // See licenses/Go-BSD-3-Clause.txt.
 
 use super::{Stamp, calendar, offset, stamp, zone};
-use crate::{CallContext, Error, ErrorKind, Result, Value, budget::Buffer, json, value::Kind};
+use crate::{CallContext, Error, ErrorKind, Result, Value, budget::Buffer, bytes, value::Kind};
 use std::fmt::Write;
 
 pub(super) const OUTPUT_LIMIT: usize = 1 << 20;
@@ -285,7 +285,7 @@ pub(super) fn next(ctx: &mut CallContext, input: &[u8]) -> Result<(usize, Option
     Ok((input.len(), None, input.len()))
 }
 
-fn integer(out: &mut json::Number, value: i64, width: usize, pad: u8) {
+fn integer(out: &mut bytes::Number, value: i64, width: usize, pad: u8) {
     if pad == b' ' {
         write!(out, "{value:width$}").unwrap();
     } else {
@@ -296,7 +296,7 @@ fn integer(out: &mut json::Number, value: i64, width: usize, pad: u8) {
     }
 }
 
-fn numeric_zone(out: &mut json::Number, offset: i32, token: NumericZone) {
+fn numeric_zone(out: &mut bytes::Number, offset: i32, token: NumericZone) {
     if token.iso && offset == 0 {
         out.write_char('Z').unwrap();
         return;
@@ -341,7 +341,7 @@ pub(super) fn render(
         let Some(token) = token else {
             break;
         };
-        let mut number = json::Number::new();
+        let mut number = bytes::Number::new();
         match token {
             Token::Number(part, width, pad) => integer(&mut number, view.part(part), width, pad),
             Token::Name(part, full) => {
@@ -413,14 +413,14 @@ pub(super) fn format(ctx: &mut CallContext, value: &Value, layout: &[u8]) -> Res
     out.finish(ctx)
 }
 
-fn year(out: &mut json::Number, year: i64) {
+fn year(out: &mut bytes::Number, year: i64) {
     if year < 0 {
         out.write_char('-').unwrap();
     }
     write!(out, "{:04}", year.unsigned_abs()).unwrap();
 }
 
-fn numeric_offset(out: &mut json::Number, seconds: i32, colon: bool) {
+fn numeric_offset(out: &mut bytes::Number, seconds: i32, colon: bool) {
     let minutes = seconds / 60;
     let sign = if minutes < 0 { '-' } else { '+' };
     let magnitude = minutes.unsigned_abs();
@@ -442,7 +442,7 @@ pub(crate) fn text(
     let stamp = stamp(value).unwrap();
     let offset = offset(ctx, value)?;
     let date = calendar::civil(stamp.seconds(), offset.seconds);
-    let mut out = json::Number::new();
+    let mut out = bytes::Number::new();
     year(&mut out, date.year);
     write!(
         out,
@@ -486,7 +486,7 @@ pub(super) fn mail_date(ctx: &mut CallContext, receiver: &Value, http: bool) -> 
     let month = [
         "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
     ][date.month as usize - 1];
-    let mut out = json::Number::new();
+    let mut out = bytes::Number::new();
     write!(out, "{weekday}, {:02} {month} ", date.day).unwrap();
     year(&mut out, date.year);
     write!(

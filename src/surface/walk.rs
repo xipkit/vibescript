@@ -811,7 +811,6 @@ impl<'a> Checker<'a> {
             }
             ExprKind::Unary(op, operand) if self.token_text(*op) == "!" => {
                 if negate {
-                    // `unless !x` tests `x`.
                     let span = Span {
                         start: self.tokens[*op].start,
                         end: operand.span.start,

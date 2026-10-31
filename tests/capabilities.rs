@@ -26,7 +26,6 @@ fn declared() -> Capability {
     )
 }
 
-/// An engine that declares the `sms` capability.
 fn engine() -> Engine {
     let mut engine = Engine::new();
     engine.declare_capability(&declared()).unwrap();
@@ -158,7 +157,6 @@ fn explicit_global_method_grants_remain_callable_without_becoming_values() {
             );
         }
     }
-    // A local is never called.
     refused(&mut engine, "value=deliver;value(1)", "V0310", "value(");
 }
 

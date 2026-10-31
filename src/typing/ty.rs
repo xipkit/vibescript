@@ -827,7 +827,6 @@ impl Types {
         }
     }
 
-    /// The alternatives of a union, or the type itself.
     /// The alternatives of `ty`, a union's or `ty` alone, shared with the
     /// table's kind rather than copied, so that one held while others are
     /// read holds nothing more.
@@ -1759,7 +1758,6 @@ fn write_field_name(name: &str, out: &mut Text<'_>, room: &mut usize) {
     }
 }
 
-/// The name of `id` in `list`, or `?` for one it lacks.
 /// The base [`Types::bases`] names an alternative of `kind` by, when it is
 /// a word rather than the alternative's display: a class's or an enum's
 /// name, a symbol literal or a type variable.
@@ -1795,6 +1793,7 @@ fn base_word(kind: &Kind) -> Option<&'static str> {
     })
 }
 
+/// The name of `id` in `list`, or `?` for one it lacks.
 fn name_of(list: &[String], id: u32) -> &str {
     list.get(id as usize).map_or("?", String::as_str)
 }
