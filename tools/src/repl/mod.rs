@@ -44,6 +44,7 @@ pub use format::render_value;
 use std::collections::BTreeMap;
 use vibescript::{CancellationToken, DeclarationKind, Error, Limits, Value};
 
+/// How a [`ReplSession`] evaluates input.
 #[derive(Clone, Debug, Default)]
 pub struct ReplOptions {
     /// The limits each input runs under. The default is the library's
@@ -62,6 +63,7 @@ pub struct Entry {
     pub is_error: bool,
 }
 
+/// A complete input and its outcome.
 #[derive(Clone, Debug)]
 pub struct Evaluation {
     /// The input as evaluated, without surrounding whitespace.
@@ -81,6 +83,7 @@ impl Evaluation {
     }
 }
 
+/// What feeding a line did.
 #[derive(Clone, Debug)]
 pub enum Response {
     /// The line was blank and nothing was pending.
@@ -113,6 +116,7 @@ pub enum Completion {
     Candidates(Vec<String>),
 }
 
+/// A REPL session: evaluation state, the transcript and the input history.
 pub struct ReplSession {
     session: session::Session,
     catalog: catalog::Catalog,

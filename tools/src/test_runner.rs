@@ -24,6 +24,7 @@ pub const TEST_PREFIX: &str = "test_";
 /// The suffix that marks a test file.
 pub const TEST_SUFFIX: &str = "_test.vibe";
 
+/// Why discovery stopped.
 #[derive(Debug)]
 pub enum DiscoverError {
     /// A root could not be inspected.
@@ -194,6 +195,7 @@ impl Filter {
     }
 }
 
+/// How [`run`] selects and calls tests.
 #[derive(Default)]
 pub struct Options {
     /// Runs only tests whose names match.
@@ -202,6 +204,7 @@ pub struct Options {
     pub call: CallOptions,
 }
 
+/// Why a test file's tests could not run at all.
 #[derive(Debug)]
 pub enum SuiteError {
     /// The file executes code at the top level, which test files must not do.
@@ -214,6 +217,7 @@ pub enum SuiteError {
     Cancelled,
 }
 
+/// Why one test failed.
 #[derive(Debug)]
 pub enum TestFailure {
     /// The test function has a required parameter.
@@ -222,6 +226,7 @@ pub enum TestFailure {
     Error(Error),
 }
 
+/// The result of one test function.
 #[derive(Debug)]
 pub struct TestOutcome {
     pub name: String,
