@@ -30,24 +30,20 @@ fn dispatch_keywords(
     receiver: Value,
     args: &crate::arguments::Arguments,
 ) -> Result<(Value, Value)> {
+    let (keywords, block) = (!args.keywords.buffer.data.is_empty(), args.block.is_some());
     if let Some(value) = conversion::call(
         ctx,
         site,
         name,
         &receiver,
         &args.positional.data,
-        (!args.keywords.buffer.data.is_empty(), args.block.is_some()),
+        (keywords, block),
     )? {
         return Ok((receiver, value));
     }
-    if let Some(value) = crate::shapes::member(
-        ctx,
-        name,
-        &receiver,
-        &args.positional.data,
-        !args.keywords.buffer.data.is_empty(),
-        args.block.is_some(),
-    )? {
+    if let Some(value) =
+        crate::shapes::member(ctx, name, &receiver, &args.positional.data, keywords, block)?
+    {
         return Ok((receiver, value));
     }
     if let Some(value) = crate::enums::call(
@@ -56,8 +52,8 @@ fn dispatch_keywords(
         name,
         &receiver,
         &args.positional.data,
-        !args.keywords.buffer.data.is_empty(),
-        args.block.is_some(),
+        keywords,
+        block,
     )? {
         return Ok((receiver, value));
     }
@@ -67,8 +63,8 @@ fn dispatch_keywords(
         name,
         &receiver,
         &args.positional.data,
-        !args.keywords.buffer.data.is_empty(),
-        args.block.is_some(),
+        keywords,
+        block,
     )? {
         return Ok((receiver, value));
     }
@@ -78,8 +74,8 @@ fn dispatch_keywords(
         name,
         &receiver,
         &args.positional.data,
-        !args.keywords.buffer.data.is_empty(),
-        args.block.is_some(),
+        keywords,
+        block,
     )? {
         return Ok((receiver, value));
     }
@@ -89,8 +85,8 @@ fn dispatch_keywords(
         name,
         &receiver,
         &args.positional.data,
-        !args.keywords.buffer.data.is_empty(),
-        args.block.is_some(),
+        keywords,
+        block,
     )? {
         return Ok((receiver, value));
     }
@@ -101,28 +97,18 @@ fn dispatch_keywords(
             value,
             &args.positional.data,
             &args.keywords.buffer.data,
-            args.block.is_some(),
+            block,
         )?;
         return Ok((receiver, result));
     }
-    if let Some(result) = crate::text::basic::call(
-        ctx,
-        name,
-        &receiver,
-        &args.positional.data,
-        !args.keywords.buffer.data.is_empty(),
-        args.block.is_some(),
-    )? {
+    if let Some(result) =
+        crate::text::basic::call(ctx, name, &receiver, &args.positional.data, keywords, block)?
+    {
         return Ok((receiver, result));
     }
-    if let Some(result) = crate::text::inspect::call(
-        ctx,
-        name,
-        &receiver,
-        &args.positional.data,
-        !args.keywords.buffer.data.is_empty(),
-        args.block.is_some(),
-    )? {
+    if let Some(result) =
+        crate::text::inspect::call(ctx, name, &receiver, &args.positional.data, keywords, block)?
+    {
         return Ok((receiver, result));
     }
     if let Some(result) = crate::text::template::call(
@@ -143,78 +129,42 @@ fn dispatch_keywords(
     )? {
         return Ok((receiver, result));
     }
-    if let Some(result) = crate::regex::value::member(
-        ctx,
-        name,
-        &receiver,
-        &args.positional.data,
-        !args.keywords.buffer.data.is_empty(),
-        args.block.is_some(),
-    )? {
+    if let Some(result) =
+        crate::regex::value::member(ctx, name, &receiver, &args.positional.data, keywords, block)?
+    {
         return Ok((receiver, result));
     }
-    if let Some(result) = crate::regex::operations::member(
-        ctx,
-        name,
-        &receiver,
-        &args.positional.data,
-        !args.keywords.buffer.data.is_empty(),
-    )? {
+    if let Some(result) =
+        crate::regex::operations::member(ctx, name, &receiver, &args.positional.data, keywords)?
+    {
         return Ok((receiver, result));
     }
-    if let Some(result) = crate::regex::member(
-        ctx,
-        name,
-        &receiver,
-        &args.positional.data,
-        !args.keywords.buffer.data.is_empty(),
-    )? {
+    if let Some(result) =
+        crate::regex::member(ctx, name, &receiver, &args.positional.data, keywords)?
+    {
         return Ok((receiver, result));
     }
-    if let Some(result) = crate::sets::call(
-        ctx,
-        name,
-        &receiver,
-        &args.positional.data,
-        !args.keywords.buffer.data.is_empty(),
-    )? {
+    if let Some(result) = crate::sets::call(ctx, name, &receiver, &args.positional.data, keywords)?
+    {
         return Ok((receiver, result));
     }
-    if let Some(result) = crate::combinatorics::call(
-        ctx,
-        name,
-        &receiver,
-        &args.positional.data,
-        !args.keywords.buffer.data.is_empty(),
-        args.block.is_some(),
-    )? {
+    if let Some(result) =
+        crate::combinatorics::call(ctx, name, &receiver, &args.positional.data, keywords, block)?
+    {
         return Ok((receiver, result));
     }
-    if let Some(result) = crate::text::charset::call(
-        ctx,
-        name,
-        &receiver,
-        &args.positional.data,
-        !args.keywords.buffer.data.is_empty(),
-        args.block.is_some(),
-    )? {
+    if let Some(result) =
+        crate::text::charset::call(ctx, name, &receiver, &args.positional.data, keywords, block)?
+    {
         return Ok((receiver, result));
     }
-    if let Some(result) = crate::text::transform::call(
-        ctx,
-        name,
-        &receiver,
-        &args.positional.data,
-        !args.keywords.buffer.data.is_empty(),
-    )? {
+    if let Some(result) =
+        crate::text::transform::call(ctx, name, &receiver, &args.positional.data, keywords)?
+    {
         return Ok((receiver, result));
     }
     let numeric = matches!(receiver.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_));
-    let (count, keywords, block) = (
-        args.positional.data.len(),
-        !args.keywords.buffer.data.is_empty(),
-        args.block.is_some(),
-    );
+    let count = args.positional.data.len();
     if matches!(site.method, Some(Method::Dup)) {
         dup_shape(count, keywords, block)?;
     }
@@ -249,19 +199,15 @@ fn dispatch_keywords(
             return Err(hash.tag.mutation_error(name));
         }
     }
-    if !args.keywords.buffer.data.is_empty() {
-        let refusal = names::Receiver::of(&receiver).keyword_refusal(
-            site.method,
-            name,
-            args.positional.data.len(),
-        );
+    if keywords {
+        let refusal = names::Receiver::of(&receiver).keyword_refusal(site.method, name, count);
         if let Some(message) = refusal {
             return Err(Error::new(ErrorKind::Argument, message));
         }
     }
     // Resolve stored-field overrides before rejecting a native block, and
     // reject before `call` can mutate the receiver.
-    if args.block.is_some() {
+    if block {
         let rejection = names::Receiver::of(&receiver)
             .rejects_block(site.method, !args.positional.data.is_empty());
         if let Some(message) = rejection {
