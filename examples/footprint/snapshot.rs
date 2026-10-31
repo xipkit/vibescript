@@ -2,9 +2,7 @@
 pub fn pause(stage: &str) {
     #[cfg(unix)]
     {
-        // SAFETY: The environment key is NUL terminated. The returned pointer
-        // is only tested, never retained or dereferenced.
-        if unsafe { libc::getenv(c"VIBESCRIPT_FOOTPRINT_SNAPSHOT".as_ptr()).is_null() } {
+        if std::env::var_os("VIBESCRIPT_FOOTPRINT_SNAPSHOT").is_none() {
             return;
         }
         report(stage, false, 0);
@@ -21,6 +19,7 @@ pub fn pause(stage: &str) {
 
 #[cfg(unix)]
 fn command() -> u8 {
+    // Read directly to avoid std::io::stdin's 8 KiB buffer skewing the footprint.
     let mut byte = 0_u8;
     assert_eq!(
         // SAFETY: The writable buffer holds the one byte read from stdin.
