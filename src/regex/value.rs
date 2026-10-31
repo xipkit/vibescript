@@ -124,7 +124,7 @@ impl Regex {
 
     pub fn equal(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
         Ok(self.flags == other.flags
-            && crate::json::bytes_equal(
+            && crate::bytes::bytes_equal(
                 ctx,
                 self.source.require_bytes()?,
                 other.source.require_bytes()?,

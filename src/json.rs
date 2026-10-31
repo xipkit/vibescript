@@ -1,5 +1,5 @@
-use crate::{CallContext, Error, ErrorKind, Result, Value, budget::CHUNK};
-use std::fmt::{self, Write};
+use crate::{CallContext, Error, ErrorKind, Result, Value};
+use std::fmt;
 
 mod accounting;
 #[cfg(test)]
@@ -170,19 +170,6 @@ fn parse_error<C: accounting::Context>(
     }
 }
 
-pub(crate) fn bytes_equal(ctx: &mut CallContext, a: &[u8], b: &[u8]) -> Result<bool> {
-    if a.len() != b.len() {
-        return Ok(false);
-    }
-    for (a, b) in a.chunks(CHUNK).zip(b.chunks(CHUNK)) {
-        ctx.work_bytes(a.len())?;
-        if a != b {
-            return Ok(false);
-        }
-    }
-    Ok(true)
-}
-
 pub(crate) fn stringify(ctx: &mut CallContext, value: &Value) -> Result<Value> {
     stringify_with_limit(ctx, value, None)
 }
@@ -201,33 +188,6 @@ fn stringify_with_limit(
     let mut out = writer::Output::new(limit, limit.is_some());
     writer::write_value(ctx, value, &mut out)?;
     Value::from_bytes(ctx, out.buffer)
-}
-
-pub(crate) struct Number {
-    buf: [u8; 512],
-    len: usize,
-}
-impl Number {
-    pub fn new() -> Self {
-        Self {
-            buf: [0; 512],
-            len: 0,
-        }
-    }
-    pub fn bytes(&self) -> &[u8] {
-        &self.buf[..self.len]
-    }
-}
-impl Write for Number {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        let end = self.len + s.len();
-        if end > self.buf.len() {
-            return Err(fmt::Error);
-        }
-        self.buf[self.len..end].copy_from_slice(s.as_bytes());
-        self.len = end;
-        Ok(())
-    }
 }
 
 #[cfg(test)]
@@ -276,7 +236,10 @@ mod limit_tests {
 #[cfg(test)]
 mod depth_tests {
     use super::*;
-    use crate::{CallOptions, ErrorClass, budget::MAX_VALUE_DEPTH};
+    use crate::{
+        CallOptions, ErrorClass,
+        budget::{CHUNK, MAX_VALUE_DEPTH},
+    };
     use std::time::Instant;
 
     const DEEP_MESSAGE: &str = "JSON nesting too deep";

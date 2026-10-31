@@ -1,5 +1,5 @@
-use super::Number;
 use crate::CallContext;
+use crate::bytes::Number;
 use crate::scan::Class;
 use crate::{
     Error, ErrorKind, Result, Value,
