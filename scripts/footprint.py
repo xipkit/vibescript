@@ -110,7 +110,12 @@ def main():
                     order.reverse()
                 for prior in order:
                     check_flags = ["--check"] if args.check and variant == "allocations" and not prior else []
-                    result = run([baseline / variant if prior else binary, *check_flags], capture_output=True)
+                    try:
+                        result = run([baseline / variant if prior else binary, *check_flags], capture_output=True)
+                    except subprocess.CalledProcessError as error:
+                        sys.stderr.write(error.stdout or "")
+                        sys.stderr.write(error.stderr or "")
+                        raise
                     destination = out / "baseline" if prior else out
                     (destination / f"{variant}-{index:02}.jsonl").write_text(result.stdout)
                     (baseline_samples if prior else samples)[variant].append([json.loads(line) for line in result.stdout.splitlines()])
