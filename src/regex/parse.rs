@@ -1,4 +1,4 @@
-use super::{Assertion, Class, Part, Set, unicode};
+use super::unicode;
 use crate::{CallContext, Error, ErrorKind, Result, budget::Buffer};
 use std::hash::{Hash, Hasher};
 
@@ -21,6 +21,79 @@ const MISSING_REPEAT_ARGUMENT: &str = "missing argument to repetition operator";
 const TRAILING_BACKSLASH: &str = "trailing backslash at end of expression";
 const UNEXPECTED_PAREN: &str = "unexpected )";
 const NESTING_DEPTH: &str = "expression nests too deeply";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) enum Assertion {
+    BeginText,
+    EndText,
+    BeginLine,
+    EndLine,
+    Word,
+    NotWord,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) enum Set {
+    Range(u32, u32),
+    Property(usize),
+    Digit,
+    PerlSpace,
+    Word,
+    Alnum,
+    Alpha,
+    Blank,
+    Control,
+    Punct,
+    Space,
+    Hex,
+}
+
+impl Set {
+    fn contains(self, rune: u32) -> bool {
+        let alpha = matches!(rune, 65..=90 | 97..=122);
+        let digit = matches!(rune, 48..=57);
+        match self {
+            Self::Range(low, high) => rune >= low && rune <= high,
+            Self::Property(group) => unicode::contains(group, rune),
+            Self::Digit => digit,
+            Self::PerlSpace => matches!(rune, 9 | 10 | 12 | 13 | 32),
+            Self::Space => matches!(rune, 9..=13 | 32),
+            Self::Word => alpha || digit || rune == 95,
+            Self::Alnum => alpha || digit,
+            Self::Alpha => alpha,
+            Self::Blank => matches!(rune, 9 | 32),
+            Self::Control => matches!(rune, 0..=31 | 127),
+            Self::Punct => matches!(rune, 33..=47 | 58..=64 | 91..=96 | 123..=126),
+            Self::Hex => digit || matches!(rune, 65..=70 | 97..=102),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) struct Part {
+    set: Set,
+    negated: bool,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Class {
+    start: usize,
+    count: usize,
+    negated: bool,
+    fold: bool,
+}
+
+impl Class {
+    pub(super) fn matches(self, ctx: &mut CallContext, parts: &[Part], rune: u32) -> Result<bool> {
+        for part in &parts[self.start..self.start + self.count] {
+            ctx.charge(1)?;
+            if unicode::folded(rune, self.fold, |point| part.set.contains(point)) != part.negated {
+                return Ok(!self.negated);
+            }
+        }
+        Ok(self.negated)
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Kind {

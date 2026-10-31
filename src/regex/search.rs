@@ -1,5 +1,5 @@
 use super::{
-    Assertion,
+    parse::Assertion,
     program::{Op, View},
     unicode,
 };
