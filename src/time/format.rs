@@ -3,7 +3,7 @@
 // See licenses/Go-BSD-3-Clause.txt.
 
 use super::{Stamp, calendar, offset, stamp, zone};
-use crate::{CallContext, Error, ErrorKind, Result, Value, budget::Buffer, json};
+use crate::{CallContext, Error, ErrorKind, Result, Value, budget::Buffer, json, value::Kind};
 use std::fmt::Write;
 
 pub(super) const OUTPUT_LIMIT: usize = 1 << 20;
@@ -411,4 +411,98 @@ pub(super) fn format(ctx: &mut CallContext, value: &Value, layout: &[u8]) -> Res
     let mut out = Output::buffer(usize::MAX);
     render(ctx, &view, layout, &mut out)?;
     out.finish(ctx)
+}
+
+fn year(out: &mut json::Number, year: i64) {
+    if year < 0 {
+        out.write_char('-').unwrap();
+    }
+    write!(out, "{:04}", year.unsigned_abs()).unwrap();
+}
+
+fn numeric_offset(out: &mut json::Number, seconds: i32, colon: bool) {
+    let minutes = seconds / 60;
+    let sign = if minutes < 0 { '-' } else { '+' };
+    let magnitude = minutes.unsigned_abs();
+    write!(
+        out,
+        "{sign}{:02}{}{:02}",
+        magnitude / 60,
+        if colon { ":" } else { "" },
+        magnitude % 60
+    )
+    .unwrap();
+}
+
+pub(crate) fn text(
+    ctx: &mut CallContext,
+    value: &Value,
+    precision: Option<usize>,
+) -> Result<Value> {
+    let stamp = stamp(value).unwrap();
+    let offset = offset(ctx, value)?;
+    let date = calendar::civil(stamp.seconds(), offset.seconds);
+    let mut out = json::Number::new();
+    year(&mut out, date.year);
+    write!(
+        out,
+        "-{:02}-{:02}T{:02}:{:02}:{:02}",
+        date.month, date.day, date.hour, date.minute, date.second
+    )
+    .unwrap();
+    let mut digits = precision.unwrap_or(9);
+    let mut fraction = stamp.nanos();
+    if precision.is_none() {
+        while digits > 0 && fraction % 10 == 0 {
+            digits -= 1;
+            fraction /= 10;
+        }
+    } else if digits < 9 {
+        fraction /= 10u32.pow((9 - digits) as u32);
+    }
+    if digits > 0 {
+        write!(out, ".{:0width$}", fraction, width = digits.min(9)).unwrap();
+        for _ in 9..digits {
+            out.write_char('0').unwrap();
+        }
+    }
+    if offset.seconds == 0 {
+        out.write_char('Z').unwrap();
+    } else {
+        numeric_offset(&mut out, offset.seconds, true);
+    }
+    ctx.bytes(out.bytes())
+}
+
+pub(super) fn mail_date(ctx: &mut CallContext, receiver: &Value, http: bool) -> Result<Value> {
+    let stamp = stamp(receiver).unwrap();
+    let offset = if http {
+        zone::Offset::utc()
+    } else {
+        offset(ctx, receiver)?
+    };
+    let date = calendar::civil(stamp.seconds(), offset.seconds);
+    let weekday = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][date.weekday as usize];
+    let month = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ][date.month as usize - 1];
+    let mut out = json::Number::new();
+    write!(out, "{weekday}, {:02} {month} ", date.day).unwrap();
+    year(&mut out, date.year);
+    write!(
+        out,
+        " {:02}:{:02}:{:02} ",
+        date.hour, date.minute, date.second
+    )
+    .unwrap();
+    if http {
+        out.write_str("GMT").unwrap();
+    } else if matches!(receiver.0, Kind::Time(_))
+        || (offset.seconds == 0 && offset.name.starts_with(b"-"))
+    {
+        out.write_str("-0000").unwrap();
+    } else {
+        numeric_offset(&mut out, offset.seconds, false);
+    }
+    ctx.bytes(out.bytes())
 }
