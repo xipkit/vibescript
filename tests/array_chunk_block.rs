@@ -81,7 +81,6 @@ fn chunk_groups_consecutive_equal_keys_in_order() {
             "keys=[\"_separator\",\"_separator\",\"_alone\",\"_alone\",\"_bad\"]; [0,1,2,3,4].chunk { |n| keys[n] }",
             serde_json::json!([["_separator", [0, 1]], ["_alone", [2, 3]], ["_bad", [4]]]),
         ),
-        // The receiver is untouched.
         (
             "keys=[0, 0]; a=[0, 1]; result=a.chunk { |n| keys[n] }; [result,a]",
             serde_json::json!([[[0, [0, 1]]], [0, 1]]),
@@ -100,7 +99,6 @@ fn chunk_groups_consecutive_equal_keys_in_order() {
             "{source}"
         );
     }
-    // Dispatch by name is removed.
     for source in [
         "a=[1,1,2]; a.send(:chunk) { |n| n }",
         "a=[1,1,2]; a.public_send(:chunk) { |n| n }",
@@ -223,7 +221,6 @@ fn arguments_and_keywords_are_rejected_before_the_block_runs() {
             "{expression}"
         );
     }
-    // The sized form is unchanged.
     assert_eq!(
         json(&run("[1,2,3].chunk(2)")),
         serde_json::json!([[1, 2], [3]])

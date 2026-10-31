@@ -171,7 +171,6 @@ fn malformed_typed_locals_are_positioned_parse_errors() {
             "x: [int string] = []",
             "parse error at 1:9: expected \"]\", got identifier",
         ),
-        // What only resembles a declaration keeps the error it always had.
         ("x: Missing", "parse error at 1:2: unexpected token \":\""),
         ("x:int = 1", "parse error at 1:2: unexpected token \":\""),
         ("id : a", "parse error at 1:4: unexpected token \":\""),
@@ -237,7 +236,6 @@ fn typed_block_parameters_check_yields_and_results() {
             "def each_pair(h: hash<string, int>, &block: (string, int))\n  h.keys.map { |k| yield k, h.fetch(k) }\nend\neach_pair({ a: 1 }) { |k, v| v }".into(),
             ("V0119", (2, 20)),
         ),
-        // A required block must be given.
         ("def f(&block: int)\n  yield 1\nend\nf".into(), ("V0304", (4, 1))),
     ] {
         assert_eq!(refused(&source), diagnostics(&[expected]), "{source}");
@@ -276,7 +274,6 @@ fn block_parameter_names_are_declarations_only() {
             "def f(&block: (int, string)\nend",
             "parse error at 2:1: expected \")\", got 'end'",
         ),
-        // An untyped block parameter keeps its refusal.
         (
             "def f(&block)\nend",
             "parse error at 1:7: block capture parameters are not supported; a block is not a value. Run the caller's block with `yield`, and ask `block_given?` when it is optional",
@@ -380,7 +377,6 @@ fn class_variable_declarations_assign_in_body_order() {
         ),
         // Only a class or module body declares one.
         ("@@x: int = 1", "parse error at 1:4: unexpected token \":\""),
-        // A member that only resembles a declaration keeps its old error.
         (
             "class C\n  @@x: = 1\nend",
             "parse error at 2:6: unexpected token \":\"",
@@ -700,7 +696,6 @@ fn a_value_may_follow_type_arguments_without_a_space() {
         })
         .collect();
     assert_eq!(operators, [("<", 8..9), (">", 12..13), ("=", 13..14)]);
-    // A comparison is still one operator.
     assert_eq!(evaluate("a = 2\nb = 1\na >= b"), serde_json::json!(true));
 }
 
@@ -720,8 +715,6 @@ fn typed_constants_keep_their_declared_type() {
     let json = stringify_json(&result.value, CallOptions::default()).unwrap();
     let value: serde_json::Value = serde_json::from_slice(json.value.as_bytes().unwrap()).unwrap();
     assert_eq!(value, serde_json::json!([3, 3, 0, null, 1]));
-    // The checker refuses a value, or a later assignment, of another type,
-    // and reads the constant with its declared type.
     assert_eq!(
         refused("module M\n  MAX: int = \"a\"\nend\n"),
         [("V0101".to_owned(), (2, 14))]

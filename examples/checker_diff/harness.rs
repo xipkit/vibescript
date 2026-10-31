@@ -88,7 +88,6 @@ impl Case {
     }
 }
 
-/// What checking and running a program showed.
 #[derive(Clone, Debug)]
 pub enum Verdict {
     /// The checker rejected the program: its first error's code, span and
@@ -103,7 +102,6 @@ pub enum Verdict {
     Finding(Finding),
 }
 
-/// A disagreement between the checker and the runtime.
 #[derive(Clone, Debug)]
 pub struct Finding {
     pub kind: FindingKind,
@@ -137,7 +135,6 @@ impl FindingKind {
     }
 }
 
-/// One run's observations.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Observation {
     result: String,

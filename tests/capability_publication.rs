@@ -58,7 +58,6 @@ fn put_then_get(name: &str) -> HostMethod {
     })
 }
 
-/// Installs a new method descriptor into its receiver.
 fn install(name: &str) -> HostMethod {
     HostMethod::new_with_block(name, |call, _, _| {
         let added = HostMethod::new("cap.added", |ctx, _, _| ctx.bytes(b"added"));

@@ -56,7 +56,6 @@ enum Owner {
     Class(T, Vec<(String, Option<T>)>),
 }
 
-/// One signature of the table.
 #[derive(Clone, Debug)]
 pub struct Sig {
     owner: Owner,
@@ -450,7 +449,6 @@ pub fn render(ty: &T) -> String {
     }
 }
 
-/// Replaces type variables by their bindings.
 fn subst(ty: &T, bindings: &[(String, T)]) -> T {
     match ty {
         T::Var(name) => bindings
@@ -726,7 +724,6 @@ impl Out<'_> {
         }
     }
 
-    /// A value of concrete type `ty`.
     fn value(&mut self, ty: &T, depth: usize) -> String {
         match ty {
             T::Named(name) => self.named(name),
@@ -910,7 +907,6 @@ fn skipped(sig: &Sig) -> bool {
     )
 }
 
-/// Operand types for operators.
 const OPERANDS: [&str; 13] = [
     "int",
     "float",

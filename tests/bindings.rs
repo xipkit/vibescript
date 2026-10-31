@@ -116,7 +116,6 @@ fn globals_come_back_with_the_values_the_run_left() {
         .map(Value::as_int)
         .collect();
     assert_eq!(updated, [Some(1), Some(2)]);
-    // The host's original stays unchanged.
     assert_eq!(items.as_array().unwrap().len(), 1);
 }
 

@@ -7,7 +7,6 @@ use vibescript::{
     Capability, Engine, HostMethod, Signature, SignatureParam, Value, diagnostic::Diagnostic,
 };
 
-/// The codes of the errors `engine` finds in `source`.
 #[track_caller]
 fn codes_with(engine: &Engine, source: &str, expected: &[&str]) -> Vec<Diagnostic> {
     let found = errors_with(engine, source);
@@ -73,7 +72,6 @@ fn an_undeclared_bare_name_is_an_error() {
         "V0201",
         "declares no global",
     );
-    // A removed namespace is reported as removed.
     error(
         "def run -> any\n  Regexp\nend\n",
         "V0401",

@@ -9,7 +9,6 @@ use vibescript::{
     diagnostic::{Applicability, Code, Diagnostic},
 };
 
-/// The error diagnostics of `source`, checked by `engine`.
 fn errors_with(engine: &Engine, source: &str) -> Vec<Diagnostic> {
     engine
         .type_check(source)
@@ -49,7 +48,6 @@ fn clean(source: &str) {
     codes(source, &[]);
 }
 
-/// Applies a diagnostic's machine-applicable fix.
 #[track_caller]
 fn fixed(source: &str, diagnostic: &Diagnostic) -> String {
     let fix = diagnostic
@@ -60,7 +58,6 @@ fn fixed(source: &str, diagnostic: &Diagnostic) -> String {
     fix.apply(source).expect("the fix applies")
 }
 
-/// Runs `source` with static types on and returns the value of `run`.
 #[track_caller]
 fn run(source: &str) -> Result<Value, vibescript::Error> {
     let engine = Engine::new();
@@ -449,7 +446,6 @@ end
         assert_eq!(run(source).unwrap().to_string(), "[[1, 9], [3, 5, 6]]");
     }
 
-    /// The error of running `body` in a function with static types.
     fn failure(body: &str) -> vibescript::Error {
         run(&format!("def run -> any\n{body}\n  nil\nend\n")).unwrap_err()
     }
@@ -491,7 +487,6 @@ end
             let error = failure(body);
             assert_eq!(error.message, message, "{body}");
             assert_eq!(error.kind, ErrorKind::Argument, "{body}");
-            // The class and kind `fetch` raises with.
             assert_eq!(error.class(), Some(ErrorClass::Runtime), "{body}");
             // Where the write fails: at its target's index, its receiver's
             // or its operator.
