@@ -1,5 +1,6 @@
 use super::{
-    Part, Program, Search,
+    Program, Search,
+    parse::Part,
     program::{Instruction, View},
 };
 use crate::{
