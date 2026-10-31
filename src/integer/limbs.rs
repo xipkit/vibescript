@@ -275,7 +275,6 @@ impl<B: Base> Converter<B> {
         Ok(())
     }
 
-    /// Returns the square of a scale.
     fn square(&mut self, ctx: &mut CallContext, scale: &Scale) -> Result<Scale> {
         let length = scale.limbs.data.len();
         let mut limbs = Buffer::with_capacity(ctx, 2 * length)?;
