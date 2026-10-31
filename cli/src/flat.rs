@@ -68,7 +68,6 @@ usage errors.
 /// The name reports use for inline source supplied by `-e` or `--eval`.
 pub const EVAL_LABEL: &str = "<eval>";
 
-/// The action selected by the command line.
 #[derive(Debug)]
 pub enum Command {
     /// Print the flat form's usage text on stdout.
@@ -77,7 +76,6 @@ pub enum Command {
     Run(Box<Invocation>),
 }
 
-/// Where the main source comes from.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Input {
     /// A source file, read only after the whole command line is validated.
@@ -123,7 +121,6 @@ pub struct Invocation {
     pub stats: bool,
 }
 
-/// A failure message and the exit status it maps to.
 #[derive(Debug)]
 pub enum Failure {
     /// The command line was malformed; nothing was read or executed.
@@ -339,9 +336,8 @@ pub fn run(invocation: Invocation) -> Result<(), Failure> {
     print_outcome(&outcome, stats)
 }
 
-/// Reads a file or takes the inline source, and compiles it with the process
-/// streams attached. Inline source never touches the file system except
-/// through the configured module roots.
+/// Inline source never touches the file system except through the configured
+/// module roots.
 fn load(input: &Input, extra_paths: &[PathBuf]) -> Result<Script, Failure> {
     let source = match input {
         Input::File(file) => Cow::Owned(fs::read_to_string(file).map_err(|error| {
@@ -435,9 +431,6 @@ fn stats_line(stats: &Stats) -> String {
     )
 }
 
-/// Renders a compile failure with the input label. Located parse errors use
-/// the library's position and code frame, type errors list every static
-/// diagnostic, and other failures keep their display.
 fn compile_failure(label: &str, source: &str, error: &Error) -> String {
     match &error.diagnostic {
         Some(diagnostic) if error.kind == ErrorKind::Syntax => format!(

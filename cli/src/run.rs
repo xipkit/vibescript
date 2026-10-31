@@ -239,7 +239,6 @@ fn evaluate(snippet: &str, module_paths: &[OsString], limits: Limits) -> Result<
     print_result(&outcome.value, &Sink::Stdout)
 }
 
-/// Prints a non-nil result in the reference's string form.
 fn print_result(value: &Value, out: &Sink) -> Result<(), String> {
     if value.type_name() == "nil" {
         return Ok(());

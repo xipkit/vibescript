@@ -3,7 +3,7 @@
 //! The values and conventions follow the Go reference: `run`, `test` and
 //! `repl` default to `xhigh`, an override of zero selects the engine default
 //! (the `low` profile's value), a negative override disables the quota, and
-//! a positive override is used as-is. All three commands share this module.
+//! a positive override is used as-is.
 
 use crate::{
     compat,

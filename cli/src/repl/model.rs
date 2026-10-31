@@ -19,7 +19,6 @@ const PLACEHOLDER: &str = "type an expression...";
 /// A key the REPL responds to, named after the keys the Go REPL binds.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Key {
-    /// Typed text.
     Text(String),
     /// Bracketed-paste content; each line break submits a line.
     Paste(String),
@@ -47,8 +46,6 @@ pub enum Command {
     Quit,
 }
 
-/// The REPL as the terminal shows it: a library session, the input line and
-/// which panels are open.
 pub struct Model {
     pub session: ReplSession,
     pub editor: Editor,
@@ -68,7 +65,7 @@ impl Model {
         }
     }
 
-    /// Handles one key.
+    /// Applies a key to the session, editor and panels, returning whether to quit.
     pub fn update(&mut self, key: Key) -> Command {
         match key {
             Key::CtrlC if self.session.discard_pending() => self.editor.clear(),
@@ -216,7 +213,6 @@ impl Model {
     }
 }
 
-/// The title, version and rule above the transcript.
 fn header(width: usize) -> Vec<Line> {
     vec![
         vec![
@@ -283,7 +279,6 @@ pub fn help_panel() -> Vec<Line> {
     render::panel(content)
 }
 
-/// The key hints under the input.
 fn footer() -> Line {
     let mut line = Vec::new();
     for (key, description) in [

@@ -35,7 +35,7 @@ pub struct Span {
 /// One screen line.
 pub type Line = Vec<Span>;
 
-/// Builds a span.
+/// Converts `text` to owned text in the requested style.
 pub fn span(text: impl Into<String>, style: Style) -> Span {
     Span {
         text: text.into(),
@@ -168,7 +168,6 @@ impl Style {
         }
     }
 
-    /// The escape sequence that starts this style, or nothing.
     fn open(self, colors: Colors) -> String {
         let (color, bold) = self.parts();
         let mut codes = Vec::new();
