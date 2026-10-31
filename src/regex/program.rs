@@ -1,7 +1,4 @@
-use super::{
-    Assertion, Class, Part,
-    parse::{self, Kind, UNBOUNDED},
-};
+use super::parse::{self, Assertion, Class, Kind, Part, UNBOUNDED};
 use crate::{CallContext, Error, ErrorKind, Result, Value, budget::Buffer};
 
 #[derive(Clone, Copy, Debug)]
