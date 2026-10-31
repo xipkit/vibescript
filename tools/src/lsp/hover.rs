@@ -12,7 +12,6 @@ use super::navigation::{anchor_line, children};
 use super::text::{line_at, word_char, word_span};
 use vibescript::tooling::{Function, Item, ItemKind, Outline, Parameter, ParameterKind};
 
-/// The hover markdown for `word` at a position.
 pub(crate) fn markdown<S: AsRef<str>>(
     catalog: &Catalog,
     program: Option<&Outline>,
@@ -173,7 +172,6 @@ fn dot_precedes<S: AsRef<str>>(lines: &[S], line: i64, character: i64) -> bool {
         .is_some_and(|(chars, start, _)| start > 0 && chars[start - 1] == '.')
 }
 
-/// Whether the word is the name in a `def` declaration, optionally after `self.`.
 fn def_precedes<S: AsRef<str>>(lines: &[S], line: i64, character: i64) -> bool {
     let Some((chars, start, _)) = word_span(lines, line, character) else {
         return false;
@@ -481,7 +479,6 @@ pub(crate) fn params_text(function: Option<&Function>) -> String {
     labels.join(", ")
 }
 
-/// The parameter labels of a function's signature.
 pub(crate) fn param_labels(function: Option<&Function>) -> Vec<String> {
     function
         .map(|function| function.params.iter().map(param_label).collect())

@@ -93,7 +93,6 @@ impl Server {
         self.documents.get(uri)
     }
 
-    /// Handles one decoded message.
     pub(crate) fn dispatch(&mut self, message: &Inbound) -> Vec<Outbound> {
         let id = message.id.clone();
         let respond = |result: Json| match &id {
@@ -308,7 +307,6 @@ const REQUESTS: &[&str] = &[
 
 const NO_TEXT: &[String] = &[String::new()];
 
-/// One decoded client message.
 #[derive(Clone, Debug)]
 pub(crate) struct Inbound {
     /// The request id, verbatim; `None` for notifications and a `null` id.
@@ -356,7 +354,6 @@ impl Inbound {
     }
 }
 
-/// One server message.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Outbound {
     Result {
@@ -408,8 +405,6 @@ impl Outbound {
     }
 }
 
-/// The server's capabilities, including the quick fixes it offers as code
-/// actions.
 fn capabilities() -> Json {
     let mut capabilities = vec![(
         "codeActionProvider",
@@ -490,7 +485,6 @@ fn diagnostic_json(diagnostic: &Diagnostic) -> Json {
     Json::Object(fields)
 }
 
-/// A quick fix as a `CodeAction` whose workspace edit changes `uri`.
 fn code_action_json(uri: &str, diagnostic: &Diagnostic, fix: &QuickFix) -> Json {
     let edits = fix
         .edits
@@ -634,7 +628,6 @@ fn document_params(message: &Inbound) -> Result<String, Invalid> {
     json::text(json::nested(json::root(&params), "textDocument")?, "uri")
 }
 
-/// The document and range a code action request names.
 fn range_params(message: &Inbound) -> Result<(String, Range), Invalid> {
     let params = json::params(message.params.as_deref())?;
     let root = json::root(&params);
