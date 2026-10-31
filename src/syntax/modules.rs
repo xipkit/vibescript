@@ -199,7 +199,7 @@ impl Parser<'_> {
     }
 
     /// Reads a function name as Go's `parseFunctionStatement` does.
-    fn function_name(&mut self, def: u32) -> Result<(Name, bool, bool)> {
+    fn function_name(&mut self, def: u32) -> Result<(Name, FunctionKind)> {
         self.work.charge(1)?;
         if matches!(self.token(), Token::Word(w) if w == "self")
             && self.tokens[self.significant(self.pos + 1)].token == Token::P('.')
@@ -211,7 +211,7 @@ impl Parser<'_> {
             if !self.ident(self.pos) {
                 return self.expected(Label::Text("identifier"));
             }
-            return Ok((self.method_name()?, true, false));
+            return Ok((self.method_name()?, FunctionKind::ClassMethod));
         }
         let operator = match self.token() {
             Token::Op(op) if super::def_operator(op) => Some(*op),
@@ -234,13 +234,24 @@ impl Parser<'_> {
                 self.line_breaks()?;
             }
             self.bump()?;
-            return Ok((Name::new(self.work, op)?, false, true));
+            return Ok((Name::new(self.work, op)?, FunctionKind::Operator));
         }
         if !self.ident(self.pos) {
             return self.expected(Label::Text("function name"));
         }
-        Ok((self.method_name()?, false, false))
+        Ok((self.method_name()?, FunctionKind::Method))
     }
+}
+
+/// What a `def` defines, as its name spells it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FunctionKind {
+    /// `def name`.
+    Method,
+    /// `def self.name`.
+    ClassMethod,
+    /// An operator such as `def +` or `def []`, which only a class defines.
+    Operator,
 }
 
 /// A parsed `def`, with the shape Go records for it.
@@ -263,12 +274,14 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             let def_line = p.tokens[p.pos].line;
             p.bump()?;
             p.line_breaks()?;
-            let (mut name, class_method, operator) = p.function_name(offset)?;
+            let (mut name, kind) = p.function_name(offset)?;
             let name_offset = p.tokens[p.pos - 1].offset;
             // `ok!=` reads as `ok` and `!=`, but after a definition's name it
             // can only be a setter spelled with a suffix, as `ok?=` is.
             let next = &p.tokens[p.pos];
-            if !operator && next.token == Token::Op("!=") && next.offset == p.tokens[p.pos - 1].end
+            if kind != FunctionKind::Operator
+                && next.token == Token::Op("!=")
+                && next.offset == p.tokens[p.pos - 1].end
             {
                 if !super::suffixes::lenient() {
                     return Err(p.name_suffix_error(next.offset));
@@ -278,7 +291,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 name = Name::join(work, &[&name, "!="])?;
             }
             p.line_breaks()?;
-            if p.token() == &Token::Op("=") && (!operator || name == "[]") {
+            if p.token() == &Token::Op("=") && (kind != FunctionKind::Operator || name == "[]") {
                 p.bump()?;
                 p.line_breaks()?;
                 name = Name::join(work, &[&name, "="])?;
@@ -299,7 +312,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 offset,
                 def_line,
                 name,
-                class_method,
+                kind == FunctionKind::ClassMethod,
                 outer_locals,
                 outer_it,
                 outer_body,
