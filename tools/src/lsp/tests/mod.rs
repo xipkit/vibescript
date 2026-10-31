@@ -21,7 +21,6 @@ pub(super) fn server() -> Server {
     Server::new()
 }
 
-/// A message with raw parameters, or none when `params` is `None`.
 pub(super) fn message(method: &str, id: Option<&str>, params: Option<Value>) -> Inbound {
     Inbound {
         id: id.map(Box::from),
@@ -30,7 +29,6 @@ pub(super) fn message(method: &str, id: Option<&str>, params: Option<Value>) -> 
     }
 }
 
-/// Handles a message and decodes each reply from its wire form.
 pub(super) fn handle(server: &mut Server, message: &Inbound) -> Vec<Value> {
     replies(server, message)
         .iter()
@@ -69,7 +67,6 @@ pub(super) fn close(server: &mut Server, uri: &str) -> Vec<Value> {
     )
 }
 
-/// The diagnostics a didOpen publishes.
 pub(super) fn open_diagnostics(server: &mut Server, uri: &str, text: &str) -> Vec<Value> {
     let replies = open(server, uri, text);
     assert_eq!(replies.len(), 1, "didOpen replies {replies:?}");
@@ -81,7 +78,6 @@ pub(super) fn open_diagnostics(server: &mut Server, uri: &str, text: &str) -> Ve
         .clone()
 }
 
-/// The single response to a request.
 pub(super) fn request(server: &mut Server, method: &str, params: Value) -> Value {
     let replies = handle(server, &message(method, Some("1"), Some(params)));
     assert_eq!(replies.len(), 1, "{method} replies {replies:?}");
@@ -103,7 +99,6 @@ pub(super) fn result(
     request(server, method, position(uri, line, character))["result"].clone()
 }
 
-/// The markdown a hover request returns against a server that opened `source`.
 pub(super) fn hover_value(source: &str, line: i64, character: i64) -> String {
     let mut server = server();
     open(&mut server, "file:///tmp/test.vibe", source);
@@ -116,7 +111,6 @@ pub(super) fn hover_at(server: &mut Server, uri: &str, line: i64, character: i64
     result["contents"]["value"].as_str().unwrap().to_owned()
 }
 
-/// Completion items by label.
 pub(super) fn completion_labels(
     server: &mut Server,
     uri: &str,
@@ -133,7 +127,6 @@ pub(super) fn completion_labels(
         .collect()
 }
 
-/// The static keyword and builtin items, decoded.
 pub(super) fn static_items() -> Vec<Value> {
     completion::static_entries(&Catalog::new())
         .iter()
@@ -148,7 +141,6 @@ pub(super) fn find<'a>(items: &'a [Value], label: &str) -> &'a Value {
         .unwrap_or_else(|| panic!("missing completion item {label}"))
 }
 
-/// A documented builtin's signature without backticks.
 pub(super) fn builtin_signature(name: &str) -> String {
     docs::builtin_docs()
         .get(name)
@@ -228,7 +220,6 @@ def run()
 end
 ";
 
-/// The declaration a word resolves to in a document's navigation program.
 pub(super) fn definition(server: &Server, uri: &str, word: &str) -> Option<Range> {
     let document = server.document(uri)?;
     navigation::definition(document.program.as_deref(), &document.lines, word)

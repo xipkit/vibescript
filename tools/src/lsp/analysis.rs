@@ -79,7 +79,6 @@ pub(crate) struct Analysis {
     /// Whether the source compiled, making the parsed outline its compiled facts.
     pub compiled: bool,
     pub program: Program,
-    /// Whether cancellation stopped the check before it finished.
     pub cancelled: bool,
 }
 
@@ -108,7 +107,6 @@ pub(crate) fn analyze(uri: &str, source: &str, options: &Options) -> Analysis {
     let deadline = Some(Instant::now() + options.timeout);
     let cancellation = options.cancellation.child_token();
     let engine = engine(uri, options);
-    // Compiling type checks the source, under the check's quotas and deadline.
     let compile = CallOptions {
         limits: options.limits.clone(),
         cancellation,
@@ -265,7 +263,6 @@ pub(crate) fn sections(source: &str) -> Option<Outline> {
     (!items.is_empty()).then_some(Outline { items })
 }
 
-/// Moves an item parsed from a section down to the section's first line.
 fn shift(item: &mut Item, lines: usize) {
     let mut pending = vec![item];
     while let Some(item) = pending.pop() {
@@ -294,8 +291,6 @@ fn stopped(stage: &str, error: &Error) -> Diagnostic {
     )
 }
 
-/// An engine whose required files resolve from the configured directories,
-/// or else from the document's directory.
 fn engine(uri: &str, options: &Options) -> Engine {
     let mut engine = Engine::new();
     let paths = options.module_paths.clone().unwrap_or_else(|| {

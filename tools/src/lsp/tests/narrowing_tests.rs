@@ -47,8 +47,6 @@ fn unresolved_receivers_fall_back_to_the_full_union() {
     }
 }
 
-/// The narrowed list keeps every member of its kind, including the members
-/// of every value, and nothing from other kinds or removed.
 #[test]
 fn narrowed_lists_keep_every_member_of_the_kind() {
     let labels = narrowed("def f(s: string)\n  s.\nend", 1, 4).unwrap();
@@ -69,8 +67,6 @@ fn narrowed_lists_keep_every_member_of_the_kind() {
     }
 }
 
-/// Narrowed items keep the union items' shape: a method kind and the
-/// receiver kind as their detail.
 #[test]
 fn narrowed_items_keep_their_shape() {
     let source = "def f(s: string)\n  s.\nend";
@@ -80,7 +76,6 @@ fn narrowed_items_keep_their_shape() {
         assert_eq!(entry.kind, CompletionKind::Method);
         assert_eq!(entry.detail, "string");
     }
-    // Through the protocol, a narrowed list replaces the union.
     let mut server = server();
     let uri = "file:///tmp/narrow.vibe";
     open(&mut server, uri, source);
