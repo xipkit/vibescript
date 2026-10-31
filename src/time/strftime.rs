@@ -1,5 +1,5 @@
 use super::format::{self, MONTHS, OUTPUT_LIMIT, Output, View, WEEKDAYS};
-use crate::{CallContext, Error, ErrorKind, Result, Value, casing, json, scan};
+use crate::{CallContext, Error, ErrorKind, Result, Value, bytes, casing, scan};
 use std::fmt::Write;
 
 #[derive(Clone, Copy, Default)]
@@ -248,7 +248,7 @@ fn directive(
     inherited: bool,
     out: &mut Output<'_>,
 ) -> Result<()> {
-    let mut number = json::Number::new();
+    let mut number = bytes::Number::new();
     macro_rules! numeric {
         ($value:expr, $width:expr, $pad:expr, $kind:expr) => {{
             write!(number, "{}", $value).unwrap();

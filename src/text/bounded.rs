@@ -2,7 +2,7 @@ use super::traversal::{Entries, Frame, Stack};
 use crate::{
     CallContext, ErrorKind, Result, Value,
     budget::{Buffer, MAX_VALUE_DEPTH},
-    json, ops,
+    bytes, ops,
     value::{Bytes, Kind},
 };
 use std::fmt::Write;
@@ -211,7 +211,7 @@ fn walk(ctx: &mut CallContext, value: &Value, output: &mut Output, limit: usize)
 }
 
 fn leaf(ctx: &mut CallContext, value: &Value, output: &mut Output) -> Result<()> {
-    let mut scalar = json::Number::new();
+    let mut scalar = bytes::Number::new();
     match &value.0 {
         Kind::Bytes(bytes) | Kind::Symbol(bytes) => output.append(ctx, bytes.data()),
         Kind::Nil => output.append(ctx, b""),

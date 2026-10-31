@@ -14,7 +14,7 @@ pub(super) fn contains(ctx: &mut CallContext, name: &str) -> Result<bool> {
     for index in 0..ctx.capability_names.data.len() {
         ctx.charge(1)?;
         let candidate = ctx.capability_names.data[index].clone();
-        if crate::json::bytes_equal(ctx, candidate.as_bytes().unwrap(), name.as_bytes())? {
+        if crate::bytes::bytes_equal(ctx, candidate.as_bytes().unwrap(), name.as_bytes())? {
             return Ok(true);
         }
     }

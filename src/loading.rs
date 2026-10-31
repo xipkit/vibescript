@@ -157,7 +157,7 @@ impl Loader {
             ctx.charge(1)?;
             if pin.relative == request.relative
                 && pin.caller.as_ref() == caller
-                && crate::json::bytes_equal(
+                && crate::bytes::bytes_equal(
                     ctx,
                     pin.request.as_bytes().unwrap(),
                     request.normalized.as_bytes().unwrap(),
