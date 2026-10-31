@@ -337,7 +337,6 @@ fn locals_read_where_control_skips_their_assignment_are_refused() {
             "{source}"
         );
     }
-    // A statement modifier loop still assigns a local it reads.
     assert_eq!(
         result_json("i = 0\ni = i + 1 while i < 3\ni"),
         serde_json::json!(3)

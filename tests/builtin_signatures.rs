@@ -307,7 +307,6 @@ fn bind_function(function: &Function, bindings: &mut Bindings) {
     }
 }
 
-/// Whether a runtime value belongs to a concrete declared type.
 fn satisfies(value: &Value, ty: &Type) -> bool {
     let aliases = aliases();
     match ty {
@@ -369,12 +368,9 @@ fn record_has(value: &Value, field: &str) -> bool {
     })
 }
 
-/// What a call is made on.
 #[derive(Clone)]
 enum Target {
-    /// A member of a receiver expression.
     Member(String),
-    /// A namespace member, such as `Math.sqrt`.
     Namespace(String),
     Global,
 }
@@ -382,7 +378,6 @@ enum Target {
 /// One call of a signature, with the types its result and block arguments
 /// must have.
 struct Call {
-    /// The signature, such as `array.map` or `Math.sqrt`.
     path: String,
     /// The call as the language writes it: without parentheses when it
     /// passes no arguments.
@@ -699,7 +694,6 @@ fn describe(value: &Value) -> String {
     value.type_name().to_owned()
 }
 
-/// Every call of every signature in the table.
 fn calls() -> Vec<Call> {
     let table = signatures::table();
     let mut calls = Vec::new();

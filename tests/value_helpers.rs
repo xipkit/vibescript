@@ -93,8 +93,6 @@ fn protected_copies_survive_host_transfer() {
 
 #[test]
 fn builtins_are_not_values_to_copy() {
-    // A builtin names a call; it is not a value that could be copied and
-    // called later.
     let source = "cb=JSON::parse.dup;cb(\"[8]\")";
     let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0416", "V0301", "V0106", "V0310"]);

@@ -7,7 +7,6 @@ mod common;
 
 use vibescript::{Engine, ErrorKind};
 
-/// Asserts that `source` is refused with `codes`, the first at `at`.
 #[track_caller]
 fn refused(source: &str, codes: &[&str], at: &str) {
     let mut engine = vibescript::Engine::new();

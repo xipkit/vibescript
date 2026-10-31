@@ -84,7 +84,6 @@ pub fn program(seed: u64) -> Option<Case> {
     edited.then(|| Case::new(source))
 }
 
-/// Each edit: the text it looks for, and what may replace it.
 const EDITS: &[(&str, &[&str])] = &[
     (
         ": int",
@@ -129,7 +128,6 @@ const EDITS: &[(&str, &[&str])] = &[
     ("return ", &["return nil if false\n  return "]),
 ];
 
-/// One edit at a random place, when the source has a place for it.
 fn edit(source: &str, rng: &mut Rng) -> Option<String> {
     for _ in 0..8 {
         let (pattern, replacements) = EDITS[rng.below(EDITS.len())];

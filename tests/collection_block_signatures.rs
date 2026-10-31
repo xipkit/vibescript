@@ -43,7 +43,6 @@ fn blocks_on_non_iterating_collection_methods_fail_before_any_block_effect() {
         "{}.clear{effect()}",
         // A plain hash key named clear never overrides the builtin.
         "{clear: 1}.clear{effect()}",
-        // In-place mutator sites on locals are refused too.
         "a=[1]; a.clear{effect()}",
         "h={a: 1}; h.clear{effect()}",
     ] {

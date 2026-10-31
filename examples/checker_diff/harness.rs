@@ -88,7 +88,6 @@ impl Case {
     }
 }
 
-/// What checking and running a program showed.
 #[derive(Clone, Debug)]
 pub enum Verdict {
     /// The checker rejected the program: its first error's code, span and
@@ -103,7 +102,6 @@ pub enum Verdict {
     Finding(Finding),
 }
 
-/// A disagreement between the checker and the runtime.
 #[derive(Clone, Debug)]
 pub struct Finding {
     pub kind: FindingKind,
@@ -116,9 +114,7 @@ pub enum FindingKind {
     CheckFailed,
     /// The two builds observed different results or output.
     Mismatch,
-    /// Checking, compiling or running panicked.
     Panic,
-    /// Only one build compiled the program.
     CompileMismatch,
     /// Both builds raised an error the checker rules out, such as a call
     /// of a member the receiver does not have.
@@ -137,14 +133,12 @@ impl FindingKind {
     }
 }
 
-/// One run's observations.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Observation {
     result: String,
     stdout: Vec<u8>,
     stderr: Vec<u8>,
     limited: bool,
-    /// Whether the run, or a call into it, ended with an error.
     failed: bool,
     type_error: bool,
     /// An error of a kind the checker rules out in a program it accepts.
@@ -264,11 +258,8 @@ pub enum Outcome {
     /// It ran, and each call the host makes into it returned, without an
     /// error.
     Ran,
-    /// Its run, or a call into it, ended with an error.
     Failed,
-    /// A limit stopped a run.
     Limited,
-    /// Checking, compiling or running panicked.
     Panicked,
 }
 

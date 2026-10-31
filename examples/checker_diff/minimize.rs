@@ -101,7 +101,6 @@ fn block_end(lines: &[&str], start: usize) -> usize {
 
 fn reduce_file(case: Case, file: usize, wanted: &str, scratch: &mut Scratch) -> Case {
     let mut best = case;
-    // Whole blocks first, then chunks of lines of halving size.
     let mut index = 0;
     loop {
         let source = text(&best, file).to_owned();

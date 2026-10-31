@@ -305,7 +305,6 @@ end
         ErrorKind::Type
     );
     assert_eq!(effects.load(Ordering::Relaxed), 0);
-    // A value of the wrong type is refused before running.
     let source = "class Record\n  getter count: int\n  def initialize\n    @count = 1\n  end\n  def bad(value: string)\n    @count = value\n  end\nend";
     let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0101"]);
@@ -392,7 +391,6 @@ fn negative_property_paths_preserve_parent_growth_and_enforce_nested_types() {
         json(&result.value),
         serde_json::json!(["accepted", [[1, 2], [9]], [[1]]])
     );
-    // An element of the wrong type is refused before running.
     let bad = source("\"bad\"");
     let error = vibescript::Engine::new().compile(&bad).err().unwrap();
     assert_eq!(common::codes(&error), ["V0101"]);
@@ -443,7 +441,6 @@ end
         .call("read", &[object], CallOptions::default())
         .unwrap();
     assert_eq!(json(&result.value), serde_json::json!([1]));
-    // A value of the wrong type is refused before running.
     let source = "class Holder\n  getter values: array<int>\n  def initialize\n    @values = [1]\n  end\n  def bad\n    @values.push(\"wrong\")\n  end\nend";
     let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0101"]);
@@ -762,7 +759,6 @@ fn partial_namespace_snapshots_never_read_missing_class_variables_as_nil() {
     }
 }
 
-/// Steps a call of `run` takes.
 fn steps(source: &str) -> u64 {
     Engine::new()
         .compile(source)

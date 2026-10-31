@@ -7,7 +7,6 @@
 use super::{harness::Case, rng::Rng};
 use std::sync::OnceLock;
 
-/// A type as the signature table writes it.
 #[derive(Clone, Debug, PartialEq)]
 pub enum T {
     Named(String),
@@ -56,7 +55,6 @@ enum Owner {
     Class(T, Vec<(String, Option<T>)>),
 }
 
-/// One signature of the table.
 #[derive(Clone, Debug)]
 pub struct Sig {
     owner: Owner,
@@ -284,7 +282,6 @@ impl<'a> Parser<'a> {
         })
     }
 
-    /// Skips a default value.
     fn value(&mut self) {
         self.skip();
         let mut depth = 0i32;
@@ -450,7 +447,6 @@ pub fn render(ty: &T) -> String {
     }
 }
 
-/// Replaces type variables by their bindings.
 fn subst(ty: &T, bindings: &[(String, T)]) -> T {
     match ty {
         T::Var(name) => bindings
@@ -547,7 +543,6 @@ struct Out<'r> {
     small: bool,
 }
 
-/// Types the generator can bind a type variable to.
 const SIMPLE: [&str; 5] = ["int", "string", "float", "symbol", "bool"];
 
 impl Out<'_> {
@@ -726,7 +721,6 @@ impl Out<'_> {
         }
     }
 
-    /// A value of concrete type `ty`.
     fn value(&mut self, ty: &T, depth: usize) -> String {
         match ty {
             T::Named(name) => self.named(name),
@@ -910,7 +904,6 @@ fn skipped(sig: &Sig) -> bool {
     )
 }
 
-/// Operand types for operators.
 const OPERANDS: [&str; 13] = [
     "int",
     "float",

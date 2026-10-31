@@ -57,7 +57,6 @@ fn invalid_call_members_stop_before_arguments_and_blocks() {
             assert!(error.diagnostics()[0].span.start > prefix.len(), "{source}");
         }
     }
-    // `P#call` is also private, which a receiver cannot reach.
     for (suffix, codes) in [
         (
             ".call(flag:mark(1)){mark(2)}",
@@ -76,7 +75,6 @@ fn invalid_call_members_stop_before_arguments_and_blocks() {
         .unwrap();
     assert!(json(&output.value).is_null());
     assert!(events.lock().unwrap().is_empty());
-    // A hash field is not a member, so it cannot be called either.
     let error = checked.compile("{call:7}.call(mark(1))").err().unwrap();
     assert_eq!(common::codes(&error), ["V0203"]);
     assert_eq!(error.diagnostics()[0].span.start, 9);
@@ -239,7 +237,6 @@ fn bare_names_receiving_call_follow_the_reference_rules() {
         checked += 1;
     }
     assert_eq!(checked, 17);
-    // A function's result has no `call` member.
     let source = "def helper -> int\n1\nend\nx = 1\n(helper.call)()";
     let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0203"]);

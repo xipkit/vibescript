@@ -157,7 +157,6 @@ fn bare_calls_resolve_names_and_cancel_before_later_arguments() {
         ctx.cancellation().cancel();
         Ok(Value::int(1))
     });
-    // A missing name is refused before any argument runs.
     for source in ["missing tick 0", "missing.push tick 0"] {
         let mut checked = vibescript::Engine::new();
         checked.register("tick", |_, _| panic!("tick ran"));

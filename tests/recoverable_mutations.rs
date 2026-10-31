@@ -78,7 +78,6 @@ fn ensure_observes_the_binding_when_an_error_propagates() {
 fn failed_block_updates_do_not_publish_partial_results() {
     let source = "a=[1,2,3];begin\na.delete_if {|v| raise \"stop\" if v==2;v==1}\nrescue\na\nend";
     assert_eq!(result(source), serde_json::json!([1, 2, 3]));
-    // `fill` takes no block now.
     let source = "a=[1,2,3];begin\na.fill {|i| raise \"stop\" if i==1;9}\nrescue\na\nend";
     let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0301", "V0305"]);
@@ -100,7 +99,6 @@ fn prior_writes_and_explicit_callback_writes_survive_later_failures() {
         ),
         serde_json::json!([1, 2, 7])
     );
-    // Updates with arguments of the wrong type are refused before they run.
     for (source, at) in [
         ("s=\"ab\";begin\ns.insert(:x,\"c\")\nrescue\ns\nend", ":x"),
         ("h={a:1};begin\nh.replace([1])\nrescue\nh\nend", "[1]"),

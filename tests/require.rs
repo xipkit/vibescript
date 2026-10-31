@@ -495,7 +495,6 @@ fn denied_require_does_not_inspect_initialize_or_cache_modules() {
                 files.write(&format!("{name}.vibe"), valid);
             }
         }
-        // Unresolvable modules and computed arguments do not compile.
         for expression in [
             "require(\"../escape\")",
             "require(1)",
@@ -1008,8 +1007,6 @@ fn required_binding_defaults_and_blocks_keep_their_expression_origins() {
         );
         assert_eq!(diagnostic.position.line, line, "{expression}: {error}");
     }
-    // A required file whose function returns the wrong type does not
-    // compile, and the diagnostic names that file.
     files.write("returns.vibe", "def returned -> int;\"bad\";end");
     let engine = files.engine();
     let error = engine
@@ -1178,7 +1175,6 @@ fn indexed_scoped_and_symbolic_calls_keep_the_module_target() {
         .run(CallOptions::default())
         .unwrap();
     assert_eq!(output.value.as_int(), Some(14));
-    // A module is called only by name with a dot.
     for (expression, code) in [
         ("m::add(2)", "V0416"),
         ("m[\"add\"](2)", "V0112"),
@@ -1881,7 +1877,6 @@ require("empty",as: "A")
         error.diagnostics()[0].span.start,
         source.find("A={").unwrap()
     );
-    // A compound assignment cannot replace a capitalized root binding either.
     let source = "require(\"empty\",as: \"A\")\ndef bump -> int;A+=2;A;end\nbump";
     let error = engine.compile(source).err().unwrap();
     assert_eq!(common::codes(&error)[0], "V0102");
@@ -2035,7 +2030,6 @@ fn configured_cache_source_limits_and_mid_initializer_cancellation_are_enforced(
     let script = engine.compile("require(\"one\");require(\"two\")").unwrap();
     let error = script.run(CallOptions::default()).unwrap_err();
     assert!(error.message.contains("cache limit reached"), "{error:?}");
-    // A file grows past the source limit after the script compiles.
     files.write("one.vibe", "1");
     engine
         .set_module_config(ModuleConfig {

@@ -38,7 +38,6 @@ fn block_mutations_publish_after_the_last_callback() {
             .unwrap();
         assert_eq!(json(&output.value), expected, "{source}");
     }
-    // `fill` takes no block now.
     let source = "a=[1,2,3];seen: array<array<int>> = [];a.fill {|i|seen.push(a);i+7};[seen,a]";
     let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0301", "V0305"]);
@@ -103,7 +102,6 @@ fn fill_past_the_end_raises_before_reserving_a_gap() {
         error.message,
         "array.fill window 1000000000...1000000000 is past the end of the array (length 1)"
     );
-    // `fill` takes no block now.
     for source in ["[1].fill(1000000000,0) {7}", "[1].fill(0,1000000000) {7}"] {
         let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), ["V0305"], "{source}");
@@ -151,7 +149,6 @@ fn abandoned_mutations_release_addresses_and_staged_results() {
         assert_eq!(output.value.as_int(), Some(7));
         assert_eq!(output.stats.retained_memory_bytes, 0, "{body}");
     }
-    // `fill` takes no block now.
     let mut checked = vibescript::Engine::new();
     checked.register("allocate", |_, _| panic!("allocate ran"));
     for body in [

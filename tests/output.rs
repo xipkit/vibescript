@@ -153,8 +153,6 @@ fn output_helpers_read_without_arguments_write_at_once_and_cannot_escape() {
         assert_eq!(output.value.type_name(), "nil", "{source}");
         assert_eq!(bytes(&stdout), empty, "{source}");
         assert!(bytes(&stderr).is_empty());
-        // Every other way to call its result, or to reach it by name, is
-        // refused before anything runs.
         for (source, codes, at) in [
             (format!("{name}.call(effect())"), &["V0203"][..], "call"),
             (format!("{name}.call(*[effect()])"), &["V0203"], "call"),
@@ -209,7 +207,6 @@ end",
     );
     assert_eq!(bytes(&stdout), b"\n\n");
     assert!(bytes(&stderr).is_empty());
-    // A helper takes no block, so one is refused before anything runs.
     for (source, code) in [("puts { 1 }", "V0305"), ("p {\n}", "V0301")] {
         let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), [code], "{source}");

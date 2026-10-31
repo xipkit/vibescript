@@ -68,7 +68,6 @@ fn line_breaks_end_expressions_where_the_reference_ends_them() {
 #[test]
 fn forms_the_reference_rejects_at_run_time_are_refused_at_compile_time() {
     for (source, codes, at) in [
-        // An instance variable outside any class.
         ("@1 = 2", &["V0204"][..], "@1"),
         // A function declared in a function, which failed when it ran.
         (

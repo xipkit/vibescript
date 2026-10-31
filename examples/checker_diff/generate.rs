@@ -21,7 +21,6 @@ use super::{
     rng::Rng,
 };
 
-/// A type, as the generator models it.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Ty {
     Int,
@@ -64,7 +63,6 @@ impl Ty {
         Ty::Hash(Box::new(ty))
     }
 
-    /// The type without `nil`.
     fn strip(&self) -> Ty {
         match self {
             Ty::Opt(inner) => (**inner).clone(),
@@ -101,7 +99,6 @@ impl Ty {
     }
 }
 
-/// A function's, method's or block's parameter.
 #[derive(Clone, Debug)]
 struct Param {
     name: String,
@@ -201,7 +198,6 @@ impl Local {
     }
 }
 
-/// What the code being generated can see.
 #[derive(Clone, Debug)]
 struct Env {
     locals: Vec<Local>,
@@ -326,8 +322,6 @@ impl Gen {
         }
     }
 
-    /// The scope code at a file's top level starts with: the host's
-    /// globals.
     fn top_env(&self) -> Env {
         let mut env = Env::top();
         for (name, ty) in &self.globals {
@@ -631,7 +625,6 @@ impl Gen {
         Case::new(text)
     }
 
-    /// The enums, classes, namespace and functions, with their bodies.
     fn declarations(&mut self) -> String {
         let mut text = String::new();
         for index in 0..self.enums {
@@ -895,7 +888,6 @@ impl Gen {
         env
     }
 
-    /// Generates a function or method with its body.
     fn function(&mut self, def: &FnDef, class: Option<usize>, namespace: bool) {
         let mut env = self.fn_env(def, class);
         let mut signature = self.signature(def);
@@ -1134,7 +1126,6 @@ impl Gen {
 
     // ----- Statements -----
 
-    /// Declares a new local holding `value`.
     fn bind(&mut self, env: &mut Env, ty: Ty, value: String) -> String {
         let name = self.name("x");
         self.line(format!("{name}: {} = {value}", self.render(&ty)));
@@ -1328,7 +1319,6 @@ impl Gen {
         self.line("end");
     }
 
-    /// An iterating call with a block of statements.
     fn block_stmt(&mut self, env: &mut Env, depth: usize) {
         let element = self.ty(1);
         // A typed local gives the block's parameter exactly this type.
@@ -1428,7 +1418,6 @@ impl Gen {
         self.line("end");
     }
 
-    /// Updates a collection in place.
     fn mutate(&mut self, env: &mut Env, depth: usize) {
         let collections: Vec<Local> = env
             .locals
@@ -2333,7 +2322,6 @@ impl Gen {
         }
     }
 
-    /// A JSON text of a value of `ty`.
     fn json_of(&mut self, ty: &Ty) -> String {
         match ty {
             Ty::Int => self.rng.range(-5, 50).to_string(),
@@ -2700,7 +2688,6 @@ impl Gen {
         }
     }
 
-    /// A condition on a block parameter `name` of type `ty`.
     fn bool_of(&mut self, name: &str, ty: &Ty) -> String {
         match ty {
             Ty::Int => format!("{name} > {}", self.rng.range(-1, 3)),
@@ -3272,7 +3259,6 @@ impl Gen {
 impl Gen {
     // ----- Classes' operators -----
 
-    /// Writes the class's operator methods, whose bodies see the instance.
     fn operators(&mut self, index: usize) {
         let class = self.classes[index].clone();
         let own = Ty::Class(index);
@@ -3793,7 +3779,6 @@ fn has_tuple(ty: &Ty) -> bool {
     }
 }
 
-/// The `is_type?` atom of a type.
 fn atom(ty: &Ty) -> &'static str {
     match ty {
         Ty::Int => "int",
