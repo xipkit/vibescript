@@ -104,7 +104,7 @@ Changes are found by polling: every 300 ms the size and modification time of eve
 vibes check [options] <script>
 ```
 
-`check` compiles the script with static types without running anything and prints every diagnostic with its code, source line and fixes, then fails with `check failed with N error(s)`; a script without errors prints its warnings, if any, or `No issues found`. The [type checker](checker.md) lists the codes. Unused declarations are checked like the rest of the script, and required files are resolved and checked too.
+`check` compiles the script with static types without running anything and prints every diagnostic with its code, source line and fixes, then fails with `check failed with N error(s)`; a script without errors prints its warnings, if any, or `No issues found`. The [type checker](checker.md) lists the codes. Unused declarations are checked like the rest of the script, and required files are resolved and checked too. Control characters in the source line, messages and filenames print as escapes such as `\u{1b}`, so a script cannot send terminal sequences through its diagnostics; carets stay under the escaped text.
 
 `-module-path DIR` adds module search roots, as for `run`. Additional flags:
 

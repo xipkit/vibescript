@@ -1,6 +1,7 @@
 //! Result and error rendering for the Go-style commands.
 
 use std::fmt::{self, Write as _};
+use vibescript::diagnostic::{escape_controls, escape_filename};
 use vibescript::{Error, ErrorKind, StackFrame, Value};
 
 /// The largest result rendering `vibes run` prints, matching the 1 MiB output guards.
@@ -180,14 +181,17 @@ pub fn diagnostic(
     label: &str,
 ) -> String {
     let source = diagnostic.source.as_deref().unwrap_or(source);
-    let file = diagnostic.file.as_deref().map(String::from_utf8_lossy);
-    let label = file.as_deref().unwrap_or(label);
+    let label = match diagnostic.file.as_deref() {
+        Some(name) => escape_filename(name),
+        None => escape_controls(label),
+    };
     let position = diagnostic.span.position(source);
     let rendered = diagnostic.render(source);
-    let body = rendered.split_once('\n').map_or("", |(_, rest)| rest);
-    let body = body.split_once('\n').map_or("", |(_, rest)| rest);
+    let mut lines = rendered.splitn(3, '\n');
+    let header = lines.next().unwrap_or_default();
+    let body = lines.nth(1).unwrap_or_default();
     format!(
-        "{label}:{}:{}: {diagnostic}\n{body}",
+        "{label}:{}:{}: {header}\n{body}",
         position.line, position.column
     )
 }
@@ -261,24 +265,15 @@ fn function(frame: &StackFrame, snippet: bool) -> &str {
 /// Formats `file:line:column`, escaping control characters, backslashes and
 /// invalid UTF-8 in the file name, or `line:column` without one.
 fn location(filename: Option<&[u8]>, position: vibescript::Position) -> String {
-    let mut text = String::new();
-    if let Some(name) = filename {
-        for chunk in name.utf8_chunks() {
-            for ch in chunk.valid().chars() {
-                if ch.is_control() || ch == '\\' {
-                    text.extend(ch.escape_default());
-                } else {
-                    text.push(ch);
-                }
-            }
-            for byte in chunk.invalid() {
-                let _ = write!(text, "\\x{byte:02x}");
-            }
-        }
-        text.push(':');
+    match filename {
+        Some(name) => format!(
+            "{}:{}:{}",
+            escape_filename(name),
+            position.line,
+            position.column
+        ),
+        None => format!("{}:{}", position.line, position.column),
     }
-    let _ = write!(text, "{}:{}", position.line, position.column);
-    text
 }
 
 #[cfg(test)]
