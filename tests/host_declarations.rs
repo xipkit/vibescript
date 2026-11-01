@@ -261,6 +261,41 @@ fn a_later_declaration_replaces_an_earlier_one() {
     assert!(engine.compile("def run -> int\n  limit + 1\nend\n").is_ok());
 }
 
+/// Arrays `depth` deep whose every level holds the one below it `width`
+/// times, all one array.
+fn shared_arrays(width: usize, depth: usize) -> Value {
+    (0..depth).fold(Value::int(1), |level, _| Value::array(vec![level; width]))
+}
+
+#[test]
+fn a_capability_of_shared_data_declares_in_the_size_of_its_graph() {
+    // Unfolded to the depth a declaration looks, this is 64^17 arrays, and
+    // declaring it used to visit every one. It declares as `any`, as an
+    // unshared copy of it would.
+    let wide = Capability::from_value("Rows", shared_arrays(64, 40));
+    let mut engine = Engine::new();
+    engine.declare_capability(&wide).unwrap();
+    let prelude = engine.prelude(&CallOptions::default());
+    assert!(prelude.ends_with("\nRows: any\n"), "{prelude}");
+    assert!(engine.compile("Rows.as(array<any>).length").is_ok());
+    assert!(engine.compile("Rows.length").is_err());
+
+    let narrow = Capability::from_value("Rows", shared_arrays(2, 3));
+    let mut engine = Engine::new();
+    engine.declare_capability(&narrow).unwrap();
+    let prelude = engine.prelude(&CallOptions::default());
+    assert!(
+        prelude.ends_with("\nRows: array<array<array<int>>>\n"),
+        "{prelude}"
+    );
+    let script = engine.compile("Rows.fetch(1).fetch(0).length").unwrap();
+    let options = CallOptions {
+        capabilities: vec![narrow],
+        ..CallOptions::default()
+    };
+    assert_eq!(script.run(options).unwrap().value.as_int(), Some(2));
+}
+
 #[test]
 fn the_prelude_lists_declared_names() {
     let send = signed("SMS.send", "string");
