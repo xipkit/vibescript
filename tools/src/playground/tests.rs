@@ -164,3 +164,80 @@ fn large_integers_round_trip_without_float_conversion() {
             .contains("\"result\":123456789012345678901234567890")
     );
 }
+
+fn sequential_repairs(count: usize) -> String {
+    (0..count)
+        .map(|index| format!("def f{index} -> int\n [1][0] + 1\nend\n"))
+        .collect()
+}
+
+#[test]
+fn repair_reserves_exact_byte_and_pass_boundaries_without_overflow() {
+    let mut repair = RepairBudget::default();
+    repair.reserve(REPAIR_BYTE_LIMIT).unwrap();
+    assert_eq!(repair.reserve(1).unwrap_err().kind, ErrorKind::Memory);
+    assert_eq!(
+        repair.reserve(usize::MAX).unwrap_err().kind,
+        ErrorKind::Memory
+    );
+    assert_eq!(repair.passes, 1);
+    assert_eq!(repair.bytes, REPAIR_BYTE_LIMIT);
+
+    let mut repair = RepairBudget::default();
+    for _ in 0..REPAIR_PASS_LIMIT {
+        repair.reserve(1).unwrap();
+    }
+    assert_eq!(repair.reserve(1).unwrap_err().kind, ErrorKind::Steps);
+    assert_eq!(repair.passes, REPAIR_PASS_LIMIT);
+    assert_eq!(repair.bytes, REPAIR_PASS_LIMIT);
+}
+
+#[test]
+fn repair_cycle_keys_distinguish_files_and_retain_only_hashes() {
+    let mut repair = RepairBudget::default();
+    let padded = "# padding\n".repeat(50_000);
+    assert!(repair.remember(None, &padded));
+    assert!(repair.remember(Some("a.vibe"), &padded));
+    assert!(repair.remember(Some("b.vibe"), &padded));
+    assert!(repair.remember(Some("a.vibe"), "changed"));
+    assert!(!repair.remember(Some("a.vibe"), &padded));
+    assert!(!repair.remember(None, &padded));
+    assert_eq!(repair.seen.len(), 4);
+    assert_eq!(size_of_val(repair.seen.first().unwrap()), size_of::<u64>());
+}
+
+#[test]
+fn repair_charges_unchanged_modules_and_returns_consistent_partial_results() {
+    let source = "require(\"broken\").f0";
+    let files = json!({
+        "broken.vibe":sequential_repairs(64),
+        "unused.vibe":format!("# {}\n", "padding ".repeat(65_536)),
+    });
+    let fixed = request(json!({"op":"fix", "source":source, "files":files}));
+    assert_eq!(fixed["ok"], false);
+    assert_eq!(fixed["error"]["kind"], "Memory");
+    assert_eq!(fixed["source"], source);
+    assert_eq!(fixed["files"]["unused.vibe"], files["unused.vibe"]);
+    let applied = fixed["applied"].as_u64().unwrap();
+    assert!(applied > 0 && applied < 64, "{applied}");
+    let checked = request(json!({"op":"check", "source":source, "files":fixed["files"]}));
+    assert_eq!(fixed["diagnostics"], checked["diagnostics"]);
+    assert_eq!(fixed["stats"]["steps"], 0);
+}
+
+#[test]
+fn repair_keeps_256_normal_fixes_and_reports_pass_exhaustion() {
+    let fixed = request(json!({"op":"fix", "source":sequential_repairs(256)}));
+    assert_eq!(fixed["error"], Json::Null);
+    assert_eq!(fixed["ok"], true);
+    assert_eq!(fixed["applied"], 256);
+    let run = request(json!({"op":"run", "source":fixed["source"], "entry":"f255"}));
+    assert_eq!(run["result"], 2);
+
+    let limited = request(json!({"op":"fix", "source":sequential_repairs(257)}));
+    assert_eq!(limited["ok"], false);
+    assert_eq!(limited["error"]["kind"], "Steps");
+    assert_eq!(limited["applied"], 256);
+    let checked = request(json!({"op":"check", "source":limited["source"]}));
+    assert_eq!(limited["diagnostics"], checked["diagnostics"]);
+}
