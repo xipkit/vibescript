@@ -42,7 +42,7 @@ pub use catalog::COMMANDS;
 pub use format::render_value;
 
 use std::collections::BTreeMap;
-use vibescript::{CancellationToken, DeclarationKind, Error, Limits, Value};
+use vibescript::{CancellationToken, DeclarationKind, Error, ErrorKind, Limits, Value};
 
 /// How a [`ReplSession`] evaluates input.
 #[derive(Clone, Debug, Default)]
@@ -50,8 +50,42 @@ pub struct ReplOptions {
     /// The limits each input runs under. The default is the library's
     /// sandbox default; `vibes repl` selects the unlimited `xhigh` profile.
     pub limits: Limits,
-    /// Cancelling this token stops the current and every later evaluation.
+    /// Cancelling this token stops current and later compilation and evaluation.
     pub cancellation: CancellationToken,
+    /// Opt-in storage and compilation limits for the whole session.
+    pub session_limits: SessionLimits,
+}
+
+/// Optional limits for an embedded REPL. Every field defaults to unlimited.
+///
+/// These bound retained text and cooperative compiler work, not process RSS or
+/// all session state. Variables, declarations, returned responses, temporary
+/// output and host allocations need separate host policy. The CLI keeps these
+/// unlimited so local history stays useful.
+#[derive(Clone, Debug, Default)]
+pub struct SessionLimits {
+    /// Maximum UTF-8 bytes in a complete or pending script input, including
+    /// newlines. Commands are governed by the transcript cap.
+    /// Checked before copying a submitted line. Overflow discards pending input
+    /// and returns an evaluation error without retaining the rejected source.
+    pub pending_input_bytes: Option<usize>,
+    /// Retained history bytes: UTF-8 text plus `size_of::<String>()` per input.
+    /// Oldest inputs are evicted; a single oversized input is not retained.
+    pub history_bytes: Option<usize>,
+    /// Retained transcript bytes: input and output UTF-8 text plus
+    /// `size_of::<Entry>()` per entry. Oldest entries are evicted; an oversized
+    /// entry is not retained. Commands and completion listings count too.
+    pub transcript_bytes: Option<usize>,
+    /// Cumulative compiler steps, including incomplete-input probes, parsing,
+    /// carried declarations, type annotations and failed compilation attempts.
+    /// Exhaustion stays latched until `reset` or `:reset`.
+    pub compile_steps: Option<u64>,
+    /// Peak tracked compiler memory per pass. This excludes returned scripts,
+    /// retained session state and the construction of combined session source.
+    pub compile_memory_bytes: Option<usize>,
+    /// Absolute monotonic deadline for all compilation passes. Reset does not
+    /// extend this deadline. Cancellation also applies to every compiler pass.
+    pub compile_deadline: Option<std::time::Instant>,
 }
 
 /// One transcript entry: an input and what the REPL showed for it. A listing
@@ -66,7 +100,8 @@ pub struct Entry {
 /// A complete input and its outcome.
 #[derive(Clone, Debug)]
 pub struct Evaluation {
-    /// The input as evaluated, without surrounding whitespace.
+    /// The input as evaluated, without surrounding whitespace when fed as lines.
+    /// Empty when the input byte cap rejected it before copying.
     pub input: String,
     /// The text the REPL shows: printed output followed by the rendered
     /// result unless it is nil, or `compile error: ` or `runtime error: `
@@ -90,9 +125,9 @@ pub enum Response {
     Ignored,
     /// The input so far leaves a construct open; the next line continues it.
     NeedsMoreInput,
-    /// A complete input ran, and was added to the transcript and history.
+    /// A complete input ran or was rejected. Text is retained under the caps.
     Evaluated(Evaluation),
-    /// A command such as `:globals` added this entry to the transcript.
+    /// A command such as `:globals` produced an entry, retained under the cap.
     Command(Entry),
     /// `:help` asks the front end to show or hide its help.
     ToggleHelp,
@@ -112,7 +147,7 @@ pub enum Completion {
     /// One name matches; this is the whole input with the word completed.
     Completed(String),
     /// Several names match, in sorted order. They are also listed in the
-    /// transcript as `Completions: a, b`.
+    /// transcript as `Completions: a, b`, subject to its cap.
     Candidates(Vec<String>),
 }
 
@@ -123,6 +158,10 @@ pub struct ReplSession {
     pending: Vec<String>,
     transcript: Vec<Entry>,
     history: Vec<String>,
+    limits: SessionLimits,
+    pending_bytes: usize,
+    history_bytes: usize,
+    transcript_bytes: usize,
     recalled: Option<usize>,
 }
 
@@ -130,7 +169,15 @@ impl ReplSession {
     /// Creates an empty session.
     pub fn new(options: ReplOptions) -> Self {
         Self {
-            session: session::Session::new(options.limits, options.cancellation),
+            session: session::Session::new(
+                options.limits,
+                options.cancellation,
+                options.session_limits.clone(),
+            ),
+            limits: options.session_limits,
+            pending_bytes: 0,
+            history_bytes: 0,
+            transcript_bytes: 0,
             catalog: catalog::Catalog::new(),
             pending: Vec::new(),
             transcript: Vec::new(),
@@ -146,7 +193,7 @@ impl ReplSession {
     /// that does not end inside an open construct, such as a `def` without
     /// its `end` or an unclosed bracket or string; that input is evaluated.
     pub fn feed_line(&mut self, line: &str) -> Response {
-        let source = if self.pending.is_empty() {
+        if self.pending.is_empty() {
             let input = line.trim();
             if input.is_empty() {
                 return Response::Ignored;
@@ -155,36 +202,79 @@ impl ReplSession {
             if input.starts_with(':') {
                 return self.command(input);
             }
-            line.to_owned()
-        } else {
-            self.recalled = None;
-            self.pending.push(line.to_owned());
-            self.pending.join("\n")
-        };
-        if self.session.is_incomplete(source.trim()) {
-            if self.pending.is_empty() {
-                self.pending.push(line.to_owned());
-            }
-            return Response::NeedsMoreInput;
         }
-        self.pending.clear();
-        Response::Evaluated(self.record(source.trim()))
+        self.recalled = None;
+        let bytes = self
+            .pending_bytes
+            .checked_add(line.len())
+            .and_then(|bytes| bytes.checked_add(usize::from(!self.pending.is_empty())));
+        if bytes.is_none_or(|bytes| {
+            self.limits
+                .pending_input_bytes
+                .is_some_and(|limit| bytes > limit)
+        }) {
+            self.discard_pending();
+            let evaluated = self.session.reject(Error::new(
+                ErrorKind::Memory,
+                "REPL input byte limit exceeded",
+            ));
+            let evaluation = Evaluation {
+                input: String::new(),
+                output: evaluated.output,
+                result: evaluated.result,
+            };
+            self.record_evaluation(&evaluation);
+            return Response::Evaluated(evaluation);
+        }
+        self.pending_bytes = bytes.unwrap();
+        self.pending.push(line.to_owned());
+        let source = self.pending.join("\n");
+        match self.session.is_incomplete(source.trim()) {
+            Ok(true) => Response::NeedsMoreInput,
+            Ok(false) => {
+                self.discard_pending();
+                Response::Evaluated(self.record(source.trim()))
+            }
+            Err(error) => {
+                self.discard_pending();
+                let evaluated = self.session.reject(error);
+                let evaluation = Evaluation {
+                    input: source.trim().to_owned(),
+                    output: evaluated.output,
+                    result: evaluated.result,
+                };
+                self.record_evaluation(&evaluation);
+                Response::Evaluated(evaluation)
+            }
+        }
     }
 
     /// Feeds text containing any number of lines, split at `\n`, `\r\n` or
     /// `\r`, and returns the response to each. A final line break ends the
     /// last line rather than adding an empty one.
     pub fn feed(&mut self, text: &str) -> Vec<Response> {
-        let text = text.replace("\r\n", "\n").replace('\r', "\n");
-        let text = text.strip_suffix('\n').unwrap_or(&text);
-        text.split('\n').map(|line| self.feed_line(line)).collect()
+        let mut responses = Vec::new();
+        let mut after_cr = false;
+        for chunk in text.split_inclusive(['\r', '\n']) {
+            if after_cr && chunk == "\n" {
+                after_cr = false;
+                continue;
+            }
+            after_cr = chunk.ends_with('\r');
+            let line = chunk.strip_suffix(['\r', '\n']).unwrap_or(chunk);
+            responses.push(self.feed_line(line));
+        }
+        if responses.is_empty() {
+            responses.push(self.feed_line(""));
+        }
+        responses
     }
 
     /// Evaluates whatever input is still pending, so a session that ends in
     /// the middle of a construct reports why it was unfinished.
     pub fn finish(&mut self) -> Option<Evaluation> {
         let input = self.pending.join("\n").trim().to_owned();
-        self.pending.clear();
+        self.discard_pending();
         (!input.is_empty()).then(|| self.record(&input))
     }
 
@@ -192,6 +282,7 @@ impl ReplSession {
     /// there were any.
     pub fn discard_pending(&mut self) -> bool {
         self.recalled = None;
+        self.pending_bytes = 0;
         !std::mem::take(&mut self.pending).is_empty()
     }
 
@@ -204,9 +295,29 @@ impl ReplSession {
     /// history. The session's variables, declarations and last error are
     /// updated as for any input.
     pub fn evaluate(&mut self, input: &str) -> Evaluation {
-        let evaluated = self.session.evaluate(input);
+        let evaluated = if self
+            .limits
+            .pending_input_bytes
+            .is_some_and(|limit| input.len() > limit)
+        {
+            self.discard_pending();
+            self.session.reject(Error::new(
+                ErrorKind::Memory,
+                "REPL input byte limit exceeded",
+            ))
+        } else {
+            self.session.evaluate(input)
+        };
         Evaluation {
-            input: input.to_owned(),
+            input: if self
+                .limits
+                .pending_input_bytes
+                .is_some_and(|limit| input.len() > limit)
+            {
+                String::new()
+            } else {
+                input.to_owned()
+            },
             output: evaluated.output,
             result: evaluated.result,
         }
@@ -214,13 +325,50 @@ impl ReplSession {
 
     fn record(&mut self, input: &str) -> Evaluation {
         let evaluation = self.evaluate(input);
-        self.transcript.push(Entry {
-            input: evaluation.input.clone(),
-            output: evaluation.output.clone(),
-            is_error: evaluation.is_error(),
-        });
-        self.history.push(evaluation.input.clone());
+        self.record_evaluation(&evaluation);
+        let bytes = input.len().saturating_add(size_of::<String>());
+        if self.limits.history_bytes.is_none_or(|limit| bytes <= limit) {
+            retain_newest(
+                &mut self.history,
+                &mut self.history_bytes,
+                input.to_owned(),
+                bytes,
+                self.limits.history_bytes,
+                |input| input.len().saturating_add(size_of::<String>()),
+            );
+        }
         evaluation
+    }
+
+    fn record_evaluation(&mut self, evaluation: &Evaluation) {
+        let bytes = evaluation
+            .input
+            .len()
+            .saturating_add(evaluation.output.len())
+            .saturating_add(size_of::<Entry>());
+        if self
+            .limits
+            .transcript_bytes
+            .is_none_or(|limit| bytes <= limit)
+        {
+            self.push_transcript(Entry {
+                input: evaluation.input.clone(),
+                output: evaluation.output.clone(),
+                is_error: evaluation.is_error(),
+            });
+        }
+    }
+
+    fn push_transcript(&mut self, entry: Entry) {
+        let bytes = entry_bytes(&entry);
+        retain_newest(
+            &mut self.transcript,
+            &mut self.transcript_bytes,
+            entry,
+            bytes,
+            self.limits.transcript_bytes,
+            entry_bytes,
+        );
     }
 
     /// Runs a REPL command, named by the first word of `input`:
@@ -237,8 +385,8 @@ impl ReplSession {
     /// | `:last_error`, `:le` | shows the most recent error |
     /// | `:quit`, `:q` | [`Response::Quit`] |
     ///
-    /// Commands are not added to the input history. An unknown command adds
-    /// an error entry to the transcript.
+    /// Commands are not added to the input history. An unknown command produces
+    /// an error entry. Entries are retained under the transcript cap.
     pub fn command(&mut self, input: &str) -> Response {
         let name = input.split_whitespace().next().unwrap_or_default();
         let entry = |output: String, is_error: bool| Entry {
@@ -251,14 +399,14 @@ impl ReplSession {
             ":vars" | ":v" => return Response::ToggleVariables,
             ":quit" | ":q" => return Response::Quit,
             ":clear" | ":c" => {
-                self.transcript.clear();
+                self.clear_transcript();
                 return Response::Cleared;
             }
             ":globals" | ":g" => entry(self.globals(), false),
             ":functions" | ":f" => entry(self.functions(), false),
             ":types" | ":t" => entry(self.types(), false),
             ":reset" | ":r" => {
-                self.session.reset();
+                self.reset();
                 entry("Environment reset".to_owned(), false)
             }
             ":last_error" | ":le" => match self.last_error() {
@@ -267,7 +415,7 @@ impl ReplSession {
             },
             _ => entry(format!("Unknown command: {name}"), true),
         };
-        self.transcript.push(entry.clone());
+        self.push_transcript(entry.clone());
         Response::Command(entry)
     }
 
@@ -359,7 +507,7 @@ impl ReplSession {
                 matches[0]
             )),
             _ => {
-                self.transcript.push(Entry {
+                self.push_transcript(Entry {
                     input: String::new(),
                     output: format!("Completions: {}", matches.join(", ")),
                     is_error: false,
@@ -393,7 +541,7 @@ impl ReplSession {
             Some(self.recall(index + 1))
         } else {
             self.recalled = None;
-            self.pending.clear();
+            self.discard_pending();
             Some(String::new())
         }
     }
@@ -401,6 +549,11 @@ impl ReplSession {
     fn recall(&mut self, index: usize) -> String {
         let mut lines: Vec<String> = self.history[index].split('\n').map(str::to_owned).collect();
         let last = lines.pop().unwrap_or_default();
+        self.pending_bytes = lines
+            .iter()
+            .map(String::len)
+            .sum::<usize>()
+            .saturating_add(lines.len().saturating_sub(1));
         self.pending = lines;
         last
     }
@@ -438,24 +591,40 @@ impl ReplSession {
         Some(self.session.last_error.as_str()).filter(|error| !error.is_empty())
     }
 
-    /// The transcript: every evaluation, command entry and completion
-    /// listing since the last `:clear`.
+    /// The retained evaluations, command entries and completion listings,
+    /// oldest first, subject to the transcript byte cap.
     pub fn transcript(&self) -> &[Entry] {
         &self.transcript
     }
 
     /// Empties the transcript, as `:clear` does.
     pub fn clear_transcript(&mut self) {
-        self.transcript.clear();
+        self.transcript = Vec::new();
+        self.transcript_bytes = 0;
     }
 
-    /// Every evaluated input, oldest first.
+    /// Retained evaluated inputs, oldest first, subject to the history byte cap.
     pub fn history(&self) -> &[String] {
         &self.history
     }
 
-    /// Forgets every variable and declaration, as `:reset` does.
+    /// Empties input history and releases its storage. Pending input is unchanged.
+    pub fn clear_history(&mut self) {
+        self.history = Vec::new();
+        self.history_bytes = 0;
+        self.recalled = None;
+    }
+
+    /// Compiler steps spent since creation or the last reset, including failures.
+    pub fn compilation_steps(&self) -> u64 {
+        self.session.compile_steps()
+    }
+
+    /// Forgets variables, declarations, pending input and the last error, and
+    /// renews the cumulative compile allowance. History and transcript remain
+    /// available under their caps; cancellation and the deadline are unchanged.
     pub fn reset(&mut self) {
+        self.discard_pending();
         self.session.reset();
     }
 
@@ -475,4 +644,35 @@ impl ReplSession {
     pub fn is_cancelled(&self) -> bool {
         self.session.cancelled()
     }
+}
+
+fn entry_bytes(entry: &Entry) -> usize {
+    entry
+        .input
+        .len()
+        .saturating_add(entry.output.len())
+        .saturating_add(size_of::<Entry>())
+}
+
+fn retain_newest<T>(
+    entries: &mut Vec<T>,
+    used: &mut usize,
+    entry: T,
+    bytes: usize,
+    limit: Option<usize>,
+    measure: impl Fn(&T) -> usize,
+) {
+    if let Some(limit) = limit {
+        if bytes > limit {
+            return;
+        }
+        let mut removed = 0;
+        while used.saturating_add(bytes) > limit {
+            *used -= measure(&entries[removed]);
+            removed += 1;
+        }
+        entries.drain(..removed);
+    }
+    *used = used.saturating_add(bytes);
+    entries.push(entry);
 }

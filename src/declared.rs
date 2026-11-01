@@ -102,6 +102,33 @@ impl Declaration {
         })
     }
 
+    /// Declares a retained class, module or enum under a compiler work budget.
+    pub fn retained_value(
+        name: &str,
+        value: &Value,
+        work: &dyn crate::compilation::Work,
+    ) -> Result<Self> {
+        work.checkpoint()?;
+        crate::capability::binding_name(work, HostName::CAPABILITY, name, value)?;
+        let source = match &value.0 {
+            Kind::Namespace(_) => Some(retained_source(value, work)?),
+            Kind::Enum(_) => None,
+            _ => {
+                return Err(Error::new(
+                    ErrorKind::Argument,
+                    "expected a retained script class, module or enum",
+                ));
+            }
+        };
+        let _declaration = work.reserve(name.len().saturating_add(size_of::<Self>()))?;
+        work.bytes(name.len().saturating_add(size_of::<Self>()))?;
+        Ok(Self {
+            item: constant(name, signatures::Type::name("any")),
+            capability: true,
+            shape: Shape::Retained(value.clone(), source),
+        })
+    }
+
     /// The retained script declaration, if the capability template names one.
     pub fn retained(&self) -> Option<(&Value, Option<&RetainedSource>)> {
         match &self.shape {
@@ -143,88 +170,8 @@ fn named(ty: &Type) -> Option<&str> {
 fn shape(value: &Value, methods: &signatures::host::Methods, depth: usize) -> Result<Shape> {
     let top = depth == 0;
     Ok(match &value.0 {
-        Kind::Namespace(namespace) if top => {
-            let owner = namespace
-                .owner
-                .clone()
-                .or_else(|| {
-                    namespace
-                        .definition
-                        .owner
-                        .get()
-                        .and_then(std::sync::Weak::upgrade)
-                })
-                .ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Argument,
-                        "retained namespace has no source owner",
-                    )
-                })?;
-            owner
-                .program
-                .outline
-                .iter()
-                .find(|declaration| declaration.name == namespace.definition.name)
-                .ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Argument,
-                        "only top-level script declarations can be retained",
-                    )
-                })?;
-            let parsed = crate::syntax::parse(owner.program.source.text(), &())?;
-            let mut aliases = BTreeMap::new();
-            for (scope, alias) in &parsed.additions.aliases {
-                if scope.is_none() {
-                    let mut text = Vec::new();
-                    crate::shapes::format(&alias.ty, &mut text)?;
-                    aliases.insert(alias.name.to_string(), text);
-                }
-            }
-            let mut declarations: BTreeMap<_, _> = owner
-                .program
-                .outline
-                .iter()
-                .map(|declaration| {
-                    (
-                        declaration.name.clone(),
-                        owner.program.source.text()[declaration.span.clone()].to_owned(),
-                    )
-                })
-                .collect();
-            let mut referenced = vec![declarations[&namespace.definition.name].as_bytes()];
-            let mut used = std::collections::BTreeSet::from([namespace.definition.name.clone()]);
-            // Textual references conservatively retain dependencies even in annotations.
-            loop {
-                let before = used.len();
-                for (name, text) in declarations
-                    .iter()
-                    .map(|(name, text)| (name, text.as_bytes()))
-                    .chain(aliases.iter().map(|(name, text)| (name, text.as_slice())))
-                {
-                    if !used.contains(name)
-                        && referenced.iter().any(|source| {
-                            source
-                                .windows(name.len())
-                                .any(|word| word == name.as_bytes())
-                        })
-                    {
-                        used.insert(name.clone());
-                        referenced.push(text);
-                    }
-                }
-                if before == used.len() {
-                    break;
-                }
-            }
-            declarations.retain(|name, _| used.contains(name));
-            aliases.retain(|name, _| used.contains(name));
-            Shape::Retained(
-                value.clone(),
-                Some(RetainedSource {
-                    declarations,
-                    aliases,
-                }),
-            )
+        Kind::Namespace(_) if top => {
+            Shape::Retained(value.clone(), Some(retained_source(value, &())?))
         }
         Kind::Enum(_) if top => Shape::Retained(value.clone(), None),
         Kind::Host(method) => {
@@ -251,6 +198,187 @@ fn shape(value: &Value, methods: &signatures::host::Methods, depth: usize) -> Re
             Shape::Value(Some(crate::syntax::parse_type(&ty)?))
         }
     })
+}
+
+// Conservative map/set node and reference-vector overhead per copied entry.
+const RETAINED_ENTRY_BYTES: usize = size_of::<(String, Vec<u8>)>() + 10 * size_of::<usize>();
+
+/// Copies the original namespace environment, charging parsing, dependency
+/// searches and retained metadata before copying it.
+fn retained_source(value: &Value, work: &dyn crate::compilation::Work) -> Result<RetainedSource> {
+    use crate::budget::Charge;
+    let Kind::Namespace(namespace) = &value.0 else {
+        unreachable!()
+    };
+    let owner = namespace
+        .owner
+        .clone()
+        .or_else(|| {
+            namespace
+                .definition
+                .owner
+                .get()
+                .and_then(std::sync::Weak::upgrade)
+        })
+        .ok_or_else(|| {
+            Error::new(
+                ErrorKind::Argument,
+                "retained namespace has no source owner",
+            )
+        })?;
+    let mut found = false;
+    for declaration in &owner.program.outline {
+        work.bytes(declaration.name.len())?;
+        if declaration.name == namespace.definition.name {
+            found = true;
+            break;
+        }
+    }
+    if !found {
+        return Err(Error::new(
+            ErrorKind::Argument,
+            "only top-level script declarations can be retained",
+        ));
+    }
+    let parsed = crate::syntax::parse(owner.program.source.text(), work)?;
+    let mut held = None;
+    let mut aliases = BTreeMap::new();
+    for (scope, alias) in &parsed.additions.aliases {
+        work.charge(1)?;
+        if scope.is_none() {
+            let mut writer = AliasWriter {
+                work,
+                bytes: crate::compilation::Buffer::new(),
+            };
+            crate::shapes::format(&alias.ty, &mut writer)?;
+            let (text, charge) = writer.bytes.into_parts();
+            Charge::merge(&mut held, charge);
+            Charge::merge(
+                &mut held,
+                work.reserve(alias.name.len().saturating_add(RETAINED_ENTRY_BYTES))?,
+            );
+            work.bytes(alias.name.len())?;
+            aliases.insert(alias.name.to_string(), text);
+        }
+    }
+    let mut declarations = BTreeMap::new();
+    for declaration in &owner.program.outline {
+        let text = &owner.program.source.text()[declaration.span.clone()];
+        let bytes = declaration
+            .name
+            .len()
+            .saturating_add(text.len())
+            .saturating_add(RETAINED_ENTRY_BYTES);
+        Charge::merge(&mut held, work.reserve(bytes)?);
+        work.bytes(bytes)?;
+        declarations.insert(declaration.name.clone(), text.to_owned());
+    }
+    let mut referenced = vec![declarations[&namespace.definition.name].as_bytes()];
+    Charge::merge(
+        &mut held,
+        work.reserve(
+            namespace
+                .definition
+                .name
+                .len()
+                .saturating_add(RETAINED_ENTRY_BYTES),
+        )?,
+    );
+    let mut used = std::collections::BTreeSet::from([namespace.definition.name.clone()]);
+    // Textual references conservatively retain dependencies even in annotations.
+    loop {
+        let before = used.len();
+        for (name, text) in declarations
+            .iter()
+            .map(|(name, text)| (name, text.as_bytes()))
+            .chain(aliases.iter().map(|(name, text)| (name, text.as_slice())))
+        {
+            work.bytes(
+                name.len()
+                    .saturating_mul(used.len().max(1).ilog2() as usize + 1),
+            )?;
+            if used.contains(name) {
+                continue;
+            }
+            let mut found = false;
+            for source in &referenced {
+                if contains_name(work, source, name.as_bytes())? {
+                    found = true;
+                    break;
+                }
+            }
+            if found {
+                Charge::merge(
+                    &mut held,
+                    work.reserve(name.len().saturating_add(RETAINED_ENTRY_BYTES))?,
+                );
+                used.insert(name.clone());
+                referenced.push(text);
+            }
+        }
+        if before == used.len() {
+            break;
+        }
+    }
+    drop(referenced);
+    let mut failure = None;
+    let mut retain = |name: &String| {
+        if let Err(error) = work.bytes(
+            name.len()
+                .saturating_mul(used.len().max(1).ilog2() as usize + 1),
+        ) {
+            failure = Some(error);
+            return false;
+        }
+        used.contains(name)
+    };
+    declarations.retain(|name, _| retain(name));
+    aliases.retain(|name, _| retain(name));
+    if let Some(error) = failure {
+        return Err(error);
+    }
+    work.checkpoint()?;
+    Ok(RetainedSource {
+        declarations,
+        aliases,
+    })
+}
+
+fn contains_name(work: &dyn crate::compilation::Work, source: &[u8], name: &[u8]) -> Result<bool> {
+    work.charge(1)?;
+    work.checkpoint()?;
+    if source.len() < name.len() {
+        return Ok(false);
+    }
+    let count = source.len() - name.len() + 1;
+    let chunk = (4096 / name.len().max(1)).max(1);
+    for start in (0..count).step_by(chunk) {
+        let windows = (count - start).min(chunk);
+        work.bytes(windows.saturating_mul(name.len()))?;
+        if source[start..start + windows + name.len() - 1]
+            .windows(name.len())
+            .any(|word| word == name)
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+struct AliasWriter<'a> {
+    work: &'a dyn crate::compilation::Work,
+    bytes: crate::compilation::Buffer<u8>,
+}
+
+impl crate::shapes::TypeWriter for AliasWriter<'_> {
+    fn write(&mut self, bytes: &[u8]) -> Result<()> {
+        self.work.bytes(bytes.len())?;
+        self.bytes.extend_from_slice(self.work, bytes)
+    }
+
+    fn node(&mut self) -> Result<()> {
+        self.work.charge(1)
+    }
 }
 
 fn check(ctx: &mut CallContext, shape: &Shape, subject: &str, value: &Value) -> Result<()> {
@@ -403,5 +531,57 @@ pub(crate) fn check_capability(
     match declared.get(name) {
         Some(declaration) => declaration.check(ctx, &format!("capability {name}"), value),
         None => Ok(()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{CallOptions, CancellationToken, Limits, compilation::Meter};
+    use std::cell::RefCell;
+
+    #[test]
+    fn short_dependency_sources_still_spend_work_and_check_cancellation() {
+        let candidate = b"UnrelatedNameLongerThanEveryReferencedSource";
+        let references = [b"def a; b; end"; 100];
+        let mut context = CallContext::new(CallOptions {
+            limits: Limits {
+                steps: Some(7),
+                ..Limits::default()
+            },
+            ..CallOptions::default()
+        });
+        let mut visited = 0;
+        let result: Result<()> = references.iter().try_for_each(|source| {
+            visited += 1;
+            assert!(!contains_name(
+                &Meter(RefCell::new(&mut context)),
+                *source,
+                candidate
+            )?);
+            Ok(())
+        });
+        assert_eq!(result.unwrap_err().kind, ErrorKind::Steps);
+        assert_eq!(visited, 8);
+        let token = CancellationToken::new();
+        let mut context = CallContext::new(CallOptions {
+            cancellation: token.clone(),
+            ..CallOptions::default()
+        });
+        let mut visited = 0;
+        let result: Result<()> = references.iter().try_for_each(|source| {
+            visited += 1;
+            if visited == 3 {
+                token.cancel();
+            }
+            assert!(!contains_name(
+                &Meter(RefCell::new(&mut context)),
+                *source,
+                candidate
+            )?);
+            Ok(())
+        });
+        assert_eq!(result.unwrap_err().kind, ErrorKind::Cancelled);
+        assert_eq!(visited, 3);
     }
 }

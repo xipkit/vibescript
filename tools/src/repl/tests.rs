@@ -2,7 +2,7 @@
 //! level, followed by tests for the behavior this session adds.
 
 use super::*;
-use vibescript::{HostMethod, Limits};
+use vibescript::{ErrorKind, HostMethod, Limits};
 
 /// The limits `vibes repl` selects by default: the xhigh profile.
 fn xhigh() -> Limits {
@@ -38,6 +38,7 @@ fn evaluation_uses_session_cancellation() {
     let mut s = ReplSession::new(ReplOptions {
         limits: xhigh(),
         cancellation,
+        ..ReplOptions::default()
     });
     let evaluation = s.evaluate("i = 0\nwhile i >= 0\n  i = i + 1\nend");
     assert!(evaluation.is_error(), "{evaluation:?}");
@@ -687,4 +688,369 @@ fn chunks_feed_one_line_at_a_time() {
     assert!(evaluation.is_error());
     assert!(evaluation.output.contains("unexpected end of snippet"));
     assert!(s.finish().is_none());
+}
+
+fn bounded(limits: SessionLimits) -> ReplSession {
+    ReplSession::new(ReplOptions {
+        limits: xhigh(),
+        session_limits: limits,
+        ..ReplOptions::default()
+    })
+}
+
+fn evaluated(response: Response) -> Evaluation {
+    let Response::Evaluated(evaluation) = response else {
+        panic!("expected evaluation, got {response:?}");
+    };
+    evaluation
+}
+
+#[test]
+fn bounded_history_and_transcript_keep_recent_inputs() {
+    let mut s = bounded(SessionLimits {
+        history_bytes: Some(3 * (size_of::<String>() + 3)),
+        transcript_bytes: Some(2 * (size_of::<Entry>() + 6)),
+        ..SessionLimits::default()
+    });
+    for n in 100..200 {
+        let input = n.to_string();
+        assert_eq!(evaluated(s.feed_line(&input)).output, input);
+        assert!(s.history_bytes <= s.limits.history_bytes.unwrap());
+        assert!(s.transcript_bytes <= s.limits.transcript_bytes.unwrap());
+    }
+    assert_eq!(s.history(), ["197", "198", "199"]);
+    assert_eq!(
+        s.transcript()
+            .iter()
+            .map(|entry| entry.input.as_str())
+            .collect::<Vec<_>>(),
+        ["198", "199"]
+    );
+    assert_eq!(s.history_back().as_deref(), Some("199"));
+    assert_eq!(s.history_back().as_deref(), Some("198"));
+    assert_eq!(s.history_forward().as_deref(), Some("199"));
+    assert_eq!(s.history_forward().as_deref(), Some(""));
+    s.clear_history();
+    s.clear_transcript();
+    assert_eq!((s.history_bytes, s.transcript_bytes), (0, 0));
+    assert_eq!((s.history.capacity(), s.transcript.capacity()), (0, 0));
+    s.feed_line("200");
+    assert_eq!(s.history(), ["200"]);
+    assert_eq!(last(&s).output, "200");
+}
+
+#[test]
+fn transcript_limits_cover_commands_completions_and_oversized_entries() {
+    let mut s = bounded(SessionLimits {
+        history_bytes: Some(size_of::<String>() + 1),
+        transcript_bytes: Some(size_of::<Entry>() + 2),
+        ..SessionLimits::default()
+    });
+    s.feed_line("1");
+    let original = last(&s).clone();
+    for _ in 0..50 {
+        assert!(matches!(s.complete("m"), Completion::Candidates(_)));
+        assert!(matches!(s.command(":globals"), Response::Command(_)));
+        assert!(!evaluated(s.feed_line("100")).is_error());
+    }
+    assert_eq!(s.transcript(), [original]);
+    assert_eq!(s.history(), ["1"]);
+    s.feed_line(":clear");
+    assert_eq!(s.transcript_bytes, 0);
+    s.feed_line("2");
+    assert_eq!(last(&s).output, "2");
+    let mut no_storage = bounded(SessionLimits {
+        history_bytes: Some(0),
+        transcript_bytes: Some(0),
+        ..SessionLimits::default()
+    });
+    no_storage.feed_line("nil");
+    no_storage.command(":globals");
+    no_storage.complete("m");
+    assert!(no_storage.transcript().is_empty());
+    assert!(no_storage.history().is_empty());
+}
+
+#[test]
+fn input_cap_rejects_before_retaining_source_and_releases_pending() {
+    let mut s = bounded(SessionLimits {
+        pending_input_bytes: Some(12),
+        ..SessionLimits::default()
+    });
+    assert!(matches!(s.feed_line("["), Response::NeedsMoreInput));
+    for _ in 0..11 {
+        assert!(matches!(s.feed_line(""), Response::NeedsMoreInput));
+    }
+    let rejected = evaluated(s.feed_line(""));
+    assert_eq!(rejected.result.unwrap_err().kind, ErrorKind::Memory);
+    assert!(rejected.input.is_empty());
+    assert!(s.pending().is_empty());
+    assert_eq!(s.pending_bytes, 0);
+    assert!(s.history().is_empty());
+    assert!(!evaluated(s.feed_line("1")).is_error());
+    let steps = s.compilation_steps();
+    assert!(
+        evaluated(s.feed_line(&"x".repeat(100_000)))
+            .input
+            .is_empty()
+    );
+    assert!(s.evaluate(&"x".repeat(100_000)).input.is_empty());
+    assert_eq!(s.compilation_steps(), steps);
+    assert!(matches!(s.feed_line("[1,"), Response::NeedsMoreInput));
+    assert!(s.discard_pending());
+    assert!(matches!(s.feed_line("[2,"), Response::NeedsMoreInput));
+    s.reset();
+    assert!(s.pending().is_empty());
+    assert_eq!(s.pending_bytes, 0);
+    assert!(!evaluated(s.feed_line("[3]")).is_error());
+    // UTF-8 bytes, rather than Unicode scalar count, decide admission.
+    assert!(s.evaluate("\"éééééé\"").is_error());
+}
+
+#[test]
+fn input_limit_allows_exact_multiline_boundary_and_history_recall() {
+    let mut s = bounded(SessionLimits {
+        pending_input_bytes: Some(5),
+        ..SessionLimits::default()
+    });
+    assert!(matches!(s.feed_line("[1,"), Response::NeedsMoreInput));
+    assert_eq!(evaluated(s.feed_line("]")).output, "[1]");
+    assert_eq!(s.history_back().as_deref(), Some("]"));
+    assert_eq!(s.pending_bytes, 3);
+    assert_eq!(evaluated(s.feed_line("]")).output, "[1]");
+    assert!(s.pending().is_empty());
+    assert!(matches!(s.feed_line("[1,"), Response::NeedsMoreInput));
+    assert!(s.finish().unwrap().is_error());
+    assert_eq!(s.pending_bytes, 0);
+}
+
+#[test]
+fn cumulative_compile_limit_latches_until_reset_and_preserves_history() {
+    // Determine the exact allowance for one input and its incompleteness probe.
+    let mut baseline = session();
+    assert!(!evaluated(baseline.feed_line("1")).is_error());
+    let allowance = baseline.compilation_steps();
+    assert!(allowance > 0);
+    let mut s = bounded(SessionLimits {
+        compile_steps: Some(allowance),
+        ..SessionLimits::default()
+    });
+    assert!(!evaluated(s.feed_line("1")).is_error());
+    assert_eq!(s.compilation_steps(), allowance);
+    let failure = evaluated(s.feed_line("2"));
+    assert_eq!(failure.result.unwrap_err().kind, ErrorKind::Steps);
+    let spent = s.compilation_steps();
+    s.clear_transcript();
+    assert_eq!(s.evaluate("3").result.unwrap_err().kind, ErrorKind::Steps);
+    assert_eq!(s.compilation_steps(), spent);
+    assert_eq!(s.history(), ["1"]);
+    s.command(":reset");
+    assert_eq!(s.compilation_steps(), 0);
+    assert!(s.variables().is_empty());
+    assert_eq!(s.history(), ["1"]);
+    assert!(!evaluated(s.feed_line("1")).is_error());
+    s.reset();
+    assert_eq!(s.compilation_steps(), 0);
+    assert!(!s.evaluate("1").is_error());
+}
+
+#[test]
+fn incomplete_and_failed_inputs_spend_compile_allowance() {
+    let mut probe = session();
+    probe.feed_line("[");
+    let spent = probe.compilation_steps();
+    assert!(spent > 0);
+    let mut s = bounded(SessionLimits {
+        compile_steps: Some(spent),
+        ..SessionLimits::default()
+    });
+    assert!(matches!(s.feed_line("["), Response::NeedsMoreInput));
+    assert_eq!(
+        evaluated(s.feed_line("1,")).result.unwrap_err().kind,
+        ErrorKind::Steps
+    );
+    assert!(s.pending().is_empty());
+    let mut s = session();
+    assert!(s.evaluate("alias missing unknown").is_error());
+    let failed = s.compilation_steps();
+    assert!(failed > 0);
+    assert!(s.evaluate("alias missing unknown").is_error());
+    assert!(s.compilation_steps() > failed);
+}
+
+#[test]
+fn compilation_memory_and_deadline_failures_are_reported_as_compile_errors() {
+    for limits in [
+        SessionLimits {
+            compile_memory_bytes: Some(0),
+            ..SessionLimits::default()
+        },
+        SessionLimits {
+            compile_deadline: Some(std::time::Instant::now()),
+            ..SessionLimits::default()
+        },
+    ] {
+        let mut s = bounded(limits.clone());
+        let expected = if limits.compile_memory_bytes.is_some() {
+            ErrorKind::Memory
+        } else {
+            ErrorKind::Deadline
+        };
+        for _ in 0..2 {
+            let evaluation = evaluated(s.feed_line("x = 1"));
+            assert_eq!(evaluation.result.unwrap_err().kind, expected);
+            assert!(evaluation.output.starts_with("compile error:"));
+            assert!(s.variables().is_empty());
+            s.reset();
+        }
+    }
+}
+
+#[test]
+fn cancelled_compile_recovers_only_the_per_input_interrupter() {
+    let mut s = session();
+    s.interrupter().cancel();
+    let evaluation = evaluated(s.feed_line("["));
+    assert_eq!(evaluation.result.unwrap_err().kind, ErrorKind::Cancelled);
+    assert!(evaluation.output.starts_with("compile error:"));
+    assert!(s.pending().is_empty());
+    assert!(!s.is_cancelled());
+    assert!(!evaluated(s.feed_line("42")).is_error());
+    let cancellation = CancellationToken::new();
+    cancellation.cancel();
+    let mut s = ReplSession::new(ReplOptions {
+        cancellation,
+        ..ReplOptions::default()
+    });
+    for _ in 0..2 {
+        assert_eq!(
+            evaluated(s.feed_line("1")).result.unwrap_err().kind,
+            ErrorKind::Cancelled
+        );
+        s.reset();
+    }
+}
+
+#[cfg(not(target_os = "wasi"))]
+#[test]
+fn cancellation_during_compilation_stops_before_execution() {
+    let s = session();
+    let token = s.interrupter();
+    let input = "x = 1\n".repeat(500_000);
+    let (ready, started) = std::sync::mpsc::channel();
+    let worker = std::thread::spawn(move || {
+        let mut s = s;
+        ready.send(()).unwrap();
+        let evaluation = s.evaluate(&input);
+        (s, evaluation)
+    });
+    started.recv().unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    token.cancel();
+    let (mut s, evaluation) = worker.join().unwrap();
+    assert_eq!(evaluation.result.unwrap_err().kind, ErrorKind::Cancelled);
+    assert!(
+        evaluation.output.starts_with("compile error:"),
+        "{}",
+        evaluation.output
+    );
+    assert!(s.compilation_steps() > 0);
+    assert!(s.variables().is_empty());
+    assert!(!s.evaluate("42").is_error());
+}
+
+#[test]
+fn bulk_feed_handles_line_endings_without_an_aggregate_copy() {
+    for (text, count) in [
+        ("", 1),
+        ("\r\n", 1),
+        ("\r\r\n", 2),
+        ("1\r\n2\r3\n", 3),
+        ("1\n\n", 2),
+    ] {
+        let mut s = session();
+        assert_eq!(s.feed(text).len(), count, "{text:?}");
+    }
+    let mut s = bounded(SessionLimits {
+        pending_input_bytes: Some(4),
+        ..SessionLimits::default()
+    });
+    let responses = s.feed("[\r\n\r\n\r\n\r\n]\n");
+    assert_eq!(responses.len(), 5);
+    assert!(matches!(responses[3], Response::NeedsMoreInput));
+    assert!(evaluated(responses[4].clone()).is_error());
+    assert!(s.pending().is_empty());
+}
+
+#[test]
+fn unlimited_default_preserves_local_history_across_reset() {
+    let mut s = session();
+    for n in 0..120 {
+        assert!(!evaluated(s.feed_line(&n.to_string())).is_error());
+    }
+    s.reset();
+    assert_eq!(s.history().len(), 120);
+    assert_eq!(s.transcript().len(), 120);
+    assert_eq!(s.history().first().map(String::as_str), Some("0"));
+    assert_eq!(s.history_back().as_deref(), Some("119"));
+}
+
+#[test]
+fn annotation_pass_spends_the_same_compile_budget_before_execution() {
+    let mut baseline = session();
+    assert!(!baseline.evaluate("x = 1").is_error());
+    let total = baseline.compilation_steps();
+    let mut s = bounded(SessionLimits {
+        compile_steps: Some(total - 1),
+        ..SessionLimits::default()
+    });
+    let evaluation = s.evaluate("x = 1");
+    assert_eq!(evaluation.result.unwrap_err().kind, ErrorKind::Steps);
+    assert!(evaluation.output.starts_with("compile error:"));
+    assert!(s.variables().is_empty());
+    assert!(s.compilation_steps() >= total);
+}
+
+#[test]
+fn direct_input_overflow_discards_an_unfinished_input() {
+    let mut s = bounded(SessionLimits {
+        pending_input_bytes: Some(5),
+        ..SessionLimits::default()
+    });
+    assert!(matches!(s.feed_line("[1,"), Response::NeedsMoreInput));
+    assert_eq!(
+        s.evaluate("123456").result.unwrap_err().kind,
+        ErrorKind::Memory
+    );
+    assert!(s.pending().is_empty());
+    assert_eq!(s.pending_bytes, 0);
+    assert!(evaluated(s.feed_line("]")).is_error());
+    assert!(!evaluated(s.feed_line("[2]")).is_error());
+}
+
+#[test]
+fn carried_namespaces_spend_the_remaining_compile_allowance() {
+    let source = format!(
+        "# {}\nclass A; end\nclass B; end\nmodule C; end",
+        "padding ".repeat(20_000)
+    );
+    let mut baseline = session();
+    assert!(!baseline.evaluate(&source).is_error());
+    let before = baseline.compilation_steps();
+    assert!(!baseline.evaluate("1").is_error());
+    let continued = baseline.compilation_steps() - before;
+    // The original source is reparsed to recover namespace dependencies.
+    assert!(continued > source.len() as u64 / 10);
+    let allowance = before + continued - 1;
+    let mut s = bounded(SessionLimits {
+        compile_steps: Some(allowance),
+        ..SessionLimits::default()
+    });
+    assert!(!s.evaluate(&source).is_error());
+    let failure = s.evaluate("1");
+    assert_eq!(failure.result.unwrap_err().kind, ErrorKind::Steps);
+    assert!(failure.output.starts_with("compile error:"));
+    assert_eq!(s.declarations().count(), 3);
+    s.reset();
+    assert!(!s.evaluate("1").is_error());
 }

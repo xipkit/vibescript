@@ -14,3 +14,8 @@ pub mod lsp;
 pub mod playground;
 pub mod repl;
 pub mod test_runner;
+
+// Compile the embedded REPL guide in the tools crate that provides its API.
+#[cfg(doctest)]
+#[doc = include_str!("../../docs/repl.md")]
+struct ReplGuide;
