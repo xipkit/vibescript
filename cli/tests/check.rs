@@ -79,6 +79,68 @@ fn requires_exactly_one_script_path() {
     vibes(&["check", "a.vibe", "b.vibe"]).fails("vibes check: expected a single script path");
 }
 
+/// Terminal controls a repository could hide in a file: OSC title and
+/// hyperlink sequences ended by BEL, a CSI color, an 8-bit CSI (C1) and DEL.
+const CONTROLS: &str = "\x1b]0;title\x07\x1b]8;;http://x\x07\x1b[31m\u{9b}2J\x7f";
+const ESCAPED: &str = "\\u{1b}]0;title\\u{7}\\u{1b}]8;;http://x\\u{7}\\u{1b}[31m\\u{9b}2J\\u{7f}";
+
+#[track_caller]
+fn assert_no_controls(text: &str) {
+    assert!(
+        !text
+            .chars()
+            .any(|ch| ch.is_control() && ch != '\n' && ch != '\t'),
+        "{text:?}"
+    );
+}
+
+#[test]
+fn escapes_terminal_controls_in_source_and_messages() {
+    let files = Files::new();
+    let path = files.write(
+        "script.vibe",
+        &format!(
+            "x = \"{CONTROLS}é\" + 1\ndef f(*, a: int)\n  a\nend\nf(**{{\"{CONTROLS}\": 1}})\n"
+        ),
+    );
+    let run = vibes(&["check", &path]);
+    assert_no_controls(&run.stdout);
+    // The caret stays under `+` and the string, once their controls show.
+    let pad = " ".repeat(ESCAPED.len() + 8);
+    assert!(
+        run.stdout.contains(&format!(
+            "error[V0108]: `+` is not defined for string and int\n   |\n  1| x = \"{ESCAPED}é\" + 1\n   | {pad}^\n"
+        )),
+        "{}",
+        run.stdout
+    );
+    assert!(
+        run.stdout.contains(&format!("has no keyword `{ESCAPED}:`")),
+        "{}",
+        run.stdout
+    );
+    assert_eq!(run.stderr, "check failed with 3 error(s)\n");
+}
+
+#[cfg(unix)]
+#[test]
+fn escapes_terminal_controls_in_filenames() {
+    let files = Files::new();
+    // A filename cannot hold the `/` of a hyperlink's URL.
+    let controls = CONTROLS.replace("http://x", "x");
+    let path = files.write(&format!("evil{controls}.vibe"), "x = \"a\" + 1\n");
+    let run = vibes(&["check", &path]);
+    assert_no_controls(&run.stdout);
+    let shown = path.replace(&controls, &ESCAPED.replace("http://x", "x"));
+    run.expect(
+        1,
+        &format!(
+            "{shown}:1:9: error[V0108]: `+` is not defined for string and int\n   |\n  1| x = \"a\" + 1\n   |         ^\n"
+        ),
+        "check failed with 1 error(s)\n",
+    );
+}
+
 #[test]
 fn resolves_and_attributes_required_modules() {
     let files = Files::new();
