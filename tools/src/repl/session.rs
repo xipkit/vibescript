@@ -16,14 +16,14 @@
 //! as a host global's declared type would be checked, and gives the local
 //! its type for the rest of the input.
 
-use super::format;
+use super::{SessionLimits, format};
 use std::{
     collections::BTreeMap,
     sync::{Arc, Mutex},
 };
 use vibescript::{
-    CallOptions, CancellationToken, DeclarationKind, Diagnostic, Engine, Error, ErrorKind, Limits,
-    Position, Script, Value, tooling,
+    CallOptions, CancellationToken, CompileBudget, DeclarationKind, Diagnostic, Engine, Error,
+    ErrorKind, Limits, Position, Script, Value,
 };
 
 /// The name reported for frames in the input, as the Go REPL does.
@@ -36,6 +36,9 @@ const SESSION: &str = "__session__";
 pub struct Session {
     engine: Engine,
     limits: Limits,
+    compile_limits: SessionLimits,
+    compile_steps: u64,
+    compile_exhausted: Option<Error>,
     cancellation: CancellationToken,
     interrupt: CancellationToken,
     /// Variables visible to the next input, including `_`, the last result.
@@ -67,7 +70,11 @@ pub struct Carried {
 impl Session {
     /// Creates a session whose inputs run under `limits`. Cancelling
     /// `cancellation` stops the current and every later evaluation.
-    pub fn new(limits: Limits, cancellation: CancellationToken) -> Self {
+    pub fn new(
+        limits: Limits,
+        cancellation: CancellationToken,
+        compile_limits: SessionLimits,
+    ) -> Self {
         let stdout = Arc::new(Mutex::new(Vec::new()));
         let stderr = Arc::new(Mutex::new(Vec::new()));
         let mut engine = Engine::new();
@@ -87,6 +94,9 @@ impl Session {
         Self {
             engine,
             limits,
+            compile_limits,
+            compile_steps: 0,
+            compile_exhausted: None,
             interrupt: cancellation.child_token(),
             cancellation,
             env: BTreeMap::new(),
@@ -116,21 +126,26 @@ impl Session {
         self.env_types.clear();
         self.types.clear();
         self.prelude.clear();
+        self.compile_steps = 0;
+        self.compile_exhausted = None;
+        self.last_error.clear();
     }
 
     /// Reports whether `source` ends inside an unfinished construct, so more
     /// lines should be read before evaluating it.
-    pub fn is_incomplete(&self, source: &str) -> bool {
-        match self.engine.compile(source) {
+    pub fn is_incomplete(&mut self, source: &str) -> Result<bool, Error> {
+        let result = self.compilation(|session, budget| budget.compile(&session.engine, source));
+        match result {
             // Like Go, an enum that ends its input before a member is
             // reported at its keyword.
             Err(error) if error.kind == ErrorKind::Syntax => {
-                error.message.starts_with("unterminated")
+                Ok(error.message.starts_with("unterminated")
                     || error.offset == Some(source.len())
                     || (error.message.ends_with("must define at least one member")
-                        && source.split_whitespace().last() != Some("end"))
+                        && source.split_whitespace().last() != Some("end")))
             }
-            _ => false,
+            Err(error) if budget_error(&error) => Err(error),
+            _ => Ok(false),
         }
     }
 
@@ -146,6 +161,7 @@ impl Session {
             Ok(compiled) => compiled,
             Err(error) => {
                 let text = format!("compile error: {}", render_compile_error(&error));
+                self.renew_interrupt();
                 return self.fail(text, error);
             }
         };
@@ -170,9 +186,7 @@ impl Session {
             ..CallOptions::default()
         };
         let result = compiled.script.run_bindings(options);
-        if self.interrupt.is_cancelled() {
-            self.interrupt = self.cancellation.child_token();
-        }
+        self.renew_interrupt();
         match result {
             Ok((outcome, bindings)) => {
                 let mut kinds: BTreeMap<String, DeclarationKind> = self
@@ -221,6 +235,21 @@ impl Session {
         }
     }
 
+    /// Reports an input or compilation rejection without evaluating source.
+    pub fn reject(&mut self, error: Error) -> Evaluated {
+        self.renew_interrupt();
+        self.fail(
+            format!("compile error: {}", render_compile_error(&error)),
+            error,
+        )
+    }
+
+    fn renew_interrupt(&mut self) {
+        if self.interrupt.is_cancelled() {
+            self.interrupt = self.cancellation.child_token();
+        }
+    }
+
     fn fail(&mut self, output: String, error: Error) -> Evaluated {
         self.last_error = output.clone();
         Evaluated {
@@ -252,23 +281,73 @@ impl Session {
         }
     }
 
-    /// Compiles `input` after the carried declarations it does not
-    /// redeclare and the lines that bind the session's variables. Syntax
-    /// errors are reported against the input alone.
-    fn compile(&self, input: &str) -> Result<Compiled, Error> {
-        let source: Arc<str> = Arc::from(input);
-        match tooling::outline(input) {
-            Ok(outline) => self.compile_after(source, &declared_names(&outline)),
-            // A top-level alias can name a carried function, so the input
-            // may need the carried declarations to parse at all.
-            Err(error) => self.compile_after(source, &[]).map_err(|_| {
-                let error = self.engine.compile(input).err().unwrap_or(error);
-                snippet_error(error, input.len())
-            }),
+    /// Runs compiler passes against the remaining session allowance.
+    fn compilation<T>(
+        &mut self,
+        pass: impl FnOnce(&Self, &mut CompileBudget) -> Result<T, Error>,
+    ) -> Result<T, Error> {
+        if let Some(error) = &self.compile_exhausted {
+            return Err(error.clone());
         }
+        let mut budget = CompileBudget::new(&CallOptions {
+            limits: Limits {
+                steps: self
+                    .compile_limits
+                    .compile_steps
+                    .map(|limit| limit.saturating_sub(self.compile_steps)),
+                memory_bytes: self.compile_limits.compile_memory_bytes,
+                ..Limits::default()
+            },
+            cancellation: self.interrupt.clone(),
+            deadline: self.compile_limits.compile_deadline,
+            ..CallOptions::default()
+        });
+        let result = pass(self, &mut budget);
+        self.compile_steps = self.compile_steps.saturating_add(budget.stats().steps);
+        if let Err(error) = &result {
+            if error.kind == ErrorKind::Steps {
+                self.compile_exhausted = Some(error.clone());
+            }
+        }
+        result
     }
 
-    fn compile_after(&self, source: Arc<str>, names: &[String]) -> Result<Compiled, Error> {
+    /// Compiler work spent since creation or reset, including failures.
+    pub fn compile_steps(&self) -> u64 {
+        self.compile_steps
+    }
+
+    /// Compiles input after carried declarations and variable bindings, with
+    /// syntax errors positioned in the input alone.
+    fn compile(&mut self, input: &str) -> Result<Compiled, Error> {
+        self.compilation(|session, budget| {
+            let source: Arc<str> = Arc::from(input);
+            match budget.declaration_names(input) {
+                Ok(names) => session.compile_after(source, &names, budget),
+                Err(error) if budget_error(&error) => Err(error),
+                // A top-level alias can name a carried function, so the input
+                // may need the carried declarations to parse at all.
+                Err(error) => match session.compile_after(source, &[], budget) {
+                    Ok(compiled) => Ok(compiled),
+                    Err(combined) if budget_error(&combined) => Err(combined),
+                    Err(_) => {
+                        let error = budget
+                            .compile(&session.engine, input)
+                            .err()
+                            .unwrap_or(error);
+                        Err(snippet_error(error, input.len()))
+                    }
+                },
+            }
+        })
+    }
+
+    fn compile_after(
+        &self,
+        source: Arc<str>,
+        names: &[String],
+        budget: &mut CompileBudget,
+    ) -> Result<Compiled, Error> {
         let kept: Vec<Carried> = self
             .prelude
             .iter()
@@ -280,14 +359,11 @@ impl Session {
         let mut engine = self.engine.clone();
         for (name, (_, value)) in &self.types {
             if !names.contains(name) {
-                engine.declare_capability(&vibescript::Capability::from_value(
-                    name.clone(),
-                    value.clone(),
-                ))?;
+                budget.retain_namespace(&mut engine, name, value)?;
             }
         }
-        let script = engine
-            .compile(&combined)
+        let script = budget
+            .compile(&engine, &combined)
             .map_err(|error| snippet_error(map.remap(error), combined.len()))?;
         let start = combined.len() - source.len();
         let own: Vec<_> = script
@@ -297,8 +373,8 @@ impl Session {
             .cloned()
             .collect();
         let declared = carry(&source, &own, start);
-        let checked = engine
-            .type_check(&combined)
+        let checked = budget
+            .type_check(&engine, &combined)
             .map_err(|error| snippet_error(map.remap(error), combined.len()))?;
         Ok(Compiled::new(script, map, kept, declared, checked))
     }
@@ -339,23 +415,11 @@ impl Session {
     }
 }
 
-fn declared_names(outline: &tooling::Outline) -> Vec<String> {
-    use tooling::ItemKind;
-    outline
-        .items
-        .iter()
-        .filter(|item| {
-            matches!(
-                item.kind,
-                ItemKind::Function
-                    | ItemKind::Alias
-                    | ItemKind::Class
-                    | ItemKind::Module
-                    | ItemKind::Enum
-            )
-        })
-        .map(|item| item.name.clone())
-        .collect()
+fn budget_error(error: &Error) -> bool {
+    matches!(
+        error.kind,
+        ErrorKind::Steps | ErrorKind::Memory | ErrorKind::Cancelled | ErrorKind::Deadline
+    )
 }
 
 struct Compiled {

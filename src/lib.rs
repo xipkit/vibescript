@@ -27,6 +27,7 @@ mod code;
 mod collections;
 mod combinatorics;
 mod compilation;
+mod compile_budget;
 mod conversion;
 mod declared;
 pub mod diagnostic;
@@ -82,6 +83,7 @@ mod vm;
 pub use budget::set_budget_hook;
 pub use budget::{CallContext, CallOptions, CancellationToken, Limits, Stats};
 pub use capability::{Capability, HostMethod};
+pub use compile_budget::CompileBudget;
 pub use error::{Diagnostic, Error, ErrorClass, ErrorKind, Position, Result, StackFrame};
 pub use host_call::HostCall;
 pub use signature::{Signature, SignatureParam};
@@ -535,23 +537,7 @@ impl Engine {
     /// # Ok::<(), vibescript::Error>(())
     /// ```
     pub fn compile_with_options(&self, source: &str, options: &CallOptions) -> Result<Script> {
-        let mut ctx = CallContext::new(CallOptions {
-            globals: Default::default(),
-            capabilities: Vec::new(),
-            limits: options.limits.clone(),
-            cancellation: options.cancellation.clone(),
-            deadline: options.deadline,
-            allow_require: options.allow_require,
-        });
-        let code = code::Code::compile_metered(
-            source,
-            &self.hosts,
-            &self.declared,
-            &compilation::Meter(std::cell::RefCell::new(&mut ctx)),
-            &self.loader,
-        )?;
-        ctx.checkpoint()?;
-        Ok(self.script(code))
+        CompileBudget::new(options).compile(self, source)
     }
 
     fn script(&self, code: Arc<code::Code>) -> Script {
