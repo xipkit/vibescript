@@ -68,13 +68,16 @@ pub(super) fn identifier(
         namespaces::Member::IsType(_) => Ok(Target::Member(Value::nil(), index)),
         namespaces::Member::Missing => match namespace {
             Some(module) if !names::universal(name) => Err(namespaces::missing_implicit(
+                ctx,
                 storage,
                 frames.data[current].receiver.as_ref(),
                 &program.namespaces[module],
                 name,
             )),
             Some(_) => Ok(Target::Member(Value::nil(), index)),
-            None => Err(super::undefined(program, frames, storage, current, name)),
+            None => Err(super::undefined(
+                ctx, program, frames, storage, current, name,
+            )),
         },
     }
 }
@@ -177,7 +180,7 @@ pub(super) fn member(
     let message = match names::Receiver::of(&receiver).unknown() {
         Some((wording, candidates)) => {
             let candidates = candidates.iter().map(|candidate| candidate.as_bytes());
-            let suggestion = crate::members::suggest::did_you_mean(name, candidates);
+            let suggestion = crate::members::suggest::did_you_mean(ctx, name, candidates)?;
             format!("{wording} {name}{suggestion}")
         }
         None if matches!(receiver.0, Kind::Instance(_)) => format!("unknown member {name}"),
