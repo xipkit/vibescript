@@ -66,14 +66,23 @@ formatting (including normalized line endings and a final newline) for the sourc
 and every supplied file, even when they do not compile. `fix` applies complete
 machine-applicable fixes and recompiles the whole project after each fix. It
 returns edited source and files, count of applied fixes and remaining diagnostics.
-Suggestions stay unapplied. Repeated edits and a 256-fix ceiling stop repair;
-remaining errors still make `ok` false. Nothing is written to disk.
+Suggestions stay unapplied. Repeated edits stop repair using fixed-size hashes of
+the file identity and edited text. Repair permits at most 257 whole-project
+inspection passes (256 fixes plus a final inspection) and 16 MiB of cumulative
+project bytes. Every pass charges the main source plus all supplied filenames and
+file contents, including unchanged and unused modules. The next pass is reserved
+before applying its edit or refreshing module sources. Exhaustion returns `Steps`
+or `Memory`, respectively, with the current edited project, applied count and
+matching diagnostics. Remaining errors still make `ok` false. Nothing is written
+to disk.
 
 Compilation and JSON conversion have independent guards of 5,000,000 steps and
 16 MiB. The compiler's checker charges work after analysis, so this is **not a
-wall-clock deadline**. Formatting and repair are bounded by input size and repair
-count. Use a disposable Worker and terminate superseded checks or requests that
-exceed the website's wall-clock deadline. Debouncing checks belongs to the site.
+wall-clock deadline**. Formatting is bounded by input size; repair also has the
+cumulative byte and pass budgets above. These byte charges bound repeated source
+processing and copying, not actual heap usage. Use a disposable Worker and terminate
+superseded checks or requests that exceed the website's wall-clock deadline.
+Debouncing checks belongs to the site.
 
 ### In-memory modules
 

@@ -3,7 +3,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Value as Json, json, value::RawValue};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, hash_map::RandomState},
+    hash::BuildHasher,
     io::{self, Read, Write},
     sync::{Arc, Mutex},
 };
@@ -15,6 +16,47 @@ use vibescript::{
 
 const INPUT_LIMIT: usize = 1 << 20;
 const OUTPUT_LIMIT: usize = 64 << 10;
+const REPAIR_PASS_LIMIT: usize = 257;
+const REPAIR_BYTE_LIMIT: usize = 16 << 20;
+
+#[derive(Default)]
+struct RepairBudget {
+    passes: usize,
+    bytes: usize,
+    seen: BTreeSet<u64>,
+    hasher: RandomState,
+}
+
+impl RepairBudget {
+    fn reserve(&mut self, project_bytes: usize) -> vibescript::Result<()> {
+        if self.passes >= REPAIR_PASS_LIMIT {
+            return Err(Error::new(
+                ErrorKind::Steps,
+                "playground repair exceeds 257 inspection passes",
+            ));
+        }
+        if project_bytes > REPAIR_BYTE_LIMIT - self.bytes {
+            return Err(Error::new(
+                ErrorKind::Memory,
+                "playground repair exceeds 16777216 cumulative project bytes",
+            ));
+        }
+        self.passes += 1;
+        self.bytes += project_bytes;
+        Ok(())
+    }
+
+    fn remember(&mut self, file: Option<&str>, text: &str) -> bool {
+        // Hash the file identity too: identical edits in different modules are distinct.
+        self.seen.insert(self.hasher.hash_one((file, text)))
+    }
+}
+
+fn project_bytes(source: &str, files: &BTreeMap<String, String>) -> usize {
+    files.iter().fold(source.len(), |bytes, (name, text)| {
+        bytes.saturating_add(name.len()).saturating_add(text.len())
+    })
+}
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -379,10 +421,14 @@ fn execute(
         return Ok(());
     }
     let mut applied = 0;
-    let mut seen = BTreeSet::new();
+    let mut repair = RepairBudget::default();
+    let mut project_bytes = project_bytes(&request.source, &request.files);
+    if request.op == Operation::Fix {
+        repair.reserve(project_bytes)?;
+    }
     let script = loop {
-        let (script, diagnostics, error) = inspect(&engine, &request.source);
-        if request.op == Operation::Fix && applied < 256 {
+        let (script, diagnostics, mut error) = inspect(&engine, &request.source);
+        if request.op == Operation::Fix {
             // Apply one complete fix, then check the entire virtual project again:
             // offsets and dependent module types must always refer to the current text.
             let candidate = diagnostics.iter().find_map(|d| {
@@ -396,19 +442,30 @@ fn execute(
                     None => &request.source,
                 };
                 let next = fix.apply(text)?;
-                (next != *text).then(|| (file.map(str::to_owned), next))
+                (next != *text).then(|| (file.map(str::to_owned), text.len(), next))
             });
-            if let Some((file, next)) = candidate {
-                if seen.insert((file.clone(), next.clone())) {
-                    match file {
-                        Some(file) => {
-                            request.files.insert(file, next);
+            if let Some((file, previous_bytes, next)) = candidate {
+                if repair.remember(file.as_deref(), &next) {
+                    let next_bytes = project_bytes
+                        .saturating_sub(previous_bytes)
+                        .saturating_add(next.len());
+                    // Reserve the whole next inspection before changing text or copying
+                    // modules, so exhaustion returns diagnostics for the current project.
+                    match repair.reserve(next_bytes) {
+                        Ok(()) => {
+                            match file {
+                                Some(file) => {
+                                    request.files.insert(file, next);
+                                }
+                                None => request.source = next,
+                            }
+                            project_bytes = next_bytes;
+                            applied += 1;
+                            engine.set_module_sources(request.files.clone())?;
+                            continue;
                         }
-                        None => request.source = next,
+                        Err(limit) => error = Some(limit),
                     }
-                    applied += 1;
-                    engine.set_module_sources(request.files.clone())?;
-                    continue;
                 }
             }
         }

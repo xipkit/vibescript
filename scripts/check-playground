@@ -46,6 +46,16 @@ def main():
         fixed = invoke({"op": "fix", "source": error_source})
         assert fixed["ok"] and fixed["applied"] > 0, fixed
         assert invoke({"op": "run", "source": fixed["source"], "entry": "run"})["result"] == 2
+        repairs = "".join(f"def f{i} -> int\n [1][0] + 1\nend\n" for i in range(257))
+        for source, kind, maximum in [
+            (repairs, "Steps", 256),
+            ("# " + "padding " * 65536 + "\n" + repairs, "Memory", 31),
+        ]:
+            limited = invoke({"op": "fix", "source": source})
+            assert not limited["ok"] and limited["error"]["kind"] == kind, limited
+            assert 0 < limited["applied"] <= maximum, limited["applied"]
+            checked = invoke({"op": "check", "source": limited["source"]})
+            assert checked["diagnostics"] == limited["diagnostics"]
         formatted = invoke({"op": "format", "source": "1 + 2  \r\n\r\n"})
         assert formatted["source"] == "1 + 2\n", formatted
         preview = invoke({"op": "run", "source": 'email.send("a@b.c", "Hello", "Body")', "capabilities": [capability]})
