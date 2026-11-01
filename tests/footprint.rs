@@ -9,6 +9,8 @@ use vibescript::{CallOptions, Engine, Value};
 #[global_allocator]
 static ALLOCATOR: allocations::Counting = allocations::Counting;
 
+// The allocator counts every thread, including the harness's own as it
+// reports a finished test, so each measure runs from this one test.
 #[test]
 fn service_footprint_stays_bounded() {
     let before = allocations::snapshot();
@@ -74,5 +76,41 @@ fn service_footprint_stays_bounded() {
     assert!(
         after[2] <= before[2] + 4096,
         "calls retain buffers after a large result is dropped"
+    );
+
+    rescued_backtraces_escape_filenames_without_uncharged_copies();
+}
+
+fn rescued_backtraces_escape_filenames_without_uncharged_copies() {
+    // Each bell prints as `\u{7}`, as wide as five plain letters, so both
+    // names render the same number of bytes.
+    let escaped = format!("{}.vibe", "\x07".repeat(16 * 1024));
+    let plain = format!("{}.vibe", "a".repeat(5 * 16 * 1024));
+    let mut sources = std::collections::BTreeMap::new();
+    for name in [&escaped, &plain] {
+        sources.insert(name.clone(), "def fail\n  1 % 0\nend\n".to_owned());
+    }
+    let mut engine = Engine::new();
+    engine.set_module_sources(sources).unwrap();
+    let measure = |name: &str| {
+        let name = name.trim_end_matches(".vibe").replace('\x07', "\\a");
+        let script = engine
+            .compile(&format!(
+                "m = require(\"{name}\")\nbegin\n  m.fail\nrescue => e\n  e.backtrace.fetch(0).bytesize\nend\n"
+            ))
+            .unwrap();
+        let first = script.run(CallOptions::default()).unwrap();
+        let before = allocations::snapshot();
+        let output = script.run(CallOptions::default()).unwrap();
+        let bytes = allocations::snapshot()[1] - before[1];
+        assert_eq!(output.value.as_int(), first.value.as_int());
+        (first.value.as_int().unwrap(), bytes)
+    };
+    let (escaped_size, escaped_bytes) = measure(&escaped);
+    let (plain_size, plain_bytes) = measure(&plain);
+    assert_eq!(escaped_size, plain_size);
+    assert!(
+        escaped_bytes <= plain_bytes + 16 * 1024,
+        "escaping allocated {escaped_bytes} bytes against {plain_bytes}"
     );
 }

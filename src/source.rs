@@ -208,7 +208,7 @@ impl fmt::Display for Snippet<'_> {
             f,
             "\n {line} | {}{}{}\n ",
             if self.prefix { "..." } else { "" },
-            crate::diagnostic::escape_controls(text),
+            crate::diagnostic::Controls(text),
             if self.suffix { "..." } else { "" }
         )?;
         for _ in 0..line.checked_ilog10().unwrap_or(0) + 1 {
@@ -218,7 +218,7 @@ impl fmt::Display for Snippet<'_> {
         if self.prefix {
             f.write_str("   ")?;
         }
-        f.write_str(&crate::diagnostic::caret_padding(self.caret))?;
+        write!(f, "{}", crate::diagnostic::CaretPadding(self.caret))?;
         f.write_char('^')
     }
 }
@@ -235,7 +235,7 @@ pub(crate) struct Location<'a> {
 impl fmt::Display for Location<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(name) = self.filename {
-            f.write_str(&crate::diagnostic::escape_filename(name))?;
+            write!(f, "{}", crate::diagnostic::Filename(name))?;
             f.write_char(':')?;
         }
         write!(f, "{}:{}", self.position.line, self.position.column)

@@ -22,7 +22,7 @@
 //! assert!(diagnostic.render(source).starts_with("error[V0401]: `size` was removed\n  --> 2:11\n"));
 //! ```
 
-use std::{borrow::Cow, fmt, sync::Arc};
+use std::{borrow::Cow, fmt, fmt::Write as _, sync::Arc};
 
 /// A stable diagnostic code such as `V0101`.
 ///
@@ -536,7 +536,7 @@ impl Diagnostic {
             out.push_str(&format!(
                 "   |\n{line:>3}| {}\n   | {}{}\n",
                 escape_controls(text),
-                caret_padding(before),
+                CaretPadding(before),
                 "^".repeat(marked)
             ));
         }
@@ -668,15 +668,24 @@ pub fn escape_controls(text: &str) -> Cow<'_, str> {
     if !text.chars().any(|ch| ch.is_control() && ch != '\t') {
         return Cow::Borrowed(text);
     }
-    let mut out = String::with_capacity(text.len() + 8);
-    for ch in text.chars() {
-        if ch.is_control() && ch != '\t' {
-            out.extend(ch.escape_default());
-        } else {
-            out.push(ch);
+    Cow::Owned(Controls(text).to_string())
+}
+
+/// Writes `text` as [`escape_controls`] returns it, without building it
+/// first, for formatting whose output memory is charged to a call.
+pub(crate) struct Controls<'a>(pub &'a str);
+
+impl fmt::Display for Controls<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut rest = self.0;
+        while let Some(index) = rest.find(|ch: char| ch.is_control() && ch != '\t') {
+            f.write_str(&rest[..index])?;
+            let ch = rest[index..].chars().next().unwrap();
+            write!(f, "{}", ch.escape_default())?;
+            rest = &rest[index + ch.len_utf8()..];
         }
+        f.write_str(rest)
     }
-    Cow::Owned(out)
 }
 
 /// A filename as diagnostics print it. Like [`escape_controls`], but tabs
@@ -694,20 +703,30 @@ pub fn escape_filename(name: &[u8]) -> Cow<'_, str> {
     {
         return Cow::Borrowed(text);
     }
-    let mut out = String::with_capacity(name.len() + 8);
-    for chunk in name.utf8_chunks() {
-        for ch in chunk.valid().chars() {
-            if ch.is_control() || ch == '\\' {
-                out.extend(ch.escape_default());
-            } else {
-                out.push(ch);
+    Cow::Owned(Filename(name).to_string())
+}
+
+/// Writes a filename as [`escape_filename`] returns it, without building it
+/// first, for formatting whose output memory is charged to a call.
+pub(crate) struct Filename<'a>(pub &'a [u8]);
+
+impl fmt::Display for Filename<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for chunk in self.0.utf8_chunks() {
+            let mut rest = chunk.valid();
+            while let Some(index) = rest.find(|ch: char| ch.is_control() || ch == '\\') {
+                f.write_str(&rest[..index])?;
+                let ch = rest[index..].chars().next().unwrap();
+                write!(f, "{}", ch.escape_default())?;
+                rest = &rest[index + ch.len_utf8()..];
+            }
+            f.write_str(rest)?;
+            for byte in chunk.invalid() {
+                write!(f, "\\x{byte:02x}")?;
             }
         }
-        for byte in chunk.invalid() {
-            out.push_str(&format!("\\x{byte:02x}"));
-        }
+        Ok(())
     }
-    Cow::Owned(out)
 }
 
 /// How many characters `ch` takes once [`escape_controls`] has escaped it.
@@ -723,16 +742,21 @@ pub(crate) fn visible_width(ch: char) -> usize {
 /// the start of a source line, once that line is escaped: a tab for each
 /// tab, so that the terminal expands both alike, and a space for every other
 /// character shown.
-pub(crate) fn caret_padding(before: &str) -> String {
-    let mut out = String::with_capacity(before.len());
-    for ch in before.chars() {
-        if ch == '\t' {
-            out.push('\t');
-        } else {
-            out.extend(std::iter::repeat_n(' ', visible_width(ch)));
+pub(crate) struct CaretPadding<'a>(pub &'a str);
+
+impl fmt::Display for CaretPadding<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for ch in self.0.chars() {
+            if ch == '\t' {
+                f.write_char('\t')?;
+            } else {
+                for _ in 0..visible_width(ch) {
+                    f.write_char(' ')?;
+                }
+            }
         }
+        Ok(())
     }
-    out
 }
 
 fn boundary(source: &str, offset: usize) -> usize {
