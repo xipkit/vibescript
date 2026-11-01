@@ -270,7 +270,7 @@ mod retained_tests {
 
     struct InterruptDuringParse<'a> {
         work: Meter<'a>,
-        remaining: Cell<usize>,
+        remaining_steps: Cell<usize>,
         token: CancellationToken,
     }
 
@@ -279,14 +279,14 @@ mod retained_tests {
             self.work.budget()
         }
         fn charge(&self, steps: usize) -> Result<()> {
-            self.work.charge(steps)
-        }
-        fn bytes(&self, bytes: usize) -> Result<()> {
-            let left = self.remaining.get().saturating_sub(bytes);
-            self.remaining.set(left);
+            let left = self.remaining_steps.get().saturating_sub(steps);
+            self.remaining_steps.set(left);
             if left == 0 {
                 self.token.cancel();
             }
+            self.work.charge(steps)
+        }
+        fn bytes(&self, bytes: usize) -> Result<()> {
             self.work.bytes(bytes)
         }
         fn checkpoint(&self) -> Result<()> {
@@ -356,12 +356,13 @@ mod retained_tests {
         });
         let work = InterruptDuringParse {
             work: Meter(RefCell::new(&mut context)),
-            remaining: Cell::new(1024),
+            // Scanning the padding comment spends steps on every pointer width.
+            remaining_steps: Cell::new(1024),
             token,
         };
         let error = crate::declared::Declaration::retained_value("A", value, &work).unwrap_err();
         assert_eq!(error.kind, ErrorKind::Cancelled);
-        assert_eq!(work.remaining.get(), 0);
+        assert_eq!(work.remaining_steps.get(), 0);
         assert!(context.stats().steps > 0);
         // This API accepts only the namespace/enum preparation needed by sessions.
         assert_eq!(
