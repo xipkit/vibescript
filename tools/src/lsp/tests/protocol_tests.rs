@@ -116,6 +116,62 @@ fn serves_a_session_over_framed_streams() {
 }
 
 #[test]
+fn framed_sessions_enforce_document_limits_and_recover_after_close() {
+    let uris: Vec<_> = (0..64)
+        .map(|index| format!("untitled:{index:02}"))
+        .collect();
+    let mut messages: Vec<_> = uris
+        .iter()
+        .map(|uri| json!({"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": uri, "text": ""}}}))
+        .collect();
+    messages.push(json!({"jsonrpc": "2.0", "method": "textDocument/didClose", "params": {"textDocument": {"uri": uris[0]}}}));
+    messages.push(json!({"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": uris[2], "text": ""}}}));
+    messages.push(json!({"jsonrpc": "2.0", "id": 1, "method": "shutdown"}));
+    messages.push(json!({"jsonrpc": "2.0", "method": "exit"}));
+    let bytes = 2 * (2 * uris[0].len() + std::mem::size_of::<String>());
+    for (max_documents, max_document_bytes, reason) in [
+        (Some(2), None, "open document count limit exceeded"),
+        (
+            None,
+            Some(bytes),
+            "aggregate document storage limit exceeded",
+        ),
+    ] {
+        let mut server = Server::with_options(Options {
+            max_documents,
+            max_document_bytes,
+            ..Options::default()
+        });
+        let mut output = Vec::new();
+        serve(
+            &mut server,
+            Cursor::new(framed(&messages)),
+            &mut output,
+            &CancellationToken::new(),
+        )
+        .unwrap();
+        let replies = decode(&output);
+        assert_eq!(replies.len(), 67);
+        assert_eq!(replies[0]["params"]["diagnostics"], json!([]));
+        assert_eq!(replies[1]["params"]["diagnostics"], json!([]));
+        for reply in &replies[2..64] {
+            assert_eq!(reply["params"]["diagnostics"][0]["message"], reason);
+        }
+        assert_eq!(replies[64]["params"]["diagnostics"], json!([]));
+        assert_eq!(replies[65]["params"]["diagnostics"], json!([]));
+        assert_eq!(
+            replies[66],
+            json!({"jsonrpc": "2.0", "id": 1, "result": null})
+        );
+        assert!(server.document(&uris[0]).is_none());
+        assert!(server.document(&uris[1]).is_some());
+        assert!(server.document(&uris[2]).is_some());
+        assert!(server.document(&uris[3]).is_none());
+        assert!(server.exit_requested());
+    }
+}
+
+#[test]
 fn skips_malformed_and_oversized_messages() {
     let mut input = b"Content-Length: 9\r\n\r\nnot json!".to_vec();
     input.extend(framed(&[json!([1, 2])]));
