@@ -169,6 +169,8 @@ vibes fix [--dry-run] <file or directory>...
 
 Each applied fix prints on stdout as `path:line:column: fixed V0401: message`, at its position in the text of the round that fixed it, and each diagnostic left afterwards as `path:line:column: error[V0405]: message`. A summary goes to stderr, and the command fails with `vibes fix: N error(s) remain` when errors remain, including a file that does not parse. `--dry-run` writes nothing and prints the changes as a unified diff before the report.
 
+Directory operands select regular `.vibe` files recursively, skipping symbolic links to files and directories. Explicit file operands accept any extension and authorize their target, including a linked target; an explicitly selected linked directory is walked as a root. Reports preserve operand order, explicit path spelling and directory-relative names. The fixer shares the formatter's file access and in-place writes, preserving file identity, permissions and hard links. Native Unix builds confine recursive opens through directory handles and check each file's identity before reading or writing. Dry runs use the same reads.
+
 ## `vibes repl`
 
 ```sh
