@@ -199,11 +199,16 @@ impl fmt::Display for Snippet<'_> {
         } else {
             write!(f, "line {line}, column {column}")?;
         }
+        // A CRLF line ends in a carriage return that the escaping would show.
+        let text = match self.text.strip_suffix('\r') {
+            Some(text) if !self.suffix => text,
+            _ => self.text,
+        };
         write!(
             f,
             "\n {line} | {}{}{}\n ",
             if self.prefix { "..." } else { "" },
-            self.text,
+            crate::diagnostic::escape_controls(text),
             if self.suffix { "..." } else { "" }
         )?;
         for _ in 0..line.checked_ilog10().unwrap_or(0) + 1 {
@@ -213,9 +218,7 @@ impl fmt::Display for Snippet<'_> {
         if self.prefix {
             f.write_str("   ")?;
         }
-        for ch in self.caret.chars() {
-            f.write_char(if ch == '\t' { '\t' } else { ' ' })?;
-        }
+        f.write_str(&crate::diagnostic::caret_padding(self.caret))?;
         f.write_char('^')
     }
 }
@@ -231,30 +234,8 @@ pub(crate) struct Location<'a> {
 
 impl fmt::Display for Location<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(mut bytes) = self.filename {
-            while !bytes.is_empty() {
-                let (text, invalid) = match std::str::from_utf8(bytes) {
-                    Ok(text) => (text, 0),
-                    Err(error) => (
-                        std::str::from_utf8(&bytes[..error.valid_up_to()]).unwrap(),
-                        error
-                            .error_len()
-                            .unwrap_or(bytes.len() - error.valid_up_to()),
-                    ),
-                };
-                for ch in text.chars() {
-                    if ch.is_control() || ch == '\\' {
-                        write!(f, "{}", ch.escape_default())?;
-                    } else {
-                        f.write_char(ch)?;
-                    }
-                }
-                bytes = &bytes[text.len()..];
-                for byte in &bytes[..invalid] {
-                    write!(f, "\\x{byte:02x}")?;
-                }
-                bytes = &bytes[invalid..];
-            }
+        if let Some(name) = self.filename {
+            f.write_str(&crate::diagnostic::escape_filename(name))?;
             f.write_char(':')?;
         }
         write!(f, "{}:{}", self.position.line, self.position.column)
@@ -458,11 +439,30 @@ mod tests {
         let source = Source::new("first\r\n\tα / 0\r\n");
         assert_eq!(
             source.frame(11),
-            "  --> line 2, column 4\n 2 | \tα / 0\r\n   | \t  ^"
+            "  --> line 2, column 4\n 2 | \tα / 0\n   | \t  ^"
         );
         assert_eq!(
             source.frame(u32::MAX),
             "  --> line 3, column 1\n 3 | \n   | ^"
+        );
+    }
+
+    #[test]
+    fn code_frames_escape_terminal_controls_and_keep_the_caret_aligned() {
+        let text = "x = 1\r\n\t\"\x1b]0;t\x07\u{9b}é\"\t+ y\r\nz\n";
+        let source = Source::new(text);
+        let expected = "  --> line 2, column 13\n 2 | \t\"\\u{1b}]0;t\\u{7}\\u{9b}é\"\t+ y\n   | \t                        \t^";
+        let offset = text.find('+').unwrap() as u32;
+        assert_eq!(source.frame(offset), expected);
+        let mut ctx = CallContext::new(crate::CallOptions::default());
+        let (frame, _charge) = source
+            .frame_metered(&mut ctx, offset, source.position(offset))
+            .unwrap();
+        assert_eq!(frame, expected);
+        // Only a carriage return that ends the line is dropped.
+        assert_eq!(
+            Source::new("a\rb + 1").frame(4),
+            "  --> line 1, column 5\n 1 | a\\rb + 1\n   |      ^"
         );
     }
 }

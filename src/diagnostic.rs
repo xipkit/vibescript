@@ -22,7 +22,7 @@
 //! assert!(diagnostic.render(source).starts_with("error[V0401]: `size` was removed\n  --> 2:11\n"));
 //! ```
 
-use std::{fmt, sync::Arc};
+use std::{borrow::Cow, fmt, sync::Arc};
 
 /// A stable diagnostic code such as `V0101`.
 ///
@@ -280,10 +280,7 @@ impl Span {
 }
 
 fn position(source: &str, offset: usize) -> crate::Position {
-    let mut offset = offset.min(source.len());
-    while !source.is_char_boundary(offset) {
-        offset -= 1;
-    }
+    let offset = boundary(source, offset);
     let before = &source[..offset];
     let line_start = before.rfind('\n').map_or(0, |index| index + 1);
     crate::Position {
@@ -510,48 +507,61 @@ impl Diagnostic {
 
     /// Renders the diagnostic for a terminal, with the source line it points
     /// at, its labels, types and fixes. `source` is the text the spans index.
+    /// Control characters in the source, messages and filenames are escaped
+    /// as [`escape_controls`] and [`escape_filename`] do.
     pub fn render(&self, source: &str) -> String {
         let source = self.source.as_deref().unwrap_or(source);
         let mut out = format!(
             "{}[{}]: {}\n",
             self.severity.as_str(),
             self.code,
-            self.message
+            escape_controls(&self.message)
         );
         let crate::Position { line, column } = self.span.position(source);
         let file = self
             .file
             .as_deref()
-            .map(|name| format!("{}:", String::from_utf8_lossy(name)))
+            .map(|name| format!("{}:", escape_filename(name)))
             .unwrap_or_default();
         out.push_str(&format!("  --> {file}{line}:{column}\n"));
         if let Some(text) = source.lines().nth(line - 1) {
+            let start = boundary(source, self.span.start);
+            let before = &source[source[..start].rfind('\n').map_or(0, |index| index + 1)..start];
             let width = self.span.end.min(line_end(source, self.span.start)) - self.span.start;
             let marked = source
                 .get(self.span.start..self.span.start + width)
-                .map_or(1, |text| text.chars().count().max(1));
+                .map_or(1, |text| {
+                    text.chars().map(visible_width).sum::<usize>().max(1)
+                });
             out.push_str(&format!(
-                "   |\n{line:>3}| {text}\n   | {}{}\n",
-                " ".repeat(column - 1),
+                "   |\n{line:>3}| {}\n   | {}{}\n",
+                escape_controls(text),
+                caret_padding(before),
                 "^".repeat(marked)
             ));
         }
         if let (Some(expected), Some(found)) = (&self.expected, &self.found) {
-            out.push_str(&format!("   = expected {expected}, found {found}\n"));
+            out.push_str(&format!(
+                "   = expected {}, found {}\n",
+                escape_controls(expected),
+                escape_controls(found)
+            ));
         }
         for label in &self.labels {
             let position = label.span.position(source);
             let place = match &label.file {
-                Some(name) => format!("{}:", String::from_utf8_lossy(name)),
+                Some(name) => format!("{}:", escape_filename(name)),
                 None => String::new(),
             };
             out.push_str(&format!(
                 "   = note: {} ({place}{}:{})\n",
-                label.message, position.line, position.column
+                escape_controls(&label.message),
+                position.line,
+                position.column
             ));
         }
         for fix in &self.fixes {
-            out.push_str(&format!("   = fix: {}\n", fix.message));
+            out.push_str(&format!("   = fix: {}\n", escape_controls(&fix.message)));
         }
         out
     }
@@ -640,6 +650,97 @@ impl fmt::Display for Diagnostic {
             self.message
         )
     }
+}
+
+/// Escapes the control characters in `text` so that printing it to a
+/// terminal shows it rather than obeys it: a script or a filename could
+/// otherwise carry sequences that recolor the screen, retitle the window,
+/// forge a link or rewrite the clipboard. Each control character but tab
+/// (C0, DEL and C1) becomes a visible escape such as `\u{1b}` or `\r`.
+/// Tabs are kept so that source keeps its layout, and other Unicode text is
+/// unchanged.
+///
+/// ```
+/// use vibescript::diagnostic::escape_controls;
+/// assert_eq!(escape_controls("x = \"\x1b[31m\u{9b}é\"\t# ok"), "x = \"\\u{1b}[31m\\u{9b}é\"\t# ok");
+/// ```
+pub fn escape_controls(text: &str) -> Cow<'_, str> {
+    if !text.chars().any(|ch| ch.is_control() && ch != '\t') {
+        return Cow::Borrowed(text);
+    }
+    let mut out = String::with_capacity(text.len() + 8);
+    for ch in text.chars() {
+        if ch.is_control() && ch != '\t' {
+            out.extend(ch.escape_default());
+        } else {
+            out.push(ch);
+        }
+    }
+    Cow::Owned(out)
+}
+
+/// A filename as diagnostics print it. Like [`escape_controls`], but tabs
+/// and backslashes are escaped too and each invalid UTF-8 byte reads `\xNN`,
+/// so that different names never print alike. Structured output such as
+/// [`Diagnostic::to_json`] keeps the name's own text.
+///
+/// ```
+/// use vibescript::diagnostic::escape_filename;
+/// assert_eq!(escape_filename(b"lib\\a\x07\xff.vibe"), "lib\\\\a\\u{7}\\xff.vibe");
+/// ```
+pub fn escape_filename(name: &[u8]) -> Cow<'_, str> {
+    if let Ok(text) = std::str::from_utf8(name)
+        && !text.chars().any(|ch| ch.is_control() || ch == '\\')
+    {
+        return Cow::Borrowed(text);
+    }
+    let mut out = String::with_capacity(name.len() + 8);
+    for chunk in name.utf8_chunks() {
+        for ch in chunk.valid().chars() {
+            if ch.is_control() || ch == '\\' {
+                out.extend(ch.escape_default());
+            } else {
+                out.push(ch);
+            }
+        }
+        for byte in chunk.invalid() {
+            out.push_str(&format!("\\x{byte:02x}"));
+        }
+    }
+    Cow::Owned(out)
+}
+
+/// How many characters `ch` takes once [`escape_controls`] has escaped it.
+pub(crate) fn visible_width(ch: char) -> usize {
+    if ch.is_control() && ch != '\t' {
+        ch.escape_default().count()
+    } else {
+        1
+    }
+}
+
+/// The run of blanks that lines a caret up under the text after `before`,
+/// the start of a source line, once that line is escaped: a tab for each
+/// tab, so that the terminal expands both alike, and a space for every other
+/// character shown.
+pub(crate) fn caret_padding(before: &str) -> String {
+    let mut out = String::with_capacity(before.len());
+    for ch in before.chars() {
+        if ch == '\t' {
+            out.push('\t');
+        } else {
+            out.extend(std::iter::repeat_n(' ', visible_width(ch)));
+        }
+    }
+    out
+}
+
+fn boundary(source: &str, offset: usize) -> usize {
+    let mut offset = offset.min(source.len());
+    while !source.is_char_boundary(offset) {
+        offset -= 1;
+    }
+    offset
 }
 
 fn line_end(source: &str, offset: usize) -> usize {
@@ -777,6 +878,91 @@ mod tests {
         assert!(
             rendered.contains("  2| y = \"é\" + 1\n   |     ^^^^^^^\n"),
             "{rendered}"
+        );
+    }
+
+    /// Terminal controls a script could hide in its text: OSC title and
+    /// hyperlink sequences ended by BEL, a CSI color, an 8-bit CSI (C1), DEL,
+    /// NUL and a lone carriage return.
+    const CONTROLS: &str = "\x1b]0;title\x07\x1b]8;;http://x\x07\x1b[31m\u{9b}2J\x7f\0\r";
+    const ESCAPED: &str =
+        "\\u{1b}]0;title\\u{7}\\u{1b}]8;;http://x\\u{7}\\u{1b}[31m\\u{9b}2J\\u{7f}\\u{0}\\r";
+
+    #[test]
+    fn controls_are_escaped_visibly_and_other_text_is_kept() {
+        assert_eq!(escape_controls(CONTROLS), ESCAPED);
+        assert!(matches!(
+            escape_controls("é 日本 🐈 \\x1b\t"),
+            Cow::Borrowed("é 日本 🐈 \\x1b\t")
+        ));
+        assert_eq!(
+            escape_filename(b"a\\b\t\x1b[2J\xc2\x9b\xff.vibe"),
+            "a\\\\b\\t\\u{1b}[2J\\u{9b}\\xff.vibe"
+        );
+        assert!(matches!(
+            escape_filename("pkg/日本.vibe".as_bytes()),
+            Cow::Borrowed("pkg/日本.vibe")
+        ));
+        for ch in CONTROLS.chars() {
+            assert_eq!(
+                visible_width(ch),
+                escape_controls(&ch.to_string()).chars().count()
+            );
+        }
+    }
+
+    #[test]
+    fn render_escapes_controls_and_keeps_the_caret_under_the_span() {
+        let source = format!("x = 1\n\t\"{CONTROLS}é\"\t+ 1\n");
+        let start = source.find('+').unwrap();
+        let diagnostic = Diagnostic::error(
+            Code::NO_OPERATOR,
+            Span::new(start, start + 1),
+            "no `+` for \"\x1b[2J\"",
+        )
+        .with_types("string\x07", "int\u{9b}")
+        .with_label(Span::new(0, 1), "declared \x1b]0;x\x07here")
+        .with_fix(Fix::replace(
+            "drop \x1b[31m",
+            Span::new(start, start + 1),
+            "-",
+        ));
+        let mut diagnostic = diagnostic;
+        diagnostic.file = Some(Arc::from(&b"lib/\x1b]8;;x\x07a\\b\xff.vibe"[..]));
+        diagnostic.labels[0].file = Some(Arc::from(&b"\x1b[1mother.vibe"[..]));
+        let rendered = diagnostic.render(&source);
+        assert_eq!(
+            rendered,
+            format!(
+                "error[V0108]: no `+` for \"\\u{{1b}}[2J\"\n  \
+                 --> lib/\\u{{1b}}]8;;x\\u{{7}}a\\\\b\\xff.vibe:2:{column}\n   \
+                 |\n  2| \t\"{ESCAPED}é\"\t+ 1\n   \
+                 | \t{pad}\t^\n   \
+                 = expected string\\u{{7}}, found int\\u{{9b}}\n   \
+                 = note: declared \\u{{1b}}]0;x\\u{{7}}here (\\u{{1b}}[1mother.vibe:1:1)\n   \
+                 = fix: drop \\u{{1b}}[31m\n",
+                column = CONTROLS.chars().count() + 6,
+                pad = " ".repeat(ESCAPED.len() + 3),
+            )
+        );
+        assert!(
+            !rendered
+                .chars()
+                .any(|ch| ch.is_control() && ch != '\n' && ch != '\t'),
+            "{rendered:?}"
+        );
+    }
+
+    #[test]
+    fn render_marks_an_escaped_span_with_one_caret_per_shown_character() {
+        let source = "x = \"\x1b[1m\" + 1\n";
+        let diagnostic = Diagnostic::error(Code::NO_OPERATOR, Span::new(4, 10), "no `+`");
+        assert!(
+            diagnostic
+                .render(source)
+                .ends_with("  1| x = \"\\u{1b}[1m\" + 1\n   |     ^^^^^^^^^^^\n"),
+            "{}",
+            diagnostic.render(source)
         );
     }
 }
