@@ -1,5 +1,5 @@
 use super::{ModuleConfig, test_support::Directory};
-use crate::{CallOptions, Engine, ErrorKind, Value};
+use crate::{CallOptions, Engine, Value};
 
 fn engine(directory: &Directory, deny: Vec<String>) -> Engine {
     let mut engine = Engine::new();
@@ -28,40 +28,63 @@ fn foreign_request(producer: &Engine, literal: &str) -> Value {
         .value
 }
 
-#[cfg(windows)]
 #[test]
-fn foreign_require_rejects_invalid_utf8_before_opening_a_denied_replacement_name() {
+fn public_compilation_rejects_invalid_utf8_module_literals() {
     let directory = Directory::new();
     directory.write("blocked�.vibe", b"def value -> string;\"secret\";end");
     directory.write("blocked���.vibe", b"def value -> string;\"secret\";end");
     let producer = engine(&directory, vec![]);
-    let receiver = engine(&directory, vec!["blocked�".into(), "blocked���".into()])
-        .compile(r##"def render(input: any) -> string;"#{input}";end"##)
-        .unwrap();
     for literal in [
         r"blocked\xff",
         r"blocked\x80",
         r"blocked\xc3",
         r"blocked\xed\xa0\x80",
     ] {
-        let input = foreign_request(&producer, literal);
-        for _ in 0..2 {
-            let error = receiver
-                .call(
-                    "render",
-                    std::slice::from_ref(&input),
-                    CallOptions {
-                        allow_require: true,
-                        ..CallOptions::default()
-                    },
-                )
-                .unwrap_err();
-            assert_eq!(error.kind, ErrorKind::Argument, "{literal}: {error}");
-            assert!(
-                error.message.contains("module name must be UTF-8"),
-                "{error}"
-            );
-        }
+        let error = producer
+            .compile(&format!(
+                "class Probe;def to_s -> string;require(\"{literal}\").value;end;end;Probe.new"
+            ))
+            .err()
+            .unwrap();
+        assert!(error.message.contains("V0309"), "{literal}: {error}");
+    }
+}
+
+fn read_bytes(
+    resolver: &super::resolver::Resolver,
+    input: &[u8],
+) -> crate::Result<Option<super::files::Source>> {
+    let mut context = crate::CallContext::new(CallOptions::default());
+    let mut candidates = resolver.candidates(&mut context, input, None)?;
+    let candidate = candidates.next(&mut context)?.unwrap();
+    resolver.read(&mut context, &candidate)
+}
+
+#[cfg(windows)]
+#[test]
+fn invalid_module_bytes_cannot_open_a_denied_replacement_name() {
+    let directory = Directory::new();
+    directory.write("blocked�.vibe", b"secret");
+    directory.write("blocked���.vibe", b"secret");
+    let resolver = super::resolver::Resolver::new(
+        &[directory.0.clone()],
+        &["*".into()],
+        &["blocked�".into(), "blocked���".into()],
+        100,
+    )
+    .unwrap();
+    for input in [
+        b"blocked\xff".as_slice(),
+        b"blocked\x80",
+        b"blocked\xc3",
+        b"blocked\xed\xa0\x80",
+    ] {
+        let error = read_bytes(&resolver, input).unwrap_err();
+        assert_eq!(error.kind, crate::ErrorKind::Argument);
+        assert!(
+            error.message.contains("module name must be UTF-8"),
+            "{error}"
+        );
     }
 }
 
@@ -128,6 +151,34 @@ fn foreign_require_keeps_unicode_symlinks_confined_to_the_module_root() {
             },
         )
         .unwrap_err();
-    assert_eq!(error.kind, ErrorKind::Runtime);
+    assert_eq!(error.kind, crate::ErrorKind::Runtime);
     assert!(error.message.contains("escapes module root"), "{error}");
+}
+
+#[cfg(any(unix, target_os = "wasi"))]
+#[test]
+fn resolver_preserves_native_filename_bytes() {
+    #[cfg(unix)]
+    use std::os::unix::ffi::OsStrExt;
+    #[cfg(target_os = "wasi")]
+    use std::os::wasi::ffi::OsStrExt;
+
+    let directory = Directory::new();
+    directory.write("raw�.vibe", b"replacement");
+    std::fs::write(
+        directory
+            .0
+            .join(std::ffi::OsStr::from_bytes(b"raw\xff.vibe")),
+        b"raw",
+    )
+    .unwrap();
+    let resolver = super::resolver::Resolver::new(
+        &[directory.0.clone()],
+        &["*".into()],
+        &["raw�".into()],
+        100,
+    )
+    .unwrap();
+    let source = read_bytes(&resolver, b"raw\xff").unwrap().unwrap();
+    assert_eq!(source.contents.as_bytes(), Some(b"raw".as_slice()));
 }
