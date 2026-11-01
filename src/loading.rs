@@ -255,6 +255,9 @@ impl Loader {
 #[cfg(test)]
 pub(crate) mod test_support;
 
+#[cfg(test)]
+mod encoding_tests;
+
 pub(crate) struct Name {
     pub normalized: Value,
     pub relative: bool,
