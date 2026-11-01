@@ -8,14 +8,11 @@
 //! unified diff.
 
 use crate::{
-    compat,
+    files::{self, Selection},
     flags::{self, Flag, Kind, Outcome, Spec},
     output::Sink,
 };
-use std::{
-    ffi::OsString,
-    path::{Path, PathBuf},
-};
+use std::ffi::OsString;
 use vibescript::{Engine, diagnostic::Diagnostic};
 use vibescript_tools::{diff::unified_diff, fix};
 
@@ -44,12 +41,8 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
         return Err("vibes fix: file or directory required".to_owned());
     }
     let dry_run = flags.bool("dry-run");
-    let mut files = Vec::new();
-    for positional in &flags.positionals {
-        let path = PathBuf::from(positional);
-        collect(&path, &path, &mut files)
-            .map_err(|error| format!("collect {}: {error}", path.display()))?;
-    }
+    let mut inputs = files::collect(&flags.positionals, Selection::Fix)
+        .map_err(|error| format!("collect files: {error}"))?;
     let engine = Engine::new();
     // A syntax error that carries a coded diagnostic, such as a hash
     // argument without parentheses, may have a fix too.
@@ -61,9 +54,13 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
     let mut report = String::new();
     let mut diff = String::new();
     let (mut fixes, mut changed_files, mut errors) = (0, 0, 0);
-    for (path, label) in &files {
-        let source = std::fs::read_to_string(path)
-            .map_err(|error| format!("read {}: {}", path.display(), compat::reason(&error)))?;
+    for index in 0..inputs.files.len() {
+        let label = inputs.files[index].label.clone();
+        let (data, info) = inputs
+            .read(index)
+            .map_err(|error| format!("read {label}: {error}"))?;
+        let source = String::from_utf8(data)
+            .map_err(|_| format!("read {label}: stream did not contain valid UTF-8"))?;
         let fixed = match fix::fix(&source, check) {
             Ok(fixed) => fixed,
             Err(error) => {
@@ -80,7 +77,7 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
             ));
         }
         for diagnostic in &fixed.remaining {
-            report.push_str(&remaining(label, diagnostic, &fixed.source));
+            report.push_str(&remaining(&label, diagnostic, &fixed.source));
             errors += usize::from(diagnostic.is_error());
         }
         fixes += fixed.applied.len();
@@ -89,10 +86,11 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
         }
         changed_files += 1;
         if dry_run {
-            diff.push_str(&unified_diff(label, &source, &fixed.source));
+            diff.push_str(&unified_diff(&label, &source, &fixed.source));
         } else {
-            std::fs::write(path, &fixed.source)
-                .map_err(|error| format!("write {}: {}", path.display(), compat::reason(&error)))?;
+            inputs
+                .write(index, &info, fixed.source.as_bytes())
+                .map_err(|error| format!("write {label}: {error}"))?;
         }
     }
     Sink::Stdout
@@ -118,32 +116,6 @@ fn remaining(label: &str, diagnostic: &Diagnostic, source: &str) -> String {
     let position = diagnostic.span.position(source);
     let place = format!("{label}:{}:{}", position.line, position.column);
     format!("{place}: {diagnostic}\n")
-}
-
-/// Lists the `.vibe` files under `path` in order, with their names relative to `root`.
-fn collect(root: &Path, path: &Path, out: &mut Vec<(PathBuf, String)>) -> std::io::Result<()> {
-    if path.is_dir() {
-        let mut entries: Vec<PathBuf> = std::fs::read_dir(path)?
-            .map(|entry| entry.map(|entry| entry.path()))
-            .collect::<Result<_, _>>()?;
-        entries.sort();
-        for entry in entries {
-            if entry.is_dir() || entry.extension().is_some_and(|e| e == "vibe") {
-                collect(root, &entry, out)?;
-            }
-        }
-        return Ok(());
-    }
-    let label = if root.is_dir() {
-        path.strip_prefix(root)
-            .unwrap_or(path)
-            .to_string_lossy()
-            .replace('\\', "/")
-    } else {
-        path.to_string_lossy().into_owned()
-    };
-    out.push((path.to_owned(), label));
-    Ok(())
 }
 
 /// Moves flags ahead of the paths, so they may follow them as well.

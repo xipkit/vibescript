@@ -4,10 +4,9 @@
 //! discovers files, prints, checks or rewrites them, and reports as the
 //! reference does. It works on bytes, so invalid UTF-8 passes through unchanged.
 
-mod files;
-
 use crate::{
     compat,
+    files::{self, Selection},
     flags::{self, Flag, Kind, Outcome, Spec},
 };
 use std::{
@@ -48,8 +47,8 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
         return Err("vibes fmt: path required".to_owned());
     }
     let (write, check) = (flags.bool("w"), flags.bool("check"));
-    let mut inputs =
-        files::collect(&flags.positionals).map_err(|error| format!("collect files: {error}"))?;
+    let mut inputs = files::collect(&flags.positionals, Selection::Format)
+        .map_err(|error| format!("collect files: {error}"))?;
     let mut changed = 0;
     for index in 0..inputs.files.len() {
         let path = inputs.files[index].path.clone();

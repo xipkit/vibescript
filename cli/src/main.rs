@@ -5,6 +5,7 @@
 mod analyze;
 mod check;
 mod compat;
+mod files;
 mod fix;
 mod flags;
 mod flat;

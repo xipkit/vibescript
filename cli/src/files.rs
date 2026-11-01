@@ -1,10 +1,10 @@
-//! File discovery and safe rewriting for `vibes fmt`, following the reference.
+//! Shared file discovery and safe rewriting for `vibes fmt` and `vibes fix`.
 //!
 //! A directory operand is opened as a root handle and walked without
 //! following symbolic links: only regular `.vibe` files are candidates, and
 //! linked files and directories are skipped. Candidates are later opened
 //! through that handle, which refuses paths that escape the root. An explicit
-//! file operand authorizes its target, so a linked operand is formatted where
+//! file operand authorizes its target, so a linked operand is rewritten where
 //! it points and the link itself is kept.
 //!
 //! Every read and write checks that the opened file is still the regular file
@@ -25,7 +25,16 @@ use std::{
 
 const MAX_OPEN_ROOTS: usize = 8;
 
-/// Discovered candidates, sorted by path, and the roots they belong to.
+/// Command-specific operand filtering and ordering.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Selection {
+    /// Only `.vibe` operands, deduplicated and sorted by absolute path bytes.
+    Format,
+    /// All explicit files, preserving operand order and sorted tree traversal.
+    Fix,
+}
+
+/// Discovered candidates and the roots they belong to.
 pub struct Inputs {
     pub files: Vec<Candidate>,
     roots: Vec<Root>,
@@ -40,6 +49,8 @@ pub struct Candidate {
     name: PathBuf,
     /// The absolute path reported in messages and used for ordering.
     pub path: PathBuf,
+    /// The explicit operand spelling or the path relative to its directory operand.
+    pub label: String,
     identity: Identity,
 }
 
@@ -88,8 +99,9 @@ impl Identity {
     }
 }
 
-/// Collects the regular `.vibe` files named by or under the operands.
-pub fn collect(targets: &[OsString]) -> Result<Inputs, String> {
+/// Collects regular files according to the command's operand policy.
+/// Recursive discovery only includes `.vibe` files and never follows links.
+pub fn collect(targets: &[OsString], selection: Selection) -> Result<Inputs, String> {
     let mut inputs = Inputs {
         files: Vec::new(),
         roots: Vec::new(),
@@ -99,8 +111,13 @@ pub fn collect(targets: &[OsString]) -> Result<Inputs, String> {
     let mut seen = std::collections::HashSet::new();
     for target in targets {
         let label = target.to_string_lossy();
-        let path = compat::absolute(Path::new(target))
-            .map_err(|error| format!("resolve {label}: {}", compat::reason(&error)))?;
+        let path = match selection {
+            Selection::Format => compat::absolute(Path::new(target)),
+            // Fix operands have always used filesystem resolution, including
+            // `link/..`; lexical cleaning can select a different target.
+            Selection::Fix => fs::canonicalize(target),
+        }
+        .map_err(|error| format!("resolve {label}: {}", compat::reason(&error)))?;
         let metadata = fs::metadata(&path).map_err(|error| {
             format!(
                 "stat {label}: {}",
@@ -108,7 +125,7 @@ pub fn collect(targets: &[OsString]) -> Result<Inputs, String> {
             )
         })?;
         if !metadata.is_dir() {
-            if !is_vibe(&path) {
+            if selection == Selection::Format && !is_vibe(&path) {
                 continue;
             }
             if !metadata.is_file() {
@@ -122,11 +139,12 @@ pub fn collect(targets: &[OsString]) -> Result<Inputs, String> {
                     compat::path_error("lstat", &path, &error)
                 )
             })?;
-            if seen.insert(path.clone()) {
+            if selection == Selection::Fix || seen.insert(path.clone()) {
                 inputs.files.push(Candidate {
                     root: None,
                     name: resolved,
                     path,
+                    label: label.into_owned(),
                     identity: Identity::of(&metadata),
                 });
             }
@@ -143,15 +161,21 @@ pub fn collect(targets: &[OsString]) -> Result<Inputs, String> {
                 inputs.roots.len() - 1
             }
         };
-        let walked = inputs.walk(root).map_err(|error| match error {
+        let mut walked = inputs.walk(root, selection).map_err(|error| match error {
             Walk::Open(error) => error,
             Walk::Entry(error) => format!("walk {label}: {error}"),
         })?;
+        // Component ordering keeps a directory's descendants ahead of a sibling
+        // such as `b.vibe`, matching the fixer's sorted depth-first traversal.
+        if selection == Selection::Fix {
+            walked.sort_by(|a, b| a.0.cmp(&b.0));
+        }
         for (name, identity) in walked {
             let joined = path.join(&name);
-            if seen.insert(joined.clone()) {
+            if selection == Selection::Fix || seen.insert(joined.clone()) {
                 inputs.files.push(Candidate {
                     root: Some(root),
+                    label: name.to_string_lossy().replace('\\', "/"),
                     name,
                     path: joined,
                     identity,
@@ -159,9 +183,11 @@ pub fn collect(targets: &[OsString]) -> Result<Inputs, String> {
             }
         }
     }
-    inputs
-        .files
-        .sort_by(|a, b| compat::bytes(a.path.as_os_str()).cmp(&compat::bytes(b.path.as_os_str())));
+    if selection == Selection::Format {
+        inputs.files.sort_by(|a, b| {
+            compat::bytes(a.path.as_os_str()).cmp(&compat::bytes(b.path.as_os_str()))
+        });
+    }
     Ok(inputs)
 }
 
@@ -178,7 +204,11 @@ enum Walk {
 
 impl Inputs {
     /// Walks a root without following links, returning regular `.vibe` files.
-    fn walk(&mut self, root: usize) -> Result<Vec<(PathBuf, Identity)>, Walk> {
+    fn walk(
+        &mut self,
+        root: usize,
+        selection: Selection,
+    ) -> Result<Vec<(PathBuf, Identity)>, Walk> {
         let handle = self.handle(root).map_err(Walk::Open)?;
         let mut found = Vec::new();
         let mut pending = vec![PathBuf::new()];
@@ -195,7 +225,12 @@ impl Inputs {
                 let name = directory.join(&entry.name);
                 match entry.kind {
                     dir::Kind::Directory => pending.push(name),
-                    dir::Kind::Regular if is_vibe(&name) => {
+                    dir::Kind::Regular
+                        if match selection {
+                            Selection::Format => is_vibe(&name),
+                            Selection::Fix => name.extension().is_some_and(|e| e == "vibe"),
+                        } =>
+                    {
                         let identity = handle.identity_of(&name).map_err(|error| {
                             Walk::Entry(compat::path_error("lstat", &name, &error))
                         })?;
@@ -278,7 +313,7 @@ impl Inputs {
             || current.len != original.len
             || current.modified != original.modified
         {
-            return Err("file changed while formatting".to_owned());
+            return Err("file changed before writing".to_owned());
         }
         file.write_all(data)
             .and_then(|()| file.set_len(data.len() as u64))
@@ -444,7 +479,7 @@ mod tests {
         fn new(name: &str) -> Self {
             let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.cache/tmp");
             fs::create_dir_all(&base).unwrap();
-            let path = base.join(format!("fmt-{name}-{}", std::process::id()));
+            let path = base.join(format!("files-{name}-{}", std::process::id()));
             let _ = fs::remove_dir_all(&path);
             fs::create_dir_all(&path).unwrap();
             Self(fs::canonicalize(path).unwrap())
@@ -462,99 +497,106 @@ mod tests {
         fs::write(path, text).unwrap();
     }
 
-    fn collect_one(root: &Path) -> Inputs {
-        collect(&[root.as_os_str().to_owned()]).unwrap()
+    fn collect_one(root: &Path, selection: Selection) -> Inputs {
+        collect(&[root.as_os_str().to_owned()], selection).unwrap()
     }
 
     #[test]
     fn candidates_reject_replacement() {
-        for replaced in ["leaf", "ancestor", "regular file"] {
-            let scratch = Scratch::new(&format!("replace-{}", replaced.replace(' ', "-")));
-            let root = scratch.0.join("root");
-            let nested = root.join("nested");
-            let path = nested.join("file.vibe");
-            write(&path, "original  \n");
-            let outside = scratch.0.join("outside").join("file.vibe");
-            write(&outside, "outside  \n");
-            let mut inputs = collect_one(&root);
-            let (_, original) = inputs.read(0).unwrap();
-            match replaced {
-                "leaf" => {
-                    fs::remove_file(&path).unwrap();
-                    symlink(&outside, &path).unwrap();
+        for selection in [Selection::Format, Selection::Fix] {
+            for replaced in ["leaf", "ancestor", "regular file"] {
+                let scratch = Scratch::new(&format!("replace-{}", replaced.replace(' ', "-")));
+                let root = scratch.0.join("root");
+                let nested = root.join("nested");
+                let path = nested.join("file.vibe");
+                write(&path, "original  \n");
+                let outside = scratch.0.join("outside").join("file.vibe");
+                write(&outside, "outside  \n");
+                let mut inputs = collect_one(&root, selection);
+                let (_, original) = inputs.read(0).unwrap();
+                match replaced {
+                    "leaf" => {
+                        fs::remove_file(&path).unwrap();
+                        symlink(&outside, &path).unwrap();
+                    }
+                    "ancestor" => {
+                        fs::rename(&nested, root.join("nested-saved")).unwrap();
+                        symlink(outside.parent().unwrap(), &nested).unwrap();
+                    }
+                    _ => {
+                        fs::rename(&path, nested.join("file.vibe.saved")).unwrap();
+                        write(&path, "replacement\n");
+                    }
                 }
-                "ancestor" => {
-                    fs::rename(&nested, root.join("nested-saved")).unwrap();
-                    symlink(outside.parent().unwrap(), &nested).unwrap();
+                assert!(
+                    inputs.read(0).is_err(),
+                    "{replaced}: read accepted a replacement"
+                );
+                assert!(
+                    inputs.write(0, &original, b"formatted\n").is_err(),
+                    "{replaced}: write accepted a replacement"
+                );
+                assert_eq!(fs::read_to_string(&outside).unwrap(), "outside  \n");
+                if replaced == "regular file" {
+                    assert_eq!(fs::read_to_string(&path).unwrap(), "replacement\n");
                 }
-                _ => {
-                    fs::rename(&path, nested.join("file.vibe.saved")).unwrap();
-                    write(&path, "replacement\n");
-                }
-            }
-            assert!(
-                inputs.read(0).is_err(),
-                "{replaced}: read accepted a replacement"
-            );
-            assert!(
-                inputs.write(0, &original, b"formatted\n").is_err(),
-                "{replaced}: write accepted a replacement"
-            );
-            assert_eq!(fs::read_to_string(&outside).unwrap(), "outside  \n");
-            if replaced == "regular file" {
-                assert_eq!(fs::read_to_string(&path).unwrap(), "replacement\n");
             }
         }
     }
 
     #[test]
     fn keeps_the_opened_root() {
-        let scratch = Scratch::new("pinned");
-        let root = scratch.0.join("root");
-        write(&root.join("file.vibe"), "inside  \n");
-        let mut inputs = collect_one(&root);
-        let moved = scratch.0.join("moved");
-        fs::rename(&root, &moved).unwrap();
-        let outside = scratch.0.join("outside");
-        write(&outside.join("file.vibe"), "outside  \n");
-        symlink(&outside, &root).unwrap();
-        let (data, info) = inputs.read(0).unwrap();
-        assert_eq!(data, b"inside  \n");
-        inputs
-            .write(0, &info, &vibescript_tools::format::format_bytes(&data))
-            .unwrap();
-        assert_eq!(
-            fs::read_to_string(moved.join("file.vibe")).unwrap(),
-            "inside\n"
-        );
-        assert_eq!(
-            fs::read_to_string(outside.join("file.vibe")).unwrap(),
-            "outside  \n"
-        );
+        for selection in [Selection::Format, Selection::Fix] {
+            let scratch = Scratch::new("pinned");
+            let root = scratch.0.join("root");
+            write(&root.join("file.vibe"), "inside  \n");
+            let mut inputs = collect_one(&root, selection);
+            let moved = scratch.0.join("moved");
+            fs::rename(&root, &moved).unwrap();
+            let outside = scratch.0.join("outside");
+            write(&outside.join("file.vibe"), "outside  \n");
+            symlink(&outside, &root).unwrap();
+            let (data, info) = inputs.read(0).unwrap();
+            assert_eq!(data, b"inside  \n");
+            inputs
+                .write(0, &info, &vibescript_tools::format::format_bytes(&data))
+                .unwrap();
+            assert_eq!(
+                fs::read_to_string(moved.join("file.vibe")).unwrap(),
+                "inside\n"
+            );
+            assert_eq!(
+                fs::read_to_string(outside.join("file.vibe")).unwrap(),
+                "outside  \n"
+            );
+        }
     }
 
     #[test]
     fn an_evicted_root_rejects_replacement() {
-        let scratch = Scratch::new("evicted");
-        let targets: Vec<PathBuf> = (0..32)
-            .map(|i| {
-                let target = scratch.0.join(format!("{i:03}"));
-                write(&target.join("file.vibe"), "original  \n");
-                target
-            })
-            .collect();
-        let operands: Vec<OsString> = targets.iter().map(|t| t.as_os_str().to_owned()).collect();
-        let mut inputs = collect(&operands).unwrap();
-        fs::rename(&targets[0], scratch.0.join("000-saved")).unwrap();
-        let outside = scratch.0.join("outside");
-        write(&outside.join("file.vibe"), "outside  \n");
-        symlink(&outside, &targets[0]).unwrap();
-        let info = Info::of(&fs::metadata(scratch.0.join("000-saved/file.vibe")).unwrap());
-        assert!(inputs.read(0).is_err());
-        assert!(inputs.write(0, &info, b"formatted\n").is_err());
-        assert_eq!(
-            fs::read_to_string(outside.join("file.vibe")).unwrap(),
-            "outside  \n"
-        );
+        for selection in [Selection::Format, Selection::Fix] {
+            let scratch = Scratch::new("evicted");
+            let targets: Vec<PathBuf> = (0..32)
+                .map(|i| {
+                    let target = scratch.0.join(format!("{i:03}"));
+                    write(&target.join("file.vibe"), "original  \n");
+                    target
+                })
+                .collect();
+            let operands: Vec<OsString> =
+                targets.iter().map(|t| t.as_os_str().to_owned()).collect();
+            let mut inputs = collect(&operands, selection).unwrap();
+            fs::rename(&targets[0], scratch.0.join("000-saved")).unwrap();
+            let outside = scratch.0.join("outside");
+            write(&outside.join("file.vibe"), "outside  \n");
+            symlink(&outside, &targets[0]).unwrap();
+            let info = Info::of(&fs::metadata(scratch.0.join("000-saved/file.vibe")).unwrap());
+            assert!(inputs.read(0).is_err());
+            assert!(inputs.write(0, &info, b"formatted\n").is_err());
+            assert_eq!(
+                fs::read_to_string(outside.join("file.vibe")).unwrap(),
+                "outside  \n"
+            );
+        }
     }
 }
