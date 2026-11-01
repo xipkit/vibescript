@@ -1,7 +1,8 @@
 //! The transport-free protocol state machine.
 
 use super::document::{
-    CompletionItem, Diagnostic, Document, Options, Position, QuickFix, Range, SignatureHelp, Symbol,
+    CompletionItem, Diagnostic, Document, Options, Position, QuickFix, Range, Severity,
+    SignatureHelp, Symbol,
 };
 use super::json::{self, Invalid, Json};
 use super::{hover, navigation, text};
@@ -38,6 +39,7 @@ use vibescript::CancellationToken;
 /// ```
 pub struct Server {
     documents: HashMap<String, Document>,
+    document_bytes: usize,
     options: Options,
     exit: bool,
     /// The document whose analysis is running, so a transport reading ahead
@@ -59,11 +61,12 @@ impl Server {
         Self::with_options(Options::default())
     }
 
-    /// Creates a server whose document checks use `options`. Cancelling
+    /// Creates a server whose analysis and session limits use `options`. Cancelling
     /// `options.cancellation` stops any check in progress.
     pub fn with_options(options: Options) -> Self {
         Self {
             documents: HashMap::new(),
+            document_bytes: 0,
             options,
             exit: false,
             in_flight: InFlight::default(),
@@ -138,7 +141,10 @@ impl Server {
                 let Ok(uri) = document_params(message) else {
                     return Vec::new();
                 };
-                if self.documents.remove(&uri).is_none() {
+                if !self.remove_document(&uri)
+                    && self.options.max_documents.is_none()
+                    && self.options.max_document_bytes.is_none()
+                {
                     return Vec::new();
                 }
                 // A closed document's diagnostics would go stale; clear them.
@@ -273,6 +279,25 @@ impl Server {
     /// newer version cancelled the analysis. Identical text republishes the
     /// last result without analysis.
     fn publish(&mut self, uri: &str, text: &str) -> Option<Outbound> {
+        let bytes = match self.document_budget(uri, text) {
+            Ok(bytes) => bytes,
+            Err(message) => {
+                self.remove_document(uri);
+                return Some(diagnostics_notification(
+                    uri,
+                    &[Diagnostic {
+                        range: Range {
+                            start: Position::default(),
+                            end: Position::new(0, 1),
+                        },
+                        severity: Severity::Warning,
+                        message: message.to_owned(),
+                        code: None,
+                        fixes: Vec::new(),
+                    }],
+                ));
+            }
+        };
         let token = self.options.cancellation.child_token();
         let options = Options {
             cancellation: token.clone(),
@@ -286,6 +311,7 @@ impl Server {
                 self.documents.insert(uri.to_owned(), document);
             }
         }
+        self.document_bytes = bytes;
         *self.in_flight.lock().unwrap_or_else(|e| e.into_inner()) = None;
         let document = &self.documents[uri];
         if document.interrupted() {
@@ -293,6 +319,50 @@ impl Server {
         }
         Some(diagnostics_notification(uri, document.diagnostics()))
     }
+
+    fn document_budget(&self, uri: &str, text: &str) -> Result<usize, &'static str> {
+        let previous = self.documents.get(uri);
+        if previous.is_none()
+            && self
+                .options
+                .max_documents
+                .is_some_and(|limit| self.documents.len() >= limit)
+        {
+            return Err("open document count limit exceeded");
+        }
+        let old_bytes = previous.map_or(0, |document| {
+            document_storage_bytes(uri, document.text()).expect("stored document fits budget")
+        });
+        let bytes = document_storage_bytes(uri, text)
+            .and_then(|bytes| (self.document_bytes - old_bytes).checked_add(bytes))
+            .ok_or("aggregate document storage limit exceeded")?;
+        if self
+            .options
+            .max_document_bytes
+            .is_some_and(|limit| bytes > limit)
+        {
+            return Err("aggregate document storage limit exceeded");
+        }
+        Ok(bytes)
+    }
+
+    fn remove_document(&mut self, uri: &str) -> bool {
+        let Some(document) = self.documents.remove(uri) else {
+            return false;
+        };
+        self.document_bytes -=
+            document_storage_bytes(uri, document.text()).expect("stored document fits budget");
+        true
+    }
+}
+
+fn document_storage_bytes(uri: &str, source: &str) -> Option<usize> {
+    let (lines, payload) = text::line_storage(source);
+    uri.len()
+        .checked_mul(2)?
+        .checked_add(source.len())?
+        .checked_add(payload)?
+        .checked_add(lines.checked_mul(std::mem::size_of::<String>())?)
 }
 
 /// Requests that need an id; as notifications they are ignored.

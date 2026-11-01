@@ -175,7 +175,7 @@ pub struct SignatureHelp {
     pub active_parameter: u32,
 }
 
-/// Bounds for the analysis a [`Document`] runs on each text.
+/// Bounds for document analysis and a [`super::Server`]'s retained documents.
 #[derive(Clone, Debug)]
 pub struct Options {
     /// Step and memory quotas for the static check. The defaults allow 20
@@ -192,6 +192,15 @@ pub struct Options {
     /// The largest text analyzed, in bytes; larger texts get one diagnostic.
     /// The default is the reference's 1 MiB.
     pub max_source_bytes: usize,
+    /// Maximum documents retained by a server. `None` (the default) is unlimited.
+    /// Standalone [`Document`] analysis does not use session limits.
+    pub max_documents: Option<usize>,
+    /// Maximum aggregate document storage in a server. Counts both URI copies,
+    /// source and line text bytes, and one `String` per line. Excludes analysis
+    /// data, allocator overhead and temporary allocations. `None`
+    /// (the default) is unlimited. Checked before copying document storage;
+    /// rejected updates evict the old version and publish a warning.
+    pub max_document_bytes: Option<usize>,
 }
 
 impl Default for Options {
@@ -206,6 +215,8 @@ impl Default for Options {
             cancellation: CancellationToken::new(),
             module_paths: None,
             max_source_bytes: 1 << 20,
+            max_documents: None,
+            max_document_bytes: None,
         }
     }
 }

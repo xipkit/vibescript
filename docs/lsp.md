@@ -73,6 +73,22 @@ Each analysis is bounded, so a large or pathological document cannot stall the e
 
 Hosts can change these through `Options`.
 
+Embedded sessions can also opt into `Options::max_documents` and
+`Options::max_document_bytes` (both default to `None`, unlimited). The byte
+limit covers aggregate retained document storage: both copies of each URI,
+source text, copied line text, and one `String` of metadata per line, including
+empty lines. It excludes analysis outlines and caches, allocator overhead,
+and temporary allocations such as decoded protocol messages; it is not an
+RSS limit. Standalone `Document` analysis does not use session limits.
+
+Both opens and changes check session limits before copying retained document
+storage or analyzing. An over-limit document gets a warning diagnostic and is
+not retained; an over-limit replacement also drops the previous version so
+editor features cannot use stale text. Closing or replacing a document releases
+its budget, and a later open or change can admit it again. With session limits
+enabled, closing even an unretained document clears its warning without keeping
+rejected URIs in server state.
+
 ## Protocol details
 
 - Messages use `Content-Length` framing; header names match without regard to case and other headers are ignored. A missing or malformed `Content-Length`, or a header block over 64 KiB, ends the server with exit status 1 and an error such as `lsp read: missing Content-Length header`, since no later message boundary can be trusted. Input that ends between messages ends the server with status 0.

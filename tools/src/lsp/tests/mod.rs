@@ -16,6 +16,7 @@ mod narrowing_tests;
 mod navigation_tests;
 mod protocol_tests;
 mod signature_tests;
+mod storage_tests;
 
 pub(super) fn server() -> Server {
     Server::new()

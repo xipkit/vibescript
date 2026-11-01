@@ -3,7 +3,7 @@
 /// Splits a document the way LSP clients count lines: `\r\n`, bare `\n` and
 /// bare `\r` each end a line.
 pub(crate) fn split_lines(text: &str) -> Vec<String> {
-    let mut lines = Vec::new();
+    let mut lines = Vec::with_capacity(line_storage(text).0);
     let bytes = text.as_bytes();
     let mut start = 0;
     let mut index = 0;
@@ -26,6 +26,23 @@ pub(crate) fn split_lines(text: &str) -> Vec<String> {
     }
     lines.push(text[start..].to_owned());
     lines
+}
+
+/// The line count and total line payload bytes, without allocating copies.
+pub(crate) fn line_storage(text: &str) -> (usize, usize) {
+    let mut count = 1;
+    let mut payload = text.len();
+    let mut previous = 0;
+    for byte in text.bytes() {
+        if byte == b'\r' || byte == b'\n' {
+            payload -= 1;
+            if byte == b'\r' || previous != b'\r' {
+                count += 1;
+            }
+        }
+        previous = byte;
+    }
+    (count, payload)
 }
 
 /// The protocol position of a byte offset in `text`: its line, counting
