@@ -1131,6 +1131,7 @@ mod tests {
         }
     }
 
+    #[cfg(any(unix, target_os = "wasi"))]
     #[test]
     fn keeps_the_opened_root() {
         for selection in selections(false) {
