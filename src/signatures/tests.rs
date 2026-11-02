@@ -206,9 +206,10 @@ fn signature_files_report_malformed_declarations() {
 /// Each module, type and receiver pattern is one level. Past
 /// [`NESTING`](super::parse::NESTING) levels a document is refused at the
 /// first level too deep, however much deeper it goes, so the parser's
-/// recursion stays within a spawned thread's default stack: the deepest
-/// accepted document needs about 1.5 MiB unoptimized, while a hundred
-/// thousand levels would overflow hundreds of times that.
+/// recursion stays within a spawned thread's default stack, or half of the
+/// wasm stack CI's WASI host gives: the deepest accepted document needs
+/// about 1.5 MiB unoptimized natively and under 256 KiB on WASI, while a
+/// hundred thousand levels would overflow hundreds of times that.
 #[test]
 fn nesting_is_bounded_across_modules_types_and_patterns() {
     use super::parse::NESTING;
@@ -241,27 +242,32 @@ fn nesting_is_bounded_across_modules_types_and_patterns() {
         (error.line, error.column)
     };
     let past = NESTING + 1;
+    let check = move || {
+        for parts in lines {
+            Table::parse(&line(parts, NESTING)).unwrap();
+            let (prefix, opener, ..) = parts;
+            let column = prefix.len() + NESTING * opener.len() + 1;
+            assert_eq!(refused(&line(parts, past)), (1, column), "{opener}");
+            assert_eq!(refused(&line(parts, 100_000)), (1, column), "{opener}");
+        }
+        Table::parse(&modules(NESTING, "module M\nend\n")).unwrap();
+        Table::parse(&modules(NESTING, "c: int\n")).unwrap();
+        // Each construct leaves its levels as it ends, so siblings each
+        // nest as deep as the first.
+        let deepest = modules(NESTING, "c: int\n");
+        let siblings = lines.map(|parts| line(parts, NESTING)).join("\n");
+        Table::parse(&format!("{deepest}{siblings}\n{deepest}")).unwrap();
+        assert_eq!(refused(&modules(past, "module M\nend\n")), (past, 1));
+        assert_eq!(refused(&modules(past, "c: int\n")), (past, 4));
+        assert_eq!(refused(&modules(100_000, "c: int\n")), (past, 1));
+    };
+    // WASI has no threads, so there this runs on the default wasm stack.
+    if cfg!(target_os = "wasi") {
+        return check();
+    }
     std::thread::Builder::new()
         .stack_size(2 << 20)
-        .spawn(move || {
-            for parts in lines {
-                Table::parse(&line(parts, NESTING)).unwrap();
-                let (prefix, opener, ..) = parts;
-                let column = prefix.len() + NESTING * opener.len() + 1;
-                assert_eq!(refused(&line(parts, past)), (1, column), "{opener}");
-                assert_eq!(refused(&line(parts, 100_000)), (1, column), "{opener}");
-            }
-            Table::parse(&modules(NESTING, "module M\nend\n")).unwrap();
-            Table::parse(&modules(NESTING, "c: int\n")).unwrap();
-            // Each construct leaves its levels as it ends, so siblings each
-            // nest as deep as the first.
-            let deepest = modules(NESTING, "c: int\n");
-            let siblings = lines.map(|parts| line(parts, NESTING)).join("\n");
-            Table::parse(&format!("{deepest}{siblings}\n{deepest}")).unwrap();
-            assert_eq!(refused(&modules(past, "module M\nend\n")), (past, 1));
-            assert_eq!(refused(&modules(past, "c: int\n")), (past, 4));
-            assert_eq!(refused(&modules(100_000, "c: int\n")), (past, 1));
-        })
+        .spawn(check)
         .unwrap()
         .join()
         .unwrap();
