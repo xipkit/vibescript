@@ -7,6 +7,13 @@ use super::{
 };
 use std::{collections::BTreeMap, fmt};
 
+/// How deep modules, types and receiver patterns may nest, together. The
+/// parser recurses once per level, and so would dropping or walking the
+/// result. A host's prelude nests namespaces at most
+/// [`NAMESPACE_DEPTH`](super::host::NAMESPACE_DEPTH) deep, holding
+/// annotations no deeper than scripts write, 64, so this leaves it room.
+pub(super) const NESTING: usize = 256;
+
 /// A syntax error in a signature file, at a one-based line and column.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParseError {
@@ -172,6 +179,8 @@ struct Parser<'a> {
     /// The call shapes of each function name declared so far, keyed by its
     /// scope: global functions, a module, or every class on one base type.
     shapes: BTreeMap<(String, String), Vec<Shape>>,
+    /// The modules, types and patterns open around the current token.
+    depth: usize,
 }
 
 pub(super) fn table(source: &str) -> Result<Table> {
@@ -181,6 +190,7 @@ pub(super) fn table(source: &str) -> Result<Table> {
         pos: 0,
         vars: Vec::new(),
         shapes: BTreeMap::new(),
+        depth: 0,
     };
     let header = parser.header();
     let mut items = Vec::new();
@@ -364,11 +374,24 @@ impl<'a> Parser<'a> {
         Ok(lines)
     }
 
+    /// Opens a level of nesting, refusing one past [`NESTING`]. Each
+    /// production that calls this closes its level before it returns a
+    /// result; an error ends the parse, so it leaves the count as it is.
+    fn enter(&mut self) -> Result<()> {
+        if self.depth == NESTING {
+            return self.fail("nesting too deep");
+        }
+        self.depth += 1;
+        Ok(())
+    }
+
     fn module(&mut self, doc: Vec<String>, scope: &str) -> Result<Module> {
+        self.enter()?;
         self.keyword("module")?;
         let name = self.word("a module name")?;
         self.line_end()?;
         let members = self.members(&format!("{scope}::module {name}"), false)?;
+        self.depth -= 1;
         Ok(Module { doc, name, members })
     }
 
@@ -398,6 +421,7 @@ impl<'a> Parser<'a> {
     /// A class's receiver pattern: a type whose capitalized names introduce
     /// type variables, each optionally bounded with `: B`.
     fn pattern(&mut self, vars: &mut Vec<TypeParam>) -> Result<Type> {
+        self.enter()?;
         if self.eat("[") {
             let mut elements = Vec::new();
             loop {
@@ -407,6 +431,7 @@ impl<'a> Parser<'a> {
                 }
             }
             self.expect("]")?;
+            self.depth -= 1;
             return Ok(Type::Tuple(elements));
         }
         let word = match *self.peek() {
@@ -446,6 +471,7 @@ impl<'a> Parser<'a> {
             }
             Type::Name(name, args)
         };
+        self.depth -= 1;
         Ok(if nullable { optional(ty) } else { ty })
     }
 
@@ -714,10 +740,12 @@ impl<'a> Parser<'a> {
     }
 
     fn ty(&mut self) -> Result<Type> {
+        self.enter()?;
         let mut arms = vec![self.postfix()?];
         while self.eat("|") {
             arms.push(self.postfix()?);
         }
+        self.depth -= 1;
         Ok(union(arms))
     }
 
