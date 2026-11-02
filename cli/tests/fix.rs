@@ -296,3 +296,28 @@ fn invalid_utf8_is_rejected_without_rewriting() {
         .fails("read invalid.vibe: stream did not contain valid UTF-8");
     assert_eq!(std::fs::read(path).unwrap(), [0xff]);
 }
+
+#[test]
+fn files_over_the_source_limit_are_refused_without_rewriting() {
+    const LIMIT: usize = 1 << 20;
+    let files = Files::new();
+    let padded = |len: usize| format!("{OLD}#{}\n", " ".repeat(len - OLD.len() - 2));
+    files.write("root/fits.vibe", &padded(LIMIT));
+    files.write("root/over.vibe", &padded(LIMIT + 1));
+    vibes_in(Some(&files.0), &["fix", "root/over.vibe"]).fails(&format!(
+        "read root/over.vibe: source exceeds maximum size ({} > {LIMIT} bytes)",
+        LIMIT + 1
+    ));
+    let run = vibes_in(Some(&files.0), &["fix", "root"]);
+    assert_eq!(run.status, Some(1), "{run:?}");
+    assert!(run.stdout.is_empty(), "{run:?}");
+    assert_eq!(
+        run.stderr,
+        format!(
+            "read over.vibe: source exceeds maximum size ({} > {LIMIT} bytes)\n",
+            LIMIT + 1
+        )
+    );
+    assert_eq!(files.read("root/over.vibe"), padded(LIMIT + 1));
+    assert!(files.read("root/fits.vibe").starts_with(NEW));
+}

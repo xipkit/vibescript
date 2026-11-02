@@ -237,3 +237,18 @@ fn floor_division_assignment_survives_formatting() {
     assert_eq!(files.read("halve.vibe"), "a = 12\na //= 5\np a\n");
     vibes(&["run", &path]).expect(0, "2\n2\n", "");
 }
+
+#[test]
+fn files_over_the_source_limit_are_refused_without_rewriting() {
+    const LIMIT: usize = 1 << 20;
+    let files = Files::new();
+    let fits = files.write("a.vibe", &format!("{}  \n", "#".repeat(LIMIT - 3)));
+    let over = files.write("b.vibe", &format!("{}  \n", "#".repeat(LIMIT - 2)));
+    let root = files.0.to_str().unwrap();
+    vibes(&["fmt", "-w", root]).fails(&format!(
+        "read {over}: source exceeds maximum size ({} > {LIMIT} bytes)",
+        LIMIT + 1
+    ));
+    assert_eq!(fs::read(&fits).unwrap().len(), LIMIT - 2);
+    assert_eq!(fs::read(&over).unwrap().len(), LIMIT + 1);
+}

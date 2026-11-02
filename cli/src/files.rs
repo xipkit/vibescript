@@ -8,13 +8,16 @@
 //! it points and the link itself is kept.
 //!
 //! Every read and write checks that the opened file is still the regular file
-//! found during discovery. A write opens without truncating, verifies the
+//! found during discovery. On Unix, opens don't block, so a FIFO or device
+//! swapped in after discovery is refused rather than waited on. A read stops
+//! at [`MAX_SOURCE_BYTES`], the limit `vibes run` applies, even if the file
+//! grows while it is read. A write opens without truncating, verifies the
 //! file is unchanged since it was read, writes in place and truncates, so the
 //! file keeps its identity, permissions and hard links. At most eight root
 //! handles stay open; an evicted root is reopened only if it is still the same
 //! directory.
 
-use crate::compat;
+use crate::{compat, source::MAX_SOURCE_BYTES};
 use std::{
     ffi::OsString,
     fs,
@@ -305,6 +308,20 @@ pub fn collect(targets: &[OsString], selection: Selection) -> Result<Inputs, Str
     Ok(inputs)
 }
 
+/// Reads `len` bytes and checks that the stream ends there. Reading at most
+/// one byte more bounds a file that grows while it is read.
+fn read_exactly(reader: &mut impl Read, len: u64) -> Result<Vec<u8>, String> {
+    let mut data = Vec::new();
+    reader
+        .take(len.saturating_add(1))
+        .read_to_end(&mut data)
+        .map_err(|error| compat::reason(&error))?;
+    if data.len() as u64 != len {
+        return Err("file changed while reading".to_owned());
+    }
+    Ok(data)
+}
+
 fn is_vibe(path: &Path) -> bool {
     compat::bytes(path.as_os_str()).ends_with(b".vibe")
 }
@@ -390,30 +407,38 @@ impl Inputs {
                 .handle(root)?
                 .open(&name, write)
                 .map_err(|error| compat::path_error("open", &name, &error)),
-            None => fs::OpenOptions::new()
-                .read(!write)
-                .write(write)
-                .open(&name)
-                .map_err(|error| compat::path_error("open", &name, &error)),
+            None => {
+                let mut options = fs::OpenOptions::new();
+                options.read(!write).write(write);
+                // A FIFO swapped in must not block the open. The target was
+                // resolved during discovery, so a link here is a replacement.
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::OpenOptionsExt;
+                    options.custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW);
+                }
+                options
+                    .open(&name)
+                    .map_err(|error| compat::path_error("open", &name, &error))
+            }
         }
     }
 
-    /// Reads a candidate, refusing a file that is no longer the one discovered.
+    /// Reads a candidate, refusing a file that is no longer the one discovered
+    /// or that is larger than [`MAX_SOURCE_BYTES`].
     pub fn read(&mut self, index: usize) -> Result<(Vec<u8>, Info), String> {
         let mut file = self.open(index, false)?;
         let info = Info::of(&file).map_err(|error| compat::reason(&error))?;
         if !info.regular || info.identity != self.files[index].identity {
             return Err("file changed after discovery".to_owned());
         }
-        let mut data = Vec::new();
-        Read::by_ref(&mut file)
-            .take(info.len.saturating_add(1))
-            .read_to_end(&mut data)
-            .map_err(|error| compat::reason(&error))?;
-        if data.len() as u64 != info.len {
-            return Err("file changed while reading".to_owned());
+        if info.len > MAX_SOURCE_BYTES {
+            return Err(format!(
+                "source exceeds maximum size ({} > {MAX_SOURCE_BYTES} bytes)",
+                info.len
+            ));
         }
-        Ok((data, info))
+        Ok((read_exactly(&mut file, info.len)?, info))
     }
 
     /// Rewrites a candidate in place if it is unchanged since it was read.
@@ -514,6 +539,11 @@ mod dir {
         pub fn open(&self, name: &Path, write: bool) -> io::Result<fs::File> {
             let mut options = OpenOptions::new();
             options.read(!write).write(write);
+            #[cfg(unix)]
+            {
+                use cap_std::fs::OpenOptionsExt;
+                options.custom_flags(libc::O_NONBLOCK);
+            }
             self.0
                 .open_with(name, &options)
                 .map(cap_std::fs::File::into_std)
@@ -1009,6 +1039,96 @@ mod tests {
     }
 
     #[cfg(any(unix, target_os = "wasi"))]
+    #[test]
+    fn reads_stop_at_the_source_limit() {
+        let limit = usize::try_from(MAX_SOURCE_BYTES).unwrap();
+        for selection in [Selection::Format, Selection::Fix] {
+            let scratch = Scratch::new("limit");
+            let root = scratch.0.join("root");
+            fs::create_dir_all(&root).unwrap();
+            fs::write(root.join("fits.vibe"), vec![b'#'; limit]).unwrap();
+            fs::write(root.join("over.vibe"), vec![b'#'; limit + 1]).unwrap();
+            let explicit = [root.join("fits.vibe"), root.join("over.vibe")];
+            for operands in [vec![root.clone()], explicit.to_vec()] {
+                let operands: Vec<OsString> = operands.into_iter().map(Into::into).collect();
+                let mut inputs = collect(&operands, selection).unwrap();
+                assert_eq!(inputs.read(0).unwrap().0.len(), limit);
+                assert_eq!(
+                    inputs.read(1).map(|_| ()).unwrap_err(),
+                    format!(
+                        "source exceeds maximum size ({} > {limit} bytes)",
+                        limit + 1
+                    )
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_growing_stream_is_read_one_byte_past_its_length() {
+        let mut grown = std::io::Cursor::new(vec![b'#'; 10]);
+        assert_eq!(
+            read_exactly(&mut grown, 4).unwrap_err(),
+            "file changed while reading"
+        );
+        assert_eq!(grown.position(), 5);
+        let mut endless = std::io::repeat(b'#');
+        assert_eq!(
+            read_exactly(&mut endless, MAX_SOURCE_BYTES).unwrap_err(),
+            "file changed while reading"
+        );
+        let mut exact = std::io::Cursor::new(b"text".to_vec());
+        assert_eq!(read_exactly(&mut exact, 4).unwrap(), b"text");
+    }
+
+    fn mkfifo(path: &Path) {
+        use std::os::unix::ffi::OsStrExt;
+        let name = std::ffi::CString::new(path.as_os_str().as_bytes()).unwrap();
+        // SAFETY: `name` is a valid NUL-terminated path.
+        assert_eq!(unsafe { libc::mkfifo(name.as_ptr(), 0o600) }, 0);
+    }
+
+    /// A candidate swapped for a FIFO, directly or through a link, must be
+    /// refused rather than block the open until a writer or reader appears.
+    #[test]
+    fn a_fifo_swapped_in_is_refused_without_blocking() {
+        for selection in [Selection::Format, Selection::Fix] {
+            for explicit in [false, true] {
+                for linked in [false, true] {
+                    let scratch = Scratch::new(&format!("fifo-{explicit}-{linked}"));
+                    let root = scratch.0.join("root");
+                    let path = root.join("file.vibe");
+                    write(&path, "original  \n");
+                    let mut inputs = collect_one(if explicit { &path } else { &root }, selection);
+                    let (_, info) = inputs.read(0).unwrap();
+                    fs::remove_file(&path).unwrap();
+                    if linked {
+                        mkfifo(&root.join("pipe"));
+                        symlink("pipe", &path).unwrap();
+                    } else {
+                        mkfifo(&path);
+                    }
+                    let (sender, receiver) = std::sync::mpsc::channel();
+                    std::thread::spawn(move || {
+                        let read = inputs.read(0).map(|_| ());
+                        let written = inputs.write(0, &info, b"formatted\n");
+                        sender.send((read, written)).unwrap();
+                    });
+                    let (read, written) = receiver
+                        .recv_timeout(std::time::Duration::from_secs(10))
+                        .unwrap_or_else(|_| {
+                            panic!("explicit {explicit}, linked {linked}: open blocked on a FIFO")
+                        });
+                    assert!(read.is_err(), "explicit {explicit}, linked {linked}: read");
+                    assert!(
+                        written.is_err(),
+                        "explicit {explicit}, linked {linked}: write"
+                    );
+                }
+            }
+        }
+    }
+
     #[test]
     fn keeps_the_opened_root() {
         for selection in selections(false) {
