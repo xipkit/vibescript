@@ -229,7 +229,7 @@ pub fn collect(targets: &[OsString], selection: Selection) -> Result<Inputs, Str
             Selection::Format => compat::absolute(Path::new(target)),
             // Fix operands have always used filesystem resolution, including
             // `link/..`; lexical cleaning can select a different target.
-            Selection::Fix => fs::canonicalize(target),
+            Selection::Fix => vibescript::canonicalize(Path::new(target)),
         }
         .map_err(|error| format!("resolve {label}: {}", compat::reason(&error)))?;
         let (metadata, identity) = identity::stat(&path).map_err(|error| {
@@ -247,7 +247,7 @@ pub fn collect(targets: &[OsString], selection: Selection) -> Result<Inputs, Str
             }
             // An explicit operand authorizes its selected target; recursive
             // discovery never follows a leaf or directory link.
-            let resolved = fs::canonicalize(&path).map_err(|error| {
+            let resolved = vibescript::canonicalize(&path).map_err(|error| {
                 format!(
                     "resolve {label}: {}",
                     compat::path_error("lstat", &path, &error)
@@ -722,11 +722,7 @@ mod tests {
             let path = base.join(format!("files-{name}-{run}"));
             let _ = fs::remove_dir_all(&path);
             fs::create_dir_all(&path).unwrap();
-            // WASI's realpath fails beneath a preopen whose ancestors are
-            // hidden, as in scripts/check-wasi; the path is already absolute.
-            #[cfg(not(target_os = "wasi"))]
-            let path = fs::canonicalize(path).unwrap();
-            Self(path)
+            Self(vibescript::canonicalize(&path).unwrap())
         }
     }
 
@@ -776,22 +772,7 @@ mod tests {
         fs::rename(&staged, path).unwrap();
     }
 
-    /// The selections a test can collect with. Fix operands and explicit
-    /// files resolve with `fs::canonicalize`, which WASI cannot do beneath a
-    /// preopen whose ancestors are hidden, as in scripts/check-wasi (VIBE-126).
-    fn selections(explicit: bool) -> Vec<Selection> {
-        let base = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        if cfg!(not(target_os = "wasi")) || fs::canonicalize(base).is_ok() {
-            vec![Selection::Format, Selection::Fix]
-        } else {
-            eprintln!("skipping canonicalized operands: WASI cannot resolve {base:?}");
-            if explicit {
-                vec![]
-            } else {
-                vec![Selection::Format]
-            }
-        }
-    }
+    const SELECTIONS: [Selection; 2] = [Selection::Format, Selection::Fix];
 
     fn collect_one(root: &Path, selection: Selection) -> Inputs {
         collect(&[root.as_os_str().to_owned()], selection).unwrap()
@@ -815,13 +796,8 @@ mod tests {
 
     /// Swaps a candidate for a same-size, same-mtime file before reading and
     /// again after, and checks that neither the read nor the write accepts it.
-    fn rejects_lookalikes(
-        name: &str,
-        explicit: bool,
-        operand: impl Fn(&Path) -> PathBuf,
-        replace: impl Fn(&Path),
-    ) {
-        for selection in selections(explicit) {
+    fn rejects_lookalikes(name: &str, operand: impl Fn(&Path) -> PathBuf, replace: impl Fn(&Path)) {
+        for selection in SELECTIONS {
             for after_read in [false, true] {
                 let scratch = Scratch::new(&format!("{name}-{selection:?}-{after_read}"));
                 let path = scratch.0.join("root/nested/file.vibe");
@@ -852,7 +828,6 @@ mod tests {
     fn explicit_files_reject_lookalikes() {
         rejects_lookalikes(
             "explicit",
-            true,
             |scratch| scratch.join("root/nested/file.vibe"),
             |path| swap(path, LOOKALIKE),
         );
@@ -862,7 +837,6 @@ mod tests {
     fn discovered_files_reject_lookalikes() {
         rejects_lookalikes(
             "discovered",
-            false,
             |scratch| scratch.join("root"),
             |path| swap(path, LOOKALIKE),
         );
@@ -872,7 +846,6 @@ mod tests {
     fn discovered_files_reject_a_replaced_ancestor() {
         rejects_lookalikes(
             "ancestor",
-            false,
             |scratch| scratch.join("root"),
             |path| {
                 let nested = path.parent().unwrap();
@@ -886,7 +859,7 @@ mod tests {
 
     #[test]
     fn an_evicted_root_rejects_a_replaced_directory() {
-        for selection in selections(false) {
+        for selection in SELECTIONS {
             for after_read in [false, true] {
                 let scratch = Scratch::new(&format!("replaced-root-{selection:?}-{after_read}"));
                 let targets: Vec<PathBuf> = (0..32)
@@ -952,7 +925,7 @@ mod tests {
             eprintln!("skipping: this host refuses names that are not UTF-8: {error}");
             return;
         }
-        for selection in selections(false) {
+        for selection in SELECTIONS {
             fs::write(&path, ORIGINAL).unwrap();
             let mut inputs = collect_one(&root, selection);
             assert_eq!(inputs.files.len(), 1, "{selection:?}");
@@ -967,7 +940,7 @@ mod tests {
     #[cfg(any(unix, target_os = "wasi"))]
     #[test]
     fn candidates_reject_replacement() {
-        for selection in selections(false) {
+        for selection in SELECTIONS {
             for replaced in ["leaf", "ancestor", "regular file"] {
                 let scratch = Scratch::new(&format!("replace-{}", replaced.replace(' ', "-")));
                 let root = scratch.0.join("root");
@@ -1011,7 +984,7 @@ mod tests {
     #[cfg(any(unix, target_os = "wasi"))]
     #[test]
     fn keeps_the_opened_root() {
-        for selection in selections(false) {
+        for selection in SELECTIONS {
             let scratch = Scratch::new("pinned");
             let root = scratch.0.join("root");
             write(&root.join("file.vibe"), "inside  \n");
@@ -1040,7 +1013,7 @@ mod tests {
     #[cfg(any(unix, target_os = "wasi"))]
     #[test]
     fn an_evicted_root_rejects_replacement() {
-        for selection in selections(false) {
+        for selection in SELECTIONS {
             let scratch = Scratch::new("evicted");
             let targets: Vec<PathBuf> = (0..32)
                 .map(|i| {
@@ -1064,6 +1037,57 @@ mod tests {
                 fs::read_to_string(outside.join("file.vibe")).unwrap(),
                 "outside  \n"
             );
+        }
+    }
+
+    /// Fix operands, and every explicit file, resolve links before `..`, as
+    /// `realpath` does; fmt's directory operands are cleaned lexically.
+    #[cfg(any(unix, target_os = "wasi"))]
+    #[test]
+    fn operands_resolve_links_before_parents() {
+        let scratch = Scratch::new("link-parent");
+        let real = scratch.0.join("root/real");
+        write(&real.join("top.vibe"), "top  \n");
+        write(&real.join("deeper/file.vibe"), "deeper  \n");
+        symlink("real/deeper", &scratch.0.join("root/link"));
+        symlink("real/top.vibe", &scratch.0.join("root/alias.vibe"));
+        let found = |inputs: &Inputs| -> Vec<(PathBuf, String)> {
+            let files = inputs.files.iter();
+            files.map(|f| (f.path.clone(), f.label.clone())).collect()
+        };
+        let parent = scratch.0.join("root/link/..");
+        assert_eq!(
+            found(&collect_one(&parent, Selection::Fix)),
+            [
+                (real.join("deeper/file.vibe"), "deeper/file.vibe".to_owned()),
+                (real.join("top.vibe"), "top.vibe".to_owned()),
+            ]
+        );
+        assert_eq!(
+            found(&collect_one(&parent, Selection::Format)),
+            [
+                (
+                    real.join("deeper/file.vibe"),
+                    "real/deeper/file.vibe".to_owned()
+                ),
+                (real.join("top.vibe"), "real/top.vibe".to_owned()),
+            ]
+        );
+        let through = scratch.0.join("root/link/../top.vibe");
+        let mut inputs = collect_one(&through, Selection::Fix);
+        assert_eq!(inputs.files[0].path, real.join("top.vibe"));
+        assert_eq!(inputs.read(0).unwrap().0, b"top  \n");
+        // fmt's lexical spelling names a missing file.
+        assert!(collect(&[through.into_os_string()], Selection::Format).is_err());
+        for selection in SELECTIONS {
+            let alias = scratch.0.join("root/alias.vibe");
+            let mut inputs = collect_one(&alias, selection);
+            let (data, info) = inputs.read(0).unwrap();
+            assert_eq!(data, b"top  \n", "{selection:?}");
+            inputs.write(0, &info, b"top\n").unwrap();
+            assert_eq!(fs::read_to_string(real.join("top.vibe")).unwrap(), "top\n");
+            assert!(fs::symlink_metadata(&alias).unwrap().is_symlink());
+            write(&real.join("top.vibe"), "top  \n");
         }
     }
 }
