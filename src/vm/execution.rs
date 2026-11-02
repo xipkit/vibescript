@@ -83,7 +83,11 @@ impl Execution {
     ) -> Result<()> {
         self.context.checkpoint()?;
         self.function = *script.inner.code.program.names.get(name).ok_or_else(|| {
-            crate::members::suggest::missing_function(&script.inner.code.program, name)
+            crate::members::suggest::missing_function(
+                &mut self.context,
+                &script.inner.code.program,
+                name,
+            )
         })?;
         self.context.code_roots = Some(Buffer::empty());
         self.context.host_roots = Some(Buffer::empty());

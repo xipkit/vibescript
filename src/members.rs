@@ -20,7 +20,7 @@ pub(crate) fn call_keywords(
 ) -> Result<(Value, Value)> {
     let kind = names::Receiver::of(&receiver);
     dispatch_keywords(ctx, site, name, receiver, args)
-        .map_err(|error| unknown(site, kind, name, error))
+        .map_err(|error| unknown(ctx, site, kind, name, error))
 }
 
 fn dispatch_keywords(
@@ -225,7 +225,7 @@ pub(crate) fn call(
     args: &[Value],
 ) -> Result<(Value, Value)> {
     let kind = names::Receiver::of(&receiver);
-    dispatch(ctx, site, name, receiver, args).map_err(|error| unknown(site, kind, name, error))
+    dispatch(ctx, site, name, receiver, args).map_err(|error| unknown(ctx, site, kind, name, error))
 }
 
 fn dispatch(
@@ -325,7 +325,7 @@ fn dispatch(
                 let result = hash.buffer.data[index].1.clone();
                 return Ok((receiver, result));
             }
-            return Err(unknown_hash_member(hash, name));
+            return Err(unknown_hash_member(ctx, hash, name));
         }
     }
     let method = site
@@ -413,8 +413,15 @@ pub(crate) fn callable(value: &Value) -> bool {
 /// Reports a dispatch failure for a member the receiver's kind does not define
 /// the way the reference does, which rejects the name before any argument is
 /// examined. Members the port answers beyond the reference tables still run,
-/// and scoped lookups keep their own wording.
-fn unknown(site: CallSite, kind: names::Receiver, name: &str, error: Error) -> Error {
+/// and scoped lookups keep their own wording. A suggestion that runs out of
+/// budget or is cancelled reports that instead.
+fn unknown(
+    ctx: &mut CallContext,
+    site: CallSite,
+    kind: names::Receiver,
+    name: &str,
+    error: Error,
+) -> Error {
     if site.scope
         || !matches!(
             error.kind,
@@ -428,13 +435,17 @@ fn unknown(site: CallSite, kind: names::Receiver, name: &str, error: Error) -> E
     let Some((wording, candidates)) = kind.unknown() else {
         return error;
     };
-    let suggestion = suggest::did_you_mean(name, candidates.iter().map(|c| c.as_bytes()));
+    let suggestion = match suggest::did_you_mean(ctx, name, candidates.iter().map(|c| c.as_bytes()))
+    {
+        Ok(suggestion) => suggestion,
+        Err(error) => return error,
+    };
     error.with_message(format!("{wording} {name}{suggestion}"))
 }
 
 /// Reports a hash member that is neither a builtin nor a stored key. Universal
 /// helpers keep the plain wording; others suggest builtins and stored keys.
-fn unknown_hash_member(hash: &crate::hash::Hash, name: &str) -> Error {
+fn unknown_hash_member(ctx: &mut CallContext, hash: &crate::hash::Hash, name: &str) -> Error {
     if names::universal(name) {
         return Error::new(ErrorKind::Name, format!("unknown member {name}"));
     }
@@ -444,7 +455,10 @@ fn unknown_hash_member(hash: &crate::hash::Hash, name: &str) -> Error {
         .data
         .iter()
         .filter_map(|(key, _)| key.as_bytes());
-    let suggestion = suggest::did_you_mean(name, builtins.chain(keys));
+    let suggestion = match suggest::did_you_mean(ctx, name, builtins.chain(keys)) {
+        Ok(suggestion) => suggestion,
+        Err(error) => return error,
+    };
     Error::new(
         ErrorKind::Name,
         format!("unknown hash method {name}{suggestion}"),
@@ -532,14 +546,14 @@ pub(crate) fn field(
                     .data
                     .iter()
                     .filter_map(|(key, _)| key.as_bytes());
-                let suggestion = suggest::did_you_mean(name, keys);
+                let suggestion = suggest::did_you_mean(ctx, name, keys)?;
                 return Err(Error::new(
                     ErrorKind::Name,
                     format!("unknown member {name}{suggestion}"),
                 ));
             }
             if !hash_builtin(name) {
-                return Err(unknown_hash_member(hash, name));
+                return Err(unknown_hash_member(ctx, hash, name));
             }
         }
     }

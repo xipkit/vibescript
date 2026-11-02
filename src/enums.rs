@@ -351,7 +351,7 @@ pub(crate) fn call(
                 .members
                 .iter()
                 .map(|member| member.name.as_bytes());
-            let suggestion = crate::members::suggest::did_you_mean(name, members);
+            let suggestion = crate::members::suggest::did_you_mean(ctx, name, members)?;
             return Err(Error::new(
                 ErrorKind::Name,
                 format!(

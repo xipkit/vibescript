@@ -751,3 +751,33 @@ fn a_deeply_nested_inferred_type_is_refused_within_the_stack() {
         .collect();
     assert!(codes.iter().any(|code| code == "V0124"), "{codes:?}");
 }
+
+#[test]
+fn missing_entry_names_past_the_cap_rank_no_suggestions() {
+    let declared = "f".repeat(300);
+    let script = Engine::new()
+        .compile(&format!(
+            "def run() -> int\n1\nend\ndef {declared}() -> int\n2\nend\n"
+        ))
+        .unwrap();
+    let small = || CallOptions {
+        limits: Limits {
+            steps: Some(1),
+            ..Limits::default()
+        },
+        ..CallOptions::default()
+    };
+    let error = script.call("rum", &[], small()).unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Name);
+    assert_eq!(
+        error.message,
+        "function rum not found (did you mean \"run\"?)"
+    );
+    // A case-only mismatch would rank first, but a name this long is never
+    // ranked against the declarations.
+    for name in [declared.to_uppercase(), "F".repeat(1 << 20)] {
+        let error = script.call(&name, &[], small()).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Name);
+        assert_eq!(error.message, format!("function {name} not found"));
+    }
+}

@@ -1,7 +1,7 @@
 //! "Did you mean" suffixes for lookup failures, ranked like the reference:
 //! case-only mismatches first, then names within a small edit distance.
 
-use crate::scan;
+use crate::{CallContext, Result, scan};
 use std::fmt;
 
 /// Candidates within this many edits are suggested.
@@ -11,28 +11,49 @@ const SHORT_NAME_RUNES: usize = 4;
 /// Only this many leading candidates are considered.
 const MAX_CANDIDATES: usize = 256;
 const MAX_RESULTS: usize = 3;
+/// Longer missing names, which only a host can supply, get no suggestion.
+const MAX_NAME_BYTES: usize = 256;
+/// Ranking considers no further candidates once they could take it past
+/// reading this many bytes in all.
+const MAX_INPUT_BYTES: usize = 64 << 10;
+/// The most bytes one rune takes in UTF-8.
+const MAX_RUNE_BYTES: usize = 4;
 
 /// Collects the closest candidates to a missing name, keeping owned copies of
 /// at most three, and renders ` (did you mean "x"?)` or nothing.
 pub(crate) struct Suggestion<'n> {
     name: &'n str,
+    /// The name's case-folded runes, empty when it is too long to rank.
+    folded: Vec<u32>,
     limit: usize,
     offered: usize,
+    read: usize,
+    pending: usize,
     best: [(usize, Vec<u8>); MAX_RESULTS],
     len: usize,
 }
 
 impl<'n> Suggestion<'n> {
     pub(crate) fn new(name: &'n str) -> Self {
-        let limit = if name.chars().count() <= SHORT_NAME_RUNES {
+        let folded: Vec<u32> = if name.len() <= MAX_NAME_BYTES {
+            runes(name.as_bytes())
+                .map(crate::text::case::fold)
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let limit = if folded.len() <= SHORT_NAME_RUNES {
             1
         } else {
             MAX_DISTANCE
         };
         Self {
             name,
+            folded,
             limit,
             offered: 0,
+            read: 0,
+            pending: 0,
             best: Default::default(),
             len: 0,
         }
@@ -40,19 +61,35 @@ impl<'n> Suggestion<'n> {
 
     /// Ranks more candidates. Only the first `MAX_CANDIDATES` offered count,
     /// and each costs a band around the diagonal of the edit-distance table.
+    /// Each candidate checks for cancellation, and every chunk read is
+    /// charged; a lookup reading less than a chunk stays free.
     pub(crate) fn offer<'c>(
         &mut self,
+        ctx: &mut CallContext,
         candidates: impl IntoIterator<Item = &'c [u8]>,
-    ) -> &mut Self {
+    ) -> Result<&mut Self> {
+        if self.folded.is_empty() {
+            return Ok(self);
+        }
+        // A candidate further than the limit from the name's rune count can
+        // never rank, so ranking reads no more of it than this.
+        let reach = MAX_RUNE_BYTES * (self.folded.len() + self.limit + 1);
         for candidate in candidates {
             if self.offered == MAX_CANDIDATES {
                 break;
             }
+            let read = self.name.len() + candidate.len().min(reach);
+            if self.read + read > MAX_INPUT_BYTES {
+                self.offered = MAX_CANDIDATES;
+                break;
+            }
+            ctx.checkpoint()?;
+            ctx.scan_bytes(&mut self.pending, read)?;
+            self.read += read;
             self.offered += 1;
             // A repeated candidate ranks the same as its first copy, so skipping
             // it among the kept results considers each name once.
-            if self.name.is_empty()
-                || candidate.is_empty()
+            if candidate.is_empty()
                 || candidate == self.name.as_bytes()
                 || self.best[..self.len]
                     .iter()
@@ -60,7 +97,7 @@ impl<'n> Suggestion<'n> {
             {
                 continue;
             }
-            let Some(rank) = rank(self.name.as_bytes(), candidate, self.limit) else {
+            let Some(rank) = self.rank(candidate) else {
                 continue;
             };
             let position = self.best[..self.len]
@@ -74,24 +111,52 @@ impl<'n> Suggestion<'n> {
             self.best[position..self.len].rotate_right(1);
             self.best[position] = (rank, candidate.to_vec());
         }
-        self
+        Ok(self)
+    }
+
+    /// Case-only mismatches rank zero; anything else ranks by its edit
+    /// distance.
+    fn rank(&self, candidate: &[u8]) -> Option<usize> {
+        let fold = crate::text::case::fold;
+        if self.folded.iter().copied().eq(runes(candidate).map(fold)) {
+            return Some(0);
+        }
+        let runes_in_reach = runes(candidate)
+            .take(self.folded.len() + self.limit + 1)
+            .count();
+        distance(
+            self.name.as_bytes(),
+            self.folded.len(),
+            candidate,
+            runes_in_reach,
+            self.limit,
+        )
     }
 }
 
 /// Ranks `candidates` against the missing `name`.
-pub(crate) fn did_you_mean<'c>(
-    name: &str,
+pub(crate) fn did_you_mean<'n, 'c>(
+    ctx: &mut CallContext,
+    name: &'n str,
     candidates: impl IntoIterator<Item = &'c [u8]>,
-) -> Suggestion<'_> {
+) -> Result<Suggestion<'n>> {
     let mut suggestion = Suggestion::new(name);
-    suggestion.offer(candidates);
-    suggestion
+    suggestion.offer(ctx, candidates)?;
+    Ok(suggestion)
 }
 
 /// The error a host call or check reports for a function the script does not
-/// declare, suggesting close declared names as the reference does.
-pub(crate) fn missing_function(program: &crate::bytecode::Program, name: &str) -> crate::Error {
-    let suggestion = did_you_mean(name, program.names.keys().map(String::as_bytes));
+/// declare, suggesting close declared names as the reference does. A ranking
+/// that runs out of budget or is cancelled reports that instead.
+pub(crate) fn missing_function(
+    ctx: &mut CallContext,
+    program: &crate::bytecode::Program,
+    name: &str,
+) -> crate::Error {
+    let suggestion = match did_you_mean(ctx, name, program.names.keys().map(String::as_bytes)) {
+        Ok(suggestion) => suggestion,
+        Err(error) => return error,
+    };
     crate::Error::new(
         crate::ErrorKind::Name,
         format!("function {name} not found{suggestion}"),
@@ -110,20 +175,12 @@ fn runes(bytes: &[u8]) -> impl Iterator<Item = char> + '_ {
     })
 }
 
-/// Case-only mismatches rank zero; anything else ranks by its edit distance.
-fn rank(name: &[u8], candidate: &[u8], limit: usize) -> Option<usize> {
-    let fold = |rune| crate::text::case::fold(rune);
-    if runes(name).map(fold).eq(runes(candidate).map(fold)) {
-        return Some(0);
-    }
-    distance(name, candidate, limit)
-}
-
-/// The Levenshtein distance over runes when it is at most `limit`. Cells more
-/// than `limit` off the diagonal can never lead back within the limit, so only
-/// that band is computed, reading each string once.
-fn distance(a: &[u8], b: &[u8], limit: usize) -> Option<usize> {
-    let (a_len, b_len) = (runes(a).count(), runes(b).count());
+/// The Levenshtein distance over runes when it is at most `limit`, given each
+/// string's rune count; a count may stop short once it is more than `limit`
+/// past the other. Cells more than `limit` off the diagonal can never lead
+/// back within the limit, so only that band is computed, reading each string
+/// once.
+fn distance(a: &[u8], a_len: usize, b: &[u8], b_len: usize, limit: usize) -> Option<usize> {
     if a_len.abs_diff(b_len) > limit {
         return None;
     }
@@ -244,7 +301,10 @@ mod tests {
     use super::*;
 
     fn suggest(name: &str, candidates: &[&str]) -> String {
-        did_you_mean(name, candidates.iter().map(|c| c.as_bytes())).to_string()
+        let mut ctx = CallContext::new(crate::CallOptions::default());
+        did_you_mean(&mut ctx, name, candidates.iter().map(|c| c.as_bytes()))
+            .unwrap()
+            .to_string()
     }
 
     #[test]
@@ -318,6 +378,128 @@ mod tests {
     }
 
     #[test]
+    fn names_past_the_byte_cap_get_no_suggestion() {
+        let at_cap = "a".repeat(MAX_NAME_BYTES);
+        let near = "a".repeat(MAX_NAME_BYTES - 1);
+        assert_eq!(
+            suggest(&at_cap, &[&near]),
+            format!(" (did you mean \"{near}\"?)")
+        );
+        let over = "A".repeat(MAX_NAME_BYTES + 1);
+        assert_eq!(suggest(&over, &[&over.to_lowercase()]), "");
+    }
+
+    #[test]
+    fn ranking_stops_once_it_could_read_past_the_input_cap() {
+        let name = "n".repeat(64);
+        let near = format!("{name}x");
+        // A filler counts the name plus the reach a long candidate is read to,
+        // and the near candidate counts both in full.
+        let filler = "f".repeat(1000);
+        let read = name.len() + MAX_RUNE_BYTES * (name.len() + MAX_DISTANCE + 1);
+        let fillers = (MAX_INPUT_BYTES - name.len() - near.len()) / read;
+        assert!(fillers + 1 < MAX_CANDIDATES);
+        let mut candidates = vec![filler.as_str(); fillers];
+        candidates.push(&near);
+        assert_eq!(
+            suggest(&name, &candidates),
+            format!(" (did you mean \"{near}\"?)")
+        );
+        candidates.insert(0, &filler);
+        assert_eq!(suggest(&name, &candidates), "");
+    }
+
+    #[test]
+    fn cancellation_stops_ranking_between_candidates() {
+        let token = crate::CancellationToken::new();
+        let mut ctx = CallContext::new(crate::CallOptions {
+            cancellation: token.clone(),
+            ..Default::default()
+        });
+        let pulled = std::cell::Cell::new(0);
+        let candidates = std::iter::repeat_n(&b"length"[..], MAX_CANDIDATES).inspect(|_| {
+            pulled.set(pulled.get() + 1);
+            if pulled.get() == 10 {
+                token.cancel();
+            }
+        });
+        let error = did_you_mean(&mut ctx, "lengt", candidates).err().unwrap();
+        assert_eq!(error.kind, crate::ErrorKind::Cancelled);
+        assert_eq!(pulled.get(), 10);
+    }
+
+    #[test]
+    fn bulk_ranking_is_charged_and_small_lookups_stay_free() {
+        let options = || crate::CallOptions {
+            limits: crate::Limits {
+                steps: Some(10),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let mut ctx = CallContext::new(options());
+        let suggestion = did_you_mean(&mut ctx, "lengt", [&b"length"[..]]).unwrap();
+        assert_eq!(suggestion.to_string(), " (did you mean \"length\"?)");
+        assert_eq!(ctx.stats().steps, 0);
+        let name = "n".repeat(200);
+        let filler = "f".repeat(200);
+        let candidates = std::iter::repeat_n(filler.as_bytes(), MAX_CANDIDATES);
+        let mut ctx = CallContext::new(options());
+        let error = did_you_mean(&mut ctx, &name, candidates).err().unwrap();
+        assert_eq!(error.kind, crate::ErrorKind::Steps);
+    }
+
+    #[test]
+    fn dynamic_member_failures_charge_ranking_against_long_keys() {
+        // The checker refuses unknown members in scripts, but a host object's
+        // keys are only known when a call dispatches on it.
+        let name = "a_rather_long_member_name";
+        let short: Vec<_> = (0..64).map(|i| format!("k{i}").into_bytes()).collect();
+        let long = "k".repeat(1 << 16);
+        let long: Vec<_> = (0..64).map(|i| format!("{i}{long}").into_bytes()).collect();
+        let fail = |keys: &[Vec<u8>], steps| {
+            let mut ctx = CallContext::new(crate::CallOptions {
+                limits: crate::Limits {
+                    steps,
+                    ..Default::default()
+                },
+                ..Default::default()
+            });
+            let mut fields: Vec<_> = keys
+                .iter()
+                .map(|key| (key.clone(), crate::Value::int(1)))
+                .collect();
+            fields.push((b"a_rather_long_member_nam".to_vec(), crate::Value::int(2)));
+            let site = crate::bytecode::CallSite {
+                name: 0,
+                method: None,
+                auto: true,
+                scope: false,
+            };
+            let error =
+                crate::members::call(&mut ctx, site, name, crate::Value::object(fields), &[])
+                    .err()
+                    .unwrap();
+            (error, ctx.stats().steps)
+        };
+        // Looking the name up costs the same steps either way; only ranking
+        // the long keys reads enough to be charged.
+        let (_, lookup) = fail(&short, None);
+        let budget = Some(lookup + 10);
+        let (short, _) = fail(&short, budget);
+        assert_eq!(short.kind, crate::ErrorKind::Name);
+        assert!(
+            short
+                .message
+                .ends_with("(did you mean \"a_rather_long_member_nam\"?)"),
+            "{}",
+            short.message
+        );
+        let (long, _) = fail(&long, budget);
+        assert_eq!(long.kind, crate::ErrorKind::Steps, "{}", long.message);
+    }
+
+    #[test]
     fn distance_matches_the_full_table_within_the_limit() {
         fn full(a: &str, b: &str) -> usize {
             let a: Vec<char> = a.chars().collect();
@@ -343,7 +525,13 @@ mod tests {
                 for limit in 1..=MAX_DISTANCE {
                     let expected = Some(full(a, b)).filter(|&d| d <= limit);
                     assert_eq!(
-                        distance(a.as_bytes(), b.as_bytes(), limit),
+                        distance(
+                            a.as_bytes(),
+                            a.chars().count(),
+                            b.as_bytes(),
+                            b.chars().count(),
+                            limit
+                        ),
                         expected,
                         "{a} {b} {limit}"
                     );

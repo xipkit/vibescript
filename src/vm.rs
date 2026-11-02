@@ -2192,7 +2192,7 @@ impl Run {
                                 continue;
                             }
                             namespaces::Member::Missing => {
-                                namespaces::fallback(storage, &receiver, name, false)?
+                                namespaces::fallback(ctx, storage, &receiver, name, false)?
                             }
                         }
                     }
@@ -2308,7 +2308,7 @@ impl Run {
                                     continue;
                                 }
                                 namespaces::Member::Missing => {
-                                    namespaces::fallback(storage, &receiver, name, false)?
+                                    namespaces::fallback(ctx, storage, &receiver, name, false)?
                                 }
                             }
                         }
@@ -2570,7 +2570,7 @@ impl Run {
                                 continue;
                             }
                             namespaces::Member::Missing => {
-                                namespaces::fallback(storage, receiver, name, false)?
+                                namespaces::fallback(ctx, storage, receiver, name, false)?
                             }
                         }
                     }
@@ -2911,10 +2911,13 @@ impl Run {
                             }
                             namespaces::Member::Missing => {
                                 let Some(module) = namespace else {
-                                    return Err(undefined(program, frames, storage, current, name));
+                                    return Err(undefined(
+                                        ctx, program, frames, storage, current, name,
+                                    ));
                                 };
                                 if !members::names::universal(name) {
                                     return Err(namespaces::missing_implicit(
+                                        ctx,
                                         storage,
                                         self_value.as_ref(),
                                         &program.namespaces[module],
@@ -3453,7 +3456,9 @@ fn method(
                 stack.push(ctx, value)?;
                 return Ok(());
             }
-            namespaces::Member::Missing => namespaces::fallback(storage, receiver, name, false)?,
+            namespaces::Member::Missing => {
+                namespaces::fallback(ctx, storage, receiver, name, false)?
+            }
         }
     }
     let (_, value) = members::call(
@@ -4155,10 +4160,11 @@ fn implicit_read(
         }
         namespaces::Member::Missing => {
             let Some(module) = namespace else {
-                return Err(undefined(program, frames, storage, current, text));
+                return Err(undefined(ctx, program, frames, storage, current, text));
             };
             if !members::names::universal(text) {
                 return Err(namespaces::missing_implicit(
+                    ctx,
                     storage,
                     self_value.as_ref(),
                     &program.namespaces[module],
@@ -4186,6 +4192,7 @@ fn implicit_read(
 /// script's declarations and the builtin globals the reference exposes. A
 /// removed callable constructor keeps its teaching message.
 fn undefined(
+    ctx: &mut CallContext,
     program: &Program,
     frames: &Buffer<Frame>,
     storage: &Storage,
@@ -4251,13 +4258,13 @@ fn undefined(
         .chain(program.declaration_names.keys().map(|name| name.as_bytes()))
         .chain(program.hosts.iter().map(|name| name.as_bytes()))
         .chain(BUILTINS.iter().map(|name| name.as_bytes()));
-    Error::new(
-        ErrorKind::Name,
-        format!(
-            "undefined variable {name}{}",
-            members::suggest::did_you_mean(name, candidates)
+    match members::suggest::did_you_mean(ctx, name, candidates) {
+        Ok(suggestion) => Error::new(
+            ErrorKind::Name,
+            format!("undefined variable {name}{suggestion}"),
         ),
-    )
+        Err(error) => error,
+    }
 }
 
 fn global_index(program: &Program, name: &str) -> Option<usize> {

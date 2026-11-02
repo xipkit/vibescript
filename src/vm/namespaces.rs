@@ -157,6 +157,7 @@ pub(super) fn implicit_address(
 /// Accepts a universal helper, which the generic member dispatch answers for
 /// every receiver; any other name is missing from the class or instance.
 pub(super) fn fallback(
+    ctx: &mut CallContext,
     storage: &Storage,
     receiver: &Value,
     name: &str,
@@ -165,7 +166,7 @@ pub(super) fn fallback(
     if crate::members::names::universal(name) {
         Ok(())
     } else {
-        Err(missing(storage, receiver, name, implicit))
+        Err(missing(ctx, storage, receiver, name, implicit))
     }
 }
 
@@ -196,11 +197,20 @@ pub(super) fn removed(name: &str) -> Option<Error> {
 
 /// Reports a name missing from a class or instance as the reference does.
 /// Private and protected methods are suggested only to implicit calls, which
-/// could reach them. Nothing here charges the call: it only renders.
-pub(super) fn missing(storage: &Storage, receiver: &Value, name: &str, implicit: bool) -> Error {
+/// could reach them. Only ranking the suggestions charges the call, and one
+/// that runs out of budget or is cancelled reports that instead.
+pub(super) fn missing(
+    ctx: &mut CallContext,
+    storage: &Storage,
+    receiver: &Value,
+    name: &str,
+    implicit: bool,
+) -> Error {
     match &receiver.0 {
-        Kind::Namespace(namespace) => class_missing(storage, &namespace.definition, name, implicit),
-        Kind::Instance(instance) => instance_missing(instance, name, implicit),
+        Kind::Namespace(namespace) => {
+            class_missing(ctx, storage, &namespace.definition, name, implicit)
+        }
+        Kind::Instance(instance) => instance_missing(ctx, instance, name, implicit),
         _ => Error::new(ErrorKind::Name, format!("unknown member {name}")),
     }
 }
@@ -209,6 +219,7 @@ pub(super) fn missing(storage: &Storage, receiver: &Value, name: &str, implicit:
 /// is the running instance or class when one is bound. A removed callable
 /// constructor keeps its teaching message.
 pub(super) fn missing_implicit(
+    ctx: &mut CallContext,
     storage: &Storage,
     receiver: Option<&Value>,
     definition: &Arc<crate::namespace::Definition>,
@@ -219,29 +230,41 @@ pub(super) fn missing_implicit(
     }
     match receiver {
         Some(receiver @ Value(Kind::Namespace(_) | Kind::Instance(_))) => {
-            missing(storage, receiver, name, true)
+            missing(ctx, storage, receiver, name, true)
         }
-        _ => class_missing(storage, definition, name, true),
+        _ => class_missing(ctx, storage, definition, name, true),
     }
 }
 
 /// Reports a scoped constant a class or module does not define, suggesting its
 /// fields.
 fn unknown_constant(
+    ctx: &mut CallContext,
     storage: &Storage,
     definition: &Arc<crate::namespace::Definition>,
     name: &str,
 ) -> Error {
     let mut suggestion = Suggestion::new(name);
-    let mut render = |fields: &mut dyn Iterator<Item = &[u8]>| {
-        suggestion.offer(fields);
-        format!("unknown constant {}::{name}{suggestion}", definition.name)
+    let mut render = |fields: &mut dyn Iterator<Item = &[u8]>| -> Result<String> {
+        suggestion.offer(ctx, fields)?;
+        Ok(format!(
+            "unknown constant {}::{name}{suggestion}",
+            definition.name
+        ))
     };
-    Error::new(
-        ErrorKind::Name,
-        with_class_fields(storage, definition, &mut render)
-            .unwrap_or_else(|| format!("unknown constant {}::{name}", definition.name)),
-    )
+    name_error(with_class_fields(storage, definition, &mut render), || {
+        format!("unknown constant {}::{name}", definition.name)
+    })
+}
+
+/// A name error with the rendered message, or the plain one when the names to
+/// suggest were unavailable. A ranking that failed reports its own error.
+fn name_error(rendered: Option<Result<String>>, plain: impl FnOnce() -> String) -> Error {
+    match rendered {
+        Some(Ok(message)) => Error::new(ErrorKind::Name, message),
+        Some(Err(error)) => error,
+        None => Error::new(ErrorKind::Name, plain()),
+    }
 }
 
 /// Renders with a class's field names without charging the call.
@@ -282,27 +305,34 @@ fn accessible(methods: &[crate::namespace::Method], implicit: bool) -> impl Iter
 }
 
 /// An instance suggests `class`, its methods, fields and the universal helpers.
-fn instance_missing(instance: &Arc<crate::objects::Instance>, name: &str, implicit: bool) -> Error {
+fn instance_missing(
+    ctx: &mut CallContext,
+    instance: &Arc<crate::objects::Instance>,
+    name: &str,
+    implicit: bool,
+) -> Error {
     let class = instance.class();
     let mut suggestion = Suggestion::new(name);
-    suggestion
-        .offer([&b"class"[..]])
-        .offer(accessible(&class.definition.instance_methods, implicit));
-    let rendered = crate::objects::with_field_names(instance, |fields| {
+    let methods = accessible(&class.definition.instance_methods, implicit);
+    if let Err(error) = suggestion
+        .offer(ctx, [&b"class"[..]])
+        .and_then(|suggestion| suggestion.offer(ctx, methods))
+    {
+        return error;
+    }
+    let rendered = crate::objects::with_field_names(instance, |fields| -> Result<String> {
         suggestion
-            .offer(fields)
-            .offer(UNIVERSAL.iter().map(|name| name.as_bytes()));
-        format!("unknown member {name}{suggestion}")
+            .offer(ctx, fields)?
+            .offer(ctx, UNIVERSAL.iter().map(|name| name.as_bytes()))?;
+        Ok(format!("unknown member {name}{suggestion}"))
     });
-    Error::new(
-        ErrorKind::Name,
-        rendered.unwrap_or_else(|_| format!("unknown member {name}")),
-    )
+    name_error(rendered.ok(), || format!("unknown member {name}"))
 }
 
 /// A class suggests `new`, its class methods, class fields and the universal
 /// helpers, unless the name is a Ruby class macro spelled differently here.
 fn class_missing(
+    ctx: &mut CallContext,
     storage: &Storage,
     definition: &Arc<crate::namespace::Definition>,
     name: &str,
@@ -321,20 +351,23 @@ fn class_missing(
         );
     }
     let mut suggestion = Suggestion::new(name);
-    suggestion
-        .offer(definition.constructor.map(|_| &b"new"[..]))
-        .offer(accessible(&definition.methods, implicit));
-    let mut render = |fields: &mut dyn Iterator<Item = &[u8]>| {
+    let constructor = definition.constructor.map(|_| &b"new"[..]);
+    let methods = accessible(&definition.methods, implicit);
+    if let Err(error) = suggestion
+        .offer(ctx, constructor)
+        .and_then(|suggestion| suggestion.offer(ctx, methods))
+    {
+        return error;
+    }
+    let mut render = |fields: &mut dyn Iterator<Item = &[u8]>| -> Result<String> {
         suggestion
-            .offer(fields)
-            .offer(UNIVERSAL.iter().map(|name| name.as_bytes()));
-        format!("unknown class member {name}{suggestion}")
+            .offer(ctx, fields)?
+            .offer(ctx, UNIVERSAL.iter().map(|name| name.as_bytes()))?;
+        Ok(format!("unknown class member {name}{suggestion}"))
     };
-    Error::new(
-        ErrorKind::Name,
-        with_class_fields(storage, definition, &mut render)
-            .unwrap_or_else(|| format!("unknown class member {name}")),
-    )
+    name_error(with_class_fields(storage, definition, &mut render), || {
+        format!("unknown class member {name}")
+    })
 }
 
 pub(super) fn state(
@@ -558,7 +591,7 @@ pub(super) fn member(
         }
         return match field(program, ctx, storage, definition.index, name)? {
             Some(value) => Ok(Member::Value(value)),
-            None => Err(unknown_constant(storage, definition, name)),
+            None => Err(unknown_constant(ctx, storage, definition, name)),
         };
     }
     if instance.is_some() && name == "class" {

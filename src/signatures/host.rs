@@ -11,7 +11,10 @@ use crate::{
     types::{Scalar, TypeKind},
     value::Kind,
 };
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 /// The builtin table followed by the host's declarations: functions
 /// registered on the engine, the globals and capabilities it declares, then
@@ -172,7 +175,7 @@ fn binding_in(name: &str, value: &Value, methods: &Methods, depth: usize) -> Ite
             name: name.to_owned(),
             ty: match methods.holds(value) {
                 true => Type::name("any"),
-                false => value_type(value, 0),
+                false => value_type(value),
             },
         }),
     }
@@ -369,52 +372,191 @@ pub(crate) fn annotation(ty: &crate::types::Type) -> Type {
     }
 }
 
+/// How many levels into a host data value [`value_type`] looks; anything
+/// deeper declares as `any`.
+pub(super) const INFERENCE_DEPTH: usize = 16;
+
+/// The steps [`value_type`] may take over one value: one per array element
+/// or hash field and one per byte of a field name, counted as if no array
+/// or hash in it were shared.
+pub(super) const INFERENCE_WORK: usize = 1 << 24;
+
+/// How large a type [`value_type`] may infer: one per type in it, plus the
+/// bytes of each field name.
+pub(super) const INFERENCE_SIZE: usize = 1 << 20;
+
 /// The type of a host data value, as far as its contents show it.
-pub(crate) fn value_type(value: &Value, depth: usize) -> Type {
-    if depth > 16 {
-        return Type::name("any");
+///
+/// An array or hash shared within the value is described once at each
+/// depth it appears and reused after, so a compact graph of shared children
+/// takes time and memory in the size of the graph, not of the tree it
+/// unfolds to. The bounds count the unfolded tree, though: a value whose
+/// description would take more than [`INFERENCE_WORK`] steps, or come to
+/// more than [`INFERENCE_SIZE`], declares as `any`, as data too deep to see
+/// does, and a shared value infers exactly the type an unshared copy does.
+pub(crate) fn value_type(value: &Value) -> Type {
+    let mut inference = Inference::default();
+    match inference.infer(value, 0) {
+        Some(id) => inference.build(id),
+        None => Type::name("any"),
     }
+}
+
+/// One [`value_type`] walk. Each type it infers is kept once, by id, so
+/// equal types have equal ids; the walk remembers the type and the steps
+/// it took for each array or hash, by address and depth. A step that
+/// returns `None` has run past a bound, which ends the walk.
+#[derive(Default)]
+struct Inference {
+    described: std::collections::HashMap<(usize, usize), (usize, usize)>,
+    types: Vec<(Inferred, usize)>,
+    ids: std::collections::HashMap<Inferred, usize>,
+    work: usize,
+}
+
+/// A [`Type`] [`value_type`] infers, with its parts by id.
+#[derive(Clone, PartialEq, Eq, Hash)]
+enum Inferred {
+    Name(&'static str),
+    Array(usize),
+    Union(Vec<usize>),
+    Shape(Vec<(String, usize)>),
+}
+
+impl Inference {
+    fn charge(&mut self, steps: usize) -> Option<()> {
+        self.work = self.work.saturating_add(steps);
+        (self.work <= INFERENCE_WORK).then_some(())
+    }
+
+    /// The id of `ty`, which comes to `size` once built.
+    fn intern(&mut self, ty: Inferred) -> Option<usize> {
+        if let Some(&id) = self.ids.get(&ty) {
+            return Some(id);
+        }
+        let size = match &ty {
+            Inferred::Name(_) => 1,
+            Inferred::Array(element) => 1 + self.types[*element].1,
+            Inferred::Union(arms) => 1 + arms.iter().map(|&arm| self.types[arm].1).sum::<usize>(),
+            Inferred::Shape(fields) => {
+                1 + fields
+                    .iter()
+                    .map(|(name, field)| name.len() + self.types[*field].1)
+                    .sum::<usize>()
+            }
+        };
+        if size > INFERENCE_SIZE {
+            return None;
+        }
+        let id = self.types.len();
+        self.types.push((ty.clone(), size));
+        self.ids.insert(ty, id);
+        Some(id)
+    }
+
+    /// The id of the type of `value`, `depth` levels down.
+    fn infer(&mut self, value: &Value, depth: usize) -> Option<usize> {
+        if depth > INFERENCE_DEPTH {
+            return self.intern(Inferred::Name("any"));
+        }
+        // Only an array or hash held more than once can be met again.
+        let (address, shared) = match &value.0 {
+            Kind::Array(array) => (
+                Arc::as_ptr(array).cast::<()>(),
+                Arc::strong_count(array) > 1,
+            ),
+            Kind::Hash(hash) => (Arc::as_ptr(hash).cast::<()>(), Arc::strong_count(hash) > 1),
+            _ => return self.intern(Inferred::Name(scalar_type(value))),
+        };
+        let key = (address as usize, depth);
+        if let Some(&(id, work)) = shared.then(|| self.described.get(&key)).flatten() {
+            self.charge(work)?;
+            return Some(id);
+        }
+        let start = self.work;
+        let ty = match &value.0 {
+            Kind::Array(array) => self.array(&array.buffer.data, depth)?,
+            Kind::Hash(hash) => self.hash(&hash.buffer.data, depth)?,
+            _ => unreachable!(),
+        };
+        let id = self.intern(ty)?;
+        if shared {
+            self.described.insert(key, (id, self.work - start));
+        }
+        Some(id)
+    }
+
+    /// An array of the distinct types of `items`, in the order they first
+    /// appear.
+    fn array(&mut self, items: &[Value], depth: usize) -> Option<Inferred> {
+        let mut arms = Vec::new();
+        let mut distinct = std::collections::HashSet::new();
+        for item in items {
+            self.charge(1)?;
+            let arm = self.infer(item, depth + 1)?;
+            if distinct.insert(arm) {
+                arms.push(arm);
+            }
+        }
+        let element = match arms.len() {
+            0 => self.intern(Inferred::Name("any"))?,
+            1 => arms[0],
+            _ => self.intern(Inferred::Union(arms))?,
+        };
+        Some(Inferred::Array(element))
+    }
+
+    /// A closed shape of `entries`, or `any` if a key is not a string.
+    fn hash(&mut self, entries: &[(Value, Value)], depth: usize) -> Option<Inferred> {
+        if entries.iter().any(|(key, _)| key.as_bytes().is_none()) {
+            self.charge(entries.len())?;
+            return Some(Inferred::Name("any"));
+        }
+        let mut fields = Vec::with_capacity(entries.len());
+        for (key, field) in entries {
+            let key = key.as_bytes().unwrap();
+            self.charge(1 + key.len())?;
+            let field = self.infer(field, depth + 1)?;
+            fields.push((String::from_utf8_lossy(key).into_owned(), field));
+        }
+        Some(Inferred::Shape(fields))
+    }
+
+    /// The [`Type`] with id `id`.
+    fn build(&self, id: usize) -> Type {
+        match &self.types[id].0 {
+            Inferred::Name(name) => Type::name(name),
+            Inferred::Array(element) => Type::Name("array".into(), vec![self.build(*element)]),
+            Inferred::Union(arms) => Type::Union(arms.iter().map(|&arm| self.build(arm)).collect()),
+            Inferred::Shape(fields) => Type::Shape(
+                fields
+                    .iter()
+                    .map(|(name, field)| Field {
+                        name: name.clone(),
+                        ty: self.build(*field),
+                        optional: false,
+                    })
+                    .collect(),
+                false,
+            ),
+        }
+    }
+}
+
+/// The type of a value that holds no others.
+fn scalar_type(value: &Value) -> &'static str {
     match &value.0 {
-        Kind::Nil => Type::name("nil"),
-        Kind::Bool(_) => Type::name("bool"),
-        Kind::Int(_) | Kind::Big(_) => Type::name("int"),
-        Kind::Float(_) => Type::name("float"),
-        Kind::Bytes(_) => Type::name("string"),
-        Kind::Symbol(_) => Type::name("symbol"),
-        Kind::Money(_) => Type::name("money"),
-        Kind::Duration(_) => Type::name("duration"),
-        Kind::Time(_) | Kind::Zoned(_) => Type::name("time"),
-        Kind::Range(_) => Type::name("range"),
-        Kind::Regex(_) => Type::name("regex"),
-        Kind::Array(array) => {
-            let mut arms: Vec<Type> = Vec::new();
-            for item in &array.buffer.data {
-                let ty = value_type(item, depth + 1);
-                if !arms.contains(&ty) {
-                    arms.push(ty);
-                }
-            }
-            let element = match arms.len() {
-                0 => Type::name("any"),
-                1 => arms.pop().unwrap(),
-                _ => Type::Union(arms),
-            };
-            Type::Name("array".into(), vec![element])
-        }
-        Kind::Hash(hash) => {
-            let mut fields = Vec::new();
-            for (key, field) in &hash.buffer.data {
-                let Some(key) = key.as_bytes() else {
-                    return Type::name("any");
-                };
-                fields.push(Field {
-                    name: String::from_utf8_lossy(key).into_owned(),
-                    ty: value_type(field, depth + 1),
-                    optional: false,
-                });
-            }
-            Type::Shape(fields, false)
-        }
-        _ => Type::name("any"),
+        Kind::Nil => "nil",
+        Kind::Bool(_) => "bool",
+        Kind::Int(_) | Kind::Big(_) => "int",
+        Kind::Float(_) => "float",
+        Kind::Bytes(_) => "string",
+        Kind::Symbol(_) => "symbol",
+        Kind::Money(_) => "money",
+        Kind::Duration(_) => "duration",
+        Kind::Time(_) | Kind::Zoned(_) => "time",
+        Kind::Range(_) => "range",
+        Kind::Regex(_) => "regex",
+        _ => "any",
     }
 }
