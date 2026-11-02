@@ -1,6 +1,7 @@
 use crate::{CallContext, Error, ErrorKind, Result, Value, budget::Buffer};
 use std::{path::PathBuf, sync::Arc};
 
+pub use files::canonicalize;
 pub(crate) use resolver::Origin;
 
 mod cache;

@@ -718,3 +718,49 @@ fn concurrent_symlink_replacement_never_reads_outside_bytes() {
         "choice.vibe"
     ));
 }
+
+#[cfg(any(unix, target_os = "wasi"))]
+#[test]
+fn canonicalize_expands_links_before_parents_and_ends_only_at_files() {
+    #[cfg(target_os = "wasi")]
+    use rustix::fs::symlink;
+    #[cfg(unix)]
+    use std::os::unix::fs::symlink;
+    let directory = Directory::new();
+    let base = &directory.0;
+    let file = directory.write("real/deeper/file.vibe", b"");
+    // Relative targets, which WASI hosts also accept.
+    symlink("real/deeper", base.join("link")).unwrap();
+    symlink("link/file.vibe", base.join("alias.vibe")).unwrap();
+    for (path, expected) in [
+        ("real/deeper/file.vibe", file.clone()),
+        ("link/file.vibe", file.clone()),
+        ("alias.vibe", file.clone()),
+        ("link/..", base.join("real")),
+        ("link/../deeper/./file.vibe", file.clone()),
+        ("real/deeper/../deeper/", base.join("real/deeper")),
+        ("link/.", base.join("real/deeper")),
+    ] {
+        assert_eq!(canonicalize(&base.join(path)).unwrap(), expected, "{path}");
+    }
+    let mut failures = vec![
+        ("missing", io::ErrorKind::NotFound),
+        ("real/missing/..", io::ErrorKind::NotFound),
+        ("link/file.vibe/x", io::ErrorKind::NotADirectory),
+    ];
+    // Like glibc, and unlike Darwin, nothing may follow a file.
+    if cfg!(any(target_os = "linux", target_os = "wasi")) {
+        failures.extend([
+            ("real/deeper/file.vibe/", io::ErrorKind::NotADirectory),
+            ("real/deeper/file.vibe/.", io::ErrorKind::NotADirectory),
+            ("alias.vibe/", io::ErrorKind::NotADirectory),
+            ("link/file.vibe/..", io::ErrorKind::NotADirectory),
+        ]);
+    }
+    for (path, kind) in failures {
+        match canonicalize(&base.join(path)) {
+            Ok(resolved) => panic!("{path} resolved to {resolved:?}"),
+            Err(error) => assert_eq!(error.kind(), kind, "{path}: {error}"),
+        }
+    }
+}

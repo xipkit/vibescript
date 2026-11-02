@@ -163,6 +163,16 @@ pub(super) fn open_root(path: &Path) -> io::Result<(Dir, PathBuf)> {
     super::wasi::open_root(path)
 }
 
+#[cfg(not(target_os = "wasi"))]
+pub(super) fn canonicalize(path: &Path) -> io::Result<PathBuf> {
+    std::fs::canonicalize(path)
+}
+
+#[cfg(target_os = "wasi")]
+pub(super) fn canonicalize(path: &Path) -> io::Result<PathBuf> {
+    super::wasi::canonicalize(path)
+}
+
 #[cfg(target_os = "wasi")]
 pub(super) fn open(parent: &Dir, name: &OsStr) -> io::Result<File> {
     parent.open_file(name)

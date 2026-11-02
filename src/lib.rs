@@ -45,6 +45,9 @@ mod iteration;
 mod json;
 mod loading;
 pub use loading::ModuleConfig;
+/// For the command line, which resolves file operands as module roots are.
+#[doc(hidden)]
+pub use loading::canonicalize;
 mod math;
 mod members;
 mod money;

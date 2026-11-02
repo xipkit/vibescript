@@ -124,3 +124,7 @@ impl DirEntry {
 pub(super) fn open_root(path: &Path) -> io::Result<(Dir, PathBuf)> {
     root::open(path)
 }
+
+pub(super) fn canonicalize(path: &Path) -> io::Result<PathBuf> {
+    root::canonicalize(path)
+}
