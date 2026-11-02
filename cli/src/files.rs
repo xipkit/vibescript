@@ -625,16 +625,34 @@ mod dir {
                 // Wasmtime reports a directory's inheriting rights without
                 // FD_WRITE unless it is a preopen, and wasi-libc's `openat`
                 // masks a file's rights with them, so ask for writing directly.
-                let leaf = leaf.to_str().ok_or(io::ErrorKind::InvalidInput)?;
+                // The raw import takes the name's bytes, which need not be
+                // UTF-8 on every host; the typed wrapper requires a `str`.
+                let leaf = leaf.as_bytes();
                 let rights = wasi::RIGHTS_FD_WRITE
                     | wasi::RIGHTS_FD_FILESTAT_GET
                     | wasi::RIGHTS_FD_FILESTAT_SET_SIZE;
-                // SAFETY: `parent` is a live descriptor for the call, and the
-                // returned descriptor is new and owned by nothing else.
-                let fd = unsafe {
-                    wasi::path_open(parent.as_raw_fd() as wasi::Fd, 0, leaf, 0, rights, 0, 0)
+                let mut fd = std::mem::MaybeUninit::<wasi::Fd>::uninit();
+                // SAFETY: `parent` is a live descriptor and `leaf` a live
+                // buffer of the given length for the call, and `fd` has room
+                // for the descriptor the host writes on success.
+                let errno = unsafe {
+                    wasi::wasi_snapshot_preview1::path_open(
+                        parent.as_raw_fd(),
+                        0,
+                        leaf.as_ptr() as i32,
+                        leaf.len() as i32,
+                        0,
+                        rights as i64,
+                        0,
+                        0,
+                        fd.as_mut_ptr() as i32,
+                    )
+                };
+                if errno != 0 {
+                    return Err(io::Error::from_raw_os_error(errno));
                 }
-                .map_err(|error| io::Error::from_raw_os_error(error.raw().into()))?;
+                // SAFETY: a successful call wrote the descriptor.
+                let fd = unsafe { fd.assume_init() };
                 // SAFETY: as above, the descriptor is newly opened and unowned.
                 Ok(unsafe { fs::File::from_raw_fd(fd as RawFd) })
             })
@@ -915,6 +933,34 @@ mod tests {
                     "{context}"
                 );
             }
+        }
+    }
+
+    #[cfg(any(unix, target_os = "wasi"))]
+    #[test]
+    fn rewrites_names_that_are_not_utf8() {
+        #[cfg(unix)]
+        use std::os::unix::ffi::OsStrExt;
+        #[cfg(target_os = "wasi")]
+        use std::os::wasi::ffi::OsStrExt;
+        let scratch = Scratch::new("not-utf8");
+        let root = scratch.0.join("root");
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join(std::ffi::OsStr::from_bytes(b"bad\xff.vibe"));
+        // APFS and Wasmtime refuse such names; Linux and Node keep them.
+        if let Err(error) = fs::write(&path, ORIGINAL) {
+            eprintln!("skipping: this host refuses names that are not UTF-8: {error}");
+            return;
+        }
+        for selection in selections(false) {
+            fs::write(&path, ORIGINAL).unwrap();
+            let mut inputs = collect_one(&root, selection);
+            assert_eq!(inputs.files.len(), 1, "{selection:?}");
+            let (data, info) = inputs.read(0).unwrap();
+            inputs
+                .write(0, &info, &vibescript_tools::format::format_bytes(&data))
+                .unwrap();
+            assert_eq!(fs::read_to_string(&path).unwrap(), "original\n");
         }
     }
 
