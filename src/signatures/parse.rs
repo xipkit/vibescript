@@ -5,7 +5,14 @@ use super::{
     Alias, Block, Class, Constant, Field, Function, Item, Member, Module, Param, ParamKind, Table,
     Type, TypeParam,
 };
-use std::{collections::BTreeMap, fmt};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, hash_map::Entry},
+    fmt,
+};
+
+/// The most overloads one function name may have in a scope. Each overload
+/// is checked against every earlier one, so this bounds that work.
+const OVERLOADS: usize = 64;
 
 /// A syntax error in a signature file, at a one-based line and column.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -451,6 +458,9 @@ impl<'a> Parser<'a> {
 
     fn members(&mut self, scope: &str, class: bool) -> Result<Vec<Member>> {
         let mut members: Vec<Member> = Vec::new();
+        // Each name declared so far, and whether it names functions, which
+        // may overload, rather than one module or constant.
+        let mut names: HashMap<String, bool> = HashMap::new();
         loop {
             let doc = self.doc()?;
             let start = self.pos;
@@ -469,15 +479,16 @@ impl<'a> Parser<'a> {
                 Token::Word(_) if !class => Member::Constant(self.constant(doc)?),
                 _ => return self.fail("expected a member declaration or `end`"),
             };
-            let overload = |other: &Member| {
-                matches!(other, Member::Function(_)) && matches!(member, Member::Function(_))
-            };
-            if members
-                .iter()
-                .any(|other| other.name() == member.name() && !overload(other))
-            {
-                self.pos = start;
-                return self.fail(format!("duplicate member {}", member.name()));
+            let function = matches!(member, Member::Function(_));
+            match names.entry(member.name().to_owned()) {
+                Entry::Occupied(entry) if !(function && *entry.get()) => {
+                    self.pos = start;
+                    return self.fail(format!("duplicate member {}", member.name()));
+                }
+                Entry::Occupied(_) => {}
+                Entry::Vacant(entry) => {
+                    entry.insert(function);
+                }
             }
             members.push(member);
             self.line_end()?;
@@ -485,11 +496,18 @@ impl<'a> Parser<'a> {
     }
 
     /// Records a function's call shape, refusing an overload that could
-    /// accept the same call as an earlier one.
+    /// accept the same call as an earlier one, or one past [`OVERLOADS`].
     fn overload(&mut self, scope: &str, function: &Function, start: usize) -> Result<()> {
         let shape = Shape::of(function);
         let key = (scope.to_owned(), function.name.clone());
         let shapes = self.shapes.entry(key).or_default();
+        if shapes.len() == OVERLOADS {
+            self.pos = start;
+            return self.fail(format!(
+                "{} has more than {OVERLOADS} overloads",
+                function.name
+            ));
+        }
         if shapes.iter().any(|other| other.overlaps(&shape)) {
             self.pos = start;
             return self.fail(format!(
@@ -552,6 +570,7 @@ impl<'a> Parser<'a> {
         if self.eat("(") && !self.eat(")") {
             // Parameters after a bare `*` or a rest parameter are keywords.
             let mut keywords = false;
+            let mut names = HashSet::new();
             loop {
                 if self.at("&") {
                     function.block = Some(self.block()?);
@@ -579,6 +598,9 @@ impl<'a> Parser<'a> {
                     param.kind = ParamKind::Keyword;
                 }
                 keywords |= param.kind == ParamKind::Rest;
+                if !names.insert(param.name.clone()) {
+                    return self.fail(format!("duplicate parameter {}", param.name));
+                }
                 self.check_order(&function.params, &param)?;
                 function.params.push(param);
                 if self.eat(")") {
@@ -595,9 +617,6 @@ impl<'a> Parser<'a> {
     }
 
     fn check_order(&self, params: &[Param], param: &Param) -> Result<()> {
-        if params.iter().any(|other| other.name == param.name) {
-            return self.fail(format!("duplicate parameter {}", param.name));
-        }
         let rank = |param: &Param| match param.kind {
             ParamKind::Positional => 0,
             ParamKind::Rest => 1,
@@ -783,6 +802,7 @@ impl<'a> Parser<'a> {
 
     fn shape(&mut self) -> Result<Type> {
         let mut fields: Vec<Field> = Vec::new();
+        let mut names = HashSet::new();
         let mut open = false;
         if self.eat("}") {
             return Ok(Type::Shape(fields, false));
@@ -812,7 +832,7 @@ impl<'a> Parser<'a> {
             }
             self.expect(":")?;
             let ty = self.ty()?;
-            if fields.iter().any(|field| field.name == name) {
+            if !names.insert(name.clone()) {
                 return self.fail(format!("duplicate field {name}"));
             }
             fields.push(Field { name, ty, optional });
@@ -875,7 +895,7 @@ struct Shape {
     positional: (usize, Option<usize>),
     required: Vec<String>,
     /// The keywords a call may pass, or `None` for any.
-    keywords: Option<Vec<String>>,
+    keywords: Option<BTreeSet<String>>,
     /// The block's parameter counts, or `None` without a block.
     block: Option<(usize, Option<usize>)>,
     block_required: bool,
@@ -886,7 +906,7 @@ impl Shape {
         let mut shape = Self {
             positional: (0, Some(0)),
             required: Vec::new(),
-            keywords: Some(Vec::new()),
+            keywords: Some(BTreeSet::new()),
             block: function.block.as_ref().map(|block| {
                 let count = block.params.len();
                 (count, block.rest.is_none().then_some(count))
@@ -907,7 +927,7 @@ impl Shape {
                         shape.required.push(param.name.clone());
                     }
                     if let Some(keywords) = &mut shape.keywords {
-                        keywords.push(param.name.clone());
+                        keywords.insert(param.name.clone());
                     }
                 }
                 ParamKind::KeywordRest => shape.keywords = None,
@@ -921,22 +941,22 @@ impl Shape {
         let below = |count: usize, max: Option<usize>| max.is_none_or(|max| count <= max);
         let positional = below(self.positional.0, other.positional.1)
             && below(other.positional.0, self.positional.1);
-        let allowed = |shape: &Self, name: &String| {
-            shape
-                .keywords
-                .as_ref()
-                .is_none_or(|keywords| keywords.contains(name))
-        };
-        let keywords = self
-            .required
-            .iter()
-            .chain(&other.required)
-            .all(|name| allowed(self, name) && allowed(other, name));
         let without = !self.block_required && !other.block_required;
         let with = match (self.block, other.block) {
             (Some(left), Some(right)) => below(left.0, right.1) && below(right.0, left.1),
             _ => false,
         };
-        positional && keywords && (without || with)
+        // A shape allows its own required keywords, so only the other
+        // shape's need looking up.
+        let allows = |shape: &Self, required: &[String]| {
+            shape
+                .keywords
+                .as_ref()
+                .is_none_or(|keywords| required.iter().all(|name| keywords.contains(name)))
+        };
+        positional
+            && (without || with)
+            && allows(self, &other.required)
+            && allows(other, &self.required)
     }
 }
