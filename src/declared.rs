@@ -194,7 +194,7 @@ fn shape(value: &Value, methods: &signatures::host::Methods, depth: usize) -> Re
             Shape::Object(members)
         }
         _ => {
-            let ty = signatures::host::value_type(value, 0).to_string();
+            let ty = signatures::host::value_type(value).to_string();
             Shape::Value(Some(crate::syntax::parse_type(&ty)?))
         }
     })

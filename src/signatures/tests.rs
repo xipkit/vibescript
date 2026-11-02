@@ -593,3 +593,154 @@ fn signature_errors_keep_byte_columns_and_synthetic_end_lines() {
     let error = Table::parse("module Math\r").unwrap_err();
     assert_eq!((error.line, error.column), (1, 12));
 }
+
+/// A value `depth` levels deep whose every level holds the one level below
+/// it `width` times: in a hash under keys `a`, `b`, ..., or in an array.
+fn shared(width: usize, depth: usize, hashes: bool) -> Value {
+    let mut level = Value::int(1);
+    for _ in 0..depth {
+        level = match hashes {
+            true => Value::hash(
+                (0..width)
+                    .map(|i| (vec![b'a' + i as u8], level.clone()))
+                    .collect(),
+            ),
+            false => Value::array(vec![level; width]),
+        };
+    }
+    level
+}
+
+/// A copy of `value` that shares no array or hash.
+fn unshared(value: &Value) -> Value {
+    use crate::value::Kind;
+    match &value.0 {
+        Kind::Array(array) => Value::array(array.buffer.data.iter().map(unshared).collect()),
+        Kind::Hash(hash) => Value::hash(
+            hash.buffer
+                .data
+                .iter()
+                .map(|(key, field)| (key.as_bytes().unwrap().to_vec(), unshared(field)))
+                .collect(),
+        ),
+        _ => value.clone(),
+    }
+}
+
+#[test]
+fn shared_values_infer_the_type_of_an_unshared_copy() {
+    use super::host::{INFERENCE_DEPTH, INFERENCE_SIZE, value_type};
+    // One array met at two depths: whole near the top, and cut to `any`
+    // where its ints fall past the depth an inference looks.
+    let inner = shared(1, 6, false);
+    let mut deep = inner.clone();
+    for _ in 0..INFERENCE_DEPTH - 6 {
+        deep = Value::array(vec![deep]);
+    }
+    let mixed = Value::hash(vec![
+        (b"near".to_vec(), inner.clone()),
+        (b"far".to_vec(), deep),
+        (
+            b"both".to_vec(),
+            Value::array(vec![inner.clone(), Value::bytes("s"), inner]),
+        ),
+    ]);
+    let near = format!("{}int{}", "array<".repeat(6), ">".repeat(6));
+    let far = format!(
+        "{}any{}",
+        "array<".repeat(INFERENCE_DEPTH),
+        ">".repeat(INFERENCE_DEPTH)
+    );
+    assert_eq!(
+        value_type(&mixed).to_string(),
+        format!("{{ near: {near}, far: {far}, both: array<{near} | string> }}")
+    );
+    for value in [
+        mixed,
+        shared(2, 10, true),
+        shared(3, 8, false),
+        shared(2, INFERENCE_DEPTH + 2, false),
+        shared(2, INFERENCE_DEPTH - 4, true),
+        Value::array(vec![
+            shared(2, 4, true),
+            shared(2, 4, false),
+            shared(2, 4, true),
+        ]),
+    ] {
+        let copy = unshared(&value);
+        assert_eq!(value_type(&value), value_type(&copy));
+    }
+    // Two references to a shape half the size an inference may build come
+    // to more than it may, shared or not.
+    let half = Value::hash(vec![(vec![b'k'; INFERENCE_SIZE / 2], Value::int(1))]);
+    let twice = Value::hash(vec![(b"a".to_vec(), half.clone()), (b"b".to_vec(), half)]);
+    assert_eq!(value_type(&twice).to_string(), "any");
+    assert_eq!(value_type(&unshared(&twice)).to_string(), "any");
+}
+
+/// The type [`shared`] infers when its description fits the bounds.
+fn shared_type(width: usize, depth: usize, hashes: bool, level: usize) -> String {
+    if level > super::host::INFERENCE_DEPTH {
+        return "any".into();
+    }
+    if depth == 0 {
+        return "int".into();
+    }
+    let inner = shared_type(width, depth - 1, hashes, level + 1);
+    match hashes {
+        true => format!(
+            "{{ {} }}",
+            (0..width)
+                .map(|i| format!("{}: {inner}", (b'a' + i as u8) as char))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        false => format!("array<{inner}>"),
+    }
+}
+
+#[test]
+fn shared_values_infer_in_the_size_of_their_graph() {
+    use super::host::value_type;
+    // Each graph unfolds to at least 2^15 leaves. Without reuse, a walk of
+    // one grows by its width with each level, to 64^17 steps at the widest;
+    // with it, the steps an unshared copy would take run out first.
+    for (width, depth, hashes, fits) in [
+        (2, 16, false, true),
+        (2, 40, false, true),
+        (64, 40, false, false),
+        (2, 15, true, true),
+        (3, 16, true, false),
+        (64, 40, true, false),
+    ] {
+        let expected = match fits {
+            true => shared_type(width, depth, hashes, 0),
+            false => "any".into(),
+        };
+        let ty = value_type(&shared(width, depth, hashes));
+        assert_eq!(ty.to_string(), expected, "{width} wide, {depth} deep");
+    }
+}
+
+#[test]
+fn inference_past_its_bounds_declares_any() {
+    use super::host::{INFERENCE_SIZE, INFERENCE_WORK, value_type};
+    // `k` references to one array of `n` ints take `k` steps for the
+    // references and `n` for each array they reach: k * (n + 1) in all.
+    let ints = Value::array(vec![Value::int(1); 4095]);
+    assert_eq!(4096 * 4096, INFERENCE_WORK);
+    for (references, expected) in [(4096, "array<array<int>>"), (4097, "any")] {
+        let value = Value::array(vec![ints.clone(); references]);
+        assert_eq!(value_type(&value).to_string(), expected, "{references}");
+        assert_eq!(value_type(&value), value_type(&value));
+    }
+    // A shape of one int field comes to the field's name and two types.
+    for (length, fits) in [(INFERENCE_SIZE - 2, true), (INFERENCE_SIZE - 1, false)] {
+        let value = Value::hash(vec![(vec![b'k'; length], Value::int(1))]);
+        let expected = match fits {
+            true => format!("{{ {}: int }}", "k".repeat(length)),
+            false => "any".into(),
+        };
+        assert_eq!(value_type(&value).to_string(), expected, "{length}");
+    }
+}
