@@ -1042,15 +1042,18 @@ mod tests {
     #[test]
     fn reads_stop_at_the_source_limit() {
         let limit = usize::try_from(MAX_SOURCE_BYTES).unwrap();
-        for selection in [Selection::Format, Selection::Fix] {
-            let scratch = Scratch::new("limit");
-            let root = scratch.0.join("root");
-            fs::create_dir_all(&root).unwrap();
-            fs::write(root.join("fits.vibe"), vec![b'#'; limit]).unwrap();
-            fs::write(root.join("over.vibe"), vec![b'#'; limit + 1]).unwrap();
-            let explicit = [root.join("fits.vibe"), root.join("over.vibe")];
-            for operands in [vec![root.clone()], explicit.to_vec()] {
-                let operands: Vec<OsString> = operands.into_iter().map(Into::into).collect();
+        for explicit in [false, true] {
+            for selection in selections(explicit) {
+                let scratch = Scratch::new("limit");
+                let root = scratch.0.join("root");
+                fs::create_dir_all(&root).unwrap();
+                fs::write(root.join("fits.vibe"), vec![b'#'; limit]).unwrap();
+                fs::write(root.join("over.vibe"), vec![b'#'; limit + 1]).unwrap();
+                let operands: Vec<OsString> = if explicit {
+                    vec![root.join("fits.vibe").into(), root.join("over.vibe").into()]
+                } else {
+                    vec![root.clone().into()]
+                };
                 let mut inputs = collect(&operands, selection).unwrap();
                 assert_eq!(inputs.read(0).unwrap().0.len(), limit);
                 assert_eq!(
@@ -1081,6 +1084,7 @@ mod tests {
         assert_eq!(read_exactly(&mut exact, 4).unwrap(), b"text");
     }
 
+    #[cfg(unix)]
     fn mkfifo(path: &Path) {
         use std::os::unix::ffi::OsStrExt;
         let name = std::ffi::CString::new(path.as_os_str().as_bytes()).unwrap();
@@ -1090,6 +1094,7 @@ mod tests {
 
     /// A candidate swapped for a FIFO, directly or through a link, must be
     /// refused rather than block the open until a writer or reader appears.
+    #[cfg(unix)]
     #[test]
     fn a_fifo_swapped_in_is_refused_without_blocking() {
         for selection in [Selection::Format, Selection::Fix] {
@@ -1104,7 +1109,7 @@ mod tests {
                     fs::remove_file(&path).unwrap();
                     if linked {
                         mkfifo(&root.join("pipe"));
-                        symlink("pipe", &path).unwrap();
+                        symlink("pipe", &path);
                     } else {
                         mkfifo(&path);
                     }
@@ -1129,6 +1134,7 @@ mod tests {
         }
     }
 
+    #[cfg(any(unix, target_os = "wasi"))]
     #[test]
     fn keeps_the_opened_root() {
         for selection in selections(false) {
