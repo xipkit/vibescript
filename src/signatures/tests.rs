@@ -593,3 +593,74 @@ fn signature_errors_keep_byte_columns_and_synthetic_end_lines() {
     let error = Table::parse("module Math\r").unwrap_err();
     assert_eq!((error.line, error.column), (1, 12));
 }
+
+#[test]
+fn a_function_name_takes_a_bounded_number_of_overloads_per_scope() {
+    let overloads = |count: usize, indent: &str| -> String {
+        (0..count)
+            .map(|i| format!("{indent}def f(*, k{i}: int)\n"))
+            .collect()
+    };
+    let source = format!(
+        "{}module M\n{}end\n\nclass string\n{}end\n",
+        overloads(64, ""),
+        overloads(64, "  "),
+        overloads(64, "  ")
+    );
+    let table = Table::parse(&source).unwrap();
+    assert_eq!(table.functions("f").count(), 64);
+    for (source, line, column) in [
+        (overloads(65, ""), 65, 1),
+        (format!("module M\n{}end\n", overloads(65, "  ")), 66, 3),
+        (format!("class string\n{}end\n", overloads(65, "  ")), 66, 3),
+    ] {
+        let error = Table::parse(&source).unwrap_err();
+        assert_eq!(
+            (error.line, error.column, error.message.as_str()),
+            (line, column, "f has more than 64 overloads")
+        );
+    }
+}
+
+#[test]
+fn wide_declarations_report_a_duplicate_where_it_recurs() {
+    let list = |prefix: &str, separator: &str| -> String {
+        (0..500)
+            .map(|i| format!("{prefix}{i}: int"))
+            .collect::<Vec<_>>()
+            .join(separator)
+    };
+    let functions: String = (0..500).map(|i| format!("  def m{i}\n")).collect();
+    let params = format!("def f({}, a7: int)", list("a", ", "));
+    let keywords = format!("def f(a: int, *, {}, a: int)", list("k", ", "));
+    let fields = format!("def f(x: {{{}, \"f7\"?: string}})", list("f", ", "));
+    for (source, line, column, message) in [
+        (
+            format!("module M\n  {}\n  def a7\nend\n", list("a", "\n  ")),
+            502,
+            3,
+            "duplicate member a7",
+        ),
+        (
+            format!("module M\n{functions}  m7: int\nend\n"),
+            502,
+            3,
+            "duplicate member m7",
+        ),
+        (
+            format!("module M\n{functions}  def m7(x: int)\n  module m7\n  end\nend\n"),
+            503,
+            3,
+            "duplicate member m7",
+        ),
+        (params.clone(), 1, params.len(), "duplicate parameter a7"),
+        (keywords.clone(), 1, keywords.len(), "duplicate parameter a"),
+        (fields.clone(), 1, fields.len() - 1, "duplicate field f7"),
+    ] {
+        let error = Table::parse(&source).unwrap_err();
+        assert_eq!(
+            (error.line, error.column, error.message.as_str()),
+            (line, column, message)
+        );
+    }
+}
