@@ -1104,7 +1104,7 @@ mod tests {
                     fs::remove_file(&path).unwrap();
                     if linked {
                         mkfifo(&root.join("pipe"));
-                        symlink("pipe", &path).unwrap();
+                        symlink("pipe", &path);
                     } else {
                         mkfifo(&path);
                     }
