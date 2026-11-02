@@ -419,3 +419,40 @@ fn the_prelude_parses_with_every_host_feature() {
         }
     }
 }
+
+/// The signature parser bounds nesting; a host's prelude stays within it
+/// with namespaces as deep as they declare and the deepest annotations and
+/// data a host can give them.
+#[test]
+fn the_prelude_parses_with_the_deepest_host_declarations() {
+    // The deepest annotation a host may write: one more level is refused.
+    let annotation =
+        |levels: usize| format!("{}int{}", "array<".repeat(levels), ">".repeat(levels));
+    assert!(Engine::new().declare_global("g", &annotation(64)).is_err());
+    let method = signed("host.deep", &annotation(63));
+    let mut data = Value::int(1);
+    for _ in 0..64 {
+        data = Value::hash(vec![(b"k".to_vec(), data)]);
+    }
+    let mut value = Value::object(vec![
+        (b"send".to_vec(), method.value()),
+        (b"data".to_vec(), data.clone()),
+    ]);
+    for _ in 0..80 {
+        value = Value::object(vec![
+            (b"inner".to_vec(), value),
+            (b"send".to_vec(), method.value()),
+            (b"data".to_vec(), data.clone()),
+        ]);
+    }
+    let mut engine = Engine::new();
+    engine.declare_global("g", &annotation(63)).unwrap();
+    engine
+        .declare_capability(&Capability::from_value("Deep", value))
+        .unwrap();
+    let prelude = engine.prelude(&CallOptions::default());
+    assert_eq!(prelude.matches("module inner").count(), 63, "{prelude}");
+    if let Err(error) = Table::parse(&prelude) {
+        panic!("{error}");
+    }
+}
