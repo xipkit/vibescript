@@ -1081,6 +1081,7 @@ mod tests {
         assert_eq!(read_exactly(&mut exact, 4).unwrap(), b"text");
     }
 
+    #[cfg(unix)]
     fn mkfifo(path: &Path) {
         use std::os::unix::ffi::OsStrExt;
         let name = std::ffi::CString::new(path.as_os_str().as_bytes()).unwrap();
@@ -1090,6 +1091,7 @@ mod tests {
 
     /// A candidate swapped for a FIFO, directly or through a link, must be
     /// refused rather than block the open until a writer or reader appears.
+    #[cfg(unix)]
     #[test]
     fn a_fifo_swapped_in_is_refused_without_blocking() {
         for selection in [Selection::Format, Selection::Fix] {
