@@ -9,13 +9,15 @@
 //!
 //! Every read and write checks that the opened file is still the regular file
 //! found during discovery. On Unix, opens don't block, so a FIFO or device
-//! swapped in after discovery is refused rather than waited on. A write opens
-//! without truncating, verifies the file is unchanged since it was read, writes in place and truncates, so the
+//! swapped in after discovery is refused rather than waited on. A read stops
+//! at [`MAX_SOURCE_BYTES`], the limit `vibes run` applies, even if the file
+//! grows while it is read. A write opens without truncating, verifies the
+//! file is unchanged since it was read, writes in place and truncates, so the
 //! file keeps its identity, permissions and hard links. At most eight root
 //! handles stay open; an evicted root is reopened only if it is still the same
 //! directory.
 
-use crate::compat;
+use crate::{compat, source::MAX_SOURCE_BYTES};
 use std::{
     ffi::OsString,
     fs,
@@ -192,6 +194,20 @@ pub fn collect(targets: &[OsString], selection: Selection) -> Result<Inputs, Str
     Ok(inputs)
 }
 
+/// Reads `len` bytes and checks that the stream ends there. Reading at most
+/// one byte more bounds a file that grows while it is read.
+fn read_exactly(reader: &mut impl Read, len: u64) -> Result<Vec<u8>, String> {
+    let mut data = Vec::new();
+    reader
+        .take(len.saturating_add(1))
+        .read_to_end(&mut data)
+        .map_err(|error| compat::reason(&error))?;
+    if data.len() as u64 != len {
+        return Err("file changed while reading".to_owned());
+    }
+    Ok(data)
+}
+
 fn is_vibe(path: &Path) -> bool {
     compat::bytes(path.as_os_str()).ends_with(b".vibe")
 }
@@ -294,7 +310,8 @@ impl Inputs {
         }
     }
 
-    /// Reads a candidate, refusing a file that is no longer the one discovered.
+    /// Reads a candidate, refusing a file that is no longer the one discovered
+    /// or that is larger than [`MAX_SOURCE_BYTES`].
     pub fn read(&mut self, index: usize) -> Result<(Vec<u8>, Info), String> {
         let mut file = self.open(index, false)?;
         let metadata = file.metadata().map_err(|error| compat::reason(&error))?;
@@ -302,15 +319,13 @@ impl Inputs {
         if !info.regular || info.identity != self.files[index].identity {
             return Err("file changed after discovery".to_owned());
         }
-        let mut data = Vec::new();
-        Read::by_ref(&mut file)
-            .take(info.len.saturating_add(1))
-            .read_to_end(&mut data)
-            .map_err(|error| compat::reason(&error))?;
-        if data.len() as u64 != info.len {
-            return Err("file changed while reading".to_owned());
+        if info.len > MAX_SOURCE_BYTES {
+            return Err(format!(
+                "source exceeds maximum size ({} > {MAX_SOURCE_BYTES} bytes)",
+                info.len
+            ));
         }
-        Ok((data, info))
+        Ok((read_exactly(&mut file, info.len)?, info))
     }
 
     /// Rewrites a candidate in place if it is unchanged since it was read.
@@ -557,6 +572,48 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn reads_stop_at_the_source_limit() {
+        let limit = usize::try_from(MAX_SOURCE_BYTES).unwrap();
+        for selection in [Selection::Format, Selection::Fix] {
+            let scratch = Scratch::new("limit");
+            let root = scratch.0.join("root");
+            fs::create_dir_all(&root).unwrap();
+            fs::write(root.join("fits.vibe"), vec![b'#'; limit]).unwrap();
+            fs::write(root.join("over.vibe"), vec![b'#'; limit + 1]).unwrap();
+            let explicit = [root.join("fits.vibe"), root.join("over.vibe")];
+            for operands in [vec![root.clone()], explicit.to_vec()] {
+                let operands: Vec<OsString> = operands.into_iter().map(Into::into).collect();
+                let mut inputs = collect(&operands, selection).unwrap();
+                assert_eq!(inputs.read(0).unwrap().0.len(), limit);
+                assert_eq!(
+                    inputs.read(1).map(|_| ()).unwrap_err(),
+                    format!(
+                        "source exceeds maximum size ({} > {limit} bytes)",
+                        limit + 1
+                    )
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_growing_stream_is_read_one_byte_past_its_length() {
+        let mut grown = std::io::Cursor::new(vec![b'#'; 10]);
+        assert_eq!(
+            read_exactly(&mut grown, 4).unwrap_err(),
+            "file changed while reading"
+        );
+        assert_eq!(grown.position(), 5);
+        let mut endless = std::io::repeat(b'#');
+        assert_eq!(
+            read_exactly(&mut endless, MAX_SOURCE_BYTES).unwrap_err(),
+            "file changed while reading"
+        );
+        let mut exact = std::io::Cursor::new(b"text".to_vec());
+        assert_eq!(read_exactly(&mut exact, 4).unwrap(), b"text");
     }
 
     fn mkfifo(path: &Path) {
