@@ -22,7 +22,7 @@ path; none is planned.
 
 Vibescript is parsed by three hand-written parsers in this crate, all ported
 decision for decision from the Go reference implementation, which `src/syntax`
-cites 77 times:
+mentions on about 150 lines:
 
 | Parser | Lines | Role |
 | --- | ---: | --- |
@@ -44,12 +44,14 @@ is a property a replacement must keep:
   whether `it` is declared, the command-call depth, line-expression counts
   and loop-condition state, and consults them to decide command arguments,
   block attachment and line continuation. A declared local turns `%w` into a
-  modulo, and the parser then re-lexes the tokens after it: the token stream
-  is mutated during the parse (`syntax/tokens.rs`, `expand_modulo`).
+  modulo, and the parser then re-lexes the tokens after it (`expand_modulo` and
+  `expand_regex` in `syntax/literals.rs`, editing the gap buffer in
+  `syntax/tokens.rs`): the token stream is mutated during the parse.
 - **Errors.** The parse golden corpus holds 35,965 mutated programs, 29,029 of
-  them rejected with an exact message, line and column, in 335 distinct
-  message shapes such as `invalid hash pair: expected key like name: or "name":`
-  and the adjacent-expressions advice. The parser also emits coded
+  them rejected with an exact message, line and column: 342 distinct messages,
+  or 115 shapes once quoted tokens and numbers are collapsed, such as
+  `invalid hash pair: expected key like name: or "name":` and the
+  adjacent-expressions advice. The parser also emits coded
   diagnostics with fixes: V0001, V0002 with its parenthesis fix, V0003 and the
   duplicate and reserved name codes.
 - **Recovery.** A second specialisation of the same parse functions
@@ -165,7 +167,7 @@ closures: charging and cancelling through a flag that turns every step into a
 parse error, keeping the locals table in a `RollbackState` that clones it at
 every save point where the current parser copies it only when recovering, and
 re-lexing `%` tokens with a `custom` parser that reads ahead of the token
-input it cannot change. The 335 message shapes would be reproduced with
+input it cannot change. The 115 message shapes would be reproduced with
 `map_err` on nearly every rule. That is the hand-written parser again,
 written inside combinators, for 7 to 9 more crates, more unsafe code, a
 breaking release every few months and an optimised compile cost per grammar
