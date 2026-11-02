@@ -535,14 +535,24 @@ mod dir {
     }
 }
 
-/// WASI already confines paths to the host's preopened directories, so a
-/// root is its path, and links are refused when a candidate is opened.
+/// WASI directory handles. A path below a root is opened one component at a
+/// time from the root's descriptor without following links, so a replaced
+/// directory or file cannot redirect it, even within a broader host preopen.
 #[cfg(target_os = "wasi")]
 mod dir {
     use super::{Identity, identity};
-    use std::{fs, io, path::Path, path::PathBuf};
+    use rustix::{
+        fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, OwnedFd, RawFd},
+        fs::{AtFlags, FileType, Mode, OFlags},
+    };
+    use std::{
+        ffi::OsStr,
+        fs, io,
+        os::wasi::ffi::OsStrExt,
+        path::{Component, Components, Path},
+    };
 
-    pub struct Dir(PathBuf);
+    pub struct Dir(OwnedFd);
 
     pub enum Kind {
         Directory,
@@ -557,29 +567,39 @@ mod dir {
 
     impl Dir {
         pub fn root(path: &Path) -> io::Result<Self> {
-            if !fs::metadata(path)?.is_dir() {
-                return Err(io::Error::other("not a directory"));
-            }
-            Ok(Self(path.to_owned()))
+            Ok(Self(rustix::fs::open(
+                path,
+                OFlags::RDONLY | OFlags::DIRECTORY,
+                Mode::empty(),
+            )?))
         }
 
         pub fn identity(&self) -> io::Result<Identity> {
-            Ok(identity::wasi(&rustix::fs::stat(&self.0)?))
+            Ok(identity::wasi(&rustix::fs::fstat(&self.0)?))
         }
 
         pub fn list(&self, directory: &Path) -> io::Result<Vec<Entry>> {
+            let opened = self.descend(directory.components())?;
+            let fd = opened.as_ref().map_or(self.0.as_fd(), AsFd::as_fd);
             let mut listed = Vec::new();
-            for entry in fs::read_dir(self.0.join(directory))? {
+            for entry in rustix::fs::Dir::read_from(fd)? {
                 let entry = entry?;
-                let kind = entry.file_type()?;
+                let name = entry.file_name();
+                if matches!(name.to_bytes(), b"." | b"..") {
+                    continue;
+                }
+                let kind = match entry.file_type() {
+                    FileType::Unknown => FileType::from_raw_mode(
+                        rustix::fs::statat(fd, name, AtFlags::SYMLINK_NOFOLLOW)?.st_mode,
+                    ),
+                    kind => kind,
+                };
                 listed.push(Entry {
-                    name: entry.file_name(),
-                    kind: if kind.is_dir() {
-                        Kind::Directory
-                    } else if kind.is_file() {
-                        Kind::Regular
-                    } else {
-                        Kind::Other
+                    name: OsStr::from_bytes(name.to_bytes()).to_owned(),
+                    kind: match kind {
+                        FileType::Directory => Kind::Directory,
+                        FileType::RegularFile => Kind::Regular,
+                        _ => Kind::Other,
                     },
                 });
             }
@@ -587,16 +607,76 @@ mod dir {
         }
 
         pub fn identity_of(&self, name: &Path) -> io::Result<Identity> {
-            Ok(identity::wasi(&rustix::fs::lstat(self.0.join(name))?))
+            self.at(name, |parent, leaf| {
+                Ok(identity::wasi(&rustix::fs::statat(
+                    parent,
+                    leaf,
+                    AtFlags::SYMLINK_NOFOLLOW,
+                )?))
+            })
         }
 
         pub fn open(&self, name: &Path, write: bool) -> io::Result<fs::File> {
-            let path = self.0.join(name);
-            if fs::symlink_metadata(&path)?.file_type().is_symlink() {
-                return Err(io::Error::other("path escapes from parent"));
-            }
-            fs::OpenOptions::new().read(!write).write(write).open(path)
+            self.at(name, |parent, leaf| {
+                if !write {
+                    let flags = OFlags::RDONLY | OFlags::NOFOLLOW;
+                    return Ok(rustix::fs::openat(parent, leaf, flags, Mode::empty())?.into());
+                }
+                // Wasmtime reports a directory's inheriting rights without
+                // FD_WRITE unless it is a preopen, and wasi-libc's `openat`
+                // masks a file's rights with them, so ask for writing directly.
+                let leaf = leaf.to_str().ok_or(io::ErrorKind::InvalidInput)?;
+                let rights = wasi::RIGHTS_FD_WRITE
+                    | wasi::RIGHTS_FD_FILESTAT_GET
+                    | wasi::RIGHTS_FD_FILESTAT_SET_SIZE;
+                // SAFETY: `parent` is a live descriptor for the call, and the
+                // returned descriptor is new and owned by nothing else.
+                let fd = unsafe {
+                    wasi::path_open(parent.as_raw_fd() as wasi::Fd, 0, leaf, 0, rights, 0, 0)
+                }
+                .map_err(|error| io::Error::from_raw_os_error(error.raw().into()))?;
+                // SAFETY: as above, the descriptor is newly opened and unowned.
+                Ok(unsafe { fs::File::from_raw_fd(fd as RawFd) })
+            })
         }
+
+        /// Calls `f` with the directory that holds `name`'s last component.
+        fn at<T>(
+            &self,
+            name: &Path,
+            f: impl FnOnce(BorrowedFd<'_>, &OsStr) -> io::Result<T>,
+        ) -> io::Result<T> {
+            let mut components = name.components();
+            let Some(Component::Normal(leaf)) = components.next_back() else {
+                return Err(escape());
+            };
+            let parent = self.descend(components)?;
+            f(parent.as_ref().map_or(self.0.as_fd(), AsFd::as_fd), leaf)
+        }
+
+        /// Opens a directory below the root without following links, or
+        /// returns `None` for the root itself.
+        fn descend(&self, components: Components<'_>) -> io::Result<Option<OwnedFd>> {
+            let mut current: Option<OwnedFd> = None;
+            for component in components {
+                let Component::Normal(part) = component else {
+                    return Err(escape());
+                };
+                let parent = current.as_ref().map_or(self.0.as_fd(), AsFd::as_fd);
+                let next = rustix::fs::openat(
+                    parent,
+                    part,
+                    OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW,
+                    Mode::empty(),
+                )?;
+                current = Some(next);
+            }
+            Ok(current)
+        }
+    }
+
+    fn escape() -> io::Error {
+        io::Error::other("path escapes from parent")
     }
 }
 
@@ -643,9 +723,13 @@ mod tests {
         fs::write(path, text).unwrap();
     }
 
-    #[cfg(unix)]
+    /// Links `link` to a relative `target`; WASI hosts refuse absolute ones.
+    #[cfg(any(unix, target_os = "wasi"))]
     fn symlink(target: &str, link: &Path) {
+        #[cfg(unix)]
         std::os::unix::fs::symlink(target, link).unwrap();
+        #[cfg(target_os = "wasi")]
+        rustix::fs::symlink(target, link).unwrap();
     }
 
     /// Writes `text` to a new file at `path` with `original`'s length and
@@ -834,7 +918,7 @@ mod tests {
         }
     }
 
-    #[cfg(unix)]
+    #[cfg(any(unix, target_os = "wasi"))]
     #[test]
     fn candidates_reject_replacement() {
         for selection in selections(false) {
@@ -878,7 +962,7 @@ mod tests {
         }
     }
 
-    #[cfg(unix)]
+    #[cfg(any(unix, target_os = "wasi"))]
     #[test]
     fn keeps_the_opened_root() {
         for selection in selections(false) {
@@ -907,7 +991,7 @@ mod tests {
         }
     }
 
-    #[cfg(unix)]
+    #[cfg(any(unix, target_os = "wasi"))]
     #[test]
     fn an_evicted_root_rejects_replacement() {
         for selection in selections(false) {

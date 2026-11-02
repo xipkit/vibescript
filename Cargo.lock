@@ -454,6 +454,7 @@ dependencies = [
  "unicode-width",
  "vibescript",
  "vibescript-tools",
+ "wasi",
  "windows-sys 0.61.2",
 ]
 
