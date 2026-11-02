@@ -6,9 +6,13 @@ use super::{
     Type, TypeParam,
 };
 use std::{
-    collections::{BTreeMap, HashMap, HashSet, hash_map::Entry},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, hash_map::Entry},
     fmt,
 };
+
+/// The most overloads one function name may have in a scope. Each overload
+/// is checked against every earlier one, so this bounds that work.
+const OVERLOADS: usize = 64;
 
 /// A syntax error in a signature file, at a one-based line and column.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -492,11 +496,18 @@ impl<'a> Parser<'a> {
     }
 
     /// Records a function's call shape, refusing an overload that could
-    /// accept the same call as an earlier one.
+    /// accept the same call as an earlier one, or one past [`OVERLOADS`].
     fn overload(&mut self, scope: &str, function: &Function, start: usize) -> Result<()> {
         let shape = Shape::of(function);
         let key = (scope.to_owned(), function.name.clone());
         let shapes = self.shapes.entry(key).or_default();
+        if shapes.len() == OVERLOADS {
+            self.pos = start;
+            return self.fail(format!(
+                "{} has more than {OVERLOADS} overloads",
+                function.name
+            ));
+        }
         if shapes.iter().any(|other| other.overlaps(&shape)) {
             self.pos = start;
             return self.fail(format!(
@@ -884,7 +895,7 @@ struct Shape {
     positional: (usize, Option<usize>),
     required: Vec<String>,
     /// The keywords a call may pass, or `None` for any.
-    keywords: Option<Vec<String>>,
+    keywords: Option<BTreeSet<String>>,
     /// The block's parameter counts, or `None` without a block.
     block: Option<(usize, Option<usize>)>,
     block_required: bool,
@@ -895,7 +906,7 @@ impl Shape {
         let mut shape = Self {
             positional: (0, Some(0)),
             required: Vec::new(),
-            keywords: Some(Vec::new()),
+            keywords: Some(BTreeSet::new()),
             block: function.block.as_ref().map(|block| {
                 let count = block.params.len();
                 (count, block.rest.is_none().then_some(count))
@@ -916,7 +927,7 @@ impl Shape {
                         shape.required.push(param.name.clone());
                     }
                     if let Some(keywords) = &mut shape.keywords {
-                        keywords.push(param.name.clone());
+                        keywords.insert(param.name.clone());
                     }
                 }
                 ParamKind::KeywordRest => shape.keywords = None,
@@ -930,22 +941,22 @@ impl Shape {
         let below = |count: usize, max: Option<usize>| max.is_none_or(|max| count <= max);
         let positional = below(self.positional.0, other.positional.1)
             && below(other.positional.0, self.positional.1);
-        let allowed = |shape: &Self, name: &String| {
-            shape
-                .keywords
-                .as_ref()
-                .is_none_or(|keywords| keywords.contains(name))
-        };
-        let keywords = self
-            .required
-            .iter()
-            .chain(&other.required)
-            .all(|name| allowed(self, name) && allowed(other, name));
         let without = !self.block_required && !other.block_required;
         let with = match (self.block, other.block) {
             (Some(left), Some(right)) => below(left.0, right.1) && below(right.0, left.1),
             _ => false,
         };
-        positional && keywords && (without || with)
+        // A shape allows its own required keywords, so only the other
+        // shape's need looking up.
+        let allows = |shape: &Self, required: &[String]| {
+            shape
+                .keywords
+                .as_ref()
+                .is_none_or(|keywords| required.iter().all(|name| keywords.contains(name)))
+        };
+        positional
+            && (without || with)
+            && allows(self, &other.required)
+            && allows(other, &self.required)
     }
 }

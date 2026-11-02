@@ -595,6 +595,34 @@ fn signature_errors_keep_byte_columns_and_synthetic_end_lines() {
 }
 
 #[test]
+fn a_function_name_takes_a_bounded_number_of_overloads_per_scope() {
+    let overloads = |count: usize, indent: &str| -> String {
+        (0..count)
+            .map(|i| format!("{indent}def f(*, k{i}: int)\n"))
+            .collect()
+    };
+    let source = format!(
+        "{}module M\n{}end\n\nclass string\n{}end\n",
+        overloads(64, ""),
+        overloads(64, "  "),
+        overloads(64, "  ")
+    );
+    let table = Table::parse(&source).unwrap();
+    assert_eq!(table.functions("f").count(), 64);
+    for (source, line, column) in [
+        (overloads(65, ""), 65, 1),
+        (format!("module M\n{}end\n", overloads(65, "  ")), 66, 3),
+        (format!("class string\n{}end\n", overloads(65, "  ")), 66, 3),
+    ] {
+        let error = Table::parse(&source).unwrap_err();
+        assert_eq!(
+            (error.line, error.column, error.message.as_str()),
+            (line, column, "f has more than 64 overloads")
+        );
+    }
+}
+
+#[test]
 fn wide_declarations_report_a_duplicate_where_it_recurs() {
     let list = |prefix: &str, separator: &str| -> String {
         (0..500)
