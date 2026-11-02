@@ -32,7 +32,7 @@ pub(super) fn member(
             namespaces::member(ctx, storage, &receiver, call.site, call.name, call.access)?;
         // `as` casts any value, so a namespace without its own `as` still answers it.
         if matches!(selected, namespaces::Member::Missing) && call.name != "as" {
-            namespaces::fallback(storage, &receiver, call.name, call.access.implicit)?;
+            namespaces::fallback(ctx, storage, &receiver, call.name, call.access.implicit)?;
         }
         selected
     } else {
