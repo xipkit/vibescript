@@ -8,8 +8,9 @@
 //! it points and the link itself is kept.
 //!
 //! Every read and write checks that the opened file is still the regular file
-//! found during discovery. A write opens without truncating, verifies the
-//! file is unchanged since it was read, writes in place and truncates, so the
+//! found during discovery. On Unix, opens don't block, so a FIFO or device
+//! swapped in after discovery is refused rather than waited on. A write opens
+//! without truncating, verifies the file is unchanged since it was read, writes in place and truncates, so the
 //! file keeps its identity, permissions and hard links. At most eight root
 //! handles stay open; an evicted root is reopened only if it is still the same
 //! directory.
@@ -276,11 +277,20 @@ impl Inputs {
                 .handle(root)?
                 .open(&name, write)
                 .map_err(|error| compat::path_error("open", &name, &error)),
-            None => fs::OpenOptions::new()
-                .read(!write)
-                .write(write)
-                .open(&name)
-                .map_err(|error| compat::path_error("open", &name, &error)),
+            None => {
+                let mut options = fs::OpenOptions::new();
+                options.read(!write).write(write);
+                // A FIFO swapped in must not block the open. The target was
+                // resolved during discovery, so a link here is a replacement.
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::OpenOptionsExt;
+                    options.custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW);
+                }
+                options
+                    .open(&name)
+                    .map_err(|error| compat::path_error("open", &name, &error))
+            }
         }
     }
 
@@ -383,6 +393,11 @@ mod dir {
         pub fn open(&self, name: &Path, write: bool) -> io::Result<fs::File> {
             let mut options = OpenOptions::new();
             options.read(!write).write(write);
+            #[cfg(unix)]
+            {
+                use cap_std::fs::OpenOptionsExt;
+                options.custom_flags(libc::O_NONBLOCK);
+            }
             self.0
                 .open_with(name, &options)
                 .map(cap_std::fs::File::into_std)
@@ -539,6 +554,54 @@ mod tests {
                 assert_eq!(fs::read_to_string(&outside).unwrap(), "outside  \n");
                 if replaced == "regular file" {
                     assert_eq!(fs::read_to_string(&path).unwrap(), "replacement\n");
+                }
+            }
+        }
+    }
+
+    fn mkfifo(path: &Path) {
+        use std::os::unix::ffi::OsStrExt;
+        let name = std::ffi::CString::new(path.as_os_str().as_bytes()).unwrap();
+        // SAFETY: `name` is a valid NUL-terminated path.
+        assert_eq!(unsafe { libc::mkfifo(name.as_ptr(), 0o600) }, 0);
+    }
+
+    /// A candidate swapped for a FIFO, directly or through a link, must be
+    /// refused rather than block the open until a writer or reader appears.
+    #[test]
+    fn a_fifo_swapped_in_is_refused_without_blocking() {
+        for selection in [Selection::Format, Selection::Fix] {
+            for explicit in [false, true] {
+                for linked in [false, true] {
+                    let scratch = Scratch::new(&format!("fifo-{explicit}-{linked}"));
+                    let root = scratch.0.join("root");
+                    let path = root.join("file.vibe");
+                    write(&path, "original  \n");
+                    let mut inputs = collect_one(if explicit { &path } else { &root }, selection);
+                    let (_, info) = inputs.read(0).unwrap();
+                    fs::remove_file(&path).unwrap();
+                    if linked {
+                        mkfifo(&root.join("pipe"));
+                        symlink("pipe", &path).unwrap();
+                    } else {
+                        mkfifo(&path);
+                    }
+                    let (sender, receiver) = std::sync::mpsc::channel();
+                    std::thread::spawn(move || {
+                        let read = inputs.read(0).map(|_| ());
+                        let written = inputs.write(0, &info, b"formatted\n");
+                        sender.send((read, written)).unwrap();
+                    });
+                    let (read, written) = receiver
+                        .recv_timeout(std::time::Duration::from_secs(10))
+                        .unwrap_or_else(|_| {
+                            panic!("explicit {explicit}, linked {linked}: open blocked on a FIFO")
+                        });
+                    assert!(read.is_err(), "explicit {explicit}, linked {linked}: read");
+                    assert!(
+                        written.is_err(),
+                        "explicit {explicit}, linked {linked}: write"
+                    );
                 }
             }
         }
