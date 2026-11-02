@@ -5,7 +5,10 @@ use super::{
     Alias, Block, Class, Constant, Field, Function, Item, Member, Module, Param, ParamKind, Table,
     Type, TypeParam,
 };
-use std::{collections::BTreeMap, fmt};
+use std::{
+    collections::{BTreeMap, HashMap, HashSet, hash_map::Entry},
+    fmt,
+};
 
 /// A syntax error in a signature file, at a one-based line and column.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -451,6 +454,9 @@ impl<'a> Parser<'a> {
 
     fn members(&mut self, scope: &str, class: bool) -> Result<Vec<Member>> {
         let mut members: Vec<Member> = Vec::new();
+        // Each name declared so far, and whether it names functions, which
+        // may overload, rather than one module or constant.
+        let mut names: HashMap<String, bool> = HashMap::new();
         loop {
             let doc = self.doc()?;
             let start = self.pos;
@@ -469,15 +475,16 @@ impl<'a> Parser<'a> {
                 Token::Word(_) if !class => Member::Constant(self.constant(doc)?),
                 _ => return self.fail("expected a member declaration or `end`"),
             };
-            let overload = |other: &Member| {
-                matches!(other, Member::Function(_)) && matches!(member, Member::Function(_))
-            };
-            if members
-                .iter()
-                .any(|other| other.name() == member.name() && !overload(other))
-            {
-                self.pos = start;
-                return self.fail(format!("duplicate member {}", member.name()));
+            let function = matches!(member, Member::Function(_));
+            match names.entry(member.name().to_owned()) {
+                Entry::Occupied(entry) if !(function && *entry.get()) => {
+                    self.pos = start;
+                    return self.fail(format!("duplicate member {}", member.name()));
+                }
+                Entry::Occupied(_) => {}
+                Entry::Vacant(entry) => {
+                    entry.insert(function);
+                }
             }
             members.push(member);
             self.line_end()?;
@@ -552,6 +559,7 @@ impl<'a> Parser<'a> {
         if self.eat("(") && !self.eat(")") {
             // Parameters after a bare `*` or a rest parameter are keywords.
             let mut keywords = false;
+            let mut names = HashSet::new();
             loop {
                 if self.at("&") {
                     function.block = Some(self.block()?);
@@ -579,6 +587,9 @@ impl<'a> Parser<'a> {
                     param.kind = ParamKind::Keyword;
                 }
                 keywords |= param.kind == ParamKind::Rest;
+                if !names.insert(param.name.clone()) {
+                    return self.fail(format!("duplicate parameter {}", param.name));
+                }
                 self.check_order(&function.params, &param)?;
                 function.params.push(param);
                 if self.eat(")") {
@@ -595,9 +606,6 @@ impl<'a> Parser<'a> {
     }
 
     fn check_order(&self, params: &[Param], param: &Param) -> Result<()> {
-        if params.iter().any(|other| other.name == param.name) {
-            return self.fail(format!("duplicate parameter {}", param.name));
-        }
         let rank = |param: &Param| match param.kind {
             ParamKind::Positional => 0,
             ParamKind::Rest => 1,
@@ -783,6 +791,7 @@ impl<'a> Parser<'a> {
 
     fn shape(&mut self) -> Result<Type> {
         let mut fields: Vec<Field> = Vec::new();
+        let mut names = HashSet::new();
         let mut open = false;
         if self.eat("}") {
             return Ok(Type::Shape(fields, false));
@@ -812,7 +821,7 @@ impl<'a> Parser<'a> {
             }
             self.expect(":")?;
             let ty = self.ty()?;
-            if fields.iter().any(|field| field.name == name) {
+            if !names.insert(name.clone()) {
                 return self.fail(format!("duplicate field {name}"));
             }
             fields.push(Field { name, ty, optional });

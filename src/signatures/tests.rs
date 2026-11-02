@@ -593,3 +593,46 @@ fn signature_errors_keep_byte_columns_and_synthetic_end_lines() {
     let error = Table::parse("module Math\r").unwrap_err();
     assert_eq!((error.line, error.column), (1, 12));
 }
+
+#[test]
+fn wide_declarations_report_a_duplicate_where_it_recurs() {
+    let list = |prefix: &str, separator: &str| -> String {
+        (0..500)
+            .map(|i| format!("{prefix}{i}: int"))
+            .collect::<Vec<_>>()
+            .join(separator)
+    };
+    let functions: String = (0..500).map(|i| format!("  def m{i}\n")).collect();
+    let params = format!("def f({}, a7: int)", list("a", ", "));
+    let keywords = format!("def f(a: int, *, {}, a: int)", list("k", ", "));
+    let fields = format!("def f(x: {{{}, \"f7\"?: string}})", list("f", ", "));
+    for (source, line, column, message) in [
+        (
+            format!("module M\n  {}\n  def a7\nend\n", list("a", "\n  ")),
+            502,
+            3,
+            "duplicate member a7",
+        ),
+        (
+            format!("module M\n{functions}  m7: int\nend\n"),
+            502,
+            3,
+            "duplicate member m7",
+        ),
+        (
+            format!("module M\n{functions}  def m7(x: int)\n  module m7\n  end\nend\n"),
+            503,
+            3,
+            "duplicate member m7",
+        ),
+        (params.clone(), 1, params.len(), "duplicate parameter a7"),
+        (keywords.clone(), 1, keywords.len(), "duplicate parameter a"),
+        (fields.clone(), 1, fields.len() - 1, "duplicate field f7"),
+    ] {
+        let error = Table::parse(&source).unwrap_err();
+        assert_eq!(
+            (error.line, error.column, error.message.as_str()),
+            (line, column, message)
+        );
+    }
+}
