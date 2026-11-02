@@ -18,7 +18,7 @@ use crate::compat;
 use std::{
     ffi::OsString,
     fs,
-    io::{Read, Write},
+    io::{self, Read, Write},
     path::{Path, PathBuf},
     time::SystemTime,
 };
@@ -70,32 +70,146 @@ pub struct Info {
 }
 
 impl Info {
-    fn of(metadata: &fs::Metadata) -> Self {
-        Self {
-            identity: Identity::of(metadata),
+    fn of(file: &fs::File) -> io::Result<Self> {
+        let metadata = file.metadata()?;
+        Ok(Self {
+            identity: identity::file(file, &metadata)?,
             regular: metadata.is_file(),
             len: metadata.len(),
             modified: metadata.modified().ok(),
-        }
+        })
     }
 }
 
-/// A file's device and inode where the platform reports them.
+/// A file's device and inode on Unix and WASI, or its volume serial number and
+/// file ID on Windows. It is `None` only where the file system reports no
+/// unique ID, which leaves the type, length and modification time checks.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Identity(Option<(u64, u64)>);
+pub struct Identity(Option<(u64, u128)>);
 
 impl Identity {
-    fn of(metadata: &fs::Metadata) -> Self {
+    #[cfg(any(unix, target_os = "wasi", windows))]
+    fn new(volume: u64, file: impl Into<u128>) -> Self {
+        Self(Some((volume, file.into())))
+    }
+}
+
+/// Where each platform reports file identities.
+mod identity {
+    use super::Identity;
+    use std::{fs, io, path::Path};
+
+    /// The metadata and identity of the file a path names, following links.
+    pub fn stat(path: &Path) -> io::Result<(fs::Metadata, Identity)> {
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::OpenOptionsExt;
+            use windows_sys::Win32::Storage::FileSystem::{
+                FILE_FLAG_BACKUP_SEMANTICS, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE,
+                FILE_SHARE_READ, FILE_SHARE_WRITE,
+            };
+            // Attribute access opens directories and files alike, as
+            // `fs::metadata` does, without reading their contents.
+            let file = fs::OpenOptions::new()
+                .access_mode(FILE_READ_ATTRIBUTES)
+                .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+                .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+                .open(path)?;
+            Ok((file.metadata()?, handle(&file)))
+        }
+        #[cfg(not(windows))]
+        {
+            let metadata = fs::metadata(path)?;
+            #[cfg(target_os = "wasi")]
+            let identity = wasi(&rustix::fs::stat(path)?);
+            #[cfg(not(target_os = "wasi"))]
+            let identity = file_metadata(&metadata);
+            Ok((metadata, identity))
+        }
+    }
+
+    /// The identity of an open file, given its metadata.
+    pub fn file(file: &fs::File, metadata: &fs::Metadata) -> io::Result<Identity> {
+        #[cfg(windows)]
+        {
+            let _ = metadata;
+            Ok(handle(file))
+        }
+        #[cfg(target_os = "wasi")]
+        {
+            let _ = metadata;
+            Ok(wasi(&rustix::fs::fstat(file)?))
+        }
+        #[cfg(not(any(windows, target_os = "wasi")))]
+        {
+            let _ = file;
+            Ok(file_metadata(metadata))
+        }
+    }
+
+    #[cfg(not(any(windows, target_os = "wasi")))]
+    fn file_metadata(metadata: &fs::Metadata) -> Identity {
         #[cfg(unix)]
         {
             use std::os::unix::fs::MetadataExt;
-            Self(Some((metadata.dev(), metadata.ino())))
+            Identity::new(metadata.dev(), metadata.ino())
         }
         #[cfg(not(unix))]
         {
             let _ = metadata;
-            Self(None)
+            Identity(None)
         }
+    }
+
+    /// WASI's `MetadataExt` is unstable, so device and inode come from `stat`.
+    #[cfg(target_os = "wasi")]
+    pub fn wasi(stat: &rustix::fs::Stat) -> Identity {
+        Identity::new(stat.st_dev, stat.st_ino)
+    }
+
+    /// The volume serial number and file ID of an open file or directory.
+    ///
+    /// `FileIdInfo` reports ReFS's 128-bit IDs; file systems without it fall
+    /// back to the 64-bit index. A zero or all-ones ID is not unique, so it
+    /// gives no identity.
+    #[cfg(windows)]
+    pub fn handle(handle: &impl std::os::windows::io::AsRawHandle) -> Identity {
+        use std::mem::{MaybeUninit, size_of};
+        use windows_sys::Win32::Storage::FileSystem::{
+            BY_HANDLE_FILE_INFORMATION, FILE_ID_INFO, FileIdInfo, GetFileInformationByHandle,
+            GetFileInformationByHandleEx,
+        };
+        let raw = handle.as_raw_handle();
+        let mut id = MaybeUninit::<FILE_ID_INFO>::uninit();
+        // SAFETY: the handle stays borrowed for the call, and the buffer has
+        // the size and alignment FileIdInfo requires.
+        if unsafe {
+            GetFileInformationByHandleEx(
+                raw,
+                FileIdInfo,
+                id.as_mut_ptr().cast(),
+                size_of::<FILE_ID_INFO>() as u32,
+            )
+        } != 0
+        {
+            // SAFETY: the successful call initialized the whole structure.
+            let id = unsafe { id.assume_init() };
+            let file = u128::from_le_bytes(id.FileId.Identifier);
+            if file != 0 && file != u128::MAX {
+                return Identity::new(id.VolumeSerialNumber, file);
+            }
+        }
+        let mut info = MaybeUninit::<BY_HANDLE_FILE_INFORMATION>::uninit();
+        // SAFETY: as above, with the structure GetFileInformationByHandle fills.
+        if unsafe { GetFileInformationByHandle(raw, info.as_mut_ptr()) } != 0 {
+            // SAFETY: the successful call initialized the whole structure.
+            let info = unsafe { info.assume_init() };
+            let file = u64::from(info.nFileIndexHigh) << 32 | u64::from(info.nFileIndexLow);
+            if file != 0 && file != u64::MAX {
+                return Identity::new(info.dwVolumeSerialNumber.into(), file);
+            }
+        }
+        Identity(None)
     }
 }
 
@@ -118,7 +232,7 @@ pub fn collect(targets: &[OsString], selection: Selection) -> Result<Inputs, Str
             Selection::Fix => fs::canonicalize(target),
         }
         .map_err(|error| format!("resolve {label}: {}", compat::reason(&error)))?;
-        let metadata = fs::metadata(&path).map_err(|error| {
+        let (metadata, identity) = identity::stat(&path).map_err(|error| {
             format!(
                 "stat {label}: {}",
                 compat::path_error("stat", &path, &error)
@@ -145,7 +259,7 @@ pub fn collect(targets: &[OsString], selection: Selection) -> Result<Inputs, Str
                     name: resolved,
                     path,
                     label: label.into_owned(),
-                    identity: Identity::of(&metadata),
+                    identity,
                 });
             }
             continue;
@@ -155,7 +269,7 @@ pub fn collect(targets: &[OsString], selection: Selection) -> Result<Inputs, Str
             None => {
                 inputs.roots.push(Root {
                     path: path.clone(),
-                    identity: Identity::of(&metadata),
+                    identity,
                     handle: None,
                 });
                 inputs.roots.len() - 1
@@ -287,8 +401,7 @@ impl Inputs {
     /// Reads a candidate, refusing a file that is no longer the one discovered.
     pub fn read(&mut self, index: usize) -> Result<(Vec<u8>, Info), String> {
         let mut file = self.open(index, false)?;
-        let metadata = file.metadata().map_err(|error| compat::reason(&error))?;
-        let info = Info::of(&metadata);
+        let info = Info::of(&file).map_err(|error| compat::reason(&error))?;
         if !info.regular || info.identity != self.files[index].identity {
             return Err("file changed after discovery".to_owned());
         }
@@ -306,8 +419,7 @@ impl Inputs {
     /// Rewrites a candidate in place if it is unchanged since it was read.
     pub fn write(&mut self, index: usize, original: &Info, data: &[u8]) -> Result<(), String> {
         let mut file = self.open(index, true)?;
-        let metadata = file.metadata().map_err(|error| compat::reason(&error))?;
-        let current = Info::of(&metadata);
+        let current = Info::of(&file).map_err(|error| compat::reason(&error))?;
         if !current.regular
             || current.identity != original.identity
             || current.len != original.len
@@ -347,11 +459,30 @@ mod dir {
         }
 
         pub fn identity(&self) -> io::Result<Identity> {
+            #[cfg(windows)]
+            return Ok(super::identity::handle(&self.0));
+            #[cfg(not(windows))]
             Ok(identity(&self.0.dir_metadata()?))
         }
 
         /// The identity of an entry, without following a link.
         pub fn identity_of(&self, name: &Path) -> io::Result<Identity> {
+            #[cfg(windows)]
+            {
+                // Windows reports file IDs only through a handle. Attribute
+                // access is exempt from sharing modes, and opening a link
+                // itself keeps a swapped-in link from taking its target's
+                // identity.
+                use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
+                use cap_std::fs::OpenOptionsExt;
+                use windows_sys::Win32::Storage::FileSystem::FILE_READ_ATTRIBUTES;
+                let mut options = OpenOptions::new();
+                options
+                    .access_mode(FILE_READ_ATTRIBUTES)
+                    .follow(FollowSymlinks::No);
+                Ok(super::identity::handle(&self.0.open_with(name, &options)?))
+            }
+            #[cfg(not(windows))]
             Ok(identity(&self.0.symlink_metadata(name)?))
         }
 
@@ -389,11 +520,12 @@ mod dir {
         }
     }
 
+    #[cfg(not(windows))]
     fn identity(metadata: &cap_std::fs::Metadata) -> Identity {
         #[cfg(unix)]
         {
             use cap_std::fs::MetadataExt;
-            Identity(Some((metadata.dev(), metadata.ino())))
+            Identity::new(metadata.dev(), metadata.ino())
         }
         #[cfg(not(unix))]
         {
@@ -407,7 +539,7 @@ mod dir {
 /// root is its path, and links are refused when a candidate is opened.
 #[cfg(target_os = "wasi")]
 mod dir {
-    use super::Identity;
+    use super::{Identity, identity};
     use std::{fs, io, path::Path, path::PathBuf};
 
     pub struct Dir(PathBuf);
@@ -432,7 +564,7 @@ mod dir {
         }
 
         pub fn identity(&self) -> io::Result<Identity> {
-            Ok(Identity::of(&fs::metadata(&self.0)?))
+            Ok(identity::wasi(&rustix::fs::stat(&self.0)?))
         }
 
         pub fn list(&self, directory: &Path) -> io::Result<Vec<Entry>> {
@@ -455,7 +587,7 @@ mod dir {
         }
 
         pub fn identity_of(&self, name: &Path) -> io::Result<Identity> {
-            Ok(Identity::of(&fs::symlink_metadata(self.0.join(name))?))
+            Ok(identity::wasi(&rustix::fs::lstat(self.0.join(name))?))
         }
 
         pub fn open(&self, name: &Path, write: bool) -> io::Result<fs::File> {
@@ -468,21 +600,35 @@ mod dir {
     }
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod tests {
     use super::*;
-    use std::os::unix::fs::symlink;
 
     struct Scratch(PathBuf);
 
     impl Scratch {
         fn new(name: &str) -> Self {
-            let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.cache/tmp");
+            let base = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .unwrap()
+                .join(".cache/tmp");
             fs::create_dir_all(&base).unwrap();
-            let path = base.join(format!("files-{name}-{}", std::process::id()));
+            // WASI has no process IDs, so runs there are told apart by time.
+            #[cfg(not(target_os = "wasi"))]
+            let run = u128::from(std::process::id());
+            #[cfg(target_os = "wasi")]
+            let run = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let path = base.join(format!("files-{name}-{run}"));
             let _ = fs::remove_dir_all(&path);
             fs::create_dir_all(&path).unwrap();
-            Self(fs::canonicalize(path).unwrap())
+            // WASI's realpath fails beneath a preopen whose ancestors are
+            // hidden, as in scripts/check-wasi; the path is already absolute.
+            #[cfg(not(target_os = "wasi"))]
+            let path = fs::canonicalize(path).unwrap();
+            Self(path)
         }
     }
 
@@ -497,13 +643,201 @@ mod tests {
         fs::write(path, text).unwrap();
     }
 
+    #[cfg(unix)]
+    fn symlink(target: &str, link: &Path) {
+        std::os::unix::fs::symlink(target, link).unwrap();
+    }
+
+    /// Writes `text` to a new file at `path` with `original`'s length and
+    /// modification time, so only identity tells the two apart.
+    fn lookalike(original: &Path, path: &Path, text: &str) {
+        let metadata = fs::metadata(original).unwrap();
+        assert_eq!(text.len() as u64, metadata.len());
+        write(path, text);
+        fs::File::options()
+            .write(true)
+            .open(path)
+            .unwrap()
+            .set_modified(metadata.modified().unwrap())
+            .unwrap();
+        let copy = fs::metadata(path).unwrap();
+        assert_eq!(copy.len(), metadata.len());
+        assert_eq!(copy.modified().unwrap(), metadata.modified().unwrap());
+    }
+
+    /// Moves `path` aside, keeping the original alive so its ID is not
+    /// reused, and renames a lookalike into its place.
+    fn swap(path: &Path, text: &str) {
+        let staged = path.with_extension("staged");
+        lookalike(path, &staged, text);
+        fs::rename(path, path.with_extension("saved")).unwrap();
+        fs::rename(&staged, path).unwrap();
+    }
+
+    /// The selections a test can collect with. Fix operands and explicit
+    /// files resolve with `fs::canonicalize`, which WASI cannot do beneath a
+    /// preopen whose ancestors are hidden, as in scripts/check-wasi (VIBE-126).
+    fn selections(explicit: bool) -> Vec<Selection> {
+        let base = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        if cfg!(not(target_os = "wasi")) || fs::canonicalize(base).is_ok() {
+            vec![Selection::Format, Selection::Fix]
+        } else {
+            eprintln!("skipping canonicalized operands: WASI cannot resolve {base:?}");
+            if explicit {
+                vec![]
+            } else {
+                vec![Selection::Format]
+            }
+        }
+    }
+
     fn collect_one(root: &Path, selection: Selection) -> Inputs {
         collect(&[root.as_os_str().to_owned()], selection).unwrap()
     }
 
+    const ORIGINAL: &str = "original  \n";
+
+    /// Writes `ORIGINAL` with a whole-second modification time, which a
+    /// lookalike can copy exactly even where Node's WASI drops fractions.
+    fn write_original(path: &Path) {
+        write(path, ORIGINAL);
+        let time = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000);
+        fs::File::options()
+            .write(true)
+            .open(path)
+            .unwrap()
+            .set_modified(time)
+            .unwrap();
+    }
+    const LOOKALIKE: &str = "imposter  \n";
+
+    /// Swaps a candidate for a same-size, same-mtime file before reading and
+    /// again after, and checks that neither the read nor the write accepts it.
+    fn rejects_lookalikes(
+        name: &str,
+        explicit: bool,
+        operand: impl Fn(&Path) -> PathBuf,
+        replace: impl Fn(&Path),
+    ) {
+        for selection in selections(explicit) {
+            for after_read in [false, true] {
+                let scratch = Scratch::new(&format!("{name}-{selection:?}-{after_read}"));
+                let path = scratch.0.join("root/nested/file.vibe");
+                write_original(&path);
+                let mut inputs = collect_one(&operand(&scratch.0), selection);
+                let original = if after_read {
+                    let (data, info) = inputs.read(0).unwrap();
+                    assert_eq!(data, ORIGINAL.as_bytes());
+                    Some(info)
+                } else {
+                    None
+                };
+                replace(&path);
+                let context = format!("{name}, {selection:?}, after read: {after_read}");
+                match original {
+                    None => assert!(inputs.read(0).is_err(), "{context}: read a lookalike"),
+                    Some(info) => assert!(
+                        inputs.write(0, &info, b"formatted\n").is_err(),
+                        "{context}: wrote a lookalike"
+                    ),
+                }
+                assert_eq!(fs::read_to_string(&path).unwrap(), LOOKALIKE, "{context}");
+            }
+        }
+    }
+
+    #[test]
+    fn explicit_files_reject_lookalikes() {
+        rejects_lookalikes(
+            "explicit",
+            true,
+            |scratch| scratch.join("root/nested/file.vibe"),
+            |path| swap(path, LOOKALIKE),
+        );
+    }
+
+    #[test]
+    fn discovered_files_reject_lookalikes() {
+        rejects_lookalikes(
+            "discovered",
+            false,
+            |scratch| scratch.join("root"),
+            |path| swap(path, LOOKALIKE),
+        );
+    }
+
+    #[test]
+    fn discovered_files_reject_a_replaced_ancestor() {
+        rejects_lookalikes(
+            "ancestor",
+            false,
+            |scratch| scratch.join("root"),
+            |path| {
+                let nested = path.parent().unwrap();
+                let decoy = nested.with_file_name("decoy");
+                lookalike(path, &decoy.join("file.vibe"), LOOKALIKE);
+                fs::rename(nested, nested.with_file_name("saved")).unwrap();
+                fs::rename(&decoy, nested).unwrap();
+            },
+        );
+    }
+
+    #[test]
+    fn an_evicted_root_rejects_a_replaced_directory() {
+        for selection in selections(false) {
+            for after_read in [false, true] {
+                let scratch = Scratch::new(&format!("replaced-root-{selection:?}-{after_read}"));
+                let targets: Vec<PathBuf> = (0..32)
+                    .map(|i| {
+                        let target = scratch.0.join(format!("{i:03}"));
+                        write_original(&target.join("file.vibe"));
+                        target
+                    })
+                    .collect();
+                let operands: Vec<OsString> =
+                    targets.iter().map(|t| t.as_os_str().to_owned()).collect();
+                let mut inputs = collect(&operands, selection).unwrap();
+                let original = if after_read {
+                    let (_, info) = inputs.read(0).unwrap();
+                    // Reading eight other roots evicts the first again.
+                    for index in 1..=MAX_OPEN_ROOTS {
+                        inputs.read(index).unwrap();
+                    }
+                    Some(info)
+                } else {
+                    None
+                };
+                let decoy = scratch.0.join("decoy");
+                lookalike(
+                    &targets[0].join("file.vibe"),
+                    &decoy.join("file.vibe"),
+                    LOOKALIKE,
+                );
+                fs::rename(&targets[0], scratch.0.join("saved")).unwrap();
+                fs::rename(&decoy, &targets[0]).unwrap();
+                let context = format!("{selection:?}, after read: {after_read}");
+                let error = match original {
+                    None => inputs.read(0).err(),
+                    Some(info) => inputs.write(0, &info, b"formatted\n").err(),
+                };
+                assert_eq!(
+                    error.as_deref(),
+                    Some("directory changed after discovery"),
+                    "{context}"
+                );
+                assert_eq!(
+                    fs::read_to_string(targets[0].join("file.vibe")).unwrap(),
+                    LOOKALIKE,
+                    "{context}"
+                );
+            }
+        }
+    }
+
+    #[cfg(unix)]
     #[test]
     fn candidates_reject_replacement() {
-        for selection in [Selection::Format, Selection::Fix] {
+        for selection in selections(false) {
             for replaced in ["leaf", "ancestor", "regular file"] {
                 let scratch = Scratch::new(&format!("replace-{}", replaced.replace(' ', "-")));
                 let root = scratch.0.join("root");
@@ -517,11 +851,11 @@ mod tests {
                 match replaced {
                     "leaf" => {
                         fs::remove_file(&path).unwrap();
-                        symlink(&outside, &path).unwrap();
+                        symlink("../../outside/file.vibe", &path);
                     }
                     "ancestor" => {
                         fs::rename(&nested, root.join("nested-saved")).unwrap();
-                        symlink(outside.parent().unwrap(), &nested).unwrap();
+                        symlink("../outside", &nested);
                     }
                     _ => {
                         fs::rename(&path, nested.join("file.vibe.saved")).unwrap();
@@ -544,9 +878,10 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn keeps_the_opened_root() {
-        for selection in [Selection::Format, Selection::Fix] {
+        for selection in selections(false) {
             let scratch = Scratch::new("pinned");
             let root = scratch.0.join("root");
             write(&root.join("file.vibe"), "inside  \n");
@@ -555,7 +890,7 @@ mod tests {
             fs::rename(&root, &moved).unwrap();
             let outside = scratch.0.join("outside");
             write(&outside.join("file.vibe"), "outside  \n");
-            symlink(&outside, &root).unwrap();
+            symlink("outside", &root);
             let (data, info) = inputs.read(0).unwrap();
             assert_eq!(data, b"inside  \n");
             inputs
@@ -572,9 +907,10 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn an_evicted_root_rejects_replacement() {
-        for selection in [Selection::Format, Selection::Fix] {
+        for selection in selections(false) {
             let scratch = Scratch::new("evicted");
             let targets: Vec<PathBuf> = (0..32)
                 .map(|i| {
@@ -589,8 +925,9 @@ mod tests {
             fs::rename(&targets[0], scratch.0.join("000-saved")).unwrap();
             let outside = scratch.0.join("outside");
             write(&outside.join("file.vibe"), "outside  \n");
-            symlink(&outside, &targets[0]).unwrap();
-            let info = Info::of(&fs::metadata(scratch.0.join("000-saved/file.vibe")).unwrap());
+            symlink("outside", &targets[0]);
+            let saved = fs::File::open(scratch.0.join("000-saved/file.vibe")).unwrap();
+            let info = Info::of(&saved).unwrap();
             assert!(inputs.read(0).is_err());
             assert!(inputs.write(0, &info, b"formatted\n").is_err());
             assert_eq!(

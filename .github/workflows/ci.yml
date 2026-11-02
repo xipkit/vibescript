@@ -96,6 +96,8 @@ jobs:
           cache-key: windows-modules
       - name: Test filesystem module loading
         run: './scripts/cargo test --locked -p vibescript --lib --all-features loading::'
+      - name: Test fmt and fix file identity
+        run: './scripts/cargo test --locked -p vibes --bin vibes --all-features files::'
       - name: Install CLI with default features
         run: ./scripts/cargo install --locked --path cli --root .cache/cli-install
       - name: Run installed CLI

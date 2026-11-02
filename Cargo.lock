@@ -445,13 +445,16 @@ checksum = "b4ac048d71ede7ee76d585517add45da530660ef4390e49b098733c6e897f254"
 name = "vibes"
 version = "0.80.1"
 dependencies = [
+ "cap-fs-ext",
  "cap-std",
  "crossterm",
  "libc",
+ "rustix",
  "serde_json",
  "unicode-width",
  "vibescript",
  "vibescript-tools",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
