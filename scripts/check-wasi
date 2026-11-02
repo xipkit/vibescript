@@ -22,8 +22,14 @@ WITNESS = ROOT / "tests/platforms/wasi"
 TARGET = "wasm32-wasip1"
 TOOLCHAIN = ROOT / ".cache/toolchains/rust-1.98.1-wasi/install"
 WASMTIME = ROOT / ".cache/toolchains/wasmtime-v48.0.2/wasmtime-v48.0.2-aarch64-macos/wasmtime"
-# Node's WASI layer drops sub-second file times, which this test restores.
-NODE_SKIPS = ["cached_source_validation_uses_spelling_mtime_and_size_without_reading_contents"]
+# Node's WASI layer drops sub-second file times, which the first test
+# restores, and refuses to create symbolic links, which the others need.
+NODE_SKIPS = [
+    "cached_source_validation_uses_spelling_mtime_and_size_without_reading_contents",
+    "files::tests::candidates_reject_replacement",
+    "files::tests::keeps_the_opened_root",
+    "files::tests::an_evicted_root_rejects_replacement",
+]
 
 
 def fixtures(base, guest):
