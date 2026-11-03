@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed - 2026-11-02
+Accepted - 2026-11-02
 
 Answers VIBE-130, which asked whether [chumsky](https://codeberg.org/zesterer/chumsky)
 would be worth adopting. Relates to [ADR-006](006-slim-language-for-predictable-sandboxing.md),
