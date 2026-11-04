@@ -364,7 +364,7 @@ fn diagnostics_json(
     diagnostics: &[Diagnostic],
     source: &str,
     files: &BTreeMap<String, String>,
-) -> Vec<Json> {
+) -> vibescript::Result<Vec<Json>> {
     diagnostics
         .iter()
         .map(|d| {
@@ -374,7 +374,8 @@ fn diagnostics_json(
                 .and_then(|file| std::str::from_utf8(file).ok())
                 .and_then(|file| files.get(file))
                 .map_or(source, String::as_str);
-            serde_json::from_str(&d.to_json(text)).expect("diagnostics are valid JSON")
+            serde_json::from_str(&d.to_json(text))
+                .map_err(|error| Error::new(ErrorKind::Json, error.to_string()))
         })
         .collect()
 }
@@ -469,7 +470,7 @@ fn execute(
                 }
             }
         }
-        response.diagnostics = diagnostics_json(&diagnostics, &request.source, &request.files);
+        response.diagnostics = diagnostics_json(&diagnostics, &request.source, &request.files)?;
         if request.op == Operation::Fix {
             response.source = Some(request.source.clone());
             response.files = Some(request.files.clone());
@@ -512,8 +513,11 @@ fn execute(
         ));
     }
     response.result = Some(
-        RawValue::from_string(String::from_utf8(bytes.to_vec()).expect("JSON is UTF-8"))
-            .map_err(|error| Error::new(ErrorKind::Json, error.to_string()))?,
+        RawValue::from_string(
+            String::from_utf8(bytes.to_vec())
+                .map_err(|error| Error::new(ErrorKind::Json, error.to_string()))?,
+        )
+        .map_err(|error| Error::new(ErrorKind::Json, error.to_string()))?,
     );
     Ok(())
 }

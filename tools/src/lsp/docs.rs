@@ -467,7 +467,9 @@ impl MemberDocs {
             if universal {
                 continue;
             }
-            let entry = self.universal.remove(&name).expect("the name was listed");
+            let Some(entry) = self.universal.remove(&name) else {
+                continue;
+            };
             for receiver in dispatching.into_iter().flatten() {
                 if !receivers.contains_key(receiver) {
                     continue;

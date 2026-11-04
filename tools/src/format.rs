@@ -16,7 +16,7 @@
 /// ```
 pub fn format(source: &str) -> String {
     String::from_utf8(format_bytes(source.as_bytes()))
-        .expect("formatting only removes ASCII bytes at line ends")
+        .unwrap_or_else(|error| String::from_utf8_lossy(error.as_bytes()).into_owned())
 }
 
 /// Returns the canonical form of source bytes, keeping invalid UTF-8 as is.
