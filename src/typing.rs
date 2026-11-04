@@ -528,6 +528,7 @@ fn listed<T>(
 
 /// Checks one parsed source.
 pub(crate) fn check(input: &Input<'_>) -> Checked {
+    #[cfg(not(target_os = "wasi"))]
     if input.source.len() > SHALLOW {
         return crate::threads::on_stack(STACK, || check_nested(input, 0))
             .unwrap_or_else(|_| check_nested(input, 0));
