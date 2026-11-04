@@ -167,7 +167,7 @@ mod tests {
     fn shared_payloads_stay_charged_until_syntax_releases_them() {
         for symbol in [false, true] {
             let mut context = CallContext::new(CallOptions::default());
-            let memory = Arc::downgrade(&context.identity());
+            let memory = context.identity();
             let work = Meter(RefCell::new(&mut context));
             let bytes = Bytes::from_slice(&work, b"shared payload").unwrap();
             let retained = work.0.borrow().stats().retained_memory_bytes;
@@ -183,7 +183,7 @@ mod tests {
             drop(alias);
             assert_eq!(work.0.borrow().stats().retained_memory_bytes, 0);
             drop(context);
-            assert!(memory.upgrade().is_none());
+            assert_eq!(Arc::strong_count(&memory), 1);
             assert_eq!(compiled.as_bytes().unwrap(), b"shared payload");
         }
     }

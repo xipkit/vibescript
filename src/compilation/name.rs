@@ -125,7 +125,7 @@ mod tests {
     fn shared_names_release_the_budget_at_the_compiled_boundary() {
         for shared in [false, true] {
             let mut context = CallContext::new(CallOptions::default());
-            let memory = Arc::downgrade(&context.identity());
+            let memory = context.identity();
             let name = Name::join(
                 &Meter(RefCell::new(&mut context)),
                 &["日本語", "::", "member"],
@@ -141,9 +141,9 @@ mod tests {
                 if shared { retained } else { 0 }
             );
             drop(context);
-            assert_eq!(memory.upgrade().is_some(), shared);
+            assert_eq!(Arc::strong_count(&memory) > 1, shared);
             drop(alias);
-            assert!(memory.upgrade().is_none());
+            assert_eq!(Arc::strong_count(&memory), 1);
             assert_eq!(compiled, "日本語::member");
         }
     }

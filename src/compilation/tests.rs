@@ -290,11 +290,11 @@ fn compiler_source_diagnostics_keep_exact_text_and_account_for_partial_construct
     assert!(
         stats.retained_memory_bytes > error.message.capacity() + diagnostic.code_frame.capacity()
     );
-    let budget = std::sync::Arc::downgrade(&baseline.context.borrow().identity());
+    let budget = baseline.context.borrow().identity();
     drop(baseline);
-    assert!(budget.upgrade().is_some());
+    assert!(std::sync::Arc::strong_count(&budget) > 1);
     drop(error);
-    assert!(budget.upgrade().is_none());
+    assert_eq!(std::sync::Arc::strong_count(&budget), 1);
     assert_eq!(run(&()).diagnostic.unwrap().code_frame, expected);
     for memory in [false, true] {
         for short in [0, 1] {
@@ -411,7 +411,7 @@ fn compiler_diagnostics_can_account_shared_and_untracked_input_errors() {
 #[test]
 fn compiled_builtin_namespaces_retain_sorted_unique_members_without_the_budget() {
     let mut context = CallContext::new(CallOptions::default());
-    let budget = std::sync::Arc::downgrade(&context.identity());
+    let budget = context.identity();
     let program = crate::bytecode::compile(
         "[Regex, Time, Duration, JSON, Math]",
         Vec::new(),
@@ -420,7 +420,7 @@ fn compiled_builtin_namespaces_retain_sorted_unique_members_without_the_budget()
     .unwrap();
     assert_eq!(context.stats().retained_memory_bytes, 0);
     drop(context);
-    assert!(budget.upgrade().is_none());
+    assert_eq!(std::sync::Arc::strong_count(&budget), 1);
     let expected: &[(&str, &[&str])] = &[
         (
             "Regex",
@@ -540,14 +540,14 @@ fn owned_literal_payloads_obey_limits_and_outlive_the_token_stream() {
         format!("%W[{}#{{1}}]", "x".repeat(length)),
     ] {
         let mut context = CallContext::new(CallOptions::default());
-        let memory = std::sync::Arc::downgrade(&context.identity());
+        let memory = context.identity();
         let parsed = crate::syntax::parse(&source, &Meter(RefCell::new(&mut context))).unwrap();
         let peak = context.stats().peak_memory_bytes;
         assert!(context.stats().retained_memory_bytes >= length, "{source}");
         drop(context);
-        assert!(memory.upgrade().is_some());
+        assert!(std::sync::Arc::strong_count(&memory) > 1);
         drop(parsed);
-        assert!(memory.upgrade().is_none());
+        assert_eq!(std::sync::Arc::strong_count(&memory), 1);
         for limit in [length / 2, peak - 1, peak] {
             let mut options = CallOptions::default();
             options.limits.memory_bytes = Some(limit);
@@ -568,7 +568,7 @@ fn owned_literal_payloads_obey_limits_and_outlive_the_token_stream() {
 #[test]
 fn owned_syntax_containers_outlive_the_parser() {
     let mut context = CallContext::new(CallOptions::default());
-    let memory = std::sync::Arc::downgrade(&context.identity());
+    let memory = context.identity();
     let mut parsed = crate::syntax::parse(
         "def first(n=1);[n+2,n*3][0];end;def second;[4,5];end",
         &Meter(RefCell::new(&mut context)),
@@ -580,9 +580,9 @@ fn owned_syntax_containers_outlive_the_parser() {
     let retained = context.stats().retained_memory_bytes;
     assert!(retained > 0 && retained < before);
     drop(context);
-    assert!(memory.upgrade().is_some());
+    assert!(std::sync::Arc::strong_count(&memory) > 1);
     drop(first);
-    assert!(memory.upgrade().is_none());
+    assert_eq!(std::sync::Arc::strong_count(&memory), 1);
 }
 
 #[test]
@@ -735,14 +735,14 @@ fn generation_storage_and_work_limits_cover_the_phase_after_parsing() {
         let parse_visits = parsed.visits.get();
         let run = |work: &dyn Work| crate::bytecode::compile_file(&source, Vec::new(), work);
         let baseline = Interrupt::new(usize::MAX, false);
-        let budget = std::sync::Arc::downgrade(&baseline.context.borrow().identity());
+        let budget = baseline.context.borrow().identity();
         let program = run(&baseline).unwrap();
         let stats = baseline.context.borrow().stats();
         let visits = baseline.visits.get();
         assert_eq!(stats.retained_memory_bytes, 0);
         assert!(stats.steps > parse_steps && visits > parse_visits);
         drop(baseline);
-        assert!(budget.upgrade().is_none());
+        assert_eq!(std::sync::Arc::strong_count(&budget), 1);
         assert!(!program.functions.is_empty());
         drop(program);
         let peak = stats.peak_memory_bytes;

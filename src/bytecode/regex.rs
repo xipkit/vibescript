@@ -75,15 +75,15 @@ mod tests {
             let retained = reference.stats().retained_memory_bytes - savings;
             for _ in 0..3 {
                 let mut ctx = CallContext::new(CallOptions::default());
-                let memory = Arc::downgrade(&ctx.identity());
+                let memory = ctx.identity();
                 let imported = literal.value(&mut ctx).unwrap();
                 assert_eq!(imported.as_regex(), compiled.as_regex());
                 assert_eq!(ctx.stats().retained_memory_bytes, retained);
                 assert!(ctx.stats().steps < reference.stats().steps);
                 drop(ctx);
-                assert!(memory.upgrade().is_some());
+                assert!(Arc::strong_count(&memory) > 1);
                 drop(imported);
-                assert!(memory.upgrade().is_none());
+                assert_eq!(Arc::strong_count(&memory), 1);
             }
         }
     }
@@ -117,7 +117,7 @@ mod tests {
         );
         assert!(literal.compiled.get().is_none());
         let mut first = CallContext::new(CallOptions::default());
-        let memory = Arc::downgrade(&first.identity());
+        let memory = first.identity();
         let value = literal.value(&mut first).unwrap();
         let mut reference = CallContext::new(CallOptions::default());
         let expected = Regex::compile(&mut reference, source, 0, "regex literal").unwrap();
@@ -129,7 +129,7 @@ mod tests {
         assert_eq!(value.as_regex(), expected.as_regex());
         drop(value);
         drop(first);
-        assert!(memory.upgrade().is_none());
+        assert_eq!(Arc::strong_count(&memory), 1);
         let mut next = CallContext::new(CallOptions::default());
         let value = literal.value(&mut next).unwrap();
         assert_eq!(value.as_regex(), expected.as_regex());

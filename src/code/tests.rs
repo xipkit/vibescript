@@ -164,7 +164,7 @@ fn compilation_preserves_borrowed_host_order_identity_and_partial_failure_cleanu
         )
     };
     let mut context = CallContext::new(CallOptions::default());
-    let budget = Arc::downgrade(&context.identity());
+    let budget = context.identity();
     let code = run(&mut context).unwrap();
     assert_eq!(called.load(Ordering::SeqCst), 0);
     assert_eq!(
@@ -186,7 +186,7 @@ fn compilation_preserves_borrowed_host_order_identity_and_partial_failure_cleanu
     let stats = context.stats();
     assert_eq!(stats.retained_memory_bytes, 0);
     drop(context);
-    assert!(budget.upgrade().is_none());
+    assert_eq!(Arc::strong_count(&budget), 1);
     drop(code);
     for memory in [false, true] {
         for short in [0, 1] {
@@ -273,22 +273,16 @@ fn engine(retired: &Arc<AtomicUsize>) -> Engine {
 fn unused_namespace_templates_do_not_retain_code_or_hosts() {
     let retired = Arc::new(AtomicUsize::new(0));
     let script = engine(&retired).compile(SOURCE).unwrap();
-    let code = Arc::downgrade(&script.inner.code);
-    let definitions = script
-        .inner
-        .code
-        .program
-        .namespaces
-        .iter()
-        .map(Arc::downgrade)
-        .collect::<Vec<_>>();
+    let code = script.inner.code.clone();
+    let definitions = script.inner.code.program.namespaces.clone();
     assert_eq!(definitions.len(), 3);
     drop(script);
-    assert!(code.upgrade().is_none());
+    assert_eq!(Arc::strong_count(&code), 1);
+    drop(code);
     assert!(
         definitions
             .iter()
-            .all(|definition| definition.upgrade().is_none())
+            .all(|definition| Arc::strong_count(definition) == 1)
     );
     assert_eq!(retired.load(Ordering::SeqCst), 1);
 }
@@ -299,8 +293,8 @@ fn escaping_namespaces_classes_and_cycles_retain_original_code_until_released() 
         let retired = Arc::new(AtomicUsize::new(0));
         let mut engine = engine(&retired);
         let script = engine.compile(SOURCE).unwrap();
-        let code = Arc::downgrade(&script.inner.code);
-        let configuration = Arc::downgrade(&script.inner);
+        let code = script.inner.code.clone();
+        let configuration = script.inner.clone();
         engine.register("host", |_, _| Ok(Value::int(22)));
         assert_eq!(
             script
@@ -325,11 +319,13 @@ fn escaping_namespaces_classes_and_cycles_retain_original_code_until_released() 
         ));
         drop(script);
         drop(engine);
-        assert!(configuration.upgrade().is_none(), "{function}");
-        assert!(code.upgrade().is_some(), "{function}");
+        assert_eq!(Arc::strong_count(&configuration), 1, "{function}");
+        drop(configuration);
+        assert!(Arc::strong_count(&code) > 1, "{function}");
         assert_eq!(retired.load(Ordering::SeqCst), 0, "{function}");
         drop(value);
-        assert!(code.upgrade().is_none(), "{function}");
+        assert_eq!(Arc::strong_count(&code), 1, "{function}");
+        drop(code);
         assert_eq!(retired.load(Ordering::SeqCst), 1, "{function}");
     }
 }
@@ -338,7 +334,7 @@ fn escaping_namespaces_classes_and_cycles_retain_original_code_until_released() 
 fn imported_namespace_releases_the_source_budget_and_retains_code() {
     let retired = Arc::new(AtomicUsize::new(0));
     let script = engine(&retired).compile(SOURCE).unwrap();
-    let code = Arc::downgrade(&script.inner.code);
+    let code = script.inner.code.clone();
     let template = Namespace::untracked(script.inner.code.program.namespaces[0].clone());
     let mut source = CallContext::new(CallOptions::default());
     let original = Value(Kind::Namespace(
@@ -353,10 +349,11 @@ fn imported_namespace_releases_the_source_budget_and_retains_code() {
     drop(template);
     drop(script);
     assert_eq!(source.stats().retained_memory_bytes, 0);
-    assert!(code.upgrade().is_some());
+    assert!(Arc::strong_count(&code) > 1);
     drop(copied);
     assert_eq!(receiver.stats().retained_memory_bytes, 0);
-    assert!(code.upgrade().is_none());
+    assert_eq!(Arc::strong_count(&code), 1);
+    drop(code);
     assert_eq!(retired.load(Ordering::SeqCst), 1);
 }
 
@@ -369,7 +366,7 @@ fn imported_instance_cycle_releases_original_heap_and_code() {
             "property link: Node?\n  property namespace: any",
         ))
         .unwrap();
-    let code = Arc::downgrade(&script.inner.code);
+    let code = script.inner.code.clone();
     let namespace = Namespace::untracked(script.inner.code.program.namespaces[2].clone());
     let mut source = CallContext::new(CallOptions::default());
     let root = crate::objects::new(&mut source, &namespace).unwrap();
@@ -399,10 +396,11 @@ fn imported_instance_cycle_releases_original_heap_and_code() {
     assert!(matches!(&link.0, Kind::Instance(link) if instance.same(link)));
     drop(link);
     crate::objects::finish(&mut receiver).unwrap();
-    assert!(code.upgrade().is_some());
+    assert!(Arc::strong_count(&code) > 1);
     drop(copied);
     assert_eq!(receiver.stats().retained_memory_bytes, 0);
-    assert!(code.upgrade().is_none());
+    assert_eq!(Arc::strong_count(&code), 1);
+    drop(code);
     assert_eq!(retired.load(Ordering::SeqCst), 1);
 }
 
@@ -410,7 +408,7 @@ fn imported_instance_cycle_releases_original_heap_and_code() {
 fn failed_namespace_imports_release_partial_accounting_and_code_references() {
     let retired = Arc::new(AtomicUsize::new(0));
     let script = engine(&retired).compile(SOURCE).unwrap();
-    let code = Arc::downgrade(&script.inner.code);
+    let code = script.inner.code.clone();
     let value = script
         .call("namespace", &[], CallOptions::default())
         .unwrap()
@@ -447,7 +445,8 @@ fn failed_namespace_imports_release_partial_accounting_and_code_references() {
     }
     drop(value);
     drop(script);
-    assert!(code.upgrade().is_none());
+    assert_eq!(Arc::strong_count(&code), 1);
+    drop(code);
     assert_eq!(retired.load(Ordering::SeqCst), 1);
 }
 

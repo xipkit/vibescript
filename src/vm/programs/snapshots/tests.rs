@@ -1,6 +1,6 @@
 use crate::{CallOptions, Capability, Engine, ErrorKind, HostMethod, Stats, Value, budget::Memory};
 use std::{
-    sync::{Arc, Mutex, Weak},
+    sync::{Arc, Mutex},
     time::Instant,
 };
 
@@ -18,7 +18,7 @@ struct Observation {
     before: Stats,
     after: Stats,
     error: Option<ErrorKind>,
-    memory: Weak<Memory>,
+    memory: Option<Arc<Memory>>,
     called: bool,
 }
 
@@ -28,7 +28,7 @@ fn probe(limit: Limit) -> (crate::Result<crate::Outcome>, Observation) {
     let method = HostMethod::new_with_block("cap.capture", move |call, _, _| {
         let ctx = call.context();
         let before = ctx.stats();
-        let memory = Arc::downgrade(&ctx.identity());
+        let memory = Some(ctx.identity());
         let previous = ctx.options.limits.clone();
         match limit {
             Limit::Measure => (),
@@ -91,7 +91,11 @@ fn probe(limit: Limit) -> (crate::Result<crate::Outcome>, Observation) {
         });
     let observation = std::mem::take(&mut *observed.lock().unwrap());
     assert!(observation.called, "{limit:?}");
-    assert_eq!(observation.memory.strong_count(), 0, "{limit:?}");
+    assert_eq!(
+        observation.memory.as_ref().map(Arc::strong_count),
+        Some(1),
+        "{limit:?}"
+    );
     (result, observation)
 }
 
