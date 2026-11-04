@@ -71,7 +71,7 @@ fn imported_host_callbacks_retire_after_object_collection_unlocks() {
             let held = retained.clone();
             let mut receiver = crate::Engine::new();
             receiver.register("take_foreign", move |ctx, _| {
-                *heap.lock().unwrap() = Arc::downgrade(ctx.objects.as_ref().unwrap());
+                *heap.lock().unwrap() = watch_heap(ctx);
                 let value = incoming.lock().unwrap().take().unwrap();
                 if !captured {
                     return Ok(value);
@@ -148,7 +148,7 @@ fn imported_capability_callbacks_retire_after_object_collection_unlocks() {
         let held = retained.clone();
         let mut receiver = crate::Engine::new();
         receiver.register("take_capability", move |ctx, _| {
-            *heap.lock().unwrap() = Arc::downgrade(ctx.objects.as_ref().unwrap());
+            *heap.lock().unwrap() = watch_heap(ctx);
             let retired = RetiredCode {
                 heap: heap.clone(),
                 observed: observation.clone(),

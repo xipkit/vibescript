@@ -241,6 +241,10 @@ impl Drop for RetiredHost {
     }
 }
 
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the retired callback looks back at the cache that owns it; whether it may is decided with the Weak type on VIBE-136"
+)]
 fn retained_host(cache: &Arc<Cache<Script>>, observed: &Arc<AtomicUsize>) -> Script {
     let retired = RetiredHost {
         cache: Arc::downgrade(cache),

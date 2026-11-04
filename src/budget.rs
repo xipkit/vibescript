@@ -1029,7 +1029,9 @@ mod accounting_tests {
                         let allocated = counters(ctx);
                         (value, before, allocated)
                     };
-                    tokio::spawn(async move { drop(temporary) }).await.unwrap();
+                    crate::asynchronous::blocking(move || drop(temporary))
+                        .await
+                        .unwrap();
                     tokio::task::yield_now().await;
                     let ctx = call.context()?;
                     assert_eq!(counters(ctx), (allocated.0, allocated.1, before.2));
@@ -1046,7 +1048,7 @@ mod accounting_tests {
         let memory = observed.lock().unwrap().take().unwrap();
         assert_eq!(memory.used(), result.stats.retained_memory_bytes);
         assert!(result.stats.retained_memory_bytes > 0);
-        tokio::task::spawn_blocking(move || drop(result))
+        crate::asynchronous::blocking(move || drop(result))
             .await
             .unwrap();
         assert_eq!(memory.used(), 0);

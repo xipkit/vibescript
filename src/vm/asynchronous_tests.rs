@@ -30,7 +30,7 @@ async fn abandoned_async_invocations_release_unreachable_cycles() {
                 Box::pin(async move {
                     let ctx = call.context()?;
                     *saved_memory.lock().unwrap() = Some(ctx.identity());
-                    *saved_heap.lock().unwrap() = Arc::downgrade(ctx.objects.as_ref().unwrap());
+                    *saved_heap.lock().unwrap() = crate::objects::watch_heap(ctx);
                     ready.notify_one();
                     pending::<crate::Result<Value>>().await
                 })
@@ -49,17 +49,15 @@ async fn abandoned_async_invocations_release_unreachable_cycles() {
         };
         let script = engine.compile(source).unwrap();
         let runner = Runner::new(1).unwrap();
-        let worker = runner.clone();
-        let task = tokio::spawn(async move {
-            worker
-                .call(script, "run".into(), vec![], CallOptions::default())
-                .await
-        });
-        tokio::time::timeout(Duration::from_secs(2), entered.notified())
-            .await
-            .unwrap();
-        task.abort();
-        assert!(task.await.unwrap_err().is_cancelled());
+        // Dropping the call abandons it, as a host that gives up on it would.
+        let mut call = Box::pin(runner.call(script, "run".into(), vec![], CallOptions::default()));
+        tokio::select! {
+            _ = &mut call => panic!("the paused call finished"),
+            entered = tokio::time::timeout(Duration::from_secs(2), entered.notified()) => {
+                entered.unwrap();
+            }
+        }
+        drop(call);
         assert!(heap.lock().unwrap().upgrade().is_none(), "nested={nested}");
         assert_eq!(holders(&memory), Some(1), "nested={nested}");
         assert_eq!(runner.available_slots(), 1);
@@ -139,16 +137,14 @@ async fn objects_retained_by_async_hosts_outlive_cancelled_invocations() {
     let script=engine.compile("class Box;property n: int?;property link: Box?;end;def run;b=Box.new;b.n=3;b.link=b;hold(b);b.n=4;end\ndef read(b: Box) -> array<int | bool | nil>;[b.n,b.link==b];end").unwrap();
     let reader = script.clone();
     let runner = Runner::new(1).unwrap();
-    let task = tokio::spawn(async move {
-        runner
-            .call(script, "run".into(), vec![], CallOptions::default())
-            .await
-    });
-    tokio::time::timeout(Duration::from_secs(2), entered.notified())
-        .await
-        .unwrap();
-    task.abort();
-    assert!(task.await.unwrap_err().is_cancelled());
+    let mut call = Box::pin(runner.call(script, "run".into(), vec![], CallOptions::default()));
+    tokio::select! {
+        _ = &mut call => panic!("the held call finished"),
+        entered = tokio::time::timeout(Duration::from_secs(2), entered.notified()) => {
+            entered.unwrap();
+        }
+    }
+    drop(call);
     assert!(holders(&memory).is_some_and(|holders| holders > 1));
     let value = retained.lock().unwrap().take().unwrap();
     // The instance returns to a later call of the script that declares its

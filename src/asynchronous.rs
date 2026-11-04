@@ -121,6 +121,23 @@ pub(crate) async fn acquire(
     }
 }
 
+/// Runs `work` on Tokio's blocking pool and waits for it. A panic in the
+/// work resumes here; a worker that is cancelled or shut down is a host error.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the crate's one blocking spawn, with the panic propagation of adamantium::blocking, which vibescript cannot depend on while Tokio stays optional"
+)]
+pub(crate) async fn blocking<T: Send + 'static>(
+    work: impl FnOnce() -> T + Send + 'static,
+) -> Result<T> {
+    tokio::task::spawn_blocking(work).await.map_err(|error| {
+        if error.is_panic() {
+            std::panic::resume_unwind(error.into_panic());
+        }
+        Error::new(ErrorKind::Host, format!("script worker failed: {error}"))
+    })
+}
+
 struct CancelOnDrop(CancellationToken);
 impl Drop for CancelOnDrop {
     fn drop(&mut self) {

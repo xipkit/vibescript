@@ -217,7 +217,7 @@ fn abandoned_execution_releases_cycles_without_running_ensure() {
             Step::Host
         ));
         let memory = execution.context.identity();
-        let heap = Arc::downgrade(execution.context.objects.as_ref().unwrap());
+        let heap = crate::objects::watch_heap(&execution.context);
         if expired {
             execution.context.options.deadline = Some(Instant::now());
             let error = execution

@@ -422,12 +422,11 @@ impl Driver {
             Err(error) => return Ok(Progress::Complete(work.interrupted(error))),
         };
         let driver = self.clone();
-        tokio::task::spawn_blocking(move || {
+        crate::asynchronous::blocking(move || {
             let _permit = permit;
             worker(work, driver)
         })
         .await
-        .map_err(worker_error)
     }
 }
 
@@ -693,7 +692,7 @@ pub(crate) async fn call(
     let permit =
         crate::asynchronous::acquire(slots.clone(), &options.cancellation, options.deadline)
             .await?;
-    let execution = tokio::task::spawn_blocking(move || {
+    let execution = crate::asynchronous::blocking(move || {
         let _permit = permit;
         let mut execution = Owned::new(Execution::new(&script, &name, &args, &keywords, options)?)?;
         let charge = match execution.execution.context.reserve(size_of::<Work>()) {
@@ -707,8 +706,7 @@ pub(crate) async fn call(
             charge,
         }))
     })
-    .await
-    .map_err(worker_error)??;
+    .await??;
     let driver = Driver {
         slots,
         handle: Handle::current(),
@@ -718,11 +716,4 @@ pub(crate) async fn call(
         Completed::Call(result) => result,
         Completed::Block(_, _) => unreachable!(),
     }
-}
-
-fn worker_error(error: tokio::task::JoinError) -> Error {
-    if error.is_panic() {
-        std::panic::resume_unwind(error.into_panic());
-    }
-    Error::new(ErrorKind::Host, format!("script worker failed: {error}"))
 }
