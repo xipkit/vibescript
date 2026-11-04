@@ -117,7 +117,8 @@ fn vector_ascii_mismatch(bytes: &[u8; 16], needle: u8) -> usize {
             _mm_cmpeq_epi8(input, _mm_set1_epi8(i8::from_ne_bytes([needle]))),
             input,
         );
-        (_mm_movemask_epi8(mask) as u32 | 1 << 16).trailing_zeros() as usize
+        (u32::from_ne_bytes(_mm_movemask_epi8(mask).to_ne_bytes()) | 1 << 16).trailing_zeros()
+            as usize
     }
 }
 
@@ -419,7 +420,7 @@ fn vector_unicode(s: &[u8]) -> (usize, usize) {
             if _mm_movemask_epi8(bad) != 0 {
                 break;
             }
-            let lead = (!_mm_movemask_epi8(continuation) as u32) & 0xffff;
+            let lead = !u32::from_ne_bytes(_mm_movemask_epi8(continuation).to_ne_bytes()) & 0xffff;
             leads += lead.count_ones() as usize;
             boundary = start + (31 - lead.leading_zeros()) as usize;
             previous = v;

@@ -1,6 +1,6 @@
 use crate::{
     CallContext, Error, ErrorKind, Result, Value, budget::Buffer, bytecode::Method, hash::Hash,
-    ops, sequence, value::Kind,
+    numeric::to_usize, ops, sequence, value::Kind,
 };
 
 fn argument(message: &str) -> Error {
@@ -335,7 +335,7 @@ fn string(
                     "string.insert index {requested} out of string"
                 )));
             }
-            let offset = sequence::rune_offset(ctx, bytes, index as usize)?;
+            let offset = sequence::rune_offset(ctx, bytes, to_usize(index))?;
             let inserted = args[1].require_bytes()?;
             let capacity = size(ctx, bytes.len() as i128 + inserted.len() as i128)?;
             let mut out = Buffer::with_capacity(ctx, capacity)?;

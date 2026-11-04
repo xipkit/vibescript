@@ -7,7 +7,9 @@ use crate::{
     bytecode::{ArgumentOp, Invocation, NO_SLOT, Op, Operator, Receiving, Selection, narrow},
     hash::Hash,
     iteration::{self, Iteration, Progress},
-    members, ops,
+    members,
+    numeric::to_usize,
+    ops,
     range::Range,
     value::Kind,
 };
@@ -179,9 +181,9 @@ impl LoopState {
         }
         ctx.charge(1)?;
         let value = match &self.source.0 {
-            Kind::Array(h) => h.buffer.data[self.position as usize].clone(),
+            Kind::Array(h) => h.buffer.data[to_usize(self.position)].clone(),
             Kind::Hash(h) => {
-                let (key, value) = &h.buffer.data[self.position as usize];
+                let (key, value) = &h.buffer.data[to_usize(self.position)];
                 ctx.array(&[key.clone(), value.clone()])?
             }
             Kind::Range(r) => {

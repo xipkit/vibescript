@@ -208,13 +208,12 @@ fn fraction(input: &mut &[u8], length: usize, range: &mut Option<&'static str>) 
         return Err(invalid());
     }
     let digits = (length - 1).min(9);
-    let nanos = signed(&input[1..=digits])?;
-    if nanos < 0 {
+    let Ok(nanos) = u32::try_from(signed(&input[1..=digits])?) else {
         *range = Some("fractional second");
         return Err(invalid());
-    }
+    };
     *input = &input[length..];
-    Ok(nanos as u32 * 10u32.pow(9 - digits as u32))
+    Ok(nanos * 10u32.pow(9 - digits as u32))
 }
 
 fn has_fraction(input: &[u8]) -> bool {

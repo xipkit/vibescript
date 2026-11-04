@@ -1,6 +1,6 @@
 use crate::{
-    CallContext, Error, ErrorKind, Result, Value, budget::Buffer, bytecode::Method, ops, scan,
-    value::Kind,
+    CallContext, Error, ErrorKind, Result, Value, budget::Buffer, bytecode::Method,
+    numeric::to_usize, ops, scan, value::Kind,
 };
 
 pub(crate) fn integer(value: &Value) -> Result<i64> {
@@ -98,14 +98,13 @@ fn window(
         }
         (start, start + i128::from(count), single)
     };
-    if start < 0 || start > len || (single && start == len) {
+    if start > len || (single && start == len) {
         return Ok(None);
     }
-    Ok(Some((
-        start as usize,
-        end.clamp(start, len) as usize,
-        single,
-    )))
+    let Ok(first) = usize::try_from(start) else {
+        return Ok(None);
+    };
+    Ok(Some((first, to_usize(end.clamp(start, len)), single)))
 }
 
 pub(crate) fn rune_offset(ctx: &mut CallContext, bytes: &[u8], count: usize) -> Result<usize> {

@@ -9,11 +9,44 @@ pub(crate) fn to_i64<T: TryInto<i64>>(value: T) -> i64 {
     value.try_into().unwrap_or(i64::MAX)
 }
 
+/// Converts a position or size known to be non-negative and to fit. Anything
+/// else becomes `usize::MAX`, so a bad index still fails its bounds check
+/// instead of reaching another element.
+#[inline]
+pub(crate) fn to_usize<T: TryInto<usize>>(value: T) -> usize {
+    value.try_into().unwrap_or(usize::MAX)
+}
+
+/// Converts a count or bound known to be non-negative and to fit; anything else
+/// becomes `u64::MAX`.
+#[inline]
+pub(crate) fn to_u64<T: TryInto<u64>>(value: T) -> u64 {
+    value.try_into().unwrap_or(u64::MAX)
+}
+
 /// Reads `value`'s bits as two's complement, for arithmetic that wraps on
 /// purpose.
 #[inline]
 pub(crate) const fn wrapped(value: u64) -> i64 {
     i64::from_ne_bytes(value.to_ne_bytes())
+}
+
+/// Reads `value`'s two's complement bits as unsigned; the inverse of [`wrapped`].
+#[inline]
+pub(crate) const fn unsigned_bits(value: i64) -> u64 {
+    u64::from_ne_bytes(value.to_ne_bytes())
+}
+
+/// Rounds toward zero. NaN and anything negative become 0, and a value past the
+/// range saturates.
+#[inline]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "floats have no `try_from`, and `as` saturates as documented"
+)]
+pub(crate) fn float_to_u64(value: f64) -> u64 {
+    value as u64
 }
 
 pub(crate) fn call(
@@ -386,9 +419,9 @@ fn float_digits(ctx: &mut CallContext, number: f64, digits: i32, mode: Rounding)
         return Ok(0.0);
     }
     if matches!(mode, Rounding::Nearest) && digits >= 15 {
-        return rational_round(ctx, number, digits as u32);
+        return rational_round(ctx, number, digits.unsigned_abs());
     }
-    let scale = pow10(ctx, digits as u32)?.as_float().unwrap();
+    let scale = pow10(ctx, digits.unsigned_abs())?.as_float().unwrap();
     Ok(match mode {
         Rounding::Floor => {
             let whole = (number * scale).floor();
@@ -470,5 +503,35 @@ mod tests {
         assert_eq!(wrapped(i64::MAX as u64), i64::MAX);
         assert_eq!(wrapped(1u64 << 63), i64::MIN);
         assert_eq!(wrapped(u64::MAX), -1);
+    }
+
+    #[test]
+    fn unsigned_conversions_keep_what_fits_and_put_the_rest_out_of_range() {
+        assert_eq!(to_usize(7i64), 7);
+        assert_eq!(to_usize(-1i64), usize::MAX);
+        assert_eq!(to_usize(i128::MAX), usize::MAX);
+        assert_eq!(to_u64(i128::from(u64::MAX)), u64::MAX);
+        assert_eq!(to_u64(7i32), 7);
+        assert_eq!(to_u64(-1i128), u64::MAX);
+    }
+
+    #[test]
+    fn unsigned_bits_is_the_inverse_of_wrapped() {
+        assert_eq!(unsigned_bits(5), 5);
+        assert_eq!(unsigned_bits(-1), u64::MAX);
+        assert_eq!(unsigned_bits(i64::MIN), 1u64 << 63);
+        for value in [0, 1, -1, i64::MAX, i64::MIN] {
+            assert_eq!(wrapped(unsigned_bits(value)), value);
+        }
+    }
+
+    #[test]
+    fn float_to_u64_rounds_toward_zero_and_saturates() {
+        assert_eq!(float_to_u64(2.9), 2);
+        assert_eq!(float_to_u64(9.3e18), 9_300_000_000_000_000_000);
+        assert_eq!(float_to_u64(-1.5), 0);
+        assert_eq!(float_to_u64(f64::NAN), 0);
+        assert_eq!(float_to_u64(1e30), u64::MAX);
+        assert_eq!(float_to_u64(f64::INFINITY), u64::MAX);
     }
 }

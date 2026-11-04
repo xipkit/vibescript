@@ -1,4 +1,5 @@
 use super::*;
+use crate::numeric::to_usize;
 
 /// Two common nesting levels share one charged allocation until both finish.
 pub(crate) struct Pool(Option<Box<State<Slots>>>);
@@ -158,7 +159,7 @@ impl Driver {
             let index = self.position;
             self.position += 1;
             let value = match &self.receiver.0 {
-                Kind::Array(array) => array.buffer.data[index as usize].clone(),
+                Kind::Array(array) => array.buffer.data[to_usize(index)].clone(),
                 _ => Value::int((i128::from(self.start) + index * i128::from(self.stride)) as i64),
             };
             if matches!(self.method, Select | Reject) {

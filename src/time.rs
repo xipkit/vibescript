@@ -2,7 +2,7 @@ use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, Charge},
     bytecode::CallSite,
-    numeric::to_i64,
+    numeric::{to_i64, to_usize},
     ops,
     value::Kind,
 };
@@ -175,7 +175,7 @@ fn scaled_float(value: f64, factor: u32) -> Result<i64> {
     }
     let exponent = encoded.max(1) - 1023 - 52;
     let (whole, remainder) = if exponent >= 0 {
-        if exponent as u32 >= 128 || exponent as u32 > product.leading_zeros() {
+        if exponent.unsigned_abs() >= 128 || exponent.unsigned_abs() > product.leading_zeros() {
             return Err(overflow());
         }
         (product << exponent, false)
@@ -402,7 +402,7 @@ pub(crate) fn member(
                     &format!("time.{name} precision exceeds maximum 100 digits"),
                 );
             }
-            text(ctx, receiver, Some(precision as usize))?
+            text(ctx, receiver, Some(to_usize(precision)))?
         }
         "httpdate" | "rfc2822" => {
             if keywords {
@@ -441,7 +441,7 @@ pub(crate) fn member(
             } else {
                 0
             };
-            let unit = 10i64.pow(9 - precision.min(9) as u32);
+            let unit = 10i64.pow(9 - u32::try_from(precision.min(9)).unwrap_or(9));
             let remainder = i64::from(time.nanos()) % unit;
             let delta = if name == "floor" || (name == "round" && remainder * 2 < unit) {
                 -remainder
@@ -498,7 +498,7 @@ pub(crate) fn member(
                                 "thursday?",
                                 "friday?",
                                 "saturday?",
-                            ][date.weekday as usize]
+                            ][to_usize(date.weekday)]
                                 == name,
                         ),
                         "to_a" => {

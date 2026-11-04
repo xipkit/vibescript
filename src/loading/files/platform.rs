@@ -127,14 +127,15 @@ pub(super) fn stored_name(
         return Err(super::io_error("checking module filename", error));
     }
     let total = u32::from_ne_bytes(output[..4].try_into().unwrap()) as usize;
-    let offset = i32::from_ne_bytes(output[4..8].try_into().unwrap()) as i64 + 4;
+    // A negative offset becomes 0, which the range check below refuses.
+    let offset = usize::try_from(i32::from_ne_bytes(output[4..8].try_into().unwrap()) as i64 + 4)
+        .unwrap_or(0);
     let length = u32::from_ne_bytes(output[8..12].try_into().unwrap()) as usize;
     if !(12..=output.len()).contains(&total)
-        || offset < 12
-        || offset as usize > total
+        || !(12..=total).contains(&offset)
         || length == 0
-        || length > total - offset as usize
-        || output[offset as usize + length - 1] != 0
+        || length > total - offset
+        || output[offset + length - 1] != 0
     {
         return Err(Error::new(
             ErrorKind::Runtime,
@@ -142,7 +143,7 @@ pub(super) fn stored_name(
         ));
     }
     Ok(Some(
-        &output[offset as usize..offset as usize + length - 1] == expected.as_bytes(),
+        &output[offset..offset + length - 1] == expected.as_bytes(),
     ))
 }
 

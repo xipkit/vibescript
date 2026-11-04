@@ -1,5 +1,5 @@
 use super::*;
-use crate::numeric::to_i64;
+use crate::numeric::{to_i64, to_u64, to_usize};
 
 pub(crate) struct Loop {
     pub(super) method: MethodKind,
@@ -455,7 +455,7 @@ impl Loop {
                     .receiver
                     .as_array()
                     .unwrap()
-                    .get(self.position as usize)
+                    .get(to_usize(self.position))
                     .cloned()
                     .unwrap_or_default();
                 self.output.push(ctx, value)?;
@@ -540,25 +540,25 @@ impl Loop {
         } else {
             1
         };
-        self.pending_index = index as u64;
+        self.pending_index = to_u64(index);
         if matches!(self.method, SliceWhen | ChunkWhile) {
             let array = self.receiver.as_array().unwrap();
             args = [
-                array[index as usize - 1].clone(),
-                array[index as usize].clone(),
+                array[to_usize(index) - 1].clone(),
+                array[to_usize(index)].clone(),
             ];
             count = 2;
         } else if self.method == Fill {
             args[0] = Value::int(index as i64);
         } else if matches!(self.method, Fetch | FetchValues | Delete) {
-            args[0] = self.inputs.data[index as usize].clone();
+            args[0] = self.inputs.data[to_usize(index)].clone();
         } else {
             match &self.receiver.0 {
                 Kind::Array(array) => {
                     let index = if matches!(self.method, ReverseEach | Rindex) {
-                        array.buffer.data.len() - 1 - index as usize
+                        array.buffer.data.len() - 1 - to_usize(index)
                     } else {
-                        index as usize
+                        to_usize(index)
                     };
                     self.pending_index = index as u64;
                     args[0] = if matches!(self.method, EachSlice | EachCons) {
@@ -577,7 +577,7 @@ impl Loop {
                     }
                 }
                 Kind::Hash(hash) => {
-                    let (key, value) = &hash.buffer.data[index as usize];
+                    let (key, value) = &hash.buffer.data[to_usize(index)];
                     match self.method {
                         EachKey | TransformKeys => args[0] = key.clone(),
                         EachValue | TransformValues => args[0] = value.clone(),
@@ -883,7 +883,7 @@ impl Loop {
 
     fn flush_adjacent(&mut self, ctx: &mut CallContext, end: usize) -> Result<()> {
         let array = self.receiver.as_array().unwrap();
-        let part = array_copy(ctx, &array[self.start as usize..end])?;
+        let part = array_copy(ctx, &array[to_usize(self.start)..end])?;
         if part.depth() + 1 > MAX_VALUE_DEPTH {
             return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
         }
@@ -895,7 +895,7 @@ impl Loop {
     fn finish(&mut self, ctx: &mut CallContext) -> Result<Value> {
         use MethodKind::*;
         if matches!(self.method, SliceWhen | ChunkWhile) && self.length != 0 {
-            self.flush_adjacent(ctx, self.length as usize)?;
+            self.flush_adjacent(ctx, to_usize(self.length))?;
         }
         if self.method == Chunk {
             self.flush_chunk(ctx)?;

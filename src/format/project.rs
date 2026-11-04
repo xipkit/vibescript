@@ -1,4 +1,5 @@
 use super::*;
+use crate::numeric::{to_usize, unsigned_bits};
 
 pub(super) fn string_bytes(
     ctx: &mut CallContext,
@@ -104,7 +105,7 @@ fn integer_bytes(ctx: &mut CallContext, value: &Value, verb: u8, field: Field) -
     } else {
         let n = integer(value).unwrap();
         let magnitude = if verb == b'U' {
-            n as u64
+            unsigned_bits(n)
         } else {
             n.unsigned_abs()
         };
@@ -154,7 +155,7 @@ fn fixed_float(value: &Value, field: Field) -> usize {
                 .unwrap()
                 .parse()
                 .unwrap();
-            (exponent + 1).max(1) as usize
+            to_usize((exponent + 1).max(1))
         }
     };
     let fraction = field.precision.unwrap_or(6);

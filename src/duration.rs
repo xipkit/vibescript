@@ -201,18 +201,18 @@ fn scale(seconds: i64, factor: f64, divide: bool) -> Result<i64> {
     // exact ratio so float scaling never first rounds large seconds to f64.
     let rounded = if divide {
         if exponent >= 0 {
-            let Some(denominator) = shifted(mantissa, exponent as u32) else {
+            let Some(denominator) = shifted(mantissa, exponent.unsigned_abs()) else {
                 return Ok(0);
             };
             rounded_ratio(magnitude, denominator)
         } else {
-            let numerator = shifted(magnitude, (-exponent) as u32).ok_or_else(overflow)?;
+            let numerator = shifted(magnitude, exponent.unsigned_abs()).ok_or_else(overflow)?;
             rounded_ratio(numerator, mantissa)
         }
     } else {
         let product = magnitude * mantissa;
         if exponent >= 0 {
-            shifted(product, exponent as u32).ok_or_else(overflow)?
+            shifted(product, exponent.unsigned_abs()).ok_or_else(overflow)?
         } else if exponent <= -128 {
             0
         } else {

@@ -1,7 +1,7 @@
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, Charge},
-    numeric::to_i64,
+    numeric::{to_i64, to_usize, unsigned_bits},
     value::Kind,
 };
 use std::{cmp::Ordering, mem::size_of, sync::Arc};
@@ -284,14 +284,14 @@ pub(crate) fn compare_float(
     let shift = exponent.max(1) - 1075;
     let mut words = [0u32; 34];
     let (length, fractional) = if shift >= 0 {
-        let start = shift as usize / 32;
-        let wide = (mantissa as u128) << (shift as usize % 32);
+        let start = to_usize(shift) / 32;
+        let wide = (mantissa as u128) << (to_usize(shift) % 32);
         for i in 0..3 {
             words[start + i] = (wide >> (i * 32)) as u32;
         }
         (start + 3, false)
     } else {
-        let shift = (-shift) as u32;
+        let shift = shift.unsigned_abs();
         let whole = mantissa.checked_shr(shift).unwrap_or(0);
         words[0] = whole as u32;
         words[1] = (whole >> 32) as u32;
@@ -524,6 +524,14 @@ fn shifted(ctx: &mut CallContext, words: &[u32], shift: u32, length: usize) -> R
     Ok(out)
 }
 
+/// The low word of `value`'s two's complement, for arithmetic that keeps its
+/// borrow in the high word.
+#[inline]
+fn low_word(value: i64) -> u32 {
+    let [a, b, c, d, ..] = value.to_le_bytes();
+    u32::from_le_bytes([a, b, c, d])
+}
+
 /// Divides by a divisor of at least two words with Knuth's algorithm D,
 /// estimating one quotient word at a time from the leading words. Each
 /// quotient word costs one step and a charged pass over the divisor, so the
@@ -556,11 +564,11 @@ fn long_divide(ctx: &mut CallContext, a: &[u32], b: &[u32]) -> Result<(Buffer<u3
             work(ctx, i, n)?;
             let product = estimate * v[i] as u64;
             let difference = u[i + j] as i64 - borrow - to_i64(product & u32::MAX as u64);
-            u[i + j] = difference as u32;
+            u[i + j] = low_word(difference);
             borrow = to_i64(product >> 32) - (difference >> 32);
         }
         let difference = u[j + n] as i64 - borrow;
-        u[j + n] = difference as u32;
+        u[j + n] = low_word(difference);
         if difference < 0 {
             // The estimate was one too large: add the divisor back.
             estimate -= 1;
@@ -676,9 +684,9 @@ pub(crate) fn true_divide(ctx: &mut CallContext, a: &Value, b: &Value) -> Result
     // whether anything the scaling or the division drops is nonzero.
     let shift = diff.max(MIN_EXP) - DIGITS - 2;
     let (scaled, mut inexact) = if shift <= 0 {
-        (shift_left(ctx, am, (-shift) as usize)?, false)
+        (shift_left(ctx, am, to_usize(-shift))?, false)
     } else {
-        shift_right(ctx, am, shift as usize)?
+        shift_right(ctx, am, to_usize(shift))?
     };
     let (quotient, remainder) = divide(ctx, Magnitude::Words(&scaled.data), bm)?;
     inexact |= remainder.data.iter().any(|&word| word != 0);
@@ -707,7 +715,7 @@ pub(crate) fn true_divide(ctx: &mut CallContext, a: &Value, b: &Value) -> Result
 
 /// 2^`exponent`, for an exponent of a normal float.
 fn power_of_two(exponent: i64) -> f64 {
-    f64::from_bits(((exponent + 1023) as u64) << 52)
+    f64::from_bits(unsigned_bits(exponent + 1023) << 52)
 }
 
 fn shift_left(ctx: &mut CallContext, value: Magnitude<'_>, bits: usize) -> Result<Buffer<u32>> {
@@ -762,7 +770,7 @@ fn power(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Value> {
             base
         }));
     }
-    let Some(mut exponent) = b.as_int().map(|n| n as u64) else {
+    let Some(mut exponent) = b.as_int().and_then(|n| u64::try_from(n).ok()) else {
         return ctx.guard(
             ErrorKind::Arithmetic,
             "integer exponentiation exponent is too large",
@@ -973,7 +981,7 @@ pub(crate) fn format(ctx: &mut CallContext, value: &Value, radix: u32) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::CallOptions;
+    use crate::{CallOptions, numeric::float_to_u64};
 
     #[test]
     fn imported_backing_has_independent_budget_lifetimes() {
@@ -1374,7 +1382,11 @@ mod tests {
                 // Powers of the radix and their neighbours carry through
                 // every limb.
                 let digits = (length * 32) as f64 / (radix as f64).log2();
-                let power = [b"1".as_slice(), &vec![b'0'; digits as usize - 1]].concat();
+                let power = [
+                    b"1".as_slice(),
+                    &vec![b'0'; to_usize(float_to_u64(digits)) - 1],
+                ]
+                .concat();
                 let power = parse(&mut ctx, &power, radix).unwrap();
                 for delta in [-1, 0, 1] {
                     let value = binary(&mut ctx, "+", &power, &Value::int(delta)).unwrap();

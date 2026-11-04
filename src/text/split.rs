@@ -1,6 +1,7 @@
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK},
+    numeric::to_i64,
     scan,
     value::{Bytes, Heap, Kind},
 };
@@ -102,7 +103,7 @@ impl<'a> Split<'a> {
                     if position == text.len() {
                         break;
                     }
-                    if self.limit > 0 && count as u64 == self.limit as u64 - 1 {
+                    if self.limit > 0 && to_i64(count) == self.limit - 1 {
                         emit(ctx, position, text.len())?;
                         return Ok(());
                     }
@@ -121,7 +122,7 @@ impl<'a> Split<'a> {
                 let mut position = 0;
                 while position < text.len() {
                     ctx.charge(1)?;
-                    if self.limit > 1 && count as u64 == self.limit as u64 - 1 {
+                    if self.limit > 1 && to_i64(count) == self.limit - 1 {
                         emit(ctx, position, text.len())?;
                         return Ok(());
                     }
@@ -161,7 +162,7 @@ impl<'a> Split<'a> {
                         start = index + 1;
                         matched = 0;
                         count += 1;
-                        if self.limit > 0 && count as u64 == self.limit as u64 - 1 {
+                        if self.limit > 0 && to_i64(count) == self.limit - 1 {
                             ctx.settle_bytes(&mut pending)?;
                             emit(ctx, start, text.len())?;
                             return Ok(());
