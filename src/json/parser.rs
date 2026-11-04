@@ -705,25 +705,28 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
         // Steps are charged as when each span was appended with `extend` and
         // each escape charged on its own, but settled in batches: before the
         // buffer grows or anything fails, and after each chunk of input.
-        let mut pending = 0;
-        let mut settled = self.pos;
+        // Settling that often, with at most two steps per input byte, keeps
+        // `pending` far from overflowing, so the loop adds to it without
+        // checks.
+        let mut pending: u64 = 0;
+        let mut settle_at = self.pos + CHUNK;
         loop {
-            if self.pos - settled >= CHUNK {
+            if self.pos >= settle_at {
                 self.ctx.charge_pending(&mut pending)?;
                 self.ctx.checkpoint()?;
-                settled = self.pos;
+                settle_at = self.pos + CHUNK;
             }
-            if self.pos >= self.input.len() {
+            let rest = &self.input[self.pos..];
+            let Some((&b, next)) = rest.split_first() else {
                 self.ctx.charge_pending(&mut pending)?;
                 return self.err("unterminated JSON string", Failure::End);
-            }
-            let end = self.input.len().min(self.pos + CHUNK);
-            let span = if matches!(self.input[self.pos], 0..=31 | b'"' | b'\\') {
+            };
+            let window = &rest[..rest.len().min(CHUNK)];
+            let span = if matches!(b, 0..=31 | b'"' | b'\\') {
                 scan::TextSpan::default()
-            } else if self.input[self.pos] < 128
-                && self
-                    .input
-                    .get(self.pos + 1)
+            } else if b < 128
+                && next
+                    .first()
                     .is_some_and(|next| matches!(next, 0..=31 | b'"' | b'\\'))
             {
                 scan::TextSpan {
@@ -732,24 +735,23 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                     steps: 1,
                 }
             } else {
-                scan::text_span(&self.input[self.pos..end], Class::JsonParse)
+                scan::text_span(window, Class::JsonParse)
             };
             if span.len > 0 {
                 if span.runes != span.len {
-                    pending += span.steps;
+                    pending = pending.wrapping_add(span.steps);
                 }
-                let bytes = &self.input[self.pos..self.pos + span.len];
+                let bytes = &window[..span.len];
                 if bytes.len() == 1 && out.data.len() < out.data.capacity() {
                     out.data.push(bytes[0]);
-                    pending += 1;
+                    pending = pending.wrapping_add(1);
                 } else {
                     out.extend_deferred(self.ctx.settled(), bytes, &mut pending)?;
                 }
                 self.pos += span.len;
                 continue;
             }
-            pending += 1;
-            let b = self.input[self.pos];
+            pending = pending.wrapping_add(1);
             self.pos += 1;
             let escape = match b {
                 b'\\' => self.input.get(self.pos).copied(),
