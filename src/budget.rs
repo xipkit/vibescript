@@ -1,6 +1,7 @@
 use crate::{Error, ErrorKind, Result, Value};
 use std::{
     collections::BTreeMap,
+    fmt,
     mem::size_of,
     num::NonZeroU64,
     sync::{
@@ -114,7 +115,6 @@ pub struct Stats {
     pub retained_memory_bytes: usize,
 }
 
-#[derive(Debug)]
 pub(crate) struct Memory {
     id: MemoryId,
     #[cfg(not(target_arch = "x86_64"))]
@@ -132,6 +132,20 @@ pub(crate) struct Memory {
 /// capability's grant can be checked against a later call by value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct MemoryId(NonZeroU64);
+
+/// The account's counters, without its id: two invocations that did the
+/// same work read the same, which tests of equivalent paths compare.
+impl fmt::Debug for Memory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut memory = f.debug_struct("Memory");
+        memory
+            .field("used", &self.used())
+            .field("peak", &self.peak.load(Ordering::Relaxed));
+        #[cfg(feature = "tokio")]
+        memory.field("interrupted", &self.interrupted.load(Ordering::Relaxed));
+        memory.finish()
+    }
+}
 
 impl Memory {
     fn new() -> Self {
