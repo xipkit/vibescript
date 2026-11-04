@@ -117,7 +117,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Some((buffer, _)) = &stdout {
             let buffer = buffer.clone();
             engine.set_output_writer(move |_, bytes| {
-                if capture {
+                if capture && !bytes.is_empty() {
                     let _ = buffer.send(bytes.to_vec());
                 }
                 Ok(())
@@ -126,7 +126,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Some((buffer, _)) = &stderr {
             let buffer = buffer.clone();
             engine.set_error_writer(move |_, bytes| {
-                if capture {
+                if capture && !bytes.is_empty() {
                     let _ = buffer.send(bytes.to_vec());
                 }
                 Ok(())

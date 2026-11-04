@@ -424,11 +424,15 @@ fn compile(
         Ok(output.len())
     });
     engine.set_output_writer(move |_, bytes| {
-        let _ = out.send(bytes.to_vec());
+        if !bytes.is_empty() {
+            let _ = out.send(bytes.to_vec());
+        }
         Ok(())
     });
     engine.set_error_writer(move |_, bytes| {
-        let _ = err.send(bytes.to_vec());
+        if !bytes.is_empty() {
+            let _ = err.send(bytes.to_vec());
+        }
         Ok(())
     });
     if let Err(error) = case.host.declare(&mut engine) {

@@ -339,6 +339,9 @@ fn capture(
     bytes: &[u8],
 ) -> vibescript::Result<()> {
     ctx.checkpoint()?;
+    if bytes.is_empty() {
+        return Ok(());
+    }
     let written = buffer.length.fetch_add(bytes.len(), Ordering::Relaxed);
     if bytes.len() > OUTPUT_LIMIT - written.min(OUTPUT_LIMIT) {
         buffer.length.fetch_sub(bytes.len(), Ordering::Relaxed);

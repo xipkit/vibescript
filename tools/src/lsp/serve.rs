@@ -2,7 +2,7 @@
 
 use super::server::{Inbound, Outbound, Server, change_params};
 use super::transport::{self, Frame};
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::sync::mpsc;
 use std::time::Duration;
@@ -143,7 +143,10 @@ fn read_ahead<R: Read>(
     sender: &mpsc::SyncSender<Event>,
     cancellation: &CancellationToken,
 ) {
-    let mut analyzing: Option<(String, CancellationToken)> = None;
+    // The token of each open document's latest version, so a change or
+    // close cancels its own document's analysis however many other
+    // documents' notifications arrived in between; a close forgets it.
+    let mut analyzing: HashMap<String, CancellationToken> = HashMap::new();
     loop {
         let event = match read_message(&mut reader) {
             Ok(Some(mut message)) => {
@@ -163,11 +166,12 @@ fn read_ahead<R: Read>(
 }
 
 /// Cancels the analysis of the version of a document that `message`
-/// changes or closes, and gives a change the token its own analysis runs
-/// under, remembered in `analyzing` for the next change to cancel.
+/// changes or closes, and gives an open or a change the token its own
+/// analysis runs under, kept in `analyzing` by document for the next
+/// change or close to cancel.
 fn supersede(
     message: &mut Inbound,
-    analyzing: &mut Option<(String, CancellationToken)>,
+    analyzing: &mut HashMap<String, CancellationToken>,
     cancellation: &CancellationToken,
 ) {
     let changes = matches!(
@@ -184,16 +188,13 @@ fn supersede(
     let Some(uri) = message.document() else {
         return;
     };
-    if changes
-        && let Some((current, token)) = analyzing.as_ref()
-        && uri == *current
-    {
+    if changes && let Some(token) = analyzing.remove(&uri) {
         token.cancel();
     }
     if opens {
         let token = cancellation.child_token();
         message.token = Some(token.clone());
-        *analyzing = Some((uri, token));
+        analyzing.insert(uri, token);
     }
 }
 

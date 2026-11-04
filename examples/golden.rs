@@ -173,14 +173,18 @@ fn execute(case: &Json, stdout: &Capture, stderr: &Capture) -> Json {
     if flag(case, "stdout") {
         let buffer = stdout.clone();
         engine.set_output_writer(move |_, bytes| {
-            let _ = buffer.send(bytes.to_vec());
+            if !bytes.is_empty() {
+                let _ = buffer.send(bytes.to_vec());
+            }
             Ok(())
         });
     }
     if flag(case, "stderr") {
         let buffer = stderr.clone();
         engine.set_error_writer(move |_, bytes| {
-            let _ = buffer.send(bytes.to_vec());
+            if !bytes.is_empty() {
+                let _ = buffer.send(bytes.to_vec());
+            }
             Ok(())
         });
     }

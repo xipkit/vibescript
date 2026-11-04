@@ -84,11 +84,15 @@ impl Session {
         let initialization_error = engine.declare_global(SESSION, "hash<string, any>").err();
         engine.set_output_writer(move |_, bytes| {
             // The session outlives its engine, so the receiver is there.
-            let _ = out.send(bytes.to_vec());
+            if !bytes.is_empty() {
+                let _ = out.send(bytes.to_vec());
+            }
             Ok(())
         });
         engine.set_error_writer(move |_, bytes| {
-            let _ = err.send(bytes.to_vec());
+            if !bytes.is_empty() {
+                let _ = err.send(bytes.to_vec());
+            }
             Ok(())
         });
         Self {

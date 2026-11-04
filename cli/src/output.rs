@@ -70,7 +70,9 @@ impl Sink {
             }
             Self::Buffer(captured) => {
                 // A test that stopped reading has finished with the output.
-                let _ = captured.send(bytes.to_vec());
+                if !bytes.is_empty() {
+                    let _ = captured.send(bytes.to_vec());
+                }
                 Ok(())
             }
         };

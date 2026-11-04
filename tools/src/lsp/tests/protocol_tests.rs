@@ -574,6 +574,34 @@ fn queued_changes_to_one_document_analyze_only_the_last() {
 }
 
 #[test]
+fn a_change_cancels_its_own_document_across_interleaved_documents() {
+    let (a, b) = ("file:///tmp/a.vibe", "file:///tmp/b.vibe");
+    let mut source = String::new();
+    for index in 0..3000 {
+        source.push_str(&format!(
+            "def f{index}(x: int) -> int\n  x + {index}\nend\n"
+        ));
+    }
+    let messages = [
+        json!({"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": a, "text": source}}}),
+        json!({"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": b, "text": "y = 1\n"}}}),
+        json!({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {"textDocument": {"uri": a}, "contentChanges": [{"text": "x = 1\n"}]}}),
+        json!({"jsonrpc": "2.0", "id": 1, "method": "shutdown"}),
+    ];
+    let replies = decode(&run(framed(&messages)).unwrap());
+    // The change to A cancels the analysis of its slow first version even
+    // though B's open was read between them, so that version's diagnostics
+    // are never published: B's are, then current A's.
+    let published: Vec<&str> = replies
+        .iter()
+        .filter(|reply| reply["method"] == "textDocument/publishDiagnostics")
+        .map(|reply| reply["params"]["uri"].as_str().unwrap())
+        .collect();
+    assert_eq!(published, [b, a], "{replies:?}");
+    assert_eq!(replies.last().unwrap()["id"], 1);
+}
+
+#[test]
 fn a_queued_request_can_be_cancelled() {
     let uri = "file:///tmp/cancel.vibe";
     let mut source = String::new();
