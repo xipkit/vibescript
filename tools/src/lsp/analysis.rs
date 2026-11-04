@@ -393,14 +393,14 @@ fn percent_decode(text: &str) -> Option<Vec<u8>> {
     let bytes = text.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut index = 0;
-    while index < bytes.len() {
-        if bytes[index] == b'%' {
+    while let Some(&byte) = bytes.get(index) {
+        if byte == b'%' {
             let hex = bytes.get(index + 1..index + 3)?;
             let hex = std::str::from_utf8(hex).ok()?;
             out.push(u8::from_str_radix(hex, 16).ok()?);
             index += 3;
         } else {
-            out.push(bytes[index]);
+            out.push(byte);
             index += 1;
         }
     }

@@ -67,25 +67,23 @@ const HELP: Flag = Flag::new(&["help", "h"], Kind::Bool, "show help");
 /// Parses the arguments after a command name with the reference's rules.
 pub fn parse(spec: &Spec, args: &[OsString]) -> Result<Outcome, String> {
     let mut values = Vec::new();
-    let mut index = 0;
-    while index < args.len() {
-        let argument = compat::bytes(&args[index]);
+    let mut args = args.iter();
+    while let Some(arg) = args.next() {
+        let argument = compat::bytes(arg);
         if &*argument == b"--" {
             return Ok(Outcome::Parsed(Parsed {
                 values,
-                positionals: args[index + 1..].to_vec(),
+                positionals: args.cloned().collect(),
             }));
         }
-        if argument.is_empty() || &*argument == b"-" || argument[0] != b'-' {
+        if argument.is_empty() || &*argument == b"-" || argument.first() != Some(&b'-') {
             return Ok(Outcome::Parsed(Parsed {
                 values,
-                positionals: args[index..].to_vec(),
+                positionals: std::iter::once(arg).chain(args).cloned().collect(),
             }));
         }
-        let mut body = &argument[1..];
-        if body.first() == Some(&b'-') {
-            body = &body[1..];
-        }
+        let body = argument.strip_prefix(b"-").ok_or("missing flag prefix")?;
+        let body = body.strip_prefix(b"-").unwrap_or(body);
         if matches!(body.first(), Some(b'-' | b'=')) {
             return Err(format!(
                 "bad flag syntax: {}",
@@ -93,7 +91,10 @@ pub fn parse(spec: &Spec, args: &[OsString]) -> Result<Outcome, String> {
             ));
         }
         let (name, value) = match body.iter().position(|&b| b == b'=') {
-            Some(split) => (&body[..split], Some(&body[split + 1..])),
+            Some(split) => {
+                let (name, rest) = body.split_at(split);
+                (name, rest.strip_prefix(b"="))
+            }
             None => (body, None),
         };
         let name_text = String::from_utf8_lossy(name);
@@ -105,7 +106,7 @@ pub fn parse(spec: &Spec, args: &[OsString]) -> Result<Outcome, String> {
         else {
             return Err(format!("flag provided but not defined: -{name_text}"));
         };
-        let primary = flag.names[0];
+        let primary = *flag.names.first().ok_or("flag has no primary name")?;
         if flag.kind == Kind::Bool {
             if primary == "help" {
                 if value.is_some() {
@@ -129,16 +130,14 @@ pub fn parse(spec: &Spec, args: &[OsString]) -> Result<Outcome, String> {
                 primary,
                 OsString::from(if enabled { "true" } else { "false" }),
             ));
-            index += 1;
             continue;
         }
         let value = match value {
             Some(value) => compat::os_string(value),
             None => {
-                let Some(next) = args.get(index + 1) else {
+                let Some(next) = args.next() else {
                     return Err(format!("flag needs an argument: -{name_text}"));
                 };
-                index += 1;
                 next.clone()
             }
         };
@@ -155,7 +154,6 @@ pub fn parse(spec: &Spec, args: &[OsString]) -> Result<Outcome, String> {
             }
         }
         values.push((primary, value));
-        index += 1;
     }
     Ok(Outcome::Parsed(Parsed {
         values,
@@ -253,7 +251,9 @@ fn flag_names(flag: &Flag) -> String {
     };
     let mut names: Vec<String> = flag.names.iter().map(|name| spell(name)).collect();
     if flag.kind == Kind::Strings {
-        names[0] = format!("{} [ {} ]", names[0], names[0]);
+        if let Some(name) = names.first_mut() {
+            *name = format!("{name} [ {name} ]");
+        }
     }
     names.join(", ")
 }

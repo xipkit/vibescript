@@ -37,9 +37,12 @@ impl Rng {
         low.wrapping_add_unsigned(self.next() % (high - low + 1) as u64)
     }
 
-    /// An item chosen from a nonempty slice.
-    pub fn pick<'a, T>(&mut self, items: &'a [T]) -> &'a T {
-        &items[self.below(items.len())]
+    /// Chooses an item, returning an error if the slice is empty.
+    pub fn pick<'a, T>(&mut self, items: &'a [T]) -> std::io::Result<&'a T> {
+        if items.is_empty() {
+            return Err(std::io::Error::other("cannot choose from an empty slice"));
+        }
+        items.at(self.below(items.len()))
     }
 
     /// An index chosen with the given nonempty weights, whose sum must fit in `u32`.
@@ -54,5 +57,45 @@ impl Rng {
             roll -= weight;
         }
         weights.len() - 1
+    }
+}
+
+/// Fallible access to the generator's indexed model.
+pub trait Checked<T> {
+    /// Returns the selected item or an error naming the invalid index.
+    fn at(&self, index: usize) -> std::io::Result<&T>;
+}
+impl<T> Checked<T> for [T] {
+    fn at(&self, index: usize) -> std::io::Result<&T> {
+        self.get(index).ok_or_else(|| {
+            std::io::Error::other(format!(
+                "generator index {index} outside length {}",
+                self.len()
+            ))
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Checked, Rng};
+
+    #[test]
+    fn invalid_model_indexes_are_errors() {
+        let values = [42];
+        assert_eq!(*values.at(0).unwrap(), 42);
+        assert!(
+            values
+                .at(1)
+                .unwrap_err()
+                .to_string()
+                .contains("index 1 outside length 1")
+        );
+        assert!(values.at(usize::MAX).is_err());
+    }
+
+    #[test]
+    fn choosing_from_an_empty_slice_is_an_error() {
+        assert!(Rng::new(0).pick::<u8>(&[]).is_err());
     }
 }
