@@ -114,7 +114,7 @@ impl<'x> Copying<'_, 'x> {
             accessor: value
                 .accessor
                 .as_ref()
-                .map(|(name, setter)| Ok((self.name(name)?, *setter)))
+                .map(|(name, setter)| -> Result<_> { Ok((self.name(name)?, *setter)) })
                 .transpose()?,
             name: self.name(&value.name)?,
             params,

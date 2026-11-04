@@ -245,12 +245,12 @@ fn copy_type(ty: &types::Type, work: &dyn Work) -> Result<types::Type> {
         TypeKind::Array(element) => TypeKind::Array(
             element
                 .as_ref()
-                .map(|element| Ok(Box::new(copy_type(element, work)?)))
+                .map(|element| -> Result<_> { Ok(Box::new(copy_type(element, work)?)) })
                 .transpose()?,
         ),
         TypeKind::Hash(pair) => TypeKind::Hash(
             pair.as_ref()
-                .map(|pair| {
+                .map(|pair| -> Result<_> {
                     Ok(Box::new((
                         copy_type(&pair.0, work)?,
                         copy_type(&pair.1, work)?,
@@ -284,7 +284,7 @@ fn copy_type(ty: &types::Type, work: &dyn Work) -> Result<types::Type> {
         TypeKind::Literal(described) => TypeKind::Literal(
             described
                 .as_ref()
-                .map(|described| Ok(Box::new(copy_type(described, work)?)))
+                .map(|described| -> Result<_> { Ok(Box::new(copy_type(described, work)?)) })
                 .transpose()?,
         ),
         TypeKind::Named => TypeKind::Named,
