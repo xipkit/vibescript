@@ -4,7 +4,6 @@ use crate::{
     budget::{Buffer, Charge},
 };
 use std::{
-    borrow::Cow,
     path::{Component, MAIN_SEPARATOR_STR, Path, PathBuf},
     sync::Arc,
 };
@@ -213,26 +212,13 @@ impl Candidates<'_> {
             .as_os_str()
             .as_encoded_bytes()
             .len()
-            .checked_add(
-                bytes
-                    .len()
-                    .saturating_mul(if cfg!(any(unix, target_os = "wasi")) {
-                        1
-                    } else {
-                        3
-                    }),
-            )
+            .checked_add(bytes.len())
             .and_then(|n| n.checked_add(1))
         else {
             return ctx.fail(ErrorKind::Memory, "module path size overflow");
         };
         ctx.charge(capacity as u64)?;
         let path_charge = ctx.reserve(capacity)?;
-        let _conversion = ctx.reserve(if cfg!(any(unix, target_os = "wasi")) {
-            0
-        } else {
-            bytes.len().saturating_mul(3)
-        })?;
         let relative = native_path(bytes);
         let mut path = PathBuf::with_capacity(capacity);
         // PathBuf::push rebuilds verbatim Windows paths in an unreserved
@@ -310,18 +296,18 @@ fn relative_name(ctx: &mut CallContext, caller: &[u8], request: &[u8]) -> Result
 }
 
 #[cfg(any(unix, target_os = "wasi"))]
-fn native_path(bytes: &[u8]) -> Cow<'_, Path> {
+fn native_path(bytes: &[u8]) -> &Path {
     #[cfg(unix)]
     use std::os::unix::ffi::OsStrExt;
     #[cfg(target_os = "wasi")]
     use std::os::wasi::ffi::OsStrExt;
-    Cow::Borrowed(Path::new(std::ffi::OsStr::from_bytes(bytes)))
+    Path::new(std::ffi::OsStr::from_bytes(bytes))
 }
 
 #[cfg(not(any(unix, target_os = "wasi")))]
-fn native_path(bytes: &[u8]) -> Cow<'_, Path> {
+fn native_path(bytes: &[u8]) -> &Path {
     let text = std::str::from_utf8(bytes).expect("Name::parse validates module name UTF-8");
-    Cow::Borrowed(Path::new(text))
+    Path::new(text)
 }
 
 fn configuration_error(operation: &str, error: std::io::Error) -> Error {
