@@ -140,8 +140,9 @@ pub(super) fn call(
     Ok(found)
 }
 
-// Keep the verified ASCII bounds visible at the call site.
-#[inline(always)]
+// A function of its own, so the per-byte loop's registers are not shared
+// with the rune counting and table building around the call.
+#[inline(never)]
 fn search_ascii(
     ctx: &mut CallContext,
     text: &[u8],
@@ -151,11 +152,12 @@ fn search_ascii(
     pending: &mut usize,
     reverse: bool,
 ) -> Result<Value> {
+    let text = &text[..range.end];
     let mut index = range.start;
     let mut matched = 0;
     let mut found = Value::nil();
-    while index < range.end {
-        let remaining = &text[index..range.end];
+    while index < text.len() {
+        let remaining = &text[index..];
         if matched == 0 && remaining.len() >= 16 {
             let limit = remaining.len().min(CHUNK - *pending);
             let skipped = scan::ascii_mismatch(&remaining[..limit], pattern[0] as u8);
