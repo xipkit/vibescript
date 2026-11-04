@@ -2,7 +2,6 @@
 
 use crate::compat;
 use std::{
-    borrow::Cow,
     ffi::OsString,
     fs,
     io::Read,
@@ -42,10 +41,8 @@ pub fn read(path: &Path) -> Result<String, String> {
             "source exceeds maximum size (> {MAX_SOURCE_BYTES} bytes)"
         ));
     }
-    Ok(match String::from_utf8_lossy(&data) {
-        Cow::Borrowed(_) => String::from_utf8(data).expect("validated above"),
-        Cow::Owned(text) => text,
-    })
+    Ok(String::from_utf8(data)
+        .unwrap_or_else(|error| String::from_utf8_lossy(error.as_bytes()).into_owned()))
 }
 
 /// Builds the module search path: `base` first, then each extra directory,

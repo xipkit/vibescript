@@ -38,7 +38,7 @@ use vibescript::CancellationToken;
 /// assert!(server.exit_requested());
 /// ```
 pub struct Server {
-    documents: HashMap<String, Document>,
+    documents: HashMap<String, (Document, usize)>,
     document_bytes: usize,
     options: Options,
     exit: bool,
@@ -93,7 +93,7 @@ impl Server {
 
     /// An open document, analyzed as last published.
     pub fn document(&self, uri: &str) -> Option<&Document> {
-        self.documents.get(uri)
+        self.documents.get(uri).map(|(document, _)| document)
     }
 
     pub(crate) fn dispatch(&mut self, message: &Inbound) -> Vec<Outbound> {
@@ -155,7 +155,7 @@ impl Server {
                 let Ok(uri) = document_params(message) else {
                     return invalid("invalid formatting params");
                 };
-                match self.documents.get(&uri) {
+                match self.document(&uri) {
                     Some(document) => respond(formatting_edits(&document.text, &document.lines)),
                     None => respond(Json::Null),
                 }
@@ -167,7 +167,7 @@ impl Server {
                 let Ok((uri, range)) = range_params(message) else {
                     return invalid("invalid codeAction params");
                 };
-                let actions = match self.documents.get(&uri) {
+                let actions = match self.document(&uri) {
                     Some(document) => document
                         .code_actions(range)
                         .into_iter()
@@ -186,7 +186,7 @@ impl Server {
                 };
                 let lines = self.lines(&uri);
                 let word = text::word_at(lines, line, character);
-                let program = self.documents.get(&uri).and_then(|d| d.program.as_deref());
+                let program = self.document(&uri).and_then(|d| d.program.as_deref());
                 let result = navigation::definition(program, lines, &word)
                     .map_or(Json::Null, |range| location(&uri, range));
                 respond(result)
@@ -195,7 +195,7 @@ impl Server {
                 let Ok(uri) = document_params(message) else {
                     return invalid("invalid documentSymbol params");
                 };
-                let symbols = match self.documents.get(&uri) {
+                let symbols = match self.document(&uri) {
                     Some(document) => document.symbol_tree().iter().map(symbol_json).collect(),
                     None => Vec::new(),
                 };
@@ -205,7 +205,7 @@ impl Server {
                 let Ok((uri, line, character)) = position_params(message) else {
                     return invalid("invalid signatureHelp params");
                 };
-                let compiled = self.documents.get(&uri).and_then(|d| d.compiled.as_deref());
+                let compiled = self.document(&uri).and_then(|d| d.compiled.as_deref());
                 let help = super::signature::help(
                     super::catalog::catalog(),
                     compiled,
@@ -219,7 +219,7 @@ impl Server {
                 let Ok((uri, line, character)) = position_params(message) else {
                     return invalid("invalid completion params");
                 };
-                let items = match self.documents.get(&uri) {
+                let items = match self.document(&uri) {
                     Some(document) => document.completion_items(line, character),
                     None => super::completion::Request {
                         source: "",
@@ -246,7 +246,7 @@ impl Server {
                 if word.is_empty() {
                     return respond(Json::Null);
                 }
-                let program = self.documents.get(&uri).and_then(|d| d.program.as_deref());
+                let program = self.document(&uri).and_then(|d| d.program.as_deref());
                 let catalog = super::catalog::catalog();
                 let value = hover::markdown(catalog, program, lines, line, character, &word);
                 respond(Json::Object(vec![(
@@ -270,8 +270,7 @@ impl Server {
 
     /// A document's lines; an unknown document reads as one empty line.
     pub(crate) fn lines(&self, uri: &str) -> &[String] {
-        self.documents
-            .get(uri)
+        self.document(uri)
             .map_or(NO_TEXT, |document| document.lines.as_slice())
     }
 
@@ -279,7 +278,7 @@ impl Server {
     /// newer version cancelled the analysis. Identical text republishes the
     /// last result without analysis.
     fn publish(&mut self, uri: &str, text: &str) -> Option<Outbound> {
-        let bytes = match self.document_budget(uri, text) {
+        let (bytes, stored_bytes) = match self.document_budget(uri, text) {
             Ok(bytes) => bytes,
             Err(message) => {
                 self.remove_document(uri);
@@ -305,22 +304,26 @@ impl Server {
         };
         *self.in_flight.lock().unwrap_or_else(|e| e.into_inner()) = Some((uri.to_owned(), token));
         match self.documents.get_mut(uri) {
-            Some(document) => document.update(text, &options),
+            Some((document, bytes)) => {
+                document.update(text, &options);
+                *bytes = stored_bytes;
+            }
             None => {
                 let document = Document::analyze(uri, text, &options);
-                self.documents.insert(uri.to_owned(), document);
+                self.documents
+                    .insert(uri.to_owned(), (document, stored_bytes));
             }
         }
         self.document_bytes = bytes;
         *self.in_flight.lock().unwrap_or_else(|e| e.into_inner()) = None;
-        let document = &self.documents[uri];
+        let document = &self.documents[uri].0;
         if document.interrupted() {
             return None;
         }
         Some(diagnostics_notification(uri, document.diagnostics()))
     }
 
-    fn document_budget(&self, uri: &str, text: &str) -> Result<usize, &'static str> {
+    fn document_budget(&self, uri: &str, text: &str) -> Result<(usize, usize), &'static str> {
         let previous = self.documents.get(uri);
         if previous.is_none()
             && self
@@ -330,11 +333,13 @@ impl Server {
         {
             return Err("open document count limit exceeded");
         }
-        let old_bytes = previous.map_or(0, |document| {
-            document_storage_bytes(uri, document.text()).expect("stored document fits budget")
-        });
-        let bytes = document_storage_bytes(uri, text)
-            .and_then(|bytes| (self.document_bytes - old_bytes).checked_add(bytes))
+        let old_bytes = previous.map_or(0, |(_, bytes)| *bytes);
+        let stored_bytes =
+            document_storage_bytes(uri, text).ok_or("aggregate document storage limit exceeded")?;
+        let bytes = self
+            .document_bytes
+            .checked_sub(old_bytes)
+            .and_then(|bytes| bytes.checked_add(stored_bytes))
             .ok_or("aggregate document storage limit exceeded")?;
         if self
             .options
@@ -343,15 +348,14 @@ impl Server {
         {
             return Err("aggregate document storage limit exceeded");
         }
-        Ok(bytes)
+        Ok((bytes, stored_bytes))
     }
 
     fn remove_document(&mut self, uri: &str) -> bool {
-        let Some(document) = self.documents.remove(uri) else {
+        let Some((_, bytes)) = self.documents.remove(uri) else {
             return false;
         };
-        self.document_bytes -=
-            document_storage_bytes(uri, document.text()).expect("stored document fits budget");
+        self.document_bytes -= bytes;
         true
     }
 }

@@ -152,8 +152,9 @@ impl Enumeration {
     }
 
     pub(crate) fn instantiate(ctx: &mut CallContext, value: &Arc<Self>) -> Result<Arc<Self>> {
-        let identity = Rebind::resolve(ctx, &value.definition, true)?
-            .expect("compiled enum belongs to the invocation");
+        let identity = Rebind::resolve(ctx, &value.definition, true)?.ok_or_else(|| {
+            Error::new(ErrorKind::Host, "compiled enum has no invocation identity")
+        })?;
         Self::view(ctx, value, identity)
     }
 

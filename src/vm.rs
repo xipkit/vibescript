@@ -3796,7 +3796,8 @@ fn address_guard<'a>(
     let Some((instance, field)) = address.object_binding().filter(|_| !address.proven) else {
         return Ok(None);
     };
-    let program = program.expect("object address has an owning program");
+    let program = program
+        .ok_or_else(|| Error::new(ErrorKind::Host, "object address has no owning program"))?;
     let name = crate::objects::field_name(instance, field)?;
     let name = std::str::from_utf8(name.as_bytes().unwrap()).unwrap();
     let Some(ty) = property_type(program, ctx, instance, name)? else {

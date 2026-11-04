@@ -87,7 +87,13 @@ impl<C, T> Tasks<C, T> {
                 }
                 Poll::Pending => {
                     let call = self.call.take();
-                    let task = start(call.expect("a suspended task names its nested work"))?;
+                    let call = call.ok_or_else(|| {
+                        crate::Error::new(
+                            crate::ErrorKind::Host,
+                            "suspended compiler task did not name nested work",
+                        )
+                    })?;
+                    let task = start(call)?;
                     push(&mut stack, task)?;
                 }
             }
@@ -106,10 +112,12 @@ impl<C, T> Tasks<C, T> {
             }
         })
         .await;
-        self.result
-            .borrow_mut()
-            .take()
-            .expect("nested work finishes before its caller resumes")
+        self.result.borrow_mut().take().ok_or_else(|| {
+            crate::Error::new(
+                crate::ErrorKind::Host,
+                "nested compiler work did not finish",
+            )
+        })?
     }
 }
 
@@ -145,6 +153,32 @@ pub(crate) fn framed<'a, T, F: Future<Output = Result<T>> + 'a>(
 mod tests {
     use super::*;
     use crate::{CallOptions, budget::CallContext, compilation::Meter};
+
+    #[test]
+    fn a_task_that_suspends_without_nested_work_returns_an_error() {
+        let tasks: Tasks<(), ()> = Tasks::new();
+        let error = tasks
+            .run((), |_| task(&(), std::future::pending()), &())
+            .unwrap_err();
+        assert_eq!(error.kind, crate::ErrorKind::Host);
+        assert_eq!(
+            error.message,
+            "suspended compiler task did not name nested work"
+        );
+    }
+
+    #[test]
+    fn resuming_a_call_without_its_result_returns_an_error() {
+        let tasks: Tasks<(), ()> = Tasks::new();
+        let mut call = Box::pin(tasks.call(()));
+        let mut context = Context::from_waker(Waker::noop());
+        assert!(call.as_mut().poll(&mut context).is_pending());
+        let Poll::Ready(Err(error)) = call.as_mut().poll(&mut context) else {
+            panic!("resuming without nested work must fail");
+        };
+        assert_eq!(error.kind, crate::ErrorKind::Host);
+        assert_eq!(error.message, "nested compiler work did not finish");
+    }
 
     #[test]
     fn the_task_stack_reserves_its_own_storage() {
