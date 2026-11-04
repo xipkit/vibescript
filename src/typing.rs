@@ -596,7 +596,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     };
     for (name, host) in input.hosts {
         let function = crate::signatures::host::function(name, host);
-        let sig = std::rc::Rc::new(
+        let sig = std::sync::Arc::new(
             checker
                 .converter
                 .convert_owned(&mut checker.types, &function, None)
