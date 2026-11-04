@@ -366,7 +366,19 @@ impl Run {
         }
     }
 
+    /// Runs until the host must act or the boundary completes. An internal
+    /// error latches the invocation on every way out, whichever step raised it.
     fn resume(
+        &mut self,
+        ctx: &mut CallContext,
+        boundary: Option<usize>,
+        pending: Option<Result<Event>>,
+    ) -> Result<Step> {
+        let step = self.drive(ctx, boundary, pending);
+        ctx.latch_internal(step)
+    }
+
+    fn drive(
         &mut self,
         ctx: &mut CallContext,
         boundary: Option<usize>,

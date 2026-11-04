@@ -106,7 +106,8 @@ impl AsyncHostCall<'_> {
     /// Each result is an isolated snapshot that later block calls cannot change.
     /// Arguments are isolated and accounted before script execution. `break`
     /// and nonlocal `return` remain pending even if the host ignores the returned
-    /// control-flow error. Cancellation and exhausted limits cannot be swallowed.
+    /// control-flow error. Cancellation, exhausted limits and internal errors
+    /// cannot be swallowed.
     pub async fn call_block(&mut self, args: Vec<Value>) -> Result<Value> {
         match &mut self.state {
             HostState::Worker(state) => state.call_block(args).await,

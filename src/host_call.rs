@@ -160,8 +160,9 @@ impl<'a> HostCall<'a> {
     /// Ordinary errors may be handled by the callback. A block's `break` or
     /// nonlocal `return` produces [`crate::ErrorKind::ControlFlow`]; the engine
     /// preserves that transfer even if the callback ignores it. Further block
-    /// calls cannot run script code after such a transfer. Cancellation and
-    /// exhausted step or memory quotas also remain latched.
+    /// calls cannot run script code after such a transfer. Cancellation,
+    /// exhausted step or memory quotas and internal errors also remain latched:
+    /// the invocation returns them whatever the callback does next.
     pub fn call_block(&mut self, args: &[Value]) -> Result<Value> {
         self.backend.context().checkpoint()?;
         self.backend.call_block(args)

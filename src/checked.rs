@@ -6,6 +6,13 @@
 //! [`ErrorKind::Internal`] error, which reaches the host like any other
 //! failure of the call, instead of a panic.
 //!
+//! An internal error is terminal: it latches the invocation
+//! ([`crate::CallContext::latch_internal`]) wherever an error leaves the VM
+//! for a script handler or for host code, which is the run loop, the end of
+//! a host block call, and a host callback's access to its receiver. Code
+//! that a host callback can reach by another way must latch at that boundary
+//! too, or the callback could swallow the error and the script run on.
+//!
 //! A helper on a hot path returns [`Access`] rather than [`crate::Result`]:
 //! [`Violation`] is small and `Copy`, so after inlining `?` decides on a
 //! register-held value and the [`Error`] is built only on the failing path,

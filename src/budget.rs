@@ -529,6 +529,18 @@ impl CallContext {
         }
     }
 
+    /// Passes `result` through, first latching an internal error. Every way
+    /// an error leaves the VM for a handler or for host code goes through
+    /// here, so neither can continue the invocation past a failed invariant.
+    pub(crate) fn latch_internal<T>(&mut self, result: Result<T>) -> Result<T> {
+        if let Err(error) = &result
+            && error.kind == ErrorKind::Internal
+        {
+            self.latch(error);
+        }
+        result
+    }
+
     pub(crate) fn exhausted(&self) -> bool {
         self.exhausted.is_some()
     }
