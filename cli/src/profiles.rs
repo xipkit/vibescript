@@ -113,11 +113,8 @@ pub fn default_limits() -> Limits {
 /// Maps Go-style quota values onto library limits.
 pub fn limits(steps: i64, memory: i64, recursion: i64) -> Limits {
     let low = &PROFILES[0];
-    let quota = |value: i64, default: i64| match value {
-        0 => Some(default as u64),
-        value if value < 0 => None,
-        value => Some(value as u64),
-    };
+    let quota =
+        |value: i64, default: i64| u64::try_from(if value == 0 { default } else { value }).ok();
     Limits {
         steps: quota(steps, low.steps),
         memory_bytes: quota(memory, low.memory)
