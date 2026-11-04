@@ -85,8 +85,9 @@ project. The [CLI guide](docs/cli.md) has the details.
 ## Validation
 
 Run `./scripts/check` for the local gate. [GitHub Actions](.github/workflows/ci.yml)
-mirrors it on pull requests and pushes to `master`, using Rust 1.98.1: formatting
-and Clippy on Linux, debug, `gate` and doc tests on Linux x86_64 and macOS arm64,
+mirrors it on pull requests and pushes to `master`, using Rust 1.98.1: formatting,
+Clippy and `cargo adamantium check` on Linux, debug, `gate` and doc tests on Linux
+x86_64 and macOS arm64,
 and the full golden corpora with both SIMD and portable builds on each host.
 Stable accounting counters must match between those builds; the goldens retain
 their documented tolerance for counter drift between platforms.

@@ -3,6 +3,21 @@ members = ["cli", "tools"]
 # The WASI witness is its own package with its own lock file.
 exclude = ["tests/platforms/wasi"]
 
+# Rules come in one at a time: each rule in `allow` has its own card. The test
+# directories do their work in helpers, which the test exemption doesn't cover.
+[workspace.metadata.adamantium]
+skip = ["tests/", "cli/tests/", "tools/tests/"]
+allow = [
+  "indexing_slicing", "unwrap_used", "disallowed_types", "cast_possible_truncation",
+  "string_slice", "unreachable", "cast_sign_loss", "cast_possible_wrap",
+  "disallowed_methods", "expect_used", "unsafe_code",
+]
+
+# The parser and compiler use `async fn` for stack-safe recursion, not
+# concurrency.
+[workspace.metadata.adamantium.exceptions]
+future_not_send = ["src/syntax.rs", "src/syntax/", "src/bytecode.rs", "src/bytecode/", "src/compilation/tasks.rs"]
+
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
 

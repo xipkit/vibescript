@@ -10,6 +10,8 @@ fi
 ./scripts/cargo fmt --check
 ./scripts/cargo clippy --workspace --all-targets --all-features -- -D warnings
 ./scripts/cargo clippy --workspace --all-targets --no-default-features -- -D warnings
+./scripts/adamantium -- --all-features
+./scripts/adamantium -- --no-default-features
 ./scripts/cargo test --workspace --all-targets --all-features
 ./scripts/cargo test --workspace --profile gate --all-targets --all-features
 ./scripts/cargo test --workspace --profile gate --all-targets --no-default-features

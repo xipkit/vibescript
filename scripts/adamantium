@@ -1,0 +1,11 @@
+#!/bin/sh
+# Runs `cargo adamantium check` from the pinned commit, installing it first if
+# needed. Arguments go to the check, so `-- --all-features` reaches Clippy.
+set -eu
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
+cd "$repo"
+./scripts/cargo install --quiet --locked \
+  --git https://github.com/xipkit/adamantium \
+  --rev 250e96ea0b9d577814f9624af48ae6bf66872a71 \
+  cargo-adamantium
+exec ./scripts/cargo adamantium check "$@"
