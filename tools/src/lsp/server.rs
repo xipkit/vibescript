@@ -66,9 +66,9 @@ impl Server {
         }
     }
 
-    /// The token that cancels every check this server runs.
-    pub(crate) fn cancellation(&self) -> &CancellationToken {
-        &self.options.cancellation
+    /// The options this server analyzes and retains documents under.
+    pub(crate) fn options(&self) -> &Options {
+        &self.options
     }
 
     /// Handles the JSON text of one request or notification and returns the
@@ -401,6 +401,9 @@ pub(crate) struct Inbound {
     /// reading ahead gives each change one, and cancels it when a newer
     /// version of the document arrives behind it.
     pub token: Option<CancellationToken>,
+    /// The message's place in its input, by which the transport tells the
+    /// version of a document this message opened or changed from a later one.
+    pub index: u64,
 }
 
 impl Inbound {
@@ -437,6 +440,7 @@ impl Inbound {
             method,
             params,
             token: None,
+            index: 0,
         })
     }
 

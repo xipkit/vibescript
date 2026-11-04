@@ -44,7 +44,8 @@ pub fn serve(
     mut output: impl Write,
     cancellation: &CancellationToken,
 ) -> io::Result<()> {
-    let mut messages = Messages::new(input, server.cancellation().clone())?;
+    let options = server.options();
+    let mut messages = Messages::new(input, options.cancellation.clone(), options.max_documents)?;
     while let Some(event) = messages
         .next(cancellation)
         .map_err(|error| context("lsp read", error))?
@@ -61,7 +62,11 @@ pub fn serve(
                 code: -32800,
                 message: "request cancelled",
             }],
-            None => server.dispatch(&message),
+            None => {
+                let replies = server.dispatch(&message);
+                messages.settled(&message, server);
+                replies
+            }
         };
         for reply in replies {
             transport::write(&mut output, &reply.json())
@@ -90,6 +95,10 @@ enum Source<R> {
     Threaded {
         receiver: mpsc::Receiver<Event>,
         queue: VecDeque<Event>,
+        /// The document versions the server did not keep, by URI and the
+        /// index of the message that brought them, which the reader stops
+        /// tracking.
+        rejected: mpsc::Sender<(String, u64)>,
     },
 }
 
@@ -106,8 +115,13 @@ impl<R: Read + Send + 'static> Messages<R> {
         clippy::disallowed_methods,
         reason = "the reader blocks in read until the client closes its end, so the server cannot join it; it ends with its input, and the server has no async runtime"
     )]
-    fn new(input: R, cancellation: CancellationToken) -> io::Result<Self> {
+    fn new(
+        input: R,
+        cancellation: CancellationToken,
+        max_documents: Option<usize>,
+    ) -> io::Result<Self> {
         let (sender, receiver) = mpsc::sync_channel(READ_AHEAD);
+        let (rejected, forgotten) = mpsc::channel();
         // The input is handed over once the thread runs, so a thread that
         // cannot start leaves it to be read here.
         let (hand, taken) = mpsc::sync_channel(1);
@@ -115,7 +129,8 @@ impl<R: Read + Send + 'static> Messages<R> {
             .name("vibes-lsp-reader".to_owned())
             .spawn(move || {
                 if let Ok(input) = taken.recv() {
-                    read_ahead(BufReader::new(input), &sender, &cancellation);
+                    let mut tracking = Tracking::new(cancellation, max_documents, forgotten);
+                    read_ahead(BufReader::new(input), &sender, &mut tracking);
                 }
             });
         let source = match spawned {
@@ -125,33 +140,52 @@ impl<R: Read + Send + 'static> Messages<R> {
                 Source::Threaded {
                     receiver,
                     queue: VecDeque::new(),
+                    rejected,
                 }
             }
             Err(_) => Source::Inline(BufReader::new(input)),
         };
         Ok(Self { source })
     }
+
+    /// Tells the reader when the document `message` opened or changed is
+    /// not one the server kept, so the reader stops tracking that version.
+    fn settled(&self, message: &Inbound, server: &Server) {
+        let Source::Threaded { rejected, .. } = &self.source else {
+            return;
+        };
+        if !matches!(
+            message.method.as_str(),
+            "textDocument/didOpen" | "textDocument/didChange"
+        ) {
+            return;
+        }
+        if let Some(uri) = message.document()
+            && server.document(&uri).is_none()
+        {
+            // A reader that has ended has nothing left to track.
+            let _ = rejected.send((uri, message.index));
+        }
+    }
 }
 
-/// Reads and decodes messages ahead of the server. Each document change
-/// carries a token of `cancellation` that the server analyzes it under, and
-/// a change or close for the same document cancels the analysis of the
-/// version before it, since its result would be superseded before it could
-/// be published.
+/// Reads and decodes messages ahead of the server. Each document open or
+/// change carries the token the server analyzes it under, and a change or
+/// close for the same document cancels the analysis of the version before
+/// it, since its result would be superseded before it could be published.
 fn read_ahead<R: Read>(
     mut reader: BufReader<R>,
     sender: &mpsc::SyncSender<Event>,
-    cancellation: &CancellationToken,
+    tracking: &mut Tracking,
 ) {
-    // The token of each open document's latest version, so a change or
-    // close cancels its own document's analysis however many other
-    // documents' notifications arrived in between; a close forgets it.
-    let mut analyzing: HashMap<String, CancellationToken> = HashMap::new();
+    let mut index = 0;
     loop {
         let event = match read_message(&mut reader) {
             Ok(Some(mut message)) => {
                 if let Some(message) = &mut message {
-                    supersede(message, &mut analyzing, cancellation);
+                    index += 1;
+                    message.index = index;
+                    tracking.supersede(message);
                 }
                 Ok(message)
             }
@@ -165,36 +199,76 @@ fn read_ahead<R: Read>(
     }
 }
 
-/// Cancels the analysis of the version of a document that `message`
-/// changes or closes, and gives an open or a change the token its own
-/// analysis runs under, kept in `analyzing` by document for the next
-/// change or close to cancel.
-fn supersede(
-    message: &mut Inbound,
-    analyzing: &mut HashMap<String, CancellationToken>,
-    cancellation: &CancellationToken,
-) {
-    let changes = matches!(
-        message.method.as_str(),
-        "textDocument/didChange" | "textDocument/didClose"
-    );
-    let opens = matches!(
-        message.method.as_str(),
-        "textDocument/didOpen" | "textDocument/didChange"
-    );
-    if !changes && !opens {
-        return;
+/// The documents the reader tracks: the token of each open document's
+/// latest version, so a change or close cancels its own document's analysis
+/// however many other documents' notifications arrived in between.
+///
+/// The table holds no more documents than the server keeps: a close forgets
+/// its document, the server reports the versions it rejected, and an open
+/// past the server's document limit gets no token, since the server turns
+/// it away.
+struct Tracking {
+    cancellation: CancellationToken,
+    limit: Option<usize>,
+    /// Each tracked document's latest version: the index of the message
+    /// that brought it and the token its analysis runs under.
+    analyzing: HashMap<String, (u64, CancellationToken)>,
+    rejected: mpsc::Receiver<(String, u64)>,
+}
+
+impl Tracking {
+    fn new(
+        cancellation: CancellationToken,
+        limit: Option<usize>,
+        rejected: mpsc::Receiver<(String, u64)>,
+    ) -> Self {
+        Self {
+            cancellation,
+            limit,
+            analyzing: HashMap::new(),
+            rejected,
+        }
     }
-    let Some(uri) = message.document() else {
-        return;
-    };
-    if changes && let Some(token) = analyzing.remove(&uri) {
-        token.cancel();
-    }
-    if opens {
-        let token = cancellation.child_token();
-        message.token = Some(token.clone());
-        analyzing.insert(uri, token);
+
+    /// Cancels the analysis of the version of a document that `message`
+    /// changes or closes, and gives an open or a change the token its own
+    /// analysis runs under, for the next change or close to cancel.
+    fn supersede(&mut self, message: &mut Inbound) {
+        // What the server has settled since the last message read.
+        for (uri, index) in self.rejected.try_iter() {
+            if self
+                .analyzing
+                .get(&uri)
+                .is_some_and(|(version, _)| *version == index)
+            {
+                self.analyzing.remove(&uri);
+            }
+        }
+        let changes = matches!(
+            message.method.as_str(),
+            "textDocument/didChange" | "textDocument/didClose"
+        );
+        let opens = matches!(
+            message.method.as_str(),
+            "textDocument/didOpen" | "textDocument/didChange"
+        );
+        if !changes && !opens {
+            return;
+        }
+        let Some(uri) = message.document() else {
+            return;
+        };
+        if changes && let Some((_, token)) = self.analyzing.remove(&uri) {
+            token.cancel();
+        }
+        let room = self
+            .limit
+            .is_none_or(|limit| self.analyzing.len() < limit || self.analyzing.contains_key(&uri));
+        if opens && room {
+            let token = self.cancellation.child_token();
+            message.token = Some(token.clone());
+            self.analyzing.insert(uri, (message.index, token));
+        }
     }
 }
 
@@ -217,7 +291,9 @@ impl<R: Read> Messages<R> {
         }
         let (receiver, queue) = match &mut self.source {
             Source::Inline(reader) => return read_message(reader),
-            Source::Threaded { receiver, queue } => (receiver, queue),
+            Source::Threaded {
+                receiver, queue, ..
+            } => (receiver, queue),
         };
         let event = match queue.pop_front() {
             Some(event) => event,
