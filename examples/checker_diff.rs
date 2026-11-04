@@ -53,18 +53,44 @@ use std::{
     sync::{
         Arc, Mutex,
         atomic::{AtomicU64, Ordering},
+        mpsc::{self, RecvTimeoutError},
     },
     time::{Duration, Instant},
 };
 
 fn main() {
-    // Deep syntax needs more native stack than the main thread has.
-    let worker = std::thread::Builder::new()
-        .stack_size(256 << 20)
-        .spawn(run)
-        .expect("spawn the worker");
-    let code = worker.join().unwrap_or(101);
+    let code = harness::spawn(run).join().unwrap_or(101);
     std::process::exit(code);
+}
+
+/// How long a seed may run before the watchdog reports it.
+const STUCK_AFTER: Duration = Duration::from_secs(120);
+
+/// How long the watchdog waits for a worker to finish between looks at the
+/// seeds in progress.
+const WATCH_EVERY: Duration = Duration::from_millis(500);
+
+/// Waits for the workers, which each send once on `finished` and then drop
+/// their sender, looking for a seed that has run past [`STUCK_AFTER`] every
+/// [`WATCH_EVERY`]. Returns that seed, or `None` once every worker is done.
+fn watch(finished: &mpsc::Receiver<()>, current: &Watch) -> Option<u64> {
+    loop {
+        match finished.recv_timeout(WATCH_EVERY) {
+            Ok(()) => continue,
+            Err(RecvTimeoutError::Disconnected) => return None,
+            Err(RecvTimeoutError::Timeout) => {}
+        }
+        let stuck = current
+            .lock()
+            .unwrap()
+            .iter()
+            .flatten()
+            .find(|(_, since)| since.elapsed() > STUCK_AFTER)
+            .map(|(seed, _)| *seed);
+        if stuck.is_some() {
+            return stuck;
+        }
+    }
 }
 
 fn run() -> i32 {
@@ -172,49 +198,36 @@ fn verdicts(args: &[String], make_case: fn(u64, &str) -> Case) -> i32 {
         .expect("verdict seed range overflows u64");
     let output = Arc::new(Mutex::new(std::io::BufWriter::new(std::io::stdout())));
     let current: Watch = Arc::new(Mutex::new(vec![None; jobs]));
+    let (done, finished) = mpsc::channel();
     let mut handles = Vec::new();
     for worker in 0..jobs {
-        let (next, output, current, source) = (
+        let (next, output, current, source, done) = (
             next.clone(),
             output.clone(),
             current.clone(),
             source.clone(),
+            done.clone(),
         );
-        let handle = std::thread::Builder::new()
-            .stack_size(256 << 20)
-            .spawn(move || {
-                let root = scratch_root(worker + 1);
-                let mut scratch = Scratch::new(&root);
-                while let Some(seed) = next_seed(&next, end) {
-                    current.lock().unwrap()[worker] = Some((seed, Instant::now()));
-                    let case = make_case(seed, &source);
-                    let outcome = harness::outcome(&case, &mut scratch);
-                    writeln!(output.lock().unwrap(), "{seed} {}", outcome.line())
-                        .expect("write a verdict");
-                }
-                current.lock().unwrap()[worker] = None;
-                let _ = std::fs::remove_dir_all(root);
-            })
-            .expect("spawn a worker");
-        handles.push(handle);
+        handles.push(harness::spawn(move || {
+            let root = scratch_root(worker + 1);
+            let mut scratch = Scratch::new(&root);
+            while let Some(seed) = next_seed(&next, end) {
+                current.lock().unwrap()[worker] = Some((seed, Instant::now()));
+                let case = make_case(seed, &source);
+                let outcome = harness::outcome(&case, &mut scratch);
+                writeln!(output.lock().unwrap(), "{seed} {}", outcome.line())
+                    .expect("write a verdict");
+            }
+            current.lock().unwrap()[worker] = None;
+            let _ = std::fs::remove_dir_all(root);
+            let _ = done.send(());
+        }));
     }
-    loop {
-        std::thread::sleep(Duration::from_millis(500));
-        if handles.iter().all(|handle| handle.is_finished()) {
-            break;
-        }
-        let stuck = current
-            .lock()
-            .unwrap()
-            .iter()
-            .flatten()
-            .find(|(_, since)| since.elapsed() > Duration::from_secs(120))
-            .copied();
-        if let Some((seed, _)) = stuck {
-            let _ = output.lock().unwrap().flush();
-            eprintln!("seed {seed} did not finish in two minutes");
-            return 3;
-        }
+    drop(done);
+    if let Some(seed) = watch(&finished, &current) {
+        let _ = output.lock().unwrap().flush();
+        eprintln!("seed {seed} did not finish in two minutes");
+        return 3;
     }
     for handle in handles {
         handle.join().expect("verdict worker panicked");
@@ -602,6 +615,7 @@ fn batch(args: &[String]) -> i32 {
     let totals = Arc::new(Mutex::new(Totals::default()));
     let current: Watch = Arc::new(Mutex::new(vec![None; jobs]));
     let started = Instant::now();
+    let (done, finished) = mpsc::channel();
     let mut handles = Vec::new();
     for worker in 0..jobs {
         let next = next.clone();
@@ -609,50 +623,36 @@ fn batch(args: &[String]) -> i32 {
         let current = current.clone();
         let out = out.clone();
         let source = source.clone();
-        let handle = std::thread::Builder::new()
-            .stack_size(256 << 20)
-            .spawn(move || {
-                let root = scratch_root(worker + 1);
-                let mut scratch = Scratch::new(&root);
-                while let Some(seed) = next_seed(&next, end) {
-                    current.lock().unwrap()[worker] = Some((seed, Instant::now()));
-                    let case = case_for(seed, &source);
-                    let verdict = harness::judge(&case, &mut scratch);
-                    record(&totals, &out, seed, &case, &verdict);
-                    if matches!(verdict, Verdict::Agreed(_)) {
-                        annotated(&totals, &out, seed, &case, &mut scratch);
-                    }
+        let done = done.clone();
+        handles.push(harness::spawn(move || {
+            let root = scratch_root(worker + 1);
+            let mut scratch = Scratch::new(&root);
+            while let Some(seed) = next_seed(&next, end) {
+                current.lock().unwrap()[worker] = Some((seed, Instant::now()));
+                let case = case_for(seed, &source);
+                let verdict = harness::judge(&case, &mut scratch);
+                record(&totals, &out, seed, &case, &verdict);
+                if matches!(verdict, Verdict::Agreed(_)) {
+                    annotated(&totals, &out, seed, &case, &mut scratch);
                 }
-                current.lock().unwrap()[worker] = None;
-                let _ = std::fs::remove_dir_all(root);
-            })
-            .expect("spawn a worker");
-        handles.push(handle);
+            }
+            current.lock().unwrap()[worker] = None;
+            let _ = std::fs::remove_dir_all(root);
+            let _ = done.send(());
+        }));
     }
-    loop {
-        std::thread::sleep(Duration::from_millis(500));
-        if handles.iter().all(|handle| handle.is_finished()) {
-            break;
-        }
-        let stuck = current
-            .lock()
-            .unwrap()
-            .iter()
-            .flatten()
-            .find(|(_, since)| since.elapsed() > Duration::from_secs(120))
-            .copied();
-        if let Some((seed, _)) = stuck {
-            let case = case_for(seed, &source);
-            let path = out.join(format!("hang-{seed}.vibe"));
-            std::fs::write(&path, format!("# hang: seed {seed}\n{}", case.render()))
-                .expect("write a hanging program");
-            eprintln!(
-                "seed {seed} did not finish in two minutes; wrote {}",
-                path.display()
-            );
-            summary(&totals.lock().unwrap(), started, &out);
-            return 3;
-        }
+    drop(done);
+    if let Some(seed) = watch(&finished, &current) {
+        let case = case_for(seed, &source);
+        let path = out.join(format!("hang-{seed}.vibe"));
+        std::fs::write(&path, format!("# hang: seed {seed}\n{}", case.render()))
+            .expect("write a hanging program");
+        eprintln!(
+            "seed {seed} did not finish in two minutes; wrote {}",
+            path.display()
+        );
+        summary(&totals.lock().unwrap(), started, &out);
+        return 3;
     }
     for handle in handles {
         handle.join().expect("differential worker panicked");

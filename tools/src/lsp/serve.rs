@@ -102,6 +102,10 @@ struct Messages<R> {
 const READ_AHEAD: usize = 16;
 
 impl<R: Read + Send + 'static> Messages<R> {
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "the reader blocks in read until the client closes its end, so the server cannot join it; it ends with its input, and the server has no async runtime"
+    )]
     fn new(input: R, in_flight: InFlight) -> Self {
         let (sender, receiver) = mpsc::sync_channel(READ_AHEAD);
         let input = Arc::new(Mutex::new(Some(input)));
