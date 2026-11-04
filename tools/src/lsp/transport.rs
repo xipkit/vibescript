@@ -67,9 +67,8 @@ pub(crate) fn read(reader: &mut impl BufRead) -> io::Result<Frame> {
             })?);
         }
     }
-    let length = match length {
-        Some(length) if length >= 0 => length as u64,
-        _ => return Err(invalid("missing Content-Length header")),
+    let Some(length) = length.and_then(|length| u64::try_from(length).ok()) else {
+        return Err(invalid("missing Content-Length header"));
     };
     if length > MAX_PAYLOAD as u64 {
         let skipped = io::copy(&mut reader.by_ref().take(length), &mut io::sink())?;
