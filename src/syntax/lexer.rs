@@ -337,86 +337,76 @@ struct Lexer<'a, 'w> {
     found: bool,
 }
 
-pub(super) fn lex<'a>(
-    source: &'a str,
-    work: &dyn crate::compilation::Work,
-    mode: Mode,
-) -> Result<Buffer<Lexeme<'a>>> {
+/// What every lexing of one source shares: the source, the work it
+/// charges, the mode it reads in, and the nesting of string interpolations
+/// it starts inside.
+#[derive(Clone, Copy)]
+pub(super) struct Input<'a, 'w> {
+    pub source: &'a str,
+    pub work: &'w dyn crate::compilation::Work,
+    pub mode: Mode,
+    pub depth: usize,
+}
+
+impl<'a, 'w> Input<'a, 'w> {
+    /// A whole source, read in the default mode.
+    pub fn new(source: &'a str, work: &'w dyn crate::compilation::Work) -> Self {
+        Self {
+            source,
+            work,
+            mode: Mode::default(),
+            depth: 0,
+        }
+    }
+}
+
+pub(super) fn lex<'a>(input: Input<'a, '_>) -> Result<Buffer<Lexeme<'a>>> {
+    let source = input.source;
     if source.len() > super::MAX_SOURCE {
-        return Err(Error::syntax(work, 0, "source exceeds 8 MiB"));
+        return Err(Error::syntax(input.work, 0, "source exceeds 8 MiB"));
     }
     let memo = Memo::new(source.len());
     Lexer::new(
-        source,
+        input,
         0,
         source.len(),
-        0,
         source.len().saturating_mul(4),
-        work,
         &memo,
-        mode,
     )
     .tokens(source.len(), 0, false, false, None)
 }
 
 pub(super) fn modulo<'a>(
-    source: &'a str,
+    input: Input<'a, '_>,
     start: &Lexeme<'a>,
     limit: usize,
-    depth: usize,
-    work: &dyn crate::compilation::Work,
-    mode: Mode,
 ) -> Result<Buffer<Lexeme<'a>>> {
-    let memo = Memo::new(source.len());
+    let memo = Memo::new(input.source.len());
     let speculative = limit.saturating_sub(start.offset).saturating_mul(4);
-    Lexer::new(
-        source,
-        start.offset,
-        limit,
-        depth,
-        speculative,
-        work,
-        &memo,
-        mode,
-    )
-    .tokens(start.end, start.line, false, true, None)
+    Lexer::new(input, start.offset, limit, speculative, &memo)
+        .tokens(start.end, start.line, false, true, None)
 }
 
 pub(super) fn resume<'a>(
-    source: &'a str,
+    input: Input<'a, '_>,
     start: &Lexeme<'a>,
     until: usize,
     limit: usize,
-    depth: usize,
     previous: Option<&Lexeme<'a>>,
-    work: &dyn crate::compilation::Work,
-    mode: Mode,
 ) -> Result<Buffer<Lexeme<'a>>> {
-    let memo = Memo::new(source.len());
+    let memo = Memo::new(input.source.len());
     let speculative = limit.saturating_sub(start.offset).saturating_mul(4);
-    Lexer::new(
-        source,
-        start.offset,
-        limit,
-        depth,
-        speculative,
-        work,
-        &memo,
-        mode,
-    )
-    .tokens(until, start.line, false, false, previous)
+    Lexer::new(input, start.offset, limit, speculative, &memo)
+        .tokens(until, start.line, false, false, previous)
 }
 
 pub(super) fn regex<'a>(
-    source: &'a str,
+    input: Input<'a, '_>,
     start: &Lexeme<'a>,
     limit: usize,
-    depth: usize,
-    work: &dyn crate::compilation::Work,
-    mode: Mode,
 ) -> Result<Buffer<Lexeme<'a>>> {
-    let memo = Memo::new(source.len());
-    Lexer::new(source, start.offset, limit, depth, 0, work, &memo, mode).tokens(
+    let memo = Memo::new(input.source.len());
+    Lexer::new(input, start.offset, limit, 0, &memo).tokens(
         start.offset + 1,
         start.line,
         false,
@@ -427,22 +417,19 @@ pub(super) fn regex<'a>(
 
 impl<'a, 'w> Lexer<'a, 'w> {
     fn new(
-        source: &'a str,
+        input: Input<'a, 'w>,
         pos: usize,
         limit: usize,
-        depth: usize,
         speculative: usize,
-        work: &'w dyn crate::compilation::Work,
         memo: &'w Memo,
-        mode: Mode,
     ) -> Self {
         Self {
-            work,
-            source,
-            mode,
+            work: input.work,
+            source: input.source,
+            mode: input.mode,
             pos,
             limit,
-            depth,
+            depth: input.depth,
             speculative,
             tail: None,
             nesting: Nesting::default(),
@@ -1729,7 +1716,7 @@ mod tests {
     fn compilation_invalid_token_copies_share_the_accounted_message() {
         let mut context = CallContext::new(CallOptions::default());
         let work = Meter::new(&mut context);
-        let tokens = lex("$", &work, Mode::default()).unwrap();
+        let tokens = lex(Input::new("$", &work)).unwrap();
         let copy = tokens[0].token.copy(&work).unwrap();
         let (Token::Invalid(original), Token::Invalid(duplicate)) = (&tokens[0].token, &copy)
         else {
@@ -1765,7 +1752,7 @@ mod tests {
             ("2.5e-1while", Token::Float(0.25), "while"),
         ] {
             let mut context = CallContext::new(CallOptions::default());
-            let tokens = lex(source, &Meter::new(&mut context), Mode::default()).unwrap();
+            let tokens = lex(Input::new(source, &Meter::new(&mut context))).unwrap();
             assert_eq!(tokens.len(), 3, "{source}");
             assert_eq!(tokens[0].token, number, "{source}");
             assert_eq!(tokens[0].offset, 0, "{source}");
@@ -1819,7 +1806,7 @@ mod tests {
         ] {
             let mut context = CallContext::new(CallOptions::default());
             let input = format!("{source} 1");
-            let tokens = lex(&input, &Meter::new(&mut context), Mode::default()).unwrap();
+            let tokens = lex(Input::new(&input, &Meter::new(&mut context))).unwrap();
             let Token::Invalid(invalid) = &tokens[0].token else {
                 panic!(
                     "{source}: expected an invalid literal, got {:?}",
@@ -1838,7 +1825,7 @@ mod tests {
         ] {
             let mut context = CallContext::new(CallOptions::default());
             let input = format!("{source} 1");
-            let tokens = lex(&input, &Meter::new(&mut context), Mode::default()).unwrap();
+            let tokens = lex(Input::new(&input, &Meter::new(&mut context))).unwrap();
             let Token::Invalid(invalid) = &tokens[0].token else {
                 panic!(
                     "{source}: expected a deferred literal, got {:?}",
@@ -1860,7 +1847,7 @@ mod tests {
             ..CallOptions::default()
         });
         let work = Meter::new(&mut context);
-        let tokens = lex(source, &work, Mode::default()).unwrap();
+        let tokens = lex(Input::new(source, &work)).unwrap();
         assert!(tokens.iter().any(|lexeme| matches!(
             &lexeme.token,
             Token::Invalid(invalid) if invalid.message == super::super::TOO_DEEP
@@ -1956,7 +1943,7 @@ mod tests {
             ),
         ] {
             let mut context = CallContext::new(CallOptions::default());
-            let tokens = lex(source, &Meter::new(&mut context), Mode::default()).unwrap();
+            let tokens = lex(Input::new(source, &Meter::new(&mut context))).unwrap();
             let got: Vec<_> = tokens
                 .iter()
                 .map(|lexeme| lexeme.token.copy(&()).unwrap())
@@ -1980,7 +1967,7 @@ mod tests {
                 },
                 ..CallOptions::default()
             });
-            let error = lex(&source, &Meter::new(&mut context), Mode::default()).unwrap_err();
+            let error = lex(Input::new(&source, &Meter::new(&mut context))).unwrap_err();
             assert_eq!(error.kind, crate::ErrorKind::Steps);
             assert_eq!(context.charge(0).unwrap_err().kind, crate::ErrorKind::Steps);
             assert_eq!(context.stats().retained_memory_bytes, 0);
@@ -1993,7 +1980,7 @@ mod tests {
         for length in [1, 8192] {
             let source = "名".repeat(length);
             let mut context = CallContext::new(CallOptions::default());
-            let tokens = lex(&source, &Meter::new(&mut context), Mode::default()).unwrap();
+            let tokens = lex(Input::new(&source, &Meter::new(&mut context))).unwrap();
             let Token::Word(word) = &tokens[0].token else {
                 panic!("expected identifier");
             };

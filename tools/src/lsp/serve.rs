@@ -184,10 +184,11 @@ fn supersede(
     let Some(uri) = message.document() else {
         return;
     };
-    if changes && let Some((current, token)) = analyzing.as_ref() {
-        if uri == *current {
-            token.cancel();
-        }
+    if changes
+        && let Some((current, token)) = analyzing.as_ref()
+        && uri == *current
+    {
+        token.cancel();
     }
     if opens {
         let token = cancellation.child_token();

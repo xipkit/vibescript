@@ -374,33 +374,29 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
+    /// What a lexing of a part of this parser's source shares with it.
+    fn lexing(&self) -> lexer::Input<'a, '_> {
+        lexer::Input {
+            source: self.source,
+            work: self.work,
+            mode: self.mode,
+            depth: self.lex_depth,
+        }
+    }
+
     pub(super) fn expand_modulo(&mut self) -> Result<()> {
         self.work.charge(1)?;
         // A quoted index can extend past a tentative percent-literal delimiter.
         // Re-lex its suffix through the next intact token boundary.
         let limit = self.tokens.last().unwrap().offset;
-        let tokens = lexer::modulo(
-            self.source,
-            &self.tokens[self.pos],
-            limit,
-            self.lex_depth,
-            self.work,
-            self.mode,
-        )?;
+        let tokens = lexer::modulo(self.lexing(), &self.tokens[self.pos], limit)?;
         self.replace_lexed(tokens, limit)
     }
 
     pub(super) fn expand_regex(&mut self) -> Result<()> {
         self.work.charge(1)?;
         let limit = self.tokens.last().unwrap().offset;
-        let tokens = lexer::regex(
-            self.source,
-            &self.tokens[self.pos],
-            limit,
-            self.lex_depth,
-            self.work,
-            self.mode,
-        )?;
+        let tokens = lexer::regex(self.lexing(), &self.tokens[self.pos], limit)?;
         self.replace_lexed(tokens, limit)
     }
 
@@ -421,16 +417,7 @@ impl<'a> Parser<'a> {
             if end <= cursor.offset {
                 break;
             }
-            let mut suffix = lexer::resume(
-                self.source,
-                &cursor,
-                end,
-                limit,
-                self.lex_depth,
-                tokens.last(),
-                self.work,
-                self.mode,
-            )?;
+            let mut suffix = lexer::resume(self.lexing(), &cursor, end, limit, tokens.last())?;
             cursor = suffix.pop().unwrap();
             tokens.extend(self.work, suffix)?;
         }

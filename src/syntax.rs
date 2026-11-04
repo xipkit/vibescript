@@ -76,7 +76,11 @@ fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result
 }
 
 fn parser_in<'a>(source: &'a str, work: &'a dyn Work, mode: Mode) -> Result<Parser<'a>> {
-    let tokens = Tokens::new(lex(source, work, mode)?, work)?;
+    let input = lexer::Input {
+        mode,
+        ..lexer::Input::new(source, work)
+    };
+    let tokens = Tokens::new(lex(input)?, work)?;
     parser_from_tokens(source, work, tokens, mode)
 }
 

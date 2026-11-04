@@ -68,14 +68,17 @@ enum Progress {
     Done { worker: usize },
     /// A verdict line of [`verdicts`].
     Line(String),
-    /// A case of [`batch`] was judged, and judged again annotated when the
-    /// first verdict agreed.
-    Judged {
-        seed: u64,
-        case: Case,
-        verdict: Verdict,
-        annotated: Option<(Case, Verdict)>,
-    },
+    /// A case of [`batch`] was judged.
+    Judged(Box<Judged>),
+}
+
+/// A case judged by a worker, and judged again annotated when the first
+/// verdict agreed.
+struct Judged {
+    seed: u64,
+    case: Case,
+    verdict: Verdict,
+    annotated: Option<(Case, Verdict)>,
 }
 
 /// The error a worker reports when the watcher has stopped listening, as it
@@ -140,13 +143,14 @@ impl<'a> Watcher<'a> {
                 }
                 Ok(Progress::Done { worker }) => self.current[worker] = None,
                 Ok(Progress::Line(line)) => writeln!(self.output, "{line}")?,
-                Ok(Progress::Judged {
-                    seed,
-                    case,
-                    verdict,
-                    annotated,
-                }) => {
+                Ok(Progress::Judged(judged)) => {
                     if let Some(out) = self.out {
+                        let Judged {
+                            seed,
+                            case,
+                            verdict,
+                            annotated,
+                        } = *judged;
                         record(&mut self.totals, out, seed, &case, &verdict)?;
                         if let Some((annotated, verdict)) = annotated {
                             annotated_record(&mut self.totals, out, seed, &annotated, &verdict)?;
@@ -757,12 +761,12 @@ fn batch(args: &[String]) -> std::io::Result<u8> {
                     _ => None,
                 };
                 progress
-                    .send(Progress::Judged {
+                    .send(Progress::Judged(Box::new(Judged {
                         seed,
                         case,
                         verdict,
                         annotated,
-                    })
+                    })))
                     .map_err(|_| watcher_gone())?;
             }
             Ok::<(), std::io::Error>(())
