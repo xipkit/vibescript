@@ -19,7 +19,13 @@ fn graph(count: usize) -> (CallContext, Arc<Instance>) {
     let mut nodes = Vec::new();
     for index in 0..count {
         let node = new(&mut source, &class).unwrap();
-        set(&mut source, &node, "value", &Value::int(index as i64)).unwrap();
+        set(
+            &mut source,
+            &node,
+            "value",
+            &Value::int(crate::numeric::to_i64(index)),
+        )
+        .unwrap();
         nodes.push(node);
     }
     for index in 0..count {

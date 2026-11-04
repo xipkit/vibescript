@@ -2,6 +2,7 @@ use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, Charge},
     bytecode::CallSite,
+    numeric::to_i64,
     ops,
     value::Kind,
 };
@@ -64,12 +65,12 @@ impl Stamp {
     }
     fn now() -> Self {
         match SystemTime::now().duration_since(UNIX_EPOCH) {
-            Ok(duration) => Self::new(duration.as_secs() as i64, duration.subsec_nanos()),
+            Ok(duration) => Self::new(to_i64(duration.as_secs()), duration.subsec_nanos()),
             Err(error) => {
                 let duration = error.duration();
                 let fraction = duration.subsec_nanos();
                 Self::new(
-                    -(duration.as_secs() as i64) - i64::from(fraction != 0),
+                    -to_i64(duration.as_secs()) - i64::from(fraction != 0),
                     if fraction == 0 {
                         0
                     } else {
@@ -188,14 +189,8 @@ fn scaled_float(value: f64, factor: u32) -> Result<i64> {
     };
     let negative = value.is_sign_negative();
     let magnitude = whole + u128::from(negative && remainder);
-    if magnitude > i64::MAX as u128 + u128::from(negative) {
-        return Err(overflow());
-    }
-    Ok(if negative {
-        -(magnitude as i128)
-    } else {
-        magnitude as i128
-    } as i64)
+    let magnitude = i128::try_from(magnitude).map_err(|_| overflow())?;
+    i64::try_from(if negative { -magnitude } else { magnitude }).map_err(|_| overflow())
 }
 
 fn argument(message: impl Into<String>) -> Error {

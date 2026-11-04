@@ -401,9 +401,9 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: &Value, b: &Value) -> R
         return Ok(Value::boolean(found.is_none()));
     }
     match found {
-        Some(found) => Ok(Value::int(
-            ops::runes(ctx, &bytes[..found.data[0]])?.0 as i64,
-        )),
+        Some(found) => Ok(Value::int(crate::numeric::to_i64(
+            ops::runes(ctx, &bytes[..found.data[0]])?.0,
+        ))),
         None => Ok(Value::nil()),
     }
 }

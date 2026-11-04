@@ -239,7 +239,7 @@ fn name(input: &mut &[u8], part: Part, full: bool) -> Result<i64> {
             .is_some_and(|v| v.eq_ignore_ascii_case(name))
         {
             *input = &input[name.len()..];
-            return Ok(i as i64 + 1);
+            return Ok(crate::numeric::to_i64(i) + 1);
         }
     }
     Err(invalid())

@@ -159,16 +159,9 @@ pub(crate) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<Money> {
     if fraction.len() == 1 {
         cents *= 10;
     }
-    let magnitude = u128::from(dollars) * 100 + u128::from(cents);
-    let limit = (i64::MAX as u128) + u128::from(negative);
-    if magnitude > limit {
-        return Err(amount_error());
-    }
-    let cents = if negative {
-        -(magnitude as i128)
-    } else {
-        magnitude as i128
-    } as i64;
+    let magnitude = i128::from(dollars) * 100 + i128::from(cents);
+    let cents =
+        i64::try_from(if negative { -magnitude } else { magnitude }).map_err(|_| amount_error())?;
     Ok(money.amount(cents))
 }
 

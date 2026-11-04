@@ -321,7 +321,7 @@ fn rotate(ctx: &mut CallContext, label: &str, array: &[Value], args: &[Value]) -
         return empty(ctx);
     }
     let length = array.len();
-    let shift = offset.rem_euclid(length as i64) as usize;
+    let shift = offset.rem_euclid(crate::numeric::to_i64(length)) as usize;
     let mut out = Buffer::with_capacity(ctx, length)?;
     for i in 0..length {
         ctx.charge(1)?;

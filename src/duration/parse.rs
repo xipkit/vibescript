@@ -187,7 +187,7 @@ pub(super) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<i64> {
     if nanos % 1_000_000_000 != 0 {
         return Err(failure("duration must be whole seconds"));
     }
-    let seconds = (nanos / 1_000_000_000) as i64;
+    let seconds = i64::try_from(nanos / 1_000_000_000).map_err(|_| format())?;
     Ok(if negative { -seconds } else { seconds })
 }
 
@@ -265,7 +265,7 @@ fn segment(ctx: &mut CallContext, input: &[u8], units: &[(u8, i64)]) -> Result<i
                     });
                 return Err(if known { number() } else { format() });
             }
-            digits => digits.value(format, number)? as i64,
+            digits => i64::try_from(digits.value(format, number)?).map_err(|_| number())?,
         };
         let suffix = scan.peek().ok_or_else(format)?;
         let index = units[first_unit..]
