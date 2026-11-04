@@ -33,23 +33,27 @@ fn public_compilation_rejects_invalid_utf8_module_literals() {
     let directory = Directory::new();
     directory.write("blocked�.vibe", b"def value -> string;\"secret\";end");
     directory.write("blocked���.vibe", b"def value -> string;\"secret\";end");
-    let producer = engine(&directory, vec![]);
-    for literal in [
-        r"blocked\xff",
-        r"blocked\x80",
-        r"blocked\xc3",
-        r"blocked\xed\xa0\x80",
-    ] {
-        let error = producer
-            .compile(&format!(
-                "class Probe;def to_s -> string;require(\"{literal}\").value;end;end;Probe.new"
-            ))
-            .err()
-            .unwrap();
-        assert!(error.message.contains("V0309"), "{literal}: {error}");
+    for strict in [false, true] {
+        let mut producer = engine(&directory, vec![]);
+        producer.set_strict_effects(strict);
+        for literal in [
+            r"blocked\xff",
+            r"blocked\x80",
+            r"blocked\xc3",
+            r"blocked\xed\xa0\x80",
+        ] {
+            let error = producer
+                .compile(&format!(
+                    "class Probe;def to_s -> string;require(\"{literal}\").value;end;end;Probe.new"
+                ))
+                .err()
+                .unwrap();
+            assert!(error.message.contains("V0309"), "{literal}: {error}");
+        }
     }
 }
 
+#[cfg(windows)]
 fn read_bytes(
     resolver: &super::resolver::Resolver,
     input: &[u8],
@@ -67,7 +71,7 @@ fn invalid_module_bytes_cannot_open_a_denied_replacement_name() {
     directory.write("blocked�.vibe", b"secret");
     directory.write("blocked���.vibe", b"secret");
     let resolver = super::resolver::Resolver::new(
-        &[directory.0.clone()],
+        std::slice::from_ref(&directory.0),
         &["*".into()],
         &["blocked�".into(), "blocked���".into()],
         100,
@@ -78,6 +82,9 @@ fn invalid_module_bytes_cannot_open_a_denied_replacement_name() {
         b"blocked\x80",
         b"blocked\xc3",
         b"blocked\xed\xa0\x80",
+        b"blocked\xc0\xaf",
+        b"blocked\xf4\x90\x80\x80",
+        b"bad\xff/../blocked",
     ] {
         let error = read_bytes(&resolver, input).unwrap_err();
         assert_eq!(error.kind, crate::ErrorKind::Argument);
@@ -164,21 +171,27 @@ fn resolver_preserves_native_filename_bytes() {
     use std::os::wasi::ffi::OsStrExt;
 
     let directory = Directory::new();
-    directory.write("raw�.vibe", b"replacement");
-    std::fs::write(
-        directory
-            .0
-            .join(std::ffi::OsStr::from_bytes(b"raw\xff.vibe")),
-        b"raw",
-    )
-    .unwrap();
     let resolver = super::resolver::Resolver::new(
-        &[directory.0.clone()],
+        std::slice::from_ref(&directory.0),
         &["*".into()],
         &["raw�".into()],
         100,
     )
     .unwrap();
-    let source = read_bytes(&resolver, b"raw\xff").unwrap().unwrap();
-    assert_eq!(source.contents.as_bytes(), Some(b"raw".as_slice()));
+    let mut context = crate::CallContext::new(CallOptions::default());
+    let candidate = resolver
+        .candidates(&mut context, b"raw\xff", None)
+        .unwrap()
+        .next(&mut context)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        candidate
+            .path
+            .strip_prefix(&directory.0)
+            .unwrap()
+            .as_os_str()
+            .as_bytes(),
+        b"raw\xff.vibe"
+    );
 }

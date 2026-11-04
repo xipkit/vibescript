@@ -266,6 +266,10 @@ pub(crate) struct Name {
 impl Name {
     pub fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<Self> {
         ctx.charge((input.len() as u64).saturating_add(1))?;
+        #[cfg(not(any(unix, target_os = "wasi")))]
+        if std::str::from_utf8(input).is_err() {
+            return Err(argument("module name must be UTF-8"));
+        }
         let input = trimmed(input);
         if input.is_empty() {
             return Err(argument("module name must be non-empty"));
@@ -464,6 +468,7 @@ mod tests {
             (b"./ tool /. ", b" tool .vibe", true),
             (b".vibe", b".vibe", false),
             (b"pkg/..vibe", b"pkg/..vibe", false),
+            #[cfg(any(unix, target_os = "wasi"))]
             (b"./\xff", b"\xff.vibe", true),
             ("\u{2003}tool\u{0085}".as_bytes(), b"tool.vibe", false),
         ];

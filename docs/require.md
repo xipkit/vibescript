@@ -31,6 +31,8 @@ Argument expressions run before the permission check. A denied `require` raises 
 
 Invalid arguments and aliases raise `RuntimeError`. Rust hosts can still identify these failures by `ErrorKind::Argument`.
 
+Module names must be valid UTF-8 on Windows and other platforms without byte-native paths. Invalid encodings are rejected before policy checks; they never select a filename containing replacement characters. Unix and WASI preserve filename bytes.
+
 ```vibe module=counter.vibe
 export def add(amount: int) -> int
   amount + 1

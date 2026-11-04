@@ -319,14 +319,9 @@ fn native_path(bytes: &[u8]) -> Cow<'_, Path> {
 }
 
 #[cfg(not(any(unix, target_os = "wasi")))]
-fn native_path(mut bytes: &[u8]) -> Cow<'static, Path> {
-    let mut text = String::with_capacity(bytes.len().saturating_mul(3));
-    while !bytes.is_empty() {
-        let (rune, width, _) = crate::scan::rune(bytes);
-        text.push(rune);
-        bytes = &bytes[width..];
-    }
-    Cow::Owned(PathBuf::from(text))
+fn native_path(bytes: &[u8]) -> Cow<'_, Path> {
+    let text = std::str::from_utf8(bytes).expect("Name::parse validates module name UTF-8");
+    Cow::Borrowed(Path::new(text))
 }
 
 fn configuration_error(operation: &str, error: std::io::Error) -> Error {
