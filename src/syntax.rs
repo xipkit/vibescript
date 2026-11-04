@@ -55,18 +55,41 @@ pub(crate) const MAX_SOURCE: usize = 8 << 20;
 pub(crate) const TOO_DEEP: &str = "syntax nesting too deep";
 const ADJACENT_EXPRESSIONS: &str = "adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements";
 
+/// How a parse reads the source. The entry points choose one, and every
+/// step of the parse, the lexer included, reads it from the parser.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Mode {
+    /// Only the canonical surface of ADR-008, as [`canonical_error`] asks:
+    /// `do` opens no block, `unless` and `until` start nothing, `%` never
+    /// starts a percent literal, and a keyword parameter follows a bare `*`
+    /// or a rest parameter.
+    pub canonical: bool,
+    /// The replay of a failed host parse for its diagnostics, where a
+    /// lexing error ends the line instead of the source.
+    pub lexical: bool,
+    /// A parse that accepts suffixed bindings and records their uses.
+    pub lenient: bool,
+}
+
 fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result<Parser<'a>> {
-    parser_from_tokens(source, work, Tokens::new(lex(source, work)?, work)?)
+    parser_in(source, work, Mode::default())
+}
+
+fn parser_in<'a>(source: &'a str, work: &'a dyn Work, mode: Mode) -> Result<Parser<'a>> {
+    let tokens = Tokens::new(lex(source, work, mode)?, work)?;
+    parser_from_tokens(source, work, tokens, mode)
 }
 
 fn parser_from_tokens<'a>(
     source: &'a str,
     work: &'a dyn Work,
     tokens: Tokens<'a>,
+    mode: Mode,
 ) -> Result<Parser<'a>> {
     Parser::with_type_names(Parser {
         work,
         source,
+        mode,
         lex_depth: 0,
         tokens,
         pos: 0,
@@ -112,20 +135,6 @@ pub(crate) fn parse_type(source: &str) -> Result<crate::types::Type> {
 
 pub(crate) use record::parse_with_tokens;
 
-thread_local! {
-    /// Whether the parse in progress reads only the canonical surface of
-    /// ADR-008, as [`canonical_error`] asks.
-    static CANONICAL: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-}
-
-/// Whether the parse in progress reads only the canonical surface: `do`
-/// opens no block, `unless` and `until` start nothing, `%` never starts a
-/// percent literal, and a keyword parameter follows a bare `*` or a rest
-/// parameter.
-fn canonical() -> bool {
-    CANONICAL.with(std::cell::Cell::get)
-}
-
 /// The syntax error `source` has in the canonical surface of ADR-008. The
 /// full grammar still reads the removed syntax, only so that a well-formed
 /// use of it reaches the checker, which reports it with a fix; a source that
@@ -138,17 +147,14 @@ pub(crate) fn canonical_error(source: &str, work: &dyn crate::compilation::Work)
 }
 
 fn canonical_error_mode(source: &str, work: &dyn Work, recover: bool) -> Option<Error> {
-    struct Restore(bool);
-    impl Drop for Restore {
-        fn drop(&mut self) {
-            CANONICAL.with(|canonical| canonical.set(self.0));
-        }
-    }
-    let _restore = Restore(CANONICAL.with(|canonical| canonical.replace(true)));
+    let mode = Mode {
+        canonical: true,
+        ..Mode::default()
+    };
     if !recover {
-        return parse(source, work).err();
+        return parse_in(source, work, mode).err();
     }
-    let parser = match parser(source, work) {
+    let parser = match parser_in(source, work, mode) {
         Ok(parser) => parser,
         Err(error) => return Some(error),
     };
@@ -156,7 +162,7 @@ fn canonical_error_mode(source: &str, work: &dyn Work, recover: bool) -> Option<
     let error = parsing.run(Call::Program).err()?;
     let tokens = parsing.parser.into_inner().tokens.original();
     Some(recovery::diagnostics_with_tokens(
-        source, error, work, tokens,
+        source, error, work, tokens, mode,
     ))
 }
 
@@ -182,7 +188,7 @@ fn canonical_syntax_mode(source: &str, work: &dyn Work, error: Error, recover: b
     }
     let error = canonical_error_mode(source, work, recover).unwrap_or_else(|| {
         if recover {
-            recovery::diagnostics(source, error, work)
+            recovery::diagnostics(source, error, work, Mode::default())
         } else {
             error
         }
@@ -191,7 +197,11 @@ fn canonical_syntax_mode(source: &str, work: &dyn Work, error: Error, recover: b
 }
 
 pub(crate) fn parse(source: &str, work: &dyn crate::compilation::Work) -> Result<Declarations> {
-    let parsing = Parsing::<recovery::FailFast>::new(parser(source, work)?);
+    parse_in(source, work, Mode::default())
+}
+
+fn parse_in(source: &str, work: &dyn Work, mode: Mode) -> Result<Declarations> {
+    let parsing = Parsing::<recovery::FailFast>::new(parser_in(source, work, mode)?);
     match parsing.run(Call::Program)? {
         Parsed::Program(declarations) => Ok(declarations),
         _ => unreachable!(),
@@ -201,6 +211,7 @@ pub(crate) fn parse(source: &str, work: &dyn crate::compilation::Work) -> Result
 struct Parser<'a> {
     work: &'a dyn crate::compilation::Work,
     source: &'a str,
+    mode: Mode,
     lex_depth: usize,
     tokens: Tokens<'a>,
     pos: usize,
@@ -305,6 +316,10 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
 
     fn p(&self) -> RefMut<'_, Parser<'a>> {
         self.parser.borrow_mut()
+    }
+
+    fn mode(&self) -> Mode {
+        self.p().mode
     }
 
     fn run(&self, call: Call) -> Result<Parsed> {

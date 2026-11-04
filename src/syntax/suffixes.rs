@@ -26,19 +26,6 @@ use crate::{
     compilation::{Buffer, Table},
     diagnostic::{Code, Diagnostic, Edit, Fix, Span},
 };
-use std::cell::Cell;
-
-thread_local! {
-    /// Whether the parse in progress accepts suffixed bindings and records
-    /// their uses.
-    static LENIENT: Cell<bool> = const { Cell::new(false) };
-}
-
-/// Whether the parse in progress is a lenient one.
-pub(super) fn lenient() -> bool {
-    LENIENT.with(Cell::get)
-}
-
 /// A read of a capitalized name that no local binds, such as `Ready?` in
 /// `Ready?.new`, or of a scoped name, such as `Outer::Inner::NAME?`: where its
 /// suffix is, the namespace it is read in, the [`Path`] of its scope (0 for a
@@ -289,7 +276,7 @@ impl Parser<'_> {
     /// The id to record with `name` in the locals, as it is bound at `at`:
     /// the suffixed binding already in scope, a new one, or 0.
     pub(super) fn local_id(&self, name: &str, at: usize) -> Result<u32> {
-        if !lenient() {
+        if !self.mode.lenient {
             return Ok(0);
         }
         let Some(suffix) = suffix_at(self.source, name, at) else {
@@ -343,7 +330,7 @@ impl Parser<'_> {
     /// `name`, spelled at `at`, declared in the current namespace; a reopened
     /// one keeps its id, and a suffixed name is a binding declared again.
     pub(super) fn namespace_entered(&self, name: &str, at: usize) -> Result<Option<u32>> {
-        if !lenient() {
+        if !self.mode.lenient {
             return Ok(None);
         }
         let parent = self.namespace.unwrap_or(0);
@@ -381,7 +368,7 @@ impl Parser<'_> {
     /// Records the bare read of `name`, just consumed, when it is a
     /// suffixed binding in scope.
     pub(super) fn suffix_read(&self, name: &str) -> Result<()> {
-        if !lenient() {
+        if !self.mode.lenient {
             return Ok(());
         }
         let at = self.tokens[self.pos - 1].offset;
@@ -422,7 +409,7 @@ impl Parser<'_> {
         continues: bool,
         called: bool,
     ) -> Result<()> {
-        if !lenient() {
+        if !self.mode.lenient {
             return Ok(());
         }
         let work = self.work;
@@ -483,7 +470,7 @@ impl Parser<'_> {
         at: usize,
         continues: bool,
     ) -> Result<u32> {
-        if !lenient() {
+        if !self.mode.lenient {
             return Ok(0);
         }
         let read = written.strip_suffix('?').unwrap_or(written);
@@ -530,7 +517,7 @@ impl Parser<'_> {
             | Node::Scope(_, name, None)
             | Node::Member(_, name)
             | Node::SafeMember(_, name)
-                if lenient() =>
+                if self.mode.lenient =>
             {
                 name
             }
@@ -601,18 +588,11 @@ impl Parser<'_> {
 /// Parses `source` accepting suffixed bindings, returning their uses, as far
 /// as it parses that way.
 fn uses(source: &str, work: &dyn Work) -> Result<Uses> {
-    struct Restore(bool, bool);
-    impl Drop for Restore {
-        fn drop(&mut self) {
-            LENIENT.with(|lenient| lenient.set(self.0));
-            super::CANONICAL.with(|canonical| canonical.set(self.1));
-        }
-    }
-    let _restore = Restore(
-        LENIENT.with(|lenient| lenient.replace(true)),
-        super::CANONICAL.with(|canonical| canonical.replace(false)),
-    );
-    let parser = match super::parser(source, work) {
+    let mode = super::Mode {
+        lenient: true,
+        ..super::Mode::default()
+    };
+    let parser = match super::parser_in(source, work, mode) {
         Ok(parser) => parser,
         Err(error) if error.kind == crate::ErrorKind::Syntax => {
             return Ok(Uses {

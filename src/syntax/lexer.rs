@@ -1,3 +1,4 @@
+use super::Mode;
 use crate::{
     Error, Result,
     compilation::{Boxed, Buffer, Bytes, Shared, Text, Work},
@@ -322,6 +323,7 @@ impl Memo {
 struct Lexer<'a, 'w> {
     work: &'w dyn crate::compilation::Work,
     source: &'a str,
+    mode: Mode,
     pos: usize,
     limit: usize,
     depth: usize,
@@ -338,6 +340,7 @@ struct Lexer<'a, 'w> {
 pub(super) fn lex<'a>(
     source: &'a str,
     work: &dyn crate::compilation::Work,
+    mode: Mode,
 ) -> Result<Buffer<Lexeme<'a>>> {
     if source.len() > super::MAX_SOURCE {
         return Err(Error::syntax(work, 0, "source exceeds 8 MiB"));
@@ -351,6 +354,7 @@ pub(super) fn lex<'a>(
         source.len().saturating_mul(4),
         work,
         &memo,
+        mode,
     )
     .tokens(source.len(), 0, false, false, None)
 }
@@ -361,11 +365,21 @@ pub(super) fn modulo<'a>(
     limit: usize,
     depth: usize,
     work: &dyn crate::compilation::Work,
+    mode: Mode,
 ) -> Result<Buffer<Lexeme<'a>>> {
     let memo = Memo::new(source.len());
     let speculative = limit.saturating_sub(start.offset).saturating_mul(4);
-    Lexer::new(source, start.offset, limit, depth, speculative, work, &memo)
-        .tokens(start.end, start.line, false, true, None)
+    Lexer::new(
+        source,
+        start.offset,
+        limit,
+        depth,
+        speculative,
+        work,
+        &memo,
+        mode,
+    )
+    .tokens(start.end, start.line, false, true, None)
 }
 
 pub(super) fn resume<'a>(
@@ -376,11 +390,21 @@ pub(super) fn resume<'a>(
     depth: usize,
     previous: Option<&Lexeme<'a>>,
     work: &dyn crate::compilation::Work,
+    mode: Mode,
 ) -> Result<Buffer<Lexeme<'a>>> {
     let memo = Memo::new(source.len());
     let speculative = limit.saturating_sub(start.offset).saturating_mul(4);
-    Lexer::new(source, start.offset, limit, depth, speculative, work, &memo)
-        .tokens(until, start.line, false, false, previous)
+    Lexer::new(
+        source,
+        start.offset,
+        limit,
+        depth,
+        speculative,
+        work,
+        &memo,
+        mode,
+    )
+    .tokens(until, start.line, false, false, previous)
 }
 
 pub(super) fn regex<'a>(
@@ -389,9 +413,10 @@ pub(super) fn regex<'a>(
     limit: usize,
     depth: usize,
     work: &dyn crate::compilation::Work,
+    mode: Mode,
 ) -> Result<Buffer<Lexeme<'a>>> {
     let memo = Memo::new(source.len());
-    Lexer::new(source, start.offset, limit, depth, 0, work, &memo).tokens(
+    Lexer::new(source, start.offset, limit, depth, 0, work, &memo, mode).tokens(
         start.offset + 1,
         start.line,
         false,
@@ -409,10 +434,12 @@ impl<'a, 'w> Lexer<'a, 'w> {
         speculative: usize,
         work: &'w dyn crate::compilation::Work,
         memo: &'w Memo,
+        mode: Mode,
     ) -> Self {
         Self {
             work,
             source,
+            mode,
             pos,
             limit,
             depth,
@@ -563,7 +590,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
                         token
                     }
                     b'%' if !(skip_first_percent && i == first)
-                        && !super::canonical()
+                        && !self.mode.canonical
                         && self.percent_kind().is_some() =>
                     {
                         let ambiguous = self
@@ -652,7 +679,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
                 Err(error) if error.kind == crate::ErrorKind::Syntax && !interpolation => {
                     // Resolving an earlier percent token may require re-lexing this suffix.
                     i = self.limit;
-                    if super::recovery::lexical() {
+                    if self.mode.lexical {
                         i = source[start..self.limit]
                             .find('\n')
                             .map_or(self.limit, |end| start + end);
@@ -852,7 +879,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
         let assigns = matches!(last, Some(b'?' | b'!'))
             && bytes.get(end) == Some(&b'=')
             && !matches!(bytes.get(end + 1), Some(b'=' | b'~'))
-            && (last == Some(&b'!') || !super::suffixes::lenient());
+            && (last == Some(&b'!') || !self.mode.lenient);
         if assigns || (last == Some(&b'!') && bytes.get(end) == Some(&b'~')) {
             end - 1
         } else {
@@ -1245,6 +1272,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
         let mut scan = Lexer {
             work: self.work,
             source: self.source,
+            mode: self.mode,
             pos: start + 1,
             limit: self.limit,
             depth: self.depth,
@@ -1701,7 +1729,7 @@ mod tests {
     fn compilation_invalid_token_copies_share_the_accounted_message() {
         let mut context = CallContext::new(CallOptions::default());
         let work = Meter::new(&mut context);
-        let tokens = lex("$", &work).unwrap();
+        let tokens = lex("$", &work, Mode::default()).unwrap();
         let copy = tokens[0].token.copy(&work).unwrap();
         let (Token::Invalid(original), Token::Invalid(duplicate)) = (&tokens[0].token, &copy)
         else {
@@ -1737,7 +1765,7 @@ mod tests {
             ("2.5e-1while", Token::Float(0.25), "while"),
         ] {
             let mut context = CallContext::new(CallOptions::default());
-            let tokens = lex(source, &Meter::new(&mut context)).unwrap();
+            let tokens = lex(source, &Meter::new(&mut context), Mode::default()).unwrap();
             assert_eq!(tokens.len(), 3, "{source}");
             assert_eq!(tokens[0].token, number, "{source}");
             assert_eq!(tokens[0].offset, 0, "{source}");
@@ -1791,7 +1819,7 @@ mod tests {
         ] {
             let mut context = CallContext::new(CallOptions::default());
             let input = format!("{source} 1");
-            let tokens = lex(&input, &Meter::new(&mut context)).unwrap();
+            let tokens = lex(&input, &Meter::new(&mut context), Mode::default()).unwrap();
             let Token::Invalid(invalid) = &tokens[0].token else {
                 panic!(
                     "{source}: expected an invalid literal, got {:?}",
@@ -1810,7 +1838,7 @@ mod tests {
         ] {
             let mut context = CallContext::new(CallOptions::default());
             let input = format!("{source} 1");
-            let tokens = lex(&input, &Meter::new(&mut context)).unwrap();
+            let tokens = lex(&input, &Meter::new(&mut context), Mode::default()).unwrap();
             let Token::Invalid(invalid) = &tokens[0].token else {
                 panic!(
                     "{source}: expected a deferred literal, got {:?}",
@@ -1832,7 +1860,7 @@ mod tests {
             ..CallOptions::default()
         });
         let work = Meter::new(&mut context);
-        let tokens = lex(source, &work).unwrap();
+        let tokens = lex(source, &work, Mode::default()).unwrap();
         assert!(tokens.iter().any(|lexeme| matches!(
             &lexeme.token,
             Token::Invalid(invalid) if invalid.message == super::super::TOO_DEEP
@@ -1928,7 +1956,7 @@ mod tests {
             ),
         ] {
             let mut context = CallContext::new(CallOptions::default());
-            let tokens = lex(source, &Meter::new(&mut context)).unwrap();
+            let tokens = lex(source, &Meter::new(&mut context), Mode::default()).unwrap();
             let got: Vec<_> = tokens
                 .iter()
                 .map(|lexeme| lexeme.token.copy(&()).unwrap())
@@ -1952,7 +1980,7 @@ mod tests {
                 },
                 ..CallOptions::default()
             });
-            let error = lex(&source, &Meter::new(&mut context)).unwrap_err();
+            let error = lex(&source, &Meter::new(&mut context), Mode::default()).unwrap_err();
             assert_eq!(error.kind, crate::ErrorKind::Steps);
             assert_eq!(context.charge(0).unwrap_err().kind, crate::ErrorKind::Steps);
             assert_eq!(context.stats().retained_memory_bytes, 0);
@@ -1965,7 +1993,7 @@ mod tests {
         for length in [1, 8192] {
             let source = "名".repeat(length);
             let mut context = CallContext::new(CallOptions::default());
-            let tokens = lex(&source, &Meter::new(&mut context)).unwrap();
+            let tokens = lex(&source, &Meter::new(&mut context), Mode::default()).unwrap();
             let Token::Word(word) = &tokens[0].token else {
                 panic!("expected identifier");
             };

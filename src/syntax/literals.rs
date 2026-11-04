@@ -292,6 +292,7 @@ impl<'a> Parser<'a> {
         }
         let mut parser = Parser {
             work: self.work,
+            mode: self.mode,
             source: self.source,
             lex_depth: self.lex_depth + 1,
             tokens: Tokens::new(tokens, self.work)?,
@@ -384,6 +385,7 @@ impl<'a> Parser<'a> {
             limit,
             self.lex_depth,
             self.work,
+            self.mode,
         )?;
         self.replace_lexed(tokens, limit)
     }
@@ -397,6 +399,7 @@ impl<'a> Parser<'a> {
             limit,
             self.lex_depth,
             self.work,
+            self.mode,
         )?;
         self.replace_lexed(tokens, limit)
     }
@@ -426,6 +429,7 @@ impl<'a> Parser<'a> {
                 self.lex_depth,
                 tokens.last(),
                 self.work,
+                self.mode,
             )?;
             cursor = suffix.pop().unwrap();
             tokens.extend(self.work, suffix)?;

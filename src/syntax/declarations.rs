@@ -333,7 +333,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         }
         // A lenient parse finds uses only, and one class declared twice
         // is two sites of its name.
-        if !super::suffixes::lenient() {
+        if !self.mode().lenient {
             compile_checks(&order, &modules, &enums, work)?;
         }
         defs.insert(
@@ -538,7 +538,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         if let Some(colon) = colon {
             // The canonical surface declares keywords only after `*`.
             let plain =
-                kind == ParamKind::Positional && !instance && !strict && !super::canonical();
+                kind == ParamKind::Positional && !instance && !strict && !self.mode().canonical;
             let keyword = {
                 let mut p = self.p();
                 p.pos = colon + 1;

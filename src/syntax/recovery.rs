@@ -3,20 +3,9 @@ use crate::{
     ErrorKind,
     diagnostic::{Code, Diagnostic, Span},
 };
-use std::{
-    cell::Cell,
-    sync::atomic::{AtomicUsize, Ordering},
-};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 const MAX_ERRORS: usize = 100;
-
-thread_local! {
-    static LEXICAL: Cell<bool> = const { Cell::new(false) };
-}
-
-pub(super) fn lexical() -> bool {
-    LEXICAL.with(Cell::get)
-}
 
 #[derive(Default)]
 pub(super) struct Recovery {
@@ -25,33 +14,38 @@ pub(super) struct Recovery {
 
 /// Replays only a failed host parse. The ordinary parser has no recovery
 /// checkpoints or scope copies, and invocation compilation remains fail-fast.
-pub(super) fn diagnostics(source: &str, first: Error, caller: &dyn Work) -> Error {
-    diagnostics_with_tokens(source, first, caller, None)
+pub(super) fn diagnostics(
+    source: &str,
+    first: Error,
+    caller: &dyn Work,
+    mode: super::Mode,
+) -> Error {
+    diagnostics_with_tokens(source, first, caller, None, mode)
 }
 
+/// Replays the parse that failed with `first` in `mode`, reading
+/// [`super::Mode::lexical`]ly, with `tokens` when that parse's are at hand.
 pub(super) fn diagnostics_with_tokens(
     source: &str,
     first: Error,
     caller: &dyn Work,
     tokens: Option<Tokens<'_>>,
+    mode: super::Mode,
 ) -> Error {
     if first.kind != ErrorKind::Syntax || first.message == TOO_DEEP || source.len() > MAX_SOURCE {
         return first;
     }
-    struct Restore(bool);
-    impl Drop for Restore {
-        fn drop(&mut self) {
-            LEXICAL.with(|flag| flag.set(self.0));
-        }
-    }
-    let _restore = Restore(LEXICAL.with(|flag| flag.replace(true)));
+    let mode = super::Mode {
+        lexical: true,
+        ..mode
+    };
     let work = RecoveryWork {
         remaining: AtomicUsize::new(source.len().saturating_mul(128).saturating_add(16384)),
         caller,
     };
     let parser = match tokens {
-        Some(tokens) => parser_from_tokens(source, &work, tokens),
-        None => parser(source, &work),
+        Some(tokens) => parser_from_tokens(source, &work, tokens, mode),
+        None => parser_in(source, &work, mode),
     };
     let Ok(parser) = parser else {
         return caller.checkpoint().err().unwrap_or(first);
