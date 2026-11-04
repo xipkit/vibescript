@@ -123,7 +123,10 @@ pub(super) fn load(
             break;
         }
     }
-    let previous = vacant.map(|index| &storage.programs.data[index].program);
+    let previous = match vacant {
+        Some(index) => Some(&storage.programs.at(index)?.program),
+        None => None,
+    };
     let (global_base, global_len) = previous
         .filter(|previous| previous.global_len >= code.program.globals.len())
         .map(|previous| (previous.global_base, previous.global_len))
@@ -152,14 +155,20 @@ pub(super) fn load(
     });
     if let Some(index) = vacant {
         // The slot's literals belonged to the program that left it.
-        let previous = &storage.programs.data[index];
-        if let Some(base) = previous.shared {
-            storage.shared.data[base..base + previous.program.shared.len()].fill(None);
+        let previous = storage.programs.at(index)?;
+        let shared = previous
+            .shared
+            .map(|base| (base, previous.program.shared.len()));
+        let (global_base, global_len) = (previous.program.global_base, previous.program.global_len);
+        if let Some((base, len)) = shared {
+            storage.shared.span_mut(base, base + len)?.fill(None);
         }
-        let previous = &storage.programs.data[index].program;
-        ctx.charge(previous.global_len as u64)?;
-        storage.globals.data[previous.global_base..previous.global_base + previous.global_len]
+        ctx.charge(global_len as u64)?;
+        storage
+            .globals
+            .span_mut(global_base, global_base + global_len)?
             .fill(None);
+        let previous = &storage.programs.at(index)?.program;
         // Reuse vacant slots without moving indices held by active frames and writes.
         for state in &mut storage.namespaces.data {
             ctx.charge(1)?;
@@ -183,7 +192,7 @@ pub(super) fn load(
         shared: None,
     };
     if let Some(index) = vacant {
-        storage.programs.data[index] = entry;
+        *storage.programs.at_mut(index)? = entry;
     } else {
         storage.programs.data.push(entry);
     }
@@ -195,7 +204,7 @@ pub(super) fn pin(
     storage: &mut Storage,
     index: usize,
 ) -> Result<Arc<Program>> {
-    let entry = &mut storage.programs.data[index];
+    let entry = storage.programs.at_mut(index)?;
     if let Some(environment) = &entry.program.environment {
         if !environment.rooted() {
             let environment = crate::objects::import(ctx, environment)?;
@@ -220,12 +229,13 @@ pub(super) fn pin(
     Ok(entry.program.clone())
 }
 
-pub(super) fn defer_release(storage: &mut Storage, index: usize) {
-    let entry = &mut storage.programs.data[index];
+pub(super) fn defer_release(storage: &mut Storage, index: usize) -> Access<()> {
+    let entry = storage.programs.at_mut(index)?;
     if index != 0 && entry.program.file && entry.program.environment.is_some() {
         entry.release = true;
         storage.releasing = true;
     }
+    Ok(())
 }
 
 pub(super) fn release(ctx: &mut CallContext, storage: &mut Storage) -> Result<()> {
@@ -311,7 +321,7 @@ pub(super) fn arguments(
     // No callbacks have run yet; all retained sources belong to the accepted arguments.
     for index in (0..count).rev() {
         ctx.charge(1)?;
-        let code = &ctx.code_roots.as_ref().unwrap().data[index];
+        let code = ctx.code_roots.as_ref().unwrap().at(index)?;
         // The entry program is already registered, and loading it again only pins it.
         if storage
             .programs
@@ -369,7 +379,7 @@ pub(super) fn namespace(
         .as_ref()
         .ok_or_else(|| Error::new(ErrorKind::Type, "namespace has no executable source"))?;
     let (program, _) = load(ctx, storage, owner, namespace.environment.as_ref())?;
-    if storage.programs.data[program.index].failed {
+    if storage.programs.at(program.index)?.failed {
         return Err(Error::new(
             ErrorKind::Runtime,
             "source script initialization failed",
@@ -534,9 +544,9 @@ pub(super) fn advance(
     base: usize,
 ) -> Result<()> {
     while let Some(activation) = storage.activations.data.last() {
-        let program = storage.programs.data[activation.program].program.clone();
+        let program = storage.programs.at(activation.program)?.program.clone();
         if let Some((frame, state)) = activation.waiting {
-            if !storage.namespaces.data[state].initialized {
+            if !storage.namespaces.at(state)?.initialized {
                 if frames
                     .data
                     .get(frame)
@@ -544,7 +554,7 @@ pub(super) fn advance(
                 {
                     return Ok(());
                 }
-                storage.programs.data[program.index].failed = true;
+                storage.programs.at_mut(program.index)?.failed = true;
                 storage.activations.data.pop();
                 continue;
             }
@@ -557,12 +567,12 @@ pub(super) fn advance(
         }
         ctx.charge(1)?;
         storage.activations.data.last_mut().unwrap().next += 1;
-        let Some(body) = program.namespaces[next].body else {
+        let Some(body) = program.namespaces.at(next)?.body else {
             continue;
         };
         let entered = (|| {
             let state = namespaces::state(&program, ctx, storage, next)?;
-            if !storage.namespaces.data[state].initialized {
+            if !storage.namespaces.at(state)?.initialized {
                 let frame = frames.data.len();
                 enter_arguments(
                     &program,
@@ -583,7 +593,7 @@ pub(super) fn advance(
             Ok(true) => return Ok(()),
             Ok(false) => (),
             Err(error) => {
-                storage.programs.data[program.index].failed = true;
+                storage.programs.at_mut(program.index)?.failed = true;
                 storage.activations.data.pop();
                 return Err(error);
             }

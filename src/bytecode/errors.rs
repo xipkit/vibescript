@@ -112,7 +112,7 @@ impl<'x> Compiling<'_, 'x> {
         }
         let mut c = self.c();
         spec.end = c.code.len();
-        c.program.handlers[index] = spec;
+        *c.program.handlers.at_mut(index)? = spec;
         Ok(())
     }
 

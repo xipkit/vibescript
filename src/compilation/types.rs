@@ -125,12 +125,12 @@ impl Type {
             TypeKind::Array(element) => types::TypeKind::Array(
                 element
                     .as_ref()
-                    .map(|ty| Ok(Box::new(ty.compile_with(work, resolve)?)))
+                    .map(|ty| -> Result<_> { Ok(Box::new(ty.compile_with(work, resolve)?)) })
                     .transpose()?,
             ),
             TypeKind::Hash(pair) => types::TypeKind::Hash(
                 pair.as_ref()
-                    .map(|pair| {
+                    .map(|pair| -> Result<_> {
                         let key = pair.0.compile_with(work, resolve)?;
                         Ok(Box::new((key, pair.1.compile_with(work, resolve)?)))
                     })
@@ -165,7 +165,7 @@ impl Type {
             TypeKind::Literal(described) => types::TypeKind::Literal(
                 described
                     .as_ref()
-                    .map(|ty| Ok(Box::new(ty.compile_with(work, resolve)?)))
+                    .map(|ty| -> Result<_> { Ok(Box::new(ty.compile_with(work, resolve)?)) })
                     .transpose()?,
             ),
             TypeKind::Named => {

@@ -214,9 +214,17 @@ fn invoke(
     if mutating {
         storage.addresses.data.last().unwrap().check_writable()?;
     }
-    let arity = args
-        .block
-        .map(|block| frames.data[block.parent()].program.functions[block.function()].block_arity);
+    let arity = match args.block {
+        Some(block) => Some(
+            frames
+                .at(block.parent())?
+                .program
+                .functions
+                .at(block.function())?
+                .block_arity,
+        ),
+        None => None,
+    };
     let driver = if members::exported(ctx, site, name, receiver)? {
         None
     } else {

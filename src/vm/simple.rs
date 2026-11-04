@@ -28,7 +28,7 @@ pub(super) fn run(
     // place of a local that no slot binds, which the general loop resolves.
     let shadowed = storage.bindings.is_some() || !ctx.options.globals.is_empty();
     loop {
-        match function.code[frame.ip] {
+        match *function.code.at(frame.ip)? {
             Op::Nil => {
                 step(ctx, frame)?;
                 push(ctx, stack, Value::nil())?;
@@ -44,7 +44,7 @@ pub(super) fn run(
             }
             Op::Constant(n) => {
                 step(ctx, frame)?;
-                let value = &program.constants[n as usize];
+                let value = program.constants.at(n as usize)?;
                 let value = if matches!(
                     value.0,
                     Kind::Nil | Kind::Bool(_) | Kind::Int(_) | Kind::Float(_)
@@ -66,7 +66,9 @@ pub(super) fn run(
                 else {
                     return Ok(());
                 };
-                let mut value = storage.locals.data[slot]
+                let mut value = storage
+                    .locals
+                    .at(slot)?
                     .as_ref()
                     .map_or_else(Value::nil, copy);
                 if matches!(value.0, Kind::Offset(_) | Kind::Builtin(_)) {
@@ -76,7 +78,7 @@ pub(super) fn run(
             }
             Op::LoadOptional(n, _, _) => {
                 let own = frame.local_base() + n as usize;
-                let slot = if storage.locals.data[own].is_some() {
+                let slot = if storage.locals.at(own)?.is_some() {
                     step(ctx, frame)?;
                     own
                 } else {
@@ -85,7 +87,7 @@ pub(super) fn run(
                         None => return Ok(()),
                     }
                 };
-                let value = storage.locals.data[slot].as_ref().unwrap();
+                let value = storage.locals.at(slot)?.as_ref().unwrap();
                 let value = if matches!(value.0, Kind::Offset(_) | Kind::Builtin(_)) {
                     special_value(ctx, value)?
                 } else {
@@ -94,7 +96,7 @@ pub(super) fn run(
                 push(ctx, stack, value)?;
             }
             Op::ReceiverBound(n, next) => {
-                let Some(value) = storage.locals.data[frame.local_base() + n as usize].as_ref()
+                let Some(value) = storage.locals.at(frame.local_base() + n as usize)?.as_ref()
                 else {
                     return Ok(());
                 };
@@ -108,7 +110,7 @@ pub(super) fn run(
                 else {
                     return Ok(());
                 };
-                storage.locals.data[slot].get_or_insert_with(Value::nil);
+                storage.locals.at_mut(slot)?.get_or_insert_with(Value::nil);
             }
             Op::Store(n) => {
                 let Some(slot) = local(ctx, outer, function, frame, storage, n as usize, shadowed)?
@@ -117,7 +119,7 @@ pub(super) fn run(
                 };
                 let value = stack.data.last().unwrap();
                 address::refresh(ctx, slot, value, &mut storage.addresses.data, &[])?;
-                store(storage, slot, copy(value));
+                store(storage, slot, copy(value))?;
             }
             Op::AddStore(n, number) => {
                 if !number && !plain_operand(stack) {
@@ -136,14 +138,14 @@ pub(super) fn run(
                         value
                     }
                     None => {
-                        storage.locals.data[slot] = None;
+                        *storage.locals.at_mut(slot)? = None;
                         ops::binary(ctx, "+", a, b)?
                     }
                 };
                 if !storage.addresses.data.is_empty() {
                     address::refresh(ctx, slot, &value, &mut storage.addresses.data, &[])?;
                 }
-                store(storage, slot, copy(&value));
+                store(storage, slot, copy(&value))?;
                 push(ctx, stack, value)?;
             }
             Op::Binary(op, number) => {
@@ -162,14 +164,14 @@ pub(super) fn run(
                     None => ops::binary(ctx, op.name(), a, b)?,
                 };
                 if let Kind::Bool(value) = value.0 {
-                    match function.code[frame.ip] {
+                    match *function.code.at(frame.ip)? {
                         Op::Dup => {
                             if let [
                                 Op::Dup,
                                 branch @ (Op::JumpFalse(_) | Op::JumpTrue(_)),
                                 Op::Pop,
                                 ..,
-                            ] = &function.code[frame.ip..]
+                            ] = function.code.tail(frame.ip)?
                             {
                                 let (target, taken) = match *branch {
                                     Op::JumpFalse(target) => (target, !value),
@@ -219,7 +221,7 @@ pub(super) fn run(
                 // Exported values need their depth checked after indexing,
                 // unless the checker proved the result plain.
                 if matches!(
-                    stack.data[stack.data.len() - n as usize - 1].0,
+                    stack.at(stack.data.len() - n as usize - 1)?.0,
                     Kind::Instance(_)
                 ) || (ctx.has_exports && !function.plain_values.contains(frame.ip))
                 {
@@ -249,7 +251,7 @@ pub(super) fn run(
             }
             Op::AddressBound(n, next) => {
                 let own = frame.local_base() + n as usize;
-                let slot = if storage.locals.data[own].is_some() {
+                let slot = if storage.locals.at(own)?.is_some() {
                     step(ctx, frame)?;
                     own
                 } else {
@@ -258,7 +260,7 @@ pub(super) fn run(
                         None => return Ok(()),
                     }
                 };
-                let value = storage.locals.data[slot].as_ref().unwrap().clone();
+                let value = storage.locals.at(slot)?.as_ref().unwrap().clone();
                 storage
                     .addresses
                     .push(ctx, Address::new(Some(slot), value))?;
@@ -281,7 +283,7 @@ pub(super) fn run(
             }
             Op::Shadow(slot) => {
                 step(ctx, frame)?;
-                store(storage, frame.local_base() + slot as usize, Value::nil());
+                store(storage, frame.local_base() + slot as usize, Value::nil())?;
             }
             Op::BlockArg(index, autosplat) => {
                 // Exported values need their depth checked when read, unless
@@ -290,17 +292,17 @@ pub(super) fn run(
                     return Ok(());
                 }
                 step(ctx, frame)?;
-                let value = block_arg(frame, stack, index as usize, autosplat)
+                let value = block_arg(frame, stack, index as usize, autosplat)?
                     .map_or_else(Value::nil, copy);
                 // Plain block parameters already have their own shadowed slot.
                 // Keep each instruction's charge and location, while avoiding
                 // the temporary operand and the Store/Pop dispatches.
-                if let [Op::Store(slot), Op::Pop, ..] = &function.code[frame.ip..] {
+                if let [Op::Store(slot), Op::Pop, ..] = function.code.tail(frame.ip)? {
                     let slot = frame.local_base() + *slot as usize;
-                    if storage.locals.data[slot].is_some() {
+                    if storage.locals.at(slot)?.is_some() {
                         step(ctx, frame)?;
                         address::refresh(ctx, slot, &value, &mut storage.addresses.data, &[])?;
-                        store(storage, slot, value);
+                        store(storage, slot, value)?;
                         step(ctx, frame)?;
                         continue;
                     }
@@ -393,11 +395,11 @@ fn special_value(ctx: &mut CallContext, value: &Value) -> Result<Value> {
 }
 
 #[inline]
-fn instruction(program: &Program, function: &Function, frame: &Frame) -> Extended {
-    let Op::Extended(index) = function.code[frame.ip] else {
-        unreachable!("outlined instruction expected");
+fn instruction(program: &Program, function: &Function, frame: &Frame) -> Access<Extended> {
+    let Op::Extended(index) = *function.code.at(frame.ip)? else {
+        return Err(violation("outlined instruction expected"));
     };
-    program.extended[index as usize]
+    Ok(*program.extended.at(index as usize)?)
 }
 
 // Keep the selector small so another outlined instruction cannot rearrange
@@ -411,7 +413,7 @@ fn addressed(
     storage: &mut Storage,
     stack: &mut Buffer<Value>,
 ) -> Result<bool> {
-    match instruction(program, function, frame) {
+    match instruction(program, function, frame)? {
         Extended::Mutate(..) => mutate(ctx, program, function, frame, storage, stack),
         Extended::Shovel(..) => shovel(ctx, program, function, frame, storage, stack),
         Extended::AddressTarget(n, read) => address_target(ctx, frame, storage, stack, n, read),
@@ -429,7 +431,7 @@ fn mutate(
     storage: &mut Storage,
     stack: &mut Buffer<Value>,
 ) -> Result<bool> {
-    let Extended::Mutate(site, n) = instruction(program, function, frame) else {
+    let Extended::Mutate(site, n) = instruction(program, function, frame)? else {
         unreachable!("outlined opcode and handler agree");
     };
     // Only direct array updates, which need no scan of their
@@ -442,8 +444,8 @@ fn mutate(
     step(ctx, frame)?;
     let address = storage.addresses.data.pop().unwrap();
     let base = stack.data.len() - n as usize;
-    let name = &program.members[site.name as usize];
-    let value = update(ctx, storage, address, site, name, &stack.data[base..])?;
+    let name = program.members.at(site.name as usize)?;
+    let value = update(ctx, storage, address, site, name, stack.tail(base)?)?;
     stack.data.truncate(base);
     push(ctx, stack, value)?;
     Ok(true)
@@ -459,7 +461,7 @@ fn shovel(
     storage: &mut Storage,
     stack: &mut Buffer<Value>,
 ) -> Result<bool> {
-    let Extended::Shovel(site, last) = instruction(program, function, frame) else {
+    let Extended::Shovel(site, last) = instruction(program, function, frame)? else {
         unreachable!("outlined opcode and handler agree");
     };
     if !updatable(storage.addresses.data.last().unwrap(), site, true) {
@@ -567,11 +569,15 @@ fn index_literal(
         return Ok(false);
     }
     step(ctx, frame)?;
-    let key = program.constants[program.shared[slot]].as_bytes().unwrap();
-    let value = hash
-        .find(ctx, key)?
-        .map(|i| hash.buffer.data[i].1.clone())
-        .unwrap_or_default();
+    let key = program
+        .constants
+        .at(*program.shared.at(slot)?)?
+        .as_bytes()
+        .unwrap();
+    let value = match hash.find(ctx, key)? {
+        Some(index) => hash.buffer.at(index)?.1.clone(),
+        None => Value::default(),
+    };
     *stack.data.last_mut().unwrap() = value;
     Ok(true)
 }
@@ -587,10 +593,10 @@ fn index(
     count: usize,
 ) -> Result<()> {
     let base = stack.data.len() - count - 1;
-    let root = &stack.data[base];
-    let args = &stack.data[base + 1..];
+    let root = stack.at(base)?;
+    let args = stack.tail(base + 1)?;
     let value = if count == 1 {
-        ops::index(ctx, root, &args[0])?
+        ops::index(ctx, root, args.at(0)?)?
     } else {
         ops::index_many(ctx, root, args)?
     };
@@ -622,19 +628,13 @@ fn direct(
 ) -> Result<bool> {
     let base = stack.data.len() - count - 1;
     let method = site.method.unwrap();
-    if !members::direct::accepts(method, &stack.data[base], count) {
+    if !members::direct::accepts(method, stack.at(base)?, count) {
         return Ok(false);
     }
     step(ctx, frame)?;
-    let name = &program.members[site.name as usize];
-    let value = members::direct::call(
-        ctx,
-        method,
-        name,
-        &stack.data[base],
-        &stack.data[base + 1..],
-    )?
-    .unwrap();
+    let name = program.members.at(site.name as usize)?;
+    let value =
+        members::direct::call(ctx, method, name, stack.at(base)?, stack.tail(base + 1)?)?.unwrap();
     stack.data.truncate(base);
     stack.push(ctx, value)?;
     Ok(true)
@@ -804,7 +804,7 @@ fn local(
     shadowed: bool,
 ) -> Result<Option<usize>> {
     let own = frame.local_base() + local;
-    if storage.locals.data[own].is_some() {
+    if storage.locals.at(own)?.is_some() {
         step(ctx, frame)?;
         return Ok(Some(own));
     }
@@ -824,11 +824,12 @@ fn unbound(
     local: usize,
     shadowed: bool,
 ) -> Result<Option<usize>> {
-    let Some((slot, hops)) = target(outer, function, frame, storage, local)
-        .filter(|&(slot, _)| !shadowed || storage.locals.data[slot].is_some())
-    else {
+    let Some((slot, hops)) = target(outer, function, frame, storage, local)? else {
         return Ok(None);
     };
+    if shadowed && storage.locals.at(slot)?.is_none() {
+        return Ok(None);
+    }
     step(ctx, frame)?;
     ctx.charge_each(hops)?;
     Ok(Some(slot))
@@ -845,11 +846,12 @@ fn bound(
     storage: &Storage,
     local: usize,
 ) -> Result<Option<usize>> {
-    let Some((slot, hops)) = target(outer, function, frame, storage, local)
-        .filter(|&(slot, _)| storage.locals.data[slot].is_some())
-    else {
+    let Some((slot, hops)) = target(outer, function, frame, storage, local)? else {
         return Ok(None);
     };
+    if storage.locals.at(slot)?.is_none() {
+        return Ok(None);
+    }
     step(ctx, frame)?;
     ctx.charge_each(hops)?;
     Ok(Some(slot))
@@ -867,18 +869,18 @@ fn target(
     frame: &Frame,
     storage: &Storage,
     local: usize,
-) -> Option<(usize, u64)> {
+) -> Access<Option<(usize, u64)>> {
     let own = frame.local_base() + local;
-    if storage.locals.data[own].is_some() {
-        return Some((own, 0));
+    if storage.locals.at(own)?.is_some() {
+        return Ok(Some((own, 0)));
     }
     if function.initializer {
-        return None;
+        return Ok(None);
     }
-    match function.captures.get(local).copied().flatten() {
+    Ok(match function.captures.get(local).copied().flatten() {
         None => Some((own, 0)),
-        Some(capture) => Some(captured(outer, frame, storage, own, capture)),
-    }
+        Some(capture) => Some(captured(outer, frame, storage, own, capture)?),
+    })
 }
 
 /// Follows a captured local out through the frames that enclose the
@@ -891,22 +893,22 @@ fn captured(
     storage: &Storage,
     own: usize,
     mut capture: crate::bytecode::Capture,
-) -> (usize, u64) {
+) -> Access<(usize, u64)> {
     let mut hops = 0;
     let mut current = frame;
     loop {
         for _ in 0..=capture.depth {
             hops += 1;
-            current = &outer[current.parent().unwrap()];
+            current = outer.at(current.parent().unwrap())?;
         }
         let slot = current.local_base() + capture.slot;
-        if storage.locals.data[slot].is_some() {
-            return (slot, hops);
+        if storage.locals.at(slot)?.is_some() {
+            return Ok((slot, hops));
         }
-        let function = &current.program.functions[current.function().unwrap()];
+        let function = current.program.functions.at(current.function().unwrap())?;
         match function.captures.get(capture.slot).copied().flatten() {
             Some(next) => capture = next,
-            None => return (own, hops),
+            None => return Ok((own, hops)),
         }
     }
 }
@@ -951,10 +953,11 @@ fn truthy(value: Value) -> bool {
 
 /// Writes a local's slot, discarding the value it held.
 #[inline(always)]
-fn store(storage: &mut Storage, slot: usize, value: Value) {
-    if let Some(previous) = storage.locals.data[slot].replace(value) {
+fn store(storage: &mut Storage, slot: usize, value: Value) -> Access<()> {
+    if let Some(previous) = storage.locals.at_mut(slot)?.replace(value) {
         discard(previous);
     }
+    Ok(())
 }
 
 /// Reports whether the left operand under the top of the stack is something

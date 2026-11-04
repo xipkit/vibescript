@@ -66,10 +66,10 @@ pub(super) fn local(
     let Some(environment) = environment(program) else {
         return Ok(false);
     };
-    let frame = &frames.data[current];
-    let function = &program.functions[frame.function().unwrap()];
-    let name = &function.local_names[relative];
-    if name.starts_with('\0') || storage.locals.data[absolute].is_some() {
+    let frame = frames.at(current)?;
+    let function = program.functions.at(frame.function().unwrap())?;
+    let name = function.local_names.at(relative)?;
+    if name.starts_with('\0') || storage.locals.at(absolute)?.is_some() {
         return Ok(false);
     }
     for param in &function.params {
@@ -85,8 +85,11 @@ pub(super) fn local(
         let mut parent = frame.parent();
         while let Some(index) = parent {
             ctx.charge(1)?;
-            let parent_frame = &frames.data[index];
-            let parent_function = &parent_frame.program.functions[parent_frame.function().unwrap()];
+            let parent_frame = frames.at(index)?;
+            let parent_function = parent_frame
+                .program
+                .functions
+                .at(parent_frame.function().unwrap())?;
             if parent_function.initializer {
                 return Ok(false);
             }
@@ -112,7 +115,9 @@ pub(super) fn unshadowed(
     current: usize,
     name: &str,
 ) -> Result<bool> {
-    let function = &program.functions[frames.data[current].function().unwrap()];
+    let function = program
+        .functions
+        .at(frames.at(current)?.function().unwrap())?;
     for (relative, candidate) in function.local_names.iter().enumerate() {
         ctx.charge(1)?;
         if candidate == name {
@@ -132,12 +137,12 @@ pub(super) fn global_slot(
     storage: &mut Storage,
     index: usize,
 ) -> Result<usize> {
-    let (global, original) = &program.globals[index];
-    let root = &storage.programs.data[0].program;
+    let (global, original) = program.globals.at(index)?;
+    let root = &storage.programs.at(0)?.program;
     if let Some(index) = global_index(root, global.name()) {
         let slot = root.global_base + index;
-        if storage.globals.data[slot].is_none() {
-            storage.globals.data[slot] = Some(ctx.import(&root.globals[index].1)?);
+        if storage.globals.at(slot)?.is_none() {
+            *storage.globals.at_mut(slot)? = Some(ctx.import(&root.globals.at(index)?.1)?);
         }
         return Ok(slot);
     }
@@ -164,16 +169,16 @@ pub(super) fn global_address(
     index: usize,
     read: bool,
 ) -> Result<Address> {
-    let name = program.globals[index].0.name();
+    let name = program.globals.at(index)?.0.name();
     if environment(program).is_some() {
         if get(program, ctx, name)?.is_some() {
             return address(program, ctx, name);
         }
         let slot = global_slot(program, ctx, storage, index)?;
-        let mut value = storage.globals.data[slot].as_ref().unwrap().clone();
+        let mut value = storage.globals.at(slot)?.as_ref().unwrap().clone();
         if read {
             if let (Kind::Builtin(current), Kind::Builtin(original)) =
-                (&value.0, &program.globals[index].1.0)
+                (&value.0, &program.globals.at(index)?.1.0)
             {
                 if current == original {
                     value = current.read(ctx)?;
@@ -190,7 +195,7 @@ pub(super) fn global_address(
     let mut value = global_value(program, ctx, storage, index)?;
     if read {
         if let (Kind::Builtin(current), Kind::Builtin(original)) =
-            (&value.0, &program.globals[index].1.0)
+            (&value.0, &program.globals.at(index)?.1.0)
         {
             if current == original {
                 value = current.read(ctx)?;
@@ -201,11 +206,13 @@ pub(super) fn global_address(
     Ok(Address::global(program.global_base + index, value))
 }
 
-pub(super) fn declaration_name(program: &Program, index: usize) -> &str {
-    match &program.declarations[index].0 {
-        Kind::Namespace(namespace) => &namespace.definition.name,
-        Kind::Enum(enumeration) => &enumeration.definition.name,
-        _ => unreachable!(),
+pub(super) fn declaration_name(program: &Program, index: usize) -> Access<&str> {
+    match &program.declarations.at(index)?.0 {
+        Kind::Namespace(namespace) => Ok(&namespace.definition.name),
+        Kind::Enum(enumeration) => Ok(&enumeration.definition.name),
+        _ => Err(violation(
+            "a declaration that is neither a namespace nor an enum",
+        )),
     }
 }
 
@@ -235,7 +242,7 @@ pub(super) fn root_binding(
         return Ok(Some(RootBinding::Value(value)));
     }
     if program.file && program.index != 0 {
-        let root = storage.programs.data[0].program.clone();
+        let root = storage.programs.at(0)?.program.clone();
         if let Some(&index) = root.declaration_names.get(name) {
             return Ok(Some(RootBinding::Value(declaration_value(
                 &root, ctx, storage, index,
@@ -286,7 +293,7 @@ pub(super) fn read_root(
         }
         RootBinding::Host(owner, host) => {
             let value =
-                capabilities::registered(ctx, storage, &owner.code.hosts[host], &[], &[], None)?;
+                capabilities::registered(ctx, storage, owner.code.hosts.at(host)?, &[], &[], None)?;
             value.finish(&owner, ctx, frames, storage, stack, ReturnTo::Stack)
         }
     }
@@ -307,32 +314,38 @@ pub(super) fn receive_root(
     let Some(member) = receiving.member() else {
         return read_root(ctx, frames, storage, stack, binding);
     };
-    let member = &program.members[member];
+    let member = program.members.at(member)?;
     match binding {
         RootBinding::Value(Value(Kind::Function(function)))
             if !receiving.runs_static(Some(
-                function.code.program.functions[function.index].params.len(),
+                function
+                    .code
+                    .program
+                    .functions
+                    .at(function.index)?
+                    .params
+                    .len(),
             )) =>
         {
             Err(callable_member_error(
                 "function",
-                &function.code.program.functions[function.index].name,
+                &function.code.program.functions.at(function.index)?.name,
                 member,
             ))
         }
         RootBinding::Value(value @ Value(Kind::Builtin(_))) => stack.push(ctx, value),
         RootBinding::Function(owner, function)
-            if !receiving.runs_static(Some(owner.functions[function].params.len())) =>
+            if !receiving.runs_static(Some(owner.functions.at(function)?.params.len())) =>
         {
             Err(callable_member_error(
                 "function",
-                &owner.functions[function].name,
+                &owner.functions.at(function)?.name,
                 member,
             ))
         }
-        RootBinding::Host(owner, host) if !receiving.runs_static(None) => {
-            Err(callable_member_error("method", &owner.hosts[host], member))
-        }
+        RootBinding::Host(owner, host) if !receiving.runs_static(None) => Err(
+            callable_member_error("method", owner.hosts.at(host)?, member),
+        ),
         binding => read_root(ctx, frames, storage, stack, binding),
     }
 }

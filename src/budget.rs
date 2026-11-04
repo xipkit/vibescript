@@ -539,7 +539,6 @@ impl CallContext {
     }
 
     pub(crate) fn fail<T>(&mut self, kind: ErrorKind, message: impl Into<String>) -> Result<T> {
-        let first = self.exhausted.is_none();
         let err = Error::new(kind, message);
         if matches!(
             kind,
@@ -549,16 +548,36 @@ impl CallContext {
                 | ErrorKind::Recursion
                 | ErrorKind::Cancelled
                 | ErrorKind::Deadline
-        ) && self.exhausted.is_none()
-        {
-            self.exhausted = Some(err.clone());
-            #[cfg(feature = "tokio")]
-            self.memory.interrupted.store(true, Ordering::Release);
-        }
-        if first && self.exhausted.is_some() {
-            tripped();
+                | ErrorKind::Internal
+        ) {
+            self.latch(&err);
         }
         Err(self.exhausted.clone().unwrap_or(err))
+    }
+
+    /// Latches `error` as the invocation's terminal failure unless one is
+    /// latched already: every later charge or checkpoint returns it, and no
+    /// rescue or ensure runs. An internal error latches this way, since the
+    /// VM's state can no longer be trusted to run a handler.
+    pub(crate) fn latch(&mut self, error: &Error) {
+        if self.exhausted.is_none() {
+            self.exhausted = Some(error.clone());
+            #[cfg(feature = "tokio")]
+            self.memory.interrupted.store(true, Ordering::Release);
+            tripped();
+        }
+    }
+
+    /// Passes `result` through, first latching an internal error. Every way
+    /// an error leaves the VM for a handler or for host code goes through
+    /// here, so neither can continue the invocation past a failed invariant.
+    pub(crate) fn latch_internal<T>(&mut self, result: Result<T>) -> Result<T> {
+        if let Err(error) = &result
+            && error.kind == ErrorKind::Internal
+        {
+            self.latch(error);
+        }
+        result
     }
 
     pub(crate) fn exhausted(&self) -> bool {
