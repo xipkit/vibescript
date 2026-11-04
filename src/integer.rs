@@ -26,6 +26,10 @@ pub(crate) fn unlimited_context() -> CallContext {
 #[derive(Debug)]
 pub(crate) struct Big {
     pub negative: bool,
+    #[allow(
+        clippy::rc_buffer,
+        reason = "finish moves the charged Vec in where Arc<[u32]> would copy it, and budgets charge its capacity"
+    )]
     words: Arc<Vec<u32>>,
     zeros: usize,
     _storage: Option<Charge>,

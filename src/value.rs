@@ -118,7 +118,7 @@ pub(crate) fn depth_count(ctx: &mut CallContext, values: &[Value]) -> Result<(us
     Ok((depth, at_max))
 }
 
-pub(crate) use bytes::Bytes;
+pub(crate) use bytes::{Bytes, SharedBuffer};
 
 #[derive(Clone, Debug)]
 pub(crate) enum Kind {

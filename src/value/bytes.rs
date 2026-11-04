@@ -31,9 +31,16 @@ struct Owned {
     charge: Option<Charge>,
 }
 
+/// The allocation behind bytes that have crossed budgets.
+#[allow(
+    clippy::rc_buffer,
+    reason = "Data::shared moves the existing Vec in where Arc<[u8]> would copy it, and budgets charge its capacity"
+)]
+pub(crate) type SharedBuffer = Arc<Vec<u8>>;
+
 #[derive(Debug)]
 struct Shared {
-    data: Arc<Vec<u8>>,
+    data: SharedBuffer,
     charge: Option<Charge>,
 }
 
@@ -150,7 +157,7 @@ impl Bytes {
         }
     }
 
-    pub(crate) fn shared(&self) -> Arc<Vec<u8>> {
+    pub(crate) fn shared(&self) -> SharedBuffer {
         match self.storage() {
             Storage::Owned(bytes) => bytes.data.shared(),
             Storage::Shared(bytes) => bytes.data.clone(),
@@ -232,7 +239,7 @@ impl std::fmt::Debug for Bytes {
 #[derive(Debug)]
 struct Data {
     original: ManuallyDrop<Vec<u8>>,
-    shared: OnceLock<Arc<Vec<u8>>>,
+    shared: OnceLock<SharedBuffer>,
 }
 
 impl Data {
@@ -243,7 +250,7 @@ impl Data {
         }
     }
 
-    fn shared(&self) -> Arc<Vec<u8>> {
+    fn shared(&self) -> SharedBuffer {
         self.shared
             .get_or_init(|| {
                 let mut shared = Arc::new(Vec::new());
