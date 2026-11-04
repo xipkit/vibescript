@@ -36,7 +36,7 @@ pub fn current() -> Option<usize> {
     if length == 0 || page <= 0 {
         return None;
     }
-    std::str::from_utf8(&buffer[..length])
+    std::str::from_utf8(buffer.get(..length)?)
         .ok()?
         .split_whitespace()
         .nth(1)?
