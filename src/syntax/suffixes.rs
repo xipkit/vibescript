@@ -1481,7 +1481,6 @@ fn enclosing(
 mod tests {
     use super::*;
     use crate::{CallContext, CallOptions, ErrorKind, compilation::Meter};
-    use std::cell::RefCell;
 
     /// One binding that recovery reports at each of its `sites` and that is
     /// read `reads` times, so its fix holds an edit for every use.
@@ -1493,7 +1492,7 @@ mod tests {
     fn check(source: &str, options: CallOptions) -> (Error, crate::Stats, usize) {
         let mut context = CallContext::new(options);
         let error = {
-            let work = Meter(RefCell::new(&mut context));
+            let work = Meter::new(&mut context);
             match super::super::parse(source, &work) {
                 Err(error) => super::super::host_syntax(source, &work, error),
                 Ok(_) => panic!("{source} parses"),
@@ -1526,7 +1525,7 @@ mod tests {
         let mut options = unlimited();
         options.limits.memory_bytes = Some(long / 2);
         let mut context = CallContext::new(options);
-        let work = Meter(RefCell::new(&mut context));
+        let work = Meter::new(&mut context);
         let error = destination(&work, &source, &edit).unwrap_err();
         assert_eq!(error.kind, ErrorKind::Memory, "{error}");
         let error = symbol_key(&work, &source[..long + 1]).unwrap_err();
@@ -1595,13 +1594,7 @@ mod tests {
         let uses = uses(source, &()).unwrap();
         let mut diagnostics = error.take_diagnostics();
         let mut context = CallContext::new(unlimited());
-        extended(
-            &Meter(RefCell::new(&mut context)),
-            source,
-            &uses,
-            &mut diagnostics,
-        )
-        .unwrap();
+        extended(&Meter::new(&mut context), source, &uses, &mut diagnostics).unwrap();
         context.stats().steps
     }
 
@@ -1627,7 +1620,7 @@ mod tests {
         let mut diagnostics = error.take_diagnostics();
         let mut context = CallContext::new(unlimited());
         {
-            let work = Meter(RefCell::new(&mut context));
+            let work = Meter::new(&mut context);
             let uses = uses(source, &work).unwrap();
             assert_eq!(uses.failed_at, None, "{source}");
             extended(&work, source, &uses, &mut diagnostics).unwrap();

@@ -913,7 +913,6 @@ pub(super) fn directive_collisions(
 #[cfg(test)]
 mod tests {
     use crate::{CallContext, CallOptions, compilation::Meter};
-    use std::cell::RefCell;
 
     #[test]
     fn the_directive_walk_reserves_its_levels() {
@@ -927,7 +926,7 @@ mod tests {
         super::directive_collisions(
             &parsed.modules[0],
             &super::Table::new(),
-            &Meter(RefCell::new(&mut context)),
+            &Meter::new(&mut context),
         )
         .unwrap();
         let level = std::mem::size_of::<std::slice::Iter<'static, super::Module>>();

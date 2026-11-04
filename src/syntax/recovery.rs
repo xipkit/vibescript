@@ -3,7 +3,10 @@ use crate::{
     ErrorKind,
     diagnostic::{Code, Diagnostic, Span},
 };
-use std::cell::Cell;
+use std::{
+    cell::Cell,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 const MAX_ERRORS: usize = 100;
 
@@ -43,7 +46,7 @@ pub(super) fn diagnostics_with_tokens(
     }
     let _restore = Restore(LEXICAL.with(|flag| flag.replace(true)));
     let work = RecoveryWork {
-        remaining: Cell::new(source.len().saturating_mul(128).saturating_add(16384)),
+        remaining: AtomicUsize::new(source.len().saturating_mul(128).saturating_add(16384)),
         caller,
     };
     let parser = match tokens {
@@ -80,7 +83,7 @@ pub(super) fn diagnostics_with_tokens(
 // that work as well as the diagnostic count, even without a caller budget.
 // Exhaustion keeps the diagnostics already found, never adding a quota error.
 struct RecoveryWork<'a> {
-    remaining: Cell<usize>,
+    remaining: AtomicUsize,
     caller: &'a dyn Work,
 }
 
@@ -91,10 +94,10 @@ impl Work for RecoveryWork<'_> {
     fn charge(&self, steps: usize) -> Result<()> {
         let remaining = self
             .remaining
-            .get()
+            .load(Ordering::Relaxed)
             .checked_sub(steps)
             .ok_or_else(|| Error::new(ErrorKind::Steps, "recovery work exhausted"))?;
-        self.remaining.set(remaining);
+        self.remaining.store(remaining, Ordering::Relaxed);
         self.caller.charge(steps)?;
         Ok(())
     }
@@ -158,7 +161,7 @@ pub(super) struct Checkpoint {
 }
 
 pub(super) struct Scope<'p, 'a> {
-    parser: &'p RefCell<Parser<'a>>,
+    parser: &'p Shared<Parser<'a>>,
     locals: Option<Table<u32>>,
     declared_it: bool,
     block_name: Option<Name>,
@@ -186,16 +189,16 @@ pub(super) trait Mode {
     type Scope<'p, 'a>
     where
         'a: 'p;
-    fn checkpoint(parser: &RefCell<Parser<'_>>, state: &RefCell<Self::State>) -> Self::Checkpoint;
-    fn scope<'p, 'a: 'p>(parser: &'p RefCell<Parser<'a>>) -> Result<Self::Scope<'p, 'a>>;
+    fn checkpoint(parser: &Shared<Parser<'_>>, state: &Shared<Self::State>) -> Self::Checkpoint;
+    fn scope<'p, 'a: 'p>(parser: &'p Shared<Parser<'a>>) -> Result<Self::Scope<'p, 'a>>;
     fn recover(
-        parser: &RefCell<Parser<'_>>,
-        state: &RefCell<Self::State>,
+        parser: &Shared<Parser<'_>>,
+        state: &Shared<Self::State>,
         checkpoint: Self::Checkpoint,
         stop: &[&str],
         error: Error,
     ) -> Result<()>;
-    fn first(state: &RefCell<Self::State>) -> Option<Error>;
+    fn first(state: &Shared<Self::State>) -> Option<Error>;
 }
 
 pub(super) struct FailFast;
@@ -207,20 +210,20 @@ impl Mode for FailFast {
         = ()
     where
         'a: 'p;
-    fn checkpoint(_: &RefCell<Parser<'_>>, _: &RefCell<()>) {}
-    fn scope<'p, 'a: 'p>(_: &'p RefCell<Parser<'a>>) -> Result<()> {
+    fn checkpoint(_: &Shared<Parser<'_>>, _: &Shared<()>) {}
+    fn scope<'p, 'a: 'p>(_: &'p Shared<Parser<'a>>) -> Result<()> {
         Ok(())
     }
     fn recover(
-        _: &RefCell<Parser<'_>>,
-        _: &RefCell<()>,
+        _: &Shared<Parser<'_>>,
+        _: &Shared<()>,
         _: (),
         _: &[&str],
         error: Error,
     ) -> Result<()> {
         Err(error)
     }
-    fn first(_: &RefCell<()>) -> Option<Error> {
+    fn first(_: &Shared<()>) -> Option<Error> {
         None
     }
 }
@@ -234,10 +237,10 @@ impl Mode for Recover {
         = Scope<'p, 'a>
     where
         'a: 'p;
-    fn first(state: &RefCell<Recovery>) -> Option<Error> {
+    fn first(state: &Shared<Recovery>) -> Option<Error> {
         state.borrow().errors.first().cloned()
     }
-    fn scope<'p, 'a: 'p>(parser: &'p RefCell<Parser<'a>>) -> Result<Scope<'p, 'a>> {
+    fn scope<'p, 'a: 'p>(parser: &'p Shared<Parser<'a>>) -> Result<Scope<'p, 'a>> {
         let p = parser.borrow();
         Ok(Scope {
             parser,
@@ -248,7 +251,7 @@ impl Mode for Recover {
             nesting: p.nesting,
         })
     }
-    fn checkpoint(parser: &RefCell<Parser<'_>>, state: &RefCell<Recovery>) -> Checkpoint {
+    fn checkpoint(parser: &Shared<Parser<'_>>, state: &Shared<Recovery>) -> Checkpoint {
         let p = parser.borrow();
         Checkpoint {
             start: p.pos,
@@ -270,8 +273,8 @@ impl Mode for Recover {
         }
     }
     fn recover(
-        parser: &RefCell<Parser<'_>>,
-        state: &RefCell<Recovery>,
+        parser: &Shared<Parser<'_>>,
+        state: &Shared<Recovery>,
         c: Checkpoint,
         stop: &[&str],
         error: Error,

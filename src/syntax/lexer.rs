@@ -1,8 +1,8 @@
 use crate::{
     Error, Result,
-    compilation::{Boxed, Buffer, Bytes, Text, Work},
+    compilation::{Boxed, Buffer, Bytes, Shared, Text, Work},
 };
-use std::cell::{Cell, RefCell};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Clone, Copy, Debug, Eq)]
 pub(super) struct Word<'a>(&'a str);
@@ -291,28 +291,28 @@ impl Nesting {
 
 /// Answers to Go's label-colon scans, by colon offset and ternary depth.
 struct Memo {
-    answers: RefCell<Buffer<(usize, usize, bool)>>,
-    remaining: Cell<usize>,
+    answers: Shared<Buffer<(usize, usize, bool)>>,
+    remaining: AtomicUsize,
 }
 
 impl Memo {
     fn new(bytes: usize) -> Self {
         Self {
-            answers: RefCell::new(Buffer::new()),
-            remaining: Cell::new(bytes.saturating_mul(64)),
+            answers: Shared::new(Buffer::new()),
+            remaining: AtomicUsize::new(bytes.saturating_mul(64)),
         }
     }
 
     // Nested scans share a work bound even for unmetered editor tooling.
     // A depth limit alone still allows repeated scans of the same suffix.
     fn charge(&self, work: &dyn Work, offset: usize, amount: usize) -> Result<()> {
-        match self.remaining.get().checked_sub(amount) {
+        match self.remaining.load(Ordering::Relaxed).checked_sub(amount) {
             Some(remaining) => {
-                self.remaining.set(remaining);
+                self.remaining.store(remaining, Ordering::Relaxed);
                 Ok(())
             }
             None => {
-                self.remaining.set(0);
+                self.remaining.store(0, Ordering::Relaxed);
                 Err(Error::syntax(work, offset, super::TOO_DEEP))
             }
         }
@@ -1700,7 +1700,7 @@ mod tests {
     #[test]
     fn compilation_invalid_token_copies_share_the_accounted_message() {
         let mut context = CallContext::new(CallOptions::default());
-        let work = Meter(std::cell::RefCell::new(&mut context));
+        let work = Meter::new(&mut context);
         let tokens = lex("$", &work).unwrap();
         let copy = tokens[0].token.copy(&work).unwrap();
         let (Token::Invalid(original), Token::Invalid(duplicate)) = (&tokens[0].token, &copy)
@@ -1718,7 +1718,6 @@ mod tests {
         drop(copy);
         assert_eq!(context.stats().retained_memory_bytes, 0);
     }
-    use std::cell::RefCell;
 
     #[test]
     fn numbers_abutting_keywords_split_before_the_keyword() {
@@ -1738,7 +1737,7 @@ mod tests {
             ("2.5e-1while", Token::Float(0.25), "while"),
         ] {
             let mut context = CallContext::new(CallOptions::default());
-            let tokens = lex(source, &Meter(RefCell::new(&mut context))).unwrap();
+            let tokens = lex(source, &Meter::new(&mut context)).unwrap();
             assert_eq!(tokens.len(), 3, "{source}");
             assert_eq!(tokens[0].token, number, "{source}");
             assert_eq!(tokens[0].offset, 0, "{source}");
@@ -1792,7 +1791,7 @@ mod tests {
         ] {
             let mut context = CallContext::new(CallOptions::default());
             let input = format!("{source} 1");
-            let tokens = lex(&input, &Meter(RefCell::new(&mut context))).unwrap();
+            let tokens = lex(&input, &Meter::new(&mut context)).unwrap();
             let Token::Invalid(invalid) = &tokens[0].token else {
                 panic!(
                     "{source}: expected an invalid literal, got {:?}",
@@ -1811,7 +1810,7 @@ mod tests {
         ] {
             let mut context = CallContext::new(CallOptions::default());
             let input = format!("{source} 1");
-            let tokens = lex(&input, &Meter(RefCell::new(&mut context))).unwrap();
+            let tokens = lex(&input, &Meter::new(&mut context)).unwrap();
             let Token::Invalid(invalid) = &tokens[0].token else {
                 panic!(
                     "{source}: expected a deferred literal, got {:?}",
@@ -1832,7 +1831,7 @@ mod tests {
             },
             ..CallOptions::default()
         });
-        let work = Meter(RefCell::new(&mut context));
+        let work = Meter::new(&mut context);
         let tokens = lex(source, &work).unwrap();
         assert!(tokens.iter().any(|lexeme| matches!(
             &lexeme.token,
@@ -1929,7 +1928,7 @@ mod tests {
             ),
         ] {
             let mut context = CallContext::new(CallOptions::default());
-            let tokens = lex(source, &Meter(RefCell::new(&mut context))).unwrap();
+            let tokens = lex(source, &Meter::new(&mut context)).unwrap();
             let got: Vec<_> = tokens
                 .iter()
                 .map(|lexeme| lexeme.token.copy(&()).unwrap())
@@ -1953,7 +1952,7 @@ mod tests {
                 },
                 ..CallOptions::default()
             });
-            let error = lex(&source, &Meter(RefCell::new(&mut context))).unwrap_err();
+            let error = lex(&source, &Meter::new(&mut context)).unwrap_err();
             assert_eq!(error.kind, crate::ErrorKind::Steps);
             assert_eq!(context.charge(0).unwrap_err().kind, crate::ErrorKind::Steps);
             assert_eq!(context.stats().retained_memory_bytes, 0);
@@ -1966,7 +1965,7 @@ mod tests {
         for length in [1, 8192] {
             let source = "名".repeat(length);
             let mut context = CallContext::new(CallOptions::default());
-            let tokens = lex(&source, &Meter(RefCell::new(&mut context))).unwrap();
+            let tokens = lex(&source, &Meter::new(&mut context)).unwrap();
             let Token::Word(word) = &tokens[0].token else {
                 panic!("expected identifier");
             };

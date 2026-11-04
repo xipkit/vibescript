@@ -492,7 +492,7 @@ impl<'a> Checker<'a> {
         let mut context = self.context(held);
         let parse = crate::syntax::parse_with_tokens(
             &source,
-            &crate::compilation::Meter(std::cell::RefCell::new(&mut context)),
+            &crate::compilation::Meter::new(&mut context),
         );
         let parsing = context.stats();
         let charged = self.meter.charge(parsing.steps);
@@ -521,7 +521,7 @@ impl<'a> Checker<'a> {
                 // left of the budget, in the parse's context, as a host's
                 // syntax error is, and its steps are this check's too.
                 let error = {
-                    let work = crate::compilation::Meter(std::cell::RefCell::new(&mut context));
+                    let work = crate::compilation::Meter::new(&mut context);
                     let error = crate::syntax::host_syntax(&source, &work, error);
                     crate::source::parse_error(&source, Some(&filename), error, &work)
                 };

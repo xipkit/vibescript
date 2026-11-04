@@ -91,7 +91,7 @@ impl Code {
             &receiving.declared,
             true,
             Some(origin),
-            &crate::compilation::Meter(std::cell::RefCell::new(ctx)),
+            &crate::compilation::Meter::new(ctx),
             Some(loader),
         )
     }

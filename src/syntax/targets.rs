@@ -412,13 +412,12 @@ fn same_binding(work: &dyn Work, left: &str, right: &str) -> Result<bool> {
 mod walk_tests {
     use super::{Statement, Target};
     use crate::{CallContext, CallOptions, compilation::Meter};
-    use std::cell::RefCell;
 
     #[test]
     fn duplicate_parameter_keeps_a_budget_refusal_unchanged() {
         let mut context = CallContext::new(CallOptions::default());
         context.options.limits.memory_bytes = Some(0);
-        let error = super::duplicate_parameter(&Meter(RefCell::new(&mut context)), "x", 0, 1);
+        let error = super::duplicate_parameter(&Meter::new(&mut context), "x", 0, 1);
         assert_eq!(error.kind, crate::ErrorKind::Memory);
         assert!(error.diagnostics().is_empty());
     }
@@ -426,7 +425,7 @@ mod walk_tests {
     #[test]
     fn duplicate_parameter_owns_and_releases_its_diagnostic_storage() {
         let mut context = CallContext::new(CallOptions::default());
-        let error = super::duplicate_parameter(&Meter(RefCell::new(&mut context)), "x", 0, 1);
+        let error = super::duplicate_parameter(&Meter::new(&mut context), "x", 0, 1);
         let diagnostic = &error.diagnostics()[0];
         assert_eq!(diagnostic.message, "duplicate parameter x");
         assert!(
@@ -446,7 +445,7 @@ mod walk_tests {
         };
         let mut context = CallContext::new(CallOptions::default());
         context.options.limits.steps = Some(8);
-        let work = Meter(RefCell::new(&mut context));
+        let work = Meter::new(&mut context);
         let text = super::target_excerpt(target, &work).unwrap();
         assert_eq!(text.text().len(), 68);
         assert_eq!(work.0.borrow().stats().peak_memory_bytes, 0);
@@ -461,7 +460,7 @@ mod walk_tests {
         let mut context = CallContext::new(CallOptions::default());
         context.options.limits.steps = Some(0);
         let mut visited = 0;
-        let result = target.parts(&Meter(RefCell::new(&mut context)), |_, _| {
+        let result = target.parts(&Meter::new(&mut context), |_, _| {
             visited += 1;
             Ok(true)
         });
@@ -490,7 +489,7 @@ mod walk_tests {
             })
             .unwrap();
         let mut context = CallContext::new(CallOptions::default());
-        let found = super::binds(target, "absent", &Meter(RefCell::new(&mut context))).unwrap();
+        let found = super::binds(target, "absent", &Meter::new(&mut context)).unwrap();
         assert!(!found);
         let level = std::mem::size_of::<(std::slice::Iter<'static, (Option<Target>, bool)>, u32)>();
         let peak = context.stats().peak_memory_bytes;

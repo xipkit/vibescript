@@ -310,7 +310,7 @@ impl<'a> Parser<'a> {
             type_argument: false,
             type_structural_error: false,
             interpolations: Buffer::new(),
-            suffixed: RefCell::new(self.suffixed.take()),
+            suffixed: Shared::new(self.suffixed.take()),
             target_start: None,
             namespace: self.namespace,
             namespace_body: self.namespace_body,

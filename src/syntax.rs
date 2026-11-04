@@ -1,8 +1,10 @@
 use crate::{
     Error, Result, Value,
-    compilation::{Boxed, Buffer, Bytes, Frame, Name, Table, Tasks, Text, Work, framed, task},
+    compilation::{
+        Boxed, Buffer, Bytes, Frame, Name, Shared, Table, Tasks, Text, Work, framed, task,
+    },
 };
-use std::cell::{RefCell, RefMut};
+use std::cell::RefMut;
 
 mod ast;
 mod blocks;
@@ -82,7 +84,7 @@ fn parser_from_tokens<'a>(
         type_argument: false,
         type_structural_error: false,
         interpolations: Buffer::new(),
-        suffixed: RefCell::default(),
+        suffixed: Shared::default(),
         target_start: None,
         namespace: None,
         namespace_body: false,
@@ -224,7 +226,7 @@ struct Parser<'a> {
     type_structural_error: bool,
     interpolations: Buffer<(u32, u32)>,
     /// The uses of suffixed bindings a lenient parse records.
-    suffixed: RefCell<suffixes::Uses>,
+    suffixed: Shared<suffixes::Uses>,
     /// The token that starts the destructuring target being read, whose
     /// name, if that is all the target is, binds.
     target_start: Option<usize>,
@@ -283,9 +285,9 @@ enum Parsed {
 /// Runs the recursive grammar over shared parser state, so source nesting
 /// grows a heap task stack instead of the native one.
 struct Parsing<'a, M: recovery::Mode = recovery::FailFast> {
-    parser: RefCell<Parser<'a>>,
+    parser: Shared<Parser<'a>>,
     tasks: Tasks<Call, Parsed>,
-    recovery: RefCell<M::State>,
+    recovery: Shared<M::State>,
     /// The parser's work, which the boxed steps of its tasks charge.
     work: &'a dyn Work,
 }
@@ -294,9 +296,9 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
     fn new(parser: Parser<'a>) -> Self {
         let work = parser.work;
         Self {
-            parser: RefCell::new(parser),
+            parser: Shared::new(parser),
             tasks: Tasks::new(),
-            recovery: RefCell::new(M::State::default()),
+            recovery: Shared::new(M::State::default()),
             work,
         }
     }

@@ -466,7 +466,7 @@ pub(crate) fn check_globals(ctx: &mut CallContext, declared: &Declarations) -> R
     let result = (|| {
         for (name, value) in &globals {
             crate::capability::binding_name(
-                &crate::compilation::Meter(std::cell::RefCell::new(ctx)),
+                &crate::compilation::Meter::new(ctx),
                 HostName::GLOBAL,
                 name,
                 value,
@@ -538,7 +538,6 @@ pub(crate) fn check_capability(
 mod tests {
     use super::*;
     use crate::{CallOptions, CancellationToken, Limits, compilation::Meter};
-    use std::cell::RefCell;
 
     #[test]
     fn short_dependency_sources_still_spend_work_and_check_cancellation() {
@@ -555,7 +554,7 @@ mod tests {
         let result: Result<()> = references.iter().try_for_each(|source| {
             visited += 1;
             assert!(!contains_name(
-                &Meter(RefCell::new(&mut context)),
+                &Meter::new(&mut context),
                 *source,
                 candidate
             )?);
@@ -575,7 +574,7 @@ mod tests {
                 token.cancel();
             }
             assert!(!contains_name(
-                &Meter(RefCell::new(&mut context)),
+                &Meter::new(&mut context),
                 *source,
                 candidate
             )?);

@@ -237,7 +237,7 @@ impl<V: Copy> Table<V> {
 mod tests {
     use super::*;
     use crate::{CallContext, CallOptions, ErrorKind, compilation::Meter};
-    use std::{cell::RefCell, collections::BTreeMap, sync::Arc, time::Instant};
+    use std::{collections::BTreeMap, sync::Arc, time::Instant};
 
     fn names(work: &dyn Work, count: usize) -> Vec<Name> {
         (0..count)
@@ -248,7 +248,7 @@ mod tests {
     #[test]
     fn collisions_wrap_and_deleted_slots_are_reused_without_growth() {
         let mut context = CallContext::new(CallOptions::default());
-        let work = Meter(RefCell::new(&mut context));
+        let work = Meter::new(&mut context);
         let names: Vec<_> = (0..)
             .map(|i| format!("collision_{i}"))
             .filter(|name| Table::<usize>::hash(&(), name).unwrap() & 7 == 7)
@@ -279,7 +279,7 @@ mod tests {
     fn growth_reserves_both_tables_and_preserves_the_original_on_failure() {
         for shortage in [0, 1] {
             let mut context = CallContext::new(CallOptions::default());
-            let work = Meter(RefCell::new(&mut context));
+            let work = Meter::new(&mut context);
             let names = names(&work, 5);
             let mut table = Table::new();
             for (i, name) in names.iter().take(4).enumerate() {
@@ -320,7 +320,7 @@ mod tests {
     fn scope_copies_retain_names_until_the_last_table_is_released() {
         let mut context = CallContext::new(CallOptions::default());
         let memory = context.identity();
-        let work = Meter(RefCell::new(&mut context));
+        let work = Meter::new(&mut context);
         let mut table = Table::new();
         table
             .insert(
@@ -350,7 +350,7 @@ mod tests {
     fn deleted_buckets_compact_with_overlap_accounted_and_atomic_failure() {
         for shortage in [0, 1] {
             let mut context = CallContext::new(CallOptions::default());
-            let work = Meter(RefCell::new(&mut context));
+            let work = Meter::new(&mut context);
             let names: Vec<_> = [0, 1, 2, 3, 6]
                 .map(|slot| {
                     let name = (0..)
@@ -397,7 +397,7 @@ mod tests {
     #[test]
     fn table_churn_and_copies_match_an_independent_ordered_map() {
         let mut context = CallContext::new(CallOptions::default());
-        let work = Meter(RefCell::new(&mut context));
+        let work = Meter::new(&mut context);
         let mut names = names(&work, 64);
         names.extend(["", "\0", "日本語", "café"].map(|name| Name::new(&work, name).unwrap()));
         let mut table = Table::new();
@@ -457,7 +457,7 @@ mod tests {
                         context.cancellation().cancel();
                         ErrorKind::Cancelled
                     };
-                    let work = Meter(RefCell::new(&mut context));
+                    let work = Meter::new(&mut context);
                     let result = match operation {
                         "lookup" => table.get(&work, "").map(drop),
                         "remove" => table.remove(&work, "").map(drop),

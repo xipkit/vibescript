@@ -410,11 +410,10 @@ impl<'x> Copying<'_, 'x> {
 mod tests {
     use super::*;
     use crate::{CallContext, CallOptions, ErrorKind, compilation::Meter};
-    use std::cell::RefCell;
 
     fn original(context: &mut CallContext) -> Definition {
         let source = "class Box;def original(n:int=1);begin;a=[1,2,3].map{|v|[v+n,v*2]};if n>0;a[0];else;0;end;rescue ArgumentError|TypeError=>e;raise e;ensure;nil;end;end;end";
-        let mut parsed = crate::syntax::parse(source, &Meter(RefCell::new(context))).unwrap();
+        let mut parsed = crate::syntax::parse(source, &Meter::new(context)).unwrap();
         parsed.modules.remove(0).instance_methods.remove(0).0
     }
 
@@ -427,7 +426,7 @@ mod tests {
             let original = original(&mut context);
             let before = context.stats().retained_memory_bytes;
             context.options.limits.memory_bytes = Some(before + budget);
-            definition(&Meter(RefCell::new(&mut context)), &original).is_ok()
+            definition(&Meter::new(&mut context), &original).is_ok()
         };
         let (mut low, mut high) = (0, 1 << 20);
         while low < high {
@@ -448,7 +447,7 @@ mod tests {
             let mut context = CallContext::new(CallOptions::default());
             let original = original(&mut context);
             let before = context.stats().retained_memory_bytes;
-            let copy = definition(&Meter(RefCell::new(&mut context)), &original).unwrap();
+            let copy = definition(&Meter::new(&mut context), &original).unwrap();
             let additional = context.stats().retained_memory_bytes - before;
             assert!(additional > 0 && additional <= needed);
             drop(copy);
@@ -460,7 +459,7 @@ mod tests {
                 _ => needed,
             };
             context.options.limits.memory_bytes = Some(before + budget);
-            let result = definition(&Meter(RefCell::new(&mut context)), &original);
+            let result = definition(&Meter::new(&mut context), &original);
             if fraction == 3 {
                 let copy = result.unwrap();
                 assert_eq!(copy.name, original.name);

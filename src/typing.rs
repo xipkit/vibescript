@@ -776,7 +776,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
                     });
                     let error = crate::syntax::canonical_error(
                         source,
-                        &crate::compilation::Meter(std::cell::RefCell::new(&mut context)),
+                        &crate::compilation::Meter::new(&mut context),
                     );
                     if context.exhausted() {
                         meter.stop();
@@ -1073,7 +1073,7 @@ fn symbol_text(value: &crate::Value) -> Option<String> {
 #[cfg(test)]
 mod budget_review_tests {
     use super::*;
-    use std::cell::Cell;
+    use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
     #[test]
     fn diagnostic_list_stays_charged_while_its_message_is_rendered() {
@@ -1131,14 +1131,20 @@ mod budget_review_tests {
             },
             None,
         );
-        let visited = Cell::new(0);
+        let visited = AtomicUsize::new(0);
         listed(
             &meter,
-            (0..100_000).inspect(|_| visited.set(visited.get() + 1)),
+            (0..100_000).inspect(|_| {
+                visited.fetch_add(1, Relaxed);
+            }),
             |_, _| {},
         );
         assert!(meter.stopped());
-        assert!(visited.get() <= 34, "visited {} items", visited.get());
+        assert!(
+            visited.load(Relaxed) <= 34,
+            "visited {} items",
+            visited.load(Relaxed)
+        );
     }
 
     #[test]
@@ -1150,15 +1156,17 @@ mod budget_review_tests {
             },
             None,
         );
-        let visited = Cell::new(0);
+        let visited = AtomicUsize::new(0);
         listed(
             &meter,
-            (0..100_000).inspect(|_| visited.set(visited.get() + 1)),
+            (0..100_000).inspect(|_| {
+                visited.fetch_add(1, Relaxed);
+            }),
             |out, _| {
                 out.push_str("this name exceeds the entire memory budget");
             },
         );
         assert!(meter.stopped());
-        assert_eq!(visited.get(), 1);
+        assert_eq!(visited.load(Relaxed), 1);
     }
 }

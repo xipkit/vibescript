@@ -5,7 +5,7 @@ use crate::{
     syntax::HostName,
     value::Kind,
 };
-use std::{cell::RefCell, fmt, sync::Arc};
+use std::{fmt, sync::Arc};
 
 type Binder = Arc<dyn Fn(&mut CallContext) -> Result<Value> + Send + Sync>;
 type ArgumentContract =
@@ -149,12 +149,7 @@ impl Capability {
         };
         ctx.checkpoint()?;
         let value = value?;
-        binding_name(
-            &Meter(RefCell::new(ctx)),
-            HostName::CAPABILITY,
-            &self.name,
-            &value,
-        )?;
+        binding_name(&Meter::new(ctx), HostName::CAPABILITY, &self.name, &value)?;
         ctx.import(&value)
     }
 }
@@ -689,13 +684,8 @@ mod name_work_tests {
                     options.cancellation.cancel();
                 }
                 let mut ctx = CallContext::new(options);
-                let error = member_name(
-                    &Meter(RefCell::new(&mut ctx)),
-                    HostName::METHOD,
-                    &key,
-                    &method,
-                )
-                .unwrap_err();
+                let error = member_name(&Meter::new(&mut ctx), HostName::METHOD, &key, &method)
+                    .unwrap_err();
                 assert_eq!(
                     error.kind,
                     if cancelled {
@@ -709,7 +699,7 @@ mod name_work_tests {
             options.limits.steps = Some(0);
             let mut ctx = CallContext::new(options);
             member_name(
-                &Meter(RefCell::new(&mut ctx)),
+                &Meter::new(&mut ctx),
                 HostName::METHOD,
                 &key,
                 &Value::int(1),

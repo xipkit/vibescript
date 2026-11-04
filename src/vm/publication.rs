@@ -47,7 +47,7 @@ pub(super) fn set_field(
     }
     reject_method_field(ctx, target.as_ref().unwrap_or(receiver), key)?;
     crate::capability::member_name(
-        &crate::compilation::Meter(std::cell::RefCell::new(ctx)),
+        &crate::compilation::Meter::new(ctx),
         crate::syntax::HostName::METHOD,
         key,
         value,
