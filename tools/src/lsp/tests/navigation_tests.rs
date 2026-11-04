@@ -356,7 +356,7 @@ fn every_request_serves_the_typed_declarations() {
     let lines: Vec<&str> = TYPED.lines().collect();
     for (line, text) in lines.iter().enumerate() {
         for character in 0..=text.len() {
-            let (line, character) = (line as i64, character as i64);
+            let (line, character) = (text::to_i64(line), text::to_i64(character));
             for method in [
                 "textDocument/hover",
                 "textDocument/definition",
