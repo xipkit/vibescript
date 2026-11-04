@@ -17,6 +17,10 @@ name = "playground"
 path = "src/bin/playground.rs"
 required-features = ["playground"]
 
+[[bench]]
+name = "diff"
+harness = false
+
 [dependencies]
 serde = { version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", features = ["raw_value"], optional = true }
