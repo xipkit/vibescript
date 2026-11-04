@@ -18,7 +18,7 @@ pub fn corpus() -> &'static [String] {
                 serde_json::from_str::<serde_json::Value>(&text)
             {
                 for case in cases {
-                    if let Some(source) = case["source"].as_str() {
+                    if let Some(source) = case.get("source").and_then(serde_json::Value::as_str) {
                         // A case's function runs when the script calls it.
                         if source.contains("def run(input: any)") && deterministic(source) {
                             sources.push(format!("{source}\np(run(nil))\n"));
@@ -73,7 +73,7 @@ pub fn program(seed: u64) -> Option<Case> {
         return None;
     }
     let mut rng = Rng::new(seed ^ 0x6d75_7461_7465);
-    let mut source = corpus[rng.below(corpus.len())].clone();
+    let mut source = rng.pick(corpus).ok()?.clone();
     let mut edited = false;
     for _ in 0..1 + rng.below(3) {
         if let Some(next) = edit(&source, &mut rng) {
@@ -132,7 +132,7 @@ const EDITS: &[(&str, &[&str])] = &[
 /// One edit at a random place, when the source has a place for it.
 fn edit(source: &str, rng: &mut Rng) -> Option<String> {
     for _ in 0..8 {
-        let (pattern, replacements) = EDITS[rng.below(EDITS.len())];
+        let (pattern, replacements) = *rng.pick(EDITS).ok()?;
         // A word or number is replaced whole: `1` in `10` is not a literal.
         let word = |c: char| c.is_ascii_alphanumeric() || c == '_' || c == '.';
         let whole = |at: usize| {
@@ -149,8 +149,8 @@ fn edit(source: &str, rng: &mut Rng) -> Option<String> {
         if places.is_empty() {
             continue;
         }
-        let at = places[rng.below(places.len())];
-        let replacement = replacements[rng.below(replacements.len())];
+        let at = *rng.pick(&places).ok()?;
+        let replacement = *rng.pick(replacements).ok()?;
         let mut edited = String::with_capacity(source.len() + replacement.len());
         edited.push_str(&source[..at]);
         edited.push_str(replacement);
