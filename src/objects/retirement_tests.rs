@@ -2,32 +2,33 @@ use super::*;
 use crate::{CallOptions, CancellationToken, HostMethod};
 
 struct RetiredCode {
-    heap: Arc<Mutex<Weak<Heap>>>,
+    heap: Arc<Actor<Weak<Heap>>>,
     observed: Arc<AtomicUsize>,
     cancellation: Option<CancellationToken>,
 }
 
 impl Drop for RetiredCode {
     fn drop(&mut self) {
-        let heap = self.heap.lock().unwrap().upgrade();
+        let heap = self.heap.read(Weak::upgrade);
         let Some(heap) = heap else {
             self.observed.store(3, Ordering::SeqCst);
             return;
         };
-        let unlocked = heap.data.try_lock().is_ok();
+        let unlocked = heap.data.idle();
         self.observed
             .store(if unlocked { 2 } else { 1 }, Ordering::SeqCst);
         if unlocked {
-            let data = heap.data.lock().unwrap();
-            assert!(!data.entries.data.is_empty());
-            // Host-held snapshots can add live instances and environments.
-            // Callback retirement must still happen after sweeping dead entries.
-            assert!(
-                data.entries
-                    .data
-                    .iter()
-                    .all(|entry| { entry.internal.identity.marked.load(Ordering::Relaxed) })
-            );
+            heap.data.read(|data| {
+                assert!(!data.entries.data.is_empty());
+                // Host-held snapshots can add live instances and environments.
+                // Callback retirement must still happen after sweeping dead entries.
+                assert!(
+                    data.entries
+                        .data
+                        .iter()
+                        .all(|entry| { entry.internal.identity.marked.load(Ordering::Relaxed) })
+                );
+            });
         }
         if let Some(cancellation) = &self.cancellation {
             cancellation.cancel();
@@ -44,7 +45,7 @@ fn imported_host_callbacks_retire_after_object_collection_unlocks() {
             "hold(keep); stop()",
             "hold(keep); keep",
         ] {
-            let heap = Arc::new(Mutex::new(Weak::new()));
+            let heap = Arc::new(Actor::new(Weak::new()));
             let observed = Arc::new(AtomicUsize::new(0));
             let cancellation = CancellationToken::new();
             let cancel_on_drop = ending == "hold(keep); keep";
@@ -66,13 +67,13 @@ fn imported_host_callbacks_retire_after_object_collection_unlocks() {
                     .unwrap()
                     .value
             };
-            let incoming = Mutex::new(Some(namespace));
-            let retained = Arc::new(Mutex::new(None));
+            let incoming = Actor::new(Some(namespace));
+            let retained = Arc::new(Actor::new(None));
             let held = retained.clone();
             let mut receiver = crate::Engine::new();
             receiver.register("take_foreign", move |ctx, _| {
-                *heap.lock().unwrap() = watch_heap(ctx);
-                let value = incoming.lock().unwrap().take().unwrap();
+                heap.with(|heap| *heap = watch_heap(ctx));
+                let value = incoming.with(Option::take).unwrap();
                 if !captured {
                     return Ok(value);
                 }
@@ -87,7 +88,7 @@ fn imported_host_callbacks_retire_after_object_collection_unlocks() {
                 Ok(value)
             });
             receiver.register("hold", move |_, args| {
-                *held.lock().unwrap() = Some(args[0].clone());
+                drop(held.with(|held| held.replace(args[0].clone())));
                 Ok(Value::nil())
             });
             receiver.register("stop", |ctx, _| {
@@ -108,7 +109,7 @@ fn imported_host_callbacks_retire_after_object_collection_unlocks() {
             let succeeded = result.is_ok();
             let error = result.as_ref().err().map(|error| error.kind);
             let observation = observed.load(Ordering::SeqCst);
-            drop(retained.lock().unwrap().take());
+            drop(retained.with(Option::take));
             drop(result);
             drop(receiver);
             if ending == "keep" {
@@ -138,17 +139,17 @@ fn imported_capability_callbacks_retire_after_object_collection_unlocks() {
         "hold(keep); stop()",
         "hold(keep); keep",
     ] {
-        let heap = Arc::new(Mutex::new(Weak::new()));
+        let heap = Arc::new(Actor::new(Weak::new()));
         let observed = Arc::new(AtomicUsize::new(0));
         let cancellation = CancellationToken::new();
         let cancel_on_drop = ending == "hold(keep); keep";
         let retirement_token = cancellation.clone();
         let observation = observed.clone();
-        let retained = Arc::new(Mutex::new(None));
+        let retained = Arc::new(Actor::new(None));
         let held = retained.clone();
         let mut receiver = crate::Engine::new();
         receiver.register("take_capability", move |ctx, _| {
-            *heap.lock().unwrap() = watch_heap(ctx);
+            heap.with(|heap| *heap = watch_heap(ctx));
             let retired = RetiredCode {
                 heap: heap.clone(),
                 observed: observation.clone(),
@@ -161,7 +162,7 @@ fn imported_capability_callbacks_retire_after_object_collection_unlocks() {
             Ok(Value::object(vec![(b"run".to_vec(), method.value())]))
         });
         receiver.register("hold", move |_, args| {
-            *held.lock().unwrap() = Some(args[0].clone());
+            drop(held.with(|held| held.replace(args[0].clone())));
             Ok(Value::nil())
         });
         receiver.register("stop", |ctx, _| {
@@ -181,7 +182,7 @@ fn imported_capability_callbacks_retire_after_object_collection_unlocks() {
         );
         let error = result.as_ref().err().map(|error| error.kind);
         let observation = observed.load(Ordering::SeqCst);
-        drop(retained.lock().unwrap().take());
+        drop(retained.with(Option::take));
         drop(result);
         drop(receiver);
         let expected = if ending == "keep" {

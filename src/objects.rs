@@ -1,3 +1,4 @@
+use crate::actor::Actor;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, Charge, MAX_VALUE_DEPTH, Memory},
@@ -6,7 +7,7 @@ use crate::{
     value::Kind,
 };
 use std::sync::{
-    Arc, Mutex, Weak,
+    Arc, Weak,
     atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
 };
 
@@ -17,7 +18,7 @@ static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 
 pub(crate) struct Heap {
     owner: Arc<Memory>,
-    data: Mutex<Data>,
+    data: Actor<Data>,
     _header: Option<Charge>,
 }
 
@@ -220,13 +221,14 @@ impl Instance {
 
 pub(crate) fn unroot(instance: &Arc<Instance>) -> Result<Arc<Instance>> {
     let heap = instance.heap()?;
-    let data = heap.data.lock().unwrap();
-    data.entries
-        .data
-        .get(instance.identity.slot.load(Ordering::Relaxed))
-        .filter(|entry| entry.internal.same(instance))
-        .map(|entry| entry.internal.clone())
-        .ok_or_else(|| Error::new(ErrorKind::Type, "expired instance reference"))
+    heap.data.read(|data| {
+        data.entries
+            .data
+            .get(instance.identity.slot.load(Ordering::Relaxed))
+            .filter(|entry| entry.internal.same(instance))
+            .map(|entry| entry.internal.clone())
+            .ok_or_else(|| Error::new(ErrorKind::Type, "expired instance reference"))
+    })
 }
 
 impl PartialEq for Instance {
@@ -244,7 +246,7 @@ fn local(ctx: &mut CallContext) -> Result<Arc<Heap>> {
     let header = ctx.reserve(size_of::<Heap>() + 2 * size_of::<usize>())?;
     let heap = Arc::new(Heap {
         owner: ctx.identity(),
-        data: Mutex::new(Data {
+        data: Actor::new(Data {
             entries: Buffer::empty(),
             classes: Buffer::empty(),
             imports: Buffer::empty(),
@@ -292,71 +294,71 @@ fn new_scoped(
     nominal_scope: Option<u64>,
 ) -> Result<Arc<Instance>> {
     let heap = local(ctx)?;
-    if heap.data.lock().unwrap().allocations >= 32 {
+    if heap.data.read(|data| data.allocations >= 32) {
         collect(ctx, &heap, false)?;
     }
     let imported = (class.environment.is_some() || ctx.snapshot_namespaces.is_some())
         .then(|| Namespace::import(ctx, class))
         .transpose()?;
     let class = imported.as_ref().unwrap_or(class);
-    let known = {
-        let data = heap.data.lock().unwrap();
-        let mut known = None;
+    let known = heap.data.read(|data| {
         for candidate in &data.classes.data {
             ctx.charge(1)?;
             if candidate.same_binding(class) {
-                known = Some(candidate.clone());
-                break;
+                return Ok(Some(candidate.clone()));
             }
         }
-        known
-    };
+        Ok(None)
+    })?;
     let class = if let Some(known) = known {
         known
     } else {
         // Importing a captured environment can allocate objects in this heap.
         let class = Namespace::import(ctx, class)?;
-        let mut data = heap.data.lock().unwrap();
-        let class = data.namespace(ctx, &heap, &class, true)?.unwrap_or(class);
-        data.classes.push(ctx, class.clone())?;
-        class
+        heap.data.with(|data| {
+            let class = data.namespace(ctx, &heap, &class, true)?.unwrap_or(class);
+            data.classes.push(ctx, class.clone())?;
+            Ok(class)
+        })?
     };
     let identity_header = ctx.reserve(size_of::<Identity>() + 2 * size_of::<usize>())?;
     let internal_header = ctx.reserve(size_of::<Instance>() + 2 * size_of::<usize>())?;
     let external_header = ctx.reserve(size_of::<Instance>() + 2 * size_of::<usize>())?;
-    let mut data = heap.data.lock().unwrap();
-    let Ok(id) = NEXT_ID.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
-    else {
-        return ctx.fail(ErrorKind::Memory, "instance identity space exhausted");
-    };
-    let needed = data.entries.data.len() + 1;
-    if needed > data.pending.data.capacity() {
-        data.pending
-            .ensure(ctx, needed.max(8).next_power_of_two())?;
-    }
-    let identity = Arc::new(Identity {
-        id,
-        nominal_scope: nominal_scope.unwrap_or(id),
-        roots: AtomicUsize::new(1),
-        marked: AtomicBool::new(false),
-        slot: AtomicUsize::new(data.entries.data.len()),
-        class,
-        _header: identity_header,
-    });
-    let internal = Arc::new(Instance {
-        identity: identity.clone(),
-        owner: Owner::internal(&heap),
-        _header: internal_header,
-    });
-    let external = Arc::new(Instance {
-        identity,
-        owner: Owner::External(heap.clone()),
-        _header: external_header,
-    });
-    let fields = Fields::new(internal.class());
-    data.entries.push(ctx, Entry { internal, fields })?;
-    data.allocations += 1;
-    Ok(external)
+    heap.data.with(|data| {
+        let Ok(id) =
+            NEXT_ID.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+        else {
+            return ctx.fail(ErrorKind::Memory, "instance identity space exhausted");
+        };
+        let needed = data.entries.data.len() + 1;
+        if needed > data.pending.data.capacity() {
+            data.pending
+                .ensure(ctx, needed.max(8).next_power_of_two())?;
+        }
+        let identity = Arc::new(Identity {
+            id,
+            nominal_scope: nominal_scope.unwrap_or(id),
+            roots: AtomicUsize::new(1),
+            marked: AtomicBool::new(false),
+            slot: AtomicUsize::new(data.entries.data.len()),
+            class,
+            _header: identity_header,
+        });
+        let internal = Arc::new(Instance {
+            identity: identity.clone(),
+            owner: Owner::internal(&heap),
+            _header: internal_header,
+        });
+        let external = Arc::new(Instance {
+            identity,
+            owner: Owner::External(heap.clone()),
+            _header: external_header,
+        });
+        let fields = Fields::new(internal.class());
+        data.entries.push(ctx, Entry { internal, fields })?;
+        data.allocations += 1;
+        Ok(external)
+    })
 }
 
 impl Data {
@@ -509,13 +511,14 @@ pub(crate) fn field(
     name: &str,
 ) -> Result<Option<Value>> {
     let heap = instance.heap()?;
-    let mut data = heap.data.lock().unwrap();
-    let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
-    let Some(index) = fields.find(ctx, instance.class(), name)? else {
-        return Ok(None);
-    };
-    let value = fields.get(index).unwrap().clone();
-    Ok(Some(data.map(ctx, &heap, &value, false)?.unwrap_or(value)))
+    heap.data.with(|data| {
+        let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+        let Some(index) = fields.find(ctx, instance.class(), name)? else {
+            return Ok(None);
+        };
+        let value = fields.get(index).unwrap().clone();
+        Ok(Some(data.map(ctx, &heap, &value, false)?.unwrap_or(value)))
+    })
 }
 
 /// Reads a compiler-selected field without looking up its name.
@@ -525,15 +528,16 @@ pub(crate) fn get_slot(
     slot: usize,
 ) -> Result<Value> {
     let heap = instance.heap()?;
-    let mut data = heap.data.lock().unwrap();
-    let Some(value) = data.entries.data[instance.identity.slot.load(Ordering::Relaxed)]
-        .fields
-        .get(slot)
-        .cloned()
-    else {
-        return Ok(Value::nil());
-    };
-    Ok(data.map(ctx, &heap, &value, false)?.unwrap_or(value))
+    heap.data.with(|data| {
+        let Some(value) = data.entries.data[instance.identity.slot.load(Ordering::Relaxed)]
+            .fields
+            .get(slot)
+            .cloned()
+        else {
+            return Ok(Value::nil());
+        };
+        Ok(data.map(ctx, &heap, &value, false)?.unwrap_or(value))
+    })
 }
 
 /// Addresses a compiler-selected field, preserving first-write order.
@@ -543,17 +547,18 @@ pub(crate) fn address_slot(
     slot: usize,
 ) -> Result<crate::address::Address> {
     let heap = instance.writable_heap(ctx)?;
-    let mut data = heap.data.lock().unwrap();
-    let instance = data
-        .instance(ctx, &heap, instance, false)?
-        .unwrap_or_else(|| instance.clone());
-    let fields = &mut data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
-    if fields.get(slot).is_none() {
-        fields.set_slot(ctx, slot, Value::nil())?;
-    }
-    let value = fields.get(slot).unwrap().clone();
-    let value = data.map(ctx, &heap, &value, false)?.unwrap_or(value);
-    Ok(crate::address::Address::object(instance, slot, value))
+    heap.data.with(|data| {
+        let instance = data
+            .instance(ctx, &heap, instance, false)?
+            .unwrap_or_else(|| instance.clone());
+        let fields = &mut data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+        if fields.get(slot).is_none() {
+            fields.set_slot(ctx, slot, Value::nil())?;
+        }
+        let value = fields.get(slot).unwrap().clone();
+        let value = data.map(ctx, &heap, &value, false)?.unwrap_or(value);
+        Ok(crate::address::Address::object(instance, slot, value))
+    })
 }
 
 /// Renders with the instance's field names, as for a lookup-failure suggestion.
@@ -562,9 +567,10 @@ pub(crate) fn with_field_names<R>(
     render: impl FnOnce(&mut dyn Iterator<Item = &[u8]>) -> R,
 ) -> Result<R> {
     let heap = instance.heap()?;
-    let data = heap.data.lock().unwrap();
-    let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
-    Ok(render(&mut fields.names(instance.class())))
+    Ok(heap.data.read(|data| {
+        let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+        render(&mut fields.names(instance.class()))
+    }))
 }
 
 pub(crate) fn children(
@@ -573,17 +579,18 @@ pub(crate) fn children(
     values: &mut Buffer<Value>,
 ) -> Result<()> {
     let heap = instance.heap()?;
-    let data = heap.data.lock().unwrap();
-    if let Some(environment) = &instance.class().environment {
-        ctx.charge(1)?;
-        values.push(ctx, Value(Kind::Instance(environment.clone())))?;
-    }
-    let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
-    for (_, value) in fields.iter().rev() {
-        ctx.charge(1)?;
-        values.push(ctx, value.clone())?;
-    }
-    Ok(())
+    heap.data.read(|data| {
+        if let Some(environment) = &instance.class().environment {
+            ctx.charge(1)?;
+            values.push(ctx, Value(Kind::Instance(environment.clone())))?;
+        }
+        let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+        for (_, value) in fields.iter().rev() {
+            ctx.charge(1)?;
+            values.push(ctx, value.clone())?;
+        }
+        Ok(())
+    })
 }
 
 pub(crate) fn bindings(
@@ -591,16 +598,17 @@ pub(crate) fn bindings(
     instance: &Arc<Instance>,
 ) -> Result<Buffer<(Value, Value)>> {
     let heap = instance.heap()?;
-    let mut data = heap.data.lock().unwrap();
-    let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
-    let mut values = fields.bindings(ctx, instance.class())?;
-    for (_, value) in &mut values.data {
-        ctx.charge(1)?;
-        if let Some(mapped) = data.map(ctx, &heap, value, false)? {
-            *value = mapped;
+    heap.data.with(|data| {
+        let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+        let mut values = fields.bindings(ctx, instance.class())?;
+        for (_, value) in &mut values.data {
+            ctx.charge(1)?;
+            if let Some(mapped) = data.map(ctx, &heap, value, false)? {
+                *value = mapped;
+            }
         }
-    }
-    Ok(values)
+        Ok(values)
+    })
 }
 
 pub(crate) fn set(
@@ -611,12 +619,13 @@ pub(crate) fn set(
 ) -> Result<()> {
     let heap = instance.writable_heap(ctx)?;
     let value = ctx.import(value)?;
-    let mut data = heap.data.lock().unwrap();
-    let value = data.map(ctx, &heap, &value, true)?.unwrap_or(value);
-    data.reserve_scratch(ctx, value.depth())?;
-    data.entries.data[instance.identity.slot.load(Ordering::Relaxed)]
-        .fields
-        .set(ctx, instance.class(), name, value)
+    heap.data.with(|data| {
+        let value = data.map(ctx, &heap, &value, true)?.unwrap_or(value);
+        data.reserve_scratch(ctx, value.depth())?;
+        data.entries.data[instance.identity.slot.load(Ordering::Relaxed)]
+            .fields
+            .set(ctx, instance.class(), name, value)
+    })
 }
 
 pub(crate) fn address(
@@ -625,25 +634,26 @@ pub(crate) fn address(
     name: &str,
 ) -> Result<crate::address::Address> {
     let heap = instance.writable_heap(ctx)?;
-    let mut data = heap.data.lock().unwrap();
-    let instance = data
-        .instance(ctx, &heap, instance, false)?
-        .unwrap_or_else(|| instance.clone());
-    let object = instance.identity.slot.load(Ordering::Relaxed);
-    let fields = &mut data.entries.data[object].fields;
-    let field = if let Some(field) = fields.find(ctx, instance.class(), name)? {
-        field
-    } else {
-        fields.set(ctx, instance.class(), name, Value::nil())?;
-        fields.find(ctx, instance.class(), name)?.unwrap()
-    };
-    let value = fields.get(field).unwrap().clone();
-    let value = data.map(ctx, &heap, &value, false)?.unwrap_or(value);
-    Ok(crate::address::Address::object(
-        instance.clone(),
-        field,
-        value,
-    ))
+    heap.data.with(|data| {
+        let instance = data
+            .instance(ctx, &heap, instance, false)?
+            .unwrap_or_else(|| instance.clone());
+        let object = instance.identity.slot.load(Ordering::Relaxed);
+        let fields = &mut data.entries.data[object].fields;
+        let field = if let Some(field) = fields.find(ctx, instance.class(), name)? {
+            field
+        } else {
+            fields.set(ctx, instance.class(), name, Value::nil())?;
+            fields.find(ctx, instance.class(), name)?.unwrap()
+        };
+        let value = fields.get(field).unwrap().clone();
+        let value = data.map(ctx, &heap, &value, false)?.unwrap_or(value);
+        Ok(crate::address::Address::object(
+            instance.clone(),
+            field,
+            value,
+        ))
+    })
 }
 
 pub(crate) enum FieldName {
@@ -665,12 +675,13 @@ pub(crate) fn field_name(instance: &Arc<Instance>, field: usize) -> Result<Field
         return Ok(FieldName::Declared(instance.class().clone(), field));
     }
     let heap = instance.heap()?;
-    let data = heap.data.lock().unwrap();
-    let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
-    let Fields::Named(named) = fields else {
-        unreachable!()
-    };
-    Ok(FieldName::Named(named.buffer.data[field].0.clone()))
+    Ok(heap.data.read(|data| {
+        let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+        let Fields::Named(named) = fields else {
+            unreachable!()
+        };
+        FieldName::Named(named.buffer.data[field].0.clone())
+    }))
 }
 
 pub(crate) fn field_slot(
@@ -679,10 +690,11 @@ pub(crate) fn field_slot(
     name: &str,
 ) -> Result<Option<usize>> {
     let heap = instance.heap()?;
-    let data = heap.data.lock().unwrap();
-    data.entries.data[instance.identity.slot.load(Ordering::Relaxed)]
-        .fields
-        .find(ctx, instance.class(), name)
+    heap.data.read(|data| {
+        data.entries.data[instance.identity.slot.load(Ordering::Relaxed)]
+            .fields
+            .find(ctx, instance.class(), name)
+    })
 }
 
 pub(crate) fn set_slot(
@@ -693,11 +705,12 @@ pub(crate) fn set_slot(
 ) -> Result<()> {
     let heap = instance.writable_heap(ctx)?;
     let value = ctx.import(&value)?;
-    let mut data = heap.data.lock().unwrap();
-    let value = data.map(ctx, &heap, &value, true)?.unwrap_or(value);
-    data.reserve_scratch(ctx, value.depth())?;
-    let fields = &mut data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
-    fields.set_slot(ctx, field, value)
+    heap.data.with(|data| {
+        let value = data.map(ctx, &heap, &value, true)?.unwrap_or(value);
+        data.reserve_scratch(ctx, value.depth())?;
+        let fields = &mut data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+        fields.set_slot(ctx, field, value)
+    })
 }
 
 fn import_root(ctx: &mut CallContext, instance: &Arc<Instance>) -> Result<Arc<Instance>> {
@@ -711,33 +724,27 @@ fn import_root(ctx: &mut CallContext, instance: &Arc<Instance>) -> Result<Arc<In
         } else {
             source
                 .data
-                .lock()
-                .unwrap()
-                .root(ctx, &source, &instance.identity)
+                .read(|data| data.root(ctx, &source, &instance.identity))
         };
     }
     let target = local(ctx)?;
-    {
-        let data = target.data.lock().unwrap();
-        let mut found = None;
+    let imported = target.data.read(|data| {
         for (from, to) in &data.imports.data {
             ctx.charge(1)?;
             if *from == instance.identity.id && to.slot.load(Ordering::Relaxed) != usize::MAX {
-                found = Some(to.clone());
-                break;
+                return data.root(ctx, &target, to).map(Some);
             }
         }
-        if let Some(identity) = found {
-            return data.root(ctx, &target, &identity);
-        }
+        Ok(None)
+    })?;
+    if let Some(imported) = imported {
+        return Ok(imported);
     }
     let result = new_scoped(ctx, instance.class(), Some(instance.nominal_scope()))?;
-    target
-        .data
-        .lock()
-        .unwrap()
-        .imports
-        .push(ctx, (instance.identity.id, result.identity.clone()))?;
+    target.data.with(|data| {
+        data.imports
+            .push(ctx, (instance.identity.id, result.identity.clone()))
+    })?;
     queue_import(ctx, instance, result)
 }
 
@@ -813,61 +820,63 @@ pub(crate) fn cleanup(ctx: &mut CallContext) {
     ctx.pending_objects = Buffer::empty();
     if let Some(heap) = ctx.objects.take() {
         if Arc::strong_count(&heap) != 1 {
-            let mut data = heap.data.lock().unwrap();
-            let depth = reclaim(&mut data, &mut || Ok(())).ok();
-            data.imports = Buffer::empty();
-            data.pending = Buffer::empty();
-            if depth == Some(0) {
-                data.scratch = Buffer::empty();
-            }
-            prune_classes(&mut data);
-            let limit = ctx.options.limits.memory_bytes;
-            data.classes.shrink_after_failure(limit);
-            data.entries.shrink_after_failure(limit);
-            data.pending.shrink_after_failure(limit);
+            heap.data.with(|data| {
+                let depth = reclaim(data, &mut || Ok(())).ok();
+                data.imports = Buffer::empty();
+                data.pending = Buffer::empty();
+                if depth == Some(0) {
+                    data.scratch = Buffer::empty();
+                }
+                prune_classes(data);
+                let limit = ctx.options.limits.memory_bytes;
+                data.classes.shrink_after_failure(limit);
+                data.entries.shrink_after_failure(limit);
+                data.pending.shrink_after_failure(limit);
+            });
         }
     }
 }
 
 fn collect(ctx: &mut CallContext, heap: &Arc<Heap>, shrink: bool) -> Result<()> {
-    let mut data = heap.data.lock().unwrap();
-    let depth = reclaim(&mut data, &mut || ctx.charge(1))?;
-    if depth == 0 {
-        data.scratch = Buffer::empty();
-    }
-    let mut slot = 0;
-    while slot < data.classes.data.len() {
-        ctx.charge(1)?;
-        let mut used = false;
-        for entry in &data.entries.data {
-            ctx.charge(1)?;
-            if entry
-                .internal
-                .class()
-                .same_binding(&data.classes.data[slot])
-            {
-                used = true;
-                break;
-            }
-        }
-        if used {
-            slot += 1;
-        } else {
-            data.classes.data.swap_remove(slot);
-        }
-    }
-    if shrink {
-        data.imports = Buffer::empty();
-        data.classes.shrink(ctx)?;
-        data.entries.shrink(ctx)?;
-        data.pending.shrink(ctx)?;
-        // Retained instances can still be imported or collected after finish.
-        // Their field traversal must remain possible after budget exhaustion.
-        if data.entries.data.is_empty() {
+    heap.data.with(|data| {
+        let depth = reclaim(data, &mut || ctx.charge(1))?;
+        if depth == 0 {
             data.scratch = Buffer::empty();
         }
-    }
-    Ok(())
+        let mut slot = 0;
+        while slot < data.classes.data.len() {
+            ctx.charge(1)?;
+            let mut used = false;
+            for entry in &data.entries.data {
+                ctx.charge(1)?;
+                if entry
+                    .internal
+                    .class()
+                    .same_binding(&data.classes.data[slot])
+                {
+                    used = true;
+                    break;
+                }
+            }
+            if used {
+                slot += 1;
+            } else {
+                data.classes.data.swap_remove(slot);
+            }
+        }
+        if shrink {
+            data.imports = Buffer::empty();
+            data.classes.shrink(ctx)?;
+            data.entries.shrink(ctx)?;
+            data.pending.shrink(ctx)?;
+            // Retained instances can still be imported or collected after finish.
+            // Their field traversal must remain possible after budget exhaustion.
+            if data.entries.data.is_empty() {
+                data.scratch = Buffer::empty();
+            }
+        }
+        Ok(())
+    })
 }
 
 fn prune_classes(data: &mut Data) {

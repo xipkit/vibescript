@@ -1268,27 +1268,39 @@ mod limit_tests {
 }
 
 /// What the engine calls the first time each budget stops the work it
-/// bounds; see [`set_budget_hook`].
-static HOOK: std::sync::RwLock<Option<fn()>> = std::sync::RwLock::new(None);
+/// bounds, once set; see [`set_budget_hook`].
+static HOOK: std::sync::OnceLock<fn()> = std::sync::OnceLock::new();
+
+/// Whether [`HOOK`] is called. The trip path runs inside the object heap's
+/// methods, so this is a flag beside the hook rather than an actor.
+static HOOK_ON: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Sets a function the engine calls, on the thread doing the work, the
 /// first time any call's or compilation's budget stops it: its steps, its
 /// memory, its deadline or its cancellation. A test measures with it what
-/// the work does after it should stop.
+/// the work does after it should stop. A process has one such function:
+/// `None` turns it off, and `Some` of the same function back on.
 #[doc(hidden)]
 pub fn set_budget_hook(hook: Option<fn()>) {
-    *HOOK
-        .write()
-        .unwrap_or_else(std::sync::PoisonError::into_inner) = hook;
+    use std::sync::atomic::Ordering;
+    let Some(hook) = hook else {
+        HOOK_ON.store(false, Ordering::Release);
+        return;
+    };
+    let set = HOOK.get_or_init(|| hook);
+    assert!(
+        std::ptr::fn_addr_eq(*set, hook),
+        "a process has one budget hook; this one was set with another"
+    );
+    HOOK_ON.store(true, Ordering::Release);
 }
 
 /// Tells the hook [`set_budget_hook`] set, if any, that a budget stopped its
 /// work.
 pub(crate) fn tripped() {
-    let hook = *HOOK
-        .read()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    if let Some(hook) = hook {
+    if HOOK_ON.load(std::sync::atomic::Ordering::Acquire)
+        && let Some(hook) = HOOK.get()
+    {
         hook();
     }
 }

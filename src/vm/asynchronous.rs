@@ -6,7 +6,7 @@ use crate::{CallOptions, CancellationToken, Outcome, Script, budget::Charge};
 use std::{
     future::Future,
     pin::Pin,
-    sync::{Condvar, Mutex, atomic::Ordering},
+    sync::atomic::Ordering,
     task::{Context, Poll, Wake, Waker},
     time::{Duration, Instant},
 };
@@ -667,9 +667,10 @@ struct Synchronous {
     driver: Driver<Inline>,
 }
 
+/// Wakes the synchronous worker thread that waits in [`wait_on_worker`]:
+/// the thread that made the parker, which parks between polls.
 struct Parker {
-    ready: Mutex<bool>,
-    changed: Condvar,
+    thread: std::thread::Thread,
     _charge: Option<Charge>,
 }
 
@@ -679,8 +680,7 @@ impl Wake for Parker {
     }
 
     fn wake_by_ref(self: &Arc<Self>) {
-        *self.ready.lock().unwrap() = true;
-        self.changed.notify_one();
+        self.thread.unpark();
     }
 }
 
@@ -692,17 +692,15 @@ fn wait_on_worker<T, E>(
     // Enter the runtime for timers and spawned host tasks without nesting its
     // executor. The synchronous stack already occupies a blocking worker.
     let _entered = handle.enter();
-    let waker = Waker::from(parker.clone());
+    let waker = Waker::from(parker);
     let mut context = Context::from_waker(&waker);
     loop {
-        *parker.ready.lock().unwrap() = false;
         if let Poll::Ready(result) = Pin::new(&mut future).poll(&mut context) {
             return result;
         }
-        let mut ready = parker.ready.lock().unwrap();
-        while !*ready {
-            ready = parker.changed.wait(ready).unwrap();
-        }
+        // A wake between the poll and here leaves the unpark token, so the
+        // park returns at once; a spurious return only polls again.
+        std::thread::park();
     }
 }
 
@@ -757,8 +755,7 @@ impl crate::host_call::Backend for Synchronous {
             }
         };
         let parker = Arc::new(Parker {
-            ready: Mutex::new(false),
-            changed: Condvar::new(),
+            thread: std::thread::current(),
             _charge: charge,
         });
         let charge = match execution.context.reserve(size_of::<Work>()) {
@@ -946,16 +943,15 @@ mod tests {
                 let script = crate::Engine::new().compile(&source).unwrap();
                 let slots = Arc::new(Semaphore::new(1));
                 let entered = Arc::new(Notify::new());
-                let gate = Arc::new((Mutex::new(false), Condvar::new()));
-                let (pool, ready, release) = (slots.clone(), entered.clone(), gate.clone());
+                let (release, released) = std::sync::mpsc::channel::<()>();
+                let released = crate::actor::Actor::new(released);
+                let (pool, ready) = (slots.clone(), entered.clone());
                 let executor = std::thread::current().id();
                 let work = work(&script, Arc::new(move || {
                     assert_ne!(std::thread::current().id(), executor, "finalization ran on the executor");
                     assert_eq!(pool.available_permits(), 0, "finalization lost its worker permit");
                     ready.notify_one();
-                    let (lock, changed) = &*release;
-                    let (released, _) = changed.wait_timeout_while(lock.lock().unwrap(), Duration::from_secs(3), |released| !*released).unwrap();
-                    assert!(*released, "executor could not resume during finalization");
+                    assert!(released.with(|released| released.recv_timeout(Duration::from_secs(3))).is_ok(), "executor could not resume during finalization");
                 }));
                 if end == "cancelled" { work.execution.execution.context.cancellation().cancel(); }
                 let driver = Driver { slots: slots.clone(), handle: Handle::current(), _lane: Worker };
@@ -968,9 +964,7 @@ mod tests {
                 }
                 tokio::time::sleep(Duration::from_millis(5)).await;
                 assert_eq!(slots.available_permits(), 0);
-                let (lock, changed) = &*gate;
-                *lock.lock().unwrap() = true;
-                changed.notify_one();
+                release.send(()).unwrap();
                 let result = call.await.unwrap();
                 match end {
                     "7" => {

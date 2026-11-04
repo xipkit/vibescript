@@ -231,7 +231,7 @@ struct RetiredHost {
 impl Drop for RetiredHost {
     fn drop(&mut self) {
         if let Some(cache) = self.cache.upgrade() {
-            let unlocked = cache.state.try_lock().is_ok();
+            let unlocked = cache.state.idle();
             self.observed
                 .store(if unlocked { 2 } else { 1 }, Ordering::SeqCst);
             if unlocked {
