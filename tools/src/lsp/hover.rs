@@ -9,7 +9,7 @@
 use super::catalog::Catalog;
 use super::docs::{builtin_docs, keyword_doc, member_doc_markdown, namespace_doc};
 use super::navigation::{anchor_line, children};
-use super::text::{line_at, word_char, word_span};
+use super::text::{line_at, to_i64, word_char, word_span};
 use vibescript::tooling::{Function, Item, ItemKind, Outline, Parameter, ParameterKind};
 
 pub(crate) fn markdown<S: AsRef<str>>(
@@ -256,14 +256,14 @@ fn symbol_doc<S: AsRef<str>>(
     }
     if let Some(candidate) = candidates
         .iter()
-        .find(|candidate| candidate.line as i64 == hover_line)
+        .find(|candidate| to_i64(candidate.line) == hover_line)
     {
         return Some(candidate.markdown.clone());
     }
     let mut best: Option<&Candidate> = None;
     for candidate in &candidates {
         let (start, end) = candidate.container;
-        if !candidate.scoped || hover_line < start as i64 || hover_line > end as i64 {
+        if !candidate.scoped || hover_line < to_i64(start) || hover_line > to_i64(end) {
             continue;
         }
         if best.is_none_or(|best| start > best.container.0) {
@@ -287,7 +287,7 @@ fn symbol_doc<S: AsRef<str>>(
     let chosen = pool
         .iter()
         .rev()
-        .find(|candidate| candidate.line as i64 <= hover_line)
+        .find(|candidate| to_i64(candidate.line) <= hover_line)
         .unwrap_or(&pool[0]);
     Some(chosen.markdown.clone())
 }
@@ -504,7 +504,7 @@ fn user_markdown<S: AsRef<str>>(lines: &[S], signature: &str, item: &Item) -> St
 fn comment_above<S: AsRef<str>>(lines: &[S], line: usize) -> String {
     let mut block = Vec::new();
     for index in (0..line).rev() {
-        let Some(rest) = line_at(lines, index as i64).trim().strip_prefix('#') else {
+        let Some(rest) = line_at(lines, to_i64(index)).trim().strip_prefix('#') else {
             break;
         };
         block.push(rest.strip_prefix(' ').unwrap_or(rest));

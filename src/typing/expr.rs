@@ -1510,7 +1510,7 @@ impl<'a> Checker<'a> {
             (Kind::Tuple(items), [selector]) => {
                 if let Some(index) = int_literal(selector) {
                     let position = if index < 0 {
-                        items.len() as i64 + index
+                        crate::numeric::to_i64(items.len()) + index
                     } else {
                         index
                     };
@@ -1806,7 +1806,7 @@ impl<'a> Checker<'a> {
             (Kind::Tuple(items), [selector]) => {
                 let element = int_literal(selector).and_then(|index| {
                     let index = if index < 0 {
-                        items.len() as i64 + index
+                        crate::numeric::to_i64(items.len()) + index
                     } else {
                         index
                     };

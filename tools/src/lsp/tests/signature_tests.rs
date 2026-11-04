@@ -197,7 +197,7 @@ fn signature_help_for_parenless_assert() {
 #[test]
 fn signature_help_for_qualified_builtins() {
     let source = "def run()\n  JSON.parse_as(\"{}\", { name: string })\nend\n";
-    let cursor = text::split_lines(source)[1].find("{ name").unwrap() as i64;
+    let cursor = text::to_i64(text::split_lines(source)[1].find("{ name").unwrap());
     let result = help(source, 1, cursor);
     assert_eq!(
         result["signatures"][0]["label"],

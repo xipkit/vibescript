@@ -1469,10 +1469,10 @@ impl Gen {
             Ty::Tuple(items) => {
                 let index = self.rng.below(items.len());
                 let value = self.expr(env, &items[index], d, true);
-                let negative = index as i64 - items.len() as i64;
+                let back = items.len() - index;
                 match self.rng.below(8) {
                     0..=2 => self.line(format!("{name}[{index}] = {value}")),
-                    3 => self.line(format!("{name}[{negative}] = {value}")),
+                    3 => self.line(format!("{name}[-{back}] = {value}")),
                     4 => self.line(format!("{name}.fill({value})")),
                     5 => self.line(format!("{name}.pop")),
                     6 => self.line(format!("{name}.delete({value})")),

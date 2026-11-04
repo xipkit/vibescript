@@ -1,4 +1,5 @@
 use super::*;
+use crate::numeric::to_i64;
 
 pub(crate) struct Loop {
     pub(super) method: MethodKind,
@@ -387,7 +388,7 @@ pub(crate) fn start_pooled(
     if method == Fill {
         let original = receiver.as_array().unwrap().len();
         let (start, end, length) = mutate::fill_span(ctx, args, original)?;
-        state.start = start as i64;
+        state.start = to_i64(start);
         state.width = end;
         state.length = length as i128;
         if start == end && length == original {
@@ -571,7 +572,7 @@ impl Loop {
                         array.buffer.data[index].clone()
                     };
                     if matches!(self.method, EachIndex | MapIndex) {
-                        args[1] = Value::int(index as i64);
+                        args[1] = Value::int(to_i64(index));
                         count = 2;
                     }
                 }
@@ -674,7 +675,7 @@ impl Loop {
                 self.accumulator = Some(if self.method == Find {
                     self.pending[0].clone()
                 } else {
-                    Value::int(self.pending_index as i64)
+                    Value::int(to_i64(self.pending_index))
                 });
                 return Ok(true);
             }
@@ -887,7 +888,7 @@ impl Loop {
             return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
         }
         self.output.push(ctx, part)?;
-        self.start = end as i64;
+        self.start = to_i64(end);
         Ok(())
     }
 

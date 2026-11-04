@@ -81,6 +81,12 @@ pub(crate) fn position_at(text: &str, offset: usize) -> super::Position {
     }
 }
 
+/// Converts a line count or position to LSP's signed arithmetic. No buffer has
+/// `i64::MAX` lines or characters, and past that the result saturates.
+pub(crate) fn to_i64(value: usize) -> i64 {
+    i64::try_from(value).unwrap_or(i64::MAX)
+}
+
 /// The line at `index`, or an empty line past either end.
 pub(crate) fn line_at<S: AsRef<str>>(lines: &[S], index: i64) -> &str {
     usize::try_from(index)
@@ -117,7 +123,7 @@ pub(crate) fn character_index(line: &str, offset: i64) -> usize {
         if consumed >= offset {
             break;
         }
-        consumed += c.len_utf16() as i64;
+        consumed += to_i64(c.len_utf16());
         index += 1;
     }
     index

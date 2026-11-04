@@ -1,6 +1,7 @@
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, Charge},
+    numeric::to_i64,
     value::Kind,
 };
 use std::{cmp::Ordering, mem::size_of, sync::Arc};
@@ -81,7 +82,7 @@ impl Big {
         let value = if bits > 1024 {
             f64::INFINITY
         } else {
-            (significand as f64) * 2.0f64.powi(shift as i32)
+            (significand as f64) * 2.0f64.powi(i32::try_from(shift).unwrap_or(i32::MAX))
         };
         if self.negative { -value } else { value }
     }
@@ -204,8 +205,7 @@ fn finish(ctx: &mut CallContext, negative: bool, mut words: Buffer<u32>) -> Resu
     trim(ctx, &mut words.data)?;
     if words.data.len() <= 2 {
         let magnitude = Magnitude::Words(&words.data).window(0);
-        if magnitude <= i64::MAX as u64 {
-            let n = magnitude as i64;
+        if let Ok(n) = i64::try_from(magnitude) {
             return Ok(Value::int(if negative { -n } else { n }));
         }
         if negative && magnitude == 1u64 << 63 {
@@ -555,9 +555,9 @@ fn long_divide(ctx: &mut CallContext, a: &[u32], b: &[u32]) -> Result<(Buffer<u3
         for i in 0..n {
             work(ctx, i, n)?;
             let product = estimate * v[i] as u64;
-            let difference = u[i + j] as i64 - borrow - (product & u32::MAX as u64) as i64;
+            let difference = u[i + j] as i64 - borrow - to_i64(product & u32::MAX as u64);
             u[i + j] = difference as u32;
-            borrow = (product >> 32) as i64 - (difference >> 32);
+            borrow = to_i64(product >> 32) - (difference >> 32);
         }
         let difference = u[j + n] as i64 - borrow;
         u[j + n] = difference as u32;
@@ -653,7 +653,7 @@ pub(crate) fn true_divide(ctx: &mut CallContext, a: &Value, b: &Value) -> Result
             .with_class(crate::ErrorClass::ZeroDivision));
     }
     let signed = |value: f64| Value::float(if an != bn { -value } else { value });
-    let (a_bits, b_bits) = (am.bits() as i64, bm.bits() as i64);
+    let (a_bits, b_bits) = (to_i64(am.bits()), to_i64(bm.bits()));
     // Both operands are exact floats, so one float division rounds correctly.
     if a_bits <= DIGITS && b_bits <= DIGITS {
         return Ok(signed(am.window(0) as f64 / bm.window(0) as f64));
@@ -683,7 +683,7 @@ pub(crate) fn true_divide(ctx: &mut CallContext, a: &Value, b: &Value) -> Result
     let (quotient, remainder) = divide(ctx, Magnitude::Words(&scaled.data), bm)?;
     inexact |= remainder.data.iter().any(|&word| word != 0);
     let quotient = Magnitude::Words(&quotient.data);
-    let quotient_bits = quotient.bits() as i64;
+    let quotient_bits = to_i64(quotient.bits());
     let extra = quotient_bits.max(MIN_EXP - shift) - DIGITS;
     let mask = 1u64 << (extra - 1);
     let mut low = quotient.window(0) | u64::from(inexact);
@@ -891,12 +891,8 @@ pub(crate) fn parse_digits(ctx: &mut CallContext, text: &[u8], radix: u32) -> Re
         let words = radix::parse(ctx, text, radix)?;
         return finish(ctx, negative, words);
     };
-    if value <= i64::MAX as u64 {
-        return Ok(Value::int(if negative {
-            -(value as i64)
-        } else {
-            value as i64
-        }));
+    if let Ok(n) = i64::try_from(value) {
+        return Ok(Value::int(if negative { -n } else { n }));
     }
     if negative && value == 1u64 << 63 {
         return Ok(Value::int(i64::MIN));

@@ -63,7 +63,7 @@ fn counter(initialized: &Arc<AtomicUsize>) -> Script {
     let mut engine = Engine::new();
     engine.register("initialize", move |_, _| {
         Ok(Value::int(
-            observed.fetch_add(1, Ordering::SeqCst) as i64 + 1,
+            crate::numeric::to_i64(observed.fetch_add(1, Ordering::SeqCst)) + 1,
         ))
     });
     engine.compile(COUNTER).unwrap()
@@ -481,7 +481,9 @@ fn rejected_and_unreturned_scopes_are_only_initialized_when_later_accepted() {
     consumer.register("first", move |_, _| Ok(a.clone()));
     consumer.register("second", move |_, _| Ok(b.clone()));
     consumer.register("count", move |_, _| {
-        Ok(Value::int(count.load(Ordering::SeqCst) as i64))
+        Ok(Value::int(crate::numeric::to_i64(
+            count.load(Ordering::SeqCst),
+        )))
     });
     let caller = consumer
         .compile(

@@ -1,4 +1,6 @@
-use crate::{CallContext, Error, ErrorKind, Result, Value, budget::Buffer, ops, value::Kind};
+use crate::{
+    CallContext, Error, ErrorKind, Result, Value, budget::Buffer, numeric::to_i64, ops, value::Kind,
+};
 
 struct Hop {
     container: Value,
@@ -330,7 +332,7 @@ fn captured_key(value: &Value, key: &Value) -> Result<Value> {
             if let Some(index) = ops::normalized(crate::sequence::integer(key)?, length)
                 .filter(|&index| index < length)
             {
-                return Ok(Value::int(index as i64));
+                return Ok(Value::int(to_i64(index)));
             }
         }
     }

@@ -6,7 +6,7 @@
 //! no longer contains is dropped rather than pointing into unrelated text.
 
 use super::document::{Position, Range, Symbol, SymbolKind};
-use super::text::{utf16_character, word_char};
+use super::text::{to_i64, utf16_character, word_char};
 use vibescript::tooling::{Item, ItemKind, Outline};
 
 /// The location of the top-level declaration named `word`: a function, class
@@ -87,7 +87,7 @@ fn anchored_location<S: AsRef<str>>(lines: &[S], item: &Item, shift: i64) -> Opt
 
 /// The one-based line where an item was declared, moved by `shift`.
 fn expected_line(item: &Item, shift: i64) -> usize {
-    usize::try_from(item.position.line as i64 + shift).unwrap_or(0)
+    usize::try_from(to_i64(item.position.line) + shift).unwrap_or(0)
 }
 
 /// Anchors an item whose recorded line has moved by `shift` lines.
@@ -102,7 +102,7 @@ fn anchor<S: AsRef<str>>(lines: &[S], item: &Item, shift: i64) -> Option<usize> 
 /// shift is zero.
 fn child_shift<S: AsRef<str>>(lines: &[S], item: &Item, shift: i64) -> i64 {
     match anchor(lines, item, shift) {
-        Some(line) => line as i64 + 1 - item.position.line as i64,
+        Some(line) => to_i64(line) + 1 - to_i64(item.position.line),
         None => shift,
     }
 }
