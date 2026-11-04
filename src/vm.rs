@@ -20,6 +20,8 @@ pub(crate) mod asynchronous;
 mod asynchronous_tests;
 mod call_targets;
 mod capabilities;
+#[cfg(test)]
+mod checked_tests;
 mod dispatch;
 mod execution;
 mod file_bindings;
@@ -424,6 +426,11 @@ impl Run {
                 Ok(Some(exit)) => return Ok(Step::Complete(exit)),
                 Ok(None) => (),
                 Err(error) => {
+                    // A VM invariant failed: the host sees it as it is, past
+                    // any rescue or ensure.
+                    if error.kind == ErrorKind::Internal {
+                        ctx.latch(&error);
+                    }
                     if ctx.exhausted() || storage.handlers.data.is_empty() {
                         return Err(error);
                     }
