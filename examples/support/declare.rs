@@ -30,7 +30,10 @@ pub fn declare(
         declared.push(crate::support::notification(name)?);
     }
     if let Some(method) = signature
-        && case["signature_probe"]["registration"]
+        && case
+            .get("signature_probe")
+            .and_then(|probe| probe.get("registration"))
+            .unwrap_or(&Json::Null)
             .as_str()
             .is_none_or(|registration| registration == "capability")
     {

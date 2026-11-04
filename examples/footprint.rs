@@ -44,7 +44,9 @@ fn registered(engine: &mut Engine) -> vibescript::Result<Vec<Capability>> {
     for name in ["log_event", "metric", "lookup", "publish"] {
         let method = HostMethod::new(name, |ctx, args, _| {
             ctx.charge(1)?;
-            Ok(args[0].clone())
+            args.first().cloned().ok_or_else(|| {
+                vibescript::Error::new(vibescript::ErrorKind::Argument, "expected one value")
+            })
         })
         .with_signature(Signature {
             params: vec![SignatureParam {
@@ -104,8 +106,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut peak = 0;
     let mut retained = 0;
     let now = Instant::now();
-    for i in 0..1_000 {
-        let outcome = scripts[i % scripts.len()].call(
+    for script in scripts.iter().cycle().take(1_000) {
+        let outcome = script.call(
             "run",
             &[],
             CallOptions {

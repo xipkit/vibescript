@@ -11,7 +11,11 @@ pub fn template() -> Value {
     let once = HostMethod::new_with_block("blocks.once", |call, args, _| call.call_block(args));
     let each = HostMethod::new_with_block("blocks.each", |call, args, _| {
         let mut result = Vec::new();
-        for item in args[0].as_array().unwrap() {
+        let items = args
+            .first()
+            .and_then(Value::as_array)
+            .ok_or_else(|| Error::new(ErrorKind::Argument, "blocks.each expects an array"))?;
+        for item in items {
             result.push(call.call_block(std::slice::from_ref(item))?);
         }
         call.context().array(&result)

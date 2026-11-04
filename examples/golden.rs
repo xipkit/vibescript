@@ -265,12 +265,15 @@ fn compile_failure(source: &str, error: &Error) -> Json {
                 "message": diagnostic.message,
             });
             if diagnostic.code.area() == Some(vibescript::diagnostic::Area::Syntax) {
-                if let Some(fields) = item.as_object_mut() { fields.insert("span".into(), json!([diagnostic.span.start, diagnostic.span.end])); }
-                if let Some(fields) = item.as_object_mut() { fields.insert("fixes".into(), json!(diagnostic.fixes.iter().map(|fix| json!({
-                    "message": fix.message,
-                    "applicability": format!("{:?}", fix.applicability),
-                    "edits": fix.edits.iter().map(|edit| json!({"span": [edit.span.start, edit.span.end], "replacement": edit.replacement})).collect::<Vec<_>>(),
-                })).collect::<Vec<_>>())); }
+                if let Some(fields) = item.as_object_mut() {
+                    fields.insert("span".into(), json!([diagnostic.span.start, diagnostic.span.end]));
+                    let fixes: Vec<_> = diagnostic.fixes.iter().map(|fix| json!({
+                        "message": fix.message,
+                        "applicability": format!("{:?}", fix.applicability),
+                        "edits": fix.edits.iter().map(|edit| json!({"span": [edit.span.start, edit.span.end], "replacement": edit.replacement})).collect::<Vec<_>>(),
+                    })).collect();
+                    fields.insert("fixes".into(), json!(fixes));
+                }
             }
             item
         })
