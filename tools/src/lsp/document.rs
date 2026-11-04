@@ -262,7 +262,7 @@ pub struct Document {
     pub(crate) interrupted: bool,
     /// Built on first use, since the diagnostics path runs on every edit.
     pub(crate) completion: OnceLock<Option<Arc<Index>>>,
-    pub(crate) symbols: OnceLock<Arc<Vec<Symbol>>>,
+    pub(crate) symbols: OnceLock<Arc<[Symbol]>>,
 }
 
 impl Document {
@@ -400,12 +400,12 @@ impl Document {
     /// The outline: functions, classes and modules with their methods,
     /// constants and nested modules, and enums with their members.
     pub fn symbols(&self) -> Vec<Symbol> {
-        self.symbol_tree().as_ref().clone()
+        self.symbol_tree().to_vec()
     }
 
-    pub(crate) fn symbol_tree(&self) -> &Arc<Vec<Symbol>> {
+    pub(crate) fn symbol_tree(&self) -> &Arc<[Symbol]> {
         self.symbols
-            .get_or_init(|| Arc::new(navigation::symbols(self.program.as_deref(), &self.lines)))
+            .get_or_init(|| Arc::from(navigation::symbols(self.program.as_deref(), &self.lines)))
     }
 
     /// The quick fixes of the diagnostics whose ranges meet `range`, each
