@@ -39,7 +39,13 @@ fn capability(client: Arc<SmsPreview>) -> Result<Capability> {
         for value in args {
             ctx.charge(value.as_bytes().unwrap().len() as u64)?;
         }
-        client.send(ctx, text(&args[0])?, text(&args[1])?)
+        let [phone, body] = args else {
+            return Err(Error::new(
+                ErrorKind::Argument,
+                "sms.send expects phone and body",
+            ));
+        };
+        client.send(ctx, text(phone)?, text(body)?)
     })
     .with_contract(
         |_, args, keywords| {

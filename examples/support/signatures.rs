@@ -16,8 +16,16 @@ pub fn configure(engine: &mut Engine, probe: &Json) -> vibescript::Result<HostMe
         "list" => call.context().array(args),
         "symbol" => Ok(Value::symbol("draft")),
         "bad" => call.context().bytes(b"bad"),
-        "kind" => call.context().bytes(args[0].type_name().as_bytes()),
-        _ => Ok(args[0].clone()),
+        "kind" => call.context().bytes(
+            args.first()
+                .ok_or_else(|| Error::new(ErrorKind::Argument, "kind expects one argument"))?
+                .type_name()
+                .as_bytes(),
+        ),
+        _ => args
+            .first()
+            .cloned()
+            .ok_or_else(|| Error::new(ErrorKind::Argument, "echo expects one argument")),
     })
     .with_signature(Signature {
         params: probe["params"]
@@ -36,7 +44,10 @@ pub fn configure(engine: &mut Engine, probe: &Json) -> vibescript::Result<HostMe
     let method = if probe["contract"].as_bool().unwrap_or(false) {
         method.with_contract(
             |_, args, _| {
-                if args[0].type_name() != "symbol" {
+                if !args
+                    .first()
+                    .is_some_and(|value| value.type_name() == "symbol")
+                {
                     return Err(Error::new(ErrorKind::Type, "raw symbol required"));
                 }
                 Ok(())

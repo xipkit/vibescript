@@ -145,10 +145,10 @@ pub fn parse_uint(text: &str) -> Result<u64, IntError> {
         return Err(IntError::Syntax);
     }
     let (base, digits): (u64, &[u8]) = match bytes {
-        [b'0', b'b' | b'B', _, ..] => (2, &bytes[2..]),
-        [b'0', b'o' | b'O', _, ..] => (8, &bytes[2..]),
-        [b'0', b'x' | b'X', _, ..] => (16, &bytes[2..]),
-        [b'0', ..] => (8, &bytes[1..]),
+        [b'0', b'b' | b'B', digits @ ..] if !digits.is_empty() => (2, digits),
+        [b'0', b'o' | b'O', digits @ ..] if !digits.is_empty() => (8, digits),
+        [b'0', b'x' | b'X', digits @ ..] if !digits.is_empty() => (16, digits),
+        [b'0', digits @ ..] => (8, digits),
         _ => (10, bytes),
     };
     let mut value: u64 = 0;
@@ -183,17 +183,14 @@ pub fn parse_uint(text: &str) -> Result<u64, IntError> {
 fn underscores_ok(text: &[u8]) -> bool {
     // The previous character class: '^' start, '0' digit or prefix, '_' underscore, '!' other.
     let mut saw = b'^';
-    let mut i = 0;
-    let mut hex = false;
-    if text.len() >= 2
-        && text[0] == b'0'
-        && matches!(text[1].to_ascii_lowercase(), b'b' | b'o' | b'x')
-    {
-        i = 2;
-        saw = b'0';
-        hex = text[1].eq_ignore_ascii_case(&b'x');
-    }
-    for &byte in &text[i..] {
+    let (hex, digits) = match text {
+        [b'0', prefix, rest @ ..] if matches!(prefix.to_ascii_lowercase(), b'b' | b'o' | b'x') => {
+            saw = b'0';
+            (prefix.eq_ignore_ascii_case(&b'x'), rest)
+        }
+        _ => (false, text),
+    };
+    for &byte in digits {
         if byte.is_ascii_digit() || (hex && matches!(byte.to_ascii_lowercase(), b'a'..=b'f')) {
             saw = b'0';
         } else if byte == b'_' {

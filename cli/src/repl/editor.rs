@@ -99,10 +99,14 @@ impl Editor {
                 // Like the text input, the character under the cursor goes
                 // first, then any spaces, then the rest of that word.
                 let mut end = (self.cursor + 1).min(self.value.len());
-                while end < self.value.len() && self.value[end].is_whitespace() {
+                while end < self.value.len()
+                    && self.value.get(end).is_some_and(|c| c.is_whitespace())
+                {
                     end += 1;
                 }
-                while end < self.value.len() && !self.value[end].is_whitespace() {
+                while end < self.value.len()
+                    && self.value.get(end).is_some_and(|c| !c.is_whitespace())
+                {
                     end += 1;
                 }
                 self.value.drain(self.cursor..end);
@@ -118,10 +122,10 @@ impl Editor {
     /// The start of the word before the cursor, skipping spaces first.
     fn word_start(&self) -> usize {
         let mut i = self.cursor;
-        while i > 0 && self.value[i - 1].is_whitespace() {
+        while i > 0 && self.value.get(i - 1).is_some_and(|c| c.is_whitespace()) {
             i -= 1;
         }
-        while i > 0 && !self.value[i - 1].is_whitespace() {
+        while i > 0 && self.value.get(i - 1).is_some_and(|c| !c.is_whitespace()) {
             i -= 1;
         }
         i
@@ -130,10 +134,10 @@ impl Editor {
     /// The end of the word after the cursor, skipping spaces first.
     fn word_end(&self) -> usize {
         let mut i = self.cursor;
-        while i < self.value.len() && self.value[i].is_whitespace() {
+        while i < self.value.len() && self.value.get(i).is_some_and(|c| c.is_whitespace()) {
             i += 1;
         }
-        while i < self.value.len() && !self.value[i].is_whitespace() {
+        while i < self.value.len() && self.value.get(i).is_some_and(|c| !c.is_whitespace()) {
             i += 1;
         }
         i
@@ -146,10 +150,10 @@ impl Editor {
             return 0;
         }
         let mut i = self.cursor - 1;
-        while i > 0 && self.value[i].is_whitespace() {
+        while i > 0 && self.value.get(i).is_some_and(|c| c.is_whitespace()) {
             i -= 1;
         }
-        while i > 0 && !self.value[i].is_whitespace() {
+        while i > 0 && self.value.get(i).is_some_and(|c| !c.is_whitespace()) {
             i -= 1;
         }
         if i > 0 { i + 1 } else { 0 }
@@ -162,23 +166,31 @@ impl Editor {
         let widths: Vec<usize> = self.value.iter().map(|&ch| char_width(ch)).collect();
         if width == 0 || widths.iter().sum::<usize>() <= width {
             self.offset = 0;
-            let column = widths[..self.cursor].iter().sum();
+            let column = widths.iter().take(self.cursor).sum();
             return (self.value(), column);
         }
         self.offset = self.offset.min(self.cursor);
         while self.offset < self.cursor
-            && widths[self.offset..self.cursor].iter().sum::<usize>() >= width
+            && widths
+                .iter()
+                .take(self.cursor)
+                .skip(self.offset)
+                .sum::<usize>()
+                >= width
         {
             self.offset += 1;
         }
         let mut end = self.offset;
         let mut used = 0;
-        while end < self.value.len() && used + widths[end] <= width {
-            used += widths[end];
+        while let Some(&columns) = widths.get(end).filter(|&&columns| used + columns <= width) {
+            used += columns;
             end += 1;
         }
-        let column = widths[self.offset..self.cursor].iter().sum();
-        (self.value[self.offset..end].iter().collect(), column)
+        let column = widths.iter().take(self.cursor).skip(self.offset).sum();
+        (
+            self.value.iter().take(end).skip(self.offset).collect(),
+            column,
+        )
     }
 }
 
