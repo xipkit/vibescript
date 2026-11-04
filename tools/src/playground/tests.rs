@@ -31,7 +31,7 @@ fn check_reports_cli_diagnostics_and_fix_repairs_optional_index() {
         .to_vec();
     assert_eq!(
         checked["diagnostics"],
-        json!(diagnostics_json(&diagnostics, source, &BTreeMap::new()))
+        json!(diagnostics_json(&diagnostics, source, &BTreeMap::new()).unwrap())
     );
     assert!(
         !checked["diagnostics"][0]["fixes"]

@@ -78,26 +78,29 @@ fn module(source: &str, root: &Module, record: &Record, at: &impl Fn(u32) -> Pos
         nested: Vec<(u32, Item)>,
         next: usize,
     }
-    let mut stack = vec![Frame {
+    let mut stack = Vec::new();
+    let mut frame = Frame {
         module: root,
         nested: Vec::new(),
         next: 0,
-    }];
+    };
     loop {
-        let frame = stack.last_mut().expect("the root frame is popped last");
         if let Some(nested) = frame.module.modules.get(frame.next) {
             frame.next += 1;
-            stack.push(Frame {
+            stack.push(frame);
+            frame = Frame {
                 module: nested,
                 nested: Vec::new(),
                 next: 0,
-            });
+            };
             continue;
         }
-        let frame = stack.pop().expect("the frame was just inspected");
         let item = members(source, frame.module, frame.nested, record, at);
-        match stack.last_mut() {
-            Some(parent) => parent.nested.push((frame.module.offset, item)),
+        match stack.pop() {
+            Some(mut parent) => {
+                parent.nested.push((frame.module.offset, item));
+                frame = parent;
+            }
             None => return item,
         }
     }

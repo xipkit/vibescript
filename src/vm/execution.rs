@@ -202,12 +202,7 @@ impl Execution {
     }
 
     fn complete(&mut self, result: Result<Value>) -> Result<Outcome> {
-        let frames = self
-            .run
-            .as_ref()
-            .map_or(&[][..], |run| run.frames.data.as_slice());
-        let result =
-            result.map_err(|error| diagnose(&self.code.program, frames, self.function, error));
+        let result = result.map_err(|error| self.diagnose(error));
         self.release_execution();
         let value = result?;
         crate::objects::finish(&mut self.context)?;
@@ -218,6 +213,15 @@ impl Execution {
             value,
             stats: self.context.stats(),
         })
+    }
+
+    /// Attaches the invocation's source and call frames to a failure.
+    pub(super) fn diagnose(&self, error: Error) -> Error {
+        let frames = self
+            .run
+            .as_ref()
+            .map_or(&[][..], |run| run.frames.data.as_slice());
+        diagnose(&self.code.program, frames, self.function, error)
     }
 
     fn release_execution(&mut self) {
