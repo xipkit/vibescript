@@ -96,131 +96,74 @@ mod blocking {
         server.join().expect("the server thread finished");
     }
 
-    /// Input a test feeds one framed batch at a time: the server blocks
-    /// between batches, so the test can wait for its replies to one before
-    /// sending the next.
-    struct Paced {
-        batches: mpsc::Receiver<Vec<u8>>,
-        pending: Vec<u8>,
-    }
-
-    impl Read for Paced {
-        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-            if self.pending.is_empty() {
-                match self.batches.recv() {
-                    Ok(batch) => self.pending = batch,
-                    Err(_) => return Ok(0),
-                }
-            }
-            let n = buf.len().min(self.pending.len());
-            buf[..n].copy_from_slice(&self.pending[..n]);
-            self.pending.drain(..n);
-            Ok(n)
+    #[test]
+    fn a_change_cancels_its_own_document_across_interleaved_documents() {
+        let (a, b) = ("file:///tmp/a.vibe", "file:///tmp/b.vibe");
+        let mut source = String::new();
+        for index in 0..3000 {
+            source.push_str(&format!(
+                "def f{index}(x: int) -> int\n  x + {index}\nend\n"
+            ));
         }
-    }
-
-    /// Output that hands the test each write as the server makes it.
-    struct Written(mpsc::Sender<Vec<u8>>);
-
-    impl io::Write for Written {
-        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-            let _ = self.0.send(buf.to_vec());
-            Ok(buf.len())
-        }
-
-        fn flush(&mut self) -> io::Result<()> {
-            Ok(())
-        }
-    }
-
-    /// Collects the server's output into `output` until it contains `needle`.
-    fn wait_for(output: &mut Vec<u8>, writes: &mpsc::Receiver<Vec<u8>>, needle: &str) {
-        let deadline = std::time::Instant::now() + Duration::from_secs(30);
-        while !String::from_utf8_lossy(output).contains(needle) {
-            let left = deadline.saturating_duration_since(std::time::Instant::now());
-            let Ok(chunk) = writes.recv_timeout(left) else {
-                panic!(
-                    "timed out waiting for {needle:?} in {:?}",
-                    String::from_utf8_lossy(output)
-                );
-            };
-            output.extend(chunk);
-        }
-    }
-
-    fn open(uri: &str, text: &str) -> Value {
-        json!({"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": uri, "text": text}}})
+        let messages = [
+            json!({"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": a, "text": source}}}),
+            json!({"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": b, "text": "y = 1\n"}}}),
+            json!({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {"textDocument": {"uri": a}, "contentChanges": [{"text": "x = 1\n"}]}}),
+            json!({"jsonrpc": "2.0", "id": 1, "method": "shutdown"}),
+        ];
+        let replies = decode(&run(framed(&messages)).unwrap());
+        // The change to A cancels the analysis of its slow first version even
+        // though B's open was read between them, so that version's diagnostics
+        // are never published: B's are, then current A's.
+        let published: Vec<&str> = replies
+            .iter()
+            .filter(|reply| reply["method"] == "textDocument/publishDiagnostics")
+            .map(|reply| reply["params"]["uri"].as_str().unwrap())
+            .collect();
+        assert_eq!(published, [b, a], "{replies:?}");
+        assert_eq!(replies.last().unwrap()["id"], 1);
     }
 
     #[test]
-    #[allow(
-        clippy::disallowed_methods,
-        reason = "the server runs beside the test until its input ends, and is joined"
-    )]
-    fn a_rejected_document_frees_its_place_in_the_readers_tracking() {
-        let (a, b, c) = (
-            "file:///tmp/a.vibe",
-            "file:///tmp/b.vibe",
-            "file:///tmp/c.vibe",
-        );
-        let (batches, input) = mpsc::channel::<Vec<u8>>();
-        let (written, writes) = mpsc::channel::<Vec<u8>>();
-        let server = std::thread::spawn(move || {
-            let mut server = Server::with_options(Options {
-                max_documents: Some(2),
-                max_document_bytes: Some(1 << 20),
-                ..Options::default()
-            });
-            let input = Paced {
-                batches: input,
-                pending: Vec::new(),
-            };
-            serve(
-                &mut server,
-                input,
-                Written(written),
-                &CancellationToken::new(),
-            )
-        });
-        let mut output = Vec::new();
-        // A takes one of the two places the server keeps.
-        batches.send(framed(&[open(a, "y = 1\n")])).unwrap();
-        wait_for(&mut output, &writes, a);
-        // B is too large to keep: the server rejects it, and the reader must
-        // not hold B's place against the next document.
-        batches
-            .send(framed(&[open(b, &"x = 1\n".repeat(400_000))]))
-            .unwrap();
-        wait_for(
-            &mut output,
-            &writes,
-            "aggregate document storage limit exceeded",
-        );
-        // C is slow to analyze; its change must still cancel that analysis,
-        // which it can only do with the place B gave back.
+    fn a_document_admitted_after_a_rejected_one_keeps_its_cancellation() {
+        let (a, b) = ("file:///tmp/a.vibe", "file:///tmp/b.vibe");
         let mut slow = String::new();
         for index in 0..3000 {
             slow.push_str(&format!(
                 "def f{index}(x: int) -> int\n  x + {index}\nend\n"
             ));
         }
-        batches
-            .send(framed(&[
-                open(c, &slow),
-                json!({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {"textDocument": {"uri": c}, "contentChanges": [{"text": "x = 1\n"}]}}),
-                json!({"jsonrpc": "2.0", "id": 1, "method": "shutdown"}),
-            ]))
-            .unwrap();
-        wait_for(&mut output, &writes, r#""id":1"#);
-        drop(batches);
-        server.join().expect("the server thread finished").unwrap();
+        // A is too large to keep and B is slow to analyze; both are read
+        // ahead before the server settles either, so a reader that tracked
+        // only as many documents as the server keeps would give B no token.
+        let messages = [
+            json!({"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": a, "text": "x = 1\n".repeat(400_000)}}}),
+            json!({"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": b, "text": slow}}}),
+            json!({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {"textDocument": {"uri": b}, "contentChanges": [{"text": "x = 1\n"}]}}),
+            json!({"jsonrpc": "2.0", "id": 1, "method": "shutdown"}),
+        ];
+        let mut server = Server::with_options(Options {
+            max_documents: Some(1),
+            max_document_bytes: Some(1 << 20),
+            ..Options::default()
+        });
+        let mut output = Vec::new();
+        serve(
+            &mut server,
+            Cursor::new(framed(&messages)),
+            &mut output,
+            &CancellationToken::new(),
+        )
+        .unwrap();
         let replies = decode(&output);
         let published: Vec<&str> = replies
             .iter()
             .filter(|reply| reply["method"] == "textDocument/publishDiagnostics")
             .map(|reply| reply["params"]["uri"].as_str().unwrap())
             .collect();
-        assert_eq!(published, [a, b, c], "{replies:?}");
+        // A's rejection is published, then only B's current version.
+        assert_eq!(published, [a, b], "{replies:?}");
+        assert_eq!(replies.last().unwrap()["id"], 1);
     }
 }
 
@@ -698,34 +641,6 @@ fn queued_changes_to_one_document_analyze_only_the_last() {
         "textDocument/publishDiagnostics"
     );
     assert!(replies.len() <= 23, "{}", replies.len());
-}
-
-#[test]
-fn a_change_cancels_its_own_document_across_interleaved_documents() {
-    let (a, b) = ("file:///tmp/a.vibe", "file:///tmp/b.vibe");
-    let mut source = String::new();
-    for index in 0..3000 {
-        source.push_str(&format!(
-            "def f{index}(x: int) -> int\n  x + {index}\nend\n"
-        ));
-    }
-    let messages = [
-        json!({"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": a, "text": source}}}),
-        json!({"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": b, "text": "y = 1\n"}}}),
-        json!({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {"textDocument": {"uri": a}, "contentChanges": [{"text": "x = 1\n"}]}}),
-        json!({"jsonrpc": "2.0", "id": 1, "method": "shutdown"}),
-    ];
-    let replies = decode(&run(framed(&messages)).unwrap());
-    // The change to A cancels the analysis of its slow first version even
-    // though B's open was read between them, so that version's diagnostics
-    // are never published: B's are, then current A's.
-    let published: Vec<&str> = replies
-        .iter()
-        .filter(|reply| reply["method"] == "textDocument/publishDiagnostics")
-        .map(|reply| reply["params"]["uri"].as_str().unwrap())
-        .collect();
-    assert_eq!(published, [b, a], "{replies:?}");
-    assert_eq!(replies.last().unwrap()["id"], 1);
 }
 
 #[test]

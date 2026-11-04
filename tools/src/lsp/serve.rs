@@ -44,8 +44,7 @@ pub fn serve(
     mut output: impl Write,
     cancellation: &CancellationToken,
 ) -> io::Result<()> {
-    let options = server.options();
-    let mut messages = Messages::new(input, options.cancellation.clone(), options.max_documents)?;
+    let mut messages = Messages::new(input, server.options().cancellation.clone())?;
     while let Some(event) = messages
         .next(cancellation)
         .map_err(|error| context("lsp read", error))?
@@ -115,11 +114,7 @@ impl<R: Read + Send + 'static> Messages<R> {
         clippy::disallowed_methods,
         reason = "the reader blocks in read until the client closes its end, so the server cannot join it; it ends with its input, and the server has no async runtime"
     )]
-    fn new(
-        input: R,
-        cancellation: CancellationToken,
-        max_documents: Option<usize>,
-    ) -> io::Result<Self> {
+    fn new(input: R, cancellation: CancellationToken) -> io::Result<Self> {
         let (sender, receiver) = mpsc::sync_channel(READ_AHEAD);
         let (rejected, forgotten) = mpsc::channel();
         // The input is handed over once the thread runs, so a thread that
@@ -129,7 +124,7 @@ impl<R: Read + Send + 'static> Messages<R> {
             .name("vibes-lsp-reader".to_owned())
             .spawn(move || {
                 if let Ok(input) = taken.recv() {
-                    let mut tracking = Tracking::new(cancellation, max_documents, forgotten);
+                    let mut tracking = Tracking::new(cancellation, forgotten);
                     read_ahead(BufReader::new(input), &sender, &mut tracking);
                 }
             });
@@ -203,13 +198,14 @@ fn read_ahead<R: Read>(
 /// latest version, so a change or close cancels its own document's analysis
 /// however many other documents' notifications arrived in between.
 ///
-/// The table holds no more documents than the server keeps: a close forgets
-/// its document, the server reports the versions it rejected, and an open
-/// past the server's document limit gets no token, since the server turns
-/// it away.
+/// Every open and change gets a token, so a document the server admits can
+/// always be cancelled. The table holds the documents the server keeps and
+/// the versions it has not settled yet: a close forgets its document, and
+/// the server reports each version it did not keep, which the reader forgets
+/// when it next reads. So the table is bounded by the server's documents and
+/// the messages read ahead of it, which the queue to the server holds too.
 struct Tracking {
     cancellation: CancellationToken,
-    limit: Option<usize>,
     /// Each tracked document's latest version: the index of the message
     /// that brought it and the token its analysis runs under.
     analyzing: HashMap<String, (u64, CancellationToken)>,
@@ -217,14 +213,9 @@ struct Tracking {
 }
 
 impl Tracking {
-    fn new(
-        cancellation: CancellationToken,
-        limit: Option<usize>,
-        rejected: mpsc::Receiver<(String, u64)>,
-    ) -> Self {
+    fn new(cancellation: CancellationToken, rejected: mpsc::Receiver<(String, u64)>) -> Self {
         Self {
             cancellation,
-            limit,
             analyzing: HashMap::new(),
             rejected,
         }
@@ -261,10 +252,7 @@ impl Tracking {
         if changes && let Some((_, token)) = self.analyzing.remove(&uri) {
             token.cancel();
         }
-        let room = self
-            .limit
-            .is_none_or(|limit| self.analyzing.len() < limit || self.analyzing.contains_key(&uri));
-        if opens && room {
+        if opens {
             let token = self.cancellation.child_token();
             message.token = Some(token.clone());
             self.analyzing.insert(uri, (message.index, token));
@@ -354,5 +342,66 @@ impl<R: Read> Messages<R> {
         })?;
         queue.remove(position);
         Some(id.clone())
+    }
+}
+
+#[cfg(test)]
+mod tracking_tests {
+    use super::*;
+
+    fn message(method: &str, uri: &str, index: u64) -> Inbound {
+        let params = format!(r#"{{"textDocument":{{"uri":"{uri}","text":""}}}}"#);
+        Inbound {
+            id: None,
+            method: method.to_owned(),
+            params: Some(params.into_boxed_str()),
+            token: None,
+            index,
+        }
+    }
+
+    #[test]
+    fn the_table_follows_the_servers_documents() {
+        let (rejected, forgotten) = mpsc::channel();
+        let mut tracking = Tracking::new(CancellationToken::new(), forgotten);
+        let mut open_a = message("textDocument/didOpen", "a", 1);
+        let mut open_b = message("textDocument/didOpen", "b", 2);
+        tracking.supersede(&mut open_a);
+        tracking.supersede(&mut open_b);
+        assert!(open_a.token.is_some() && open_b.token.is_some());
+        assert_eq!(tracking.analyzing.len(), 2);
+        // The server did not keep A's version; a stale report for B names a
+        // version B has moved past, so B stays. Both apply at the next read.
+        rejected.send(("a".to_owned(), 1)).unwrap();
+        rejected.send(("b".to_owned(), 1)).unwrap();
+        let mut change_b = message("textDocument/didChange", "b", 3);
+        tracking.supersede(&mut change_b);
+        assert!(
+            open_b
+                .token
+                .as_ref()
+                .is_some_and(CancellationToken::is_cancelled)
+        );
+        assert_eq!(tracking.analyzing.len(), 1);
+        assert_eq!(tracking.analyzing["b"].0, 3);
+        // A change to a document the reader no longer tracks still gets a
+        // token for its own analysis.
+        let mut change_a = message("textDocument/didChange", "a", 4);
+        tracking.supersede(&mut change_a);
+        assert!(
+            change_a
+                .token
+                .as_ref()
+                .is_some_and(|token| !token.is_cancelled())
+        );
+        tracking.supersede(&mut message("textDocument/didClose", "a", 5));
+        tracking.supersede(&mut message("textDocument/didClose", "b", 6));
+        assert!(
+            change_a
+                .token
+                .as_ref()
+                .is_some_and(CancellationToken::is_cancelled)
+        );
+        assert!(tracking.analyzing.is_empty());
     }
 }
