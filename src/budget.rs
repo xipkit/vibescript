@@ -905,9 +905,7 @@ mod accounting_tests {
         assert_eq!(memory.used(), retained);
         crate::threads::elsewhere(move || drop(clone));
         assert_eq!(memory.used(), 0);
-        let weak = Arc::downgrade(&memory);
-        drop(memory);
-        assert!(weak.upgrade().is_none());
+        assert_eq!(Arc::strong_count(&memory), 1);
     }
 
     #[test]

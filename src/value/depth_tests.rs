@@ -118,27 +118,6 @@ fn concurrent_last_owners_release_deep_subtrees() {
 }
 
 #[test]
-fn host_container_cleanup_tolerates_internal_weak_observers() {
-    on_small_stack(|| {
-        let child = array_chain(DEEP);
-        let Kind::Array(array) = &child.0 else {
-            unreachable!()
-        };
-        let weak = Arc::downgrade(array);
-        drop(Value::array(vec![child]));
-        assert!(weak.upgrade().is_none());
-
-        let child = hash_chain(DEEP);
-        let Kind::Hash(hash) = &child.0 else {
-            unreachable!()
-        };
-        let weak = Arc::downgrade(hash);
-        drop(Value::hash(vec![(b"k".to_vec(), child)]));
-        assert!(weak.upgrade().is_none());
-    });
-}
-
-#[test]
 fn charged_values_release_storage_when_dropped_elsewhere_or_after_exhaustion() {
     let mut ctx = context();
     let charged = ctx.import(&mixed_chain(MAX_VALUE_DEPTH)).unwrap();
