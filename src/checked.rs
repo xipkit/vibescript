@@ -224,7 +224,7 @@ mod tests {
 
     #[test]
     fn out_of_range_access_is_an_internal_error() {
-        let values = vec![1, 2, 3];
+        let values = [1, 2, 3];
         let error = Error::from(values.at(3).unwrap_err());
         assert_eq!(error.kind, ErrorKind::Internal);
         assert!(error.class().is_none(), "{error}");
