@@ -518,6 +518,7 @@ impl SourceMap {
         let mut line = 1;
         if let Some(bindings) = bindings {
             let text: Arc<str> = Arc::from(bindings.as_str());
+            combined.push_str(&bindings);
             regions.push((
                 line,
                 Carried {
@@ -529,7 +530,6 @@ impl SourceMap {
                     source: text,
                 },
             ));
-            combined.push_str(&regions[0].1.text);
             combined.push('\n');
             line += 1;
         }
@@ -554,12 +554,15 @@ impl SourceMap {
             let line = position.line - self.lines;
             return (&self.input, Position { line, ..position });
         }
-        let (start, carried) = self
+        let Some((start, carried)) = self
             .regions
             .iter()
             .rev()
             .find(|(start, _)| *start <= position.line)
-            .unwrap_or(&self.regions[0]);
+            .or_else(|| self.regions.first())
+        else {
+            return (&self.input, position);
+        };
         let line = carried.line + position.line.saturating_sub(*start);
         (&carried.source, Position { line, ..position })
     }
@@ -640,7 +643,11 @@ fn code_frame(text: &str, position: Position) -> String {
         "  --> line {line}, column {}\n {line} | {}{}{}\n ",
         position.column,
         if prefix { "..." } else { "" },
-        chars[start..end].iter().collect::<String>(),
+        chars
+            .get(start..end)
+            .unwrap_or_default()
+            .iter()
+            .collect::<String>(),
         if suffix { "..." } else { "" },
     );
     frame.extend(std::iter::repeat_n(' ', line.to_string().len()));
@@ -648,7 +655,7 @@ fn code_frame(text: &str, position: Position) -> String {
     if prefix {
         frame.push_str("   ");
     }
-    for &ch in &chars[start..caret] {
+    for &ch in chars.get(start..caret).unwrap_or_default() {
         frame.push(if ch == '\t' { '\t' } else { ' ' });
     }
     frame.push('^');

@@ -4,6 +4,7 @@
 //! the signature, and the build that keeps every check verifies the value
 //! the runtime returns against it, so a wrong signature is a finding.
 
+use super::rng::Checked;
 use super::{harness::Case, rng::Rng};
 use std::sync::OnceLock;
 
@@ -511,7 +512,7 @@ fn union(options: Vec<T>) -> T {
 
 /// Generates one program of builtin calls from `seed`, or in a fifth of
 /// seeds, of operators applied to values of random types.
-pub fn program(seed: u64) -> Case {
+pub fn program(seed: u64) -> std::io::Result<Case> {
     let mut rng = Rng::new(seed ^ 0xb111_7115);
     if rng.chance(20) {
         return operators(&mut rng);
@@ -528,12 +529,12 @@ pub fn program(seed: u64) -> Case {
     );
     let table = table();
     for _ in 0..1 + out.rng.below(4) {
-        let sig = &table[out.rng.below(table.len())];
-        out.call(sig);
+        let sig = table.at(out.rng.below(table.len()))?;
+        out.call(sig)?;
     }
     let mut main = out.lines.join("\n");
     main.push('\n');
-    Case::new(main)
+    Ok(Case::new(main))
 }
 
 struct Out<'r> {
@@ -555,37 +556,38 @@ impl Out<'_> {
     }
 
     /// A concrete type satisfying `bound`.
-    fn pick(&mut self, bound: Option<&T>) -> T {
+    fn pick(&mut self, bound: Option<&T>) -> std::io::Result<T> {
         let named = |name: &str| T::Named(name.to_owned());
-        match bound {
+        Ok(match bound {
             Some(T::Named(name)) => match name.as_str() {
                 "comparable" => named(
-                    ["int", "float", "string", "symbol", "duration", "money"][self.rng.below(6)],
+                    ["int", "float", "string", "symbol", "duration", "money"]
+                        .at(self.rng.below(6))?,
                 ),
-                "number" => named(["int", "float"][self.rng.below(2)]),
+                "number" => named(["int", "float"].at(self.rng.below(2))?),
                 other => named(other),
             },
             Some(T::Union(options)) => {
-                let option = options[self.rng.below(options.len())].clone();
-                self.pick(Some(&option))
+                let option = (*options.at(self.rng.below(options.len()))?).clone();
+                self.pick(Some(&option))?
             }
             Some(other) => other.clone(),
             None => match self.rng.below(10) {
-                0..=4 => named(SIMPLE[self.rng.below(SIMPLE.len())]),
+                0..=4 => named(SIMPLE.at(self.rng.below(SIMPLE.len()))?),
                 5 => T::Array(Box::new(named("int"))),
-                6 => opt(named(["int", "string"][self.rng.below(2)])),
+                6 => opt(named(["int", "string"].at(self.rng.below(2))?)),
                 7 => T::Tuple(vec![named("string"), named("int")]),
                 8 => named("E"),
                 _ => T::Hash(Box::new(named("int"))),
             },
-        }
+        })
     }
 
     /// Emits a call of `sig` with a receiver and arguments of its types,
     /// binding the result to a local of the result type.
-    fn call(&mut self, sig: &Sig) {
+    fn call(&mut self, sig: &Sig) -> std::io::Result<()> {
         if skipped(sig) {
-            return;
+            return Ok(());
         }
         let mut bindings: Vec<(String, T)> = Vec::new();
         let receiver = match &sig.owner {
@@ -593,34 +595,34 @@ impl Out<'_> {
             Owner::Module(name) => Some(name.clone()),
             Owner::Class(pattern, bounds) => {
                 for (var, bound) in bounds {
-                    let ty = self.pick(bound.as_ref());
+                    let ty = self.pick(bound.as_ref())?;
                     bindings.push((var.clone(), ty));
                 }
                 let receiver = match pattern {
                     // Every type's members bind `T` to the receiver's.
                     T::Var(var) => {
-                        let receiver = self.any_receiver();
+                        let receiver = self.any_receiver()?;
                         bindings.retain(|(name, _)| name != var);
                         bindings.push((var.clone(), receiver.clone()));
                         receiver
                     }
                     _ => subst(pattern, &bindings),
                 };
-                Some(self.bound_value(&receiver))
+                Some(self.bound_value(&receiver)?)
             }
         };
         for (var, bound) in &sig.generics {
-            let ty = self.pick(bound.as_ref());
+            let ty = self.pick(bound.as_ref())?;
             bindings.push((var.clone(), ty));
         }
         let mut args = Vec::new();
         for param in &sig.params {
             let ty = subst(&param.ty, &bindings);
             match &param.kind {
-                Kind::Required => args.push(self.value(&ty, 1)),
+                Kind::Required => args.push(self.value(&ty, 1)?),
                 Kind::Optional => {
                     if self.rng.chance(50) {
-                        args.push(self.value(&ty, 1));
+                        args.push(self.value(&ty, 1)?);
                     } else {
                         // Positional arguments bind in order.
                         break;
@@ -629,12 +631,12 @@ impl Out<'_> {
                 Kind::Rest => {
                     let T::Array(element) = &ty else { continue };
                     for _ in 0..self.rng.below(3) {
-                        args.push(self.value(element, 1));
+                        args.push(self.value(element, 1)?);
                     }
                 }
                 Kind::Keyword { required } => {
                     if *required || self.rng.chance(40) {
-                        let value = self.value(&ty, 1);
+                        let value = self.value(&ty, 1)?;
                         args.push(format!("{}: {value}", param.name));
                     }
                 }
@@ -664,8 +666,8 @@ impl Out<'_> {
                         let result = subst(result, &bindings);
                         let reuse = params.iter().position(|param| *param == result);
                         match reuse {
-                            Some(index) if self.rng.chance(50) => names[index].clone(),
-                            _ => self.value(&result, 1),
+                            Some(index) if self.rng.chance(50) => (*names.at(index)?).clone(),
+                            _ => self.value(&result, 1)?,
                         }
                     }
                     None => "nil".to_owned(),
@@ -687,12 +689,13 @@ impl Out<'_> {
         let line = format!("{local}: {} = {call}", render(&result));
         self.lines.push(line);
         self.lines.push(format!("p({local})"));
+        Ok(())
     }
 
     /// A receiver type for a member every type has.
-    fn any_receiver(&mut self) -> T {
+    fn any_receiver(&mut self) -> std::io::Result<T> {
         let named = |name: &str| T::Named(name.to_owned());
-        match self.rng.below(12) {
+        Ok(match self.rng.below(12) {
             0 => named("int"),
             1 => named("string"),
             2 => T::Array(Box::new(named("int"))),
@@ -705,14 +708,14 @@ impl Out<'_> {
             9 => named("K"),
             10 => named("symbol"),
             _ => T::Shape(vec![("id".into(), named("int"), false)], false),
-        }
+        })
     }
 
     /// A receiver expression of type `ty`, bound to a local first when it
     /// needs a declared type.
-    fn bound_value(&mut self, ty: &T) -> String {
-        let value = self.value(ty, 1);
-        match ty {
+    fn bound_value(&mut self, ty: &T) -> std::io::Result<String> {
+        let value = self.value(ty, 1)?;
+        Ok(match ty {
             T::Named(name) if name == "match_data" => value,
             T::Named(name) if name == "error" => value,
             _ => {
@@ -721,73 +724,72 @@ impl Out<'_> {
                     .push(format!("{local}: {} = {value}", render(ty)));
                 local
             }
-        }
+        })
     }
 
-    fn value(&mut self, ty: &T, depth: usize) -> String {
-        match ty {
-            T::Named(name) => self.named(name),
-            T::Var(_) => self.named("int"),
+    fn value(&mut self, ty: &T, depth: usize) -> std::io::Result<String> {
+        Ok(match ty {
+            T::Named(name) => self.named(name)?,
+            T::Var(_) => self.named("int")?,
             T::Opt(inner) => {
                 if self.rng.chance(30) {
                     "nil".to_owned()
                 } else {
-                    self.value(inner, depth)
+                    self.value(inner, depth)?
                 }
             }
             T::Union(options) => {
-                let option = options[self.rng.below(options.len())].clone();
-                self.value(&option, depth)
+                let option = (*options.at(self.rng.below(options.len()))?).clone();
+                self.value(&option, depth)?
             }
             T::Array(inner) => {
                 if depth > 2 || self.rng.chance(15) {
-                    return "[]".to_owned();
+                    return Ok("[]".to_owned());
                 }
                 let items: Vec<String> = (0..1 + self.rng.below(4))
                     .map(|_| self.value(inner, depth + 1))
-                    .collect();
+                    .collect::<std::io::Result<_>>()?;
                 format!("[{}]", items.join(", "))
             }
             T::Hash(inner) => {
                 if depth > 2 || self.rng.chance(15) {
-                    return "{}".to_owned();
+                    return Ok("{}".to_owned());
                 }
-                let items: Vec<String> = (0..1 + self.rng.below(3))
-                    .map(|index| {
-                        format!(
-                            "{}: {}",
-                            ["a", "b", "c"][index],
-                            self.value(inner, depth + 1)
-                        )
-                    })
-                    .collect();
+                let items: Vec<String> = ["a", "b", "c"]
+                    .into_iter()
+                    .take(1 + self.rng.below(3))
+                    .map(|key| Ok(format!("{}: {}", key, self.value(inner, depth + 1)?)))
+                    .collect::<std::io::Result<_>>()?;
                 format!("{{ {} }}", items.join(", "))
             }
             T::Shape(fields, _) => {
                 let mut parts = Vec::new();
                 for (name, ty, optional) in fields {
                     if !*optional || self.rng.chance(50) {
-                        parts.push(format!("{name}: {}", self.value(ty, depth + 1)));
+                        parts.push(format!("{name}: {}", self.value(ty, depth + 1)?));
                     }
                 }
                 format!("{{ {} }}", parts.join(", "))
             }
             T::Tuple(items) => {
-                let items: Vec<String> = items.iter().map(|ty| self.value(ty, depth + 1)).collect();
+                let items: Vec<String> = items
+                    .iter()
+                    .map(|ty| self.value(ty, depth + 1))
+                    .collect::<std::io::Result<_>>()?;
                 format!("[{}]", items.join(", "))
             }
             T::Sym(name) => format!(":{name}"),
             T::Type(inner) => render(inner),
-        }
+        })
     }
 
-    fn named(&mut self, name: &str) -> String {
-        let pick = |rng: &mut Rng, items: &[&str]| items[rng.below(items.len())].to_owned();
-        match name {
+    fn named(&mut self, name: &str) -> std::io::Result<String> {
+        let pick = |rng: &mut Rng, items: &[&str]| rng.pick(items).map(|value| (*value).to_owned());
+        Ok(match name {
             "int" if self.small => pick(
                 self.rng,
                 &["0", "1", "2", "3", "-1", "7", "-4", "10", "100"],
-            ),
+            )?,
             "int" => pick(
                 self.rng,
                 &[
@@ -802,14 +804,14 @@ impl Out<'_> {
                     "100",
                     "9223372036854775808",
                 ],
-            ),
+            )?,
             "float" => pick(
                 self.rng,
                 &["0.5", "-1.5", "2.0", "0.0", "3.75", "-0.25", "1.0e20"],
-            ),
+            )?,
             "number" => {
-                let kind = pick(self.rng, &["int", "float"]);
-                self.named(&kind)
+                let kind = pick(self.rng, &["int", "float"])?;
+                self.named(&kind)?
             }
             "string" => pick(
                 self.rng,
@@ -826,22 +828,22 @@ impl Out<'_> {
                     "\"x\\ny\"",
                     "\"aAbB\"",
                 ],
-            ),
-            "symbol" => pick(self.rng, &[":a", ":ascii", ":fold", ":id"]),
-            "bool" => pick(self.rng, &["true", "false"]),
+            )?,
+            "symbol" => pick(self.rng, &[":a", ":ascii", ":fold", ":id"])?,
+            "bool" => pick(self.rng, &["true", "false"])?,
             "nil" => "nil".to_owned(),
             "any" => {
-                let kind = pick(self.rng, &["int", "string", "float", "bool", "nil"]);
-                self.named(&kind)
+                let kind = pick(self.rng, &["int", "string", "float", "bool", "nil"])?;
+                self.named(&kind)?
             }
             "comparable" => {
-                let kind = pick(self.rng, &["int", "string", "float", "symbol"]);
-                self.named(&kind)
+                let kind = pick(self.rng, &["int", "string", "float", "symbol"])?;
+                self.named(&kind)?
             }
             "range" => pick(
                 self.rng,
                 &["(1..3)", "(0...4)", "(-2..2)", "(3..1)", "(0..0)"],
-            ),
+            )?,
             "money" => pick(
                 self.rng,
                 &[
@@ -849,7 +851,7 @@ impl Out<'_> {
                     "money_cents(-5, \"USD\")",
                     "money(\"0.00 USD\")",
                 ],
-            ),
+            )?,
             "duration" => pick(
                 self.rng,
                 &[
@@ -859,7 +861,7 @@ impl Out<'_> {
                     "0.seconds",
                     "3.days",
                 ],
-            ),
+            )?,
             "time" => pick(
                 self.rng,
                 &[
@@ -867,21 +869,21 @@ impl Out<'_> {
                     "Time.utc(2024, 2, 29, 12, 30, 5)",
                     "Time.at(1700000000, in: \"America/Detroit\")",
                 ],
-            ),
+            )?,
             "regex" => pick(
                 self.rng,
                 &["/a+/", "/(\\d+)-(\\w+)/", "Regex.new(\"b\")", "/x/i"],
-            ),
+            )?,
             "match_data" => {
-                let text = pick(self.rng, &["\"id-42-x\"", "\"42-ab\""]);
+                let text = pick(self.rng, &["\"id-42-x\"", "\"42-ab\""])?;
                 format!("{text}.match(/(\\d+)-(\\w+)/).as(match_data)")
             }
             "error" => "(begin\n  raise \"boom\"\nrescue => e\n  e\nend)".to_owned(),
-            "enum_value" | "E" => pick(self.rng, &["E::A", "E::B"]),
+            "enum_value" | "E" => pick(self.rng, &["E::A", "E::B"])?,
             "enum_type" => "E".to_owned(),
-            "K" => format!("K.new({})", self.named("int")),
-            _ => self.named("int"),
-        }
+            "K" => format!("K.new({})", self.named("int")?),
+            _ => self.named("int")?,
+        })
     }
 }
 
@@ -929,7 +931,7 @@ const OPERATORS: [&str; 17] = [
 
 /// A program of binary operators on values of random types, each result a
 /// top-level local whose inferred type the annotation pass declares.
-fn operators(rng: &mut Rng) -> Case {
+fn operators(rng: &mut Rng) -> std::io::Result<Case> {
     let mut out = Out {
         rng,
         lines: Vec::new(),
@@ -937,16 +939,16 @@ fn operators(rng: &mut Rng) -> Case {
         small: true,
     };
     for index in 0..1 + out.rng.below(3) {
-        let op = OPERATORS[out.rng.below(OPERATORS.len())];
-        let left = OPERANDS[out.rng.below(OPERANDS.len())];
+        let op = *OPERATORS.at(out.rng.below(OPERATORS.len()))?;
+        let left = *OPERANDS.at(out.rng.below(OPERANDS.len()))?;
         let right = if out.rng.chance(50) {
             left
         } else {
-            OPERANDS[out.rng.below(OPERANDS.len())]
+            *OPERANDS.at(out.rng.below(OPERANDS.len()))?
         };
         let a = out.name("a");
         let b = out.name("b");
-        let value = out.value(&parse_type(left), 1);
+        let value = out.value(&parse_type(left), 1)?;
         out.lines.push(format!("{a}: {left} = {value}"));
         let counts = right.contains("int") || right.contains("number") || right.contains("any");
         let value = if op == "=~" || op == "!~" {
@@ -954,11 +956,11 @@ fn operators(rng: &mut Rng) -> Case {
         } else if op == "*" && left == "string" && counts {
             // A string repeated more times than an int holds raises an
             // operand error, a known difference, not a checker bug.
-            ["0", "1", "2", "3"][out.rng.below(4)].to_owned()
+            (*["0", "1", "2", "3"].at(out.rng.below(4))?).to_owned()
         } else if op == "*" && left == "string" {
-            ["0.0", "1.5", "2.5"][out.rng.below(3)].to_owned()
+            (*["0.0", "1.5", "2.5"].at(out.rng.below(3))?).to_owned()
         } else {
-            out.value(&parse_type(right), 1)
+            out.value(&parse_type(right), 1)?
         };
         let right = if op == "=~" || op == "!~" {
             "regex"
@@ -971,7 +973,7 @@ fn operators(rng: &mut Rng) -> Case {
     }
     let mut main = out.lines.join("\n");
     main.push('\n');
-    Case::new(main)
+    Ok(Case::new(main))
 }
 
 fn parse_type(text: &str) -> T {

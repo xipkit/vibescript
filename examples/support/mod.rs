@@ -68,13 +68,11 @@ fn typed(value: &Value, depth: usize) -> Result<Json, Box<dyn std::error::Error>
 }
 
 fn hex(bytes: &[u8]) -> String {
-    const DIGITS: &[u8; 16] = b"0123456789abcdef";
-    let mut output = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        output.push(DIGITS[(byte >> 4) as usize] as char);
-        output.push(DIGITS[(byte & 15) as usize] as char);
-    }
-    output
+    let digit = |n: u8| char::from(if n < 10 { b'0' + n } else { b'a' + n - 10 });
+    bytes
+        .iter()
+        .flat_map(|byte| [digit(byte >> 4), digit(byte & 15)])
+        .collect()
 }
 
 /// Supplies the website's deterministic notification previews.

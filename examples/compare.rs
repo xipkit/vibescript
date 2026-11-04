@@ -64,12 +64,11 @@ static ALLOCATOR: allocations::Counting = allocations::Counting;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args().collect();
-    if args.len() != 4 {
+    let [_, fixtures, iterations, mode] = args.as_slice() else {
         return Err("usage: compare FIXTURES ITERATIONS MODE".into());
-    }
-    let cases: Vec<Json> = serde_json::from_slice(&fs::read(&args[1])?)?;
-    let fixed: usize = args[2].parse()?;
-    let mode = &args[3];
+    };
+    let cases: Vec<Json> = serde_json::from_slice(&fs::read(fixtures)?)?;
+    let fixed: usize = iterations.parse()?;
     if !matches!(mode.as_str(), "timing" | "validate" | "alloc") {
         return Err("invalid mode".into());
     }
@@ -77,14 +76,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("alloc mode requires allocation-stats feature".into());
     }
     for case in cases {
-        let name = case["name"].as_str().ok_or("missing name")?;
-        let source = case["source"].as_str().ok_or("missing source")?;
-        if case["parse"].as_bool().unwrap_or(false) {
+        let name = case
+            .get("name")
+            .and_then(Json::as_str)
+            .ok_or("missing name")?;
+        let source = case
+            .get("source")
+            .and_then(Json::as_str)
+            .ok_or("missing source")?;
+        if case.get("parse").and_then(Json::as_bool).unwrap_or(false) {
             println!("{}", measure_parse(&case, source, fixed, mode)?);
             continue;
         }
         let mut engine = Engine::new();
-        engine.set_strict_effects(case["strict_effects"].as_bool().unwrap_or(false));
+        engine.set_strict_effects(
+            case.get("strict_effects")
+                .and_then(Json::as_bool)
+                .unwrap_or(false),
+        );
         if case.get("module_paths").is_some() {
             engine.set_module_config(ModuleConfig {
                 paths: strings(&case, "module_paths")?
@@ -93,7 +102,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .collect(),
                 allow: strings(&case, "module_allow")?,
                 deny: strings(&case, "module_deny")?,
-                development: case["module_development"].as_bool().unwrap_or(false),
+                development: case
+                    .get("module_development")
+                    .and_then(Json::as_bool)
+                    .unwrap_or(false),
                 ..ModuleConfig::default()
             })?;
         }
@@ -105,12 +117,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             });
         }
         // A writer sends each write whole; validation collects them after.
-        let stdout = case["stdout"]
-            .as_bool()
+        let stdout = case
+            .get("stdout")
+            .and_then(Json::as_bool)
             .unwrap_or(false)
             .then(mpsc::channel::<Vec<u8>>);
-        let stderr = case["stderr"]
-            .as_bool()
+        let stderr = case
+            .get("stderr")
+            .and_then(Json::as_bool)
             .unwrap_or(false)
             .then(mpsc::channel::<Vec<u8>>);
         let capture = mode == "validate";
@@ -136,9 +150,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .get("signature_probe")
             .map(|probe| signatures::configure(&mut engine, probe))
             .transpose()?;
-        let function = case["function"].as_str().unwrap_or("run");
+        let function = case.get("function").and_then(Json::as_str).unwrap_or("run");
         let mut input = Vec::new();
-        for arg in case["args"].as_array().ok_or("missing args")? {
+        for arg in case
+            .get("args")
+            .and_then(Json::as_array)
+            .ok_or("missing args")?
+        {
             input.push(parse_json(&serde_json::to_vec(arg)?, codec_options())?.value);
         }
         let mut globals = BTreeMap::new();
@@ -150,12 +168,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
         }
-        let metered = case["accounting"].as_bool().unwrap_or(true);
+        let metered = case
+            .get("accounting")
+            .and_then(Json::as_bool)
+            .unwrap_or(true);
         let mut capabilities = Vec::new();
-        if case["capability_probe"].as_bool().unwrap_or(false) {
+        if case
+            .get("capability_probe")
+            .and_then(Json::as_bool)
+            .unwrap_or(false)
+        {
             capabilities.push(probe::capability());
         }
-        if case["block_probe"].as_bool().unwrap_or(false) {
+        if case
+            .get("block_probe")
+            .and_then(Json::as_bool)
+            .unwrap_or(false)
+        {
             capabilities.push(blocks::capability());
         }
         for name in strings(&case, "notifications")? {
@@ -164,7 +193,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut options = CallOptions {
             globals,
             capabilities,
-            allow_require: case["allow_require"].as_bool().unwrap_or(false),
+            allow_require: case
+                .get("allow_require")
+                .and_then(Json::as_bool)
+                .unwrap_or(false),
             limits: Limits {
                 steps: if metered { Some(5_000_000) } else { None },
                 memory_bytes: if metered { Some(64 << 20) } else { None },
@@ -173,7 +205,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ..CallOptions::default()
         };
         if let Some(method) = signature_method.clone() {
-            signatures::bind(&mut options, &case["signature_probe"], method);
+            signatures::bind(
+                &mut options,
+                case.get("signature_probe")
+                    .ok_or("missing signature probe")?,
+                method,
+            );
         }
         declare::declare(
             &mut engine,
@@ -183,25 +220,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )?;
         let script = engine.compile(source)?;
         let result = script.call(function, &input, options.clone())?;
-        let encoding = case["result_encoding"].as_str().unwrap_or("");
+        let encoding = case
+            .get("result_encoding")
+            .and_then(Json::as_str)
+            .unwrap_or("");
         let output = support::encode(&result.value, encoding, codec_options())?;
         let hash = output.iter().fold(0xcbf29ce484222325u64, |h, b| {
             (h ^ *b as u64).wrapping_mul(0x100000001b3)
         });
-        let mut record = json!({"name":name,"digest":format!("{hash:016x}"),"output_bytes":output.len(),"steps":result.stats.steps,"tracked_peak_bytes":result.stats.peak_memory_bytes,"tracked_retained_bytes":result.stats.retained_memory_bytes});
+        let mut record = serde_json::Map::from_iter([
+            ("name".into(), json!(name)),
+            ("digest".into(), json!(format!("{hash:016x}"))),
+            ("output_bytes".into(), json!(output.len())),
+            ("steps".into(), json!(result.stats.steps)),
+            (
+                "tracked_peak_bytes".into(),
+                json!(result.stats.peak_memory_bytes),
+            ),
+            (
+                "tracked_retained_bytes".into(),
+                json!(result.stats.retained_memory_bytes),
+            ),
+        ]);
         if mode == "validate" {
-            record["result_json"] = Json::String(String::from_utf8(output.to_vec())?);
+            record.insert(
+                "result_json".into(),
+                Json::String(String::from_utf8(output.to_vec())?),
+            );
             for (name, buffer) in [("stdout_hex", &stdout), ("stderr_hex", &stderr)] {
                 if let Some((_, written)) = buffer {
                     let bytes: Vec<u8> = written.try_iter().flatten().collect();
-                    record[name] = Json::String(hex(&bytes));
+                    record.insert(name.into(), Json::String(hex(&bytes)));
                 }
             }
         } else {
             let n = if fixed > 0 {
                 fixed
             } else {
-                case["iterations"].as_u64().ok_or("missing iterations")? as usize
+                case.get("iterations")
+                    .and_then(Json::as_u64)
+                    .ok_or("missing iterations")? as usize
             };
             if n == 0 {
                 return Err("zero iterations".into());
@@ -224,15 +282,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             #[cfg(feature = "allocation-stats")]
             {
                 let after = allocations::snapshot();
-                record["alloc_bytes"] = json!((after.0 - before.0) as f64 / n as f64);
-                record["allocations"] = json!((after.1 - before.1) as f64 / n as f64);
+                record.insert(
+                    "alloc_bytes".into(),
+                    json!((after.0 - before.0) as f64 / n as f64),
+                );
+                record.insert(
+                    "allocations".into(),
+                    json!((after.1 - before.1) as f64 / n as f64),
+                );
             }
             let final_output = support::encode(&last.unwrap().value, encoding, codec_options())?;
             if final_output != output {
                 return Err(format!("{name}: timed output differs from validation").into());
             }
-            record["iterations"] = json!(n);
-            record["ns_per_call"] = json!(elapsed.as_nanos() as f64 / n as f64);
+            record.insert("iterations".into(), json!(n));
+            record.insert(
+                "ns_per_call".into(),
+                json!(elapsed.as_nanos() as f64 / n as f64),
+            );
         }
         println!("{}", serde_json::to_string(&record)?);
     }
@@ -245,7 +312,10 @@ fn measure_parse(
     fixed: usize,
     mode: &str,
 ) -> Result<Json, Box<dyn std::error::Error>> {
-    let malformed = case["syntax_error"].as_bool().unwrap_or(false);
+    let malformed = case
+        .get("syntax_error")
+        .and_then(Json::as_bool)
+        .unwrap_or(false);
     let parse = || -> Result<(), Box<dyn std::error::Error>> {
         if malformed {
             let error = Engine::new()
@@ -262,16 +332,27 @@ fn measure_parse(
         Ok(())
     };
     parse()?;
-    let mut record = json!({"name": case["name"], "digest": "parse", "output_bytes": 4,
-        "steps": 0, "tracked_peak_bytes": 0, "tracked_retained_bytes": 0});
+    let mut record = serde_json::Map::from_iter([
+        (
+            "name".into(),
+            case.get("name").cloned().unwrap_or(Json::Null),
+        ),
+        ("digest".into(), json!("parse")),
+        ("output_bytes".into(), json!(4)),
+        ("steps".into(), json!(0)),
+        ("tracked_peak_bytes".into(), json!(0)),
+        ("tracked_retained_bytes".into(), json!(0)),
+    ]);
     if mode == "validate" {
-        record["result_json"] = json!("true");
-        return Ok(record);
+        record.insert("result_json".into(), json!("true"));
+        return Ok(Json::Object(record));
     }
     let n = if fixed > 0 {
         fixed
     } else {
-        case["iterations"].as_u64().ok_or("missing iterations")? as usize
+        case.get("iterations")
+            .and_then(Json::as_u64)
+            .ok_or("missing iterations")? as usize
     };
     if n == 0 {
         return Err("zero iterations".into());
@@ -289,12 +370,21 @@ fn measure_parse(
     #[cfg(feature = "allocation-stats")]
     {
         let after = allocations::snapshot();
-        record["alloc_bytes"] = json!((after.0 - before.0) as f64 / n as f64);
-        record["allocations"] = json!((after.1 - before.1) as f64 / n as f64);
+        record.insert(
+            "alloc_bytes".into(),
+            json!((after.0 - before.0) as f64 / n as f64),
+        );
+        record.insert(
+            "allocations".into(),
+            json!((after.1 - before.1) as f64 / n as f64),
+        );
     }
-    record["iterations"] = json!(n);
-    record["ns_per_call"] = json!(elapsed.as_nanos() as f64 / n as f64);
-    Ok(record)
+    record.insert("iterations".into(), json!(n));
+    record.insert(
+        "ns_per_call".into(),
+        json!(elapsed.as_nanos() as f64 / n as f64),
+    );
+    Ok(Json::Object(record))
 }
 
 fn strings(case: &Json, name: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
@@ -316,15 +406,10 @@ fn strings(case: &Json, name: &str) -> Result<Vec<String>, Box<dyn std::error::E
 }
 
 fn hex(bytes: &[u8]) -> String {
-    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let digit = |n: u8| char::from(if n < 10 { b'0' + n } else { b'a' + n - 10 });
     bytes
         .iter()
-        .flat_map(|byte| {
-            [
-                char::from(DIGITS[usize::from(byte >> 4)]),
-                char::from(DIGITS[usize::from(byte & 15)]),
-            ]
-        })
+        .flat_map(|byte| [digit(byte >> 4), digit(byte & 15)])
         .collect()
 }
 fn codec_options() -> CallOptions {

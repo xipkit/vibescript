@@ -325,7 +325,7 @@ impl Server {
             }
         }
         self.document_bytes = bytes;
-        let document = &self.documents[uri].0;
+        let document = &self.documents.get(uri)?.0;
         if document.interrupted() {
             return None;
         }

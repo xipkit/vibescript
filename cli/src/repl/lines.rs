@@ -85,7 +85,7 @@ fn show(
     let transcript = model.session.transcript();
     *printed = (*printed).min(transcript.len());
     let mut lines: Vec<Line> = Vec::new();
-    for entry in &transcript[*printed..] {
+    for entry in transcript.iter().skip(*printed) {
         lines.extend(model::entry_lines(entry));
         lines.push(Vec::new());
     }

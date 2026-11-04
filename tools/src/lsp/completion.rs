@@ -127,15 +127,15 @@ pub(crate) fn member_context<S: AsRef<str>>(lines: &[S], line: i64, character: i
     let chars: Vec<char> = text.chars().collect();
     let end = character_index(text, character).min(chars.len());
     let mut start = end;
-    while start > 0 && word_char(chars[start - 1]) {
+    while start > 0 && chars.get(start - 1).is_some_and(|c| word_char(*c)) {
         start -= 1;
     }
-    if start == 0 || chars[start - 1] != '.' {
+    if start == 0 || chars.get(start - 1) != Some(&'.') {
         return false;
     }
-    if start >= 2 && digit(chars[start - 2]) {
+    if start >= 2 && chars.get(start - 2).is_some_and(|c| digit(*c)) {
         if start < end {
-            if fraction_suffix(&chars[start..end]) {
+            if chars.get(start..end).is_some_and(fraction_suffix) {
                 return false;
             }
         } else if chars.get(start).is_some_and(|c| digit(*c)) {
@@ -160,26 +160,26 @@ fn fraction_suffix(suffix: &[char]) -> bool {
     if index == suffix.len() {
         return true;
     }
-    if !matches!(suffix[index], 'e' | 'E') {
+    if !matches!(suffix.get(index), Some('e' | 'E')) {
         return false;
     }
     index += 1;
     if index == suffix.len() {
         return true;
     }
-    if !digit(suffix[index]) {
+    if !suffix.get(index).is_some_and(|c| digit(*c)) {
         return false;
     }
     digits(suffix, index) == suffix.len()
 }
 
 fn digits(chars: &[char], mut index: usize) -> usize {
-    while index < chars.len() {
-        let separator = chars[index] == '_'
+    while let Some(&c) = chars.get(index) {
+        let separator = c == '_'
             && index > 0
-            && digit(chars[index - 1])
+            && chars.get(index - 1).is_some_and(|c| digit(*c))
             && chars.get(index + 1).is_some_and(|c| digit(*c));
-        if !digit(chars[index]) && !separator {
+        if !digit(c) && !separator {
             break;
         }
         index += 1;
@@ -215,22 +215,23 @@ fn splice_probe<S: AsRef<str>>(
     let chars: Vec<char> = text.chars().collect();
     let end = character_index(text, character).min(chars.len());
     let mut start = end;
-    while start > 0 && word_char(chars[start - 1]) {
+    while start > 0 && chars.get(start - 1).is_some_and(|c| word_char(*c)) {
         start -= 1;
     }
-    if start == 0 || chars[start - 1] != '.' {
+    if start == 0 || chars.get(start - 1) != Some(&'.') {
         return None;
     }
     let mut source_lines: Vec<&str> = source.split('\n').collect();
     if index >= source_lines.len() {
         return None;
     }
-    let spliced: String = chars[..start]
+    let spliced: String = chars
+        .get(..start)?
         .iter()
         .chain(PROBE.chars().collect::<Vec<_>>().iter())
-        .chain(chars[end..].iter())
+        .chain(chars.get(end..)?.iter())
         .collect();
-    source_lines[index] = &spliced;
+    *source_lines.get_mut(index)? = &spliced;
     Some(source_lines.join("\n"))
 }
 
