@@ -9,14 +9,25 @@ exclude = ["tests/platforms/wasi"]
 skip = ["tests/", "cli/tests/", "tools/tests/"]
 allow = [
   "indexing_slicing", "unwrap_used", "cast_possible_truncation",
-  "string_slice", "unreachable", "cast_sign_loss", "cast_possible_wrap",
-  "unsafe_code",
+  "string_slice", "unreachable", "cast_sign_loss",
 ]
 
 # The parser and compiler use `async fn` for stack-safe recursion, not
 # concurrency.
 [workspace.metadata.adamantium.exceptions]
 future_not_send = ["src/syntax.rs", "src/syntax/", "src/bytecode.rs", "src/bytecode/", "src/compilation/tasks.rs"]
+unsafe_code = [
+  # SIMD intrinsics and the tagged, one-word Arc byte handle.
+  "src/scan.rs", "src/json/scan.rs", "src/value/bytes.rs",
+  # Platform filesystem, timezone and signal APIs.
+  "src/loading/files/platform.rs", "src/loading/files/platform/windows.rs",
+  "src/time/zone/windows.rs", "cli/src/files.rs", "cli/src/signal.rs",
+  # Filesystem tests create FIFOs and inspect descriptor flags through libc.
+  "src/loading/files/tests.rs",
+  # Diagnostic allocators, allocator statistics and resident memory queries.
+  "examples/compare.rs", "examples/footprint/allocations.rs",
+  "examples/footprint/snapshot.rs", "examples/footprint/rss.rs",
+]
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"

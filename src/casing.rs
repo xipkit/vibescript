@@ -13,7 +13,7 @@ pub(crate) fn map(c: char, upper: bool) -> char {
     let mapped = if delta == 0x110000 {
         low + ((point - low) & !1) + u32::from(!upper)
     } else {
-        (point as i32 + delta) as u32
+        point.wrapping_add_signed(delta)
     };
     char::from_u32(mapped).unwrap()
 }

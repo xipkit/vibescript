@@ -5,7 +5,13 @@ fn graph(ctx: &mut CallContext, count: usize) -> Value {
     let mut nodes = Vec::new();
     for index in 0..count {
         let node = environment(ctx).unwrap();
-        set(ctx, &node, "value", &Value::int(index as i64)).unwrap();
+        set(
+            ctx,
+            &node,
+            "value",
+            &Value::int(crate::numeric::to_i64(index)),
+        )
+        .unwrap();
         nodes.push(node);
     }
     for index in 0..count {

@@ -4,6 +4,7 @@ use crate::{
     bytecode::{Method, Operator},
     bytes,
     hash::Hash,
+    numeric::to_i64,
     scan::{self, Class},
     value::Kind,
 };
@@ -992,11 +993,11 @@ pub(crate) fn method(
                 Kind::Hash(h) => h.buffer.data.len(),
                 _ => return Err(type_error()),
             };
-            Ok(Value::int(n as i64))
+            Ok(Value::int(to_i64(n)))
         }
         ByteSize => {
             member_arity(&value, name, args)?;
-            Ok(Value::int(value.require_bytes()?.len() as i64))
+            Ok(Value::int(to_i64(value.require_bytes()?.len())))
         }
         Include | Index | Rindex => {
             let found = if let Some(array) = value.as_array() {
@@ -1049,7 +1050,7 @@ pub(crate) fn method(
             if matches!(method, Include) {
                 Ok(Value::boolean(found.is_some()))
             } else {
-                Ok(found.map(|n| Value::int(n as i64)).unwrap_or_default())
+                Ok(found.map(|n| Value::int(to_i64(n))).unwrap_or_default())
             }
         }
         Split => crate::text::split::call(ctx, &value, args),

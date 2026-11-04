@@ -3,6 +3,7 @@ use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, Charge},
     hash::Hash,
+    numeric::to_i64,
     ops,
     value::{Bytes, Heap, Kind},
 };
@@ -153,9 +154,9 @@ pub(super) fn data(
                 .push(super::window(ctx, subject, pair[0], pair[1])?);
             starts
                 .data
-                .push(Value::int(ops::runes(ctx, &text[..pair[0]])?.0 as i64));
+                .push(Value::int(to_i64(ops::runes(ctx, &text[..pair[0]])?.0)));
             ends.data
-                .push(Value::int(ops::runes(ctx, &text[..pair[1]])?.0 as i64));
+                .push(Value::int(to_i64(ops::runes(ctx, &text[..pair[1]])?.0)));
         }
     }
     let mut named = Hash::empty();

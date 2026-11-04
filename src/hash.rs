@@ -527,7 +527,7 @@ fn values_depth(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::CallOptions;
+    use crate::{CallOptions, numeric::to_i64};
 
     #[test]
     fn collisions_preserve_keys_and_consume_work() {
@@ -548,7 +548,7 @@ mod tests {
         let mut hash = Hash::empty();
         for (i, key) in keys[..100].iter().enumerate() {
             let key = ctx.bytes(key.as_bytes()).unwrap();
-            hash.insert(&mut ctx, key, Value::int(i as i64)).unwrap();
+            hash.insert(&mut ctx, key, Value::int(to_i64(i))).unwrap();
         }
         for (i, key) in keys[..100].iter().enumerate() {
             assert_eq!(hash.find(&mut ctx, key.as_bytes()).unwrap(), Some(i));
@@ -559,7 +559,7 @@ mod tests {
             let index = hash.find(&mut ctx, keys[i].as_bytes()).unwrap().unwrap();
             assert_eq!(
                 hash.remove(&mut ctx, index).unwrap().as_int(),
-                Some(i as i64)
+                Some(to_i64(i))
             );
         }
         for (i, key) in keys[..100].iter().enumerate() {
@@ -585,7 +585,7 @@ mod tests {
             let mut hash = Hash::empty();
             for (i, key) in keys.iter().enumerate() {
                 let key = ctx.bytes(key.as_bytes()).unwrap();
-                hash.insert(&mut ctx, key, Value::int(i as i64)).unwrap();
+                hash.insert(&mut ctx, key, Value::int(to_i64(i))).unwrap();
             }
             let indices: Vec<usize> = keys
                 .iter()
@@ -603,13 +603,13 @@ mod tests {
             let mut hash = Hash::empty();
             for (i, key) in keys.iter().enumerate() {
                 let key = ctx.bytes(key.as_bytes()).unwrap();
-                hash.insert(&mut ctx, key, Value::int(i as i64)).unwrap();
+                hash.insert(&mut ctx, key, Value::int(to_i64(i))).unwrap();
             }
             let before = ctx.stats().steps;
             for (i, key) in keys.iter().enumerate().filter(|(i, _)| i % 2 == 0) {
                 let index = hash.find(&mut ctx, key.as_bytes()).unwrap().unwrap();
                 let removed = hash.remove(&mut ctx, index).unwrap();
-                assert_eq!(removed.as_int(), Some(i as i64));
+                assert_eq!(removed.as_int(), Some(to_i64(i)));
             }
             (ctx.stats().steps - before, hash)
         };

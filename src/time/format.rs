@@ -147,7 +147,7 @@ impl<'a> View<'a> {
     fn part(&self, part: Part) -> i64 {
         match part {
             Part::Year => self.date.year,
-            Part::YearShort => (self.date.year.unsigned_abs() % 100) as i64,
+            Part::YearShort => (self.date.year % 100).abs(),
             Part::Month => self.date.month,
             Part::Day => self.date.day,
             Part::YearDay => self.date.yearday,
