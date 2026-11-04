@@ -45,11 +45,17 @@ type Capture = Arc<Mutex<Vec<u8>>>;
 )]
 fn main() {
     // Deeply recursive cases need more native stack than the main thread has.
-    let worker = std::thread::Builder::new()
+    let result = std::thread::Builder::new()
         .stack_size(1 << 30)
         .spawn(run)
-        .expect("spawn the golden worker");
-    if let Err(message) = worker.join().expect("join the golden worker") {
+        .map_err(|error| format!("spawn the golden worker: {error}"))
+        .and_then(|worker| {
+            worker
+                .join()
+                .map_err(|_| "golden worker panicked".to_owned())
+        })
+        .and_then(|result| result);
+    if let Err(message) = result {
         eprintln!("golden: {message}");
         std::process::exit(2);
     }

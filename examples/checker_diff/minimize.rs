@@ -24,17 +24,17 @@ fn same(verdict: &Verdict, wanted: &str) -> bool {
 
 /// Removes lines, and blocks of lines, from every file of `case` while it
 /// still shows `finding`, until no single removal keeps it.
-pub fn minimize(case: &Case, finding: &Finding, scratch: &mut Scratch) -> Case {
+pub fn minimize(case: &Case, finding: &Finding, scratch: &mut Scratch) -> std::io::Result<Case> {
     let wanted = signature(finding);
     let mut best = case.clone();
     loop {
         let before = size(&best);
         for file in 0..=best.modules.len() {
-            best = reduce_file(best, file, &wanted, scratch);
+            best = reduce_file(best, file, &wanted, scratch)?;
         }
-        best = drop_modules(best, &wanted, scratch);
+        best = drop_modules(best, &wanted, scratch)?;
         if size(&best) >= before {
-            return best;
+            return Ok(best);
         }
     }
 }
@@ -66,19 +66,19 @@ fn with_text(case: &Case, file: usize, text: String) -> Case {
     next
 }
 
-fn drop_modules(case: Case, wanted: &str, scratch: &mut Scratch) -> Case {
+fn drop_modules(case: Case, wanted: &str, scratch: &mut Scratch) -> std::io::Result<Case> {
     let mut best = case;
     let mut index = 0;
     while index < best.modules.len() {
         let mut next = best.clone();
         next.modules.remove(index);
-        if same(&harness::judge(&next, scratch), wanted) {
+        if same(&harness::judge(&next, scratch)?, wanted) {
             best = next;
         } else {
             index += 1;
         }
     }
-    best
+    Ok(best)
 }
 
 /// The end of the block that line `start` opens: the following lines
@@ -99,7 +99,12 @@ fn block_end(lines: &[&str], start: usize) -> usize {
     end
 }
 
-fn reduce_file(case: Case, file: usize, wanted: &str, scratch: &mut Scratch) -> Case {
+fn reduce_file(
+    case: Case,
+    file: usize,
+    wanted: &str,
+    scratch: &mut Scratch,
+) -> std::io::Result<Case> {
     let mut best = case;
     // Whole blocks first, then chunks of lines of halving size.
     let mut index = 0;
@@ -113,7 +118,7 @@ fn reduce_file(case: Case, file: usize, wanted: &str, scratch: &mut Scratch) -> 
         let mut kept: Vec<&str> = lines[..index].to_vec();
         kept.extend_from_slice(&lines[end..]);
         let candidate = with_text(&best, file, kept.join("\n") + "\n");
-        if end > index && same(&harness::judge(&candidate, scratch), wanted) {
+        if end > index && same(&harness::judge(&candidate, scratch)?, wanted) {
             best = candidate;
         } else {
             index += 1;
@@ -132,7 +137,7 @@ fn reduce_file(case: Case, file: usize, wanted: &str, scratch: &mut Scratch) -> 
             let mut kept: Vec<&str> = lines[..start].to_vec();
             kept.extend_from_slice(&lines[end..]);
             let candidate = with_text(&best, file, kept.join("\n") + "\n");
-            if same(&harness::judge(&candidate, scratch), wanted) {
+            if same(&harness::judge(&candidate, scratch)?, wanted) {
                 best = candidate;
             } else {
                 start += chunk;
@@ -140,5 +145,5 @@ fn reduce_file(case: Case, file: usize, wanted: &str, scratch: &mut Scratch) -> 
         }
         chunk /= 2;
     }
-    best
+    Ok(best)
 }

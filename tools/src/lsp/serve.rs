@@ -44,7 +44,7 @@ pub fn serve(
     mut output: impl Write,
     cancellation: &CancellationToken,
 ) -> io::Result<()> {
-    let mut messages = Messages::new(input, server.in_flight.clone());
+    let mut messages = Messages::new(input, server.in_flight.clone())?;
     while let Some(event) = messages
         .next(cancellation)
         .map_err(|error| context("lsp read", error))?
@@ -106,7 +106,7 @@ impl<R: Read + Send + 'static> Messages<R> {
         clippy::disallowed_methods,
         reason = "the reader blocks in read until the client closes its end, so the server cannot join it; it ends with its input, and the server has no async runtime"
     )]
-    fn new(input: R, in_flight: InFlight) -> Self {
+    fn new(input: R, in_flight: InFlight) -> io::Result<Self> {
         let (sender, receiver) = mpsc::sync_channel(READ_AHEAD);
         let input = Arc::new(Mutex::new(Some(input)));
         let shared = input.clone();
@@ -125,12 +125,12 @@ impl<R: Read + Send + 'static> Messages<R> {
             },
             Err(_) => {
                 let input = input.lock().unwrap_or_else(|e| e.into_inner()).take();
-                Source::Inline(BufReader::new(
-                    input.expect("the reader thread never started"),
-                ))
+                Source::Inline(BufReader::new(input.ok_or_else(|| {
+                    io::Error::other("reader thread consumed input despite failing to start")
+                })?))
             }
         };
-        Self { source }
+        Ok(Self { source })
     }
 }
 

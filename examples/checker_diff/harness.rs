@@ -24,11 +24,8 @@ const STACK: usize = 256 << 20;
 )]
 pub fn spawn<T: Send + 'static>(
     work: impl FnOnce() -> T + Send + 'static,
-) -> std::thread::JoinHandle<T> {
-    std::thread::Builder::new()
-        .stack_size(STACK)
-        .spawn(work)
-        .expect("spawn a worker")
+) -> std::io::Result<std::thread::JoinHandle<T>> {
+    std::thread::Builder::new().stack_size(STACK).spawn(work)
 }
 
 /// A program: the script and the files it may require, by relative path.
@@ -202,20 +199,20 @@ impl Scratch {
 }
 
 /// Checks `case`, then runs it in both builds and compares them.
-pub fn judge(case: &Case, scratch: &mut Scratch) -> Verdict {
+pub fn judge(case: &Case, scratch: &mut Scratch) -> std::io::Result<Verdict> {
     let directory = if case.modules.is_empty() {
         None
     } else {
-        Some(
-            scratch
-                .directory(&case.modules)
-                .expect("write required files"),
-        )
+        Some(scratch.directory(&case.modules)?)
     };
-    let normal = match compile(case, directory.as_deref(), false) {
+    Ok(judge_in(case, directory.as_deref()))
+}
+
+fn judge_in(case: &Case, directory: Option<&Path>) -> Verdict {
+    let normal = match compile(case, directory, false) {
         Ok(Ok(script)) => script,
         Ok(Err(error)) => {
-            return match compile(case, directory.as_deref(), true) {
+            return match compile(case, directory, true) {
                 Ok(Ok(_)) => finding(
                     FindingKind::CompileMismatch,
                     format!("only the build with checks compiles; the other: {error}"),
@@ -225,7 +222,7 @@ pub fn judge(case: &Case, scratch: &mut Scratch) -> Verdict {
         }
         Err(panic) => return finding(FindingKind::Panic, format!("compile: {panic}")),
     };
-    let kept = match compile(case, directory.as_deref(), true) {
+    let kept = match compile(case, directory, true) {
         Ok(Ok(script)) => script,
         Ok(Err(error)) => {
             return finding(
@@ -309,17 +306,17 @@ impl Outcome {
 /// Checks `case` and, once the checker accepts it, runs it once, with the
 /// host's calls into it, keeping every check the checker proves, so that a
 /// run the checker's proofs do not hold for fails.
-pub fn outcome(case: &Case, scratch: &mut Scratch) -> Outcome {
+pub fn outcome(case: &Case, scratch: &mut Scratch) -> std::io::Result<Outcome> {
     let directory = if case.modules.is_empty() {
         None
     } else {
-        Some(
-            scratch
-                .directory(&case.modules)
-                .expect("write required files"),
-        )
+        Some(scratch.directory(&case.modules)?)
     };
-    let compiled = match compile(case, directory.as_deref(), true) {
+    Ok(outcome_in(case, directory.as_deref()))
+}
+
+fn outcome_in(case: &Case, directory: Option<&Path>) -> Outcome {
+    let compiled = match compile(case, directory, true) {
         Ok(Ok(compiled)) => compiled,
         Ok(Err(error)) => return Outcome::Rejected(first_code(&error)),
         Err(_) => return Outcome::Panicked,
@@ -463,8 +460,9 @@ fn observe(compiled: &Compiled, host: &Host) -> Result<Observation, String> {
             deadline: Some(Instant::now() + Duration::from_secs(10)),
             ..CallOptions::default()
         };
-        host.grant(&mut options);
-        options
+        host.grant(&mut options)
+            .map_err(|error| error.to_string())?;
+        Ok::<_, String>(options)
     };
     let mut observation = Observation {
         result: String::new(),
@@ -475,15 +473,17 @@ fn observe(compiled: &Compiled, host: &Host) -> Result<Observation, String> {
         type_error: false,
         unexpected: false,
     };
-    let main =
-        catch_unwind(AssertUnwindSafe(|| compiled.script.run(options()))).map_err(panic_message)?;
+    let main_options = options()?;
+    let main = catch_unwind(AssertUnwindSafe(|| compiled.script.run(main_options)))
+        .map_err(panic_message)?;
     observation.record(main, false);
     for call in &host.calls {
         let (args, keywords) = host::arguments(&call.args);
+        let call_options = options()?;
         let outcome = catch_unwind(AssertUnwindSafe(|| {
             compiled
                 .script
-                .call_with_keywords(&call.function, &args, &keywords, options())
+                .call_with_keywords(&call.function, &args, &keywords, call_options)
         }))
         .map_err(panic_message)?;
         observation

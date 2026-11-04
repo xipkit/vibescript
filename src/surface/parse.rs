@@ -945,7 +945,7 @@ impl<'s> Parser<'s> {
                     None => open_groups.push(i),
                 },
                 TokenKind::Punct(')' | ']' | '}') => {
-                    let opened = open_groups.pop().expect("an open group");
+                    let opened = open_groups.pop()?;
                     closers.insert(opened, Some(i));
                     if open_groups.is_empty() {
                         found = Some(i);

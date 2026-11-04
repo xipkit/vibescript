@@ -415,7 +415,7 @@ fn print_outcome(outcome: &Outcome, stats: bool) -> Result<(), Failure> {
         encoded
             .value
             .as_bytes()
-            .expect("stringify_json returns a string value"),
+            .ok_or_else(|| Error::new(ErrorKind::Json, "JSON encoding did not return bytes"))?,
     )?;
     out.write_all(b"\n")?;
     if stats {

@@ -698,7 +698,10 @@ impl<'a> Checker<'a> {
             if self.halt() {
                 break;
             }
-            let colon = self.token_span(param.keyword_colon.expect("a removed keyword form"));
+            let Some(colon) = param.keyword_colon else {
+                continue;
+            };
+            let colon = self.token_span(colon);
             let name_end = self.tokens[param.name_tok].end;
             let declared = ty.map(|ty| written!(self, ": {ty}")).unwrap_or_default();
             match (&param.ty, &param.default) {
@@ -1329,7 +1332,9 @@ impl<'a> Checker<'a> {
                     out.push(Piece::Text(text.to_owned()));
                 }
                 TemplatePiece::Receiver => {
-                    let receiver = receiver.expect("a member pattern has a receiver");
+                    let Some(receiver) = receiver else {
+                        return false;
+                    };
                     out.push(Piece::Source(receiver.span));
                     if safe {
                         out.push(Piece::Text("&".into()));

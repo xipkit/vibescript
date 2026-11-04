@@ -39,16 +39,18 @@ pub const PROFILES: [Profile; 4] = [
         memory: 512 << 20,
         recursion: 4_000,
     },
-    Profile {
-        name: "xhigh",
-        steps: -1,
-        memory: -1,
-        recursion: 10_000,
-    },
+    DEFAULT_PROFILE,
 ];
 
 /// The profile the execution commands select without `-profile`.
-pub const DEFAULT: &str = "xhigh";
+pub const DEFAULT: &str = DEFAULT_PROFILE.name;
+
+const DEFAULT_PROFILE: Profile = Profile {
+    name: "xhigh",
+    steps: -1,
+    memory: -1,
+    recursion: 10_000,
+};
 
 /// The flags every execution command accepts, after its own.
 pub const FLAGS: [Flag; 4] = [
@@ -104,7 +106,7 @@ pub fn resolve(flags: &Parsed) -> Result<Limits, String> {
 /// The limits of the default profile, for a caller without quota flags.
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn default_limits() -> Limits {
-    let profile = by_name(DEFAULT).expect("the default profile exists");
+    let profile = &DEFAULT_PROFILE;
     limits(profile.steps, profile.memory, profile.recursion)
 }
 

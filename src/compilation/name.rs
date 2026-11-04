@@ -36,7 +36,8 @@ impl Name {
         let (bytes, storage) = bytes.into_parts();
         Charge::merge(&mut charge, storage);
         Ok(Self(Some(Arc::new(OwnedName {
-            text: String::from_utf8(bytes).expect("names contain valid UTF-8"),
+            text: String::from_utf8(bytes)
+                .map_err(|error| crate::Error::new(crate::ErrorKind::Host, error.to_string()))?,
             _charge: charge,
         }))))
     }

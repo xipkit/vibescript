@@ -35,6 +35,7 @@ const SESSION: &str = "__session__";
 
 pub struct Session {
     engine: Engine,
+    initialization_error: Option<Error>,
     limits: Limits,
     compile_limits: SessionLimits,
     compile_steps: u64,
@@ -78,9 +79,7 @@ impl Session {
         let stdout = Arc::new(Mutex::new(Vec::new()));
         let stderr = Arc::new(Mutex::new(Vec::new()));
         let mut engine = Engine::new();
-        engine
-            .declare_global(SESSION, "hash<string, any>")
-            .expect("the session global's type is valid");
+        let initialization_error = engine.declare_global(SESSION, "hash<string, any>").err();
         let out = stdout.clone();
         engine.set_output_writer(move |_, bytes| {
             out.lock().unwrap().extend_from_slice(bytes);
@@ -93,6 +92,7 @@ impl Session {
         });
         Self {
             engine,
+            initialization_error,
             limits,
             compile_limits,
             compile_steps: 0,
@@ -286,7 +286,11 @@ impl Session {
         &mut self,
         pass: impl FnOnce(&Self, &mut CompileBudget) -> Result<T, Error>,
     ) -> Result<T, Error> {
-        if let Some(error) = &self.compile_exhausted {
+        if let Some(error) = self
+            .initialization_error
+            .as_ref()
+            .or(self.compile_exhausted.as_ref())
+        {
             return Err(error.clone());
         }
         let mut budget = CompileBudget::new(&CallOptions {
