@@ -69,11 +69,11 @@ pub(crate) fn enclosing_call<S: AsRef<str>>(
         .as_ref();
     let chars: Vec<char> = text.chars().collect();
     let cursor = character_index(text, character).min(chars.len());
-    let masked = mask_code(&chars[..cursor]);
+    let masked = mask_code(chars.get(..cursor)?);
     let (mut parens, mut squares, mut braces) = (0, 0, 0);
     let mut active = 0;
-    for index in (0..cursor).rev() {
-        match masked[index] {
+    for (index, c) in masked.iter().enumerate().rev() {
+        match c {
             ')' => parens += 1,
             ']' => squares += 1,
             '}' => braces += 1,
@@ -98,27 +98,30 @@ pub(crate) fn enclosing_call<S: AsRef<str>>(
                     continue;
                 }
                 let mut end = index;
-                while end > 0 && matches!(chars[end - 1], ' ' | '\t') {
+                while end > 0 && matches!(chars.get(end - 1), Some(' ' | '\t')) {
                     end -= 1;
                 }
                 let mut start = end;
-                while start > 0 && word_char(chars[start - 1]) {
+                while start > 0 && chars.get(start - 1).is_some_and(|c| word_char(*c)) {
                     start -= 1;
                 }
                 if start == end {
                     return None;
                 }
-                let name: String = chars[start..end].iter().collect();
-                if start > 0 && chars[start - 1] == '.' {
+                let name: String = chars.get(start..end)?.iter().collect();
+                if start > 0 && chars.get(start - 1) == Some(&'.') {
                     let receiver_end = start - 1;
                     let mut receiver_start = receiver_end;
-                    while receiver_start > 0 && word_char(chars[receiver_start - 1]) {
+                    while receiver_start > 0
+                        && chars.get(receiver_start - 1).is_some_and(|c| word_char(*c))
+                    {
                         receiver_start -= 1;
                     }
-                    let receiver: String = chars[receiver_start..receiver_end].iter().collect();
+                    let receiver: String =
+                        chars.get(receiver_start..receiver_end)?.iter().collect();
                     if receiver.is_empty()
                         || !catalog.is_namespace(&receiver)
-                        || (receiver_start > 0 && chars[receiver_start - 1] == '.')
+                        || (receiver_start > 0 && chars.get(receiver_start - 1) == Some(&'.'))
                     {
                         return None;
                     }
@@ -146,25 +149,25 @@ pub(crate) fn parenless_call<S: AsRef<str>>(
         .as_ref();
     let chars: Vec<char> = text.chars().collect();
     let cursor = character_index(text, character).min(chars.len());
-    let masked = mask_code(&chars[..cursor]);
+    let masked = mask_code(chars.get(..cursor)?);
     let mut start = 0;
-    while start < cursor && matches!(masked[start], ' ' | '\t') {
+    while start < cursor && matches!(masked.get(start), Some(' ' | '\t')) {
         start += 1;
     }
     let mut end = start;
-    while end < cursor && word_char(masked[end]) {
+    while end < cursor && masked.get(end).is_some_and(|c| word_char(*c)) {
         end += 1;
     }
     if end == start || end >= cursor {
         return None;
     }
-    let callee: String = masked[start..end].iter().collect();
-    if callee != "assert" || !matches!(masked[end], ' ' | '\t') {
+    let callee: String = masked.get(start..end)?.iter().collect();
+    if callee != "assert" || !matches!(masked.get(end), Some(' ' | '\t')) {
         return None;
     }
     let (mut parens, mut squares, mut braces) = (0i64, 0i64, 0i64);
     let mut active = 0;
-    for c in &masked[end..cursor] {
+    for c in masked.get(end..cursor)? {
         match c {
             '(' => parens += 1,
             ')' => parens -= 1,

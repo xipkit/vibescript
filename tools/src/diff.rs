@@ -1,5 +1,7 @@
 //! Unified diffs of a rewrite, as `vibes fix --dry-run` prints them.
 
+use std::collections::BTreeMap;
+
 const CONTEXT: usize = 3;
 
 /// Renders the change from `old` to `new` as a unified diff labelled `path`,
@@ -22,16 +24,16 @@ pub fn unified_diff(path: &str, old: &str, new: &str) -> String {
         format!("--- a/{path}\n+++ b/{path}\n")
     };
     let mut index = 0;
-    while index < script.len() {
-        if matches!(script[index], Op::Keep(..)) {
+    while let Some(op) = script.get(index) {
+        if matches!(op, Op::Keep(..)) {
             index += 1;
             continue;
         }
         let start = index.saturating_sub(CONTEXT);
         let mut end = index;
         let mut quiet = 0;
-        while end < script.len() {
-            if matches!(script[end], Op::Keep(..)) {
+        while let Some(op) = script.get(end) {
+            if matches!(op, Op::Keep(..)) {
                 if quiet == CONTEXT * 2 {
                     break;
                 }
@@ -42,18 +44,23 @@ pub fn unified_diff(path: &str, old: &str, new: &str) -> String {
             end += 1;
         }
         let end = (end - quiet.saturating_sub(CONTEXT)).min(script.len());
-        let (old_start, new_start) = position(&script[..start]);
-        let (old_len, new_len) = position(&script[start..end]);
+        let (before, rest) = script.split_at(start);
+        let (hunk, _) = rest.split_at(end - start);
+        let (old_start, new_start) = position(before);
+        let (old_len, new_len) = position(hunk);
         out.push_str(&format!(
             "@@ -{},{old_len} +{},{new_len} @@\n",
             old_start + usize::from(old_len > 0),
             new_start + usize::from(new_len > 0)
         ));
-        for op in &script[start..end] {
+        for op in hunk {
             let (mark, line) = match op {
-                Op::Keep(i, _) => (' ', a[*i]),
-                Op::Delete(i) => ('-', a[*i]),
-                Op::Insert(j) => ('+', b[*j]),
+                Op::Keep(i, _) => (' ', a.get(*i)),
+                Op::Delete(i) => ('-', a.get(*i)),
+                Op::Insert(j) => ('+', b.get(*j)),
+            };
+            let Some(line) = line else {
+                continue;
             };
             out.push(mark);
             out.push_str(line);
@@ -84,13 +91,16 @@ fn position(ops: &[Op]) -> (usize, usize) {
 /// A shortest edit script by Myers' algorithm, with common ends trimmed first.
 fn edit_script(a: &[&str], b: &[&str]) -> Vec<Op> {
     let prefix = a.iter().zip(b).take_while(|(x, y)| x == y).count();
-    let suffix = a[prefix..]
+    let (_, a_tail) = a.split_at(prefix);
+    let (_, b_tail) = b.split_at(prefix);
+    let suffix = a_tail
         .iter()
         .rev()
-        .zip(b[prefix..].iter().rev())
+        .zip(b_tail.iter().rev())
         .take_while(|(x, y)| x == y)
         .count();
-    let (a_mid, b_mid) = (&a[prefix..a.len() - suffix], &b[prefix..b.len() - suffix]);
+    let (a_mid, _) = a_tail.split_at(a_tail.len() - suffix);
+    let (b_mid, _) = b_tail.split_at(b_tail.len() - suffix);
     let mut ops: Vec<Op> = (0..prefix).map(|i| Op::Keep(i, i)).collect();
     for op in myers(a_mid, b_mid) {
         ops.push(match op {
@@ -113,25 +123,30 @@ fn signed(length: usize) -> isize {
 fn myers(a: &[&str], b: &[&str]) -> Vec<Op> {
     let (n, m) = (signed(a.len()), signed(b.len()));
     let max = a.len() + b.len();
-    let offset = signed(max) + 1;
-    let mut v = vec![0isize; 2 * max + 3];
+    let mut v = BTreeMap::new();
     let mut trace = Vec::new();
     'outer: for d in 0..=signed(max) {
         trace.push(v.clone());
         let mut k = -d;
         while k <= d {
-            let index = (k + offset) as usize;
-            let mut x = if k == -d || (k != d && v[index - 1] < v[index + 1]) {
-                v[index + 1]
+            let left = v.get(&(k - 1)).copied().unwrap_or(0);
+            let right = v.get(&(k + 1)).copied().unwrap_or(0);
+            let mut x = if k == -d || (k != d && left < right) {
+                right
             } else {
-                v[index - 1] + 1
+                left + 1
             };
             let mut y = x - k;
-            while x < n && y < m && a[x as usize] == b[y as usize] {
+            while x < n
+                && y < m
+                && a.get(x as usize)
+                    .zip(b.get(y as usize))
+                    .is_some_and(|(a, b)| a == b)
+            {
                 x += 1;
                 y += 1;
             }
-            v[index] = x;
+            v.insert(k, x);
             if x >= n && y >= m {
                 break 'outer;
             }
@@ -140,16 +155,17 @@ fn myers(a: &[&str], b: &[&str]) -> Vec<Op> {
     }
     let mut ops = Vec::new();
     let (mut x, mut y) = (n, m);
-    for d in (0..signed(trace.len())).rev() {
-        let v = &trace[d as usize];
+    for (d, v) in trace.iter().enumerate().rev() {
+        let d = signed(d);
         let k = x - y;
-        let index = (k + offset) as usize;
-        let previous_k = if k == -d || (k != d && v[index - 1] < v[index + 1]) {
+        let left = v.get(&(k - 1)).copied().unwrap_or(0);
+        let right = v.get(&(k + 1)).copied().unwrap_or(0);
+        let previous_k = if k == -d || (k != d && left < right) {
             k + 1
         } else {
             k - 1
         };
-        let previous_x = v[(previous_k + offset) as usize];
+        let previous_x = v.get(&previous_k).copied().unwrap_or(0);
         let previous_y = previous_x - previous_k;
         while x > previous_x && y > previous_y {
             x -= 1;

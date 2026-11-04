@@ -96,7 +96,7 @@ enum Step<'a> {
 
 /// Writes a quoted string the way Go's HTML-safe encoder does.
 fn string(out: &mut String, text: &str) {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let digit = |n: u8| char::from(if n < 10 { b'0' + n } else { b'a' + n - 10 });
     out.push('"');
     for c in text.chars() {
         match c {
@@ -110,8 +110,8 @@ fn string(out: &mut String, text: &str) {
             '<' | '>' | '&' | '\u{0}'..='\u{1f}' => {
                 let byte = c as u8;
                 out.push_str("\\u00");
-                out.push(HEX[usize::from(byte >> 4)] as char);
-                out.push(HEX[usize::from(byte & 15)] as char);
+                out.push(digit(byte >> 4));
+                out.push(digit(byte & 15));
             }
             '\u{2028}' => out.push_str("\\u2028"),
             '\u{2029}' => out.push_str("\\u2029"),
