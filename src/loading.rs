@@ -62,7 +62,13 @@ pub(crate) struct Pin {
 
 impl Default for Loader {
     fn default() -> Self {
-        Self::new(ModuleConfig::default()).expect("empty module configuration is valid")
+        Self {
+            keep_type_checks: false,
+            resolver: Arc::new(resolver::Resolver::default()),
+            cache: cache::Cache::new(DEFAULT_CACHE_LIMIT),
+            cache_limit: DEFAULT_CACHE_LIMIT,
+            development: false,
+        }
     }
 }
 
