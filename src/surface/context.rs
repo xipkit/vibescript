@@ -109,6 +109,7 @@ pub struct Surface<'a> {
     pub declared: Declared<'a>,
     /// The scopes enclosing the walk, innermost last.
     pub scopes: Vec<Scope<'a>>,
+    root_scope: Scope<'a>,
     /// Expressions a rename rewrote as an operator, such as `x.nil?` as `x == nil`.
     pub operator_rewrites: HashSet<Span>,
     /// The offsets of every `&&` and `||`, where they test their left operand.
@@ -136,6 +137,7 @@ impl<'a> Surface<'a> {
             edits: Edits::default(),
             declared: Declared::default(),
             scopes: Vec::new(),
+            root_scope: Scope::default(),
             operator_rewrites: HashSet::new(),
             short_circuits: HashSet::new(),
             def_ranges: Vec::new(),
@@ -314,7 +316,7 @@ impl<'a> Surface<'a> {
 
     /// The innermost scope.
     pub fn scope(&self) -> &Scope<'a> {
-        self.scopes.last().expect("a scope")
+        self.scopes.last().unwrap_or(&self.root_scope)
     }
 
     /// Whether `name` is a local, parameter or rescue binding in scope.

@@ -5,6 +5,7 @@
 use super::{argument, clean, trimmed};
 use crate::{CallContext, Error, ErrorKind, Result, budget::Buffer};
 
+#[derive(Default)]
 pub(crate) struct Policy {
     allow: Vec<Pattern>,
     deny: Vec<Pattern>,

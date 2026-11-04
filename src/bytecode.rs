@@ -950,7 +950,9 @@ impl Program {
                         break;
                     }
                 }
-                let slot = slot.expect("declared field");
+                let slot = slot.ok_or_else(|| {
+                    crate::Error::new(crate::ErrorKind::Host, "undeclared compiled field")
+                })?;
                 *op = match *op {
                     Op::BindIvar(_, local) => Op::BindField(slot, local),
                     Op::NamespaceVariable(..) => Op::InstanceField(slot),

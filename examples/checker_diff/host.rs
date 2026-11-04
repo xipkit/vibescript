@@ -100,7 +100,7 @@ impl Host {
             engine.declare_global(global.name.clone(), &global.ty)?;
         }
         for name in &self.capabilities {
-            if let Some(capability) = capability(name) {
+            if let Some(capability) = capability(name)? {
                 engine.declare_capability(&capability)?;
             }
         }
@@ -108,17 +108,18 @@ impl Host {
     }
 
     /// Supplies the globals and grants the capabilities to one call.
-    pub fn grant(&self, options: &mut CallOptions) {
+    pub fn grant(&self, options: &mut CallOptions) -> Result<()> {
         for global in &self.globals {
             options
                 .globals
                 .insert(global.name.clone(), json(&global.value));
         }
         for name in &self.capabilities {
-            if let Some(capability) = capability(name) {
+            if let Some(capability) = capability(name)? {
                 options.capabilities.push(capability);
             }
         }
+        Ok(())
     }
 }
 
@@ -181,11 +182,12 @@ fn method(
     params: &[(&str, &str, bool)],
     result: &str,
     callback: impl Fn(&mut CallContext, &[Value]) -> Result<Value> + Send + Sync + 'static,
-) -> Value {
-    HostMethod::new(name, move |ctx, args, _| callback(ctx, args))
-        .with_signature(signature(params, result, false))
-        .expect("a valid signature")
-        .value()
+) -> Result<Value> {
+    Ok(
+        HostMethod::new(name, move |ctx, args, _| callback(ctx, args))
+            .with_signature(signature(params, result, false))?
+            .value(),
+    )
 }
 
 fn block_method(
@@ -193,25 +195,26 @@ fn block_method(
     params: &[(&str, &str, bool)],
     result: &str,
     callback: impl Fn(&mut HostCall<'_>, &[Value]) -> Result<Value> + Send + Sync + 'static,
-) -> Value {
-    HostMethod::new_with_block(name, move |call, args, _| callback(call, args))
-        .with_signature(signature(params, result, true))
-        .expect("a valid signature")
-        .value()
+) -> Result<Value> {
+    Ok(
+        HostMethod::new_with_block(name, move |call, args, _| callback(call, args))
+            .with_signature(signature(params, result, true))?
+            .value(),
+    )
 }
 
 /// A capability of the catalog, by name.
-pub fn capability(name: &str) -> Option<Capability> {
+pub fn capability(name: &str) -> Result<Option<Capability>> {
     let value = match name {
-        "store" => store(),
+        "store" => store()?,
         "loose" => loose(),
-        _ => return None,
+        _ => return Ok(None),
     };
-    Some(Capability::from_value(name, value))
+    Ok(Some(Capability::from_value(name, value)))
 }
 
 /// Methods with published signatures, data and a nested namespace.
-fn store() -> Value {
+fn store() -> Result<Value> {
     let get = method(
         "store.get",
         &[("key", "string", false)],
@@ -223,16 +226,16 @@ fn store() -> Value {
                 _ => Value::nil(),
             })
         },
-    );
+    )?;
     let put = method(
         "store.put",
         &[("key", "string", false), ("value", "int", false)],
         "int",
         |_, args| Ok(Value::int(int(args.get(1)))),
-    );
+    )?;
     let keys = method("store.keys", &[], "array<string>", |_, _| {
         Ok(Value::array(vec![Value::bytes("a"), Value::bytes("b")]))
-    });
+    })?;
     let total = method(
         "store.total",
         &[("values", "array<int>", false), ("scale", "int", true)],
@@ -242,7 +245,7 @@ fn store() -> Value {
             let scale = args.get(1).and_then(Value::as_int).unwrap_or(1);
             Ok(Value::int(sum.wrapping_mul(scale)))
         },
-    );
+    )?;
     let lookup = method(
         "store.lookup",
         &[("key", "string", false)],
@@ -255,7 +258,7 @@ fn store() -> Value {
                 _ => Value::nil(),
             })
         },
-    );
+    )?;
     let each = block_method(
         "store.each",
         &[("items", "array<int>", false)],
@@ -269,7 +272,7 @@ fn store() -> Value {
             }
             Ok(Value::int(i64::try_from(items.len()).unwrap_or(i64::MAX)))
         },
-    );
+    )?;
     let collect = block_method(
         "store.collect",
         &[("items", "array<int>", false)],
@@ -285,7 +288,7 @@ fn store() -> Value {
             }
             Ok(Value::array(out))
         },
-    );
+    )?;
     let first = block_method(
         "store.first",
         &[("items", "array<int>", false)],
@@ -298,11 +301,11 @@ fn store() -> Value {
             }
             Ok(Value::nil())
         },
-    );
+    )?;
     let version = method("store.meta.version", &[], "string", |_, _| {
         Ok(Value::bytes("1.2"))
-    });
-    Value::object(vec![
+    })?;
+    Ok(Value::object(vec![
         (b"get".to_vec(), get),
         (b"put".to_vec(), put),
         (b"keys".to_vec(), keys),
@@ -317,7 +320,7 @@ fn store() -> Value {
             b"meta".to_vec(),
             Value::object(vec![(b"version".to_vec(), version)]),
         ),
-    ])
+    ]))
 }
 
 /// Methods without signatures, which take and return `any`.

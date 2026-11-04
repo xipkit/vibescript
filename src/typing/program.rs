@@ -828,8 +828,7 @@ impl<'a> Checker<'a> {
         let mut setter_name = ScratchVec::new(&self.meter);
         setter_name.extend_from_slice(name.as_bytes()).ok()?;
         setter_name.push(b'=').ok()?;
-        let setter_name =
-            std::str::from_utf8(&setter_name).expect("source name followed by equals");
+        let setter_name = std::str::from_utf8(&setter_name).ok()?;
         let methods = &self.program.namespaces[ns].methods;
         if let Some(&id) = methods.get(setter_name) {
             let function = &self.program.fns[id];

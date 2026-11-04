@@ -10,7 +10,7 @@ skip = ["tests/", "cli/tests/", "tools/tests/"]
 allow = [
   "indexing_slicing", "unwrap_used", "disallowed_types", "cast_possible_truncation",
   "string_slice", "unreachable", "cast_sign_loss",
-  "disallowed_methods", "expect_used", "unsafe_code",
+  "disallowed_methods", "unsafe_code",
 ]
 
 # The parser and compiler use `async fn` for stack-safe recursion, not

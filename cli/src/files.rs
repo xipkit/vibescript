@@ -397,7 +397,10 @@ impl Inputs {
             }
             self.roots[root].handle = Some(handle);
         }
-        Ok(self.roots[root].handle.as_ref().expect("opened above"))
+        self.roots[root]
+            .handle
+            .as_ref()
+            .ok_or_else(|| "directory handle was not opened".to_owned())
     }
 
     fn open(&mut self, index: usize, write: bool) -> Result<fs::File, String> {

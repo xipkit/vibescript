@@ -45,6 +45,16 @@ pub(super) struct Candidate {
     _path: Option<Charge>,
 }
 
+impl Default for Resolver {
+    fn default() -> Self {
+        Self {
+            roots: Vec::new(),
+            policy: Policy::default(),
+            limit: super::DEFAULT_SOURCE_LIMIT,
+        }
+    }
+}
+
 impl Resolver {
     pub fn memory(sources: std::collections::BTreeMap<String, String>) -> Result<Self> {
         let limit = super::DEFAULT_SOURCE_LIMIT;
@@ -219,7 +229,7 @@ impl Candidates<'_> {
         };
         ctx.charge(capacity as u64)?;
         let path_charge = ctx.reserve(capacity)?;
-        let relative = native_path(bytes);
+        let relative = native_path(bytes)?;
         let mut path = PathBuf::with_capacity(capacity);
         // PathBuf::push rebuilds verbatim Windows paths in an unreserved
         // buffer. Append normalized components into the reserved storage.
@@ -296,18 +306,19 @@ fn relative_name(ctx: &mut CallContext, caller: &[u8], request: &[u8]) -> Result
 }
 
 #[cfg(any(unix, target_os = "wasi"))]
-fn native_path(bytes: &[u8]) -> &Path {
+fn native_path(bytes: &[u8]) -> Result<&Path> {
     #[cfg(unix)]
     use std::os::unix::ffi::OsStrExt;
     #[cfg(target_os = "wasi")]
     use std::os::wasi::ffi::OsStrExt;
-    Path::new(std::ffi::OsStr::from_bytes(bytes))
+    Ok(Path::new(std::ffi::OsStr::from_bytes(bytes)))
 }
 
 #[cfg(not(any(unix, target_os = "wasi")))]
-fn native_path(bytes: &[u8]) -> &Path {
-    let text = std::str::from_utf8(bytes).expect("Name::parse validates module name UTF-8");
-    Path::new(text)
+fn native_path(bytes: &[u8]) -> Result<&Path> {
+    let text =
+        std::str::from_utf8(bytes).map_err(|_| super::argument("module name is not UTF-8"))?;
+    Ok(Path::new(text))
 }
 
 fn configuration_error(operation: &str, error: std::io::Error) -> Error {
