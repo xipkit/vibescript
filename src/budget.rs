@@ -2,9 +2,10 @@ use crate::{Error, ErrorKind, Result, Value};
 use std::{
     collections::BTreeMap,
     mem::size_of,
+    num::NonZeroU64,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
     time::Instant,
 };
@@ -113,8 +114,9 @@ pub struct Stats {
     pub retained_memory_bytes: usize,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct Memory {
+    id: MemoryId,
     #[cfg(not(target_arch = "x86_64"))]
     used: AtomicUsize,
     #[cfg(target_arch = "x86_64")]
@@ -126,7 +128,30 @@ pub(crate) struct Memory {
     pub(crate) interrupted: AtomicBool,
 }
 
+/// Names an invocation's memory account without holding it, so a
+/// capability's grant can be checked against a later call by value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct MemoryId(NonZeroU64);
+
 impl Memory {
+    fn new() -> Self {
+        static NEXT: AtomicU64 = AtomicU64::new(1);
+        // The counter reaches zero only after 2^64 invocations.
+        let id = NonZeroU64::new(NEXT.fetch_add(1, Ordering::Relaxed)).unwrap_or(NonZeroU64::MAX);
+        Self {
+            id: MemoryId(id),
+            #[cfg(not(target_arch = "x86_64"))]
+            used: AtomicUsize::new(0),
+            #[cfg(target_arch = "x86_64")]
+            reserved: AtomicUsize::new(0),
+            #[cfg(target_arch = "x86_64")]
+            released: AtomicUsize::new(0),
+            peak: AtomicUsize::new(0),
+            #[cfg(feature = "tokio")]
+            interrupted: AtomicBool::new(false),
+        }
+    }
+
     fn used(&self) -> usize {
         #[cfg(target_arch = "x86_64")]
         {
@@ -258,7 +283,7 @@ impl CallContext {
         Self {
             options,
             strict_effects: false,
-            memory: Arc::new(Memory::default()),
+            memory: Arc::new(Memory::new()),
             steps: 0,
             exhausted: None,
             objects: None,
@@ -595,6 +620,10 @@ impl CallContext {
 
     pub(crate) fn identity(&self) -> Arc<Memory> {
         self.memory.clone()
+    }
+
+    pub(crate) fn memory_id(&self) -> MemoryId {
+        self.memory.id
     }
 }
 
