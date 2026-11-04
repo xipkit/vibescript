@@ -147,24 +147,20 @@ end
     drop(source);
     // WASI has no threads.
     #[cfg(not(target_os = "wasi"))]
-    std::thread::scope(|threads| {
-        for _ in 0..4 {
-            let caller = &caller;
-            let warmed = &warmed;
-            threads.spawn(move || {
-                let result = caller
-                    .call(
-                        "change",
-                        std::slice::from_ref(warmed),
-                        CallOptions::default(),
-                    )
-                    .unwrap();
-                let values = result.value.as_array().unwrap();
-                assert_eq!(json(&values[0]), serde_json::json!(true));
-                assert_eq!(counts(&values[1..]), [Some(1)]);
-            });
+    crate::threads::parallel((0..4).map(|_| {
+        || {
+            let result = caller
+                .call(
+                    "change",
+                    std::slice::from_ref(&warmed),
+                    CallOptions::default(),
+                )
+                .unwrap();
+            let values = result.value.as_array().unwrap();
+            assert_eq!(json(&values[0]), serde_json::json!(true));
+            assert_eq!(counts(&values[1..]), [Some(1)]);
         }
-    });
+    }));
     let discarded = caller
         .call("discard", &[warmed], CallOptions::default())
         .unwrap();

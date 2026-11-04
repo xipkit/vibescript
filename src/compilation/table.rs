@@ -319,7 +319,7 @@ mod tests {
     #[test]
     fn scope_copies_retain_names_until_the_last_table_is_released() {
         let mut context = CallContext::new(CallOptions::default());
-        let memory = Arc::downgrade(&context.identity());
+        let memory = context.identity();
         let work = Meter(RefCell::new(&mut context));
         let mut table = Table::new();
         table
@@ -340,10 +340,10 @@ mod tests {
         drop(table);
         assert_eq!(work.0.borrow().stats().retained_memory_bytes, before);
         drop(context);
-        assert!(memory.upgrade().is_some());
+        assert!(Arc::strong_count(&memory) > 1);
         assert!(copy.contains(&(), &"long_name".repeat(512)).unwrap());
         drop(copy);
-        assert!(memory.upgrade().is_none());
+        assert_eq!(Arc::strong_count(&memory), 1);
     }
 
     #[test]

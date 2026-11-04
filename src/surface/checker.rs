@@ -273,18 +273,13 @@ fn deep<'s>(
     stop: parse::Stop<'s>,
     room: &Room<'_>,
 ) -> Option<Vec<Diagnostic>> {
-    std::thread::scope(|scope| {
-        std::thread::Builder::new()
-            .stack_size(DEEP_STACK)
-            .spawn_scoped(scope, || {
-                parse::parse_tokens(source, tokens, usize::MAX, stop)
-                    .ok()
-                    .and_then(|tree| diagnostics(source, &tree, calls, stop, room))
-            })
+    crate::threads::on_stack(DEEP_STACK, || {
+        parse::parse_tokens(source, tokens, usize::MAX, stop)
             .ok()
-            .and_then(|thread| thread.join().ok())
-            .flatten()
+            .and_then(|tree| diagnostics(source, &tree, calls, stop, room))
     })
+    .ok()
+    .flatten()
 }
 
 /// WASI preview 1 cannot start a thread with a larger stack, so a source

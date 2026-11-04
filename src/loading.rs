@@ -438,7 +438,7 @@ mod tests {
         .unwrap();
         let receiving = crate::code::Code::compile("nil", &Default::default()).unwrap();
         let mut context = CallContext::new(CallOptions::default());
-        let memory = Arc::downgrade(&context.identity());
+        let memory = context.identity();
         let mut pins = Buffer::empty();
         let code = loader
             .load(&mut context, &mut pins, b"answer", None, &receiving)
@@ -448,7 +448,7 @@ mod tests {
         drop(pins);
         assert_eq!(context.stats().retained_memory_bytes, 0);
         drop(context);
-        assert!(memory.upgrade().is_none());
+        assert_eq!(Arc::strong_count(&memory), 1);
 
         std::fs::remove_file(path).unwrap();
         let mut context = CallContext::new(CallOptions::default());

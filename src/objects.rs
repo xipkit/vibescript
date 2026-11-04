@@ -130,6 +130,29 @@ enum Owner {
     Internal(Weak<Heap>),
 }
 
+impl Owner {
+    /// The heap's own handle to an instance in its table, which must not
+    /// keep the heap alive.
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "the heap's instances point back at it; whether that back-reference stays is decided with the Weak type on VIBE-136"
+    )]
+    fn internal(heap: &Arc<Heap>) -> Self {
+        Self::Internal(Arc::downgrade(heap))
+    }
+}
+
+/// A test's view of the invocation heap that does not hold it, since `finish`
+/// and `cleanup` act on the strong count.
+#[cfg(test)]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "a test observer of the heap's lifetime; it goes with the Weak type on VIBE-136"
+)]
+pub(crate) fn watch_heap(ctx: &CallContext) -> Weak<Heap> {
+    ctx.objects.as_ref().map_or_else(Weak::new, Arc::downgrade)
+}
+
 pub(crate) struct Instance {
     identity: Arc<Identity>,
     owner: Owner,
@@ -322,7 +345,7 @@ fn new_scoped(
     });
     let internal = Arc::new(Instance {
         identity: identity.clone(),
-        owner: Owner::Internal(Arc::downgrade(&heap)),
+        owner: Owner::internal(&heap),
         _header: internal_header,
     });
     let external = Arc::new(Instance {

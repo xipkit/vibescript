@@ -58,6 +58,10 @@ pub fn run(model: &mut Model) -> io::Result<()> {
 /// Handles a key that may evaluate code on a worker thread, so Ctrl-C can
 /// interrupt it. Keys typed meanwhile are kept for afterwards, as the Go
 /// REPL's event queue keeps them.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the terminal must keep reading keys while the evaluation runs, and the CLI has no async runtime; the scope joins the worker before returning"
+)]
 fn evaluate(
     model: &mut Model,
     key: Key,

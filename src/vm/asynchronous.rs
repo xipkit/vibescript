@@ -384,12 +384,13 @@ impl Completion for Result<Outcome> {
 
     async fn interrupted(driver: &Driver<Worker>, mut completed: Completed) -> Self {
         match driver.slots.clone().try_acquire_owned() {
-            Ok(permit) => tokio::task::spawn_blocking(move || {
-                let _permit = permit;
-                Self::complete(completed)
-            })
-            .await
-            .map_err(worker_error)?,
+            Ok(permit) => {
+                crate::asynchronous::blocking(move || {
+                    let _permit = permit;
+                    Self::complete(completed)
+                })
+                .await?
+            }
             Err(_) => {
                 // A cancelled queued call must not wait for an unrelated busy
                 // worker. Retire its execution under a permit in the background.
@@ -406,7 +407,7 @@ impl Completion for Result<Outcome> {
                 let slots = driver.slots.clone();
                 driver.handle.spawn(async move {
                     let permit = slots.acquire_owned().await.ok();
-                    let _result = tokio::task::spawn_blocking(move || {
+                    let _result = crate::asynchronous::blocking(move || {
                         let _permit = permit;
                         Self::complete(completed)
                     })
@@ -622,12 +623,11 @@ impl Driver<Worker> {
             handle: self.handle.clone(),
             _lane: Inline,
         };
-        tokio::task::spawn_blocking(move || {
+        crate::asynchronous::blocking(move || {
             let _permit = permit;
             worker(work, driver).complete()
         })
         .await
-        .map_err(worker_error)
     }
 }
 
@@ -885,7 +885,7 @@ pub(crate) async fn call(
     let permit =
         crate::asynchronous::acquire(slots.clone(), &options.cancellation, options.deadline)
             .await?;
-    let execution = tokio::task::spawn_blocking(move || {
+    let execution = crate::asynchronous::blocking(move || {
         let _permit = permit;
         let mut execution = Owned::new(Execution::new(&script, &name, &args, &keywords, options)?)?;
         let charge = match execution.execution.context.reserve(size_of::<Work>()) {
@@ -899,21 +899,13 @@ pub(crate) async fn call(
             charge,
         }))
     })
-    .await
-    .map_err(worker_error)??;
+    .await??;
     let driver = Driver {
         slots,
         handle: Handle::current(),
         _lane: Worker,
     };
     driver.drive::<Result<Outcome>>(execution).await?
-}
-
-fn worker_error(error: tokio::task::JoinError) -> Error {
-    if error.is_panic() {
-        std::panic::resume_unwind(error.into_panic());
-    }
-    Error::new(ErrorKind::Host, format!("script worker failed: {error}"))
 }
 
 #[cfg(test)]
@@ -967,14 +959,19 @@ mod tests {
                 }));
                 if end == "cancelled" { work.execution.execution.context.cancellation().cancel(); }
                 let driver = Driver { slots: slots.clone(), handle: Handle::current(), _lane: Worker };
-                let call = tokio::spawn(driver.drive::<Result<Outcome>>(work));
-                tokio::time::timeout(Duration::from_secs(3), entered.notified()).await.unwrap();
+                let mut call = Box::pin(driver.drive::<Result<Outcome>>(work));
+                tokio::select! {
+                    _ = &mut call => panic!("the call finished before its finalization began"),
+                    entered = tokio::time::timeout(Duration::from_secs(3), entered.notified()) => {
+                        entered.unwrap();
+                    }
+                }
                 tokio::time::sleep(Duration::from_millis(5)).await;
                 assert_eq!(slots.available_permits(), 0);
                 let (lock, changed) = &*gate;
                 *lock.lock().unwrap() = true;
                 changed.notify_one();
-                let result = call.await.unwrap().unwrap();
+                let result = call.await.unwrap();
                 match end {
                     "7" => {
                         let outcome = result.unwrap();
@@ -1039,7 +1036,7 @@ mod tests {
                 .await
                 .unwrap();
             // One blocking thread means this job runs after the cleanup job.
-            tokio::task::spawn_blocking(|| {}).await.unwrap();
+            crate::asynchronous::blocking(|| {}).await.unwrap();
             assert!(finished.load(Ordering::SeqCst));
             assert_eq!(slots.available_permits(), 1);
         });

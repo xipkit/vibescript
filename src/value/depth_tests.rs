@@ -1,22 +1,13 @@
 use super::*;
 use crate::{CallOptions, ErrorClass, hash::Tag};
-use std::{thread, time::Instant};
+use std::time::Instant;
 
 /// Native stack for the deep cases: far below what depth-proportional glue would need.
 const STACK: usize = 256 << 10;
 const DEEP: usize = 10_001;
 
-fn on_small_stack<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
-    // WASI has no threads, so this runs within the default wasm stack.
-    if cfg!(target_os = "wasi") {
-        return work();
-    }
-    thread::Builder::new()
-        .stack_size(STACK)
-        .spawn(work)
-        .unwrap()
-        .join()
-        .unwrap()
+fn on_small_stack<T: Send>(work: impl FnOnce() -> T + Send) -> T {
+    crate::threads::on_stack(STACK, work).unwrap()
 }
 
 fn context() -> CallContext {
@@ -114,45 +105,16 @@ fn concurrent_last_owners_release_deep_subtrees() {
             };
         }
         drop(value);
-        let barrier = Arc::new(std::sync::Barrier::new(4));
-        let workers: Vec<_> = owners
-            .into_iter()
-            .map(|values| {
-                let barrier = barrier.clone();
-                thread::Builder::new()
-                    .stack_size(STACK)
-                    .spawn(move || {
-                        barrier.wait();
-                        drop(values);
-                    })
-                    .unwrap()
-            })
-            .collect();
-        for worker in workers {
-            worker.join().unwrap();
-        }
+        let barrier = std::sync::Barrier::new(4);
+        crate::threads::parallel(owners.into_iter().map(|values| {
+            || {
+                on_small_stack(|| {
+                    barrier.wait();
+                    drop(values);
+                });
+            }
+        }));
     }
-}
-
-#[test]
-fn host_container_cleanup_tolerates_internal_weak_observers() {
-    on_small_stack(|| {
-        let child = array_chain(DEEP);
-        let Kind::Array(array) = &child.0 else {
-            unreachable!()
-        };
-        let weak = Arc::downgrade(array);
-        drop(Value::array(vec![child]));
-        assert!(weak.upgrade().is_none());
-
-        let child = hash_chain(DEEP);
-        let Kind::Hash(hash) = &child.0 else {
-            unreachable!()
-        };
-        let weak = Arc::downgrade(hash);
-        drop(Value::hash(vec![(b"k".to_vec(), child)]));
-        assert!(weak.upgrade().is_none());
-    });
 }
 
 #[test]

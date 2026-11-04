@@ -72,6 +72,7 @@ mod source;
 mod surface;
 mod syntax;
 mod text;
+mod threads;
 mod time;
 pub mod tooling;
 mod types;

@@ -67,13 +67,17 @@ mod blocking {
     }
 
     #[test]
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "the server blocks in read until the test releases it; the thread is joined once the server has stopped"
+    )]
     fn cancellation_stops_a_server_blocked_on_input() {
         let (started, wait_started) = mpsc::channel();
         let (release, released) = mpsc::channel::<()>();
         let token = CancellationToken::new();
         let cancel = token.clone();
         let (done, finished) = mpsc::channel();
-        std::thread::spawn(move || {
+        let server = std::thread::spawn(move || {
             let input = Blocking {
                 started: Some(started),
                 release: released,
@@ -89,6 +93,7 @@ mod blocking {
             .expect("the server stopped after cancellation");
         assert!(result.is_ok());
         drop(release);
+        server.join().expect("the server thread finished");
     }
 }
 

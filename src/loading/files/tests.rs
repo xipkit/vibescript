@@ -680,18 +680,18 @@ fn concurrent_symlink_replacement_never_reads_outside_bytes() {
     let path = directory.0.join("root");
     symlink("inside.vibe", path.join("choice.vibe")).unwrap();
     let root = Root::new(&path).unwrap();
-    std::thread::scope(|scope| {
-        scope.spawn(|| {
-            for i in 0..1000 {
-                let target = if i % 2 == 0 {
-                    "../outside.vibe"
-                } else {
-                    "inside.vibe"
-                };
-                symlink(target, path.join("next")).unwrap();
-                fs::rename(path.join("next"), path.join("choice.vibe")).unwrap();
-            }
-        });
+    let flipper = || {
+        for i in 0..1000 {
+            let target = if i % 2 == 0 {
+                "../outside.vibe"
+            } else {
+                "inside.vibe"
+            };
+            symlink(target, path.join("next")).unwrap();
+            fs::rename(path.join("next"), path.join("choice.vibe")).unwrap();
+        }
+    };
+    crate::threads::alongside(flipper, || {
         for _ in 0..1000 {
             let mut ctx = CallContext::new(CallOptions::default());
             match root.open(&mut ctx, Path::new("choice.vibe")) {

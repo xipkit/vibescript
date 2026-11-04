@@ -3,7 +3,7 @@ use crate::{CallOptions, Capability, Engine, HostMethod, Outcome, Script};
 use std::{
     panic::{AssertUnwindSafe, catch_unwind},
     sync::{
-        Mutex, Weak,
+        Mutex,
         atomic::{AtomicUsize, Ordering},
     },
     time::Instant,
@@ -44,12 +44,7 @@ fn migrated(script: &Script, options: CallOptions) -> (Result<Outcome>, usize) {
                     .resume(&mut execution.context, None, pending);
             (execution, step)
         };
-        // WASI has no threads, so each step resumes on the calling thread.
-        let (next, step) = if cfg!(target_os = "wasi") {
-            resume()
-        } else {
-            std::thread::spawn(resume).join().unwrap()
-        };
+        let (next, step) = crate::threads::elsewhere(resume);
         execution = next;
         match step {
             Ok(Step::Host) => {
@@ -133,7 +128,7 @@ fn cancellation_at_a_host_boundary_stops_before_the_callback() {
     let calls = Arc::new(AtomicUsize::new(0));
     let script = script("def run;pause(7);end", &calls);
     let mut execution = Execution::new(&script, "run", &[], &[], CallOptions::default()).unwrap();
-    let memory = Arc::downgrade(&execution.context.identity());
+    let memory = execution.context.identity();
     let run = execution.run.as_mut().unwrap();
     let ctx = &mut execution.context;
     assert!(matches!(run.resume(ctx, None, None).unwrap(), Step::Host));
@@ -145,7 +140,7 @@ fn cancellation_at_a_host_boundary_stops_before_the_callback() {
     let error = run.resume(ctx, None, None).err().unwrap();
     assert_eq!(error.kind, ErrorKind::Cancelled);
     drop(execution.finish(Err(error)));
-    assert!(memory.upgrade().is_none());
+    assert_eq!(Arc::strong_count(&memory), 1);
 }
 
 #[test]
@@ -221,8 +216,8 @@ fn abandoned_execution_releases_cycles_without_running_ensure() {
                 .unwrap(),
             Step::Host
         ));
-        let memory = Arc::downgrade(&execution.context.identity());
-        let heap = Arc::downgrade(execution.context.objects.as_ref().unwrap());
+        let memory = execution.context.identity();
+        let heap = crate::objects::watch_heap(&execution.context);
         if expired {
             execution.context.options.deadline = Some(Instant::now());
             let error = execution
@@ -236,7 +231,7 @@ fn abandoned_execution_releases_cycles_without_running_ensure() {
         }
         drop(execution);
         assert!(heap.upgrade().is_none());
-        assert!(memory.upgrade().is_none());
+        assert_eq!(Arc::strong_count(&memory), 1);
         assert_eq!(calls.load(Ordering::Relaxed), 0);
     }
 }
@@ -265,10 +260,10 @@ fn abandoned_execution_keeps_objects_retained_by_the_host() {
             .unwrap(),
         Step::Host
     ));
-    let memory = Arc::downgrade(&execution.context.identity());
+    let memory = execution.context.identity();
     drop(execution);
     let value = retained.lock().unwrap().take().unwrap();
-    assert!(memory.upgrade().is_some());
+    assert!(Arc::strong_count(&memory) > 1);
     // The instance returns to a later call of the script that declares its
     // class.
     let result = script
@@ -276,7 +271,7 @@ fn abandoned_execution_keeps_objects_retained_by_the_host() {
         .unwrap();
     assert_eq!(result.value.to_string(), "[3, true]");
     drop(value);
-    assert!(memory.upgrade().is_none());
+    assert_eq!(Arc::strong_count(&memory), 1);
 }
 
 #[test]
@@ -303,16 +298,16 @@ fn completed_host_results_can_outlive_an_abandoned_execution() {
             .unwrap()
             .host(&mut execution.context)
             .unwrap();
-        let memory = Arc::downgrade(&execution.context.identity());
+        let memory = execution.context.identity();
         if result_first {
             drop(result);
             drop(execution);
         } else {
             drop(execution);
-            assert!(memory.upgrade().is_some());
+            assert!(Arc::strong_count(&memory) > 1);
             drop(result);
         }
-        assert!(memory.upgrade().is_none());
+        assert_eq!(Arc::strong_count(&memory), 1);
     }
 }
 
@@ -320,10 +315,10 @@ fn completed_host_results_can_outlive_an_abandoned_execution() {
 #[cfg_attr(not(panic = "unwind"), ignore = "catching a panic requires unwinding")]
 fn host_panics_release_the_invocation_heap_and_accounting() {
     for framed in [false, true] {
-        let memory = Arc::new(Mutex::new(Weak::new()));
+        let memory = Arc::new(Mutex::new(None));
         let observed = memory.clone();
         let callback = move |ctx: &mut CallContext| -> Result<Value> {
-            *observed.lock().unwrap() = Arc::downgrade(&ctx.identity());
+            *observed.lock().unwrap() = Some(ctx.identity());
             assert!(ctx.objects.is_some());
             panic!("host callback panic");
         };
@@ -349,7 +344,10 @@ fn host_panics_release_the_invocation_heap_and_accounting() {
             )))
             .is_err()
         );
-        assert!(memory.lock().unwrap().upgrade().is_none());
+        assert_eq!(
+            memory.lock().unwrap().as_ref().map(Arc::strong_count),
+            Some(1)
+        );
     }
 }
 
@@ -363,12 +361,12 @@ fn failed_or_panicked_preparation_releases_imported_cycles() {
             .run(CallOptions::default())
             .unwrap()
             .value;
-        let memory = Arc::new(Mutex::new(Weak::new()));
+        let memory = Arc::new(Mutex::new(None));
         let observed = memory.clone();
         let options = CallOptions {
             capabilities: vec![Capability::new("incoming", move |ctx| {
                 let _value = ctx.import(&foreign)?;
-                *observed.lock().unwrap() = Arc::downgrade(&ctx.identity());
+                *observed.lock().unwrap() = Some(ctx.identity());
                 if panicked {
                     panic!("capability factory panic");
                 }
@@ -385,6 +383,9 @@ fn failed_or_panicked_preparation_releases_imported_cycles() {
         } else {
             assert_eq!(result.unwrap().unwrap_err().kind, ErrorKind::Host);
         }
-        assert!(memory.lock().unwrap().upgrade().is_none());
+        assert_eq!(
+            memory.lock().unwrap().as_ref().map(Arc::strong_count),
+            Some(1)
+        );
     }
 }

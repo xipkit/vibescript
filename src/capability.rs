@@ -1,15 +1,11 @@
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
-    budget::Charge,
+    budget::{Charge, MemoryId},
     compilation::{Meter, Work},
     syntax::HostName,
     value::Kind,
 };
-use std::{
-    cell::RefCell,
-    fmt,
-    sync::{Arc, Weak},
-};
+use std::{cell::RefCell, fmt, sync::Arc};
 
 type Binder = Arc<dyn Fn(&mut CallContext) -> Result<Value> + Send + Sync>;
 type ArgumentContract =
@@ -473,7 +469,7 @@ pub(crate) struct SelectedMethod {
 #[derive(Debug)]
 pub(crate) struct BoundMethod {
     definition: Arc<Definition>,
-    owner: Option<Weak<crate::budget::Memory>>,
+    owner: Option<MemoryId>,
     header: Option<Charge>,
     metadata: Option<Arc<Charge>>,
 }
@@ -508,24 +504,14 @@ impl BoundMethod {
         let header = ctx.reserve(size_of::<Self>() + 2 * size_of::<usize>())?;
         Ok(Arc::new(Self {
             definition: value.definition.clone(),
-            owner: Some(
-                value
-                    .owner
-                    .clone()
-                    .unwrap_or_else(|| Arc::downgrade(&ctx.identity())),
-            ),
+            owner: Some(value.owner.unwrap_or_else(|| ctx.memory_id())),
             header,
             metadata,
         }))
     }
 
     pub fn same(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.definition, &other.definition)
-            && match (&self.owner, &other.owner) {
-                (Some(left), Some(right)) => Weak::ptr_eq(left, right),
-                (None, None) => true,
-                _ => false,
-            }
+        Arc::ptr_eq(&self.definition, &other.definition) && self.owner == other.owner
     }
 
     pub fn invoke_plain(
@@ -599,11 +585,7 @@ impl BoundMethod {
         block: bool,
     ) -> Result<()> {
         ctx.checkpoint()?;
-        if !self
-            .owner
-            .as_ref()
-            .is_some_and(|owner| Weak::ptr_eq(owner, &Arc::downgrade(&ctx.identity())))
-        {
+        if self.owner != Some(ctx.memory_id()) {
             return Err(Error::new(
                 ErrorKind::Runtime,
                 format!("capability {} was not granted to this call", self.name()),

@@ -292,7 +292,7 @@ mod tests {
             ("{:\"ready?\": int}", "{ \"ready?\": int }"),
         ] {
             let mut context = CallContext::new(CallOptions::default());
-            let memory = Arc::downgrade(&context.identity());
+            let memory = context.identity();
             let ty = parse(&mut context, annotation);
             let before = context.stats().retained_memory_bytes;
             let mut text = Vec::new();
@@ -303,7 +303,7 @@ mod tests {
             drop(ty);
             assert_eq!(context.stats().retained_memory_bytes, 0);
             drop(context);
-            assert!(memory.upgrade().is_none());
+            assert_eq!(Arc::strong_count(&memory), 1);
             text.clear();
             crate::shapes::format(&compiled, &mut text).unwrap();
             assert_eq!(text, expected.as_bytes());

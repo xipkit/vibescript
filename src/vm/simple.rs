@@ -928,6 +928,7 @@ fn copy(value: &Value) -> Value {
 /// forgotten rather than run through the general drop.
 #[allow(
     clippy::mem_forget,
+    clippy::disallowed_methods,
     reason = "the drop fast path: only kinds that own no storage are forgotten, so nothing leaks"
 )]
 #[inline(always)]

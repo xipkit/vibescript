@@ -106,10 +106,9 @@ pub(crate) type Modules<'a> = dyn Fn(
 
 /// Sources longer than this are checked on a thread with [`STACK`] bytes of
 /// stack: the checker recurses once per level of syntax, which the parser
-/// bounds, and a short source cannot nest deeply.
-#[cfg(not(target_os = "wasi"))]
+/// bounds, and a short source cannot nest deeply. WASI has no threads, so
+/// there the check runs on the host's stack, within [`HEIGHT`].
 const SHALLOW: usize = 1024;
-#[cfg(not(target_os = "wasi"))]
 const STACK: usize = 64 << 20;
 
 /// The tallest syntax the checker descends into on WASI. WASI has no
@@ -528,19 +527,9 @@ fn listed<T>(
 
 /// Checks one parsed source.
 pub(crate) fn check(input: &Input<'_>) -> Checked {
-    #[cfg(not(target_os = "wasi"))]
     if input.source.len() > SHALLOW {
-        return std::thread::scope(|scope| {
-            let checking = std::thread::Builder::new()
-                .stack_size(STACK)
-                .spawn_scoped(scope, || check_nested(input, 0));
-            match checking {
-                Ok(handle) => handle
-                    .join()
-                    .unwrap_or_else(|panic| std::panic::resume_unwind(panic)),
-                Err(_) => check_nested(input, 0),
-            }
-        });
+        return crate::threads::on_stack(STACK, || check_nested(input, 0))
+            .unwrap_or_else(|_| check_nested(input, 0));
     }
     check_nested(input, 0)
 }

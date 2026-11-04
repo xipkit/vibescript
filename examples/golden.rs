@@ -39,6 +39,10 @@ mod support;
 
 type Capture = Arc<Mutex<Vec<u8>>>;
 
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the one thread of a synchronous harness, made for its stack and joined before main returns"
+)]
 fn main() {
     // Deeply recursive cases need more native stack than the main thread has.
     let result = std::thread::Builder::new()

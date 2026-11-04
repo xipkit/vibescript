@@ -1,10 +1,12 @@
 use crate::{Error, ErrorKind, Result, Value};
 use std::{
     collections::BTreeMap,
+    fmt,
     mem::size_of,
+    num::NonZeroU64,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
     time::Instant,
 };
@@ -113,8 +115,8 @@ pub struct Stats {
     pub retained_memory_bytes: usize,
 }
 
-#[derive(Debug, Default)]
 pub(crate) struct Memory {
+    id: MemoryId,
     #[cfg(not(target_arch = "x86_64"))]
     used: AtomicUsize,
     #[cfg(target_arch = "x86_64")]
@@ -126,7 +128,44 @@ pub(crate) struct Memory {
     pub(crate) interrupted: AtomicBool,
 }
 
+/// Names an invocation's memory account without holding it, so a
+/// capability's grant can be checked against a later call by value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct MemoryId(NonZeroU64);
+
+/// The account's counters, without its id: two invocations that did the
+/// same work read the same, which tests of equivalent paths compare.
+impl fmt::Debug for Memory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut memory = f.debug_struct("Memory");
+        memory
+            .field("used", &self.used())
+            .field("peak", &self.peak.load(Ordering::Relaxed));
+        #[cfg(feature = "tokio")]
+        memory.field("interrupted", &self.interrupted.load(Ordering::Relaxed));
+        memory.finish()
+    }
+}
+
 impl Memory {
+    fn new() -> Self {
+        static NEXT: AtomicU64 = AtomicU64::new(1);
+        // The counter reaches zero only after 2^64 invocations.
+        let id = NonZeroU64::new(NEXT.fetch_add(1, Ordering::Relaxed)).unwrap_or(NonZeroU64::MAX);
+        Self {
+            id: MemoryId(id),
+            #[cfg(not(target_arch = "x86_64"))]
+            used: AtomicUsize::new(0),
+            #[cfg(target_arch = "x86_64")]
+            reserved: AtomicUsize::new(0),
+            #[cfg(target_arch = "x86_64")]
+            released: AtomicUsize::new(0),
+            peak: AtomicUsize::new(0),
+            #[cfg(feature = "tokio")]
+            interrupted: AtomicBool::new(false),
+        }
+    }
+
     fn used(&self) -> usize {
         #[cfg(target_arch = "x86_64")]
         {
@@ -258,7 +297,7 @@ impl CallContext {
         Self {
             options,
             strict_effects: false,
-            memory: Arc::new(Memory::default()),
+            memory: Arc::new(Memory::new()),
             steps: 0,
             exhausted: None,
             objects: None,
@@ -596,6 +635,10 @@ impl CallContext {
     pub(crate) fn identity(&self) -> Arc<Memory> {
         self.memory.clone()
     }
+
+    pub(crate) fn memory_id(&self) -> MemoryId {
+        self.memory.id
+    }
 }
 
 /// Elements larger than this, such as the VM's frames, iteration states and
@@ -829,21 +872,27 @@ mod accounting_tests {
         let mut first = ctx.reserve(60).unwrap().unwrap();
         let (sent, received) = mpsc::channel();
         let (resume, resumed) = mpsc::channel();
-        let worker = std::thread::spawn(move || {
+        let worker = move || {
             first.release(20);
             sent.send(()).unwrap();
             resumed.recv().unwrap();
             drop(first);
+        };
+        // The body owns the sender the worker waits on, so a failed assertion
+        // drops it while unwinding and the worker ends instead of blocking
+        // the join.
+        let ((), (second, error)) = crate::threads::alongside(worker, || {
+            received.recv().unwrap();
+            assert_eq!(counters(&ctx), (0, 60, 40));
+            let second = ctx.reserve(60).unwrap();
+            assert_eq!(counters(&ctx), (0, 100, 100));
+            let error = ctx.reserve(1).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Memory);
+            assert_eq!(error.message, "memory quota exceeded (100 bytes)");
+            resume.send(()).unwrap();
+            drop(resume);
+            (second, error)
         });
-        received.recv().unwrap();
-        assert_eq!(counters(&ctx), (0, 60, 40));
-        let second = ctx.reserve(60).unwrap();
-        assert_eq!(counters(&ctx), (0, 100, 100));
-        let error = ctx.reserve(1).unwrap_err();
-        assert_eq!(error.kind, ErrorKind::Memory);
-        assert_eq!(error.message, "memory quota exceeded (100 bytes)");
-        resume.send(()).unwrap();
-        worker.join().unwrap();
         drop(second);
         assert_eq!(counters(&ctx), (0, 100, 0));
         assert_eq!(ctx.reserve(0).unwrap_err(), error);
@@ -872,14 +921,9 @@ mod accounting_tests {
         let clone = result.value.clone();
         drop(result);
         assert_eq!(memory.used(), retained);
-        #[cfg(not(target_os = "wasi"))]
-        std::thread::spawn(move || drop(clone)).join().unwrap();
-        #[cfg(target_os = "wasi")]
-        drop(clone);
+        crate::threads::elsewhere(move || drop(clone));
         assert_eq!(memory.used(), 0);
-        let weak = Arc::downgrade(&memory);
-        drop(memory);
-        assert!(weak.upgrade().is_none());
+        assert_eq!(Arc::strong_count(&memory), 1);
     }
 
     #[test]
@@ -931,19 +975,21 @@ mod accounting_tests {
     fn concurrent_drops_do_not_lose_reservations() {
         let mut ctx = CallContext::new(CallOptions::default());
         let (send, receive) = mpsc::sync_channel(32);
-        let worker = std::thread::spawn(move || {
+        let worker = move || {
             while let Ok(charge) = receive.recv() {
                 drop(charge);
             }
+        };
+        let ((), retained) = crate::threads::alongside(worker, || {
+            let retained = ctx.reserve(7).unwrap();
+            for _ in 0..10_000 {
+                send.send(ctx.reserve(13).unwrap()).unwrap();
+                let temporary = ctx.reserve(11).unwrap();
+                drop(temporary);
+            }
+            drop(send);
+            retained
         });
-        let retained = ctx.reserve(7).unwrap();
-        for _ in 0..10_000 {
-            send.send(ctx.reserve(13).unwrap()).unwrap();
-            let temporary = ctx.reserve(11).unwrap();
-            drop(temporary);
-        }
-        drop(send);
-        worker.join().unwrap();
         assert_eq!(ctx.stats().retained_memory_bytes, 7);
         assert!((20..=7 + 34 * 13 + 11).contains(&ctx.stats().peak_memory_bytes));
         drop(retained);
@@ -999,7 +1045,9 @@ mod accounting_tests {
                         let allocated = counters(ctx);
                         (value, before, allocated)
                     };
-                    tokio::spawn(async move { drop(temporary) }).await.unwrap();
+                    crate::asynchronous::blocking(move || drop(temporary))
+                        .await
+                        .unwrap();
                     tokio::task::yield_now().await;
                     let ctx = call.context()?;
                     assert_eq!(counters(ctx), (allocated.0, allocated.1, before.2));
@@ -1016,7 +1064,7 @@ mod accounting_tests {
         let memory = observed.lock().unwrap().take().unwrap();
         assert_eq!(memory.used(), result.stats.retained_memory_bytes);
         assert!(result.stats.retained_memory_bytes > 0);
-        tokio::task::spawn_blocking(move || drop(result))
+        crate::asynchronous::blocking(move || drop(result))
             .await
             .unwrap();
         assert_eq!(memory.used(), 0);

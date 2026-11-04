@@ -1116,6 +1116,10 @@ mod tests {
     /// refused rather than block the open until a writer or reader appears.
     #[cfg(unix)]
     #[test]
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "a regression would block the open forever, so the thread that tries it is abandoned rather than joined"
+    )]
     fn a_fifo_swapped_in_is_refused_without_blocking() {
         for selection in [Selection::Format, Selection::Fix] {
             for explicit in [false, true] {

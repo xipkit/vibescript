@@ -11,6 +11,23 @@ use std::{
 };
 use vibescript::{CallOptions, Engine, Error, ErrorKind, Limits, ModuleConfig, Value};
 
+/// Native stack for a worker: deep syntax needs more than the main thread has.
+const STACK: usize = 256 << 20;
+
+/// Starts `work` on a thread with [`STACK`] bytes of native stack.
+///
+/// A worker that hangs is abandoned, so the watchdog can report the seed and
+/// exit; the others are joined.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the harness's one thread spawn: a hung worker must be abandoned for the watchdog to exit, and the harness has no async runtime"
+)]
+pub fn spawn<T: Send + 'static>(
+    work: impl FnOnce() -> T + Send + 'static,
+) -> std::io::Result<std::thread::JoinHandle<T>> {
+    std::thread::Builder::new().stack_size(STACK).spawn(work)
+}
+
 /// A program: the script and the files it may require, by relative path.
 #[derive(Clone, Debug, Default)]
 pub struct Case {
