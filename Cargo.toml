@@ -8,7 +8,7 @@ exclude = ["tests/platforms/wasi"]
 [workspace.metadata.adamantium]
 skip = ["tests/", "cli/tests/", "tools/tests/"]
 allow = [
-  "indexing_slicing", "unwrap_used", "disallowed_types", "cast_possible_truncation",
+  "indexing_slicing", "unwrap_used", "cast_possible_truncation",
   "string_slice", "unreachable", "cast_sign_loss", "cast_possible_wrap",
   "unsafe_code",
 ]
