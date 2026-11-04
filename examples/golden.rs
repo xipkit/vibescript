@@ -62,7 +62,8 @@ fn run() -> Result<(), String> {
     if !(2..=3).contains(&args.len()) {
         return Err("usage: golden CASES.jsonl [START]".into());
     }
-    let text = fs::read_to_string(&args[1]).map_err(|e| format!("{}: {e}", args[1]))?;
+    let path = args.get(1).ok_or("missing cases path")?;
+    let text = fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
     let start = match args.get(2) {
         Some(start) => start.parse().map_err(|e| format!("start: {e}"))?,
         None => 0,
@@ -88,7 +89,8 @@ fn run() -> Result<(), String> {
                 .ok_or_else(|| format!("undefined input {name}"))?;
             for field in ["typed_args", "typed_kwargs", "typed_globals"] {
                 if let Some(value) = given.get(field) {
-                    case[field] = value.clone();
+                    let fields = case.as_object_mut().ok_or("case must be an object")?;
+                    fields.insert(field.into(), value.clone());
                 }
             }
         }
@@ -101,7 +103,11 @@ fn run() -> Result<(), String> {
                     .unwrap_or_default();
                 json!({"phase": "panic", "error": {"message": message}})
             });
-        record["id"] = case["id"].clone();
+        let id = case.get("id").cloned().unwrap_or(Json::Null);
+        let fields = record
+            .as_object_mut()
+            .ok_or("observation must be an object")?;
+        fields.insert("id".into(), id);
         writeln!(out, "{record}").map_err(|e| e.to_string())?;
         out.flush().map_err(|e| e.to_string())?;
     }
@@ -115,7 +121,9 @@ fn observe(case: &Json) -> Json {
     for (name, buffer) in [("stdout", &stdout), ("stderr", &stderr)] {
         let bytes = buffer.lock().unwrap();
         if !bytes.is_empty() {
-            record[name] = Json::String(hex(&bytes));
+            if let Some(fields) = record.as_object_mut() {
+                fields.insert(name.into(), Json::String(hex(&bytes)));
+            }
         }
     }
     record
@@ -159,7 +167,9 @@ fn execute(case: &Json, stdout: &Capture, stderr: &Capture) -> Json {
         engine.set_random_source(move |_, output| {
             for chunk in output.chunks_mut(8) {
                 let seed = state.fetch_add(1, Ordering::Relaxed);
-                chunk.copy_from_slice(&splitmix(seed).to_le_bytes()[..chunk.len()]);
+                for (target, byte) in chunk.iter_mut().zip(splitmix(seed).to_le_bytes()) {
+                    *target = byte;
+                }
             }
             Ok(output.len())
         });
@@ -215,9 +225,18 @@ fn execute(case: &Json, stdout: &Capture, stderr: &Capture) -> Json {
             if flag(case, "json") {
                 match support::encode(&outcome.value, "", codec_options()) {
                     Ok(bytes) => {
-                        record["json"] = Json::String(String::from_utf8_lossy(&bytes).into());
+                        if let Some(fields) = record.as_object_mut() {
+                            fields.insert(
+                                "json".into(),
+                                Json::String(String::from_utf8_lossy(&bytes).into()),
+                            );
+                        }
                     }
-                    Err(error) => record["json_error"] = Json::String(error.to_string()),
+                    Err(error) => {
+                        if let Some(fields) = record.as_object_mut() {
+                            fields.insert("json_error".into(), Json::String(error.to_string()));
+                        }
+                    }
                 }
             }
             record
@@ -246,19 +265,23 @@ fn compile_failure(source: &str, error: &Error) -> Json {
                 "message": diagnostic.message,
             });
             if diagnostic.code.area() == Some(vibescript::diagnostic::Area::Syntax) {
-                item["span"] = json!([diagnostic.span.start, diagnostic.span.end]);
-                item["fixes"] = json!(diagnostic.fixes.iter().map(|fix| json!({
+                if let Some(fields) = item.as_object_mut() { fields.insert("span".into(), json!([diagnostic.span.start, diagnostic.span.end])); }
+                if let Some(fields) = item.as_object_mut() { fields.insert("fixes".into(), json!(diagnostic.fixes.iter().map(|fix| json!({
                     "message": fix.message,
                     "applicability": format!("{:?}", fix.applicability),
                     "edits": fix.edits.iter().map(|edit| json!({"span": [edit.span.start, edit.span.end], "replacement": edit.replacement})).collect::<Vec<_>>(),
-                })).collect::<Vec<_>>());
+                })).collect::<Vec<_>>())); }
             }
             item
         })
         .collect();
     if let Some(first) = diagnostics.first() {
-        record["error"]["code"] = first["code"].clone();
-        record["diagnostics"] = Json::Array(diagnostics);
+        if let Some(fields) = record.get_mut("error").and_then(Json::as_object_mut) {
+            fields.insert("code".into(), first["code"].clone());
+        }
+        if let Some(fields) = record.as_object_mut() {
+            fields.insert("diagnostics".into(), Json::Array(diagnostics));
+        }
     }
     record
 }
@@ -331,11 +354,27 @@ fn failure(phase: &str, error: &Error) -> Json {
         "class": error.class().map(|class| class.name()),
     });
     match std::str::from_utf8(error.message_bytes()) {
-        Ok(text) => detail["message"] = Json::String(text.into()),
-        Err(_) => detail["message_hex"] = Json::String(hex(error.message_bytes())),
+        Ok(text) => {
+            if let Some(fields) = detail.as_object_mut() {
+                fields.insert("message".into(), Json::String(text.into()));
+            }
+        }
+        Err(_) => {
+            if let Some(fields) = detail.as_object_mut() {
+                fields.insert(
+                    "message_hex".into(),
+                    Json::String(hex(error.message_bytes())),
+                );
+            }
+        }
     }
     if let Some(diagnostic) = &error.diagnostic {
-        detail["at"] = json!([diagnostic.position.line, diagnostic.position.column]);
+        if let Some(fields) = detail.as_object_mut() {
+            fields.insert(
+                "at".into(),
+                json!([diagnostic.position.line, diagnostic.position.column]),
+            );
+        }
     }
     json!({"phase": phase, "error": detail})
 }
@@ -500,21 +539,22 @@ fn splitmix(counter: u64) -> u64 {
 }
 
 fn hex(bytes: &[u8]) -> String {
-    const DIGITS: &[u8; 16] = b"0123456789abcdef";
-    let mut output = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        output.push(DIGITS[usize::from(byte >> 4)] as char);
-        output.push(DIGITS[usize::from(byte & 15)] as char);
-    }
-    output
+    let digit = |n: u8| char::from(if n < 10 { b'0' + n } else { b'a' + n - 10 });
+    bytes
+        .iter()
+        .flat_map(|byte| [digit(byte >> 4), digit(byte & 15)])
+        .collect()
 }
 
 fn unhex(text: &str) -> Result<Vec<u8>, String> {
     if text.len() % 2 != 0 {
         return Err("odd hex length".into());
     }
-    (0..text.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&text[i..i + 2], 16).map_err(|e| e.to_string()))
+    text.as_bytes()
+        .chunks_exact(2)
+        .map(|pair| {
+            let pair = std::str::from_utf8(pair).map_err(|e| e.to_string())?;
+            u8::from_str_radix(pair, 16).map_err(|e| e.to_string())
+        })
         .collect()
 }
