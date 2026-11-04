@@ -56,7 +56,7 @@ pub(super) fn call_constant(
     }
     let value = constant(program, ctx, storage, module, name)?;
     if value.is_some() {
-        let definition = &program.namespaces[module.unwrap()];
+        let definition = program.namespaces.at(module.unwrap())?;
         let methods = if instance {
             &definition.instance_methods
         } else {
@@ -376,7 +376,7 @@ pub(super) fn state(
     storage: &mut Storage,
     module: usize,
 ) -> Result<usize> {
-    let definition = &program.namespaces[module];
+    let definition = program.namespaces.at(module)?;
     let mut vacant = None;
     for (index, state) in storage.namespaces.data.iter().enumerate() {
         ctx.charge(1)?;
@@ -405,7 +405,7 @@ pub(super) fn state(
         initialized,
     };
     let index = if let Some(index) = vacant {
-        storage.namespaces.data[index] = value;
+        *storage.namespaces.at_mut(index)? = value;
         index
     } else {
         let index = storage.namespaces.data.len();
@@ -416,13 +416,15 @@ pub(super) fn state(
         for (name, nested) in &definition.nested {
             let nested = state(program, ctx, storage, *nested)?;
             let value = Value(Kind::Namespace(
-                storage.namespaces.data[nested].namespace.clone(),
+                storage.namespaces.at(nested)?.namespace.clone(),
             ));
-            if let Some(backing) = &storage.namespaces.data[index].backing {
+            if let Some(backing) = &storage.namespaces.at(index)?.backing {
                 crate::objects::set(ctx, backing, name, &value)?;
             } else {
                 let key = ctx.bytes(name.as_bytes())?;
-                storage.namespaces.data[index]
+                storage
+                    .namespaces
+                    .at_mut(index)?
                     .fields
                     .insert_field(ctx, key, value)?;
             }
@@ -436,7 +438,7 @@ pub(super) fn initialized(
     storage: &mut Storage,
     index: usize,
 ) -> Result<()> {
-    let state = &mut storage.namespaces.data[index];
+    let state = storage.namespaces.at_mut(index)?;
     if let Some(environment) = &state.namespace.environment {
         scopes::initialized(ctx, environment, state.namespace.definition.index)?;
     }
@@ -451,7 +453,7 @@ pub(super) fn value(
     module: usize,
 ) -> Result<Value> {
     let index = state(program, ctx, storage, module)?;
-    Namespace::import(ctx, &storage.namespaces.data[index].namespace)
+    Namespace::import(ctx, &storage.namespaces.at(index)?.namespace)
         .map(|namespace| Value(Kind::Namespace(namespace)))
 }
 
@@ -463,13 +465,14 @@ pub(super) fn field(
     name: &str,
 ) -> Result<Option<Value>> {
     let index = state(program, ctx, storage, module)?;
-    if let Some(backing) = &storage.namespaces.data[index].backing {
+    if let Some(backing) = &storage.namespaces.at(index)?.backing {
         return crate::objects::field(ctx, backing, name);
     }
-    let fields = &storage.namespaces.data[index].fields;
-    Ok(fields
-        .find(ctx, name.as_bytes())?
-        .map(|i| fields.buffer.data[i].1.clone()))
+    let fields = &storage.namespaces.at(index)?.fields;
+    Ok(match fields.find(ctx, name.as_bytes())? {
+        Some(i) => Some(fields.buffer.at(i)?.1.clone()),
+        None => None,
+    })
 }
 
 pub(super) fn set(
@@ -481,7 +484,7 @@ pub(super) fn set(
     value: Value,
 ) -> Result<()> {
     let index = state(program, ctx, storage, module)?;
-    if let Some(backing) = &storage.namespaces.data[index].backing {
+    if let Some(backing) = &storage.namespaces.at(index)?.backing {
         if let Some(field) = crate::objects::field_slot(ctx, backing, name)? {
             address::refresh(
                 ctx,
@@ -493,7 +496,9 @@ pub(super) fn set(
         }
         return crate::objects::set(ctx, backing, name, &value);
     }
-    if let Some(field) = storage.namespaces.data[index]
+    if let Some(field) = storage
+        .namespaces
+        .at(index)?
         .fields
         .find(ctx, name.as_bytes())?
     {
@@ -505,7 +510,9 @@ pub(super) fn set(
             &[],
         )?;
     }
-    storage.namespaces.data[index]
+    storage
+        .namespaces
+        .at_mut(index)?
         .fields
         .insert_named_field(ctx, name.as_bytes(), value)
 }
@@ -519,28 +526,37 @@ pub(super) fn address(
     optional: bool,
 ) -> Result<Address> {
     let index = state(program, ctx, storage, module)?;
-    if let Some(backing) = &storage.namespaces.data[index].backing {
+    if let Some(backing) = &storage.namespaces.at(index)?.backing {
         if !optional && crate::objects::field_slot(ctx, backing, name)?.is_none() {
             return Err(Error::new(ErrorKind::Name, "undefined class constant"));
         }
         return crate::objects::address(ctx, backing, name).map(Address::in_environment);
     }
-    let field = if let Some(field) = storage.namespaces.data[index]
+    let field = if let Some(field) = storage
+        .namespaces
+        .at(index)?
         .fields
         .find(ctx, name.as_bytes())?
     {
         field
     } else if optional {
         let key = ctx.bytes(name.as_bytes())?;
-        let field = storage.namespaces.data[index].fields.buffer.data.len();
-        storage.namespaces.data[index]
+        let field = storage.namespaces.at(index)?.fields.buffer.data.len();
+        storage
+            .namespaces
+            .at_mut(index)?
             .fields
             .insert_field(ctx, key, Value::nil())?;
         field
     } else {
         return Err(Error::new(ErrorKind::Name, "undefined class constant"));
     };
-    let value = storage.namespaces.data[index].fields.buffer.data[field]
+    let value = storage
+        .namespaces
+        .at(index)?
+        .fields
+        .buffer
+        .at(field)?
         .1
         .clone();
     Ok(Address::field(index, field, value))
@@ -666,31 +682,36 @@ pub(super) fn ambient_slot(
     mut current: usize,
     name: &str,
 ) -> Result<Option<usize>> {
-    if !frames.data[current].function().is_some_and(|f| {
-        frames.data[current].program.functions[f]
-            .namespace
-            .is_some()
-    }) {
+    let frame = frames.at(current)?;
+    let in_namespace = match frame.function() {
+        Some(f) => frame.program.functions.at(f)?.namespace.is_some(),
+        None => false,
+    };
+    if !in_namespace {
         return Ok(None);
     }
     loop {
         ctx.charge(1)?;
-        let frame = &frames.data[current];
-        if frame
-            .function()
-            .is_some_and(|f| frame.program.functions[f].initializer)
-        {
+        let frame = frames.at(current)?;
+        let initializer = match frame.function() {
+            Some(f) => frame.program.functions.at(f)?.initializer,
+            None => false,
+        };
+        if initializer {
             let Some(parent) = frame.parent() else {
                 return Ok(None);
             };
-            let parent = &frames.data[parent];
+            let parent = frames.at(parent)?;
             if parent.program.index != frame.program.index {
                 return Ok(None);
             }
             let Some(function) = parent.function() else {
                 return Ok(None);
             };
-            for (slot, candidate) in parent.program.functions[function]
+            for (slot, candidate) in parent
+                .program
+                .functions
+                .at(function)?
                 .local_names
                 .iter()
                 .enumerate()
@@ -698,7 +719,7 @@ pub(super) fn ambient_slot(
                 ctx.charge(1)?;
                 ctx.work_bytes(name.len().max(candidate.len()))?;
                 let slot = parent.local_base() + slot;
-                if name == candidate && storage.locals.data[slot].is_some() {
+                if name == candidate && storage.locals.at(slot)?.is_some() {
                     return Ok(Some(slot));
                 }
             }

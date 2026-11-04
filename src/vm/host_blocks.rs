@@ -147,7 +147,7 @@ impl Run {
             &args.keywords.buffer.data,
             args.block.is_some(),
         )?;
-        let program = self.frames.data[current].program.clone();
+        let program = self.frames.at(current)?.program.clone();
         self.host_arguments(ctx, &program, &method, &mut args)?;
         Ok(HostRequest {
             current,
@@ -263,7 +263,7 @@ impl Run {
                 &mut self.storage,
                 &mut self.stack,
                 boundary.floor,
-            );
+            )?;
         }
         result
     }

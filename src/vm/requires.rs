@@ -8,8 +8,8 @@ pub(super) struct Module {
     alias: Option<Value>,
 }
 
-pub(super) fn abandon(storage: &mut Storage, index: usize) {
-    let module = &mut storage.modules.data[index];
+pub(super) fn abandon(storage: &mut Storage, index: usize) -> Access<()> {
+    let module = storage.modules.at_mut(index)?;
     module.loading = false;
     module.exports = Value::nil();
     module.alias = None;
@@ -21,6 +21,7 @@ pub(super) fn abandon(storage: &mut Storage, index: usize) {
     {
         storage.modules.data.pop();
     }
+    Ok(())
 }
 
 pub(super) fn get(
@@ -77,7 +78,7 @@ pub(super) fn set(
 }
 
 pub(super) fn root_bound(ctx: &mut CallContext, storage: &Storage, name: &str) -> Result<bool> {
-    let root = &storage.programs.data[0].program;
+    let root = &storage.programs.at(0)?.program;
     Ok(root.names.contains_key(name)
         || root.declaration_names.contains_key(name)
         || root.hosts.iter().any(|n| n == name)
@@ -96,12 +97,12 @@ pub(super) fn local(
 ) -> Result<bool> {
     // Without root bindings or host globals no name can shadow a local.
     if (storage.bindings.is_none() && ctx.options.globals.is_empty())
-        || frames.data[current].program.file
-        || storage.locals.data[absolute].is_some()
+        || frames.at(current)?.program.file
+        || storage.locals.at(absolute)?.is_some()
     {
         return Ok(false);
     }
-    unbound_local(ctx, &frames.data[current], storage, relative)
+    unbound_local(ctx, frames.at(current)?, storage, relative)
 }
 
 #[inline(never)]
@@ -111,14 +112,14 @@ fn unbound_local(
     storage: &Storage,
     relative: usize,
 ) -> Result<bool> {
-    let function = &frame.program.functions[frame.function().unwrap()];
+    let function = frame.program.functions.at(frame.function().unwrap())?;
     for param in &function.params {
         ctx.charge(1)?;
         if param.slot == relative {
             return Ok(false);
         }
     }
-    contains(ctx, storage, &function.local_names[relative])
+    contains(ctx, storage, function.local_names.at(relative)?)
 }
 
 pub(super) fn address(
@@ -132,7 +133,9 @@ pub(super) fn address(
     if !contains(ctx, storage, name)? || file_bindings::get(program, ctx, name)?.is_some() {
         return Ok(None);
     }
-    let function = &program.functions[frames.data[current].function().unwrap()];
+    let function = program
+        .functions
+        .at(frames.at(current)?.function().unwrap())?;
     if namespaces::constant(program, ctx, storage, function.namespace, name)?.is_some()
         || namespaces::ambient_slot(ctx, frames, storage, current, name)?.is_some()
     {
@@ -229,10 +232,10 @@ fn check_alias(
         ));
     }
     if let Some(frame) = frames.data.last() {
-        let function = &frame.program.functions[frame.function().unwrap()];
+        let function = frame.program.functions.at(frame.function().unwrap())?;
         if let Some(slot) = function.local_names.iter().position(|n| n == name) {
             let slot = resolve_slot(ctx, frames, storage, frames.data.len() - 1, slot, false)?;
-            if let Some(value) = &storage.locals.data[slot] {
+            if let Some(value) = storage.locals.at(slot)? {
                 if !same(ctx, value)? {
                     return Err(Error::new(
                         ErrorKind::Argument,
@@ -292,14 +295,14 @@ pub(super) fn start(
         ));
     }
     let alias = alias(ctx, &args)?;
-    let input = &args.positional.data[0];
+    let input = args.positional.at(0)?;
     if !matches!(input.0, Kind::Bytes(_) | Kind::Symbol(_)) {
         return Err(Error::new(
             ErrorKind::Argument,
             "require expects a string or symbol module name",
         ));
     }
-    let root = storage.programs.data[0].program.code.clone();
+    let root = storage.programs.at(0)?.program.code.clone();
     let code = loader
         .load(
             ctx,
@@ -315,7 +318,7 @@ pub(super) fn start(
             if module.loading {
                 let mut message = Buffer::empty();
                 message.extend(ctx, b"require: circular dependency detected: ")?;
-                for module in &storage.modules.data[index..] {
+                for module in storage.modules.tail(index)? {
                     ctx.charge(1)?;
                     if module.loading {
                         message.extend(ctx, module.code.origin.as_ref().unwrap().name())?;
@@ -393,7 +396,7 @@ pub(super) fn complete(
     storage: &mut Storage,
     index: usize,
 ) -> Result<Value> {
-    let module = &mut storage.modules.data[index];
+    let module = storage.modules.at_mut(index)?;
     module.loading = false;
     let value = module.exports.clone();
     let alias = module.alias.take();
