@@ -258,7 +258,7 @@ unsafe fn vector(input: &[u8]) -> Masks {
     // SAFETY: caller supplies a full vector; SSE2 is baseline on x86_64.
     unsafe {
         let v = _mm_loadu_si128(input.as_ptr().cast());
-        let eq = |b| _mm_cmpeq_epi8(v, _mm_set1_epi8(b as i8));
+        let eq = |b| _mm_cmpeq_epi8(v, _mm_set1_epi8(i8::from_ne_bytes([b])));
         let bits = |v| _mm_movemask_epi8(v) as u64;
         let high = bits(v);
         Masks {

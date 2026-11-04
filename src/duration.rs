@@ -219,14 +219,8 @@ fn scale(seconds: i64, factor: f64, divide: bool) -> Result<i64> {
             rounded_ratio(product, 1u128 << -exponent)
         }
     };
-    if rounded > i64::MAX as u128 + u128::from(negative) {
-        return Err(overflow());
-    }
-    Ok(if negative {
-        -(rounded as i128)
-    } else {
-        rounded as i128
-    } as i64)
+    let rounded = i128::try_from(rounded).map_err(|_| overflow())?;
+    i64::try_from(if negative { -rounded } else { rounded }).map_err(|_| overflow())
 }
 
 pub(crate) fn binary(op: &str, left: &Value, right: &Value) -> Result<Value> {

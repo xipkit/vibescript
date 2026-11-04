@@ -402,7 +402,7 @@ fn general(value: f64, uppercase: bool, field: Field) -> Digits {
         significand.length -= 1;
     }
     let precision = field.precision.map_or(6, |n| n.max(1));
-    let scientific = exponent < -4 || exponent >= precision.min(i32::MAX as usize) as i32;
+    let scientific = exponent < -4 || exponent >= i32::try_from(precision).unwrap_or(i32::MAX);
     let mut digits = Digits::new();
     let significant = if scientific {
         digits.push(&significand.bytes[..1]);
@@ -451,7 +451,7 @@ fn hexadecimal(value: f64, uppercase: bool, field: Field) -> Digits {
     } else if mantissa != 0 {
         let shift = mantissa.leading_zeros() - 11;
         mantissa <<= shift;
-        exponent = -1022 - shift as i32;
+        exponent = (-1022i32).saturating_sub_unsigned(shift);
     } else {
         exponent = 0;
     }

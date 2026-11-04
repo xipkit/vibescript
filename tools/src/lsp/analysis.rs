@@ -2,7 +2,7 @@
 //! form and the declaration outline navigation uses.
 
 use super::document::{Diagnostic, Options, Position, QuickFix, Range, Severity};
-use super::text::{line_at, position_at, utf16_character};
+use super::text::{line_at, position_at, to_i64, utf16_character};
 use std::path::PathBuf;
 use std::time::Instant;
 use vibescript::tooling::{self, Item, Outline};
@@ -328,7 +328,7 @@ fn compile_diagnostic(source: &str, error: &Error) -> Diagnostic {
 /// units. Positions carry no end, so the range covers the identifier, number
 /// or keyword starting there, or else one character.
 pub(crate) fn issue_range(lines: &[&str], line: usize, column: usize) -> Range {
-    let line_index = line.saturating_sub(1) as i64;
+    let line_index = to_i64(line.saturating_sub(1));
     let start = column.saturating_sub(1);
     let text = line_at(lines, line_index);
     let chars: Vec<char> = text.chars().collect();

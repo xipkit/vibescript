@@ -664,6 +664,8 @@ mod dir {
                 let rights = wasi::RIGHTS_FD_WRITE
                     | wasi::RIGHTS_FD_FILESTAT_GET
                     | wasi::RIGHTS_FD_FILESTAT_SET_SIZE;
+                let length = i32::try_from(leaf.len()).map_err(io::Error::other)?;
+                let rights = i64::try_from(rights).map_err(io::Error::other)?;
                 let mut fd = std::mem::MaybeUninit::<wasi::Fd>::uninit();
                 // SAFETY: `parent` is a live descriptor and `leaf` a live
                 // buffer of the given length for the call, and `fd` has room
@@ -673,9 +675,9 @@ mod dir {
                         parent.as_raw_fd(),
                         0,
                         leaf.as_ptr() as i32,
-                        leaf.len() as i32,
+                        length,
                         0,
-                        rights as i64,
+                        rights,
                         0,
                         0,
                         fd.as_mut_ptr() as i32,

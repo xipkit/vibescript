@@ -16,7 +16,7 @@ pub fn template() -> Value {
     let next_count = count.clone();
     let next = HostMethod::new("host.next", move |_, _, _| {
         Ok(Value::int(
-            next_count.fetch_add(1, Ordering::Relaxed) as i64 + 1,
+            i64::try_from(next_count.fetch_add(1, Ordering::Relaxed)).unwrap_or(i64::MAX) + 1,
         ))
     });
     let checked = HostMethod::new("host.checked", move |_, args, _| {

@@ -284,7 +284,7 @@ pub(crate) fn call(
     }
     if matches!(operation, Operation::Count) {
         let count = walk(ctx, operation, &sets.data, bytes.data(), |_, _| Ok(()))?;
-        return Ok(Some(Value::int(count as i64)));
+        return Ok(Some(Value::int(crate::numeric::to_i64(count))));
     }
     let mut length = 0_usize;
     let mut changed = false;
