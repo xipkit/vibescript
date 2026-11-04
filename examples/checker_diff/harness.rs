@@ -186,10 +186,11 @@ pub fn judge(case: &Case, scratch: &mut Scratch) -> Verdict {
     let directory = if case.modules.is_empty() {
         None
     } else {
-        match scratch.directory(&case.modules) {
-            Ok(path) => Some(path),
-            Err(error) => panic!("write required files: {error}"),
-        }
+        Some(
+            scratch
+                .directory(&case.modules)
+                .expect("write required files"),
+        )
     };
     let normal = match compile(case, directory.as_deref(), false) {
         Ok(Ok(script)) => script,
@@ -292,10 +293,11 @@ pub fn outcome(case: &Case, scratch: &mut Scratch) -> Outcome {
     let directory = if case.modules.is_empty() {
         None
     } else {
-        match scratch.directory(&case.modules) {
-            Ok(path) => Some(path),
-            Err(error) => panic!("write required files: {error}"),
-        }
+        Some(
+            scratch
+                .directory(&case.modules)
+                .expect("write required files"),
+        )
     };
     let compiled = match compile(case, directory.as_deref(), true) {
         Ok(Ok(compiled)) => compiled,
