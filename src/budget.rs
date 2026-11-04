@@ -480,9 +480,13 @@ impl CallContext {
     ///
     /// A scan that examines one byte per loop iteration charges through
     /// `pending` rather than a step per byte; [`Self::settle_bytes`] charges
-    /// the remainder when the scan stops.
+    /// the remainder when the scan stops. This is the body of such loops, so
+    /// it must stay small enough to inline.
+    #[inline(always)]
     pub(crate) fn scan_bytes(&mut self, pending: &mut usize, units: usize) -> Result<()> {
-        *pending += units;
+        // `pending` is below `CHUNK` between calls and `units` is at most the
+        // length of a slice, so the sum cannot wrap.
+        *pending = pending.wrapping_add(units);
         if *pending >= CHUNK {
             let units = std::mem::take(pending);
             self.work_bytes(units)?;
