@@ -6,7 +6,7 @@ use crate::{CallOptions, CancellationToken, Outcome, Script, budget::Charge};
 use std::{
     future::Future,
     pin::Pin,
-    sync::atomic::Ordering,
+    sync::atomic::{AtomicBool, Ordering},
     task::{Context, Poll, Wake, Waker},
     time::{Duration, Instant},
 };
@@ -671,6 +671,11 @@ struct Synchronous {
 /// the thread that made the parker, which parks between polls.
 struct Parker {
     thread: std::thread::Thread,
+    /// Whether a wake has arrived since the wait last looked. The park
+    /// token alone can't say: a host future that blocks the thread during
+    /// its poll, on a channel receive for one, parks it too and takes a
+    /// token meant for this wait.
+    ready: AtomicBool,
     _charge: Option<Charge>,
 }
 
@@ -680,6 +685,7 @@ impl Wake for Parker {
     }
 
     fn wake_by_ref(self: &Arc<Self>) {
+        self.ready.store(true, Ordering::Release);
         self.thread.unpark();
     }
 }
@@ -692,15 +698,18 @@ fn wait_on_worker<T, E>(
     // Enter the runtime for timers and spawned host tasks without nesting its
     // executor. The synchronous stack already occupies a blocking worker.
     let _entered = handle.enter();
-    let waker = Waker::from(parker);
+    let waker = Waker::from(parker.clone());
     let mut context = Context::from_waker(&waker);
     loop {
         if let Poll::Ready(result) = Pin::new(&mut future).poll(&mut context) {
             return result;
         }
-        // A wake between the poll and here leaves the unpark token, so the
-        // park returns at once; a spurious return only polls again.
-        std::thread::park();
+        // The flag remembers a wake from during the poll or before the
+        // park; a park that returns without one, spuriously or on a token
+        // another wait left, only looks again.
+        while !parker.ready.swap(false, Ordering::Acquire) {
+            std::thread::park();
+        }
     }
 }
 
@@ -756,6 +765,7 @@ impl crate::host_call::Backend for Synchronous {
         };
         let parker = Arc::new(Parker {
             thread: std::thread::current(),
+            ready: AtomicBool::new(false),
             _charge: charge,
         });
         let charge = match execution.context.reserve(size_of::<Work>()) {
@@ -908,7 +918,6 @@ pub(crate) async fn call(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::AtomicBool;
     use tokio::sync::Notify;
 
     fn work(script: &Script, on_finish: Arc<dyn Fn() + Send + Sync>) -> Box<Work> {
