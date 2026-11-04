@@ -78,6 +78,10 @@ const RENAMES: &str = include_str!("renames.txt");
 ///     .unwrap();
 /// assert_eq!(size.canonical(), Some((None, "length")));
 /// ```
+#[allow(
+    clippy::panic,
+    reason = "the file is compiled in, so a parse failure is a defect in this build that no caller could handle"
+)]
 pub fn renames() -> &'static [Rename] {
     static RENAMES_TABLE: OnceLock<Vec<Rename>> = OnceLock::new();
     RENAMES_TABLE

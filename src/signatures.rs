@@ -265,6 +265,10 @@ const BUILTINS: &str = include_str!("signatures/builtins.vibe");
 /// It lists the builtin globals, the namespaces and the members of every
 /// value type, each under its canonical name, in the order `vibes prelude`
 /// prints them.
+#[allow(
+    clippy::panic,
+    reason = "the table is compiled in and every compile reads it, so a parse failure is a defect in this build that no caller could handle"
+)]
 pub fn table() -> &'static Table {
     static TABLE: OnceLock<Table> = OnceLock::new();
     TABLE.get_or_init(|| {
@@ -274,6 +278,10 @@ pub fn table() -> &'static Table {
 
 /// The runtime type an alias of the table, such as `comparable`, names, for
 /// annotations that name it like a builtin type.
+#[allow(
+    clippy::panic,
+    reason = "the aliases come from the compiled-in table, so an unparsable one is a defect in this build that no caller could handle"
+)]
 pub(crate) fn alias_type(name: &str) -> Option<&'static crate::types::Type> {
     static ALIASES: OnceLock<Vec<(String, crate::types::Type)>> = OnceLock::new();
     ALIASES
