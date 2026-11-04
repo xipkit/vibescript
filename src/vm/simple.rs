@@ -926,6 +926,10 @@ fn copy(value: &Value) -> Value {
 
 /// Drops a value. Nil, booleans and numbers own no storage, so they are
 /// forgotten rather than run through the general drop.
+#[allow(
+    clippy::mem_forget,
+    reason = "the drop fast path: only kinds that own no storage are forgotten, so nothing leaks"
+)]
 #[inline(always)]
 fn discard(value: Value) {
     if matches!(

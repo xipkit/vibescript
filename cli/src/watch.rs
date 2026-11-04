@@ -157,7 +157,9 @@ fn resolve(path: &Path) -> PathBuf {
 }
 
 // WASI preview 1 has no threads to run the watch loop beside the test.
-#[cfg(all(test, not(target_os = "wasi")))]
+// Separate attributes: Clippy's test exemption only sees a bare `cfg(test)`.
+#[cfg(test)]
+#[cfg(not(target_os = "wasi"))]
 mod tests {
     use super::*;
     use std::sync::{

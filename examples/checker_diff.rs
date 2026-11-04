@@ -213,7 +213,7 @@ fn verdicts(args: &[String], make_case: fn(u64, &str) -> Case) -> i32 {
         if let Some((seed, _)) = stuck {
             let _ = output.lock().unwrap().flush();
             eprintln!("seed {seed} did not finish in two minutes");
-            std::process::exit(3);
+            return 3;
         }
     }
     for handle in handles {
@@ -651,7 +651,7 @@ fn batch(args: &[String]) -> i32 {
                 path.display()
             );
             summary(&totals.lock().unwrap(), started, &out);
-            std::process::exit(3);
+            return 3;
         }
     }
     for handle in handles {

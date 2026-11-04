@@ -621,7 +621,7 @@ pub(crate) struct Program {
     /// The slot of each literal in [`Self::shared`] by whether it is a
     /// symbol and its text, which the literal's value shares, while
     /// compiling.
-    shared_slots: HashMap<(bool, std::sync::Arc<Vec<u8>>), usize>,
+    shared_slots: HashMap<(bool, crate::value::SharedBuffer), usize>,
     pub names: HashMap<String, usize>,
     pub hosts: Vec<String>,
     pub members: Vec<String>,

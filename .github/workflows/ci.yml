@@ -43,6 +43,10 @@ jobs:
         run: ./scripts/cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
       - name: Clippy without default features
         run: ./scripts/cargo clippy --locked --workspace --all-targets --no-default-features -- -D warnings
+      - name: Adamantium with all features
+        run: ./scripts/adamantium -- --locked --all-features
+      - name: Adamantium without default features
+        run: ./scripts/adamantium -- --locked --no-default-features
 
   tests:
     name: Tests (${{ matrix.os }})
