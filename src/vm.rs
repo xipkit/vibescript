@@ -486,25 +486,31 @@ impl Run {
                     }
                 }
                 let current = frames.data.len() - 1;
-                if !Arc::ptr_eq(active, &frames.at(current)?.program) {
-                    *active = frames.at(current)?.program.clone();
+                let executing = frames.at(current)?;
+                if !Arc::ptr_eq(active, &executing.program) {
+                    *active = executing.program.clone();
                     if storage.releasing {
                         programs::release(ctx, storage)?;
                     }
                 }
-                if frames.at(current)?.host {
+                if executing.host {
                     return Ok(Event::Host);
                 }
-                if frames.at(current)?.function().is_none() {
+                if executing.function().is_none() {
                     ctx.charge(1)?;
-                    let pooled = frames.at(current)?.pooled_iteration();
+                    // The frame's fields, copied before the stack changes under it.
+                    let pooled = executing.pooled_iteration();
+                    let iteration_base = executing.iteration_base();
+                    let block = executing.block;
+                    let (plain_yields, mutating, plain_result) = (
+                        executing.plain_yields,
+                        executing.mutating,
+                        executing.plain_result,
+                    );
                     let waiting = if pooled {
                         storage.iteration_pool.last().unwrap().waiting
                     } else {
-                        storage
-                            .iterations
-                            .at(frames.at(current)?.iteration_base())?
-                            .waiting()
+                        storage.iterations.at(iteration_base)?.waiting()
                     };
                     let returned = if waiting {
                         Some(stack.data.pop().unwrap())
@@ -520,17 +526,17 @@ impl Run {
                     } else {
                         storage
                             .iterations
-                            .at_mut(frames.at(current)?.iteration_base())?
+                            .at_mut(iteration_base)?
                             .advance(ctx, returned)?
                     };
                     match progress {
                         Progress::Yield(args, count) => {
-                            if !frames.at(current)?.plain_yields {
+                            if !plain_yields {
                                 for value in args.span(0, count)? {
                                     crate::exports::check(ctx, value)?;
                                 }
                             }
-                            let block = frames.at(current)?.block.unwrap();
+                            let block = block.unwrap();
                             for value in args.into_iter().take(count) {
                                 stack.push(ctx, value)?;
                             }
@@ -540,12 +546,9 @@ impl Run {
                             let mutation = if pooled {
                                 None
                             } else {
-                                storage
-                                    .iterations
-                                    .at_mut(frames.at(current)?.iteration_base())?
-                                    .take_mutation()
+                                storage.iterations.at_mut(iteration_base)?.take_mutation()
                             };
-                            if frames.at(current)?.mutating {
+                            if mutating {
                                 let address = storage.addresses.data.pop().unwrap();
                                 if let Some(mutation) = mutation {
                                     let guard_program = programs::address(ctx, storage, &address)?;
@@ -570,9 +573,8 @@ impl Run {
                                     )?;
                                 }
                             }
-                            let plain = frames.at(current)?.plain_result;
                             unwind(frames, storage, stack, current)?;
-                            if !plain {
+                            if !plain_result {
                                 crate::exports::check(ctx, &value)?;
                             }
                             stack.push(ctx, value)?;
