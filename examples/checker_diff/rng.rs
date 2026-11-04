@@ -34,7 +34,7 @@ impl Rng {
 
     /// A number in `low..=high`; `low <= high` and `high - low + 1` must fit in `i64`.
     pub fn range(&mut self, low: i64, high: i64) -> i64 {
-        low + (self.next() % (high - low + 1) as u64) as i64
+        low.wrapping_add_unsigned(self.next() % (high - low + 1) as u64)
     }
 
     /// An item chosen from a nonempty slice.

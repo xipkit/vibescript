@@ -267,7 +267,7 @@ fn store() -> Value {
                     call.call_block(std::slice::from_ref(item))?;
                 }
             }
-            Ok(Value::int(items.len() as i64))
+            Ok(Value::int(i64::try_from(items.len()).unwrap_or(i64::MAX)))
         },
     );
     let collect = block_method(
