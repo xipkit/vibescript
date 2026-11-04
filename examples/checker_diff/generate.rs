@@ -15,6 +15,7 @@
 //! them. A sound checker rejects the unsound ones; the rest must run the
 //! same in both builds.
 
+use super::rng::Checked;
 use super::{
     harness::Case,
     host::{Global, Host},
@@ -72,10 +73,9 @@ impl Ty {
                     .filter(|ty| **ty != Ty::Nil)
                     .cloned()
                     .collect();
-                if kept.len() == 1 {
-                    kept[0].clone()
-                } else {
-                    Ty::Union(kept)
+                match kept.as_slice() {
+                    [ty] => ty.clone(),
+                    _ => Ty::Union(kept),
                 }
             }
             other => other.clone(),
@@ -268,7 +268,7 @@ const MEMBERS: [&[&str]; 3] = [
 
 /// Generates one program from `seed`: a quarter call builtins by their
 /// signatures ([`super::builtins`]), the rest are type-directed.
-pub fn program(seed: u64) -> Case {
+pub fn program(seed: u64) -> std::io::Result<Case> {
     if Rng::new(seed ^ 0x6275_696c).chance(25) {
         return super::builtins::program(seed);
     }
@@ -393,7 +393,7 @@ impl Gen {
                 format!("[{}]", items.join(", "))
             }
             Ty::Enum(index) => format!("E{index}"),
-            Ty::Class(index) => self.classes[*index].name.clone(),
+            Ty::Class(index) => format!("C{index}"),
         }
     }
 
@@ -494,30 +494,30 @@ impl Gen {
 
     // ----- Programs -----
 
-    fn program(&mut self) -> Case {
+    fn program(&mut self) -> std::io::Result<Case> {
         self.unsound = u32::from(self.rng.chance(75));
         if self.rng.chance(35) {
             self.setup_host();
         }
         let mut case = match self.rng.weighted(&[6, 4, 1]) {
-            0 => self.structural(false),
-            1 => self.focused(),
-            _ => self.structural(true),
+            0 => self.structural(false)?,
+            1 => self.focused()?,
+            _ => self.structural(true)?,
         };
         case.host = self.host.clone();
-        case
+        Ok(case)
     }
 
     /// A program of declarations and top-level statements; a `large` one
     /// has several of each declaration and tens of statements, hundreds of
     /// lines in all.
-    fn structural(&mut self, large: bool) -> Case {
+    fn structural(&mut self, large: bool) -> std::io::Result<Case> {
         let mut modules = Vec::new();
         if self.rng.chance(if large { 50 } else { 20 }) {
             // The required file may require one of its own, which in the
             // unsound form requires it back.
-            let util = self.rng.chance(40).then(|| self.util_file());
-            modules.push(("lib.vibe".to_owned(), self.library_file()));
+            let util = self.rng.chance(40).then(|| self.util_file()).transpose()?;
+            modules.push(("lib.vibe".to_owned(), self.library_file()?));
             if let Some(util) = util {
                 modules.push(("util.vibe".to_owned(), util));
             }
@@ -529,7 +529,7 @@ impl Gen {
             self.rng.weighted(&[3, 3, 1])
         };
         for index in 0..class_count {
-            let class = self.class_sig(index);
+            let class = self.class_sig(index)?;
             self.classes.push(class);
         }
         let function_count = if large {
@@ -538,22 +538,22 @@ impl Gen {
             1 + self.rng.below(4)
         };
         for rank in 0..function_count {
-            let def = self.fn_sig(format!("f{rank}"), 10 + rank);
+            let def = self.fn_sig(format!("f{rank}"), 10 + rank)?;
             self.functions.push(def);
         }
         if self.rng.chance(if large { 60 } else { 25 }) {
             for rank in 0..1 + self.rng.below(2) {
-                let def = self.fn_sig(format!("g{rank}"), 6 + rank);
+                let def = self.fn_sig(format!("g{rank}"), 6 + rank)?;
                 self.namespace.push(def);
             }
             if self.rng.chance(40) {
                 for rank in 0..1 + self.rng.below(2) {
-                    let def = self.fn_sig(format!("k{rank}"), 4 + rank);
+                    let def = self.fn_sig(format!("k{rank}"), 4 + rank)?;
                     self.inner.push(def);
                 }
             }
         }
-        let mut text = self.declarations();
+        let mut text = self.declarations()?;
         let mut env = self.top_env();
         if !modules.is_empty() {
             env.library = true;
@@ -566,34 +566,34 @@ impl Gen {
         };
         for _ in 0..statements {
             if large && self.rng.chance(10) {
-                self.risky(&mut env, 2);
+                self.risky(&mut env, 2)?;
             } else {
-                self.stmt(&mut env, 2);
+                self.stmt(&mut env, 2)?;
             }
         }
         self.observe_all(&env);
         text.push_str(&self.take_lines());
         if !self.host.is_empty() && self.rng.chance(50) {
-            text.push_str(&self.entry());
+            text.push_str(&self.entry()?);
         }
-        Case {
+        Ok(Case {
             main: text,
             modules,
             host: Host::default(),
-        }
+        })
     }
 
     /// A short program around risky constructs, in a function or at top
     /// level.
-    fn focused(&mut self) -> Case {
+    fn focused(&mut self) -> std::io::Result<Case> {
         self.enums = self.rng.below(3);
         if self.rng.chance(40) {
-            let class = self.class_sig(0);
+            let class = self.class_sig(0)?;
             self.classes.push(class);
         }
-        let def = self.fn_sig("f0".to_owned(), 10);
+        let def = self.fn_sig("f0".to_owned(), 10)?;
         self.functions.push(def);
-        let mut text = self.declarations();
+        let mut text = self.declarations()?;
         let mut env = self.top_env();
         if self.rng.chance(50) {
             let result = self.rng.chance(70).then(|| self.ty(1));
@@ -608,10 +608,10 @@ impl Gen {
             self.indent += 1;
             let mut inner = self.fn_env(&def, None);
             for _ in 0..1 + self.rng.below(3) {
-                self.risky(&mut inner, 2);
+                self.risky(&mut inner, 2)?;
             }
             if let Some(ty) = result {
-                let value = self.expr(&mut inner, &ty, 1, true);
+                let value = self.expr(&mut inner, &ty, 1, true)?;
                 self.line(value);
             }
             self.indent -= 1;
@@ -619,34 +619,34 @@ impl Gen {
             self.line("p(probe)");
         } else {
             for _ in 0..1 + self.rng.below(3) {
-                self.risky(&mut env, 2);
+                self.risky(&mut env, 2)?;
             }
         }
         self.observe_all(&env);
         text.push_str(&self.take_lines());
-        Case::new(text)
+        Ok(Case::new(text))
     }
 
-    fn declarations(&mut self) -> String {
+    fn declarations(&mut self) -> std::io::Result<String> {
         let mut text = String::new();
         for index in 0..self.enums {
-            text.push_str(&enum_source(index));
+            text.push_str(&enum_source(index)?);
         }
         for index in 0..self.classes.len() {
-            text.push_str(&self.class_source(index));
+            text.push_str(&self.class_source(index)?);
         }
         if !self.namespace.is_empty() || !self.inner.is_empty() {
             self.line("module N");
             self.indent += 1;
             self.line("LIMIT = 3");
             for def in self.namespace.clone() {
-                self.function(&def, None, true);
+                self.function(&def, None, true)?;
             }
             if !self.inner.is_empty() {
                 self.line("module M");
                 self.indent += 1;
                 for def in self.inner.clone() {
-                    self.function(&def, None, true);
+                    self.function(&def, None, true)?;
                 }
                 self.indent -= 1;
                 self.line("end");
@@ -656,10 +656,10 @@ impl Gen {
             text.push_str(&self.take_lines());
         }
         for def in self.functions.clone() {
-            self.function(&def, None, false);
+            self.function(&def, None, false)?;
             text.push_str(&self.take_lines());
         }
-        text
+        Ok(text)
     }
 
     /// A required file: exported functions, an enum, and state its
@@ -667,26 +667,26 @@ impl Gen {
     /// The file the required file requires: functions of low rank, and in
     /// the unsound form a `require` of the requiring file, a cycle the
     /// compiler rejects.
-    fn util_file(&mut self) -> String {
+    fn util_file(&mut self) -> std::io::Result<String> {
         if self.rng.chance(10) && self.unsound() {
             self.line("back = require(\"lib\")");
         }
         for rank in 0..1 + self.rng.below(2) {
-            let mut def = self.fn_sig(format!("u{rank}"), rank);
+            let mut def = self.fn_sig(format!("u{rank}"), rank)?;
             def.block = None;
             self.util.push(def.clone());
             let prefix = if self.rng.chance(50) { "export " } else { "" };
             let mut env = self.fn_env(&def, None);
             self.line(format!("{prefix}{}", self.signature(&def)));
             self.indent += 1;
-            self.body(&mut env, def.result.clone(), 1);
+            self.body(&mut env, def.result.clone(), 1)?;
             self.indent -= 1;
             self.line("end");
         }
-        self.take_lines()
+        Ok(self.take_lines())
     }
 
-    fn library_file(&mut self) -> String {
+    fn library_file(&mut self) -> std::io::Result<String> {
         if !self.util.is_empty() {
             self.line("util = require(\"util\")");
         }
@@ -701,7 +701,7 @@ impl Gen {
             self.line("def bump -> int\n  count += 1\n  count\nend");
         }
         for rank in 0..1 + self.rng.below(2) {
-            let mut def = self.fn_sig(format!("h{rank}"), 1 + rank);
+            let mut def = self.fn_sig(format!("h{rank}"), 1 + rank)?;
             def.block = None;
             self.library.push(def.clone());
             let prefix = if self.rng.chance(50) { "export " } else { "" };
@@ -724,14 +724,14 @@ impl Gen {
                 self.indent -= 1;
                 self.line("end");
             }
-            self.body(&mut env, def.result.clone(), 2);
+            self.body(&mut env, def.result.clone(), 2)?;
             self.indent -= 1;
             self.line("end");
         }
         if self.library_state && self.rng.chance(50) {
             self.shadows();
         }
-        self.take_lines()
+        Ok(self.take_lines())
     }
 
     /// Functions whose parameters take the names of the file's locals,
@@ -771,14 +771,18 @@ impl Gen {
 
     // ----- Declarations -----
 
-    fn fn_sig(&mut self, name: String, rank: usize) -> FnDef {
+    fn fn_sig(&mut self, name: String, rank: usize) -> std::io::Result<FnDef> {
         let mut params = Vec::new();
         let mut keywords = false;
         for index in 0..self.rng.below(4) {
             let ty = self.param_ty(2);
             let name = format!("a{index}");
             if keywords {
-                let default = self.rng.chance(60).then(|| self.literal(&ty, 1));
+                let default = self
+                    .rng
+                    .chance(60)
+                    .then(|| self.literal(&ty, 1))
+                    .transpose()?;
                 params.push(Param {
                     name,
                     ty,
@@ -791,10 +795,15 @@ impl Gen {
                 .any(|param: &Param| matches!(param.kind, ParamKind::Default(_)));
             let kind = match self.rng.weighted(&[6, 2, 1, 1]) {
                 0 if !defaulted => ParamKind::Required,
-                0 | 1 => ParamKind::Default(self.literal(&ty, 1)),
+                0 | 1 => ParamKind::Default(self.literal(&ty, 1)?),
                 2 => {
                     keywords = true;
-                    ParamKind::Keyword(self.rng.chance(60).then(|| self.literal(&ty, 1)))
+                    ParamKind::Keyword(
+                        self.rng
+                            .chance(60)
+                            .then(|| self.literal(&ty, 1))
+                            .transpose()?,
+                    )
                 }
                 _ => {
                     keywords = true;
@@ -816,13 +825,13 @@ impl Gen {
             result: self.rng.chance(70).then(|| self.ty(1)),
             optional: self.rng.chance(30),
         });
-        FnDef {
+        Ok(FnDef {
             name,
             params,
             result,
             block,
             rank,
-        }
+        })
     }
 
     fn signature(&self, def: &FnDef) -> String {
@@ -851,10 +860,9 @@ impl Gen {
         }
         if let Some(block) = &def.block {
             let params: Vec<String> = block.params.iter().map(|ty| self.render(ty)).collect();
-            let params = if params.len() == 1 {
-                params[0].clone()
-            } else {
-                format!("({})", params.join(", "))
+            let params = match params.as_slice() {
+                [param] => param.clone(),
+                _ => format!("({})", params.join(", ")),
             };
             let result = block
                 .result
@@ -890,7 +898,12 @@ impl Gen {
         env
     }
 
-    fn function(&mut self, def: &FnDef, class: Option<usize>, namespace: bool) {
+    fn function(
+        &mut self,
+        def: &FnDef,
+        class: Option<usize>,
+        namespace: bool,
+    ) -> std::io::Result<()> {
         let mut env = self.fn_env(def, class);
         let mut signature = self.signature(def);
         if namespace {
@@ -898,34 +911,36 @@ impl Gen {
         }
         self.line(signature);
         self.indent += 1;
-        self.body(&mut env, def.result.clone(), 2);
+        self.body(&mut env, def.result.clone(), 2)?;
         self.indent -= 1;
         self.line("end");
+        Ok(())
     }
 
     /// Statements, then the final value of `result`'s type.
-    fn body(&mut self, env: &mut Env, result: Option<Ty>, depth: usize) {
+    fn body(&mut self, env: &mut Env, result: Option<Ty>, depth: usize) -> std::io::Result<()> {
         for _ in 0..self.rng.below(4) {
             if self.rng.chance(20) {
-                self.risky(env, depth);
+                self.risky(env, depth)?;
             } else {
-                self.stmt(env, depth);
+                self.stmt(env, depth)?;
             }
         }
         if let Some(ty) = result {
             if self.rng.chance(8) {
-                self.tail_loop(env, &ty, depth);
-                return;
+                self.tail_loop(env, &ty, depth)?;
+                return Ok(());
             }
-            let value = self.expr(env, &ty, depth, true);
+            let value = self.expr(env, &ty, depth, true)?;
             self.line(value);
-        }
+        };
+        Ok(())
     }
 
     /// Ends a body with a loop, which gives the value its body had last: a
     /// `for` over a literal with elements always runs it, a `while` may
     /// not, and a `next` may skip its end.
-    fn tail_loop(&mut self, env: &mut Env, ty: &Ty, depth: usize) {
+    fn tail_loop(&mut self, env: &mut Env, ty: &Ty, depth: usize) -> std::io::Result<()> {
         let counter = self.name("i");
         let is_while = ty.nilable() || self.unsound();
         if is_while {
@@ -942,14 +957,16 @@ impl Gen {
             }
             env.in_loop = true;
             env.block = None;
-            generator.stmts(env, depth.saturating_sub(1));
-            let value = generator.expr(env, ty, depth.saturating_sub(1), true);
+            generator.stmts(env, depth.saturating_sub(1))?;
+            let value = generator.expr(env, ty, depth.saturating_sub(1), true)?;
             generator.line(value);
-        });
+            Ok(())
+        })?;
         self.line("end");
+        Ok(())
     }
 
-    fn class_sig(&mut self, index: usize) -> ClassDef {
+    fn class_sig(&mut self, index: usize) -> std::io::Result<ClassDef> {
         let mut fields = Vec::new();
         for field in 0..1 + self.rng.below(3) {
             // A class's own type in its fields would need an instance to
@@ -960,7 +977,11 @@ impl Gen {
                 1 => Access::Getter,
                 _ => Access::Property,
             };
-            let default = self.rng.chance(35).then(|| self.literal(&ty, 1));
+            let default = self
+                .rng
+                .chance(35)
+                .then(|| self.literal(&ty, 1))
+                .transpose()?;
             fields.push(FieldDef {
                 name: format!("v{field}"),
                 ty,
@@ -980,7 +1001,7 @@ impl Gen {
         }
         let mut methods = Vec::new();
         for method in 0..1 + self.rng.below(3) {
-            let mut def = self.fn_sig(format!("m{method}"), 2 + method);
+            let mut def = self.fn_sig(format!("m{method}"), 2 + method)?;
             def.block = None;
             methods.push(def);
         }
@@ -999,7 +1020,7 @@ impl Gen {
         let mut statics = Vec::new();
         if self.rng.chance(30) {
             for rank in 0..1 + self.rng.below(2) {
-                let mut def = self.fn_sig(format!("s{rank}"), 2 + rank);
+                let mut def = self.fn_sig(format!("s{rank}"), 2 + rank)?;
                 def.block = None;
                 statics.push(def);
             }
@@ -1009,7 +1030,7 @@ impl Gen {
             1 => Ty::Str,
             _ => Ty::opt(Ty::Int),
         });
-        ClassDef {
+        Ok(ClassDef {
             name: format!("C{index}"),
             fields,
             init,
@@ -1020,11 +1041,11 @@ impl Gen {
             plus: self.rng.chance(25),
             compare: self.rng.chance(25),
             element,
-        }
+        })
     }
 
-    fn class_source(&mut self, index: usize) -> String {
-        let class = self.classes[index].clone();
+    fn class_source(&mut self, index: usize) -> std::io::Result<String> {
+        let class = (*self.classes.at(index)?).clone();
         self.line(format!("class {}", class.name));
         self.indent += 1;
         for field in &class.fields {
@@ -1039,7 +1060,7 @@ impl Gen {
             }
         }
         for (name, ty) in &class.class_vars {
-            let value = self.literal(ty, 1);
+            let value = self.literal(ty, 1)?;
             self.line(format!("{name}: {} = {value}", self.render(ty)));
         }
         let params: Vec<String> = class
@@ -1066,7 +1087,7 @@ impl Gen {
         // own string form, or a getter, ahead of the assignments.
         if self.rng.chance(25) && self.unsound() {
             let method = self.rng.below(class.methods.len());
-            let call = self.method_call_on(&mut env, index, method, "self", 1);
+            let call = self.method_call_on(&mut env, index, method, "self", 1)?;
             let getter = class
                 .fields
                 .iter()
@@ -1094,7 +1115,7 @@ impl Gen {
                 0 => self.line(format!("@{} = {value}", field.name)),
                 // Assigned on one path only, or not at all.
                 1 => {
-                    let condition = self.expr(&mut env, &Ty::Bool, 0, false);
+                    let condition = self.expr(&mut env, &Ty::Bool, 0, false)?;
                     self.line(format!("@{} = {value} if {condition}", field.name));
                 }
                 _ => {}
@@ -1103,27 +1124,27 @@ impl Gen {
         self.indent -= 1;
         self.line("end");
         for method in &class.methods {
-            self.function(method, Some(index), false);
+            self.function(method, Some(index), false)?;
         }
         for def in &class.statics {
             let mut env = self.fn_env(def, None);
             env.statics = Some(index);
             self.line(self.signature(def).replacen("def ", "def self.", 1));
             self.indent += 1;
-            self.body(&mut env, def.result.clone(), 1);
+            self.body(&mut env, def.result.clone(), 1)?;
             self.indent -= 1;
             self.line("end");
         }
-        self.operators(index);
+        self.operators(index)?;
         if class.to_s {
             self.line("def to_s -> string");
-            let field = &class.fields[0];
+            let field = class.fields.at(0)?;
             self.line(format!("  \"#{{@{}}}\"", field.name));
             self.line("end");
         }
         self.indent -= 1;
         self.line("end");
-        self.take_lines()
+        Ok(self.take_lines())
     }
 
     // ----- Statements -----
@@ -1135,7 +1156,7 @@ impl Gen {
         name
     }
 
-    fn stmt(&mut self, env: &mut Env, depth: usize) {
+    fn stmt(&mut self, env: &mut Env, depth: usize) -> std::io::Result<()> {
         let nested = if depth > 0 { 1 } else { 0 };
         let choice = self.rng.weighted(&[
             8,
@@ -1164,12 +1185,12 @@ impl Gen {
         match choice {
             0 => {
                 let ty = self.ty(2);
-                let value = self.expr(env, &ty, depth, true);
+                let value = self.expr(env, &ty, depth, true)?;
                 self.bind(env, ty, value);
             }
             1 => {
                 let ty = self.ty(1);
-                let value = self.expr(env, &ty, depth, false);
+                let value = self.expr(env, &ty, depth, false)?;
                 // An undeclared local takes its value's inferred type, which
                 // the generator models only for scalars.
                 let name = self.name("x");
@@ -1178,10 +1199,10 @@ impl Gen {
                     env.locals.push(Local::typed(name, ty));
                 }
             }
-            2 => self.reassign(env, depth),
+            2 => self.reassign(env, depth)?,
             3 => {
                 let ty = self.ty(2);
-                let value = self.expr(env, &ty, depth, false);
+                let value = self.expr(env, &ty, depth, false)?;
                 let simple = value.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
                 if simple && self.rng.chance(20) {
                     // A call without parentheses ends at the line's end, so
@@ -1192,36 +1213,37 @@ impl Gen {
                     self.line(format!("p({value})"));
                 }
             }
-            4 => self.if_stmt(env, depth),
-            5 => self.while_stmt(env, depth),
-            6 => self.block_stmt(env, depth),
-            7 => self.mutate(env, depth),
-            8 => self.rescue_stmt(env, depth),
+            4 => self.if_stmt(env, depth)?,
+            5 => self.while_stmt(env, depth)?,
+            6 => self.block_stmt(env, depth)?,
+            7 => self.mutate(env, depth)?,
+            8 => self.rescue_stmt(env, depth)?,
             9 => {
-                let condition = self.expr(env, &Ty::Bool, depth.saturating_sub(1), false);
+                let condition = self.expr(env, &Ty::Bool, depth.saturating_sub(1), false)?;
                 match env.function.clone().flatten() {
                     Some(ty) => {
-                        let value = self.expr(env, &ty, depth.saturating_sub(1), true);
+                        let value = self.expr(env, &ty, depth.saturating_sub(1), true)?;
                         self.line(format!("return {value} if {condition}"));
                     }
                     None => self.line(format!("return if {condition}")),
                 }
             }
-            10 => self.jump(env, depth),
+            10 => self.jump(env, depth)?,
             11 => {
                 let result = self.ty(1);
-                let value = self.case_expr(env, &result, depth - 1);
+                let value = self.case_expr(env, &result, depth - 1)?;
                 self.bind(env, result, value);
             }
             12 => {
-                let call = self.yield_expr(env, depth);
+                let call = self.yield_expr(env, depth)?;
                 self.line(call);
             }
-            _ => self.ivar_write(env, depth),
-        }
+            _ => self.ivar_write(env, depth)?,
+        };
+        Ok(())
     }
 
-    fn reassign(&mut self, env: &mut Env, depth: usize) {
+    fn reassign(&mut self, env: &mut Env, depth: usize) -> std::io::Result<()> {
         let locals: Vec<Local> = env
             .locals
             .iter()
@@ -1229,85 +1251,94 @@ impl Gen {
             .cloned()
             .collect();
         if locals.is_empty() {
-            return;
+            return Ok(());
         }
-        let local = self.rng.pick(&locals).clone();
-        let value = self.expr(env, &local.declared, depth, true);
+        let local = self.rng.pick(&locals)?.clone();
+        let value = self.expr(env, &local.declared, depth, true)?;
         self.line(format!("{} = {value}", local.name));
         env.set_current(&local.name, local.declared.clone());
         if local.declared == Ty::Int && self.rng.chance(30) {
             self.line(format!("{} += 1", local.name));
-        }
+        };
+        Ok(())
     }
 
-    fn ivar_write(&mut self, env: &mut Env, depth: usize) {
+    fn ivar_write(&mut self, env: &mut Env, depth: usize) -> std::io::Result<()> {
         if let Some(class) = env.class_index().or(env.statics) {
-            let vars = self.classes[class].class_vars.clone();
+            let vars = self.classes.at(class)?.class_vars.clone();
             if !vars.is_empty() && (env.statics.is_some() || self.rng.chance(40)) {
-                let (name, ty) = self.rng.pick(&vars).clone();
-                let value = self.expr(env, &ty, depth.saturating_sub(1), true);
+                let (name, ty) = self.rng.pick(&vars)?.clone();
+                let value = self.expr(env, &ty, depth.saturating_sub(1), true)?;
                 match (&ty, self.rng.below(2)) {
                     (Ty::Int, 0) => self.line(format!("{name} += {value}")),
                     (Ty::Array(element), 0) => {
-                        let item = self.expr(env, element, 0, true);
+                        let item = self.expr(env, element, 0, true)?;
                         self.line(format!("{name} << {item}"));
                     }
                     _ => self.line(format!("{name} = {value}")),
                 }
-                return;
+                return Ok(());
             }
         }
         let Some(class) = env.class_index() else {
-            return;
+            return Ok(());
         };
-        let fields = self.classes[class].fields.clone();
-        let field = self.rng.pick(&fields).clone();
-        let value = self.expr(env, &field.ty, depth.saturating_sub(1), true);
+        let fields = self.classes.at(class)?.fields.clone();
+        let field = self.rng.pick(&fields)?.clone();
+        let value = self.expr(env, &field.ty, depth.saturating_sub(1), true)?;
         match (&field.ty, self.rng.below(3)) {
             (Ty::Int, 0) => self.line(format!("@{} += {value}", field.name)),
             (Ty::Array(element), 0) => {
-                let item = self.expr(env, element, 0, true);
+                let item = self.expr(env, element, 0, true)?;
                 self.line(format!("@{} << {item}", field.name));
             }
             (_, 1) if field.access == Access::Property => {
                 self.line(format!("self.{} = {value}", field.name))
             }
             _ => self.line(format!("@{} = {value}", field.name)),
-        }
+        };
+        Ok(())
     }
 
-    fn if_stmt(&mut self, env: &mut Env, depth: usize) {
-        let condition = self.expr(env, &Ty::Bool, depth - 1, false);
+    fn if_stmt(&mut self, env: &mut Env, depth: usize) -> std::io::Result<()> {
+        let condition = self.expr(env, &Ty::Bool, depth - 1, false)?;
         self.line(format!("if {condition}"));
-        self.nested(env, |generator, env| generator.stmts(env, depth - 1));
+        self.nested(env, |generator, env| generator.stmts(env, depth - 1))?;
         if self.rng.chance(50) {
             self.line("else");
-            self.nested(env, |generator, env| generator.stmts(env, depth - 1));
+            self.nested(env, |generator, env| generator.stmts(env, depth - 1))?;
         }
         self.line("end");
+        Ok(())
     }
 
-    fn stmts(&mut self, env: &mut Env, depth: usize) {
+    fn stmts(&mut self, env: &mut Env, depth: usize) -> std::io::Result<()> {
         for _ in 0..1 + self.rng.below(3) {
             if self.rng.chance(15) {
-                self.risky(env, depth);
+                self.risky(env, depth)?;
             } else {
-                self.stmt(env, depth);
+                self.stmt(env, depth)?;
             }
         }
+        Ok(())
     }
 
     /// Generates nested code in a copy of `env`: the locals it declares
     /// stay inside, and its assignments forget narrowing.
-    fn nested(&mut self, env: &mut Env, inner: impl FnOnce(&mut Self, &mut Env)) {
+    fn nested(
+        &mut self,
+        env: &mut Env,
+        inner: impl FnOnce(&mut Self, &mut Env) -> std::io::Result<()>,
+    ) -> std::io::Result<()> {
         let mut copy = env.clone();
         self.indent += 1;
-        inner(self, &mut copy);
+        let result = inner(self, &mut copy);
         self.indent -= 1;
         env.widen_all();
+        result
     }
 
-    fn while_stmt(&mut self, env: &mut Env, depth: usize) {
+    fn while_stmt(&mut self, env: &mut Env, depth: usize) -> std::io::Result<()> {
         let counter = self.name("i");
         let limit = 1 + self.rng.below(3);
         self.line(format!("{counter} = 0"));
@@ -1316,15 +1347,17 @@ impl Gen {
             generator.line(format!("{counter} += 1"));
             env.in_loop = true;
             env.block = None;
-            generator.stmts(env, depth - 1);
-        });
+            generator.stmts(env, depth - 1)?;
+            Ok(())
+        })?;
         self.line("end");
+        Ok(())
     }
 
-    fn block_stmt(&mut self, env: &mut Env, depth: usize) {
+    fn block_stmt(&mut self, env: &mut Env, depth: usize) -> std::io::Result<()> {
         let element = self.ty(1);
         // A typed local gives the block's parameter exactly this type.
-        let value = self.expr(env, &Ty::array(element.clone()), depth - 1, true);
+        let value = self.expr(env, &Ty::array(element.clone()), depth - 1, true)?;
         let receiver = self.bind(env, Ty::array(element.clone()), value);
         let param = self.name("e");
         let (call, result) = match self.rng.below(5) {
@@ -1352,75 +1385,81 @@ impl Gen {
             env.in_loop = false;
             for _ in 0..1 + generator.rng.below(2) {
                 if generator.rng.chance(20) {
-                    generator.risky(env, depth - 1);
+                    generator.risky(env, depth - 1)?;
                 } else {
-                    generator.stmt(env, depth - 1);
+                    generator.stmt(env, depth - 1)?;
                 }
             }
             if let Some(ty) = &result {
-                let value = generator.expr(env, ty, depth - 1, true);
+                let value = generator.expr(env, ty, depth - 1, true)?;
                 generator.line(value);
             }
-        });
+            Ok(())
+        })?;
         self.line("}");
         if let Some(name) = target {
             self.line(format!("p({name})"));
-        }
+        };
+        Ok(())
     }
 
-    fn jump(&mut self, env: &mut Env, depth: usize) {
-        let condition = self.expr(env, &Ty::Bool, depth.saturating_sub(1), false);
+    fn jump(&mut self, env: &mut Env, depth: usize) -> std::io::Result<()> {
+        let condition = self.expr(env, &Ty::Bool, depth.saturating_sub(1), false)?;
         if env.in_loop {
             let word = if self.rng.chance(50) { "next" } else { "break" };
             self.line(format!("{word} if {condition}"));
-            return;
+            return Ok(());
         }
         let Some(result) = env.block.clone() else {
-            return;
+            return Ok(());
         };
         match (self.rng.below(3), result) {
             (0, Some(ty)) => {
-                let value = self.expr(env, &ty, depth.saturating_sub(1), true);
+                let value = self.expr(env, &ty, depth.saturating_sub(1), true)?;
                 self.line(format!("next {value} if {condition}"));
             }
             (0, None) => self.line(format!("next if {condition}")),
             (1, _) => {
                 // A break's value joins the call's type.
                 let ty = self.ty(1);
-                let value = self.expr(env, &ty, depth.saturating_sub(1), false);
+                let value = self.expr(env, &ty, depth.saturating_sub(1), false)?;
                 self.line(format!("break {value} if {condition}"));
             }
             _ => match env.function.clone() {
                 Some(Some(ty)) => {
-                    let value = self.expr(env, &ty, depth.saturating_sub(1), true);
+                    let value = self.expr(env, &ty, depth.saturating_sub(1), true)?;
                     self.line(format!("return {value} if {condition}"));
                 }
                 _ => self.line(format!("next if {condition}")),
             },
-        }
+        };
+        Ok(())
     }
 
-    fn rescue_stmt(&mut self, env: &mut Env, depth: usize) {
+    fn rescue_stmt(&mut self, env: &mut Env, depth: usize) -> std::io::Result<()> {
         self.line("begin");
         self.nested(env, |generator, env| {
-            generator.stmts(env, depth - 1);
+            generator.stmts(env, depth - 1)?;
             if generator.rng.chance(40) {
                 generator.line("raise \"boom\"");
             }
-        });
+            Ok(())
+        })?;
         self.line("rescue => error");
         self.nested(env, |generator, env| {
             generator.line("p(error.message)");
-            generator.stmts(env, depth - 1);
-        });
+            generator.stmts(env, depth - 1)?;
+            Ok(())
+        })?;
         if self.rng.chance(30) {
             self.line("ensure");
-            self.nested(env, |generator, env| generator.stmts(env, depth - 1));
+            self.nested(env, |generator, env| generator.stmts(env, depth - 1))?;
         }
         self.line("end");
+        Ok(())
     }
 
-    fn mutate(&mut self, env: &mut Env, depth: usize) {
+    fn mutate(&mut self, env: &mut Env, depth: usize) -> std::io::Result<()> {
         let collections: Vec<Local> = env
             .locals
             .iter()
@@ -1434,14 +1473,14 @@ impl Gen {
             .cloned()
             .collect();
         if collections.is_empty() {
-            return;
+            return Ok(());
         }
-        let local = self.rng.pick(&collections).clone();
+        let local = self.rng.pick(&collections)?.clone();
         let name = local.name.clone();
         let d = depth.saturating_sub(1);
         match &local.current {
             Ty::Array(element) => {
-                let value = self.expr(env, element, d, true);
+                let value = self.expr(env, element, d, true)?;
                 match self.rng.below(7) {
                     0 => self.line(format!("{name} << {value}")),
                     1 => self.line(format!("{name}.push({value})")),
@@ -1453,8 +1492,8 @@ impl Gen {
                 }
             }
             Ty::Hash(value_ty) => {
-                let value = self.expr(env, value_ty, d, true);
-                let key = self.string_literal();
+                let value = self.expr(env, value_ty, d, true)?;
+                let key = self.string_literal()?;
                 match self.rng.below(3) {
                     0 => self.line(format!("{name}[{key}] = {value}")),
                     1 => self.line(format!("{name}.delete({key})")),
@@ -1462,13 +1501,13 @@ impl Gen {
                 }
             }
             Ty::Shape(fields) => {
-                let field = self.rng.pick(fields).clone();
-                let value = self.expr(env, &field.ty, d, true);
+                let field = self.rng.pick(fields)?.clone();
+                let value = self.expr(env, &field.ty, d, true)?;
                 self.line(format!("{name}[\"{}\"] = {value}", field.name));
             }
             Ty::Tuple(items) => {
                 let index = self.rng.below(items.len());
-                let value = self.expr(env, &items[index], d, true);
+                let value = self.expr(env, items.at(index)?, d, true)?;
                 let back = items.len() - index;
                 match self.rng.below(8) {
                     0..=2 => self.line(format!("{name}[{index}] = {value}")),
@@ -1479,36 +1518,41 @@ impl Gen {
                     _ => self.line(format!("{name}.clear")),
                 }
             }
-            Ty::Class(class) if self.rng.chance(50) && self.classes[*class].element.is_some() => {
-                let element = self.classes[*class].element.clone().unwrap();
-                let index = self.expr(env, &Ty::Int, 0, false);
+            Ty::Class(class)
+                if self.rng.chance(50) && self.classes.at(*class)?.element.is_some() =>
+            {
+                let element = self.classes.at(*class)?.element.clone().unwrap();
+                let index = self.expr(env, &Ty::Int, 0, false)?;
                 if element == Ty::Int && self.rng.chance(40) {
                     self.line(format!("{name}[{index}] += 1"));
                 } else {
-                    let value = self.expr(env, &element, d, true);
+                    let value = self.expr(env, &element, d, true)?;
                     self.line(format!("{name}[{index}] = {value}"));
                 }
             }
-            Ty::Class(class) if self.rng.chance(50) && self.classes[*class].plus => {
-                let other = self.expr(env, &Ty::Class(*class), d, false);
+            Ty::Class(class) if self.rng.chance(50) && self.classes.at(*class)?.plus => {
+                let other = self.expr(env, &Ty::Class(*class), d, false)?;
                 self.line(format!("{name} += {other}"));
             }
             Ty::Class(class) => {
-                let fields: Vec<FieldDef> = self.classes[*class]
+                let fields: Vec<FieldDef> = self
+                    .classes
+                    .at(*class)?
                     .fields
                     .iter()
                     .filter(|field| field.access == Access::Property)
                     .cloned()
                     .collect();
                 if fields.is_empty() {
-                    return;
+                    return Ok(());
                 }
-                let field = self.rng.pick(&fields).clone();
-                let value = self.expr(env, &field.ty, d, true);
+                let field = self.rng.pick(&fields)?.clone();
+                let value = self.expr(env, &field.ty, d, true)?;
                 self.line(format!("{name}.{} = {value}", field.name));
             }
             _ => {}
-        }
+        };
+        Ok(())
     }
 
     // ----- Risky statements -----
@@ -1526,28 +1570,29 @@ impl Gen {
     }
 
     /// One construct from the areas where checkers go wrong.
-    fn risky(&mut self, env: &mut Env, depth: usize) {
+    fn risky(&mut self, env: &mut Env, depth: usize) -> std::io::Result<()> {
         let unsound = self.unsound();
         match self.rng.weighted(&[12, 3, 3, 3, 3, 3, 2, 3, 2, 2, 2, 2, 2]) {
-            12 => self.ensure_flow(env, unsound),
-            11 => self.retry_flow(env, unsound),
-            0 => self.narrow_and_interfere(env, unsound),
-            1 => self.any_narrowing(env, unsound),
-            2 => self.enum_symbols(env, unsound),
+            12 => self.ensure_flow(env, unsound)?,
+            11 => self.retry_flow(env, unsound)?,
+            0 => self.narrow_and_interfere(env, unsound)?,
+            1 => self.any_narrowing(env, unsound)?,
+            2 => self.enum_symbols(env, unsound)?,
             3 => self.shape_writes(unsound),
-            4 => self.break_values(env, unsound),
-            5 => self.next_values(env, unsound),
+            4 => self.break_values(env, unsound)?,
+            5 => self.next_values(env, unsound)?,
             6 => self.destructure(unsound),
-            7 => self.optional_case(env, unsound),
+            7 => self.optional_case(env, unsound)?,
             8 => self.variance(),
             9 => self.definite_assignment(unsound),
             _ => self.tuple_writes(unsound, depth),
-        }
+        };
+        Ok(())
     }
 
     /// An optional local, narrowed, then used narrowed; in the unsound
     /// form, assigned in between somewhere the checker must notice.
-    fn narrow_and_interfere(&mut self, env: &mut Env, unsound: bool) {
+    fn narrow_and_interfere(&mut self, env: &mut Env, unsound: bool) -> std::io::Result<()> {
         let inner = match self.rng.below(4) {
             0 => Ty::Int,
             1 => Ty::Str,
@@ -1561,11 +1606,11 @@ impl Gen {
         } else {
             Ty::opt(inner.clone())
         };
-        let initial = self.expr(env, &inner, 0, true);
+        let initial = self.expr(env, &inner, 0, true)?;
         let name = self.name("v");
         self.line(format!("{name}: {} = {initial}", self.render(&declared)));
         let spoil = if union {
-            self.expr(env, &other, 0, true)
+            self.expr(env, &other, 0, true)?
         } else {
             "nil".to_owned()
         };
@@ -1573,7 +1618,7 @@ impl Gen {
         let spoil = if unsound {
             spoil
         } else {
-            self.expr(env, &inner, 0, true)
+            self.expr(env, &inner, 0, true)?
         };
         let (test, negated) = if union {
             let atom = atom(&inner);
@@ -1585,7 +1630,7 @@ impl Gen {
             (format!("{name} != nil"), format!("{name} == nil"))
         };
         let assign = format!("{name} = {spoil}");
-        let condition = self.expr(env, &Ty::Bool, 0, false);
+        let condition = self.expr(env, &Ty::Bool, 0, false)?;
         let interference = match self.rng.below(19) {
             0 => assign.clone(),
             1 => format!("[1].each {{ |_q| {assign} }}"),
@@ -1615,10 +1660,16 @@ impl Gen {
                 Some(def) => {
                     // A script function's block assigns.
                     let def = def.clone();
-                    let call = self.call_with_block(env, &def, 0, None);
+                    let call = self.call_with_block(env, &def, 0, None)?;
                     match call.find('|') {
                         Some(start) => {
-                            let end = start + 1 + call[start + 1..].find('|').unwrap();
+                            let end = start
+                                + 1
+                                + call
+                                    .get(start + 1..)
+                                    .ok_or_else(|| std::io::Error::other("invalid block start"))?
+                                    .find('|')
+                                    .unwrap();
                             format!("{} {assign};{}", &call[..=end], &call[end + 1..])
                         }
                         None => assign.clone(),
@@ -1656,7 +1707,7 @@ impl Gen {
                 1 => (format!("if {negated}\n  p(0)\nelse"), true),
                 2 if returning.is_some() => match returning.clone().flatten() {
                     Some(ty) => {
-                        let value = self.expr(env, &ty, 0, true);
+                        let value = self.expr(env, &ty, 0, true)?;
                         (format!("return {value} if {negated}"), false)
                     }
                     None => (format!("return if {negated}"), false),
@@ -1682,6 +1733,7 @@ impl Gen {
             }
         }
         env.locals.push(Local::typed(name, declared));
+        Ok(())
     }
 
     /// A use of `name` as `ty`, at a position whose check the release
@@ -1728,7 +1780,7 @@ impl Gen {
 
     /// A value of type `any` narrowed by `is_type?`; the unsound form
     /// assigns it another value before the use.
-    fn any_narrowing(&mut self, env: &mut Env, unsound: bool) {
+    fn any_narrowing(&mut self, env: &mut Env, unsound: bool) -> std::io::Result<()> {
         let target = match self.rng.below(6) {
             0 => Ty::Int,
             1 => Ty::Str,
@@ -1746,16 +1798,16 @@ impl Gen {
             .collect();
         let source = match self.rng.below(4) {
             // A global the host declares as `any` narrows through a local.
-            3 if !untyped.is_empty() => self.rng.pick(&untyped).clone(),
+            3 if !untyped.is_empty() => self.rng.pick(&untyped)?.clone(),
             0 if target != Ty::Sym => {
                 let json = self.json_of(&target).replace('"', "\\\"");
                 format!("JSON.parse(\"{json}\")")
             }
             1 => {
                 let ty = self.ty(1);
-                self.expr(env, &ty, 0, true)
+                self.expr(env, &ty, 0, true)?
             }
-            _ => self.expr(env, &target, 0, true),
+            _ => self.expr(env, &target, 0, true)?,
         };
         self.line(format!("{name}: any = {source}"));
         let spoil_ty = if unsound {
@@ -1763,7 +1815,7 @@ impl Gen {
         } else {
             target.clone()
         };
-        let spoil = self.expr(env, &spoil_ty, 0, true);
+        let spoil = self.expr(env, &spoil_ty, 0, true)?;
         let atom = atom(&target);
         self.line(format!("if {name}.is_type?(:{atom})"));
         self.indent += 1;
@@ -1771,7 +1823,7 @@ impl Gen {
             0 => self.line(format!("[1].each {{ |_q| {name} = {spoil} }}")),
             1 => self.line(format!("{name} = {spoil}")),
             2 => {
-                let condition = self.expr(env, &Ty::Bool, 0, false);
+                let condition = self.expr(env, &Ty::Bool, 0, false)?;
                 self.line(format!("{name} = {spoil} if {condition}"));
             }
             _ => {}
@@ -1781,22 +1833,23 @@ impl Gen {
         self.indent -= 1;
         self.line("end");
         env.locals.push(Local::typed(name, Ty::Any));
+        Ok(())
     }
 
     /// Symbol literals where an enum is expected, reaching an exhaustive
     /// `case` and the enum's members. The checker accepts every form; the
     /// unsound form reads the member back through a builtin, where no
     /// typed boundary converts it.
-    fn enum_symbols(&mut self, env: &mut Env, unsound: bool) {
+    fn enum_symbols(&mut self, env: &mut Env, unsound: bool) -> std::io::Result<()> {
         if self.enums == 0 {
             return self.narrow_and_interfere(env, unsound);
         }
         let index = self.rng.below(self.enums);
-        let members = MEMBERS[index];
-        let member = members[self.rng.below(members.len())];
+        let members = *MEMBERS.at(index)?;
+        let member = *members.at(self.rng.below(members.len()))?;
         let symbol = format!(":{}", member.to_lowercase());
         let name = self.name("es");
-        let first = format!("E{index}::{}", members[0]);
+        let first = format!("E{index}::{}", *members.at(0)?);
         let collection = self.rng.below(3);
         match collection {
             0 => self.line(format!("{name}: array<E{index}> = [{first}]")),
@@ -1862,7 +1915,8 @@ impl Gen {
         ));
         if self.rng.chance(50) {
             self.line(format!("p({item}.name)"));
-        }
+        };
+        Ok(())
     }
 
     /// Writes through a shape; the unsound forms could remove or retype
@@ -1980,9 +2034,9 @@ impl Gen {
 
     /// A block that breaks with a value, whose type joins the call's; the
     /// unsound form declares the call's type without it.
-    fn break_values(&mut self, env: &mut Env, unsound: bool) {
+    fn break_values(&mut self, env: &mut Env, unsound: bool) -> std::io::Result<()> {
         let other = self.scalar_ty();
-        let value = self.expr(env, &other, 0, true);
+        let value = self.expr(env, &other, 0, true)?;
         let calls: [(&str, Ty, &str, &str); 13] = [
             ("[1, 2].each", Ty::array(Ty::Int), "|q|", "nil"),
             ("[1, 2].map", Ty::array(Ty::Int), "|q|", "q"),
@@ -2003,7 +2057,7 @@ impl Gen {
             ("[1, 2].count", Ty::Int, "|q|", "true"),
             ("(1..3).map", Ty::array(Ty::Int), "|q|", "q"),
         ];
-        let (call, ty, params, body) = calls[self.rng.below(calls.len())].clone();
+        let (call, ty, params, body) = (*calls.at(self.rng.below(calls.len()))?).clone();
         let condition = if params == "|q|" && !call.contains('"') && self.rng.chance(50) {
             "q == 2"
         } else {
@@ -2029,11 +2083,12 @@ impl Gen {
             self.render(&declared)
         ));
         self.line(format!("p({name})"));
+        Ok(())
     }
 
     /// A block with `next`; the unsound form gives it a value of another
     /// type than the block's last expression.
-    fn next_values(&mut self, env: &mut Env, unsound: bool) {
+    fn next_values(&mut self, env: &mut Env, unsound: bool) -> std::io::Result<()> {
         let name = self.name("nx");
         let (call, ty) = match self.rng.below(7) {
             0 => ("[1, 2].map", Ty::array(Ty::Int)),
@@ -2051,7 +2106,7 @@ impl Gen {
         };
         let next = if unsound {
             let other = self.scalar_ty();
-            let value = self.expr(env, &other, 0, true);
+            let value = self.expr(env, &other, 0, true)?;
             if call.ends_with("to_h") && self.rng.chance(50) {
                 format!("[q.to_s, {value}]")
             } else if self.rng.chance(20) {
@@ -2081,9 +2136,10 @@ impl Gen {
         });
         if let Some(def) = callee {
             let def = def.clone();
-            let call = self.call_with_block(env, &def, 0, Some(unsound));
+            let call = self.call_with_block(env, &def, 0, Some(unsound))?;
             self.line(format!("p({call})"));
-        }
+        };
+        Ok(())
     }
 
     /// Destructuring of arrays and tuples, in assignments and block
@@ -2121,17 +2177,17 @@ impl Gen {
 
     /// A `case` whose subject may match no arm; the sound form has an
     /// `else`.
-    fn optional_case(&mut self, env: &mut Env, unsound: bool) {
+    fn optional_case(&mut self, env: &mut Env, unsound: bool) -> std::io::Result<()> {
         let name = self.name("oc");
         let typed = self.name("t");
         let fallback = if unsound { "" } else { "\n  else 9" };
         match self.rng.below(5) {
             0 if self.enums > 0 => {
                 let index = self.rng.below(self.enums);
-                let members = MEMBERS[index];
+                let members = *MEMBERS.at(index)?;
                 self.line(format!("{name}: E{index}? = nil"));
                 if self.rng.chance(50) {
-                    self.line(format!("{name} = E{index}::{}", members[0]));
+                    self.line(format!("{name} = E{index}::{}", *members.at(0)?));
                 }
                 let arms: Vec<String> = members
                     .iter()
@@ -2150,15 +2206,18 @@ impl Gen {
                 ));
             }
             2 => {
-                let subject = self.expr(env, &Ty::Int, 0, true);
+                let subject = self.expr(env, &Ty::Int, 0, true)?;
                 self.line(format!(
                     "{typed}: int = case {subject}\n  when 1 then 1\n  when 2 then 2{fallback}\nend"
                 ));
             }
             3 if self.enums > 0 => {
                 let index = self.rng.below(self.enums);
-                let members = MEMBERS[index];
-                self.line(format!("{name}: enum_value = E{index}::{}", members[0]));
+                let members = *MEMBERS.at(index)?;
+                self.line(format!(
+                    "{name}: enum_value = E{index}::{}",
+                    *members.at(0)?
+                ));
                 let arms: Vec<String> = members
                     .iter()
                     .enumerate()
@@ -2170,13 +2229,14 @@ impl Gen {
                 ));
             }
             _ => {
-                let subject = self.expr(env, &Ty::Bool, 0, false);
+                let subject = self.expr(env, &Ty::Bool, 0, false)?;
                 self.line(format!(
                     "{typed}: int = case {subject}\n  when true then 1\n  when false then 0\nend"
                 ));
             }
         }
         self.line(format!("p({typed})"));
+        Ok(())
     }
 
     /// A collection assigned where a wider element type is expected,
@@ -2239,54 +2299,54 @@ impl Gen {
 
     // ----- Expressions -----
 
-    fn string_literal(&mut self) -> String {
+    fn string_literal(&mut self) -> std::io::Result<String> {
         let words = [
             "\"a\"", "\"b\"", "\"id\"", "\"\"", "\"x y\"", "\"42\"", "\"Zed\"",
         ];
-        (*self.rng.pick(&words)).to_owned()
+        Ok((*self.rng.pick(&words)?).to_owned())
     }
 
     /// A literal of `ty`, for defaults and initial values, which always
     /// have a declared context.
-    fn literal(&mut self, ty: &Ty, depth: usize) -> String {
-        match ty {
-            Ty::Int => ["0", "1", "2", "-3", "7", "100"][self.rng.below(6)].to_owned(),
-            Ty::Float => ["0.5", "1.0", "-2.25", "3.0"][self.rng.below(4)].to_owned(),
-            Ty::Str => self.string_literal(),
-            Ty::Sym => [":a", ":b", ":ok"][self.rng.below(3)].to_owned(),
+    fn literal(&mut self, ty: &Ty, depth: usize) -> std::io::Result<String> {
+        Ok(match ty {
+            Ty::Int => (*["0", "1", "2", "-3", "7", "100"].at(self.rng.below(6))?).to_owned(),
+            Ty::Float => (*["0.5", "1.0", "-2.25", "3.0"].at(self.rng.below(4))?).to_owned(),
+            Ty::Str => self.string_literal()?,
+            Ty::Sym => (*[":a", ":b", ":ok"].at(self.rng.below(3))?).to_owned(),
             Ty::Bool => if self.rng.chance(50) { "true" } else { "false" }.to_owned(),
             Ty::Nil => "nil".to_owned(),
             Ty::Opt(inner) => {
                 if depth == 0 || self.rng.chance(50) {
                     "nil".to_owned()
                 } else {
-                    self.literal(inner, depth)
+                    self.literal(inner, depth)?
                 }
             }
-            Ty::Any => self.literal(&Ty::Int, depth),
+            Ty::Any => self.literal(&Ty::Int, depth)?,
             Ty::Union(options) => {
-                let option = self.rng.pick(options).clone();
-                self.literal(&option, depth)
+                let option = self.rng.pick(options)?.clone();
+                self.literal(&option, depth)?
             }
             Ty::Array(inner) => {
                 if depth == 0 || self.rng.chance(40) {
                     "[]".to_owned()
                 } else {
-                    format!("[{}]", self.literal(inner, depth - 1))
+                    format!("[{}]", self.literal(inner, depth - 1)?)
                 }
             }
             Ty::Hash(inner) => {
                 if depth == 0 || self.rng.chance(40) {
                     "{}".to_owned()
                 } else {
-                    format!("{{ k: {} }}", self.literal(inner, depth - 1))
+                    format!("{{ k: {} }}", self.literal(inner, depth - 1)?)
                 }
             }
             Ty::Shape(fields) => {
                 let mut parts = Vec::new();
                 for field in fields {
                     if !field.optional || self.rng.chance(50) {
-                        let value = self.literal(&field.ty, depth.saturating_sub(1));
+                        let value = self.literal(&field.ty, depth.saturating_sub(1))?;
                         parts.push(format!("{}: {value}", field.name));
                     }
                 }
@@ -2296,12 +2356,12 @@ impl Gen {
                 let parts: Vec<String> = items
                     .iter()
                     .map(|ty| self.literal(ty, depth.saturating_sub(1)))
-                    .collect();
+                    .collect::<std::io::Result<_>>()?;
                 format!("[{}]", parts.join(", "))
             }
             Ty::Enum(index) => {
-                let members = MEMBERS[*index];
-                let member = members[self.rng.below(members.len())];
+                let members = *MEMBERS.at(*index)?;
+                let member = *members.at(self.rng.below(members.len()))?;
                 if self.rng.chance(50) {
                     format!(":{}", member.to_lowercase())
                 } else {
@@ -2309,19 +2369,19 @@ impl Gen {
                 }
             }
             Ty::Class(index) => {
-                let class = self.classes[*index].clone();
+                let class = (*self.classes.at(*index)?).clone();
                 let args: Vec<String> = class
                     .init
                     .iter()
                     .map(|param| self.literal(&param.ty, depth.saturating_sub(1)))
-                    .collect();
+                    .collect::<std::io::Result<_>>()?;
                 if args.is_empty() {
                     format!("{}.new", class.name)
                 } else {
                     format!("{}.new({})", class.name, args.join(", "))
                 }
             }
-        }
+        })
     }
 
     fn json_of(&mut self, ty: &Ty) -> String {
@@ -2379,7 +2439,7 @@ impl Gen {
 
     /// Readable names whose current type is assignable to `ty`: locals,
     /// and in a method the class's instance variables and getters.
-    fn readable(&self, env: &Env, ty: &Ty) -> Vec<String> {
+    fn readable(&self, env: &Env, ty: &Ty) -> std::io::Result<Vec<String>> {
         let mut names: Vec<String> = env
             .locals
             .iter()
@@ -2387,7 +2447,7 @@ impl Gen {
             .map(|local| local.name.clone())
             .collect();
         if let Some((class, initializing)) = env.class {
-            for field in &self.classes[class].fields {
+            for field in &self.classes.at(class)?.fields {
                 if Self::assignable(ty, &field.ty) && (!initializing || field.default.is_some()) {
                     names.push(format!("@{}", field.name));
                     if field.access != Access::Plain {
@@ -2397,53 +2457,59 @@ impl Gen {
             }
         }
         if let Some(class) = env.class_index().or(env.statics) {
-            for (name, var) in &self.classes[class].class_vars {
+            for (name, var) in &self.classes.at(class)?.class_vars {
                 if Self::assignable(ty, var) {
                     names.push(name.clone());
                 }
             }
         }
-        names
+        Ok(names)
     }
 
     /// An expression of type `ty`. `context` says whether the position
     /// declares the type, which empty collections and `nil` need.
-    fn expr(&mut self, env: &mut Env, ty: &Ty, depth: usize, context: bool) -> String {
-        let names = self.readable(env, ty);
+    fn expr(
+        &mut self,
+        env: &mut Env,
+        ty: &Ty,
+        depth: usize,
+        context: bool,
+    ) -> std::io::Result<String> {
+        let names = self.readable(env, ty)?;
         if !names.is_empty() && self.rng.chance(if depth == 0 { 60 } else { 30 }) {
-            return self.rng.pick(&names).clone();
+            return Ok(self.rng.pick(&names)?.clone());
         }
         if depth > 0 && self.rng.chance(30) {
             if let Some(call) = self.call_of(env, ty, depth) {
-                return call;
+                return Ok(call);
             }
         }
         if depth > 0 && self.rng.chance(10) {
-            let condition = self.expr(env, &Ty::Bool, depth - 1, false);
-            let a = self.expr(env, ty, depth - 1, context);
-            let b = self.expr(env, ty, depth - 1, context);
-            return match self.rng.below(3) {
+            let condition = self.expr(env, &Ty::Bool, depth - 1, false)?;
+            let a = self.expr(env, ty, depth - 1, context)?;
+            let b = self.expr(env, ty, depth - 1, context)?;
+            return Ok(match self.rng.below(3) {
                 0 => format!("({condition} ? {a} : {b})"),
                 1 => format!("(if {condition} then ({a}) else ({b}) end)"),
                 // A symbol may follow `then` and `else` directly.
                 _ => format!("(if {condition} then {a} else {b} end)"),
-            };
+            });
         }
         if let (true, Ty::Opt(inner)) = (depth > 0 && self.rng.chance(10), ty) {
             // An index abutting a `case` that spans lines indexes its value,
             // an array whose element may be missing.
-            let value = self.case_expr(env, &Ty::array((**inner).clone()), depth - 1);
-            return format!("{value}[{}]", self.rng.below(2));
+            let value = self.case_expr(env, &Ty::array((**inner).clone()), depth - 1)?;
+            return Ok(format!("{value}[{}]", self.rng.below(2)));
         }
         if depth > 0 && self.rng.chance(4) {
             return self.case_expr(env, ty, depth - 1);
         }
-        match ty {
-            Ty::Int => self.int_expr(env, depth),
-            Ty::Float => self.float_expr(env, depth),
-            Ty::Str => self.str_expr(env, depth),
-            Ty::Sym => self.sym_expr(env, depth),
-            Ty::Bool => self.bool_expr(env, depth),
+        Ok(match ty {
+            Ty::Int => self.int_expr(env, depth)?,
+            Ty::Float => self.float_expr(env, depth)?,
+            Ty::Str => self.str_expr(env, depth)?,
+            Ty::Sym => self.sym_expr(env, depth)?,
+            Ty::Bool => self.bool_expr(env, depth)?,
             Ty::Nil => "nil".to_owned(),
             Ty::Any => {
                 let inner = self.ty(1);
@@ -2451,133 +2517,138 @@ impl Gen {
                     let json = self.json_of(&inner).replace('"', "\\\"");
                     format!("JSON.parse(\"{json}\")")
                 } else {
-                    self.expr(env, &inner, depth.saturating_sub(1), true)
+                    self.expr(env, &inner, depth.saturating_sub(1), true)?
                 }
             }
-            Ty::Opt(inner) => self.opt_expr(env, inner, depth, context),
+            Ty::Opt(inner) => self.opt_expr(env, inner, depth, context)?,
             Ty::Union(options) => {
-                let option = self.rng.pick(options).clone();
-                self.expr(env, &option, depth, true)
+                let option = self.rng.pick(options)?.clone();
+                self.expr(env, &option, depth, true)?
             }
-            Ty::Array(inner) => self.array_expr(env, inner, depth, context),
-            Ty::Hash(inner) => self.hash_expr(env, inner, depth, context),
-            Ty::Shape(fields) => self.shape_expr(env, fields, depth),
-            Ty::Tuple(items) => self.tuple_expr(env, items, depth, context),
+            Ty::Array(inner) => self.array_expr(env, inner, depth, context)?,
+            Ty::Hash(inner) => self.hash_expr(env, inner, depth, context)?,
+            Ty::Shape(fields) => self.shape_expr(env, fields, depth)?,
+            Ty::Tuple(items) => self.tuple_expr(env, items, depth, context)?,
             Ty::Enum(index) => {
-                let members = MEMBERS[*index];
-                let member = members[self.rng.below(members.len())];
+                let members = *MEMBERS.at(*index)?;
+                let member = *members.at(self.rng.below(members.len()))?;
                 if context && self.rng.chance(40) {
                     format!(":{}", member.to_lowercase())
                 } else {
                     format!("E{index}::{member}")
                 }
             }
-            Ty::Class(index) => self.new_instance(env, *index, depth),
-        }
+            Ty::Class(index) => self.new_instance(env, *index, depth)?,
+        })
     }
 
-    fn new_instance(&mut self, env: &mut Env, index: usize, depth: usize) -> String {
+    fn new_instance(
+        &mut self,
+        env: &mut Env,
+        index: usize,
+        depth: usize,
+    ) -> std::io::Result<String> {
         if env.class_index() == Some(index) {
             // Constructing its own class could recurse through initialize.
-            return "self".to_owned();
+            return Ok("self".to_owned());
         }
-        let class = self.classes[index].clone();
+        let class = (*self.classes.at(index)?).clone();
         let args: Vec<String> = class
             .init
             .iter()
             .map(|param| self.expr(env, &param.ty, depth.saturating_sub(1), true))
-            .collect();
-        if args.is_empty() {
+            .collect::<std::io::Result<_>>()?;
+        Ok(if args.is_empty() {
             format!("{}.new", class.name)
         } else {
             format!("{}.new({})", class.name, args.join(", "))
-        }
+        })
     }
 
-    fn int_expr(&mut self, env: &mut Env, depth: usize) -> String {
+    fn int_expr(&mut self, env: &mut Env, depth: usize) -> std::io::Result<String> {
         if depth == 0 {
             return self.literal(&Ty::Int, 0);
         }
         let d = depth - 1;
-        match self.rng.below(22) {
+        Ok(match self.rng.below(22) {
             0 => format!(
                 "({} + {})",
-                self.expr(env, &Ty::Int, d, false),
-                self.expr(env, &Ty::Int, d, false)
+                self.expr(env, &Ty::Int, d, false)?,
+                self.expr(env, &Ty::Int, d, false)?
             ),
             1 => format!(
                 "({} - {})",
-                self.expr(env, &Ty::Int, d, false),
-                self.expr(env, &Ty::Int, d, false)
+                self.expr(env, &Ty::Int, d, false)?,
+                self.expr(env, &Ty::Int, d, false)?
             ),
             2 => format!(
                 "({} * {})",
-                self.expr(env, &Ty::Int, d, false),
-                self.expr(env, &Ty::Int, d, false)
+                self.expr(env, &Ty::Int, d, false)?,
+                self.expr(env, &Ty::Int, d, false)?
             ),
             3 => {
                 let ty = Ty::array(self.ty(1));
-                format!("{}.length", self.expr(env, &ty, d, false))
+                format!("{}.length", self.expr(env, &ty, d, false)?)
             }
-            4 => format!("{}.length", self.expr(env, &Ty::Str, d, false)),
-            5 => format!("{}.to_i", self.expr(env, &Ty::Str, d, false)),
-            6 => format!("{}.sum", self.expr(env, &Ty::array(Ty::Int), d, false)),
+            4 => format!("{}.length", self.expr(env, &Ty::Str, d, false)?),
+            5 => format!("{}.to_i", self.expr(env, &Ty::Str, d, false)?),
+            6 => format!("{}.sum", self.expr(env, &Ty::array(Ty::Int), d, false)?),
             7 => {
-                let array = self.expr(env, &Ty::array(Ty::Int), d, false);
-                let default = self.expr(env, &Ty::Int, d, true);
+                let array = self.expr(env, &Ty::array(Ty::Int), d, false)?;
+                let default = self.expr(env, &Ty::Int, d, true)?;
                 format!("{array}.fetch(0, {default})")
             }
             8 => {
-                let array = self.expr(env, &Ty::array(Ty::Int), d, false);
+                let array = self.expr(env, &Ty::array(Ty::Int), d, false)?;
                 format!("{array}.count {{ |q| {} }}", self.bool_of("q", &Ty::Int))
             }
             9 => {
-                let array = self.expr(env, &Ty::array(Ty::Int), d, false);
+                let array = self.expr(env, &Ty::array(Ty::Int), d, false)?;
                 format!("{array}.reduce(0) {{ |acc, q| acc + q }}")
             }
-            10 => format!("{}.abs", self.expr(env, &Ty::Int, d, false)),
+            10 => format!("{}.abs", self.expr(env, &Ty::Int, d, false)?),
             11 => {
-                let opt = self.expr(env, &Ty::opt(Ty::Int), d, false);
+                let opt = self.expr(env, &Ty::opt(Ty::Int), d, false)?;
                 format!("[{opt}].compact.fetch(0, 0)")
             }
-            12 => format!("{}.floor", self.expr(env, &Ty::Float, d, false)),
+            12 => format!("{}.floor", self.expr(env, &Ty::Float, d, false)?),
             13 => {
                 let ty = self.scalar_comparable();
                 format!(
                     "({} <=> {})",
-                    self.expr(env, &ty, d, false),
-                    self.expr(env, &ty, d, false)
+                    self.expr(env, &ty, d, false)?,
+                    self.expr(env, &ty, d, false)?
                 )
             }
-            14 => format!("loop {{ break {} }}", self.expr(env, &Ty::Int, d, true)),
+            14 => format!("loop {{ break {} }}", self.expr(env, &Ty::Int, d, true)?),
             15 => format!(
                 "{}.fetch(\"k\", 0)",
-                self.expr(env, &Ty::hash(Ty::Int), d, false)
+                self.expr(env, &Ty::hash(Ty::Int), d, false)?
             ),
             16 => format!(
                 "({} // {})",
-                self.expr(env, &Ty::Int, d, false),
+                self.expr(env, &Ty::Int, d, false)?,
                 1 + self.rng.below(3)
             ),
             17 => format!(
                 "({} % {})",
-                self.expr(env, &Ty::Int, d, false),
+                self.expr(env, &Ty::Int, d, false)?,
                 1 + self.rng.below(3)
             ),
             18 => {
                 let ty = Ty::hash(self.ty(1));
-                format!("{}.length", self.expr(env, &ty, d, false))
+                format!("{}.length", self.expr(env, &ty, d, false)?)
             }
             19 => format!(
                 "{}.index(\"a\", 0).to_s.length",
-                self.expr(env, &Ty::Str, d, false)
+                self.expr(env, &Ty::Str, d, false)?
             ),
             20 => {
-                let tuple = self.expr(env, &Ty::Tuple(vec![Ty::Int, Ty::Int]), d, false);
+                let tuple = self.expr(env, &Ty::Tuple(vec![Ty::Int, Ty::Int]), d, false)?;
                 format!("{tuple}[{}]", self.rng.range(-2, 1))
             }
-            _ => format!("{}.count(\"a\")", self.expr(env, &Ty::Str, d, false)),
-        }
+            _ => format!("{}.count(\"a\")", self.expr(env, &Ty::Str, d, false)?),
+        })
     }
 
     fn scalar_comparable(&mut self) -> Ty {
@@ -2588,52 +2659,52 @@ impl Gen {
         }
     }
 
-    fn float_expr(&mut self, env: &mut Env, depth: usize) -> String {
+    fn float_expr(&mut self, env: &mut Env, depth: usize) -> std::io::Result<String> {
         if depth == 0 {
             return self.literal(&Ty::Float, 0);
         }
         let d = depth - 1;
-        match self.rng.below(8) {
+        Ok(match self.rng.below(8) {
             0 => format!(
                 "({} / {})",
-                self.expr(env, &Ty::Int, d, false),
+                self.expr(env, &Ty::Int, d, false)?,
                 1 + self.rng.below(4)
             ),
-            1 => format!("{}.to_f", self.expr(env, &Ty::Int, d, false)),
+            1 => format!("{}.to_f", self.expr(env, &Ty::Int, d, false)?),
             2 => format!(
                 "({} + {})",
-                self.expr(env, &Ty::Float, d, false),
-                self.expr(env, &Ty::Float, d, false)
+                self.expr(env, &Ty::Float, d, false)?,
+                self.expr(env, &Ty::Float, d, false)?
             ),
             3 => format!(
                 "({} * {})",
-                self.expr(env, &Ty::Float, d, false),
-                self.expr(env, &Ty::Float, d, false)
+                self.expr(env, &Ty::Float, d, false)?,
+                self.expr(env, &Ty::Float, d, false)?
             ),
-            4 => format!("Math.sqrt({})", self.expr(env, &Ty::Int, d, false)),
-            5 => format!("{}.abs", self.expr(env, &Ty::Float, d, false)),
+            4 => format!("Math.sqrt({})", self.expr(env, &Ty::Int, d, false)?),
+            5 => format!("{}.abs", self.expr(env, &Ty::Float, d, false)?),
             6 => format!(
                 "{}.sum(0.0)",
-                self.expr(env, &Ty::array(Ty::Float), d, false)
+                self.expr(env, &Ty::array(Ty::Float), d, false)?
             ),
-            _ => format!("to_float({})", self.expr(env, &Ty::Int, d, false)),
-        }
+            _ => format!("to_float({})", self.expr(env, &Ty::Int, d, false)?),
+        })
     }
 
-    fn str_expr(&mut self, env: &mut Env, depth: usize) -> String {
+    fn str_expr(&mut self, env: &mut Env, depth: usize) -> std::io::Result<String> {
         if depth == 0 {
             return self.string_literal();
         }
         let d = depth - 1;
-        match self.rng.below(14) {
+        Ok(match self.rng.below(14) {
             0 => {
                 let ty = self.ty(1);
-                format!("\"v=#{{{}}}\"", self.expr(env, &ty, d, false))
+                format!("\"v=#{{{}}}\"", self.expr(env, &ty, d, false)?)
             }
             1 => format!(
                 "({} + {})",
-                self.expr(env, &Ty::Str, d, false),
-                self.expr(env, &Ty::Str, d, false)
+                self.expr(env, &Ty::Str, d, false)?,
+                self.expr(env, &Ty::Str, d, false)?
             ),
             2 => {
                 let ty = self.ty(1);
@@ -2642,52 +2713,55 @@ impl Gen {
                 } else {
                     "to_s"
                 };
-                format!("{}.{method}", self.expr(env, &ty, d, false))
+                format!("{}.{method}", self.expr(env, &ty, d, false)?)
             }
-            3 => format!("{}.upcase", self.expr(env, &Ty::Str, d, false)),
+            3 => format!("{}.upcase", self.expr(env, &Ty::Str, d, false)?),
             4 => format!(
                 "{}.join(\",\")",
-                self.expr(env, &Ty::array(Ty::Str), d, false)
+                self.expr(env, &Ty::array(Ty::Str), d, false)?
             ),
-            5 => format!("{}.strip", self.expr(env, &Ty::Str, d, false)),
-            6 => format!("{}.reverse", self.expr(env, &Ty::Str, d, false)),
+            5 => format!("{}.strip", self.expr(env, &Ty::Str, d, false)?),
+            6 => format!("{}.reverse", self.expr(env, &Ty::Str, d, false)?),
             7 if self.enums > 0 => {
                 let index = self.rng.below(self.enums);
-                format!("{}.name", self.expr(env, &Ty::Enum(index), d, false))
+                format!("{}.name", self.expr(env, &Ty::Enum(index), d, false)?)
             }
             8 => format!(
                 "{}.fetch(0, \"\")",
-                self.expr(env, &Ty::array(Ty::Str), d, false)
+                self.expr(env, &Ty::array(Ty::Str), d, false)?
             ),
-            9 => format!("format(\"%d\", {})", self.expr(env, &Ty::Int, d, false)),
-            10 => format!("{}.keys.join", self.expr(env, &Ty::hash(Ty::Int), d, false)),
+            9 => format!("format(\"%d\", {})", self.expr(env, &Ty::Int, d, false)?),
+            10 => format!(
+                "{}.keys.join",
+                self.expr(env, &Ty::hash(Ty::Int), d, false)?
+            ),
             11 => {
                 let ty = self.ty(1);
                 if matches!(ty, Ty::Class(_)) {
                     return self.string_literal();
                 }
-                format!("{}.inspect", self.expr(env, &ty, d, false))
+                format!("{}.inspect", self.expr(env, &ty, d, false)?)
             }
-            12 => format!("{}.to_s", self.expr(env, &Ty::Sym, d, false)),
-            _ => format!("{}.sub(\"a\", \"b\")", self.expr(env, &Ty::Str, d, false)),
-        }
+            12 => format!("{}.to_s", self.expr(env, &Ty::Sym, d, false)?),
+            _ => format!("{}.sub(\"a\", \"b\")", self.expr(env, &Ty::Str, d, false)?),
+        })
     }
 
-    fn sym_expr(&mut self, env: &mut Env, depth: usize) -> String {
+    fn sym_expr(&mut self, env: &mut Env, depth: usize) -> std::io::Result<String> {
         if depth == 0 {
             return self.literal(&Ty::Sym, 0);
         }
-        match self.rng.below(3) {
-            0 => format!("{}.to_sym", self.expr(env, &Ty::Str, depth - 1, false)),
+        Ok(match self.rng.below(3) {
+            0 => format!("{}.to_sym", self.expr(env, &Ty::Str, depth - 1, false)?),
             1 if self.enums > 0 => {
                 let index = self.rng.below(self.enums);
                 format!(
                     "{}.symbol",
-                    self.expr(env, &Ty::Enum(index), depth - 1, false)
+                    self.expr(env, &Ty::Enum(index), depth - 1, false)?
                 )
             }
-            _ => self.literal(&Ty::Sym, 0),
-        }
+            _ => self.literal(&Ty::Sym, 0)?,
+        })
     }
 
     fn bool_of(&mut self, name: &str, ty: &Ty) -> String {
@@ -2700,19 +2774,19 @@ impl Gen {
         }
     }
 
-    fn bool_expr(&mut self, env: &mut Env, depth: usize) -> String {
+    fn bool_expr(&mut self, env: &mut Env, depth: usize) -> std::io::Result<String> {
         if depth == 0 {
             return self.literal(&Ty::Bool, 0);
         }
         let d = depth - 1;
-        match self.rng.below(14) {
+        Ok(match self.rng.below(14) {
             0 => {
                 let ty = self.scalar_comparable();
-                let op = ["<", "<=", ">", ">="][self.rng.below(4)];
+                let op = *["<", "<=", ">", ">="].at(self.rng.below(4))?;
                 format!(
                     "({} {op} {})",
-                    self.expr(env, &ty, d, false),
-                    self.expr(env, &ty, d, false)
+                    self.expr(env, &ty, d, false)?,
+                    self.expr(env, &ty, d, false)?
                 )
             }
             1 => {
@@ -2720,76 +2794,82 @@ impl Gen {
                 let op = if self.rng.chance(50) { "==" } else { "!=" };
                 format!(
                     "({} {op} {})",
-                    self.expr(env, &ty, d, false),
-                    self.expr(env, &ty, d, false)
+                    self.expr(env, &ty, d, false)?,
+                    self.expr(env, &ty, d, false)?
                 )
             }
             2 => {
                 let ty = Ty::opt(self.ty(1).strip());
                 let op = if self.rng.chance(50) { "==" } else { "!=" };
-                let value = self.expr(env, &ty, d, false);
+                let value = self.expr(env, &ty, d, false)?;
                 if value == "nil" {
                     "true".to_owned()
                 } else {
                     format!("({value} {op} nil)")
                 }
             }
-            3 => format!("!{}", self.expr(env, &Ty::Bool, d, false)),
+            3 => format!("!{}", self.expr(env, &Ty::Bool, d, false)?),
             4 => format!(
                 "({} && {})",
-                self.expr(env, &Ty::Bool, d, false),
-                self.expr(env, &Ty::Bool, d, false)
+                self.expr(env, &Ty::Bool, d, false)?,
+                self.expr(env, &Ty::Bool, d, false)?
             ),
             5 => format!(
                 "({} || {})",
-                self.expr(env, &Ty::Bool, d, false),
-                self.expr(env, &Ty::Bool, d, false)
+                self.expr(env, &Ty::Bool, d, false)?,
+                self.expr(env, &Ty::Bool, d, false)?
             ),
             6 => {
-                let array = self.expr(env, &Ty::array(Ty::Int), d, false);
-                format!("{array}.include?({})", self.expr(env, &Ty::Int, d, false))
+                let array = self.expr(env, &Ty::array(Ty::Int), d, false)?;
+                format!("{array}.include?({})", self.expr(env, &Ty::Int, d, false)?)
             }
             7 => {
                 let ty = Ty::array(self.ty(1));
-                format!("{}.empty?", self.expr(env, &ty, d, false))
+                format!("{}.empty?", self.expr(env, &ty, d, false)?)
             }
             8 => {
-                let hash = self.expr(env, &Ty::hash(Ty::Int), d, false);
-                format!("{hash}.key?({})", self.expr(env, &Ty::Str, d, false))
+                let hash = self.expr(env, &Ty::hash(Ty::Int), d, false)?;
+                format!("{hash}.key?({})", self.expr(env, &Ty::Str, d, false)?)
             }
             9 => {
                 let ty = self.ty(1);
                 let atoms = [
                     "int", "string", "float", "nil", "array", "hash", "bool", "symbol",
                 ];
-                let atom = atoms[self.rng.below(atoms.len())];
-                format!("{}.is_type?(:{atom})", self.expr(env, &ty, d, false))
+                let atom = *atoms.at(self.rng.below(atoms.len()))?;
+                format!("{}.is_type?(:{atom})", self.expr(env, &ty, d, false)?)
             }
-            10 => format!("{}.even?", self.expr(env, &Ty::Int, d, false)),
+            10 => format!("{}.even?", self.expr(env, &Ty::Int, d, false)?),
             11 => {
-                let array = self.expr(env, &Ty::array(Ty::Int), d, false);
+                let array = self.expr(env, &Ty::array(Ty::Int), d, false)?;
                 format!("{array}.any? {{ |q| {} }}", self.bool_of("q", &Ty::Int))
             }
-            12 => format!("{}.start_with?(\"a\")", self.expr(env, &Ty::Str, d, false)),
+            12 => format!("{}.start_with?(\"a\")", self.expr(env, &Ty::Str, d, false)?),
             _ => {
-                let array = self.expr(env, &Ty::array(Ty::Str), d, false);
+                let array = self.expr(env, &Ty::array(Ty::Str), d, false)?;
                 format!("{array}.all? {{ |q| {} }}", self.bool_of("q", &Ty::Str))
             }
-        }
+        })
     }
 
-    fn opt_expr(&mut self, env: &mut Env, inner: &Ty, depth: usize, context: bool) -> String {
+    fn opt_expr(
+        &mut self,
+        env: &mut Env,
+        inner: &Ty,
+        depth: usize,
+        context: bool,
+    ) -> std::io::Result<String> {
         if depth == 0 || self.rng.chance(25) {
             if context && self.rng.chance(40) {
-                return "nil".to_owned();
+                return Ok("nil".to_owned());
             }
             return self.expr(env, inner, depth, context);
         }
         let d = depth - 1;
         let array = Ty::array(inner.clone());
-        match self.rng.below(9) {
+        Ok(match self.rng.below(9) {
             0 => {
-                let receiver = self.expr(env, &array, d, false);
+                let receiver = self.expr(env, &array, d, false)?;
                 let index = self.rng.range(-2, 3);
                 // A parenthesized receiver cannot be indexed.
                 if receiver.starts_with('(') {
@@ -2798,11 +2878,11 @@ impl Gen {
                     format!("{receiver}[{index}]")
                 }
             }
-            1 => format!("{}.first", self.expr(env, &array, d, false)),
-            2 => format!("{}.last", self.expr(env, &array, d, false)),
+            1 => format!("{}.first", self.expr(env, &array, d, false)?),
+            2 => format!("{}.last", self.expr(env, &array, d, false)?),
             3 => {
-                let hash = self.expr(env, &Ty::hash(inner.clone()), d, false);
-                let key = self.expr(env, &Ty::Str, d, false);
+                let hash = self.expr(env, &Ty::hash(inner.clone()), d, false)?;
+                let key = self.expr(env, &Ty::Str, d, false)?;
                 if hash.starts_with('(') || hash.starts_with('{') {
                     format!("{hash}.values_at({key}).fetch(0)")
                 } else {
@@ -2811,89 +2891,98 @@ impl Gen {
             }
             4 => {
                 let body = self.bool_of("q", inner);
-                format!("{}.find {{ |q| {body} }}", self.expr(env, &array, d, false))
+                format!(
+                    "{}.find {{ |q| {body} }}",
+                    self.expr(env, &array, d, false)?
+                )
             }
-            5 if inner.comparable() => format!("{}.max", self.expr(env, &array, d, false)),
+            5 if inner.comparable() => format!("{}.max", self.expr(env, &array, d, false)?),
             6 => format!(
                 "{}.values_at(0, 5).fetch(1)",
-                self.expr(env, &array, d, false)
+                self.expr(env, &array, d, false)?
             ),
-            7 => format!("{}.sample", self.expr(env, &array, d, false)),
-            _ => self.expr(env, inner, d, context),
-        }
+            7 => format!("{}.sample", self.expr(env, &array, d, false)?),
+            _ => self.expr(env, inner, d, context)?,
+        })
     }
 
-    fn array_expr(&mut self, env: &mut Env, inner: &Ty, depth: usize, context: bool) -> String {
+    fn array_expr(
+        &mut self,
+        env: &mut Env,
+        inner: &Ty,
+        depth: usize,
+        context: bool,
+    ) -> std::io::Result<String> {
         if depth == 0 {
             if context && self.rng.chance(30) {
-                return "[]".to_owned();
+                return Ok("[]".to_owned());
             }
-            let item = self.expr(env, inner, 0, true);
-            return format!("[{item}]");
+            let item = self.expr(env, inner, 0, true)?;
+            return Ok(format!("[{item}]"));
         }
         let d = depth - 1;
         let this = Ty::array(inner.clone());
-        match self.rng.below(16) {
+        Ok(match self.rng.below(16) {
             0 | 1 => {
                 let items: Vec<String> = (0..1 + self.rng.below(3))
                     .map(|_| self.expr(env, inner, d, true))
-                    .collect();
+                    .collect::<std::io::Result<_>>()?;
                 format!("[{}]", items.join(", "))
             }
             2 => {
                 let source = self.ty(1);
-                let body = self.expr_in_block(env, "q", &source, inner, d);
+                let body = self.expr_in_block(env, "q", &source, inner, d)?;
                 format!(
                     "{}.map {{ |q| {body} }}",
-                    self.expr(env, &Ty::array(source), d, false)
+                    self.expr(env, &Ty::array(source), d, false)?
                 )
             }
             3 => {
                 let body = self.bool_of("q", inner);
                 format!(
                     "{}.select {{ |q| {body} }}",
-                    self.expr(env, &this, d, false)
+                    self.expr(env, &this, d, false)?
                 )
             }
-            4 => format!("{}.reverse", self.expr(env, &this, d, false)),
+            4 => format!("{}.reverse", self.expr(env, &this, d, false)?),
             5 => format!(
                 "({} + {})",
-                self.expr(env, &this, d, false),
-                self.expr(env, &this, d, false)
+                self.expr(env, &this, d, false)?,
+                self.expr(env, &this, d, false)?
             ),
             6 => format!(
                 "{}.first({})",
-                self.expr(env, &this, d, false),
+                self.expr(env, &this, d, false)?,
                 self.rng.below(3)
             ),
             7 => format!(
                 "{}.compact",
-                self.expr(env, &Ty::array(Ty::opt(inner.clone())), d, false)
+                self.expr(env, &Ty::array(Ty::opt(inner.clone())), d, false)?
             ),
-            8 if inner.comparable() => format!("{}.sort", self.expr(env, &this, d, false)),
+            8 if inner.comparable() => format!("{}.sort", self.expr(env, &this, d, false)?),
             9 if *inner == Ty::Str => {
-                format!("{}.keys", self.expr(env, &Ty::hash(Ty::Int), d, false))
+                format!("{}.keys", self.expr(env, &Ty::hash(Ty::Int), d, false)?)
             }
             10 => format!(
                 "{}.values",
-                self.expr(env, &Ty::hash(inner.clone()), d, false)
+                self.expr(env, &Ty::hash(inner.clone()), d, false)?
             ),
-            11 => format!("{}.uniq", self.expr(env, &this, d, false)),
+            11 => format!("{}.uniq", self.expr(env, &this, d, false)?),
             12 if *inner == Ty::Int => format!("(0..{}).to_a", self.rng.below(4)),
             13 => {
                 let source = self.ty(1);
-                let body = self.expr_in_block(env, "q", &source, inner, d);
+                let body = self.expr_in_block(env, "q", &source, inner, d)?;
                 format!(
                     "{}.flat_map {{ |q| [{body}] }}",
-                    self.expr(env, &Ty::array(source), d, false)
+                    self.expr(env, &Ty::array(source), d, false)?
                 )
             }
-            14 if *inner == Ty::Str => format!("{}.chars", self.expr(env, &Ty::Str, d, false)),
+            14 if *inner == Ty::Str => format!("{}.chars", self.expr(env, &Ty::Str, d, false)?),
             _ => {
-                let item = self.expr(env, inner, d, true);
+                let item = self.expr(env, inner, d, true)?;
                 format!("[{item}]")
             }
-        }
+        })
     }
 
     /// An expression of `result` in a block whose parameter `name` has
@@ -2905,7 +2994,7 @@ impl Gen {
         param: &Ty,
         result: &Ty,
         depth: usize,
-    ) -> String {
+    ) -> std::io::Result<String> {
         let mut inner = env.clone();
         inner
             .locals
@@ -2914,107 +3003,126 @@ impl Gen {
         self.expr(&mut inner, result, depth, true)
     }
 
-    fn hash_expr(&mut self, env: &mut Env, inner: &Ty, depth: usize, context: bool) -> String {
+    fn hash_expr(
+        &mut self,
+        env: &mut Env,
+        inner: &Ty,
+        depth: usize,
+        context: bool,
+    ) -> std::io::Result<String> {
         if depth == 0 {
             if context && self.rng.chance(30) {
-                return "{}".to_owned();
+                return Ok("{}".to_owned());
             }
-            let value = self.expr(env, inner, 0, true);
-            return format!("{{ k: {value} }}");
+            let value = self.expr(env, inner, 0, true)?;
+            return Ok(format!("{{ k: {value} }}"));
         }
         let d = depth - 1;
         let this = Ty::hash(inner.clone());
-        match self.rng.below(8) {
+        Ok(match self.rng.below(8) {
             0 | 1 => {
                 let items: Vec<String> = (0..1 + self.rng.below(2))
-                    .map(|index| format!("k{index}: {}", self.expr(env, inner, d, true)))
-                    .collect();
+                    .map(|index| Ok(format!("k{index}: {}", self.expr(env, inner, d, true)?)))
+                    .collect::<std::io::Result<_>>()?;
                 format!("{{ {} }}", items.join(", "))
             }
             2 => format!(
                 "{}.select {{ |k, q| k != \"z\" }}",
-                self.expr(env, &this, d, false)
+                self.expr(env, &this, d, false)?
             ),
             3 => format!(
                 "{}.merge({})",
-                self.expr(env, &this, d, false),
-                self.expr(env, &this, d, false)
+                self.expr(env, &this, d, false)?,
+                self.expr(env, &this, d, false)?
             ),
             4 => {
-                let body = self.expr_in_block(env, "q", &Ty::Int, inner, d);
-                let array = self.expr(env, &Ty::array(Ty::Int), d, false);
+                let body = self.expr_in_block(env, "q", &Ty::Int, inner, d)?;
+                let array = self.expr(env, &Ty::array(Ty::Int), d, false)?;
                 format!("{array}.to_h {{ |q| [q.to_s, {body}] }}")
             }
             5 => {
                 let source = self.ty(1);
-                let body = self.expr_in_block(env, "q", &source, inner, d);
-                let hash = self.expr(env, &Ty::hash(source), d, false);
+                let body = self.expr_in_block(env, "q", &source, inner, d)?;
+                let hash = self.expr(env, &Ty::hash(source), d, false)?;
                 format!("{hash}.transform_values {{ |q| {body} }}")
             }
-            6 => format!("{}.except(\"k0\")", self.expr(env, &this, d, false)),
+            6 => format!("{}.except(\"k0\")", self.expr(env, &this, d, false)?),
             _ => {
-                let value = self.expr(env, inner, d, true);
+                let value = self.expr(env, inner, d, true)?;
                 format!("{{ k: {value} }}")
             }
-        }
+        })
     }
 
-    fn shape_expr(&mut self, env: &mut Env, fields: &[Field], depth: usize) -> String {
+    fn shape_expr(
+        &mut self,
+        env: &mut Env,
+        fields: &[Field],
+        depth: usize,
+    ) -> std::io::Result<String> {
         let ty = Ty::Shape(fields.to_vec());
         // A tuple in a type written as a value parses as an array.
         if depth > 0 && Self::jsonable(&ty) && !has_tuple(&ty) && self.rng.chance(25) {
             let json = self.json_of(&ty).replace('"', "\\\"");
-            return format!("JSON.parse_as(\"{json}\", {})", self.render(&ty));
+            return Ok(format!("JSON.parse_as(\"{json}\", {})", self.render(&ty)));
         }
         let mut parts = Vec::new();
         for field in fields {
             if !field.optional || self.rng.chance(50) {
-                let value = self.expr(env, &field.ty, depth.saturating_sub(1), true);
+                let value = self.expr(env, &field.ty, depth.saturating_sub(1), true)?;
                 parts.push(format!("{}: {value}", field.name));
             }
         }
-        format!("{{ {} }}", parts.join(", "))
+        Ok(format!("{{ {} }}", parts.join(", ")))
     }
 
-    fn tuple_expr(&mut self, env: &mut Env, items: &[Ty], depth: usize, context: bool) -> String {
+    fn tuple_expr(
+        &mut self,
+        env: &mut Env,
+        items: &[Ty],
+        depth: usize,
+        context: bool,
+    ) -> std::io::Result<String> {
         if !context && items == [Ty::Int, Ty::Int] && depth > 0 {
             // A literal is a tuple only where one is expected.
-            let value = self.expr(env, &Ty::Int, depth - 1, false);
-            return format!("{value}.divmod({})", 1 + self.rng.below(3));
+            let value = self.expr(env, &Ty::Int, depth - 1, false)?;
+            return Ok(format!("{value}.divmod({})", 1 + self.rng.below(3)));
         }
         let parts: Vec<String> = items
             .iter()
             .map(|ty| self.expr(env, ty, depth.saturating_sub(1), true))
-            .collect();
-        format!("[{}]", parts.join(", "))
+            .collect::<std::io::Result<_>>()?;
+        Ok(format!("[{}]", parts.join(", ")))
     }
 
-    fn case_expr(&mut self, env: &mut Env, ty: &Ty, depth: usize) -> String {
+    fn case_expr(&mut self, env: &mut Env, ty: &Ty, depth: usize) -> std::io::Result<String> {
         if self.enums > 0 && self.rng.chance(50) {
             let index = self.rng.below(self.enums);
-            let subject = self.expr(env, &Ty::Enum(index), depth, false);
-            let members = MEMBERS[index];
+            let subject = self.expr(env, &Ty::Enum(index), depth, false)?;
+            let members = *MEMBERS.at(index)?;
             let complete = self.rng.chance(80);
             let mut arms = Vec::new();
             for (position, member) in members.iter().enumerate() {
                 if !complete && position == members.len() - 1 {
                     break;
                 }
-                let value = self.expr(env, ty, depth, true);
+                let value = self.expr(env, ty, depth, true)?;
                 arms.push(format!("when E{index}::{member} then {}", self.wrap(value)));
             }
             if !complete {
-                let value = self.expr(env, ty, depth, true);
+                let value = self.expr(env, ty, depth, true)?;
                 arms.push(format!("else {}", self.wrap(value)));
             }
-            return format!("(case {subject}\n{}\nend)", arms.join("\n"));
+            return Ok(format!("(case {subject}\n{}\nend)", arms.join("\n")));
         }
-        let subject = self.expr(env, &Ty::Int, depth, false);
-        let a = self.expr(env, ty, depth, true);
-        let b = self.expr(env, ty, depth, true);
-        let c = self.expr(env, ty, depth, true);
+        let subject = self.expr(env, &Ty::Int, depth, false)?;
+        let a = self.expr(env, ty, depth, true)?;
+        let b = self.expr(env, ty, depth, true)?;
+        let c = self.expr(env, ty, depth, true)?;
         let (a, b, c) = (self.wrap(a), self.wrap(b), self.wrap(c));
-        format!("(case {subject}\nwhen 0 then {a}\nwhen 1..3 then {b}\nelse {c}\nend)")
+        Ok(format!(
+            "(case {subject}\nwhen 0 then {a}\nwhen 1..3 then {b}\nelse {c}\nend)"
+        ))
     }
 
     /// A `when` or `else` value, in parentheses or not.
@@ -3092,19 +3200,19 @@ impl Gen {
         if options.is_empty() {
             return None;
         }
-        let (kind, a, b) = *self.rng.pick(&options);
+        let (kind, a, b) = *self.rng.pick(&options).ok()?;
         Some(match kind {
             0 => {
-                let def = self.functions[a].clone();
-                self.call_with_block(env, &def, depth, None)
+                let def = (*self.functions.get(a)?).clone();
+                self.call_with_block(env, &def, depth, None).ok()?
             }
             1 => {
-                let def = self.namespace[a].clone();
-                format!("N.{}", self.call_with_block(env, &def, depth, None))
+                let def = (*self.namespace.get(a)?).clone();
+                format!("N.{}", self.call_with_block(env, &def, depth, None).ok()?)
             }
             2 => {
-                let def = self.library[a].clone();
-                let call = self.call_with_block(env, &def, depth, None);
+                let def = (*self.library.get(a)?).clone();
+                let call = self.call_with_block(env, &def, depth, None).ok()?;
                 if self.rng.chance(50) {
                     format!("lib.{call}")
                 } else {
@@ -3112,24 +3220,33 @@ impl Gen {
                 }
             }
             5 => {
-                let def = self.util[a].clone();
-                format!("util.{}", self.call_with_block(env, &def, depth, None))
+                let def = (*self.util.get(a)?).clone();
+                format!(
+                    "util.{}",
+                    self.call_with_block(env, &def, depth, None).ok()?
+                )
             }
             6 => {
-                let def = self.inner[a].clone();
-                format!("N::M.{}", self.call_with_block(env, &def, depth, None))
+                let def = (*self.inner.get(a)?).clone();
+                format!(
+                    "N::M.{}",
+                    self.call_with_block(env, &def, depth, None).ok()?
+                )
             }
             3 => {
                 let receiver = if env.class_index() == Some(a) {
                     "self".to_owned()
                 } else {
                     self.expr(env, &Ty::Class(a), depth.saturating_sub(1), false)
+                        .ok()?
                 };
-                self.method_call_on(env, a, b, &receiver, depth)
+                self.method_call_on(env, a, b, &receiver, depth).ok()?
             }
             _ => {
-                let receiver = self.expr(env, &Ty::Class(a), depth.saturating_sub(1), false);
-                format!("{receiver}.{}", self.classes[a].fields[b].name)
+                let receiver = self
+                    .expr(env, &Ty::Class(a), depth.saturating_sub(1), false)
+                    .ok()?;
+                format!("{receiver}.{}", self.classes.get(a)?.fields.get(b)?.name)
             }
         })
     }
@@ -3141,14 +3258,14 @@ impl Gen {
         method: usize,
         receiver: &str,
         depth: usize,
-    ) -> String {
-        let def = self.classes[class].methods[method].clone();
-        let call = self.call_with_block(env, &def, depth, None);
-        if receiver == "self" && self.rng.chance(50) {
+    ) -> std::io::Result<String> {
+        let def = (*self.classes.at(class)?.methods.at(method)?).clone();
+        let call = self.call_with_block(env, &def, depth, None)?;
+        Ok(if receiver == "self" && self.rng.chance(50) {
             call
         } else {
             format!("{receiver}.{call}")
-        }
+        })
     }
 
     /// A call of `def` with arguments, keywords and a block as its
@@ -3160,18 +3277,18 @@ impl Gen {
         def: &FnDef,
         depth: usize,
         next_other: Option<bool>,
-    ) -> String {
+    ) -> std::io::Result<String> {
         let d = depth.saturating_sub(1);
         let mut args = Vec::new();
         let mut omitted = false;
         for param in &def.params {
             match &param.kind {
-                ParamKind::Required => args.push(self.expr(env, &param.ty, d, true)),
+                ParamKind::Required => args.push(self.expr(env, &param.ty, d, true)?),
                 ParamKind::Default(_) => {
                     if omitted || self.rng.chance(40) {
                         omitted = true;
                     } else {
-                        args.push(self.expr(env, &param.ty, d, true));
+                        args.push(self.expr(env, &param.ty, d, true)?);
                     }
                 }
                 ParamKind::Rest => {
@@ -3179,12 +3296,12 @@ impl Gen {
                         unreachable!()
                     };
                     for _ in 0..self.rng.below(3) {
-                        args.push(self.expr(env, element, d, true));
+                        args.push(self.expr(env, element, d, true)?);
                     }
                 }
                 ParamKind::Keyword(default) => {
                     if default.is_none() || self.rng.chance(50) {
-                        let value = self.expr(env, &param.ty, d, true);
+                        let value = self.expr(env, &param.ty, d, true)?;
                         args.push(format!("{}: {value}", param.name));
                     }
                 }
@@ -3194,9 +3311,11 @@ impl Gen {
         if !args.is_empty() {
             call.push_str(&format!("({})", args.join(", ")));
         }
-        let Some(block) = &def.block else { return call };
+        let Some(block) = &def.block else {
+            return Ok(call);
+        };
         if block.optional && self.rng.chance(40) {
-            return call;
+            return Ok(call);
         }
         let names: Vec<String> = (0..block.params.len())
             .map(|index| format!("y{index}"))
@@ -3208,14 +3327,14 @@ impl Gen {
         inner.block = Some(block.result.clone());
         let body = match &block.result {
             Some(result) => {
-                let value = self.expr(&mut inner, result, d, true);
+                let value = self.expr(&mut inner, result, d, true)?;
                 if next_other == Some(true) {
                     let other = self.scalar_ty();
-                    let other = self.expr(&mut inner, &other, 0, true);
+                    let other = self.expr(&mut inner, &other, 0, true)?;
                     format!("\n  next {other} if y0 == y0\n  {value}\n")
                 } else if self.rng.chance(15) {
                     let other = self.ty(1);
-                    let other = self.expr(&mut inner, &other, 0, true);
+                    let other = self.expr(&mut inner, &other, 0, true)?;
                     format!("\n  break {other} if y0 == y0\n  {value}\n")
                 } else {
                     format!(" {value} ")
@@ -3223,30 +3342,30 @@ impl Gen {
             }
             None => {
                 let ty = self.ty(1);
-                format!(" p({}) ", self.expr(&mut inner, &ty, d, false))
+                format!(" p({}) ", self.expr(&mut inner, &ty, d, false)?)
             }
         };
         call.push_str(&format!(" {{ |{}|{body}}}", names.join(", ")));
-        call
+        Ok(call)
     }
 
-    fn yield_expr(&mut self, env: &mut Env, depth: usize) -> String {
+    fn yield_expr(&mut self, env: &mut Env, depth: usize) -> std::io::Result<String> {
         let block = env.yields.clone().unwrap();
         let args: Vec<String> = block
             .params
             .iter()
             .map(|ty| self.expr(env, ty, depth.saturating_sub(1), true))
-            .collect();
+            .collect::<std::io::Result<_>>()?;
         let call = format!("yield({})", args.join(", "));
         let call = match &block.result {
             Some(ty) => format!("{}: {} = {call}", self.name("yv"), self.render(ty)),
             None => call,
         };
-        if block.optional && self.rng.chance(85) {
+        Ok(if block.optional && self.rng.chance(85) {
             format!("if block_given?\n  {call}\nend")
         } else {
             call
-        }
+        })
     }
 
     /// Prints the locals a program leaves, which both builds must agree on.
@@ -3262,8 +3381,8 @@ impl Gen {
     // ----- Classes' operators -----
 
     /// Writes the class's operator methods, whose bodies see the instance.
-    fn operators(&mut self, index: usize) {
-        let class = self.classes[index].clone();
+    fn operators(&mut self, index: usize) -> std::io::Result<()> {
+        let class = (*self.classes.at(index)?).clone();
         let own = Ty::Class(index);
         let mut env = self.top_env();
         env.function = Some(None);
@@ -3285,7 +3404,7 @@ impl Gen {
                 inner.function = Some(Some(Ty::Bool));
                 self.line(format!("def {op}(other: {}) -> bool", self.render(&own)));
                 self.indent += 1;
-                let value = self.expr(&mut inner, &Ty::Bool, 1, false);
+                let value = self.expr(&mut inner, &Ty::Bool, 1, false)?;
                 self.line(value);
                 self.indent -= 1;
                 self.line("end");
@@ -3297,7 +3416,7 @@ impl Gen {
             inner.locals.push(Local::typed("index".to_owned(), Ty::Int));
             self.line(format!("def [](index: int) -> {}", self.render(element)));
             self.indent += 1;
-            let value = self.expr(&mut inner, element, 1, true);
+            let value = self.expr(&mut inner, element, 1, true)?;
             self.line(value);
             self.indent -= 1;
             self.line("end");
@@ -3315,7 +3434,8 @@ impl Gen {
                 None => self.line("  p(value)"),
             }
             self.line("end");
-        }
+        };
+        Ok(())
     }
 
     /// An expression using a class's operators, or calling a class method,
@@ -3350,29 +3470,32 @@ impl Gen {
         if options.is_empty() {
             return None;
         }
-        let (kind, index, position) = *self.rng.pick(&options);
+        let (kind, index, position) = *self.rng.pick(&options).ok()?;
         let own = Ty::Class(index);
         Some(match kind {
             0 => format!(
                 "({} + {})",
-                self.expr(env, &own, d, false),
-                self.expr(env, &own, d, false)
+                self.expr(env, &own, d, false).ok()?,
+                self.expr(env, &own, d, false).ok()?
             ),
             1 => format!(
                 "({} {} {})",
-                self.expr(env, &own, d, false),
-                ["==", "<", "!="][self.rng.below(3)],
-                self.expr(env, &own, d, false)
+                self.expr(env, &own, d, false).ok()?,
+                ["==", "<", "!="].get(self.rng.below(3))?,
+                self.expr(env, &own, d, false).ok()?
             ),
             2 => format!(
                 "{}[{}]",
-                self.expr(env, &own, d, false),
-                self.expr(env, &Ty::Int, d, false)
+                self.expr(env, &own, d, false).ok()?,
+                self.expr(env, &Ty::Int, d, false).ok()?
             ),
             _ => {
-                let def = self.classes[index].statics[position].clone();
-                let name = self.classes[index].name.clone();
-                format!("{name}.{}", self.call_with_block(env, &def, depth, None))
+                let def = (*self.classes.get(index)?.statics.get(position)?).clone();
+                let name = self.classes.get(index)?.name.clone();
+                format!(
+                    "{name}.{}",
+                    self.call_with_block(env, &def, depth, None).ok()?
+                )
             }
         })
     }
@@ -3381,7 +3504,7 @@ impl Gen {
     /// `else` or ensure of a `begin` nested there: narrowing from before it
     /// must not survive the rescue's assignment when it runs again. In the
     /// unsound form the body relies on it.
-    fn retry_flow(&mut self, env: &mut Env, unsound: bool) {
+    fn retry_flow(&mut self, env: &mut Env, unsound: bool) -> std::io::Result<()> {
         let count = self.name("n");
         let value = self.name("v");
         let inner = match self.rng.below(3) {
@@ -3389,7 +3512,7 @@ impl Gen {
             1 => Ty::Str,
             _ => Ty::array(Ty::Int),
         };
-        let literal = self.literal(&inner, 1);
+        let literal = self.literal(&inner, 1)?;
         self.line(format!("{count} = 0"));
         self.line(format!("{value}: {}? = {literal}", self.render(&inner)));
         self.line(format!("if {value} != nil"));
@@ -3435,6 +3558,7 @@ impl Gen {
         self.line("end");
         env.locals.push(Local::typed(count, Ty::Int));
         env.locals.push(Local::typed(value, Ty::opt(inner)));
+        Ok(())
     }
 
     /// An optional local an `ensure` narrows or relies on, inside a
@@ -3442,20 +3566,20 @@ impl Gen {
     /// in the ensure, which narrows it after the `begin` however the body
     /// assigned it; the unsound form uses it narrowed in the ensure, which
     /// may start before the body's guard or after the body assigned it.
-    fn ensure_flow(&mut self, env: &mut Env, unsound: bool) {
+    fn ensure_flow(&mut self, env: &mut Env, unsound: bool) -> std::io::Result<()> {
         let value = self.name("v");
         let inner = if self.rng.chance(50) {
             Ty::Int
         } else {
             Ty::Str
         };
-        let literal = self.literal(&inner, 1);
+        let literal = self.literal(&inner, 1)?;
         let initial = if self.rng.chance(50) {
             "nil".to_owned()
         } else {
             literal.clone()
         };
-        let condition = self.expr(env, &Ty::Bool, 0, false);
+        let condition = self.expr(env, &Ty::Bool, 0, false)?;
         self.line(format!("{value}: {}? = {initial}", self.render(&inner)));
         self.line("begin");
         self.indent += 1;
@@ -3494,6 +3618,7 @@ impl Gen {
         self.indent -= 1;
         self.line("end");
         env.locals.push(Local::typed(value, Ty::opt(inner)));
+        Ok(())
     }
 
     // ----- Host -----
@@ -3573,44 +3698,49 @@ impl Gen {
             return None;
         }
         let d = depth.saturating_sub(1);
-        let ints = |this: &mut Self, env: &mut Env| this.expr(env, &Ty::array(Ty::Int), d, true);
-        Some(match *self.rng.pick(&options) {
-            0 => format!("store.get({})", self.expr(env, &Ty::Str, d, false)),
+        let ints =
+            |this: &mut Self, env: &mut Env| this.expr(env, &Ty::array(Ty::Int), d, true).ok();
+        Some(match *self.rng.pick(&options).ok()? {
+            0 => format!("store.get({})", self.expr(env, &Ty::Str, d, false).ok()?),
             1 => format!(
                 "store.put({}, {})",
-                self.expr(env, &Ty::Str, d, false),
-                self.expr(env, &Ty::Int, d, false)
+                self.expr(env, &Ty::Str, d, false).ok()?,
+                self.expr(env, &Ty::Int, d, false).ok()?
             ),
             2 => "store.keys".to_owned(),
             3 => {
-                let values = ints(self, env);
+                let values = ints(self, env)?;
                 if self.rng.chance(50) {
                     format!("store.total({values})")
                 } else {
                     format!(
                         "store.total({values}, {})",
-                        self.expr(env, &Ty::Int, d, false)
+                        self.expr(env, &Ty::Int, d, false).ok()?
                     )
                 }
             }
             4 => format!(
                 "store.lookup({})",
-                ["\"n\"", "\"s\"", "\"l\"", "\"x\""][self.rng.below(4)]
+                ["\"n\"", "\"s\"", "\"l\"", "\"x\""].get(self.rng.below(4))?
             ),
             5 => {
-                let values = ints(self, env);
-                let block = self.host_block(env, None, Some(Ty::Int), d);
+                let values = ints(self, env)?;
+                let block = self.host_block(env, None, Some(Ty::Int), d).ok()?;
                 format!("store.each({values}) {block}")
             }
             6 => {
-                let values = ints(self, env);
+                let values = ints(self, env)?;
                 let result = self.ty(1);
-                let block = self.host_block(env, Some(result), Some(Ty::array(Ty::Any)), d);
+                let block = self
+                    .host_block(env, Some(result), Some(Ty::array(Ty::Any)), d)
+                    .ok()?;
                 format!("store.collect({values}) {block}")
             }
             7 => {
-                let values = ints(self, env);
-                let block = self.host_block(env, Some(Ty::Bool), Some(Ty::opt(Ty::Int)), d);
+                let values = ints(self, env)?;
+                let block = self
+                    .host_block(env, Some(Ty::Bool), Some(Ty::opt(Ty::Int)), d)
+                    .ok()?;
                 format!("store.first({values}) {block}")
             }
             8 => "store.meta.version".to_owned(),
@@ -3618,33 +3748,33 @@ impl Gen {
             10 => "store.label".to_owned(),
             11 => {
                 let ty = self.ty(1);
-                format!("loose.echo({})", self.expr(env, &ty, d, true))
+                format!("loose.echo({})", self.expr(env, &ty, d, true).ok()?)
             }
             12 => {
                 let (a, b) = (self.ty(1), self.ty(1));
                 format!(
                     "loose.pair({}, {})",
-                    self.expr(env, &a, d, true),
-                    self.expr(env, &b, d, true)
+                    self.expr(env, &a, d, true).ok()?,
+                    self.expr(env, &b, d, true).ok()?
                 )
             }
             13 => {
-                let values = ints(self, env);
-                let block = self.host_block(env, Some(Ty::Any), None, d);
+                let values = ints(self, env)?;
+                let block = self.host_block(env, Some(Ty::Any), None, d).ok()?;
                 format!("loose.visit({values}) {block}")
             }
-            14 => format!("twice({})", self.expr(env, &Ty::Int, d, false)),
+            14 => format!("twice({})", self.expr(env, &Ty::Int, d, false).ok()?),
             15 => {
-                let a = self.expr(env, &Ty::Str, d, false);
+                let a = self.expr(env, &Ty::Str, d, false).ok()?;
                 if self.rng.chance(50) {
                     format!("joined({a})")
                 } else {
-                    format!("joined({a}, {})", self.expr(env, &Ty::Str, d, false))
+                    format!("joined({a}, {})", self.expr(env, &Ty::Str, d, false).ok()?)
                 }
             }
             _ => {
-                let value = self.expr(env, &Ty::Int, d, false);
-                let block = self.host_block(env, Some(Ty::Any), None, d);
+                let value = self.expr(env, &Ty::Int, d, false).ok()?;
+                let block = self.host_block(env, Some(Ty::Any), None, d).ok()?;
                 format!("around({value}) {block}")
             }
         })
@@ -3660,14 +3790,14 @@ impl Gen {
         result: Option<Ty>,
         breaks: Option<Ty>,
         depth: usize,
-    ) -> String {
+    ) -> std::io::Result<String> {
         let param = self.name("e");
         let mut inner = env.clone();
         inner.locals.push(Local::inferred(param.clone(), Ty::Any));
         let value = match &result {
-            Some(Ty::Bool) => format!("{param} == {}", self.expr(&mut inner, &Ty::Int, 0, false)),
+            Some(Ty::Bool) => format!("{param} == {}", self.expr(&mut inner, &Ty::Int, 0, false)?),
             Some(Ty::Any) if self.rng.chance(50) => param.clone(),
-            Some(ty) => self.expr(&mut inner, ty, depth, true),
+            Some(ty) => self.expr(&mut inner, ty, depth, true)?,
             None => format!("p({param})"),
         };
         if self.rng.chance(20) {
@@ -3675,16 +3805,18 @@ impl Gen {
                 Some(ty) if !self.unsound() => ty.clone(),
                 _ => self.ty(1),
             };
-            let value_ty = self.expr(&mut inner, &ty, 0, true);
-            return format!("{{ |{param}|\n  break {value_ty} if {param} == 1\n  {value}\n}}");
+            let value_ty = self.expr(&mut inner, &ty, 0, true)?;
+            return Ok(format!(
+                "{{ |{param}|\n  break {value_ty} if {param} == 1\n  {value}\n}}"
+            ));
         }
-        format!("{{ |{param}| {value} }}")
+        Ok(format!("{{ |{param}| {value} }}"))
     }
 
     /// The script function the host calls with arguments, and the calls:
     /// arguments of the parameters' types, or in a few calls one of
     /// another type, which the call's entry check rejects.
-    fn entry(&mut self) -> String {
+    fn entry(&mut self) -> std::io::Result<String> {
         let mut params = Vec::new();
         let mut keywords = false;
         for index in 0..1 + self.rng.below(3) {
@@ -3692,9 +3824,14 @@ impl Gen {
             let name = format!("a{index}");
             let kind = if keywords || self.rng.chance(20) {
                 keywords = true;
-                ParamKind::Keyword(self.rng.chance(50).then(|| self.literal(&ty, 1)))
+                ParamKind::Keyword(
+                    self.rng
+                        .chance(50)
+                        .then(|| self.literal(&ty, 1))
+                        .transpose()?,
+                )
             } else if self.rng.chance(20) {
-                ParamKind::Default(self.literal(&ty, 1))
+                ParamKind::Default(self.literal(&ty, 1)?)
             } else {
                 ParamKind::Required
             };
@@ -3706,7 +3843,7 @@ impl Gen {
                         kind: ParamKind::Default(_),
                         ..
                     }),
-                ) => ParamKind::Default(self.literal(&ty, 1)),
+                ) => ParamKind::Default(self.literal(&ty, 1)?),
                 _ => kind,
             };
             params.push(Param { name, ty, kind });
@@ -3718,7 +3855,7 @@ impl Gen {
             block: None,
             rank: 40,
         };
-        self.function(&def, None, false);
+        self.function(&def, None, false)?;
         for _ in 0..1 + self.rng.below(2) {
             let mut args = Vec::new();
             let mut keywords = Vec::new();
@@ -3759,17 +3896,17 @@ impl Gen {
             });
         }
         self.entry = Some(def);
-        self.take_lines()
+        Ok(self.take_lines())
     }
 }
 
-fn enum_source(index: usize) -> String {
+fn enum_source(index: usize) -> std::io::Result<String> {
     let mut text = format!("enum E{index}\n");
-    for member in MEMBERS[index] {
+    for member in *MEMBERS.at(index)? {
         text.push_str(&format!("  {member}\n"));
     }
     text.push_str("end\n");
-    text
+    Ok(text)
 }
 
 fn has_tuple(ty: &Ty) -> bool {

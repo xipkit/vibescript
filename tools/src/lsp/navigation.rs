@@ -197,8 +197,8 @@ pub(crate) fn find_word(text: &str, name: &str, from: usize) -> Option<usize> {
     let mut index = from;
     while index + needle.len() <= chars.len() {
         let end = index + needle.len();
-        if chars[index..end] == needle[..]
-            && (index == 0 || !word_char(chars[index - 1]))
+        if chars.get(index..end) == Some(needle.as_slice())
+            && (index == 0 || !chars.get(index - 1).is_some_and(|c| word_char(*c)))
             && chars.get(end).is_none_or(|c| !word_char(*c))
         {
             return Some(index);

@@ -246,7 +246,9 @@ pub fn entry_lines(entry: &Entry) -> Vec<Line> {
         ("→ ", Style::Result)
     };
     let mut output = render::styled_lines(&format!("{marker}{}", entry.output), style);
-    output[0].insert(0, span("  ", Style::Plain));
+    if let Some(line) = output.first_mut() {
+        line.insert(0, span("  ", Style::Plain));
+    }
     lines.extend(output);
     lines
 }

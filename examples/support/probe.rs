@@ -21,15 +21,21 @@ pub fn template() -> Value {
     });
     let checked = HostMethod::new("host.checked", move |_, args, _| {
         count.fetch_add(1, Ordering::Relaxed);
-        Ok(if args[0].as_int() == Some(0) {
+        let arg = args
+            .first()
+            .ok_or_else(|| Error::new(ErrorKind::Argument, "host.checked expects one integer"))?;
+        Ok(if arg.as_int() == Some(0) {
             Value::bytes("invalid result")
         } else {
-            args[0].clone()
+            arg.clone()
         })
     })
     .with_contract(
         |_, args, keywords| {
-            if args.len() != 1 || args[0].as_int().is_none() || !keywords.is_empty() {
+            if args.len() != 1
+                || args.first().and_then(Value::as_int).is_none()
+                || !keywords.is_empty()
+            {
                 return Err(Error::new(
                     ErrorKind::Runtime,
                     "host.checked expects one integer",

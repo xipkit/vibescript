@@ -69,9 +69,14 @@ struct WorkerCleanup {
 
 impl Drop for WorkerCleanup {
     fn drop(&mut self) {
-        self.current
+        if let Some(slot) = self
+            .current
             .lock()
-            .unwrap_or_else(|error| error.into_inner())[self.worker] = None;
+            .unwrap_or_else(|error| error.into_inner())
+            .get_mut(self.worker)
+        {
+            *slot = None;
+        }
         let _ = std::fs::remove_dir_all(&self.root);
         let _ = self.done.send(());
     }
@@ -131,7 +136,7 @@ fn run() -> std::io::Result<u8> {
     match args.first().map(String::as_str) {
         Some("judge") => {
             let mut scratch = Scratch::new(&scratch_root(0));
-            for path in &args[1..] {
+            for path in args.get(1..).unwrap_or_default() {
                 let text = std::fs::read_to_string(path).map_err(|error| {
                     std::io::Error::new(error.kind(), format!("{path}: {error}"))
                 })?;
@@ -145,15 +150,15 @@ fn run() -> std::io::Result<u8> {
         Some("generate") => {
             let seed: u64 = args.get(1).and_then(|seed| seed.parse().ok()).unwrap_or(0);
             let source = args.get(2).map_or("generated", String::as_str);
-            print!("{}", case_for(seed, source).render());
+            print!("{}", case_for(seed, source)?.render());
             Ok(0)
         }
-        Some("run") => batch(&args[1..]),
-        Some("verdicts") => verdicts(&args[1..], case_for),
-        Some("rejections") => rejections(&args[1..]),
+        Some("run") => batch(args.get(1..).unwrap_or_default()),
+        Some("verdicts") => verdicts(args.get(1..).unwrap_or_default(), case_for),
+        Some("rejections") => rejections(args.get(1..).unwrap_or_default()),
         Some("minimize") => {
             let mut scratch = Scratch::new(&scratch_root(0));
-            for path in &args[1..] {
+            for path in args.get(1..).unwrap_or_default() {
                 let text = std::fs::read_to_string(path).map_err(|error| {
                     std::io::Error::new(error.kind(), format!("{path}: {error}"))
                 })?;
@@ -220,7 +225,10 @@ fn worker_count(args: &[String]) -> std::io::Result<usize> {
 /// running it with every check kept ended: `ran`, `failed`, `limited` or
 /// `panicked`. A program whose check or run takes longer than two minutes
 /// ends the run with status 3.
-fn verdicts(args: &[String], make_case: fn(u64, &str) -> Case) -> std::io::Result<u8> {
+fn verdicts(
+    args: &[String],
+    make_case: fn(u64, &str) -> std::io::Result<Case>,
+) -> std::io::Result<u8> {
     use std::io::Write;
     let from: u64 = option(args, "--from")
         .and_then(|value| value.parse().ok())
@@ -262,8 +270,13 @@ fn verdicts(args: &[String], make_case: fn(u64, &str) -> Case) -> std::io::Resul
             };
             let mut scratch = Scratch::new(&root);
             while let Some(seed) = next_seed(&next, end) {
-                current.lock().unwrap()[worker] = Some((seed, Instant::now()));
-                let case = make_case(seed, &source);
+                *current
+                    .lock()
+                    .unwrap()
+                    .get_mut(worker)
+                    .ok_or_else(|| std::io::Error::other("invalid worker index"))? =
+                    Some((seed, Instant::now()));
+                let case = make_case(seed, &source)?;
                 let outcome = harness::outcome(&case, &mut scratch)?;
                 writeln!(output.lock().unwrap(), "{seed} {}", outcome.line())?;
             }
@@ -327,7 +340,9 @@ fn rejections(args: &[String]) -> std::io::Result<u8> {
     let mut scratch = Scratch::new(&scratch_root(0));
     let mut compared = 0;
     for (seed, first) in &before {
-        let second = &after[seed];
+        let second = after
+            .get(seed)
+            .ok_or_else(|| std::io::Error::other("missing seed in verdicts"))?;
         compared += 1;
         if first == second {
             continue;
@@ -340,7 +355,7 @@ fn rejections(args: &[String]) -> std::io::Result<u8> {
         if first != "ran" {
             continue;
         }
-        let case = case_for(*seed, &source);
+        let case = case_for(*seed, &source)?;
         let message = match harness::outcome(&case, &mut scratch)? {
             harness::Outcome::Rejected(reason) => reason,
             other => format!("{code}: {}", other.line()),
@@ -428,7 +443,7 @@ fn unnamed(message: &str) -> String {
 /// The program of `seed` from `source`: `generated`, `corpus` or `mixed`,
 /// or `files`, a required file whose locals its functions' parameters
 /// shadow.
-fn case_for(seed: u64, source: &str) -> Case {
+fn case_for(seed: u64, source: &str) -> std::io::Result<Case> {
     if source == "files" {
         return files::program(seed);
     }
@@ -439,7 +454,7 @@ fn case_for(seed: u64, source: &str) -> Case {
     };
     if edit {
         if let Some(case) = mutate::program(seed) {
-            return case;
+            return Ok(case);
         }
     }
     generate::program(seed)
@@ -696,8 +711,13 @@ fn batch(args: &[String]) -> std::io::Result<u8> {
             };
             let mut scratch = Scratch::new(&root);
             while let Some(seed) = next_seed(&next, end) {
-                current.lock().unwrap()[worker] = Some((seed, Instant::now()));
-                let case = case_for(seed, &source);
+                *current
+                    .lock()
+                    .unwrap()
+                    .get_mut(worker)
+                    .ok_or_else(|| std::io::Error::other("invalid worker index"))? =
+                    Some((seed, Instant::now()));
+                let case = case_for(seed, &source)?;
                 let verdict = harness::judge(&case, &mut scratch)?;
                 record(&totals, &out, seed, &case, &verdict)?;
                 if matches!(verdict, Verdict::Agreed(_)) {
@@ -710,7 +730,7 @@ fn batch(args: &[String]) -> std::io::Result<u8> {
     }
     drop(done);
     if let Some(seed) = watch(&finished, &current) {
-        let case = case_for(seed, &source);
+        let case = case_for(seed, &source)?;
         let path = out.join(format!("hang-{seed}.vibe"));
         std::fs::write(&path, format!("# hang: seed {seed}\n{}", case.render()))?;
         eprintln!(

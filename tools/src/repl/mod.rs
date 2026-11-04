@@ -499,13 +499,11 @@ impl ReplSession {
             .collect();
         matches.sort_unstable();
         matches.dedup();
-        match matches.len() {
-            0 => Completion::None,
-            1 => Completion::Completed(format!(
-                "{}{}",
-                &input[..input.len() - word.len()],
-                matches[0]
-            )),
+        match matches.as_slice() {
+            [] => Completion::None,
+            [matched] => {
+                Completion::Completed(format!("{}{}", &input[..input.len() - word.len()], matched))
+            }
             _ => {
                 self.push_transcript(Entry {
                     input: String::new(),
@@ -547,7 +545,13 @@ impl ReplSession {
     }
 
     fn recall(&mut self, index: usize) -> String {
-        let mut lines: Vec<String> = self.history[index].split('\n').map(str::to_owned).collect();
+        let mut lines: Vec<String> = self
+            .history
+            .get(index)
+            .map_or("", String::as_str)
+            .split('\n')
+            .map(str::to_owned)
+            .collect();
         let last = lines.pop().unwrap_or_default();
         self.pending_bytes = lines
             .iter()
@@ -667,8 +671,11 @@ fn retain_newest<T>(
             return;
         }
         let mut removed = 0;
-        while used.saturating_add(bytes) > limit {
-            *used -= measure(&entries[removed]);
+        while let Some(entry) = entries
+            .get(removed)
+            .filter(|_| used.saturating_add(bytes) > limit)
+        {
+            *used -= measure(entry);
             removed += 1;
         }
         entries.drain(..removed);

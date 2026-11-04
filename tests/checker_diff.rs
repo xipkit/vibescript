@@ -44,7 +44,7 @@ fn generated_programs_agree_with_their_checks_kept() {
     let mut accepted = 0;
     let mut failures = Vec::new();
     for seed in 0..SMOKE_SEEDS {
-        let case = generate::program(seed);
+        let case = generate::program(seed).unwrap();
         match harness::judge(&case, &mut scratch).unwrap() {
             Verdict::Finding(finding) => failures.push(format!(
                 "seed {seed}: {}\n{}\n{}",

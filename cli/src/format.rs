@@ -51,7 +51,12 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
         .map_err(|error| format!("collect files: {error}"))?;
     let mut changed = 0;
     for index in 0..inputs.files.len() {
-        let path = inputs.files[index].path.clone();
+        let path = inputs
+            .files
+            .get(index)
+            .ok_or("invalid file index")?
+            .path
+            .clone();
         let (original, info) = inputs
             .read(index)
             .map_err(|error| format!("read {}: {error}", path.display()))?;

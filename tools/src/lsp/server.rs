@@ -316,7 +316,7 @@ impl Server {
         }
         self.document_bytes = bytes;
         *self.in_flight.lock().unwrap_or_else(|e| e.into_inner()) = None;
-        let document = &self.documents[uri].0;
+        let document = &self.documents.get(uri)?.0;
         if document.interrupted() {
             return None;
         }

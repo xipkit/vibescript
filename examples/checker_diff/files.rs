@@ -10,6 +10,7 @@
 //! few, which use a local a function assigns `nil` as if it were narrowed,
 //! and which a sound checker rejects.
 
+use super::rng::Checked;
 use super::{harness::Case, rng::Rng};
 
 /// A local of the file: its name, and whether it is declared optional.
@@ -21,7 +22,7 @@ struct Local {
 }
 
 /// The program of `seed`.
-pub fn program(seed: u64) -> Case {
+pub fn program(seed: u64) -> std::io::Result<Case> {
     let mut rng = Rng::new(seed ^ 0x6669_6c65);
     let mut locals: Vec<Local> = (0..2 + rng.below(4))
         .map(|index| Local {
@@ -45,7 +46,7 @@ pub fn program(seed: u64) -> Case {
         for param in 0..1 + rng.below(3) {
             let shadow = rng.chance(60);
             let name = if shadow {
-                locals[rng.below(locals.len())].name.clone()
+                rng.pick(&locals)?.name.clone()
             } else {
                 format!("a{param}")
             };
@@ -62,13 +63,15 @@ pub fn program(seed: u64) -> Case {
             match rng.weighted(&[4, 2, 3]) {
                 // A parameter, which may take a local's name, assigned.
                 0 => {
-                    let name = &params[rng.below(params.len())];
+                    let name = rng.pick(&params)?;
                     file.push_str(&format!("  {name} = {name} + 1\n"));
                 }
                 // A local the function does not shadow, assigned.
                 1 => {
                     let index = rng.below(locals.len());
-                    let local = &mut locals[index];
+                    let local = locals
+                        .get_mut(index)
+                        .ok_or_else(|| std::io::Error::other("invalid local index"))?;
                     if params.contains(&local.name) {
                         continue;
                     }
@@ -82,13 +85,13 @@ pub fn program(seed: u64) -> Case {
                 // A call of a function before it.
                 _ if function > 0 => {
                     let callee = rng.below(function);
-                    let arguments = arguments(&mut rng, arities[callee]);
+                    let arguments = arguments(&mut rng, *arities.at(callee)?);
                     file.push_str(&format!("  f{callee}({arguments})\n"));
                 }
                 _ => (),
             }
         }
-        file.push_str(&format!("  {}\nend\n", params[rng.below(params.len())]));
+        file.push_str(&format!("  {}\nend\n", rng.pick(&params)?));
         arities.push(params.len());
     }
     // The file's top level narrows its locals, calls its functions, and
@@ -98,7 +101,7 @@ pub fn program(seed: u64) -> Case {
     }
     for _ in 0..1 + rng.below(3) {
         let callee = rng.below(arities.len());
-        let arguments = arguments(&mut rng, arities[callee]);
+        let arguments = arguments(&mut rng, *arities.at(callee)?);
         file.push_str(&format!("f{callee}({arguments})\n"));
     }
     for (index, local) in locals.iter().enumerate() {
@@ -115,13 +118,13 @@ pub fn program(seed: u64) -> Case {
         }
     }
     let callee = rng.below(arities.len());
-    let arguments = arguments(&mut rng, arities[callee]);
+    let arguments = arguments(&mut rng, *arities.at(callee)?);
     let main = format!("m = require(\"lib\")\np(m.f{callee}({arguments}))\n");
-    Case {
+    Ok(Case {
         main,
         modules: vec![("lib.vibe".to_owned(), file)],
         host: Default::default(),
-    }
+    })
 }
 
 /// `count` integer arguments.

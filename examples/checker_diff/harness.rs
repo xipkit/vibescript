@@ -418,7 +418,9 @@ fn compile(
         for chunk in output.chunks_mut(8) {
             let state = seed.fetch_add(0x9e37_79b9_7f4a_7c15, std::sync::atomic::Ordering::Relaxed);
             let bytes = super::rng::mix(state).to_le_bytes();
-            chunk.copy_from_slice(&bytes[..chunk.len()]);
+            for (target, byte) in chunk.iter_mut().zip(bytes) {
+                *target = byte;
+            }
         }
         Ok(output.len())
     });

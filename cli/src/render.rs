@@ -134,10 +134,12 @@ pub fn float(value: f64) -> String {
         out.push('-');
     }
     if !(-4..6).contains(&exponent) {
-        out.push(digits[0] as char);
-        if digits.len() > 1 {
-            out.push('.');
-            out.extend(digits[1..].iter().map(|&d| d as char));
+        if let Some((&first, rest)) = digits.split_first() {
+            out.push(char::from(first));
+            if !rest.is_empty() {
+                out.push('.');
+                out.extend(rest.iter().copied().map(char::from));
+            }
         }
         out.push('e');
         out.push(if exponent < 0 { '-' } else { '+' });
