@@ -878,6 +878,9 @@ mod accounting_tests {
             resumed.recv().unwrap();
             drop(first);
         };
+        // The body owns the sender the worker waits on, so a failed assertion
+        // drops it while unwinding and the worker ends instead of blocking
+        // the join.
         let ((), (second, error)) = crate::threads::alongside(worker, || {
             received.recv().unwrap();
             assert_eq!(counters(&ctx), (0, 60, 40));
@@ -887,6 +890,7 @@ mod accounting_tests {
             assert_eq!(error.kind, ErrorKind::Memory);
             assert_eq!(error.message, "memory quota exceeded (100 bytes)");
             resume.send(()).unwrap();
+            drop(resume);
             (second, error)
         });
         drop(second);

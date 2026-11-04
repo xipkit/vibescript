@@ -27,8 +27,10 @@ pub(crate) fn on_stack<T: Send>(bytes: usize, work: impl FnOnce() -> T + Send) -
 }
 
 /// Runs `worker` on another thread while `body` runs on this one, then
-/// waits for the worker. On WASI the worker runs first, so the two must not
-/// wait for each other there.
+/// waits for the worker, also when `body` panics. A body whose worker waits
+/// on it should own what the worker waits on, so unwinding releases the
+/// worker instead of blocking the join. On WASI the worker runs first, so
+/// the two must not wait for each other there.
 #[cfg(test)]
 #[allow(
     clippy::disallowed_methods,
