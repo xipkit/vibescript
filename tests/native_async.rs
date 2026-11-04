@@ -759,6 +759,13 @@ async fn abandoning_a_block_queued_for_a_busy_worker_preserves_the_other_call() 
             .as_int(),
         Some(7)
     );
+    tokio_timeout(async {
+        while runner.available_slots() == 0 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
     assert_eq!(runner.available_slots(), 1);
 }
 

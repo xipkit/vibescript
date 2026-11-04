@@ -238,6 +238,8 @@ fn retiring() -> Error {
 struct Owned {
     execution: Box<Execution>,
     charge: Option<Charge>,
+    #[cfg(test)]
+    on_finish: Option<Arc<dyn Fn() + Send + Sync>>,
 }
 
 impl Owned {
@@ -249,11 +251,19 @@ impl Owned {
         Ok(Self {
             execution: Box::new(execution),
             charge,
+            #[cfg(test)]
+            on_finish: None,
         })
     }
 
     fn finish(self, result: Result<Exit>) -> Result<Outcome> {
-        let Self { execution, charge } = self;
+        #[cfg(test)]
+        if let Some(on_finish) = &self.on_finish {
+            on_finish();
+        }
+        let Self {
+            execution, charge, ..
+        } = self;
         let execution = *execution;
         drop(charge);
         execution.finish(result.map(|exit| match exit {
@@ -330,9 +340,82 @@ struct Completed {
     result: Result<Exit>,
 }
 
-enum Progress {
+// A completion can be much smaller than a host request; keep the request inline
+// to avoid an extra allocation at every host boundary.
+#[allow(clippy::large_enum_variant)]
+enum Progress<C = Completed> {
     Host(Box<Work>, HostRequest),
-    Complete(Completed),
+    Complete(C),
+}
+
+impl Progress {
+    fn complete<C: Completion>(self) -> Progress<C> {
+        match self {
+            Self::Host(work, request) => Progress::Host(work, request),
+            Self::Complete(completed) => Progress::Complete(C::complete(completed)),
+        }
+    }
+}
+
+// Blocks return their execution; top-level calls finalize it before the worker
+// releases its permit.
+trait Completion: Send + 'static {
+    fn complete(completed: Completed) -> Self;
+    fn interrupted(
+        driver: &Driver<Worker>,
+        completed: Completed,
+    ) -> impl Future<Output = Self> + Send;
+}
+
+impl Completion for Completed {
+    fn complete(completed: Self) -> Self {
+        completed
+    }
+
+    async fn interrupted(_: &Driver<Worker>, completed: Self) -> Self {
+        completed
+    }
+}
+
+impl Completion for Result<Outcome> {
+    fn complete(Completed { execution, result }: Completed) -> Self {
+        execution.finish(result)
+    }
+
+    async fn interrupted(driver: &Driver<Worker>, mut completed: Completed) -> Self {
+        match driver.slots.clone().try_acquire_owned() {
+            Ok(permit) => tokio::task::spawn_blocking(move || {
+                let _permit = permit;
+                Self::complete(completed)
+            })
+            .await
+            .map_err(worker_error)?,
+            Err(_) => {
+                // A cancelled queued call must not wait for an unrelated busy
+                // worker. Retire its execution under a permit in the background.
+                let error = completed
+                    .execution
+                    .execution
+                    .context
+                    .checkpoint()
+                    .err()
+                    .or_else(|| completed.result.as_ref().err().cloned())
+                    .unwrap_or_else(retiring);
+                let error = completed.execution.execution.diagnose(error);
+                completed.result = Err(error.clone());
+                let slots = driver.slots.clone();
+                driver.handle.spawn(async move {
+                    let permit = slots.acquire_owned().await.ok();
+                    let _result = tokio::task::spawn_blocking(move || {
+                        let _permit = permit;
+                        Self::complete(completed)
+                    })
+                    .await;
+                });
+                Err(error)
+            }
+        }
+    }
 }
 
 // Only worker submission can lose an execution. Inline calls keep ownership
@@ -342,10 +425,10 @@ trait Lane: Clone + Send + Sync + 'static {
 
     fn error(lost: Self::Lost) -> Error;
     fn handle(state: &mut Invocation<Self>) -> AsyncHostCall<'_>;
-    fn submit(
+    fn submit<C: Completion>(
         driver: &Driver<Self>,
         work: Box<Work>,
-    ) -> impl Future<Output = std::result::Result<Progress, Self::Lost>> + Send;
+    ) -> impl Future<Output = std::result::Result<Progress<C>, Self::Lost>> + Send;
 }
 
 #[derive(Clone)]
@@ -366,7 +449,7 @@ impl Lane for Worker {
         }
     }
 
-    async fn submit(driver: &Driver<Self>, work: Box<Work>) -> Result<Progress> {
+    async fn submit<C: Completion>(driver: &Driver<Self>, work: Box<Work>) -> Result<Progress<C>> {
         driver.submit(work).await
     }
 }
@@ -384,11 +467,11 @@ impl Lane for Inline {
         }
     }
 
-    async fn submit(
+    async fn submit<C: Completion>(
         driver: &Driver<Self>,
         work: Box<Work>,
-    ) -> std::result::Result<Progress, Self::Lost> {
-        Ok(worker(work, driver.clone()))
+    ) -> std::result::Result<Progress<C>, Self::Lost> {
+        Ok(worker(work, driver.clone()).complete())
     }
 }
 
@@ -439,7 +522,7 @@ impl<L: Lane> Driver<L> {
         boxed_work(work, move |work| self.drive(work))
     }
 
-    async fn drive(self, mut work: Box<Work>) -> std::result::Result<Completed, L::Lost> {
+    async fn drive<C: Completion>(self, mut work: Box<Work>) -> std::result::Result<C, L::Lost> {
         loop {
             let progress = L::submit(&self, work).await?;
             match progress {
@@ -513,10 +596,12 @@ impl Driver<Inline> {
 }
 
 impl Driver<Worker> {
-    async fn submit(&self, mut work: Box<Work>) -> Result<Progress> {
+    async fn submit<C: Completion>(&self, mut work: Box<Work>) -> Result<Progress<C>> {
         let context = &mut work.execution.execution.context;
         if let Err(error) = context.checkpoint() {
-            return Ok(Progress::Complete(work.interrupted(error)));
+            return Ok(Progress::Complete(
+                C::interrupted(self, work.interrupted(error)).await,
+            ));
         }
         let permit = match crate::asynchronous::acquire(
             self.slots.clone(),
@@ -526,7 +611,11 @@ impl Driver<Worker> {
         .await
         {
             Ok(permit) => permit,
-            Err(error) => return Ok(Progress::Complete(work.interrupted(error))),
+            Err(error) => {
+                return Ok(Progress::Complete(
+                    C::interrupted(self, work.interrupted(error)).await,
+                ));
+            }
         };
         let driver = Driver {
             slots: self.slots.clone(),
@@ -535,7 +624,7 @@ impl Driver<Worker> {
         };
         tokio::task::spawn_blocking(move || {
             let _permit = permit;
-            worker(work, driver)
+            worker(work, driver).complete()
         })
         .await
         .map_err(worker_error)
@@ -817,8 +906,7 @@ pub(crate) async fn call(
         handle: Handle::current(),
         _lane: Worker,
     };
-    let Completed { execution, result } = driver.drive(execution).await?;
-    execution.finish(result)
+    driver.drive::<Result<Outcome>>(execution).await?
 }
 
 fn worker_error(error: tokio::task::JoinError) -> Error {
@@ -826,4 +914,135 @@ fn worker_error(error: tokio::task::JoinError) -> Error {
         std::panic::resume_unwind(error.into_panic());
     }
     Error::new(ErrorKind::Host, format!("script worker failed: {error}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::AtomicBool;
+    use tokio::sync::Notify;
+
+    fn work(script: &Script, on_finish: Arc<dyn Fn() + Send + Sync>) -> Box<Work> {
+        let mut execution =
+            Owned::new(Execution::new(script, "run", &[], &[], CallOptions::default()).unwrap())
+                .unwrap();
+        execution.on_finish = Some(on_finish);
+        let charge = execution
+            .execution
+            .context
+            .reserve(size_of::<Work>())
+            .unwrap();
+        Box::new(Work {
+            execution,
+            scope: Scope::Call,
+            next: Next::Resume,
+            charge,
+        })
+    }
+
+    #[test]
+    fn top_level_finalization_keeps_its_worker_and_leaves_the_executor_responsive() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .max_blocking_threads(1)
+            .enable_time()
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            for end in ["7", "raise 'failed'", "cancelled"] {
+                let source = format!("class Item;property child: Item?;end;def run -> int;items: array<Item> = [];100.times {{ items << Item.new }};{};end",
+                    if end == "cancelled" { "7" } else { end });
+                let script = crate::Engine::new().compile(&source).unwrap();
+                let slots = Arc::new(Semaphore::new(1));
+                let entered = Arc::new(Notify::new());
+                let gate = Arc::new((Mutex::new(false), Condvar::new()));
+                let (pool, ready, release) = (slots.clone(), entered.clone(), gate.clone());
+                let executor = std::thread::current().id();
+                let work = work(&script, Arc::new(move || {
+                    assert_ne!(std::thread::current().id(), executor, "finalization ran on the executor");
+                    assert_eq!(pool.available_permits(), 0, "finalization lost its worker permit");
+                    ready.notify_one();
+                    let (lock, changed) = &*release;
+                    let (released, _) = changed.wait_timeout_while(lock.lock().unwrap(), Duration::from_secs(3), |released| !*released).unwrap();
+                    assert!(*released, "executor could not resume during finalization");
+                }));
+                if end == "cancelled" { work.execution.execution.context.cancellation().cancel(); }
+                let driver = Driver { slots: slots.clone(), handle: Handle::current(), _lane: Worker };
+                let call = tokio::spawn(driver.drive::<Result<Outcome>>(work));
+                tokio::time::timeout(Duration::from_secs(3), entered.notified()).await.unwrap();
+                tokio::time::sleep(Duration::from_millis(5)).await;
+                assert_eq!(slots.available_permits(), 0);
+                let (lock, changed) = &*gate;
+                *lock.lock().unwrap() = true;
+                changed.notify_one();
+                let result = call.await.unwrap().unwrap();
+                match end {
+                    "7" => {
+                        let outcome = result.unwrap();
+                        assert_eq!(outcome.value.as_int(), Some(7));
+                        assert_eq!(outcome.stats.retained_memory_bytes, 0);
+                    }
+                    "cancelled" => assert_eq!(result.unwrap_err().kind, ErrorKind::Cancelled),
+                    _ => assert_eq!(result.unwrap_err().kind, ErrorKind::Runtime),
+                }
+                assert_eq!(slots.available_permits(), 1);
+            }
+        });
+        runtime.shutdown_timeout(Duration::from_secs(1));
+    }
+
+    #[test]
+    fn cancelled_queued_calls_return_before_their_bounded_cleanup() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .max_blocking_threads(1)
+            .enable_time()
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let script = crate::Engine::new()
+                .compile("def run -> int;7;end")
+                .unwrap();
+            let slots = Arc::new(Semaphore::new(1));
+            let busy = slots.clone().acquire_owned().await.unwrap();
+            let finished = Arc::new(AtomicBool::new(false));
+            let entered = Arc::new(Notify::new());
+            let (pool, done, ready) = (slots.clone(), finished.clone(), entered.clone());
+            let executor = std::thread::current().id();
+            let work = work(
+                &script,
+                Arc::new(move || {
+                    assert_ne!(std::thread::current().id(), executor);
+                    assert_eq!(pool.available_permits(), 0);
+                    done.store(true, Ordering::SeqCst);
+                    ready.notify_one();
+                }),
+            );
+            work.execution.execution.context.cancellation().cancel();
+            let driver = Driver {
+                slots: slots.clone(),
+                handle: Handle::current(),
+                _lane: Worker,
+            };
+            let result = tokio::time::timeout(
+                Duration::from_secs(1),
+                driver.drive::<Result<Outcome>>(work),
+            )
+            .await
+            .unwrap()
+            .unwrap();
+            let error = result.unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Cancelled);
+            assert!(error.diagnostic.is_some());
+            assert!(!finished.load(Ordering::SeqCst));
+            assert_eq!(slots.available_permits(), 0);
+            drop(busy);
+            tokio::time::timeout(Duration::from_secs(3), entered.notified())
+                .await
+                .unwrap();
+            // One blocking thread means this job runs after the cleanup job.
+            tokio::task::spawn_blocking(|| {}).await.unwrap();
+            assert!(finished.load(Ordering::SeqCst));
+            assert_eq!(slots.available_permits(), 1);
+        });
+        runtime.shutdown_timeout(Duration::from_secs(1));
+    }
 }
