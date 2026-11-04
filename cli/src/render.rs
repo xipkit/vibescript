@@ -162,7 +162,7 @@ pub fn float(value: f64) -> String {
     } else {
         out.push('0');
     }
-    let fraction = (digits.len() as i32 - point).max(0);
+    let fraction = (i32::try_from(digits.len()).unwrap_or(i32::MAX) - point).max(0);
     if fraction > 0 {
         out.push('.');
         for index in point..point + fraction {

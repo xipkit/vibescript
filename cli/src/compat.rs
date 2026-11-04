@@ -132,10 +132,7 @@ pub fn parse_int(text: &str) -> Result<i64, IntError> {
     };
     let magnitude = parse_uint(unsigned)?;
     if negative {
-        if magnitude > 1 << 63 {
-            return Err(IntError::Range);
-        }
-        Ok((magnitude as i64).wrapping_neg())
+        0i64.checked_sub_unsigned(magnitude).ok_or(IntError::Range)
     } else {
         i64::try_from(magnitude).map_err(|_| IntError::Range)
     }

@@ -180,7 +180,7 @@ fn compilation_preserves_borrowed_host_order_identity_and_partial_failure_cleanu
         assert!(Arc::ptr_eq(original, callback));
         assert_eq!(
             callback(&mut context, &[], &[]).unwrap().as_int(),
-            Some(31 - index as i64)
+            Some(31 - crate::numeric::to_i64(index))
         );
     }
     let stats = context.stats();

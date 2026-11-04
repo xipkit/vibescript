@@ -105,13 +105,18 @@ fn edit_script(a: &[&str], b: &[&str]) -> Vec<Op> {
     ops
 }
 
+/// A length as a signed diagonal; no slice is longer than `isize::MAX`.
+fn signed(length: usize) -> isize {
+    isize::try_from(length).unwrap_or(isize::MAX)
+}
+
 fn myers(a: &[&str], b: &[&str]) -> Vec<Op> {
-    let (n, m) = (a.len() as isize, b.len() as isize);
-    let max = (n + m) as usize;
-    let offset = max as isize + 1;
+    let (n, m) = (signed(a.len()), signed(b.len()));
+    let max = a.len() + b.len();
+    let offset = signed(max) + 1;
     let mut v = vec![0isize; 2 * max + 3];
     let mut trace = Vec::new();
-    'outer: for d in 0..=max as isize {
+    'outer: for d in 0..=signed(max) {
         trace.push(v.clone());
         let mut k = -d;
         while k <= d {
@@ -135,7 +140,7 @@ fn myers(a: &[&str], b: &[&str]) -> Vec<Op> {
     }
     let mut ops = Vec::new();
     let (mut x, mut y) = (n, m);
-    for d in (0..trace.len() as isize).rev() {
+    for d in (0..signed(trace.len())).rev() {
         let v = &trace[d as usize];
         let k = x - y;
         let index = (k + offset) as usize;

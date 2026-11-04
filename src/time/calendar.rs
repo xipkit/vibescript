@@ -2,6 +2,8 @@
 // Copyright 2009 The Go Authors. All rights reserved.
 // See licenses/Go-BSD-3-Clause.txt.
 
+use crate::numeric::{to_i64, wrapped};
+
 pub(super) const UNIX_TO_INTERNAL: i64 = 62_135_596_800;
 const ABSOLUTE_YEARS: u64 = 292_277_022_400;
 const UNIX_TO_ABSOLUTE: u64 =
@@ -46,35 +48,39 @@ pub(super) fn normalized(parts: [i64; 6]) -> i64 {
     let minute = minute.rem_euclid(60);
     day = day.wrapping_add(hour.div_euclid(24));
     let hour = hour.rem_euclid(24);
-    date_to_days(year, month, day)
-        .wrapping_mul(86400)
-        .wrapping_add((hour * 3600 + minute * 60 + second) as u64)
-        .wrapping_sub(UNIX_TO_ABSOLUTE) as i64
+    wrapped(
+        date_to_days(year, month, day)
+            .wrapping_mul(86400)
+            .wrapping_add((hour * 3600 + minute * 60 + second) as u64)
+            .wrapping_sub(UNIX_TO_ABSOLUTE),
+    )
 }
 
 pub(super) fn civil(seconds: i64, offset: i32) -> Civil {
     let absolute = seconds
         .wrapping_add(i64::from(offset))
-        .wrapping_add(UNIX_TO_ABSOLUTE as i64) as u64;
+        .wrapping_add_unsigned(UNIX_TO_ABSOLUTE) as u64;
     let days = absolute / 86400;
     let d = 4 * days + 3;
     let century = d / 146097;
     let cd = (d % 146097) as u32 | 3;
     let product = 2939745 * u64::from(cd);
     let cyear = product >> 32;
-    let ayday = u64::from(product as u32 / 2939745 / 4);
-    let md = 2141 * ayday + 197913;
-    let jan_feb = u64::from(ayday >= 306);
-    let leap = u64::from(cyear % 4 == 0 && (cyear != 0 || century % 4 == 0));
+    let ayday = product as u32 / 2939745 / 4;
+    let md = 2141 * u64::from(ayday) + 197913;
+    let jan_feb = ayday >= 306;
+    let leap = cyear % 4 == 0 && (cyear != 0 || century % 4 == 0);
     Civil {
-        year: (century * 100).wrapping_sub(ABSOLUTE_YEARS) as i64 + cyear as i64 + jan_feb as i64,
-        month: (md >> 16) as i64 - 12 * jan_feb as i64,
-        day: 1 + ((md & 0xffff) / 2141) as i64,
-        hour: (absolute % 86400 / 3600) as i64,
-        minute: (absolute % 3600 / 60) as i64,
-        second: (absolute % 60) as i64,
-        weekday: ((days + 3) % 7) as i64,
-        yearday: ayday as i64 + 60 + (leap & !jan_feb) as i64 - 365 * jan_feb as i64,
+        year: wrapped((century * 100).wrapping_sub(ABSOLUTE_YEARS))
+            + to_i64(cyear)
+            + i64::from(jan_feb),
+        month: to_i64(md >> 16) - 12 * i64::from(jan_feb),
+        day: 1 + to_i64((md & 0xffff) / 2141),
+        hour: to_i64(absolute % 86400 / 3600),
+        minute: to_i64(absolute % 3600 / 60),
+        second: to_i64(absolute % 60),
+        weekday: to_i64((days + 3) % 7),
+        yearday: i64::from(ayday) + 60 + i64::from(leap && !jan_feb) - 365 * i64::from(jan_feb),
     }
 }
 
