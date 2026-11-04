@@ -21,7 +21,7 @@ use tokio::{runtime::Handle, sync::Semaphore};
 ///
 /// ```compile_fail
 /// use vibescript::asynchronous::AsyncHostCall;
-/// fn retain(call: &mut AsyncHostCall) -> &'static mut AsyncHostCall {
+/// fn retain<'a>(call: &'a mut AsyncHostCall<'a>) -> &'static mut AsyncHostCall<'static> {
 ///     call
 /// }
 /// ```
@@ -37,34 +37,43 @@ use tokio::{runtime::Handle, sync::Semaphore};
 ///     Ok(Value::nil())
 /// }));
 /// ```
-pub struct AsyncHostCall {
+pub struct AsyncHostCall<'a> {
+    state: HostState<'a>,
+}
+
+enum HostState<'a> {
+    Worker(&'a mut Invocation<Worker>),
+    Inline(&'a mut Invocation<Inline>),
+}
+
+struct Invocation<L: Lane> {
     execution: Option<Owned>,
     control: Option<HostControl>,
-    driver: Driver,
-    pending: Option<Driving>,
-    failure: Option<Error>,
+    driver: Driver<L>,
+    pending: Option<Driving<L>>,
+    failure: Option<L::Lost>,
     cancellation: CancellationToken,
 }
 
-impl AsyncHostCall {
+impl AsyncHostCall<'_> {
     /// Returns this invocation's accounting and cancellation context.
     ///
     /// A dropped, previously polled block future may leave the context on a
     /// retiring worker. In that state access returns an error; no further script
     /// work can start. Previously latched quota errors keep their priority.
     pub fn context(&mut self) -> Result<&mut CallContext> {
-        if let Some(error) = &self.failure {
-            return Err(error.clone());
+        match &mut self.state {
+            HostState::Worker(state) => state.context(),
+            HostState::Inline(state) => state.context(),
         }
-        self.execution
-            .as_mut()
-            .map(|execution| &mut execution.execution.context)
-            .ok_or_else(retiring)
     }
 
     /// Reports whether the script attached a block to this method call.
     pub fn block_given(&self) -> bool {
-        self.control.as_ref().unwrap().block.is_some()
+        match &self.state {
+            HostState::Worker(state) => state.block_given(),
+            HostState::Inline(state) => state.block_given(),
+        }
     }
 
     /// Returns an isolated, accounted snapshot of this call's member receiver.
@@ -75,8 +84,55 @@ impl AsyncHostCall {
     /// `None`. Reading follows the same retiring and latched-error rules as
     /// [`Self::context`]. See [`crate::HostCall::receiver`] for the value rules.
     pub fn receiver(&mut self) -> Result<Option<Value>> {
+        match &mut self.state {
+            HostState::Worker(state) => state.receiver(),
+            HostState::Inline(state) => state.receiver(),
+        }
+    }
+
+    /// Stores a field in this call's member receiver and publishes it to the script.
+    ///
+    /// Follows the same rules as [`crate::HostCall::set_receiver_field`], and
+    /// the same retiring and latched-error rules as [`Self::context`].
+    pub fn set_receiver_field(&mut self, key: &[u8], value: &Value) -> Result<bool> {
+        match &mut self.state {
+            HostState::Worker(state) => state.set_receiver_field(key, value),
+            HostState::Inline(state) => state.set_receiver_field(key, value),
+        }
+    }
+
+    /// Runs the attached block with owned arguments on the receiving runner.
+    ///
+    /// Each result is an isolated snapshot that later block calls cannot change.
+    /// Arguments are isolated and accounted before script execution. `break`
+    /// and nonlocal `return` remain pending even if the host ignores the returned
+    /// control-flow error. Cancellation and exhausted limits cannot be swallowed.
+    pub async fn call_block(&mut self, args: Vec<Value>) -> Result<Value> {
+        match &mut self.state {
+            HostState::Worker(state) => state.call_block(args).await,
+            HostState::Inline(state) => state.call_block(args).await,
+        }
+    }
+}
+
+impl<L: Lane> Invocation<L> {
+    fn context(&mut self) -> Result<&mut CallContext> {
         if let Some(error) = &self.failure {
-            return Err(error.clone());
+            return Err(L::error(error.clone()));
+        }
+        self.execution
+            .as_mut()
+            .map(|execution| &mut execution.execution.context)
+            .ok_or_else(retiring)
+    }
+
+    fn block_given(&self) -> bool {
+        self.control.as_ref().unwrap().block.is_some()
+    }
+
+    fn receiver(&mut self) -> Result<Option<Value>> {
+        if let Some(error) = &self.failure {
+            return Err(L::error(error.clone()));
         }
         let execution = self.execution.as_mut().ok_or_else(retiring)?;
         let execution = &mut *execution.execution;
@@ -86,13 +142,9 @@ impl AsyncHostCall {
         )
     }
 
-    /// Stores a field in this call's member receiver and publishes it to the script.
-    ///
-    /// Follows the same rules as [`crate::HostCall::set_receiver_field`], and
-    /// the same retiring and latched-error rules as [`Self::context`].
-    pub fn set_receiver_field(&mut self, key: &[u8], value: &Value) -> Result<bool> {
+    fn set_receiver_field(&mut self, key: &[u8], value: &Value) -> Result<bool> {
         if let Some(error) = &self.failure {
-            return Err(error.clone());
+            return Err(L::error(error.clone()));
         }
         let execution = self.execution.as_mut().ok_or_else(retiring)?;
         let execution = &mut *execution.execution;
@@ -104,15 +156,9 @@ impl AsyncHostCall {
         )
     }
 
-    /// Runs the attached block with owned arguments on the receiving runner.
-    ///
-    /// Each result is an isolated snapshot that later block calls cannot change.
-    /// Arguments are isolated and accounted before script execution. `break`
-    /// and nonlocal `return` remain pending even if the host ignores the returned
-    /// control-flow error. Cancellation and exhausted limits cannot be swallowed.
-    pub async fn call_block(&mut self, args: Vec<Value>) -> Result<Value> {
+    async fn call_block(&mut self, args: Vec<Value>) -> Result<Value> {
         if let Some(error) = &self.failure {
-            return Err(error.clone());
+            return Err(L::error(error.clone()));
         }
         let execution = self.execution.as_mut().ok_or_else(retiring)?;
         let block = self
@@ -145,20 +191,19 @@ impl AsyncHostCall {
         let result = self.pending.as_mut().unwrap().await;
         self.pending = None;
         match result {
-            Ok(Completed::Block(execution, result)) => {
+            Ok(Completed { execution, result }) => {
                 self.execution = Some(execution);
                 self.control.as_mut().unwrap().completed(result)
             }
-            Ok(Completed::Call(_)) => unreachable!(),
             Err(error) => {
                 self.cancellation.cancel();
                 self.failure = Some(error.clone());
-                Err(error)
+                Err(L::error(error))
             }
         }
     }
 
-    async fn recover(&mut self) -> Result<()> {
+    async fn recover(&mut self) -> std::result::Result<(), L::Lost> {
         if self.pending.is_some() {
             let _result = self.collect_block().await;
         }
@@ -169,7 +214,7 @@ impl AsyncHostCall {
     }
 }
 
-impl Drop for AsyncHostCall {
+impl<L: Lane> Drop for Invocation<L> {
     fn drop(&mut self) {
         if self.execution.is_some() || self.pending.is_some() {
             self.cancellation.cancel();
@@ -253,20 +298,19 @@ impl Work {
         } = *self;
         drop(next);
         drop(charge);
-        match scope {
-            Scope::Call => Completed::Call(execution.finish(result)),
-            Scope::PendingBlock => Completed::Block(execution, result),
+        let result = match scope {
+            Scope::Call | Scope::PendingBlock => result,
             Scope::Block { boundary, args } => {
                 drop(args);
                 let invocation = &mut *execution.execution;
-                let result = invocation.run.as_mut().unwrap().finish_block(
+                invocation.run.as_mut().unwrap().finish_block(
                     &mut invocation.context,
                     boundary,
                     result,
-                );
-                Completed::Block(execution, result)
+                )
             }
-        }
+        };
+        Completed { execution, result }
     }
 
     fn interrupted(mut self: Box<Self>, error: Error) -> Completed {
@@ -281,9 +325,9 @@ impl Work {
     }
 }
 
-enum Completed {
-    Call(Result<Outcome>),
-    Block(Owned, Result<Exit>),
+struct Completed {
+    execution: Owned,
+    result: Result<Exit>,
 }
 
 enum Progress {
@@ -291,40 +335,91 @@ enum Progress {
     Complete(Completed),
 }
 
-#[derive(Clone, Copy)]
-enum Lane {
-    Worker,
-    Inline,
+// Only worker submission can lose an execution. Inline calls keep ownership
+// through host waits, cancellation and abandoned nested-block futures.
+trait Lane: Clone + Send + Sync + 'static {
+    type Lost: Clone + Send;
+
+    fn error(lost: Self::Lost) -> Error;
+    fn handle(state: &mut Invocation<Self>) -> AsyncHostCall<'_>;
+    fn submit(
+        driver: &Driver<Self>,
+        work: Box<Work>,
+    ) -> impl Future<Output = std::result::Result<Progress, Self::Lost>> + Send;
 }
 
 #[derive(Clone)]
-struct Driver {
-    slots: Arc<Semaphore>,
-    handle: Handle,
-    lane: Lane,
+struct Worker;
+#[derive(Clone)]
+struct Inline;
+
+impl Lane for Worker {
+    type Lost = Error;
+
+    fn error(lost: Error) -> Error {
+        lost
+    }
+
+    fn handle(state: &mut Invocation<Self>) -> AsyncHostCall<'_> {
+        AsyncHostCall {
+            state: HostState::Worker(state),
+        }
+    }
+
+    async fn submit(driver: &Driver<Self>, work: Box<Work>) -> Result<Progress> {
+        driver.submit(work).await
+    }
 }
 
-type Driving = ScopedFuture<Completed>;
+impl Lane for Inline {
+    type Lost = std::convert::Infallible;
 
-struct ScopedFuture<T> {
-    future: Pin<Box<dyn Future<Output = Result<T>> + Send>>,
+    fn error(lost: Self::Lost) -> Error {
+        match lost {}
+    }
+
+    fn handle(state: &mut Invocation<Self>) -> AsyncHostCall<'_> {
+        AsyncHostCall {
+            state: HostState::Inline(state),
+        }
+    }
+
+    async fn submit(
+        driver: &Driver<Self>,
+        work: Box<Work>,
+    ) -> std::result::Result<Progress, Self::Lost> {
+        Ok(worker(work, driver.clone()))
+    }
+}
+
+#[derive(Clone)]
+struct Driver<L> {
+    slots: Arc<Semaphore>,
+    handle: Handle,
+    _lane: L,
+}
+
+type Driving<L> = ScopedFuture<Completed, <L as Lane>::Lost>;
+
+struct ScopedFuture<T, E> {
+    future: Pin<Box<dyn Future<Output = std::result::Result<T, E>> + Send>>,
     _charge: Option<Charge>,
 }
 
-impl<T> Future for ScopedFuture<T> {
-    type Output = Result<T>;
+impl<T, E> Future for ScopedFuture<T, E> {
+    type Output = std::result::Result<T, E>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.future.as_mut().poll(cx)
     }
 }
 
-fn boxed_work<F, T>(
+fn boxed_work<F, T, E>(
     work: &mut Option<Box<Work>>,
     create: impl FnOnce(Box<Work>) -> F,
-) -> Result<ScopedFuture<T>>
+) -> Result<ScopedFuture<T, E>>
 where
-    F: Future<Output = Result<T>> + Send + 'static,
+    F: Future<Output = std::result::Result<T, E>> + Send + 'static,
 {
     let charge = work
         .as_mut()
@@ -339,17 +434,14 @@ where
     })
 }
 
-impl Driver {
-    fn boxed(self, work: &mut Option<Box<Work>>) -> Result<Driving> {
+impl<L: Lane> Driver<L> {
+    fn boxed(self, work: &mut Option<Box<Work>>) -> Result<Driving<L>> {
         boxed_work(work, move |work| self.drive(work))
     }
 
-    async fn drive(self, mut work: Box<Work>) -> Result<Completed> {
+    async fn drive(self, mut work: Box<Work>) -> std::result::Result<Completed, L::Lost> {
         loop {
-            let progress = match self.lane {
-                Lane::Worker => self.submit(work).await?,
-                Lane::Inline => worker(work, self.clone()),
-            };
+            let progress = L::submit(&self, work).await?;
             match progress {
                 Progress::Complete(result) => return Ok(result),
                 Progress::Host(next, request) => {
@@ -359,9 +451,14 @@ impl Driver {
         }
     }
 
-    async fn host(self, mut next: Box<Work>, request: HostRequest) -> Result<Box<Work>> {
+    async fn host(
+        self,
+        mut next: Box<Work>,
+        request: HostRequest,
+    ) -> std::result::Result<Box<Work>, L::Lost> {
         let watch = Watch::new(&next.execution.execution.context);
-        let mut call = AsyncHostCall {
+        let checkpoint = next.execution.execution.context.checkpoint();
+        let mut call = Invocation {
             cancellation: watch.cancellation.clone(),
             execution: Some(next.execution),
             control: Some(HostControl::new(&request)),
@@ -369,11 +466,12 @@ impl Driver {
             pending: None,
             failure: None,
         };
-        let result = if let Err(error) = call.context()?.checkpoint() {
+        let result = if let Err(error) = checkpoint {
             Err(error)
         } else {
+            let mut handle = L::handle(&mut call);
             let future = request.method.invoke_async(
-                &mut call,
+                &mut handle,
                 &request.args.positional.data,
                 &request.args.keywords.buffer.data,
             );
@@ -389,23 +487,32 @@ impl Driver {
         next.next = Next::Host(request, call.control.take().unwrap(), result);
         Ok(next)
     }
+}
 
-    fn inline(&self, mut work: Box<Work>, parker: Arc<Parker>) -> Result<Completed> {
+impl Driver<Inline> {
+    fn inline(&self, mut work: Box<Work>, parker: Arc<Parker>) -> Completed {
         loop {
             match worker(work, self.clone()) {
-                Progress::Complete(result) => return Ok(result),
+                Progress::Complete(result) => return result,
                 Progress::Host(next, request) => {
                     let mut next = Some(next);
                     let driver = self.clone();
                     match boxed_work(&mut next, move |next| driver.host(next, request)) {
-                        Ok(future) => work = wait_on_worker(&self.handle, future, parker.clone())?,
-                        Err(error) => return Ok(next.unwrap().complete(Err(error))),
+                        Ok(future) => {
+                            work = match wait_on_worker(&self.handle, future, parker.clone()) {
+                                Ok(work) => work,
+                                Err(impossible) => match impossible {},
+                            }
+                        }
+                        Err(error) => return next.unwrap().complete(Err(error)),
                     }
                 }
             }
         }
     }
+}
 
+impl Driver<Worker> {
     async fn submit(&self, mut work: Box<Work>) -> Result<Progress> {
         let context = &mut work.execution.execution.context;
         if let Err(error) = context.checkpoint() {
@@ -421,7 +528,11 @@ impl Driver {
             Ok(permit) => permit,
             Err(error) => return Ok(Progress::Complete(work.interrupted(error))),
         };
-        let driver = self.clone();
+        let driver = Driver {
+            slots: self.slots.clone(),
+            handle: self.handle.clone(),
+            _lane: Inline,
+        };
         tokio::task::spawn_blocking(move || {
             let _permit = permit;
             worker(work, driver)
@@ -464,7 +575,7 @@ impl Watch {
 struct Synchronous {
     execution: Option<Owned>,
     control: HostControl,
-    driver: Driver,
+    driver: Driver<Inline>,
 }
 
 struct Parker {
@@ -484,11 +595,11 @@ impl Wake for Parker {
     }
 }
 
-fn wait_on_worker<T>(
+fn wait_on_worker<T, E>(
     handle: &Handle,
-    mut future: ScopedFuture<T>,
+    mut future: ScopedFuture<T, E>,
     parker: Arc<Parker>,
-) -> Result<T> {
+) -> std::result::Result<T, E> {
     // Enter the runtime for timers and spawned host tasks without nesting its
     // executor. The synchronous stack already occupies a blocking worker.
     let _entered = handle.enter();
@@ -578,13 +689,8 @@ impl crate::host_call::Backend for Synchronous {
             next: Next::Resume,
             charge,
         });
-        let result = self.driver.inline(work, parker);
-        // Inline bridges never spawn another blocking job. Their existing worker
-        // and its permit stay reserved until the synchronous callback returns.
-        let Completed::Block(execution, result) = result.expect("inline driver lost execution")
-        else {
-            unreachable!()
-        };
+        // Inline bridges retain ownership, including on cancellation and quota failure.
+        let Completed { execution, result } = self.driver.inline(work, parker);
         self.execution = Some(execution);
         self.control.completed(result)
     }
@@ -651,7 +757,7 @@ fn segment(mut work: Box<Work>) -> Progress {
 }
 
 #[inline(never)]
-fn worker(mut work: Box<Work>, driver: Driver) -> Progress {
+fn worker(mut work: Box<Work>, driver: Driver<Inline>) -> Progress {
     loop {
         match segment(work) {
             Progress::Host(next, request) if !request.method.is_async() => {
@@ -663,14 +769,11 @@ fn worker(mut work: Box<Work>, driver: Driver) -> Progress {
 }
 
 #[inline(never)]
-fn synchronous(mut work: Box<Work>, request: HostRequest, driver: Driver) -> Box<Work> {
+fn synchronous(mut work: Box<Work>, request: HostRequest, driver: Driver<Inline>) -> Box<Work> {
     let mut backend = Synchronous {
         execution: Some(work.execution),
         control: HostControl::new(&request),
-        driver: Driver {
-            lane: Lane::Inline,
-            ..driver
-        },
+        driver,
     };
     let result = request.method.invoke(
         &mut crate::HostCall::new(&mut backend),
@@ -712,12 +815,10 @@ pub(crate) async fn call(
     let driver = Driver {
         slots,
         handle: Handle::current(),
-        lane: Lane::Worker,
+        _lane: Worker,
     };
-    match driver.drive(execution).await? {
-        Completed::Call(result) => result,
-        Completed::Block(_, _) => unreachable!(),
-    }
+    let Completed { execution, result } = driver.drive(execution).await?;
+    execution.finish(result)
 }
 
 fn worker_error(error: tokio::task::JoinError) -> Error {

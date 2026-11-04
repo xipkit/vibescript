@@ -433,6 +433,81 @@ async fn unpolled_block_futures_are_inert_and_abandoned_polled_blocks_retire_the
     assert_eq!(runner.available_slots(), 1);
 }
 
+#[test]
+fn inline_bridges_restore_context_after_nested_failure_and_abandonment() {
+    single_worker(async {
+        for mode in ["memory", "cancel", "abandon"] {
+            let expected = if mode == "memory" {
+                ErrorKind::Memory
+            } else {
+                ErrorKind::Cancelled
+            };
+            let checked = Arc::new(AtomicBool::new(false));
+            let observed = checked.clone();
+            let mut engine = methods();
+            engine.register_method(
+                "inspect",
+                HostMethod::new_with_block("inspect", move |call, _, _| {
+                    assert_eq!(call.call_block(&[]).unwrap_err().kind, expected);
+                    // A host may ignore the error and keep using its context.
+                    assert_eq!(call.context().checkpoint().unwrap_err().kind, expected);
+                    observed.store(true, Ordering::SeqCst);
+                    Ok(Value::int(999))
+                }),
+            );
+            engine.register("hurt", move |ctx, _| {
+                if mode == "memory" {
+                    ctx.bytes(&vec![0; 65_536])?;
+                } else {
+                    ctx.cancellation().cancel();
+                }
+                ctx.checkpoint()?;
+                Ok(Value::nil())
+            });
+            engine.register_method(
+                "abandon",
+                HostMethod::new_async("abandon", |call, _, _| {
+                    Box::pin(async move {
+                        {
+                            let future = call.call_block(vec![]);
+                            tokio::pin!(future);
+                            poll_fn(|cx| {
+                                assert!(future.as_mut().poll(cx).is_pending());
+                                Poll::Ready(())
+                            })
+                            .await;
+                        }
+                        Ok(Value::int(999))
+                    })
+                }),
+            );
+            let source = if mode == "abandon" {
+                "def run -> any;inspect(){abandon(){later(7)}};end"
+            } else {
+                "def run -> any;inspect(){later(){hurt()}};end"
+            };
+            let runner = Runner::new(1).unwrap();
+            let mut options = CallOptions::default();
+            options.limits.memory_bytes = Some(32_768);
+            let error = runner
+                .call(
+                    engine.compile(source).unwrap(),
+                    "run".into(),
+                    vec![],
+                    options,
+                )
+                .await
+                .unwrap_err();
+            assert_eq!(error.kind, expected, "{mode}: {error}");
+            assert!(
+                checked.load(Ordering::SeqCst),
+                "{mode}: outer host did not resume"
+            );
+            assert_eq!(runner.available_slots(), 1);
+        }
+    });
+}
+
 struct Dropped(Arc<AtomicBool>);
 impl Drop for Dropped {
     fn drop(&mut self) {
