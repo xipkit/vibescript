@@ -1400,19 +1400,8 @@ pub(crate) mod testing {
 
     /// Runs `work` on a thread whose native stack is far too small for a
     /// depth-proportional recursion over the tested values.
-    pub(crate) fn on_small_stack<T: Send + 'static>(
-        work: impl FnOnce() -> T + Send + 'static,
-    ) -> T {
-        // WASI has no threads, so this runs within the default wasm stack.
-        if cfg!(target_os = "wasi") {
-            return work();
-        }
-        std::thread::Builder::new()
-            .stack_size(256 << 10)
-            .spawn(work)
-            .unwrap()
-            .join()
-            .unwrap()
+    pub(crate) fn on_small_stack<T: Send>(work: impl FnOnce() -> T + Send) -> T {
+        crate::threads::on_stack(256 << 10, work).unwrap()
     }
 
     pub(crate) fn context(steps: Option<u64>, memory_bytes: Option<usize>) -> CallContext {

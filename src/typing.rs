@@ -528,19 +528,9 @@ fn listed<T>(
 
 /// Checks one parsed source.
 pub(crate) fn check(input: &Input<'_>) -> Checked {
-    #[cfg(not(target_os = "wasi"))]
     if input.source.len() > SHALLOW {
-        return std::thread::scope(|scope| {
-            let checking = std::thread::Builder::new()
-                .stack_size(STACK)
-                .spawn_scoped(scope, || check_nested(input, 0));
-            match checking {
-                Ok(handle) => handle
-                    .join()
-                    .unwrap_or_else(|panic| std::panic::resume_unwind(panic)),
-                Err(_) => check_nested(input, 0),
-            }
-        });
+        return crate::threads::on_stack(STACK, || check_nested(input, 0))
+            .unwrap_or_else(|_| check_nested(input, 0));
     }
     check_nested(input, 0)
 }

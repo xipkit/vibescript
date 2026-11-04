@@ -351,34 +351,32 @@ fn concurrent_imports_copy_captured_state_independently() {
     )));
     drop(environment);
     finish(&mut source).unwrap();
-    std::thread::scope(|threads| {
-        for index in 0..8 {
-            let captured = &captured;
-            threads.spawn(move || {
-                let mut ctx = CallContext::new(CallOptions::default());
-                let copied = ctx.import(captured).unwrap();
-                let environment = namespace(&copied).environment.as_ref().unwrap();
-                assert_eq!(
-                    field(&mut ctx, environment, "value")
-                        .unwrap()
-                        .unwrap()
-                        .as_int(),
-                    Some(7)
-                );
-                set(&mut ctx, environment, "value", &Value::int(index)).unwrap();
-                assert_eq!(
-                    field(&mut ctx, environment, "value")
-                        .unwrap()
-                        .unwrap()
-                        .as_int(),
-                    Some(index)
-                );
-                drop(copied);
-                finish(&mut ctx).unwrap();
-                assert_eq!(ctx.stats().retained_memory_bytes, 0);
-            });
+    crate::threads::parallel((0..8).map(|index| {
+        let captured = &captured;
+        move || {
+            let mut ctx = CallContext::new(CallOptions::default());
+            let copied = ctx.import(captured).unwrap();
+            let environment = namespace(&copied).environment.as_ref().unwrap();
+            assert_eq!(
+                field(&mut ctx, environment, "value")
+                    .unwrap()
+                    .unwrap()
+                    .as_int(),
+                Some(7)
+            );
+            set(&mut ctx, environment, "value", &Value::int(index)).unwrap();
+            assert_eq!(
+                field(&mut ctx, environment, "value")
+                    .unwrap()
+                    .unwrap()
+                    .as_int(),
+                Some(index)
+            );
+            drop(copied);
+            finish(&mut ctx).unwrap();
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
         }
-    });
+    }));
     assert_eq!(
         field(
             &mut source,

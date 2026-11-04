@@ -198,27 +198,19 @@ mod tests {
     fn concurrent_cold_calls_compile_once_without_sharing_budgets() {
         let literal = Literal::new(Value::bytes(br"(a?){1000}"), 0, false);
         let start = std::sync::Barrier::new(8);
-        let calls = std::thread::scope(|scope| {
-            let calls: Vec<_> = (0..8)
-                .map(|_| {
-                    scope.spawn(|| {
-                        let mut ctx = CallContext::new(CallOptions::default());
-                        let memory = Arc::downgrade(&ctx.identity());
-                        start.wait();
-                        let value = literal.value(&mut ctx).unwrap();
-                        let stats = ctx.stats();
-                        drop(value);
-                        drop(ctx);
-                        assert!(memory.upgrade().is_none());
-                        stats
-                    })
-                })
-                .collect();
-            calls
-                .into_iter()
-                .map(|call| call.join().unwrap())
-                .collect::<Vec<_>>()
-        });
+        let calls = crate::threads::parallel((0..8).map(|_| {
+            || {
+                let mut ctx = CallContext::new(CallOptions::default());
+                let memory = ctx.identity();
+                start.wait();
+                let value = literal.value(&mut ctx).unwrap();
+                let stats = ctx.stats();
+                drop(value);
+                drop(ctx);
+                assert_eq!(Arc::strong_count(&memory), 1);
+                stats
+            }
+        }));
         assert_eq!(calls.iter().filter(|stats| stats.steps > 2).count(), 1);
         assert!(
             calls

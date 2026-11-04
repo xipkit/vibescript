@@ -44,12 +44,7 @@ fn migrated(script: &Script, options: CallOptions) -> (Result<Outcome>, usize) {
                     .resume(&mut execution.context, None, pending);
             (execution, step)
         };
-        // WASI has no threads, so each step resumes on the calling thread.
-        let (next, step) = if cfg!(target_os = "wasi") {
-            resume()
-        } else {
-            std::thread::spawn(resume).join().unwrap()
-        };
+        let (next, step) = crate::threads::elsewhere(resume);
         execution = next;
         match step {
             Ok(Step::Host) => {

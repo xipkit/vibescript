@@ -829,21 +829,23 @@ mod accounting_tests {
         let mut first = ctx.reserve(60).unwrap().unwrap();
         let (sent, received) = mpsc::channel();
         let (resume, resumed) = mpsc::channel();
-        let worker = std::thread::spawn(move || {
+        let worker = move || {
             first.release(20);
             sent.send(()).unwrap();
             resumed.recv().unwrap();
             drop(first);
+        };
+        let ((), (second, error)) = crate::threads::alongside(worker, || {
+            received.recv().unwrap();
+            assert_eq!(counters(&ctx), (0, 60, 40));
+            let second = ctx.reserve(60).unwrap();
+            assert_eq!(counters(&ctx), (0, 100, 100));
+            let error = ctx.reserve(1).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Memory);
+            assert_eq!(error.message, "memory quota exceeded (100 bytes)");
+            resume.send(()).unwrap();
+            (second, error)
         });
-        received.recv().unwrap();
-        assert_eq!(counters(&ctx), (0, 60, 40));
-        let second = ctx.reserve(60).unwrap();
-        assert_eq!(counters(&ctx), (0, 100, 100));
-        let error = ctx.reserve(1).unwrap_err();
-        assert_eq!(error.kind, ErrorKind::Memory);
-        assert_eq!(error.message, "memory quota exceeded (100 bytes)");
-        resume.send(()).unwrap();
-        worker.join().unwrap();
         drop(second);
         assert_eq!(counters(&ctx), (0, 100, 0));
         assert_eq!(ctx.reserve(0).unwrap_err(), error);
@@ -872,10 +874,7 @@ mod accounting_tests {
         let clone = result.value.clone();
         drop(result);
         assert_eq!(memory.used(), retained);
-        #[cfg(not(target_os = "wasi"))]
-        std::thread::spawn(move || drop(clone)).join().unwrap();
-        #[cfg(target_os = "wasi")]
-        drop(clone);
+        crate::threads::elsewhere(move || drop(clone));
         assert_eq!(memory.used(), 0);
         let weak = Arc::downgrade(&memory);
         drop(memory);
@@ -931,19 +930,21 @@ mod accounting_tests {
     fn concurrent_drops_do_not_lose_reservations() {
         let mut ctx = CallContext::new(CallOptions::default());
         let (send, receive) = mpsc::sync_channel(32);
-        let worker = std::thread::spawn(move || {
+        let worker = move || {
             while let Ok(charge) = receive.recv() {
                 drop(charge);
             }
+        };
+        let ((), retained) = crate::threads::alongside(worker, || {
+            let retained = ctx.reserve(7).unwrap();
+            for _ in 0..10_000 {
+                send.send(ctx.reserve(13).unwrap()).unwrap();
+                let temporary = ctx.reserve(11).unwrap();
+                drop(temporary);
+            }
+            drop(send);
+            retained
         });
-        let retained = ctx.reserve(7).unwrap();
-        for _ in 0..10_000 {
-            send.send(ctx.reserve(13).unwrap()).unwrap();
-            let temporary = ctx.reserve(11).unwrap();
-            drop(temporary);
-        }
-        drop(send);
-        worker.join().unwrap();
         assert_eq!(ctx.stats().retained_memory_bytes, 7);
         assert!((20..=7 + 34 * 13 + 11).contains(&ctx.stats().peak_memory_bytes));
         drop(retained);

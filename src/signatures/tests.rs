@@ -261,16 +261,7 @@ fn nesting_is_bounded_across_modules_types_and_patterns() {
         assert_eq!(refused(&modules(past, "c: int\n")), (past, 4));
         assert_eq!(refused(&modules(100_000, "c: int\n")), (past, 1));
     };
-    // WASI has no threads, so there this runs on the default wasm stack.
-    if cfg!(target_os = "wasi") {
-        return check();
-    }
-    std::thread::Builder::new()
-        .stack_size(2 << 20)
-        .spawn(check)
-        .unwrap()
-        .join()
-        .unwrap();
+    crate::threads::on_stack(2 << 20, check).unwrap();
 }
 
 #[test]

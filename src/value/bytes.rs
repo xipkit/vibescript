@@ -334,31 +334,23 @@ mod tests {
     fn concurrent_imports_keep_each_budget_independent() {
         let original = Bytes::from_parts(vec![42; 8192], None, None);
         let address = original.data().as_ptr();
-        let imports = std::thread::scope(|scope| {
-            let threads: Vec<_> = (0..8)
-                .map(|_| {
-                    scope.spawn(|| {
-                        let mut ctx = CallContext::new(Default::default());
-                        let memory = Arc::downgrade(&ctx.identity());
-                        let imported = Bytes::import(&mut ctx, &original).unwrap();
-                        let alias = Bytes::import(&mut ctx, &imported).unwrap();
-                        assert!(alias.ptr_eq(&imported));
-                        (alias, memory)
-                    })
-                })
-                .collect();
-            threads
-                .into_iter()
-                .map(|thread| thread.join().unwrap())
-                .collect::<Vec<_>>()
-        });
+        let imports = crate::threads::parallel((0..8).map(|_| {
+            || {
+                let mut ctx = CallContext::new(Default::default());
+                let memory = ctx.identity();
+                let imported = Bytes::import(&mut ctx, &original).unwrap();
+                let alias = Bytes::import(&mut ctx, &imported).unwrap();
+                assert!(alias.ptr_eq(&imported));
+                (alias, memory)
+            }
+        }));
         drop(original);
         for (imported, memory) in imports {
-            assert!(memory.upgrade().is_some());
+            assert!(Arc::strong_count(&memory) > 1);
             assert_eq!(imported.data().as_ptr(), address);
             assert_eq!(imported.data().as_slice(), &[42; 8192]);
             drop(imported);
-            assert!(memory.upgrade().is_none());
+            assert_eq!(Arc::strong_count(&memory), 1);
         }
     }
 
@@ -367,13 +359,7 @@ mod tests {
     fn concurrent_sharing_preserves_storage_after_the_original_drops() {
         let data = Data::new(vec![42; 8192]);
         let address = data.as_ptr();
-        let copies = std::thread::scope(|scope| {
-            let threads: Vec<_> = (0..8).map(|_| scope.spawn(|| data.shared())).collect();
-            threads
-                .into_iter()
-                .map(|thread| thread.join().unwrap())
-                .collect::<Vec<_>>()
-        });
+        let copies = crate::threads::parallel((0..8).map(|_| || data.shared()));
         drop(data);
         for copy in copies {
             assert_eq!(copy.as_ptr(), address);

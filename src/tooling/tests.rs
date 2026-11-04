@@ -364,23 +364,19 @@ fn walks_deep_syntax_without_native_recursion() {
     for _ in 0..300 {
         modules.push_str("end\n");
     }
-    let (function, nested) = std::thread::Builder::new()
-        .stack_size(256 << 10)
-        .spawn(move || {
-            let function = outline(&source).unwrap().items.remove(0).function.unwrap();
-            let mut item = outline(&modules).unwrap().items.remove(0);
-            let mut nested = 1;
-            while let Some(child) = item.children.pop() {
-                if child.kind == ItemKind::Module {
-                    nested += 1;
-                }
-                item = child;
+    let (function, nested) = crate::threads::on_stack(256 << 10, || {
+        let function = outline(&source).unwrap().items.remove(0).function.unwrap();
+        let mut item = outline(&modules).unwrap().items.remove(0);
+        let mut nested = 1;
+        while let Some(child) = item.children.pop() {
+            if child.kind == ItemKind::Module {
+                nested += 1;
             }
-            (function, nested)
-        })
-        .unwrap()
-        .join()
-        .unwrap();
+            item = child;
+        }
+        (function, nested)
+    })
+    .unwrap();
     assert_eq!(function.locals, ["deepest"]);
     assert_eq!(function.last_statement.map(|p| p.line), Some(depth + 2));
     assert_eq!(nested, 300);

@@ -383,17 +383,6 @@ mod tests {
             validate(&mut ctx, &input).unwrap();
             assert_eq!(ctx.stats().retained_memory_bytes, 0);
         };
-        // WASI has no threads, so this runs within the default wasm stack.
-        if cfg!(target_os = "wasi") {
-            return deep();
-        }
-        std::thread::scope(|scope| {
-            std::thread::Builder::new()
-                .stack_size(96 << 10)
-                .spawn_scoped(scope, deep)
-                .unwrap()
-                .join()
-                .unwrap();
-        });
+        crate::threads::on_stack(96 << 10, deep).unwrap();
     }
 }
