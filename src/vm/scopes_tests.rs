@@ -28,7 +28,11 @@ fn captured(script: &Script, name: &str) -> Value {
         .iter()
         .find(|definition| definition.name == name)
         .unwrap();
-    let namespace = Namespace::import(&mut ctx, &Namespace::untracked(definition.clone())).unwrap();
+    let namespace = Namespace::import(
+        &mut ctx,
+        &Namespace::declared(definition.clone(), &script.inner.code),
+    )
+    .unwrap();
     let namespace = Namespace::with_environment(&mut ctx, &namespace, environment).unwrap();
     crate::objects::finish(&mut ctx).unwrap();
     Value(Kind::Namespace(namespace))

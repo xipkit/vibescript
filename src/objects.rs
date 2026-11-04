@@ -7,7 +7,7 @@ use crate::{
     value::Kind,
 };
 use std::sync::{
-    Arc, Weak,
+    Arc,
     atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
 };
 
@@ -126,9 +126,22 @@ struct Identity {
     _header: Option<Charge>,
 }
 
+/// Who holds an instance handle: a value outside the heap, which roots the
+/// instance and keeps the heap alive, or the heap's own table and the fields
+/// stored in it.
+///
+/// The table owns its instances, and an instance stored in a field points
+/// back at the table that owns it. A strong pointer there would be a cycle
+/// the budget could never collect, and an id would need the heap in hand at
+/// every field read, which `with_field_names` and `field_name` have no
+/// context for. So this is the runtime's one back-reference.
 enum Owner {
     External(Arc<Heap>),
-    Internal(Weak<Heap>),
+    #[allow(
+        clippy::disallowed_types,
+        reason = "the runtime's one back-reference; see the enum's documentation"
+    )]
+    Internal(std::sync::Weak<Heap>),
 }
 
 impl Owner {
@@ -136,22 +149,51 @@ impl Owner {
     /// keep the heap alive.
     #[allow(
         clippy::disallowed_methods,
-        reason = "the heap's instances point back at it; whether that back-reference stays is decided with the Weak type on VIBE-136"
+        reason = "the runtime's one back-reference; see the enum's documentation"
     )]
     fn internal(heap: &Arc<Heap>) -> Self {
         Self::Internal(Arc::downgrade(heap))
     }
 }
 
-/// A test's view of the invocation heap that does not hold it, since `finish`
+/// A test's view of an invocation heap that does not hold it, since `finish`
 /// and `cleanup` act on the strong count.
+#[cfg(test)]
+#[derive(Default)]
+pub(crate) struct HeapWatch(
+    #[allow(
+        clippy::disallowed_types,
+        reason = "a test observes the heap's lifetime without holding it"
+    )]
+    std::sync::Weak<Heap>,
+);
+
+#[cfg(test)]
+impl HeapWatch {
+    /// The heap, while it lives.
+    pub fn upgrade(&self) -> Option<Arc<Heap>> {
+        self.0.upgrade()
+    }
+
+    /// Whether the heap has been dropped.
+    pub fn gone(&self) -> bool {
+        self.0.strong_count() == 0
+    }
+}
+
+/// Watches the invocation heap of `ctx`, if it has one.
 #[cfg(test)]
 #[allow(
     clippy::disallowed_methods,
-    reason = "a test observer of the heap's lifetime; it goes with the Weak type on VIBE-136"
+    clippy::disallowed_types,
+    reason = "a test observes the heap's lifetime without holding it"
 )]
-pub(crate) fn watch_heap(ctx: &CallContext) -> Weak<Heap> {
-    ctx.objects.as_ref().map_or_else(Weak::new, Arc::downgrade)
+pub(crate) fn watch_heap(ctx: &CallContext) -> HeapWatch {
+    HeapWatch(
+        ctx.objects
+            .as_ref()
+            .map_or_else(std::sync::Weak::new, Arc::downgrade),
+    )
 }
 
 pub(crate) struct Instance {

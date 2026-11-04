@@ -210,22 +210,12 @@ fn retained_source(value: &Value, work: &dyn crate::compilation::Work) -> Result
     let Kind::Namespace(namespace) = &value.0 else {
         unreachable!()
     };
-    let owner = namespace
-        .owner
-        .clone()
-        .or_else(|| {
-            namespace
-                .definition
-                .owner
-                .get()
-                .and_then(std::sync::Weak::upgrade)
-        })
-        .ok_or_else(|| {
-            Error::new(
-                ErrorKind::Argument,
-                "retained namespace has no source owner",
-            )
-        })?;
+    let owner = namespace.owner.clone().ok_or_else(|| {
+        Error::new(
+            ErrorKind::Argument,
+            "retained namespace has no source owner",
+        )
+    })?;
     let mut found = false;
     for declaration in &owner.program.outline {
         work.bytes(declaration.name.len())?;

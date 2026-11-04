@@ -2,10 +2,7 @@ use super::*;
 use crate::{CallOptions, Capability, Engine, HostMethod, Outcome, Script};
 use std::{
     panic::{AssertUnwindSafe, catch_unwind},
-    sync::{
-        Mutex,
-        atomic::{AtomicUsize, Ordering},
-    },
+    sync::atomic::{AtomicUsize, Ordering},
     time::Instant,
 };
 
@@ -230,7 +227,7 @@ fn abandoned_execution_releases_cycles_without_running_ensure() {
             assert_eq!(error.kind, ErrorKind::Deadline);
         }
         drop(execution);
-        assert!(heap.upgrade().is_none());
+        assert!(heap.gone());
         assert_eq!(Arc::strong_count(&memory), 1);
         assert_eq!(calls.load(Ordering::Relaxed), 0);
     }
@@ -238,11 +235,11 @@ fn abandoned_execution_releases_cycles_without_running_ensure() {
 
 #[test]
 fn abandoned_execution_keeps_objects_retained_by_the_host() {
-    let retained = Arc::new(Mutex::new(None));
+    let retained = Arc::new(crate::actor::Actor::new(None));
     let held = retained.clone();
     let mut engine = crate::Engine::new();
     engine.register("hold", move |_, args| {
-        *held.lock().unwrap() = Some(args[0].clone());
+        drop(held.with(|held| held.replace(args[0].clone())));
         Ok(Value::nil())
     });
     engine.register_method(
@@ -262,7 +259,7 @@ fn abandoned_execution_keeps_objects_retained_by_the_host() {
     ));
     let memory = execution.context.identity();
     drop(execution);
-    let value = retained.lock().unwrap().take().unwrap();
+    let value = retained.with(Option::take).unwrap();
     assert!(Arc::strong_count(&memory) > 1);
     // The instance returns to a later call of the script that declares its
     // class.
@@ -315,10 +312,10 @@ fn completed_host_results_can_outlive_an_abandoned_execution() {
 #[cfg_attr(not(panic = "unwind"), ignore = "catching a panic requires unwinding")]
 fn host_panics_release_the_invocation_heap_and_accounting() {
     for framed in [false, true] {
-        let memory = Arc::new(Mutex::new(None));
+        let memory = Arc::new(crate::actor::Actor::new(None));
         let observed = memory.clone();
         let callback = move |ctx: &mut CallContext| -> Result<Value> {
-            *observed.lock().unwrap() = Some(ctx.identity());
+            observed.with(|memory| *memory = Some(ctx.identity()));
             assert!(ctx.objects.is_some());
             panic!("host callback panic");
         };
@@ -345,7 +342,7 @@ fn host_panics_release_the_invocation_heap_and_accounting() {
             .is_err()
         );
         assert_eq!(
-            memory.lock().unwrap().as_ref().map(Arc::strong_count),
+            memory.read(|memory| memory.as_ref().map(Arc::strong_count)),
             Some(1)
         );
     }
@@ -361,12 +358,12 @@ fn failed_or_panicked_preparation_releases_imported_cycles() {
             .run(CallOptions::default())
             .unwrap()
             .value;
-        let memory = Arc::new(Mutex::new(None));
+        let memory = Arc::new(crate::actor::Actor::new(None));
         let observed = memory.clone();
         let options = CallOptions {
             capabilities: vec![Capability::new("incoming", move |ctx| {
                 let _value = ctx.import(&foreign)?;
-                *observed.lock().unwrap() = Some(ctx.identity());
+                observed.with(|memory| *memory = Some(ctx.identity()));
                 if panicked {
                     panic!("capability factory panic");
                 }
@@ -384,7 +381,7 @@ fn failed_or_panicked_preparation_releases_imported_cycles() {
             assert_eq!(result.unwrap().unwrap_err().kind, ErrorKind::Host);
         }
         assert_eq!(
-            memory.lock().unwrap().as_ref().map(Arc::strong_count),
+            memory.read(|memory| memory.as_ref().map(Arc::strong_count)),
             Some(1)
         );
     }

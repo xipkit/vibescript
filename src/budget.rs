@@ -846,7 +846,7 @@ impl<T: Clone> Buffer<T> {
 #[cfg(test)]
 mod accounting_tests {
     use super::*;
-    use std::sync::Mutex;
+    use crate::actor::Actor;
     #[cfg(not(target_os = "wasi"))]
     use std::sync::mpsc;
 
@@ -898,11 +898,11 @@ mod accounting_tests {
 
     #[test]
     fn retained_result_releases_after_call_and_last_clone_on_another_thread() {
-        let observed = Arc::new(Mutex::new(None));
+        let observed = Arc::new(Actor::new(None));
         let saved = observed.clone();
         let mut engine = crate::Engine::new();
         engine.register("retain", move |ctx, _| {
-            *saved.lock().unwrap() = Some(ctx.identity());
+            saved.with(|memory| *memory = Some(ctx.identity()));
             ctx.bytes(b"retained result")
         });
         let result = engine
@@ -910,7 +910,7 @@ mod accounting_tests {
             .unwrap()
             .call("run", &[], CallOptions::default())
             .unwrap();
-        let memory = observed.lock().unwrap().take().unwrap();
+        let memory = observed.with(Option::take).unwrap();
         let retained = result.stats.retained_memory_bytes;
         assert!(retained > 0);
         assert_eq!(memory.used(), retained);
@@ -995,7 +995,7 @@ mod accounting_tests {
     #[test]
     fn ignored_host_quota_errors_cannot_be_rescued_by_script() {
         for steps in [true, false] {
-            let observed = Arc::new(Mutex::new(None));
+            let observed = Arc::new(Actor::new(None));
             let saved = observed.clone();
             let mut engine = crate::Engine::new();
             engine.register("exhaust", move |ctx, _| {
@@ -1004,7 +1004,7 @@ mod accounting_tests {
                 } else {
                     ctx.reserve(16 << 20).unwrap_err()
                 };
-                *saved.lock().unwrap() = Some((error, counters(ctx), ctx.identity()));
+                saved.with(|saved| *saved = Some((error, counters(ctx), ctx.identity())));
                 Ok(Value::nil())
             });
             let error = engine
@@ -1012,7 +1012,7 @@ mod accounting_tests {
                 .unwrap()
                 .call("run", &[], CallOptions::default())
                 .unwrap_err();
-            let (original, stats, memory) = observed.lock().unwrap().take().unwrap();
+            let (original, stats, memory) = observed.with(Option::take).unwrap();
             assert_eq!(
                 (error.kind, error.message),
                 (original.kind, original.message)
@@ -1025,7 +1025,7 @@ mod accounting_tests {
     #[cfg(feature = "tokio")]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn async_resumption_and_task_drops_keep_exact_accounting() {
-        let observed = Arc::new(Mutex::new(None));
+        let observed = Arc::new(Actor::new(None));
         let saved = observed.clone();
         let mut engine = crate::Engine::new();
         engine.register_method(
@@ -1035,7 +1035,7 @@ mod accounting_tests {
                 Box::pin(async move {
                     let (temporary, before, allocated) = {
                         let ctx = call.context()?;
-                        *saved.lock().unwrap() = Some(ctx.identity());
+                        saved.with(|memory| *memory = Some(ctx.identity()));
                         let before = counters(ctx);
                         let value = ctx.bytes(&[b'x'; 512])?;
                         let allocated = counters(ctx);
@@ -1057,7 +1057,7 @@ mod accounting_tests {
             .call(script, "run".into(), vec![], CallOptions::default())
             .await
             .unwrap();
-        let memory = observed.lock().unwrap().take().unwrap();
+        let memory = observed.with(Option::take).unwrap();
         assert_eq!(memory.used(), result.stats.retained_memory_bytes);
         assert!(result.stats.retained_memory_bytes > 0);
         crate::asynchronous::blocking(move || drop(result))

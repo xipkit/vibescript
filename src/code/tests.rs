@@ -335,7 +335,10 @@ fn imported_namespace_releases_the_source_budget_and_retains_code() {
     let retired = Arc::new(AtomicUsize::new(0));
     let script = engine(&retired).compile(SOURCE).unwrap();
     let code = script.inner.code.clone();
-    let template = Namespace::untracked(script.inner.code.program.namespaces[0].clone());
+    let template = Namespace::declared(
+        script.inner.code.program.namespaces[0].clone(),
+        &script.inner.code,
+    );
     let mut source = CallContext::new(CallOptions::default());
     let original = Value(Kind::Namespace(
         Namespace::import(&mut source, &template).unwrap(),
@@ -367,7 +370,10 @@ fn imported_instance_cycle_releases_original_heap_and_code() {
         ))
         .unwrap();
     let code = script.inner.code.clone();
-    let namespace = Namespace::untracked(script.inner.code.program.namespaces[2].clone());
+    let namespace = Namespace::declared(
+        script.inner.code.program.namespaces[2].clone(),
+        &script.inner.code,
+    );
     let mut source = CallContext::new(CallOptions::default());
     let root = crate::objects::new(&mut source, &namespace).unwrap();
     let original = Value(Kind::Instance(root.clone()));

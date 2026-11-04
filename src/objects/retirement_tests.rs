@@ -2,14 +2,14 @@ use super::*;
 use crate::{CallOptions, CancellationToken, HostMethod};
 
 struct RetiredCode {
-    heap: Arc<Actor<Weak<Heap>>>,
+    heap: Arc<Actor<HeapWatch>>,
     observed: Arc<AtomicUsize>,
     cancellation: Option<CancellationToken>,
 }
 
 impl Drop for RetiredCode {
     fn drop(&mut self) {
-        let heap = self.heap.read(Weak::upgrade);
+        let heap = self.heap.read(HeapWatch::upgrade);
         let Some(heap) = heap else {
             self.observed.store(3, Ordering::SeqCst);
             return;
@@ -45,7 +45,7 @@ fn imported_host_callbacks_retire_after_object_collection_unlocks() {
             "hold(keep); stop()",
             "hold(keep); keep",
         ] {
-            let heap = Arc::new(Actor::new(Weak::new()));
+            let heap = Arc::new(Actor::new(HeapWatch::default()));
             let observed = Arc::new(AtomicUsize::new(0));
             let cancellation = CancellationToken::new();
             let cancel_on_drop = ending == "hold(keep); keep";
@@ -139,7 +139,7 @@ fn imported_capability_callbacks_retire_after_object_collection_unlocks() {
         "hold(keep); stop()",
         "hold(keep); keep",
     ] {
-        let heap = Arc::new(Actor::new(Weak::new()));
+        let heap = Arc::new(Actor::new(HeapWatch::default()));
         let observed = Arc::new(AtomicUsize::new(0));
         let cancellation = CancellationToken::new();
         let cancel_on_drop = ending == "hold(keep); keep";
