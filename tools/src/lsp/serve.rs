@@ -1,10 +1,10 @@
 //! The Content-Length-framed message loop over a byte stream pair.
 
-use super::server::{InFlight, Inbound, Outbound, Server, change_params};
+use super::server::{Inbound, Outbound, Server, change_params};
 use super::transport::{self, Frame};
 use std::collections::VecDeque;
 use std::io::{self, BufRead, BufReader, Read, Write};
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::mpsc;
 use std::time::Duration;
 use vibescript::CancellationToken;
 
@@ -44,7 +44,7 @@ pub fn serve(
     mut output: impl Write,
     cancellation: &CancellationToken,
 ) -> io::Result<()> {
-    let mut messages = Messages::new(input, server.in_flight.clone())?;
+    let mut messages = Messages::new(input, server.cancellation().clone())?;
     while let Some(event) = messages
         .next(cancellation)
         .map_err(|error| context("lsp read", error))?
@@ -106,47 +106,49 @@ impl<R: Read + Send + 'static> Messages<R> {
         clippy::disallowed_methods,
         reason = "the reader blocks in read until the client closes its end, so the server cannot join it; it ends with its input, and the server has no async runtime"
     )]
-    fn new(input: R, in_flight: InFlight) -> io::Result<Self> {
+    fn new(input: R, cancellation: CancellationToken) -> io::Result<Self> {
         let (sender, receiver) = mpsc::sync_channel(READ_AHEAD);
-        let input = Arc::new(Mutex::new(Some(input)));
-        let shared = input.clone();
+        // The input is handed over once the thread runs, so a thread that
+        // cannot start leaves it to be read here.
+        let (hand, taken) = mpsc::sync_channel(1);
         let spawned = std::thread::Builder::new()
             .name("vibes-lsp-reader".to_owned())
             .spawn(move || {
-                let taken = shared.lock().unwrap_or_else(|e| e.into_inner()).take();
-                if let Some(input) = taken {
-                    read_ahead(BufReader::new(input), &sender, &in_flight);
+                if let Ok(input) = taken.recv() {
+                    read_ahead(BufReader::new(input), &sender, &cancellation);
                 }
             });
         let source = match spawned {
-            Ok(_) => Source::Threaded {
-                receiver,
-                queue: VecDeque::new(),
-            },
-            Err(_) => {
-                let input = input.lock().unwrap_or_else(|e| e.into_inner()).take();
-                Source::Inline(BufReader::new(input.ok_or_else(|| {
-                    io::Error::other("reader thread consumed input despite failing to start")
-                })?))
+            Ok(_) => {
+                hand.send(input)
+                    .map_err(|_| io::Error::other("reader thread ended before taking its input"))?;
+                Source::Threaded {
+                    receiver,
+                    queue: VecDeque::new(),
+                }
             }
+            Err(_) => Source::Inline(BufReader::new(input)),
         };
         Ok(Self { source })
     }
 }
 
-/// Reads and decodes messages ahead of the server. A change or close for the
-/// document being analyzed cancels that analysis, since its result would be
-/// superseded before it could be published.
+/// Reads and decodes messages ahead of the server. Each document change
+/// carries a token of `cancellation` that the server analyzes it under, and
+/// a change or close for the same document cancels the analysis of the
+/// version before it, since its result would be superseded before it could
+/// be published.
 fn read_ahead<R: Read>(
     mut reader: BufReader<R>,
     sender: &mpsc::SyncSender<Event>,
-    in_flight: &InFlight,
+    cancellation: &CancellationToken,
 ) {
+    let mut analyzing: Option<(String, CancellationToken)> = None;
     loop {
         let event = match read_message(&mut reader) {
-            Ok(Some(message)) => {
-                if let Some(message) = &message {
-                    supersede(message, in_flight);
+            Ok(Some(mut message)) => {
+                if let Some(message) = &mut message {
+                    supersede(message, &mut analyzing, cancellation);
                 }
                 Ok(message)
             }
@@ -160,21 +162,37 @@ fn read_ahead<R: Read>(
     }
 }
 
-fn supersede(message: &Inbound, in_flight: &InFlight) {
-    if !matches!(
+/// Cancels the analysis of the version of a document that `message`
+/// changes or closes, and gives a change the token its own analysis runs
+/// under, remembered in `analyzing` for the next change to cancel.
+fn supersede(
+    message: &mut Inbound,
+    analyzing: &mut Option<(String, CancellationToken)>,
+    cancellation: &CancellationToken,
+) {
+    let changes = matches!(
         message.method.as_str(),
         "textDocument/didChange" | "textDocument/didClose"
-    ) {
+    );
+    let opens = matches!(
+        message.method.as_str(),
+        "textDocument/didOpen" | "textDocument/didChange"
+    );
+    if !changes && !opens {
         return;
     }
     let Some(uri) = message.document() else {
         return;
     };
-    let in_flight = in_flight.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some((current, token)) = in_flight.as_ref() {
+    if changes && let Some((current, token)) = analyzing.as_ref() {
         if uri == *current {
             token.cancel();
         }
+    }
+    if opens {
+        let token = cancellation.child_token();
+        message.token = Some(token.clone());
+        *analyzing = Some((uri, token));
     }
 }
 

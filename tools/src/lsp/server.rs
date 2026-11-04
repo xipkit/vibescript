@@ -8,7 +8,6 @@ use super::json::{self, Invalid, Json};
 use super::{hover, navigation, text};
 use serde_json::value::RawValue;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use vibescript::CancellationToken;
 
 /// A Language Server Protocol server that handles one JSON-RPC message at a
@@ -42,12 +41,7 @@ pub struct Server {
     document_bytes: usize,
     options: Options,
     exit: bool,
-    /// The document whose analysis is running, so a transport reading ahead
-    /// can cancel it when a newer version arrives.
-    pub(crate) in_flight: InFlight,
 }
-
-pub(crate) type InFlight = Arc<Mutex<Option<(String, CancellationToken)>>>;
 
 impl Default for Server {
     fn default() -> Self {
@@ -69,8 +63,12 @@ impl Server {
             document_bytes: 0,
             options,
             exit: false,
-            in_flight: InFlight::default(),
         }
+    }
+
+    /// The token that cancels every check this server runs.
+    pub(crate) fn cancellation(&self) -> &CancellationToken {
+        &self.options.cancellation
     }
 
     /// Handles the JSON text of one request or notification and returns the
@@ -129,13 +127,17 @@ impl Server {
                 let Ok((uri, text)) = open_params(message) else {
                     return Vec::new();
                 };
-                self.publish(&uri, &text).into_iter().collect()
+                self.publish(&uri, &text, message.token.as_ref())
+                    .into_iter()
+                    .collect()
             }
             "textDocument/didChange" => {
                 let Ok((uri, Some(text))) = change_params(message) else {
                     return Vec::new();
                 };
-                self.publish(&uri, &text).into_iter().collect()
+                self.publish(&uri, &text, message.token.as_ref())
+                    .into_iter()
+                    .collect()
             }
             "textDocument/didClose" => {
                 let Ok(uri) = document_params(message) else {
@@ -277,7 +279,14 @@ impl Server {
     /// Analyzes a document's new text and publishes its diagnostics, unless a
     /// newer version cancelled the analysis. Identical text republishes the
     /// last result without analysis.
-    fn publish(&mut self, uri: &str, text: &str) -> Option<Outbound> {
+    /// Analyzes `text` as `uri`'s content and reports its diagnostics,
+    /// under `token` when the transport gave the change one it can cancel.
+    fn publish(
+        &mut self,
+        uri: &str,
+        text: &str,
+        token: Option<&CancellationToken>,
+    ) -> Option<Outbound> {
         let (bytes, stored_bytes) = match self.document_budget(uri, text) {
             Ok(bytes) => bytes,
             Err(message) => {
@@ -297,12 +306,13 @@ impl Server {
                 ));
             }
         };
-        let token = self.options.cancellation.child_token();
+        let token = token
+            .cloned()
+            .unwrap_or_else(|| self.options.cancellation.child_token());
         let options = Options {
-            cancellation: token.clone(),
+            cancellation: token,
             ..self.options.clone()
         };
-        *self.in_flight.lock().unwrap_or_else(|e| e.into_inner()) = Some((uri.to_owned(), token));
         match self.documents.get_mut(uri) {
             Some((document, bytes)) => {
                 document.update(text, &options);
@@ -315,7 +325,6 @@ impl Server {
             }
         }
         self.document_bytes = bytes;
-        *self.in_flight.lock().unwrap_or_else(|e| e.into_inner()) = None;
         let document = &self.documents[uri].0;
         if document.interrupted() {
             return None;
@@ -388,6 +397,10 @@ pub(crate) struct Inbound {
     pub method: String,
     /// The raw parameters; `None` when absent, which differs from `null`.
     pub params: Option<Box<str>>,
+    /// What cancels the analysis a document change asks for: a transport
+    /// reading ahead gives each change one, and cancels it when a newer
+    /// version of the document arrives behind it.
+    pub token: Option<CancellationToken>,
 }
 
 impl Inbound {
@@ -419,7 +432,12 @@ impl Inbound {
             .filter(|raw| *raw != "null")
             .map(Box::from);
         let params = lookup("params").map(|raw| Box::from(raw.get()));
-        Some(Self { id, method, params })
+        Some(Self {
+            id,
+            method,
+            params,
+            token: None,
+        })
     }
 
     /// The document a text-sync notification names.

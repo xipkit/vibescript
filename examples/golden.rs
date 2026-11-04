@@ -20,8 +20,8 @@ use std::{
     io::Write,
     panic::{AssertUnwindSafe, catch_unwind},
     sync::{
-        Arc, Mutex,
         atomic::{AtomicU64, Ordering},
+        mpsc,
     },
     time::{Duration, Instant},
 };
@@ -37,7 +37,8 @@ mod probe;
 mod signatures;
 mod support;
 
-type Capture = Arc<Mutex<Vec<u8>>>;
+/// One output stream of a case: the writer sends each write whole.
+type Capture = mpsc::Sender<Vec<u8>>;
 
 #[allow(
     clippy::disallowed_methods,
@@ -113,11 +114,11 @@ fn run() -> Result<(), String> {
 }
 
 fn observe(case: &Json) -> Json {
-    let stdout = Capture::default();
-    let stderr = Capture::default();
+    let (stdout, stdout_written) = mpsc::channel();
+    let (stderr, stderr_written) = mpsc::channel();
     let mut record = execute(case, &stdout, &stderr);
-    for (name, buffer) in [("stdout", &stdout), ("stderr", &stderr)] {
-        let bytes = buffer.lock().unwrap();
+    for (name, written) in [("stdout", stdout_written), ("stderr", stderr_written)] {
+        let bytes: Vec<u8> = written.try_iter().flatten().collect();
         if !bytes.is_empty() {
             record[name] = Json::String(hex(&bytes));
         }
@@ -172,14 +173,14 @@ fn execute(case: &Json, stdout: &Capture, stderr: &Capture) -> Json {
     if flag(case, "stdout") {
         let buffer = stdout.clone();
         engine.set_output_writer(move |_, bytes| {
-            buffer.lock().unwrap().extend_from_slice(bytes);
+            let _ = buffer.send(bytes.to_vec());
             Ok(())
         });
     }
     if flag(case, "stderr") {
         let buffer = stderr.clone();
         engine.set_error_writer(move |_, bytes| {
-            buffer.lock().unwrap().extend_from_slice(bytes);
+            let _ = buffer.send(bytes.to_vec());
             Ok(())
         });
     }
