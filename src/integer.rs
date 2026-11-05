@@ -655,6 +655,9 @@ pub(crate) fn true_divide(ctx: &mut CallContext, a: &Value, b: &Value) -> Result
             .with_class(crate::ErrorClass::ZeroDivision));
     }
     let signed = |value: f64| Value::float(if an != bn { -value } else { value });
+    if am.len() == 0 {
+        return Ok(signed(0.0));
+    }
     let (a_bits, b_bits) = (to_i64(am.bits()), to_i64(bm.bits()));
     // Both operands are exact floats, so one float division rounds correctly.
     if a_bits <= DIGITS && b_bits <= DIGITS {
@@ -682,7 +685,9 @@ pub(crate) fn true_divide(ctx: &mut CallContext, a: &Value, b: &Value) -> Result
     } else {
         shift_right(ctx, am, shift as usize)?
     };
-    let (quotient, remainder) = divide(ctx, Magnitude::Words(&scaled.data), bm)?;
+    let (mut quotient, remainder) = divide(ctx, Magnitude::Words(&scaled.data), bm)?;
+    // Division can leave a high zero word, which must not count toward precision.
+    trim(ctx, &mut quotient.data)?;
     inexact |= remainder.data.iter().any(|&word| word != 0);
     let quotient = Magnitude::Words(&quotient.data);
     let quotient_bits = to_i64(quotient.bits());
