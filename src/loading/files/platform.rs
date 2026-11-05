@@ -127,24 +127,25 @@ pub(super) fn stored_name(
         return Err(super::io_error("checking module filename", error));
     }
     let total = u32::from_ne_bytes(output[..4].try_into().unwrap()) as usize;
-    // A negative offset becomes 0, which the range check below refuses.
+    // A negative offset becomes 0, which the check below refuses.
     let offset = usize::try_from(i32::from_ne_bytes(output[4..8].try_into().unwrap()) as i64 + 4)
         .unwrap_or(0);
     let length = u32::from_ne_bytes(output[8..12].try_into().unwrap()) as usize;
-    if !(12..=output.len()).contains(&total)
-        || !(12..=total).contains(&offset)
-        || length == 0
-        || length > total - offset
-        || output[offset + length - 1] != 0
-    {
-        return Err(Error::new(
+    let invalid_response = || {
+        Error::new(
             ErrorKind::Runtime,
             "require: invalid stored filename response",
-        ));
+        )
+    };
+    if !(12..=output.len()).contains(&total) || offset < 12 {
+        return Err(invalid_response());
     }
-    Ok(Some(
-        &output[offset..offset + length - 1] == expected.as_bytes(),
-    ))
+    let name = output
+        .get(offset..total)
+        .and_then(|tail| tail.get(..length))
+        .and_then(|name| name.strip_suffix(&[0]))
+        .ok_or_else(invalid_response)?;
+    Ok(Some(name == expected.as_bytes()))
 }
 
 #[cfg(not(target_vendor = "apple"))]
