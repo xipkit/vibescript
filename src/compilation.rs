@@ -149,10 +149,13 @@ impl Work for Meter<'_> {
     }
     fn allocation_error(&self, message: &str) -> Error {
         let mut context = self.0.borrow_mut();
-        context
-            .checkpoint()
-            .err()
-            .unwrap_or_else(|| context.fail::<()>(ErrorKind::Memory, message).unwrap_err())
+        match context.checkpoint() {
+            Err(error) => error,
+            Ok(()) => match context.fail::<std::convert::Infallible>(ErrorKind::Memory, message) {
+                Err(error) => error,
+                Ok(never) => match never {},
+            },
+        }
     }
 }
 

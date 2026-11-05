@@ -858,7 +858,12 @@ pub(crate) fn compile_parsed(
             offset: def.offset,
             private: def.private,
             locations: c.locations,
-            trace_name: def.name.rsplit(['.', '#']).next().unwrap().into(),
+            trace_name: def
+                .name
+                .rsplit(['.', '#'])
+                .next()
+                .ok_or(violation("function must have a trace name"))?
+                .into(),
             instance: contexts.at(index)?.2,
             accessor: def
                 .accessor
@@ -1662,7 +1667,7 @@ impl Compiler<'_> {
                     self.constant(Value::int(n));
                 } else {
                     let mut digits = [0; 20];
-                    self.integer_literal(Value::bytes(decimal_digits(*n, &mut digits)), 10);
+                    self.integer_literal(Value::bytes(decimal_digits(*n, &mut digits)?), 10);
                 }
             }
             Node::BigInteger(text, radix) => self.integer_literal(text.compiler_constant(), *radix),
@@ -1672,7 +1677,10 @@ impl Compiler<'_> {
                 self.emit(Op::NamespaceVariable(name, true));
             }
             Node::Var(name) if name == "self" && self.namespace.is_some() => {
-                self.emit(Op::NamespaceSelf(narrow(self.namespace.unwrap())));
+                self.emit(Op::NamespaceSelf(narrow(
+                    self.namespace
+                        .ok_or(violation("self must have a namespace"))?,
+                )));
             }
             Node::Var(name) if name == "block_given?" => {
                 self.emit(Op::BlockGiven(false, false));
@@ -2558,7 +2566,13 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     } else {
                         self.assignment_rhs(binding_target, &[rhs]).await?;
                         let mut c = self.c();
-                        let operator = c.number_binary(binary.unwrap(), target, rhs)?;
+                        let operator = c.number_binary(
+                            binary.ok_or(violation(
+                                "compound assignment must have a binary operator",
+                            ))?,
+                            target,
+                            rhs,
+                        )?;
                         let store = c.emit(Op::AddressStore);
                         *c.locations.at_mut(operator)? = target.offset;
                         *c.locations.at_mut(store)? = target.offset;
@@ -2974,7 +2988,10 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 let mut c = self.c();
                 let done = c.emit(Op::Jump(0));
                 let end = c.code.len();
-                c.patch(guard.unwrap(), end)?;
+                c.patch(
+                    guard.ok_or(violation("type fallback must have a guard"))?,
+                    end,
+                )?;
                 done
             };
             self.expr(fallback).await?;
@@ -3625,7 +3642,10 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 let (bound, constant, ambient, global, implicit) = {
                     let mut c = self.c();
                     let work = c.work;
-                    let slot = *c.locals.get(work, name)?.unwrap();
+                    let slot = *c
+                        .locals
+                        .get(work, name)?
+                        .ok_or(violation("local address must have a slot"))?;
                     if c.parameters.contains(work, name.as_str())? {
                         c.emit(Op::AddressLocal(narrow(slot)));
                         (None, None, None, true, None)
@@ -3693,7 +3713,9 @@ impl<'a, 'x> Compiling<'a, 'x> {
             }
             Node::Var(name) if self.c().global_fallback(name)?.is_some() => {
                 let mut c = self.c();
-                let global = c.global_fallback(name)?.unwrap();
+                let global = c
+                    .global_fallback(name)?
+                    .ok_or(violation("global address must have a binding"))?;
                 c.emit(Op::AddressGlobal(narrow(global)));
             }
             Node::Member(root, name) | Node::SafeMember(root, name) => {
@@ -3829,7 +3851,7 @@ fn target_label(
     Ok(())
 }
 
-fn decimal_digits(mut value: u64, digits: &mut [u8; 20]) -> &str {
+fn decimal_digits(mut value: u64, digits: &mut [u8; 20]) -> crate::checked::Access<&str> {
     let mut start = digits.len();
     for digit in digits.iter_mut().rev() {
         start -= 1;
@@ -3839,7 +3861,7 @@ fn decimal_digits(mut value: u64, digits: &mut [u8; 20]) -> &str {
             break;
         }
     }
-    std::str::from_utf8(digits.get(start..).unwrap_or_default()).unwrap()
+    std::str::from_utf8(digits.tail(start)?).map_err(|_| violation("decimal digits must be UTF-8"))
 }
 
 fn target_names<'a>(
@@ -3890,7 +3912,9 @@ fn statement_names<'a>(
             Step::Target(target) => target_names(target, names, work)?,
             Step::Clause => clauses.push(work, names.len())?,
             Step::EndClause(binding) => {
-                let start = clauses.pop().unwrap();
+                let start = clauses
+                    .pop()
+                    .ok_or(violation("rescue clause must have a name boundary"))?;
                 let mut kept = start;
                 for index in start..names.len() {
                     work.charge(1)?;

@@ -338,7 +338,9 @@ impl Parser<'_> {
             options.push(self.work, self.type_atom(depth)?)?;
         }
         if options.len() == 1 {
-            return Ok(options.pop().unwrap());
+            return Ok(options.pop().ok_or(crate::checked::violation(
+                "type union must have an alternative",
+            ))?);
         }
         Ok(Type {
             name: Name::default(),
@@ -502,7 +504,12 @@ impl Parser<'_> {
                     "type expects exactly 1 type argument",
                 ));
             }
-            ty.kind = TypeKind::Literal(Some(Boxed::new(self.work, arguments.pop().unwrap())?));
+            ty.kind = TypeKind::Literal(Some(Boxed::new(
+                self.work,
+                arguments
+                    .pop()
+                    .ok_or(crate::checked::violation("type argument must be present"))?,
+            )?));
             return Ok(ty);
         }
         let array = matches!(ty.kind, TypeKind::Array(_));
@@ -519,10 +526,19 @@ impl Parser<'_> {
             ));
         }
         ty.kind = if array {
-            TypeKind::Array(Some(Boxed::new(self.work, arguments.pop().unwrap())?))
+            TypeKind::Array(Some(Boxed::new(
+                self.work,
+                arguments
+                    .pop()
+                    .ok_or(crate::checked::violation("type argument must be present"))?,
+            )?))
         } else {
-            let second = arguments.pop().unwrap();
-            let first = arguments.pop().unwrap();
+            let second = arguments
+                .pop()
+                .ok_or(crate::checked::violation("type argument must be present"))?;
+            let first = arguments
+                .pop()
+                .ok_or(crate::checked::violation("type argument must be present"))?;
             TypeKind::Hash(Some(Boxed::new(self.work, (first, second))?))
         };
         Ok(ty)
