@@ -249,7 +249,10 @@ pub(crate) fn add_to(
         .collect();
     checked.diagnostics.retain(|diagnostic| {
         let before = reach.partition_point(|&(start, _)| start <= diagnostic.span.start);
-        before == 0 || reach[before - 1].1 < diagnostic.span.end
+        before
+            .checked_sub(1)
+            .and_then(|index| reach.get(index))
+            .is_none_or(|&(_, end)| end < diagnostic.span.end)
     });
     checked.diagnostics.extend(surface);
     // Put in order, keeping those of a span in the order found, with the
@@ -342,7 +345,7 @@ impl<'a> Checker<'a> {
             let edits: Vec<Edit> = self
                 .surface
                 .edits
-                .flatten_group(source, &groups[group], self.room)?
+                .flatten_group(source, groups.get(group)?, self.room)?
                 .into_iter()
                 .map(|(at, replacement)| Edit {
                     span: span(at),
@@ -542,7 +545,7 @@ impl<'a> Checker<'a> {
     /// The static checker's receiver type for a member call.
     fn receiver(&self, call: &syntax::Call) -> Option<&'a crate::typing::ReceiverType> {
         self.calls
-            .receiver_at(self.surface.tokens[call.name_tok].start)
+            .receiver_at(self.surface.tokens.get(call.name_tok)?.start)
     }
 
     /// Takes a finding the rules could not turn into a rewrite.
@@ -628,8 +631,10 @@ impl<'a> Checker<'a> {
 
     /// Whether every receiver alternative resolves this call to a user method.
     pub(super) fn receiver_owns_method(&self, _: &'a syntax::Expr, call: &'a syntax::Call) -> bool {
-        self.calls
-            .user_method_at(self.surface.tokens[call.name_tok].start)
+        self.surface
+            .tokens
+            .get(call.name_tok)
+            .is_some_and(|token| self.calls.user_method_at(token.start))
     }
 }
 

@@ -720,7 +720,7 @@ fn append_loop_tail(
     site: crate::bytecode::CallSite,
     args: &[Value],
 ) -> Result<Value> {
-    if !take_loop_alias(storage, &address.value) {
+    if !take_loop_alias(storage, &address.value)? {
         return update(ctx, storage, address, site, "push", args);
     }
     address.apply(

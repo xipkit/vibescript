@@ -1,4 +1,4 @@
-use crate::checked::violation;
+use crate::checked::{Checked, violation};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, Charge},
@@ -364,10 +364,10 @@ pub(crate) fn member(
             crate::arguments::between("time.between?", args, keywords, block)?;
             Value::boolean(
                 matches!(
-                    ops::compare(ctx, receiver, &args[0])?,
+                    ops::compare(ctx, receiver, args.at(0)?)?,
                     Some(Ordering::Equal | Ordering::Greater)
                 ) && matches!(
-                    ops::compare(ctx, receiver, &args[1])?,
+                    ops::compare(ctx, receiver, args.at(1)?)?,
                     Some(Ordering::Equal | Ordering::Less)
                 ),
             )
@@ -507,8 +507,9 @@ pub(crate) fn member(
                                 "thursday?",
                                 "friday?",
                                 "saturday?",
-                            ][to_usize(date.weekday)]
-                                == name,
+                            ]
+                            .at(to_usize(date.weekday))?
+                                == &name,
                         ),
                         "to_a" => {
                             let name = ctx.bytes(offset.name)?;

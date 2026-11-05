@@ -3,6 +3,7 @@
 // See licenses/Go-BSD-3-Clause.txt.
 
 use super::{Offset, calendar};
+use crate::checked::{Access, Checked};
 use crate::{CallContext, Result};
 use std::ops::Range;
 
@@ -33,7 +34,10 @@ struct Parser<'a> {
 
 impl Parser<'_> {
     fn byte(&self) -> Option<u8> {
-        (self.pos < self.end).then(|| self.bytes[self.pos])
+        self.bytes
+            .get(self.pos)
+            .copied()
+            .filter(|_| self.pos < self.end)
     }
     fn eat(&mut self, byte: u8) -> bool {
         if self.byte() == Some(byte) {
@@ -155,7 +159,7 @@ impl Parser<'_> {
 }
 
 impl Rule {
-    fn seconds(self, year: i64, offset: i32) -> i64 {
+    fn seconds(self, year: i64, offset: i32) -> Access<i64> {
         let day = match self.kind {
             0 => self.day - 1 + i64::from(calendar::leap(year) && self.day >= 60),
             1 => self.day,
@@ -173,11 +177,11 @@ impl Rule {
                     }
                     day += 7;
                 }
-                day + calendar::days_before(self.month)
+                day + calendar::days_before(self.month)?
                     + i64::from(calendar::leap(year) && self.month > 2)
             }
         };
-        day * 86400 + self.time - i64::from(offset)
+        Ok(day * 86400 + self.time - i64::from(offset))
     }
 }
 
@@ -260,19 +264,20 @@ impl Rules {
         Ok(Some(rules))
     }
 
-    pub fn lookup<'a>(&self, bytes: &'a [u8], last: i64, seconds: i64) -> Offset<'a> {
+    /// Resolves an instant with the parsed names and transition rules.
+    pub fn lookup<'a>(&self, bytes: &'a [u8], last: i64, seconds: i64) -> Access<Offset<'a>> {
         let mut standard = Offset {
-            name: &bytes[self.standard.clone()],
+            name: bytes.span(self.standard.start, self.standard.end)?,
             seconds: self.standard_offset,
             dst: false,
             start: last,
             end: i64::MAX,
         };
         let Some((start_rule, end_rule)) = self.transitions else {
-            return standard;
+            return Ok(standard);
         };
         let mut daylight = Offset {
-            name: &bytes[self.daylight.clone()],
+            name: bytes.span(self.daylight.start, self.daylight.end)?,
             seconds: self.daylight_offset,
             dst: true,
             start: last,
@@ -281,13 +286,13 @@ impl Rules {
         let date = calendar::civil(seconds, 0);
         let ysec = (date.yearday - 1) * 86400 + seconds % 86400;
         let year_start = seconds.wrapping_sub(ysec);
-        let mut start = start_rule.seconds(date.year, self.standard_offset);
-        let mut end = end_rule.seconds(date.year, self.daylight_offset);
+        let mut start = start_rule.seconds(date.year, self.standard_offset)?;
+        let mut end = end_rule.seconds(date.year, self.daylight_offset)?;
         if end < start {
             std::mem::swap(&mut start, &mut end);
             std::mem::swap(&mut standard, &mut daylight);
         }
-        if ysec < start {
+        Ok(if ysec < start {
             Offset {
                 start: year_start,
                 end: year_start.wrapping_add(start),
@@ -305,6 +310,6 @@ impl Rules {
                 end: year_start.wrapping_add(end),
                 ..daylight
             }
-        }
+        })
     }
 }
