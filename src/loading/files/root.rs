@@ -231,7 +231,10 @@ fn directory_required(path: &Path) -> bool {
     let bytes = path.as_os_str().as_encoded_bytes();
     let separator = |byte: u8| byte == b'/' || cfg!(windows) && byte == b'\\';
     bytes.last().is_some_and(|&last| separator(last))
-        || bytes.ends_with(b".") && bytes.len() > 1 && separator(bytes[bytes.len() - 2])
+        || bytes
+            .strip_suffix(b".")
+            .and_then(|prefix| prefix.last())
+            .is_some_and(|&last| separator(last))
 }
 
 fn not_directory() -> Error {

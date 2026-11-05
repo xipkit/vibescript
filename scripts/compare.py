@@ -4,6 +4,7 @@
 Validation checks every build against the golden corpora and the fixture
 expectations. --baseline adds preserved builds of an earlier revision to
 validation and timing, for before-and-after comparisons.
+Timing summaries flag medians and rounds that may have been disturbed by load.
 """
 import argparse
 import hashlib
@@ -109,6 +110,25 @@ def validate(out):
     return digests[VARIANTS[0]]
 
 
+def timing_reliability(summary):
+    """Assess each binary against its own fastest samples; rounds are one-based."""
+    cases=summary["cases"]
+    rounds=summary["rounds"]
+    reliability={}
+    for variant in next(iter(cases.values())):
+        slow=[0]*rounds
+        pulled_up=0
+        for case in cases.values():
+            timing=case[variant]
+            best=min(timing["samples_ns"])
+            pulled_up += timing["median_ns"]>1.2*best
+            for index,sample in enumerate(timing["samples_ns"]):
+                slow[index] += sample>1.4*best
+        disturbed=[index+1 for index,count in enumerate(slow) if count>len(cases)/2]
+        reliability[variant]={"disturbed_rounds":disturbed,"pulled_up_medians":pulled_up,"case_count":len(cases),"reliable":len(disturbed)<rounds/2 and pulled_up<=len(cases)*0.05}
+    return reliability
+
+
 def measure(out,rounds,target_ms,expected,suite):
     source={"site":site_benchmark_cases,"core":benchmark_cases,"json":json_benchmark_cases,"text":text_benchmark_cases,"parse":parse_benchmark_cases}[suite]()
     cases=[{k:v for k,v in case.items() if k!="expected"} for case in source]
@@ -161,8 +181,13 @@ def measure(out,rounds,target_ms,expected,suite):
         for variant in VARIANTS:
             times=samples[variant][name]
             summary["cases"][name][variant]={"median_ns":statistics.median(times),"min_ns":min(times),"max_ns":max(times),"samples_ns":times,"peak_rss_bytes":rss[variant][name],**allocations[variant][name]}
+    summary["timing_reliability"]=timing_reliability(summary)
     (out/"summary.json").write_text(json.dumps(summary,indent=2)+"\n")
     print(f"Timing, allocations, and process RSS saved to {out}",flush=True)
+    for variant,report in summary["timing_reliability"].items():
+        print(f"{variant}: disturbed rounds {report['disturbed_rounds']} of {rounds}; medians >1.2x own best: {report['pulled_up_medians']}/{report['case_count']}; {'ok' if report['reliable'] else 'UNRELIABLE'}",flush=True)
+        if not report["reliable"]:
+            print(f"WARNING: {variant} timing is UNRELIABLE; machine load may have disturbed the run. Rerun on a quiet machine before drawing performance conclusions.",file=sys.stderr,flush=True)
 
 
 def cpu_name():

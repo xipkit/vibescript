@@ -2,7 +2,7 @@
 // Adapted from Go 1.27.1 math/rand; see licenses/Go-BSD-3-Clause.txt.
 
 use super::data::COOKED;
-use crate::{CallContext, Result, budget::Buffer};
+use crate::{CallContext, Result, budget::Buffer, numeric::unsigned_bits};
 
 pub(crate) struct Seeded {
     pub seed: i64,
@@ -31,12 +31,12 @@ impl Seeded {
         for &cooked in &COOKED {
             ctx.charge(1)?;
             x = step(x);
-            let mut value = (x as u64) << 40;
+            let mut value = unsigned_bits(x) << 40;
             x = step(x);
-            value ^= (x as u64) << 20;
+            value ^= unsigned_bits(x) << 20;
             x = step(x);
-            value ^= x as u64;
-            value ^= cooked as u64;
+            value ^= unsigned_bits(x);
+            value ^= unsigned_bits(cooked);
             state.data.push(value);
         }
         Ok(Self {

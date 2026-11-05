@@ -1,5 +1,6 @@
 use crate::{
-    CallContext, Error, ErrorKind, Result, Value, budget::Buffer, bytes, json, ops, value::Kind,
+    CallContext, Error, ErrorKind, Result, Value, budget::Buffer, bytes, json, numeric::to_u64,
+    ops, value::Kind,
 };
 
 /// Converts a number to a 64-bit integer as Go's `ValueToInt64` does: finite
@@ -276,9 +277,9 @@ fn hex_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
     let normal = binary_exponent >= -1022;
     let shift = if normal { width - 53 } else { -1074 - exponent };
     let mut rounded = if shift <= 0 {
-        mantissa << (-shift) as u32
+        mantissa << u32::try_from(-shift).unwrap_or(u32::MAX)
     } else {
-        let shift = shift as u32;
+        let shift = u32::try_from(shift).unwrap_or(u32::MAX);
         let whole = mantissa.checked_shr(shift).unwrap_or(0);
         let half = 1u64.checked_shl(shift - 1).unwrap_or(0);
         let remainder = if shift >= 64 {
@@ -299,6 +300,6 @@ fn hex_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
         binary_exponent += 1;
     }
     Ok(f64::from_bits(
-        sign | ((binary_exponent + 1023) as u64) << 52 | (rounded & ((1u64 << 52) - 1)),
+        sign | to_u64(binary_exponent + 1023) << 52 | (rounded & ((1u64 << 52) - 1)),
     ))
 }

@@ -61,19 +61,19 @@ pub(super) fn stepping(
         if method != Step {
             return Ok(());
         }
-        if args.len() != 1 {
+        let [step] = args else {
             return Err(argument("range.step expects one integer argument"));
-        }
+        };
         if keywords {
             return Err(argument("range.step does not take keyword arguments"));
         }
-        if big(&args[0]) {
+        if big(step) {
             return ctx.guard(
                 ErrorKind::Arithmetic,
                 "range.step step must fit in a 64-bit integer",
             );
         }
-        let stride = args[0]
+        let stride = step
             .as_int()
             .ok_or_else(|| expected("range.step expects an integer step".into()))?;
         if stride <= 0 {
@@ -84,8 +84,8 @@ pub(super) fn stepping(
     if !matches!(receiver.0, Kind::Int(_) | Kind::Big(_)) {
         return Ok(());
     }
-    match method {
-        Times => {
+    let limit = match (method, args) {
+        (Times, _) => {
             if !args.is_empty() {
                 return Err(argument("int.times does not take arguments"));
             }
@@ -98,24 +98,24 @@ pub(super) fn stepping(
             }
             return Ok(());
         }
-        Step if args.is_empty() || args.len() > 2 => {
+        (Step, [limit] | [limit, _]) | (Upto | Downto, [limit]) => limit,
+        (Step, _) => {
             return Err(argument("int.step expects a limit and an optional step"));
         }
-        Upto | Downto if args.len() != 1 => {
+        (Upto | Downto, _) => {
             return Err(argument(&format!(
                 "int.{name} expects one integer argument"
             )));
         }
-        Step | Upto | Downto => {}
         _ => return Ok(()),
-    }
+    };
     if keywords {
         return Err(argument(&format!(
             "int.{name} does not take keyword arguments"
         )));
     }
     if big(receiver) || args.iter().any(big) {
-        if !args[0].is_integer() {
+        if !limit.is_integer() {
             return Err(argument(&format!("int.{name} expects an integer limit")));
         }
         if method != Step {
@@ -126,7 +126,7 @@ pub(super) fn stepping(
             &format!("int.{name} bounds must fit in a 64-bit integer"),
         );
     }
-    if args[0].as_int().is_none() {
+    if limit.as_int().is_none() {
         return Err(expected(format!("int.{name} expects an integer limit")));
     }
     if let Some(stride) = args.get(1) {

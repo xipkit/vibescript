@@ -154,7 +154,7 @@ impl Constructor {
                 if micros.as_float().is_some_and(|n| n < 0.0) {
                     return Err(out_of_range());
                 }
-                nanos = scaled(micros, 1000).map_err(|error| match error {
+                let scaled = scaled(micros, 1000).map_err(|error| match error {
                     Subsecond::NotNumeric => {
                         argument("Time constructor microsecond argument must be numeric")
                     }
@@ -164,9 +164,10 @@ impl Constructor {
                         error
                     }
                 })?;
-                if !(0..NANOS).contains(&nanos) {
-                    return Err(out_of_range());
-                }
+                nanos = u32::try_from(scaled)
+                    .ok()
+                    .filter(|nanos| i64::from(*nanos) < NANOS)
+                    .ok_or_else(out_of_range)?;
             }
         }
         let selected = if self == Self::Local {
@@ -179,7 +180,7 @@ impl Constructor {
         } else {
             calendar::normalized(parts)
         };
-        value(ctx, Stamp::new(seconds, nanos as u32), selected)
+        value(ctx, Stamp::new(seconds, nanos), selected)
     }
 }
 

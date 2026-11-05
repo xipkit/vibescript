@@ -3,6 +3,7 @@ use crate::{
     budget::{Buffer, MAX_VALUE_DEPTH},
     bytecode::Method,
     hash::Hash,
+    numeric::to_usize,
     ops,
     sequence::integer,
     value::Kind,
@@ -379,7 +380,7 @@ fn values_at_range(
             "array.values_at window is too large",
         );
     }
-    let count = count as usize;
+    let count = to_usize(count);
     if count == 0 {
         return Ok(());
     }

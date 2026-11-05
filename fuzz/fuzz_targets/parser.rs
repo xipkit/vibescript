@@ -1,5 +1,8 @@
 #![no_main]
 
+#[path = "../support.rs"]
+mod support;
+
 use libfuzzer_sys::fuzz_target;
 use vibescript::tooling::{self, TokenKind};
 
@@ -7,7 +10,7 @@ fuzz_target!(|source: &str| {
     if source.len() > 16_384 {
         return;
     }
-    if let Ok(tokens) = tooling::tokens(source) {
+    if let Ok(tokens) = support::check(tooling::tokens(source)) {
         assert!(matches!(
             tokens.last().map(|token| &token.kind),
             Some(TokenKind::Eof)
@@ -25,6 +28,6 @@ fuzz_target!(|source: &str| {
             end = token.span.end;
         }
     }
-    let _ = tooling::outline(source);
-    let _ = tooling::unreachable(source);
+    let _ = support::check(tooling::outline(source));
+    let _ = support::check(tooling::unreachable(source));
 });
