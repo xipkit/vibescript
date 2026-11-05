@@ -127,7 +127,7 @@ fn scalar(ctx: &mut CallContext, value: &Value, key: &[u8]) -> Result<Value> {
     ctx.charge(1)?;
     match &value.0 {
         Kind::Bytes(_) | Kind::Symbol(_) => Ok(value.clone()),
-        Kind::EnumMember(member) => ctx.bytes(member.definition().symbol.as_bytes()),
+        Kind::EnumMember(member) => ctx.bytes(member.definition()?.symbol.as_bytes()),
         Kind::Nil
         | Kind::Bool(_)
         | Kind::Int(_)

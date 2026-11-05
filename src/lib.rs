@@ -255,7 +255,7 @@ impl Engine {
                 &(),
             )
         })?;
-        Ok(typing::entry_arguments(
+        typing::entry_arguments(
             &typing::Input {
                 source,
                 parsed: &parsed,
@@ -271,7 +271,7 @@ impl Engine {
             },
             function,
             count,
-        )?)
+        )
     }
     /// Configures required files for subsequently compiled scripts.
     ///

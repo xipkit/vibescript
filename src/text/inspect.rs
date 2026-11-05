@@ -256,7 +256,7 @@ fn leaf(ctx: &mut CallContext, value: &Value, out: &mut Output) -> Result<()> {
         Kind::EnumMember(member) => {
             out.append(ctx, member.enumeration.definition.name.as_bytes())?;
             out.append(ctx, b"::")?;
-            return out.append(ctx, member.definition().name.as_bytes());
+            return out.append(ctx, member.definition()?.name.as_bytes());
         }
         Kind::Bool(value) => return out.append(ctx, if *value { b"true" } else { b"false" }),
         Kind::Int(value) => scalar.format(format_args!("{value}"))?,
@@ -290,7 +290,7 @@ fn leaf(ctx: &mut CallContext, value: &Value, out: &mut Output) -> Result<()> {
             return out.append(ctx, text.require_bytes()?);
         }
     }
-    out.append(ctx, scalar.bytes())
+    out.append(ctx, scalar.bytes()?)
 }
 
 fn object_order(ctx: &mut CallContext, hash: &Hash) -> Result<Buffer<usize>> {

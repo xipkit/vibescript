@@ -145,7 +145,7 @@ impl<'x> Compiling<'_, 'x> {
     ) -> Result<()> {
         self.c().work.charge(1)?;
         if let Some(message) = message {
-            let value = value.unwrap();
+            let value = value.ok_or(violation("raise with a message must name an error class"))?;
             let start = {
                 let mut c = self.c();
                 let named = if let Node::Var(name) = &value.node {
@@ -190,7 +190,7 @@ impl<'x> Compiling<'_, 'x> {
 impl Compiler<'_> {
     fn rescue_slot(&mut self, name: &Name) -> Result<usize> {
         let mut storage = [0; 20];
-        let digits = decimal_digits(self.slots as u64, &mut storage);
+        let digits = decimal_digits(self.slots as u64, &mut storage)?;
         let name = Name::join(self.work, &["\0rescue", digits, ":", name])?;
         self.slot(&name)
     }

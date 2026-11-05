@@ -497,7 +497,7 @@ fn rational_round(ctx: &mut CallContext, number: f64, digits: u32) -> Result<f64
     let mut text = integer::format(ctx, &rounded, 10)?;
     let mut suffix = bytes::Number::new();
     suffix.format(format_args!("e-{digits}"))?;
-    text.extend(ctx, suffix.bytes())?;
+    text.extend(ctx, suffix.bytes()?)?;
     ctx.work_bytes(text.data.len())?;
     std::str::from_utf8(&text.data)
         .map_err(|_| violation("rounded decimal must be UTF-8"))?

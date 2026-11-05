@@ -251,7 +251,7 @@ fn directive(
     macro_rules! numeric {
         ($value:expr, $width:expr, $pad:expr, $kind:expr) => {{
             number.format(format_args!("{}", $value))?;
-            (number.bytes(), $width, $pad, $kind)
+            (number.bytes()?, $width, $pad, $kind)
         }};
     }
     let (text, default_width, default_pad, kind): (&[u8], usize, u8, Kind) = match token.directive {
@@ -295,7 +295,7 @@ fn directive(
         b'L' | b'N' => {
             number.format(format_args!("{:09}", view.stamp.nanos()))?;
             (
-                number.bytes(),
+                number.bytes()?,
                 if token.directive == b'L' { 3 } else { 9 },
                 b'0',
                 Kind::Subsecond,
@@ -344,7 +344,7 @@ fn directive(
             if token.colons == 2 || (token.colons == 3 && seconds_part != 0) {
                 number.format(format_args!(":{seconds_part:02}"))?;
             }
-            (number.bytes(), 0, b'0', Kind::Offset)
+            (number.bytes()?, 0, b'0', Kind::Offset)
         }
         b'n' => (b"\n", 1, b' ', Kind::Literal),
         b't' => (b"\t", 1, b' ', Kind::Literal),

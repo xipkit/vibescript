@@ -217,11 +217,15 @@ fn actual(
             let count = hash.buffer.data.len().min(SAMPLES);
             if count <= 6 {
                 out.extend(ctx, b"{ ")?;
-                for (index, &field) in fields[..count].iter().enumerate() {
+                for (index, (key, value)) in fields
+                    .iter()
+                    .take(count)
+                    .filter_map(|&field| hash.buffer.data.get(field))
+                    .enumerate()
+                {
                     if index > 0 {
                         out.extend(ctx, b", ")?;
                     }
-                    let (key, value) = &hash.buffer.data[field];
                     out.extend(ctx, key.require_bytes()?)?;
                     out.extend(ctx, b": ")?;
                     let text = actual(ctx, value, ancestors, depth + 1)?;
@@ -230,8 +234,12 @@ fn actual(
                 out.extend(ctx, b" }")?;
             } else {
                 let mut types = Buffer::with_capacity(ctx, count)?;
-                for &field in &fields[..count] {
-                    let text = actual(ctx, &hash.buffer.data[field].1, ancestors, depth + 1)?;
+                for (_, value) in fields
+                    .iter()
+                    .take(count)
+                    .filter_map(|&field| hash.buffer.data.get(field))
+                {
+                    let text = actual(ctx, value, ancestors, depth + 1)?;
                     insert(ctx, &mut types, text)?;
                 }
                 out.extend(ctx, b"hash<string, ")?;
@@ -251,17 +259,22 @@ fn seen(
     id: usize,
 ) -> Result<bool> {
     ctx.charge(depth as u64)?;
-    if ancestors[..depth].contains(&id) {
+    if ancestors
+        .get(..depth)
+        .is_some_and(|ancestors| ancestors.contains(&id))
+    {
         return Ok(true);
     }
-    ancestors[depth] = id;
+    if let Some(slot) = ancestors.get_mut(depth) {
+        *slot = id;
+    }
     Ok(false)
 }
 
 fn insert(ctx: &mut CallContext, types: &mut Buffer<Buffer<u8>>, text: Buffer<u8>) -> Result<()> {
     let mut position = 0;
-    while position < types.data.len() {
-        match compare_names(ctx, &text.data, &types.data[position].data)? {
+    while let Some(candidate) = types.data.get(position) {
+        match compare_names(ctx, &text.data, &candidate.data)? {
             Ordering::Less => break,
             Ordering::Equal => return Ok(()),
             Ordering::Greater => position += 1,
@@ -302,19 +315,24 @@ fn fields(ctx: &mut CallContext, hash: &Hash) -> Result<[usize; SAMPLES]> {
         let count = index.min(SAMPLES);
         let mut position = count;
         while position > 0 {
-            let candidate = &hash.buffer.data[fields[position - 1]].0;
+            let Some(&previous) = fields.get(position - 1) else {
+                break;
+            };
+            let Some((candidate, _)) = hash.buffer.data.get(previous) else {
+                break;
+            };
             if compare_names(ctx, key.require_bytes()?, candidate.require_bytes()?)?
                 != Ordering::Less
             {
                 break;
             }
-            if position < SAMPLES {
-                fields[position] = fields[position - 1];
+            if let Some(slot) = fields.get_mut(position) {
+                *slot = previous;
             }
             position -= 1;
         }
-        if position < SAMPLES {
-            fields[position] = index;
+        if let Some(slot) = fields.get_mut(position) {
+            *slot = index;
         }
     }
     Ok(fields)

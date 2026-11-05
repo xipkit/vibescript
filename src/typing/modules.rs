@@ -540,6 +540,13 @@ impl<'a> Checker<'a> {
                     self.meter.stop();
                     return Err("the check ran out of its budget".into());
                 }
+                // A first-parse Internal passes through both reporting helpers
+                // unchanged; recovery can also return one. Both stop here.
+                if error.kind == crate::ErrorKind::Internal {
+                    self.meter.violated(error);
+                    self.stopped = true;
+                    return Err("the check stopped for an internal error".into());
+                }
                 return Err(text!(self, "{error}"));
             }
         };

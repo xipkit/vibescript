@@ -485,7 +485,15 @@ impl<'a> Walk<'a, '_> {
                 self.shadows.truncate(mark);
                 return;
             }
-            let (name, previous) = self.shadows.pop().unwrap();
+            let Some((name, previous)) =
+                self.meter
+                    .found(self.shadows.pop().ok_or(crate::checked::violation(
+                        "shadow restore must have a binding",
+                    )))
+            else {
+                self.stopped = true;
+                return;
+            };
             if self.meter.charge(1 + (name.len() / 64) as u64) {
                 self.stopped = true;
                 continue;

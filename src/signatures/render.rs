@@ -220,7 +220,8 @@ pub(crate) fn keyword_star(params: &[Param]) -> Option<usize> {
     let first = params
         .iter()
         .position(|param| param.kind == ParamKind::Keyword)?;
-    let rest = params[..first]
+    let rest = params
+        .get(..first)?
         .iter()
         .any(|param| param.kind == ParamKind::Rest);
     (!rest).then_some(first)

@@ -256,11 +256,11 @@ fn leaf(ctx: &mut CallContext, value: &Value, output: &mut Output) -> Result<()>
         Kind::EnumMember(member) => {
             output.append(ctx, member.enumeration.definition.name.as_bytes())?;
             output.append(ctx, b"::")?;
-            output.append(ctx, member.definition().name.as_bytes())
+            output.append(ctx, member.definition()?.name.as_bytes())
         }
         Kind::Range(range) => {
             scalar.format(format_args!("{range}"))?;
-            output.append(ctx, scalar.bytes())
+            output.append(ctx, scalar.bytes()?)
         }
         _ => {
             if !output.prefix && matches!(value.0, Kind::Big(_)) {

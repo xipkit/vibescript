@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::checked::violation;
 use crate::{CallContext, Error, ErrorKind, Result, Value, scan, value::Kind};
 use program::Program;
@@ -45,7 +46,7 @@ fn window(ctx: &mut CallContext, subject: &Value, start: usize, end: usize) -> R
     if start == 0 && end == bytes.len() {
         Ok(subject.clone())
     } else {
-        ctx.bytes(&bytes[start..end])
+        ctx.bytes(bytes.span(start, end)?)
     }
 }
 
@@ -65,13 +66,13 @@ pub(crate) fn member(
             "string.match? does not accept keyword arguments",
         ));
     }
-    if !(1..=2).contains(&args.len()) {
+    let Some((pattern, offsets)) = args.split_first().filter(|(_, rest)| rest.len() <= 1) else {
         return Err(Error::new(
             ErrorKind::Argument,
             "string.match? expects a pattern and optional offset",
         ));
-    }
-    if !matches!(args[0].0, Kind::Bytes(_) | Kind::Regex(_)) {
+    };
+    if !matches!(pattern.0, Kind::Bytes(_) | Kind::Regex(_)) {
         return Err(Error::new(
             ErrorKind::Type,
             "string.match? pattern must be string or regex",
@@ -83,8 +84,8 @@ pub(crate) fn member(
             "string.match? offset must be non-negative integer",
         )
     };
-    let offset = if args.len() == 2 {
-        crate::sequence::integer(&args[1]).map_err(|mut error| {
+    let offset = if let Some(offset) = offsets.first() {
+        crate::sequence::integer(offset).map_err(|mut error| {
             error.message = negative().message;
             error
         })?
@@ -95,16 +96,16 @@ pub(crate) fn member(
         return Err(negative());
     }
     let text = receiver.require_bytes()?;
-    if matches!(&args[0].0, Kind::Bytes(pattern) if pattern.data().len() > MAX_PATTERN) {
+    if matches!(&pattern.0, Kind::Bytes(pattern) if pattern.data().len() > MAX_PATTERN) {
         return pattern_limit(ctx, "string.match?");
     }
     text_limit(ctx, text, "string.match?", "text")?;
-    let compiled = if matches!(args[0].0, Kind::Regex(_)) {
+    let compiled = if matches!(pattern.0, Kind::Regex(_)) {
         None
     } else {
-        Some(Program::compile(ctx, args[0].clone(), "string.match?")?)
+        Some(Program::compile(ctx, pattern.clone(), "string.match?")?)
     };
-    let program = match &args[0].0 {
+    let program = match &pattern.0 {
         Kind::Regex(regex) => regex.view()?,
         _ => compiled
             .as_ref()
@@ -115,7 +116,7 @@ pub(crate) fn member(
     let mut remaining = offset.unsigned_abs();
     while remaining > 0 && position < text.len() {
         ctx.charge(1)?;
-        position += scan::rune(&text[position..]).1;
+        position += scan::rune(text.tail(position)?).1;
         remaining -= 1;
     }
     if remaining > 0 {
