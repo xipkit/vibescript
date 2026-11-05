@@ -2,6 +2,7 @@
 //! builtins from the signature table and host functions share one form.
 
 use super::ty::{Field, Kind, Ty, Types};
+use crate::checked::Checked as _;
 use crate::signatures::{self, Class, Function, Item, Member};
 use std::{
     collections::HashMap,
@@ -154,8 +155,10 @@ impl Sig {
             .params
             .iter()
             .position(|p| p.kind == ParamKind::Keyword)?;
-        let rest = self.params[..first]
+        let rest = self
+            .params
             .iter()
+            .take(first)
             .any(|p| p.kind == ParamKind::Rest);
         (!rest).then_some(first)
     }
@@ -326,7 +329,10 @@ impl Converter {
             .enumerate()
             .collect();
         for (index, bound) in bounds {
-            vars[index].bound = bound.map(|bound| table_type(types, bound, &names));
+            let bound = bound.map(|bound| table_type(types, bound, &names));
+            if let Some(var) = vars.get_mut(index) {
+                var.bound = bound;
+            }
         }
         let params = function
             .params
@@ -567,13 +573,13 @@ fn bind_receiver(types: &mut Types, pattern: Ty, actual: Ty, bindings: &mut [Opt
             if actual == Ty::NEVER {
                 return true;
             }
-            let slot = &mut bindings[*index as usize];
-            match slot {
-                Some(bound) => *bound == actual,
-                None => {
+            match types.found(bindings.at_mut(*index as usize)) {
+                Some(Some(bound)) => *bound == actual,
+                Some(slot) => {
                     *slot = Some(actual);
                     true
                 }
+                None => false,
             }
         }
         (Kind::Array(p), Kind::Array(a)) => bind_receiver(types, *p, *a, bindings),
@@ -594,9 +600,9 @@ fn bind_receiver(types: &mut Types, pattern: Ty, actual: Ty, bindings: &mut [Opt
         (Kind::Union(arms), _) => {
             // `T?`: bind T to the receiver without nil.
             let vars: Vec<Ty> = arms.iter().copied().filter(|&a| a != Ty::NIL).collect();
-            if vars.len() == 1 && arms.contains(&Ty::NIL) {
+            if let ([var], true) = (vars.as_slice(), arms.contains(&Ty::NIL)) {
                 let rest = types.without_nil(actual);
-                return bind_receiver(types, vars[0], rest, bindings);
+                return bind_receiver(types, *var, rest, bindings);
             }
             pattern == actual
         }

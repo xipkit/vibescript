@@ -22,7 +22,10 @@ pub(crate) struct Shape {
 
 pub(crate) fn compile(ty: Type) -> Value {
     let mut text = Vec::new();
-    format(&ty, &mut text).unwrap();
+    match format(&ty, &mut text) {
+        Ok(()) => (),
+        Err(never) => match never {},
+    }
     let bytes = size_of::<Definition>() + 2 * size_of::<usize>() + text.capacity() + retained(&ty);
     Value(Kind::Shape(Arc::new(Shape {
         definition: Arc::new(Definition { ty, text, bytes }),
@@ -106,28 +109,30 @@ pub(crate) fn retained(ty: &Type) -> usize {
 }
 
 pub(crate) trait TypeWriter {
-    fn write(&mut self, bytes: &[u8]) -> Result<()>;
+    type Error;
+    fn write(&mut self, bytes: &[u8]) -> std::result::Result<(), Self::Error>;
 
-    fn node(&mut self) -> Result<()> {
+    fn node(&mut self) -> std::result::Result<(), Self::Error> {
         Ok(())
     }
 
-    fn byte(&mut self, byte: u8) -> Result<()> {
+    fn byte(&mut self, byte: u8) -> std::result::Result<(), Self::Error> {
         self.write(&[byte])
     }
 }
 
 impl TypeWriter for Vec<u8> {
-    fn write(&mut self, bytes: &[u8]) -> Result<()> {
+    type Error = std::convert::Infallible;
+    fn write(&mut self, bytes: &[u8]) -> std::result::Result<(), Self::Error> {
         self.extend_from_slice(bytes);
         Ok(())
     }
 }
 
-pub(crate) fn format(
+pub(crate) fn format<W: TypeWriter>(
     ty: &impl crate::types::description::Description,
-    out: &mut impl TypeWriter,
-) -> Result<()> {
+    out: &mut W,
+) -> std::result::Result<(), W::Error> {
     use crate::types::description::{FieldDescription, View};
     out.node()?;
     match ty.view() {
@@ -239,11 +244,17 @@ pub(crate) fn format(
 }
 
 pub(crate) fn quote(bytes: &[u8], out: &mut Vec<u8>) {
-    quoted(bytes, out).unwrap();
+    match quoted(bytes, out) {
+        Ok(()) => (),
+        Err(never) => match never {},
+    }
 }
 
 /// Writes `bytes` quoted as Go's `%q` renders a string.
-pub(crate) fn quoted(bytes: &[u8], out: &mut impl TypeWriter) -> Result<()> {
+pub(crate) fn quoted<W: TypeWriter>(
+    bytes: &[u8],
+    out: &mut W,
+) -> std::result::Result<(), W::Error> {
     out.byte(b'"')?;
     let mut position = 0;
     while position < bytes.len() {
@@ -278,7 +289,12 @@ pub(crate) fn quoted(bytes: &[u8], out: &mut impl TypeWriter) -> Result<()> {
     out.byte(b'"')
 }
 
-fn hex(value: u32, digits: usize, prefix: u8, out: &mut impl TypeWriter) -> Result<()> {
+fn hex<W: TypeWriter>(
+    value: u32,
+    digits: usize,
+    prefix: u8,
+    out: &mut W,
+) -> std::result::Result<(), W::Error> {
     out.write(&[b'\\', prefix])?;
     for index in (0..digits).rev() {
         out.byte(b"0123456789abcdef"[((value >> (index * 4)) & 15) as usize])?;

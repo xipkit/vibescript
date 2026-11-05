@@ -8,37 +8,33 @@ pub(crate) enum Class {
 /// Skips ASCII bytes unequal to `needle`, stopping before any non-ASCII byte.
 #[inline(never)]
 pub(crate) fn ascii_mismatch(bytes: &[u8], needle: u8) -> usize {
-    let mut position = 0;
+    // The loops carry the unscanned tail rather than a running position, so
+    // no counter needs an overflow check on every block.
+    let mut rest = bytes;
     #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
-    let bytes = {
-        let mut chunks = bytes.chunks_exact(16);
-        for chunk in chunks.by_ref() {
-            let found = vector_ascii_mismatch(chunk.try_into().unwrap(), needle);
-            if found < 16 {
-                return position + found;
-            }
-            position += 16;
+    while let Some((chunk, tail)) = rest.split_first_chunk::<16>() {
+        let found = vector_ascii_mismatch(chunk, needle);
+        if found < 16 {
+            return bytes.len() - rest.len() + found;
         }
-        chunks.remainder()
-    };
+        rest = tail;
+    }
     const LOW: u64 = 0x7f7f_7f7f_7f7f_7f7f;
     const HIGH: u64 = 0x8080_8080_8080_8080;
-    let mut chunks = bytes.chunks_exact(8);
-    for chunk in chunks.by_ref() {
-        let word = u64::from_le_bytes(chunk.try_into().unwrap());
+    while let Some((chunk, tail)) = rest.split_first_chunk::<8>() {
+        let word = u64::from_le_bytes(*chunk);
         let diff = word ^ (u64::from(needle) * 0x0101_0101_0101_0101);
         let found = (!(((diff & LOW) + LOW) | diff) | word) & HIGH;
         if found != 0 {
-            return position + found.trailing_zeros() as usize / 8;
+            return bytes.len() - rest.len() + found.trailing_zeros() as usize / 8;
         }
-        position += 8;
+        rest = tail;
     }
-    let bytes = chunks.remainder();
-    position
-        + bytes
+    bytes.len() - rest.len()
+        + rest
             .iter()
             .position(|&byte| byte == needle || !byte.is_ascii())
-            .unwrap_or(bytes.len())
+            .unwrap_or(rest.len())
 }
 
 #[cfg(test)]
@@ -117,7 +113,8 @@ fn vector_ascii_mismatch(bytes: &[u8; 16], needle: u8) -> usize {
             _mm_cmpeq_epi8(input, _mm_set1_epi8(i8::from_ne_bytes([needle]))),
             input,
         );
-        (_mm_movemask_epi8(mask) as u32 | 1 << 16).trailing_zeros() as usize
+        (u32::from_ne_bytes(_mm_movemask_epi8(mask).to_ne_bytes()) | 1 << 16).trailing_zeros()
+            as usize
     }
 }
 
@@ -131,57 +128,95 @@ pub(crate) fn ordinary(b: u8, class: Class) -> bool {
     }
 }
 
+/// Bytes tested at once by [`block_clean`].
+#[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
+const BLOCK: usize = 16;
+#[cfg(not(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64"))))]
+const BLOCK: usize = 8;
+
+/// Tests one block for `class` membership.
+#[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
+#[inline(always)]
+fn block_clean(chunk: &[u8; BLOCK], class: Class) -> bool {
+    vector_clean(chunk, class)
+}
+
+/// Tests one block for `class` membership with SWAR arithmetic.
+#[cfg(not(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64"))))]
+fn block_clean(chunk: &[u8; BLOCK], class: Class) -> bool {
+    let v = u64::from_le_bytes(*chunk);
+    let equal = |byte: u8| {
+        let x = v ^ (u64::from(byte) * 0x0101010101010101);
+        !(((x & 0x7f7f7f7f7f7f7f7f) + 0x7f7f7f7f7f7f7f7f) | x | 0x7f7f7f7f7f7f7f7f)
+    };
+    let mut bad = v & 0x8080808080808080;
+    if !matches!(class, Class::Ascii) {
+        bad |= !(v | ((v & 0x7f7f7f7f7f7f7f7f) + 0x6060606060606060)) & 0x8080808080808080;
+        bad |= equal(b'"') | equal(b'\\');
+    }
+    if matches!(class, Class::JsonStringify) {
+        bad |= equal(b'<') | equal(b'>') | equal(b'&');
+    }
+    bad == 0
+}
+
+/// Counts the leading bytes of `s` that are `class` bytes.
 pub(crate) fn prefix(s: &[u8], class: Class) -> usize {
-    #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
-    if let Ok(block) = <&[u8; 16]>::try_from(s) {
-        if vector_clean(block, class) {
-            return 16;
+    // The first block is tested here, so a short string or a short run never
+    // calls into the block loop, and a clean block skips the scalar peel. The
+    // loop retests it, which keeps its wide blocks aligned to the start.
+    let mut blocks = 0;
+    if let Some(block) = s.first_chunk::<BLOCK>() {
+        if block_clean(block, class) {
+            blocks = if s.len() >= 2 * BLOCK {
+                clean_blocks(s, class)
+            } else {
+                BLOCK
+            };
         }
     }
-    if s.is_empty() || !ordinary(s[0], class) {
-        return 0;
+    let tail = &s[blocks..];
+    blocks
+        + tail
+            .iter()
+            .position(|&byte| !ordinary(byte, class))
+            .unwrap_or(tail.len())
+}
+
+/// Counts the bytes at the start of `s` that whole blocks of `class` bytes
+/// cover. A function of its own, so that the block loop's constants stay in
+/// registers whatever the register pressure of the scan around it; each class
+/// gets a copy of the loop with its tests resolved.
+#[inline(never)]
+fn clean_blocks(s: &[u8], class: Class) -> usize {
+    match class {
+        Class::Ascii => clean_blocks_of(s, Class::Ascii),
+        Class::JsonParse => clean_blocks_of(s, Class::JsonParse),
+        Class::JsonStringify => clean_blocks_of(s, Class::JsonStringify),
     }
-    let mut i = 0;
+}
+
+// The loops carry the unscanned tail rather than a running offset, so no
+// counter needs an overflow check on every block.
+#[inline(always)]
+fn clean_blocks_of(s: &[u8], class: Class) -> usize {
+    let mut rest = s;
     #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
     if matches!(class, Class::Ascii) {
-        for chunk in s.chunks_exact(64) {
-            if !vector_ascii64(chunk.try_into().unwrap()) {
+        while let Some((chunk, tail)) = rest.split_first_chunk::<64>() {
+            if !vector_ascii64(chunk) {
                 break;
             }
-            i += 64;
+            rest = tail;
         }
     }
-    #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
-    for chunk in s[i..].chunks_exact(16) {
-        if !vector_clean(chunk.try_into().unwrap(), class) {
+    while let Some((chunk, tail)) = rest.split_first_chunk::<BLOCK>() {
+        if !block_clean(chunk, class) {
             break;
         }
-        i += 16;
+        rest = tail;
     }
-    #[cfg(not(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64"))))]
-    while s.len() - i >= 8 {
-        let v = u64::from_le_bytes(s[i..i + 8].try_into().unwrap());
-        let equal = |byte: u8| {
-            let x = v ^ (u64::from(byte) * 0x0101010101010101);
-            !(((x & 0x7f7f7f7f7f7f7f7f) + 0x7f7f7f7f7f7f7f7f) | x | 0x7f7f7f7f7f7f7f7f)
-        };
-        let mut bad = v & 0x8080808080808080;
-        if !matches!(class, Class::Ascii) {
-            bad |= !(v | ((v & 0x7f7f7f7f7f7f7f7f) + 0x6060606060606060)) & 0x8080808080808080;
-            bad |= equal(b'"') | equal(b'\\');
-        }
-        if matches!(class, Class::JsonStringify) {
-            bad |= equal(b'<') | equal(b'>') | equal(b'&');
-        }
-        if bad != 0 {
-            return i + bad.trailing_zeros() as usize / 8;
-        }
-        i += 8;
-    }
-    while i < s.len() && ordinary(s[i], class) {
-        i += 1;
-    }
-    i
+    s.len() - rest.len()
 }
 
 #[derive(Default)]
@@ -192,7 +227,10 @@ pub(crate) struct TextSpan {
 }
 
 /// Scans valid UTF-8 until an escape, invalid byte, or incomplete trailing rune.
-#[inline]
+// Inlined into the string scanners even under overflow checks, which made it
+// too large for the inliner's taste: the JSON writer's escape loop runs a
+// fifth slower around an out-of-line call it never takes.
+#[inline(always)]
 pub(crate) fn text_span(s: &[u8], class: Class) -> TextSpan {
     let mut span = TextSpan::default();
     while span.len < s.len() {
@@ -445,7 +483,7 @@ fn vector_unicode(s: &[u8]) -> (usize, usize) {
             if _mm_movemask_epi8(bad) != 0 {
                 break;
             }
-            let lead = (!_mm_movemask_epi8(continuation) as u32) & 0xffff;
+            let lead = !u32::from_ne_bytes(_mm_movemask_epi8(continuation).to_ne_bytes()) & 0xffff;
             leads += lead.count_ones() as usize;
             boundary = start + (31 - lead.leading_zeros()) as usize;
             previous = v;
@@ -650,6 +688,12 @@ fn utf8_step(state: u64, byte: u8) -> u64 {
 }
 
 fn rune_width(s: &[u8]) -> (usize, bool) {
+    sequence(s)
+}
+
+/// The body of [`rune_width`], for a decoder that has to stay a leaf.
+#[inline(always)]
+fn sequence(s: &[u8]) -> (usize, bool) {
     let tag = UTF8_LEAD[usize::from(s[0])];
     let n = usize::from(tag & 7);
     if n <= 1 {
@@ -684,6 +728,26 @@ pub(crate) fn rune(s: &[u8]) -> (char, usize, bool) {
     (char::from_u32(cp).unwrap(), n, true)
 }
 
+/// Decodes one rune as [`rune`] does, to its code point and width.
+///
+/// Never inlined and calling nothing, for a loop that keeps only its ASCII
+/// step inline: one call per rune, with no registers to save around it.
+#[inline(never)]
+pub(crate) fn code_point(s: &[u8]) -> (u32, usize) {
+    if s[0] < 128 {
+        return (u32::from(s[0]), 1);
+    }
+    let (n, valid) = sequence(s);
+    if !valid {
+        return (u32::from(char::REPLACEMENT_CHARACTER), 1);
+    }
+    let mut cp = u32::from(s[0] & (0x7f >> n));
+    for &byte in &s[1..n] {
+        cp = (cp << 6) | u32::from(byte & 0x3f);
+    }
+    (cp, n)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -706,8 +770,10 @@ mod tests {
                 let mut buffer = [0; 4];
                 let bytes = ch.encode_utf8(&mut buffer).as_bytes();
                 assert_eq!(rune(bytes), (ch, bytes.len(), true), "U+{cp:04X}");
+                assert_eq!(code_point(bytes), (cp, bytes.len()), "U+{cp:04X}");
                 for len in 1..bytes.len() {
                     assert_eq!(rune(&bytes[..len]), ('\u{fffd}', 1, false));
+                    assert_eq!(code_point(&bytes[..len]), (0xfffd, 1));
                 }
             }
         }
@@ -719,6 +785,12 @@ mod tests {
                         assert_eq!(
                             rune(&bytes[..len]),
                             reference_rune(&bytes[..len]),
+                            "{bytes:02x?}/{len}"
+                        );
+                        let (ch, width, _) = reference_rune(&bytes[..len]);
+                        assert_eq!(
+                            code_point(&bytes[..len]),
+                            (ch as u32, width),
                             "{bytes:02x?}/{len}"
                         );
                     }

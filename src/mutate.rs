@@ -1,6 +1,6 @@
 use crate::{
     CallContext, Error, ErrorKind, Result, Value, budget::Buffer, bytecode::Method, hash::Hash,
-    ops, sequence, value::Kind,
+    numeric::to_usize, ops, sequence, value::Kind,
 };
 
 fn argument(message: &str) -> Error {
@@ -173,7 +173,9 @@ fn remove_end(
     if args.len() > 1 {
         return Err(argument(&format!("{member} accepts at most one argument")));
     }
-    let source = receiver.as_array().unwrap();
+    let source = receiver.as_array().ok_or(crate::checked::violation(
+        "mutation receiver must be an array",
+    ))?;
     let count = if let Some(count) = args.first() {
         let invalid = || format!("{member} expects non-negative integer");
         let n = sequence::integer(count).map_err(|error| error.with_message(invalid()))?;
@@ -335,7 +337,7 @@ fn string(
                     "string.insert index {requested} out of string"
                 )));
             }
-            let offset = sequence::rune_offset(ctx, bytes, index as usize)?;
+            let offset = sequence::rune_offset(ctx, bytes, to_usize(index))?;
             let inserted = args[1].require_bytes()?;
             let capacity = size(ctx, bytes.len() as i128 + inserted.len() as i128)?;
             let mut out = Buffer::with_capacity(ctx, capacity)?;

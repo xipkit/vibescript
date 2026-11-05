@@ -1,7 +1,7 @@
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::Buffer,
-    numeric::{to_i64, wrapped},
+    numeric::{to_i64, to_usize, wrapped},
     value::{Bytes, Kind},
 };
 use std::{
@@ -172,7 +172,7 @@ fn rand(ctx: &mut CallContext, argument: Option<&Value>) -> Result<Value> {
             }
         }
         Some(Kind::Int(bound)) if *bound > 0 => {
-            Ok(Value::int(to_i64(bounded(ctx, *bound as u64)?)))
+            Ok(Value::int(to_i64(bounded(ctx, bound.unsigned_abs())?)))
         }
         Some(Kind::Int(_)) => Err(Error::new(
             ErrorKind::Argument,
@@ -203,7 +203,7 @@ fn rand(ctx: &mut CallContext, argument: Option<&Value>) -> Result<Value> {
             if low > high {
                 return Err(Error::new(ErrorKind::Argument, "rand range is empty"));
             }
-            let size = (high as u64).wrapping_sub(low as u64).wrapping_add(1);
+            let size = high.abs_diff(low).wrapping_add(1);
             let offset = if size == 0 {
                 next(ctx)?
             } else {
@@ -340,7 +340,7 @@ fn identifier(ctx: &mut CallContext, argument: Option<&Value>) -> Result<Value> 
             "random_id length exceeds maximum 1024",
         );
     }
-    let length = length as usize;
+    let length = to_usize(length);
     ctx.check_memory(Bytes::header_bytes() + length)?;
     let mut output = Buffer::with_capacity(ctx, length)?;
     let mut scratch = [0; 1024];

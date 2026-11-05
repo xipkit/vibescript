@@ -216,7 +216,7 @@ fn padding(ctx: &mut CallContext, name: &str, receiver: &Value, args: &[Value]) 
     if i128::from(width) <= length as i128 {
         return Ok(receiver.clone());
     }
-    let count = width as u64 - length as u64;
+    let count = width.unsigned_abs() - length as u64;
     let left = match name {
         "rjust" => count,
         "center" => count / 2,

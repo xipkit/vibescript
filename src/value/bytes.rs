@@ -48,13 +48,18 @@ impl Bytes {
     #[inline]
     fn owned(value: Owned) -> Self {
         const { assert!(align_of::<Owned>() >= 2) };
-        Self(NonNull::new(Arc::into_raw(Arc::new(value)).cast_mut().cast()).unwrap())
+        let pointer = Arc::into_raw(Arc::new(value)).cast_mut().cast();
+        // SAFETY: Arc::into_raw retains its allocation and returns a non-null
+        // ownership pointer, including provenance for Arc's reference counts.
+        Self(unsafe { NonNull::new_unchecked(pointer) })
     }
 
     #[inline]
     fn shared_value(value: Shared) -> Self {
         const { assert!(align_of::<Shared>() >= 2) };
-        let pointer = NonNull::new(Arc::into_raw(Arc::new(value)).cast_mut().cast()).unwrap();
+        let pointer = Arc::into_raw(Arc::new(value)).cast_mut().cast();
+        // SAFETY: as in owned, this is a non-null Arc ownership pointer.
+        let pointer = unsafe { NonNull::new_unchecked(pointer) };
         Self(pointer.map_addr(|address| address | 1))
     }
 
@@ -254,7 +259,7 @@ impl Data {
         self.shared
             .get_or_init(|| {
                 let mut shared = Arc::new(Vec::new());
-                let data = Arc::get_mut(&mut shared).unwrap();
+                let data = Arc::make_mut(&mut shared);
                 // SAFETY: the vector is immutable. OnceLock transfers ownership
                 // exactly once, and Drop only frees original if this never ran.
                 // Allocate first, so nothing can unwind after taking ownership.

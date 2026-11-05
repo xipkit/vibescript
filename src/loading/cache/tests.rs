@@ -28,7 +28,7 @@ fn load(
         };
         let code = crate::Engine::new()
             .compile(std::str::from_utf8(source.contents.as_bytes().unwrap()).unwrap())?;
-        return cache.insert(ctx, &epoch, candidate.origin(), source.stamp, code);
+        return cache.insert(ctx, &epoch, candidate.origin().unwrap(), source.stamp, code);
     }
     Err(Error::new(ErrorKind::Name, "test module not found"))
 }
@@ -173,7 +173,7 @@ fn a_compilation_started_before_clear_does_not_repopulate_the_cleared_cache() {
         .insert(
             &mut ctx,
             &before_clear,
-            candidate.origin(),
+            candidate.origin().unwrap(),
             source.stamp,
             original,
         )
@@ -213,7 +213,13 @@ fn concurrent_compilations_publish_one_shared_entry() {
                 .unwrap();
             ready.wait();
             cache
-                .insert(&mut ctx, &epoch, candidate.origin(), source.stamp, code)
+                .insert(
+                    &mut ctx,
+                    &epoch,
+                    candidate.origin().unwrap(),
+                    source.stamp,
+                    code,
+                )
                 .unwrap()
         }
     }));
@@ -285,7 +291,7 @@ fn retiring_host_callbacks_runs_after_releasing_the_cache_lock() {
             size: 0,
         };
         let code = retained_host(&cache, &observed);
-        let result = cache.insert(&mut ctx, &epoch, candidate.origin(), stamp, code);
+        let result = cache.insert(&mut ctx, &epoch, candidate.origin().unwrap(), stamp, code);
         if operation == "full" {
             assert!(result.is_err());
         } else {

@@ -159,6 +159,7 @@ impl<T: Copy> Buffer<T> {
 }
 
 impl crate::shapes::TypeWriter for (&dyn Work, &mut Buffer<u8>) {
+    type Error = crate::Error;
     fn write(&mut self, bytes: &[u8]) -> Result<()> {
         for chunk in bytes.chunks(4096) {
             self.1.extend_from_slice(self.0, chunk)?;

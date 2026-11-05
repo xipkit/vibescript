@@ -161,7 +161,7 @@ impl Code {
             budget: work.budget(),
             observe: None,
             annotate: false,
-        });
+        })?;
         // What a required file's check exports, its type table and copies
         // of its public signatures and classes, is for a check that
         // requires it to import; the compilation reads none of it, so it

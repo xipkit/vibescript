@@ -10,6 +10,7 @@ use super::{
     ty::{Kind, Ty},
 };
 use crate::{
+    checked::Checked as _,
     diagnostic::{Code, Diagnostic, Edit, Fix, Span},
     syntax::{Expr, Node, Statement, Stmt, Target},
 };
@@ -207,9 +208,33 @@ pub(crate) struct Frame {
     /// annotated declarations declare, with what the copies of the names
     /// take, made when the body first assigns a constant.
     pub declared: Option<(CountedMap<String, u32>, usize)>,
+    /// The check's account, which an id this frame did not make stops.
+    meter: std::sync::Arc<super::meter::Meter>,
 }
 
 impl Frame {
+    /// Local `id`; an id this frame did not make stops the check.
+    #[inline]
+    #[track_caller]
+    pub fn local(&self, id: LocalId) -> Option<&Local> {
+        self.meter.found(self.locals.at(id as usize))
+    }
+
+    /// The type local `id` declares; an id this frame did not make stops the
+    /// check, and reads as the error type.
+    #[inline]
+    #[track_caller]
+    pub fn declared_type(&self, id: LocalId) -> Ty {
+        self.local(id).map_or(Ty::ERROR, |local| local.declared)
+    }
+
+    /// Local `id`, to change.
+    #[inline]
+    #[track_caller]
+    pub fn local_mut(&mut self, id: LocalId) -> Option<&mut Local> {
+        self.meter.found(self.locals.at_mut(id as usize))
+    }
+
     pub fn new(
         meter: &std::sync::Arc<super::meter::Meter>,
         owner: Option<NsId>,
@@ -239,6 +264,7 @@ impl Frame {
             ensure_writes: CountedVec::new(),
             name_bytes: 0,
             declared: None,
+            meter: std::sync::Arc::clone(meter),
         }
     }
 }
@@ -501,7 +527,10 @@ impl<'a> Checker<'a> {
             if self.over_budget() {
                 return;
             }
-            if !self.program.fns[id].main {
+            let Some(function) = self.program.function(id) else {
+                return;
+            };
+            if !function.main {
                 self.check_function(id);
             }
         }
@@ -539,7 +568,9 @@ impl<'a> Checker<'a> {
     /// Marks `ns` checked and queues it with its children, unless it was
     /// checked already.
     fn enter_namespace(&mut self, ns: NsId, pending: &mut ScratchVec<(NsId, ScratchVec<NsId>)>) {
-        let namespace = &mut self.program.namespaces[ns as usize];
+        let Some(namespace) = self.program.namespace_mut(ns) else {
+            return;
+        };
         if namespace.checked {
             return;
         }
@@ -622,12 +653,15 @@ impl<'a> Checker<'a> {
     }
 
     fn namespace_body(&mut self, ns: NsId) {
-        let Some(module) = self.program.namespaces[ns as usize].module else {
+        let Some(namespace) = self.program.namespace(ns) else {
+            return;
+        };
+        let Some(module) = namespace.module else {
             return;
         };
         // The frame keeps a copy of the namespace's name, counted before it
         // is made.
-        let name = &self.program.namespaces[ns as usize].name;
+        let name = &namespace.name;
         if self.meter.tables().keep(name.len()).is_err() {
             return;
         }
@@ -661,7 +695,9 @@ impl<'a> Checker<'a> {
             return;
         }
         for (name, id) in named() {
-            let local = &previous.locals[id as usize];
+            let Some(local) = previous.local(id) else {
+                break;
+            };
             ambient.push_within((
                 name.to_owned(),
                 local.declared,
@@ -725,7 +761,11 @@ impl<'a> Checker<'a> {
         // A default may read only the variables whose defaults precede it:
         // those that must be assigned, whose roster, and the list it is
         // made from, are held before the names are copied.
-        let ivars = &self.program.namespaces[ns as usize].ivars;
+        let Some(namespace) = self.program.namespace(ns) else {
+            self.leave_frame(body);
+            return;
+        };
+        let ivars = &namespace.ivars;
         let (mut count, mut bytes) = (0, 0);
         for (name, ivar) in ivars {
             if !self.types.assignable(Ty::NIL, ivar.ty) {
@@ -738,7 +778,12 @@ impl<'a> Checker<'a> {
             return;
         };
         let mut unassigned: Vec<String> = Vec::with_capacity(count);
-        for (name, ivar) in &self.program.namespaces[ns as usize].ivars {
+        let Some(namespace) = self.program.namespace(ns) else {
+            self.release(held);
+            self.leave_frame(body);
+            return;
+        };
+        for (name, ivar) in &namespace.ivars {
             // A check that stops takes every type as assignable, so lists
             // no more of them than it counted.
             if !self.types.assignable(Ty::NIL, ivar.ty) {
@@ -786,7 +831,9 @@ impl<'a> Checker<'a> {
         if self.meter.charge(1) {
             return;
         }
-        let decl = &self.program.fns[id];
+        let Some(decl) = self.program.function(id) else {
+            return;
+        };
         let Some(def) = decl.def else {
             return;
         };
@@ -896,7 +943,7 @@ impl<'a> Checker<'a> {
                 let mut locals = Vec::with_capacity(count);
                 locals.extend(
                     self.assigned_locals()
-                        .map(|(name, id)| (name.clone(), self.frame.locals[id as usize].declared)),
+                        .map(|(name, id)| (name.clone(), self.frame.declared_type(id))),
                 );
                 self.session = Some(super::Session { locals, result });
                 let locals = self
@@ -920,7 +967,9 @@ impl<'a> Checker<'a> {
             if let (Ok(mut kept), false) = (kept, stopped) {
                 for (name, &id) in &self.frame.names {
                     if self.frame.flow.get(id).assigned {
-                        let local = &self.frame.locals[id as usize];
+                        let Some(local) = self.frame.local(id) else {
+                            break;
+                        };
                         self.program.file_locals.insert_kept(
                             &mut kept,
                             name.clone(),
@@ -984,7 +1033,10 @@ impl<'a> Checker<'a> {
         // The variables without defaults, with a copy of each name, and the
         // roster of those each path must assign, which takes the copies,
         // are held while they are listed.
-        let ivars = &self.program.namespaces[ns as usize].ivars;
+        let Some(namespace) = self.program.namespace(ns) else {
+            return;
+        };
+        let ivars = &namespace.ivars;
         let (count, bytes) = ivars
             .iter()
             .filter(|(_, ivar)| !ivar.default)
@@ -996,8 +1048,12 @@ impl<'a> Checker<'a> {
             return;
         };
         let mut required: Vec<(String, Ty)> = Vec::with_capacity(count);
+        let Some(namespace) = self.program.namespace(ns) else {
+            self.release(held);
+            return;
+        };
         required.extend(
-            self.program.namespaces[ns as usize]
+            namespace
                 .ivars
                 .iter()
                 .filter(|(_, ivar)| !ivar.default)
@@ -1057,7 +1113,9 @@ impl<'a> Checker<'a> {
         let places = unassigned.indices();
         let (missing, count) = super::listed(&self.meter, places, |out, place| {
             out.push('@');
-            out.push_str(&roster[place]);
+            if let Some(name) = roster.get(place) {
+                out.push_str(name);
+            }
         });
         if self.halted() {
             return;
@@ -1123,7 +1181,7 @@ impl<'a> Checker<'a> {
             }
             if let Some(&id) = self.frame.names.get(name.as_str()) {
                 let state = self.frame.flow.get(id);
-                let declared = self.frame.locals[id as usize].declared;
+                let declared = self.frame.declared_type(id);
                 self.frame.flow.set(
                     id,
                     VarState {
@@ -1333,8 +1391,10 @@ impl<'a> Checker<'a> {
             else {
                 continue;
             };
-            let callee = self.program.fns[call.callee]
-                .def
+            let callee = self
+                .program
+                .function(call.callee)
+                .and_then(|function| function.def)
                 .map_or("", |def| def.name.as_str());
             self.report(Diagnostic::error(
                 Code::UNASSIGNED_LOCAL,
@@ -1482,7 +1542,7 @@ impl<'a> Checker<'a> {
 
     /// Records an assignment of a value of type `ty`, narrowing the local to it.
     pub(super) fn assign_local(&mut self, id: LocalId, ty: Ty) {
-        let declared = self.frame.locals[id as usize].declared;
+        let declared = self.frame.declared_type(id);
         let narrowed = self.narrowed(declared, ty);
         self.frame.flow.set(
             id,
@@ -1635,7 +1695,7 @@ impl<'a> Checker<'a> {
         for name in names.iter().copied() {
             if let Some(id) = self.local(name) {
                 let state = self.frame.flow.get(id);
-                let declared = self.frame.locals[id as usize].declared;
+                let declared = self.frame.declared_type(id);
                 self.frame.flow.set(
                     id,
                     VarState {
@@ -2500,7 +2560,10 @@ impl<'a> Checker<'a> {
         let Node::Index(receiver, selectors) = &expr.node else {
             return None;
         };
-        if selectors.len() != 1 || !self.types.has_nil(current) {
+        let [selector] = &**selectors else {
+            return None;
+        };
+        if !self.types.has_nil(current) {
             return None;
         }
         let present = self.types.without_nil(current);
@@ -2525,9 +2588,9 @@ impl<'a> Checker<'a> {
         };
         if stored.is_some_and(|stored| stored == present)
             && self.stable(receiver)
-            && self.stable(&selectors[0])
+            && self.stable(selector)
         {
-            if let Some(fix) = self.fetch_assignment(expr, receiver, &selectors[0], op, value) {
+            if let Some(fix) = self.fetch_assignment(expr, receiver, selector, op, value) {
                 diagnostic = diagnostic.with_fix(fix);
             }
         }
@@ -2543,7 +2606,7 @@ impl<'a> Checker<'a> {
             Node::Var(name) => name.starts_with('@') || self.local(name).is_some(),
             Node::Integer(_) | Node::Literal(_) => true,
             Node::Index(receiver, selectors) => {
-                selectors.len() == 1 && self.stable(receiver) && self.stable(&selectors[0])
+                matches!(&**selectors, [selector] if self.stable(receiver) && self.stable(selector))
             }
             _ => false,
         }
@@ -2642,7 +2705,7 @@ impl<'a> Checker<'a> {
                 }
                 Node::Var(name) => {
                     if let Some(id) = self.local(name) {
-                        let declared = self.frame.locals[id as usize].declared;
+                        let declared = self.frame.declared_type(id);
                         if !self.types.assignable(ty, declared) {
                             let span = self.spans.expr(value);
                             self.local_changed(id, span, ty);
@@ -2705,11 +2768,11 @@ impl<'a> Checker<'a> {
                 }
                 let id = match self.local(name) {
                     Some(id) => {
-                        let existing = self.frame.locals[id as usize].declared;
+                        let existing = self.frame.declared_type(id);
                         if existing != declared && existing != Ty::ERROR && declared != Ty::ERROR {
                             let span = self.spans.token(*offset as usize);
                             let first = self.types.display(existing);
-                            let offset_first = self.frame.locals[id as usize].offset;
+                            let offset_first = self.frame.local(id).map_or(0, |local| local.offset);
                             self.report(
                                 Diagnostic::error(
                                     Code::LOCAL_TYPE_CHANGED,
@@ -2728,7 +2791,9 @@ impl<'a> Checker<'a> {
                         let Some(id) = self.declare(name, declared, *offset as usize, true) else {
                             return ty;
                         };
-                        self.frame.locals[id as usize].checked = true;
+                        if let Some(local) = self.frame.local_mut(id) {
+                            local.checked = true;
+                        }
                         id
                     }
                 };
@@ -2796,7 +2861,9 @@ impl<'a> Checker<'a> {
                     }
                     match self.local(name) {
                         Some(id) => {
-                            let local = &self.frame.locals[id as usize];
+                            let Some(local) = self.frame.local(id) else {
+                                return Ty::ERROR;
+                            };
                             let declared = local.declared;
                             // The runtime checks what a declared local holds.
                             let stay = (!local.checked).then_some(LOCAL_SYMBOL);
@@ -2824,7 +2891,9 @@ impl<'a> Checker<'a> {
                                 (&value.node, self.types.kind(ty))
                             {
                                 let uniform = self.uniform_field_type(ty);
-                                self.frame.locals[id as usize].dictionary = uniform;
+                                if let Some(local) = self.frame.local_mut(id) {
+                                    local.dictionary = uniform;
+                                }
                             }
                             self.assign_local(id, ty);
                             ty
@@ -2947,7 +3016,9 @@ impl<'a> Checker<'a> {
         if ty == Ty::ERROR {
             return;
         }
-        let local = &self.frame.locals[id as usize];
+        let Some(local) = self.frame.local(id) else {
+            return;
+        };
         let declared = local.declared;
         if declared == Ty::ERROR {
             return;
@@ -2990,7 +3061,7 @@ impl<'a> Checker<'a> {
                 Node::Var(name) if !name.starts_with('@') => {
                     let id = match (assignment, self.local(name)) {
                         (true, Some(id)) => {
-                            let declared = self.frame.locals[id as usize].declared;
+                            let declared = self.frame.declared_type(id);
                             if !self.types.assignable(ty, declared) {
                                 let span = self.spans.expr(expr);
                                 self.local_changed(id, span, ty);
@@ -3076,7 +3147,9 @@ impl<'a> Checker<'a> {
                                 else {
                                     return;
                                 };
-                                self.frame.locals[id as usize].checked = true;
+                                if let Some(local) = self.frame.local_mut(id) {
+                                    local.checked = true;
+                                }
                                 id
                             }
                         };
@@ -3207,7 +3280,7 @@ impl<'a> Checker<'a> {
             ));
             return None;
         };
-        let namespace = &self.program.namespaces[ns as usize];
+        let namespace = self.program.namespace(ns)?;
         if let Some(ivar) = namespace.ivars.get(name) {
             return Some(ivar.ty);
         }
@@ -3226,7 +3299,7 @@ impl<'a> Checker<'a> {
     /// `name`, as in `LIMIT: int = 3`, which every assignment keeps.
     fn declared_constant(&mut self, name: &str) -> Option<Ty> {
         let ns = self.frame.owner?;
-        let module = self.program.namespaces[ns as usize].module?;
+        let module = self.program.namespace(ns)?.module?;
         // The body's declarations are found once, in a map counted as it
         // grows, a step a statement, rather than searched for each
         // assignment; the first declaration of a name is the one.
@@ -3259,7 +3332,7 @@ impl<'a> Checker<'a> {
             self.frame.declared = Some((declared, names));
         }
         let &index = self.frame.declared.as_ref()?.0.get(name)?;
-        let stmt = &module.body[index as usize];
+        let stmt = self.meter.found(module.body.at(index as usize))?;
         let Statement::Assign(target, "=", _) = &stmt.node else {
             return None;
         };
@@ -3287,7 +3360,9 @@ impl<'a> Checker<'a> {
             return;
         }
         let span = self.spans.expr(target);
-        let class = self.program.namespaces[ns as usize].name.clone();
+        let Some(class) = self.program.namespace(ns).map(|ns| ns.name.clone()) else {
+            return;
+        };
         let mut diagnostic = Diagnostic::error(
             Code::UNDECLARED_IVAR,
             span,
@@ -3335,7 +3410,7 @@ impl<'a> Checker<'a> {
     /// directly in the body of namespace `ns`, where a declaration can
     /// replace it.
     fn class_body_assignment(&self, ns: NsId, target: &Expr) -> bool {
-        let Some(module) = self.program.namespaces[ns as usize].module else {
+        let Some(module) = self.program.namespace(ns).and_then(|ns| ns.module) else {
             return false;
         };
         // The body's statements are in source order, so the one at the
@@ -3346,10 +3421,13 @@ impl<'a> Checker<'a> {
         else {
             return false;
         };
-        matches!(
-            &module.body[at].node,
-            Statement::Assign(Target::Value(assigned), "=", _) if assigned.offset == target.offset
-        )
+        module.body.get(at).is_some_and(|stmt| {
+            matches!(
+                &stmt.node,
+                Statement::Assign(Target::Value(assigned), "=", _)
+                    if assigned.offset == target.offset
+            )
+        })
     }
 
     pub(super) fn mark_ivar_assigned(&mut self, name: &str) {
@@ -3496,7 +3574,10 @@ impl<'a> Checker<'a> {
                     let optional = self.types.has_nil(current) || current == Ty::ANY;
                     if !optional && current != Ty::ERROR && current != Ty::NEVER {
                         let span = self.spans.expr(expr);
-                        let name = self.frame.locals[id as usize].name.clone();
+                        let name = self
+                            .frame
+                            .local(id)
+                            .map_or_else(String::new, |local| local.name.clone());
                         let found = self.types.display(current);
                         let always = if *op == "==" { "false" } else { "true" };
                         self.report(Diagnostic::warning(
@@ -3524,9 +3605,10 @@ impl<'a> Checker<'a> {
             {
                 let ty = self.expr(expr, None);
                 let mut narrow = Narrow::new(&self.meter);
-                if let (Some(id), Some(tested)) =
-                    (self.narrowable(receiver), self.type_atom(&args[0].value))
-                {
+                if let (Some(id), Some(tested)) = (
+                    self.narrowable(receiver),
+                    args.first().and_then(|arg| self.type_atom(&arg.value)),
+                ) {
                     let current = self.frame.flow.get(id).ty;
                     let then = self.intersect(current, tested);
                     if then == Ty::NEVER && current != Ty::NEVER {

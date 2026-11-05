@@ -397,7 +397,13 @@ pub(crate) fn call(
         append_unique(ctx, &mut index, &mut output, array)?;
         for arg in args {
             ctx.charge(1)?;
-            append_unique(ctx, &mut index, &mut output, arg.as_array().unwrap())?;
+            append_unique(
+                ctx,
+                &mut index,
+                &mut output,
+                arg.as_array()
+                    .ok_or(crate::checked::violation("set operand must be an array"))?,
+            )?;
         }
         Value::from_array(ctx, output)?
     } else {
@@ -455,7 +461,10 @@ fn difference(ctx: &mut CallContext, array: &[Value], others: &[Value]) -> Resul
     if !array.is_empty() {
         for other in others {
             ctx.charge(1)?;
-            for value in other.as_array().unwrap() {
+            for value in other
+                .as_array()
+                .ok_or(crate::checked::violation("set operand must be an array"))?
+            {
                 ctx.charge(1)?;
                 let hash = key_hash(ctx, value)?;
                 if let Entry::Vacant(slot) = removal.entry(ctx, &members.data, value, hash)? {

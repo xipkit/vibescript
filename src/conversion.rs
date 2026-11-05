@@ -1,5 +1,6 @@
 use crate::{
-    CallContext, Error, ErrorKind, Result, Value, budget::Buffer, bytes, json, ops, value::Kind,
+    CallContext, Error, ErrorKind, Result, Value, budget::Buffer, bytes, json, numeric::to_u64,
+    ops, value::Kind,
 };
 
 /// Converts a number to a 64-bit integer as Go's `ValueToInt64` does: finite
@@ -13,8 +14,9 @@ pub(crate) fn int64(value: &Value) -> Result<i64> {
                 return Ok(n);
             }
             let mut text = bytes::Number::new();
-            ops::format_float(&mut text, n);
-            let text = std::str::from_utf8(text.bytes()).unwrap();
+            ops::format_float(&mut text, n)?;
+            let text = std::str::from_utf8(text.bytes())
+                .map_err(|_| crate::checked::violation("formatted number must be UTF-8"))?;
             if n.is_finite() {
                 format!("float {text} is out of integer range")
             } else {
@@ -225,7 +227,11 @@ fn hex_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
             continue;
         }
         fractional += usize::from(fraction);
-        let digit = (byte as char).to_digit(16).unwrap() as u64;
+        let digit = (byte as char)
+            .to_digit(16)
+            .ok_or(crate::checked::violation(
+                "hexadecimal float digit expected",
+            ))? as u64;
         if significant != 0 || digit != 0 {
             if significant < 16 {
                 mantissa = mantissa << 4 | digit;
@@ -271,9 +277,9 @@ fn hex_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
     let normal = binary_exponent >= -1022;
     let shift = if normal { width - 53 } else { -1074 - exponent };
     let mut rounded = if shift <= 0 {
-        mantissa << (-shift) as u32
+        mantissa << u32::try_from(-shift).unwrap_or(u32::MAX)
     } else {
-        let shift = shift as u32;
+        let shift = u32::try_from(shift).unwrap_or(u32::MAX);
         let whole = mantissa.checked_shr(shift).unwrap_or(0);
         let half = 1u64.checked_shl(shift - 1).unwrap_or(0);
         let remainder = if shift >= 64 {
@@ -294,6 +300,6 @@ fn hex_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
         binary_exponent += 1;
     }
     Ok(f64::from_bits(
-        sign | ((binary_exponent + 1023) as u64) << 52 | (rounded & ((1u64 << 52) - 1)),
+        sign | to_u64(binary_exponent + 1023) << 52 | (rounded & ((1u64 << 52) - 1)),
     ))
 }

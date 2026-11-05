@@ -135,7 +135,7 @@ impl CompileBudget {
             budget: work.budget(),
             observe: None,
             annotate: true,
-        });
+        })?;
         work.charge(usize::try_from(checked.steps).unwrap_or(usize::MAX))?;
         work.checkpoint()?;
         if checked.stopped {
