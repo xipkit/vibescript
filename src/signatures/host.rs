@@ -389,10 +389,10 @@ pub(super) const INFERENCE_SIZE: usize = 1 << 20;
 /// does, and a shared value infers exactly the type an unshared copy does.
 pub(crate) fn value_type(value: &Value) -> Type {
     let mut inference = Inference::default();
-    match inference.infer(value, 0) {
-        Some(id) => inference.build(id),
-        None => Type::name("any"),
-    }
+    inference
+        .infer(value, 0)
+        .and_then(|id| inference.build(id))
+        .unwrap_or_else(|| Type::name("any"))
 }
 
 /// One [`value_type`] walk. Each type it infers is kept once, by id, so
@@ -429,13 +429,16 @@ impl Inference {
         }
         let size = match &ty {
             Inferred::Name(_) => 1,
-            Inferred::Array(element) => 1 + self.types[*element].1,
-            Inferred::Union(arms) => 1 + arms.iter().map(|&arm| self.types[arm].1).sum::<usize>(),
-            Inferred::Shape(fields) => {
-                1 + fields
+            Inferred::Array(element) => 1 + self.types.get(*element)?.1,
+            Inferred::Union(arms) => {
+                1 + arms
                     .iter()
-                    .map(|(name, field)| name.len() + self.types[*field].1)
-                    .sum::<usize>()
+                    .try_fold(0, |sum, &arm| Some(sum + self.types.get(arm)?.1))?
+            }
+            Inferred::Shape(fields) => {
+                1 + fields.iter().try_fold(0, |sum, (name, field)| {
+                    Some(sum + name.len() + self.types.get(*field)?.1)
+                })?
             }
         };
         if size > INFERENCE_SIZE {
@@ -491,9 +494,9 @@ impl Inference {
                 arms.push(arm);
             }
         }
-        let element = match arms.len() {
-            0 => self.intern(Inferred::Name("any"))?,
-            1 => arms[0],
+        let element = match arms.as_slice() {
+            [] => self.intern(Inferred::Name("any"))?,
+            [arm] => *arm,
             _ => self.intern(Inferred::Union(arms))?,
         };
         Some(Inferred::Array(element))
@@ -516,23 +519,29 @@ impl Inference {
     }
 
     /// The [`Type`] with id `id`.
-    fn build(&self, id: usize) -> Type {
-        match &self.types[id].0 {
+    fn build(&self, id: usize) -> Option<Type> {
+        Some(match &self.types.get(id)?.0 {
             Inferred::Name(name) => Type::name(name),
-            Inferred::Array(element) => Type::Name("array".into(), vec![self.build(*element)]),
-            Inferred::Union(arms) => Type::Union(arms.iter().map(|&arm| self.build(arm)).collect()),
+            Inferred::Array(element) => Type::Name("array".into(), vec![self.build(*element)?]),
+            Inferred::Union(arms) => Type::Union(
+                arms.iter()
+                    .map(|&arm| self.build(arm))
+                    .collect::<Option<_>>()?,
+            ),
             Inferred::Shape(fields) => Type::Shape(
                 fields
                     .iter()
-                    .map(|(name, field)| Field {
-                        name: name.clone(),
-                        ty: self.build(*field),
-                        optional: false,
+                    .map(|(name, field)| {
+                        Some(Field {
+                            name: name.clone(),
+                            ty: self.build(*field)?,
+                            optional: false,
+                        })
                     })
-                    .collect(),
+                    .collect::<Option<_>>()?,
                 false,
             ),
-        }
+        })
     }
 }
 

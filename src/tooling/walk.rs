@@ -26,31 +26,51 @@ pub(super) fn outline(source: &str, declarations: &Declarations, record: &Record
         let position = at(*offset);
         items.push(match top {
             Top::Function(index) => {
-                let definition = &declarations.functions[index + 1];
+                let Some(definition) = declarations.functions.get(index + 1) else {
+                    continue;
+                };
                 let mut item = Item::new(ItemKind::Function, &definition.name, position);
                 item.function = Some(function(definition, &at));
                 item
             }
             Top::Alias(index, target) => {
-                let definition = &declarations.functions[index + 1];
+                let Some(definition) = declarations.functions.get(index + 1) else {
+                    continue;
+                };
                 let mut item = Item::new(ItemKind::Alias, &definition.name, position);
                 item.function = Some(function(definition, &at));
                 item.target = Some(target.clone());
                 item
             }
             Top::Enum(index) => {
-                let (name, members) = &declarations.enums[*index];
+                let Some((name, members)) = declarations.enums.get(*index) else {
+                    continue;
+                };
+                let Some(offsets) = record.enums.get(*index) else {
+                    continue;
+                };
                 let mut item = Item::new(ItemKind::Enum, name, position);
                 item.children = members
                     .iter()
-                    .zip(&record.enums[*index])
+                    .zip(offsets)
                     .map(|(member, offset)| Item::new(ItemKind::EnumMember, member, at(*offset)))
                     .collect();
                 item
             }
-            Top::Module(index) => module(source, &declarations.modules[*index], record, &at),
+            Top::Module(index) => {
+                let Some(definition) = declarations.modules.get(*index) else {
+                    continue;
+                };
+                module(source, definition, record, &at)
+            }
             Top::Statement(index) => {
-                let stmt = &declarations.functions[0].body[*index];
+                let Some(stmt) = declarations
+                    .functions
+                    .first()
+                    .and_then(|main| main.body.get(*index))
+                else {
+                    continue;
+                };
                 Item::new(ItemKind::Statement(kind(source, stmt)), "", position)
             }
         });
@@ -323,7 +343,9 @@ fn locals(body: &[Stmt]) -> Vec<String> {
             Visit::Expr(expr) => children(expr, &mut pending),
         }
         // Children were pushed in source order; visit them first to last.
-        pending[start..].reverse();
+        if let Some(children) = pending.get_mut(start..) {
+            children.reverse();
+        }
     }
     names
 }

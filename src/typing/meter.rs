@@ -10,7 +10,7 @@
 //! elements' payloads instead of being walked at each poll. Each poll
 //! compares both totals with the budget and records the peak.
 
-use crate::checked::{Access, Violation};
+use crate::checked::Access;
 use crate::compilation::Budget;
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
@@ -60,7 +60,7 @@ pub(crate) struct Meter {
     stopped: AtomicBool,
     /// The first invariant the check found broken, which fails it with an
     /// internal error.
-    violation: OnceLock<Violation>,
+    violation: OnceLock<crate::Error>,
     polls: AtomicU64,
     /// The steps charged when a poll or a charge last checked the deadline
     /// and the cancellation token.
@@ -162,14 +162,14 @@ impl Meter {
     /// Stops the check for a broken invariant, keeping the first.
     #[cold]
     #[inline(never)]
-    pub fn violated(&self, violation: Violation) {
-        self.violation.get_or_init(|| violation);
+    pub fn violated(&self, violation: impl Into<crate::Error>) {
+        self.violation.get_or_init(|| violation.into());
         self.stopped.store(true, Relaxed);
     }
 
     /// The first invariant the check found broken, if any.
-    pub fn violation(&self) -> Option<Violation> {
-        self.violation.get().copied()
+    pub fn violation(&self) -> Option<crate::Error> {
+        self.violation.get().cloned()
     }
 
     /// What the check may spend.
@@ -363,7 +363,7 @@ impl Meter {
 /// The violation a test injects into this access; none outside the tests.
 #[cfg(not(test))]
 #[inline(always)]
-const fn injected() -> Option<Violation> {
+const fn injected() -> Option<crate::checked::Violation> {
     None
 }
 

@@ -7,6 +7,7 @@
 //! `MAX_ENVIRONMENT_DEPTH`.
 
 use super::{Bytes, Heap, Kind, Value};
+use crate::checked::Checked;
 use crate::{
     CallContext, ErrorKind, Result,
     budget::{Buffer, CHUNK, MAX_VALUE_DEPTH},
@@ -139,7 +140,7 @@ impl Keys {
             self.slots.ensure(ctx, Self::SLOTS)?;
             self.slots.data.resize(Self::SLOTS, None);
         }
-        self.slots.data[slot] = Some(imported.clone());
+        *self.slots.at_mut(slot)? = Some(imported.clone());
         Ok(imported)
     }
 }
@@ -161,7 +162,7 @@ impl CallContext {
                 // Plain scalars import as copies, so a run of them is charged
                 // its per-element steps at once and copied into the capacity
                 // reserved when the frame opened.
-                let rest = &source.buffer.data[out.data.len()..];
+                let rest = source.buffer.tail(out.data.len())?;
                 let run = rest
                     .iter()
                     .take(CHUNK)
@@ -180,7 +181,7 @@ impl CallContext {
                     .count();
                 if run > 0 {
                     self.charge_each(run as u64)?;
-                    out.data.extend_from_slice(&rest[..run]);
+                    out.data.extend_from_slice(rest.span(0, run)?);
                     continue;
                 }
             }

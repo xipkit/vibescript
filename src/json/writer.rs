@@ -312,7 +312,7 @@ fn write_value_with<const BATCH: bool>(
             Kind::Float(n) => {
                 let mut text = Number::new();
                 crate::ops::format_float(&mut text, n)?;
-                let text = std::str::from_utf8(text.bytes())
+                let text = std::str::from_utf8(text.bytes()?)
                     .map_err(|_| violation("formatted float must be UTF-8"))?;
                 format!("JSON.stringify failed: json: unsupported value: {text}")
             }
@@ -396,7 +396,7 @@ fn start<'a>(
         Kind::Namespace(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a module")),
         Kind::Shape(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a type literal")),
         Kind::Enum(_) => return Err(Error::new(ErrorKind::Json, "cannot encode an enum type")),
-        Kind::EnumMember(m) => write_string(ctx, m.definition().symbol.as_bytes(), out, open)?,
+        Kind::EnumMember(m) => write_string(ctx, m.definition()?.symbol.as_bytes(), out, open)?,
         Kind::Money(_) => return Err(Error::new(ErrorKind::Json, "cannot encode money")),
         Kind::Duration(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a duration")),
         Kind::Time(_) | Kind::Zoned(_) => {
@@ -408,7 +408,7 @@ fn start<'a>(
         Kind::Int(n) => {
             let mut text = Number::new();
             text.format(format_args!("{n}"))?;
-            out.extend(ctx, text.bytes())?;
+            out.extend(ctx, text.bytes()?)?;
         }
         Kind::Big(_) => {
             let text = crate::integer::format(ctx, value, 10)?;
@@ -425,7 +425,7 @@ fn start<'a>(
             if *n != 0.0 && !(1e-6..1e21).contains(&n.abs()) {
                 let mut scientific = Number::new();
                 scientific.format(format_args!("{n:e}"))?;
-                let scientific = std::str::from_utf8(scientific.bytes())
+                let scientific = std::str::from_utf8(scientific.bytes()?)
                     .map_err(|_| violation("scientific number must be UTF-8"))?;
                 let (mantissa, exponent) = scientific
                     .split_once('e')
@@ -437,7 +437,7 @@ fn start<'a>(
             } else {
                 text.format(format_args!("{n}"))?;
             }
-            out.extend(ctx, text.bytes())?;
+            out.extend(ctx, text.bytes()?)?;
         }
         Kind::Bytes(h) | Kind::Symbol(h) => write_string(ctx, h.data(), out, open)?,
         Kind::Array(h) => {

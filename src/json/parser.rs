@@ -222,8 +222,8 @@ pub(crate) fn parse_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
     }
     let mut suffix = Number::new();
     suffix.format(format_args!("e{exponent}"))?;
-    text[used..used + suffix.bytes().len()].copy_from_slice(suffix.bytes());
-    used += suffix.bytes().len();
+    text[used..used + suffix.bytes()?.len()].copy_from_slice(suffix.bytes()?);
+    used += suffix.bytes()?.len();
     std::str::from_utf8(&text[..used])
         .map_err(|_| Error::new(ErrorKind::Json, "invalid JSON number"))?
         .parse()

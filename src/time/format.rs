@@ -407,7 +407,7 @@ pub(super) fn render(
                     continue;
                 }
                 number.format(format_args!("{:09}", view.stamp.nanos()))?;
-                let mut fraction = number.bytes().span(0, digits.min(9))?;
+                let mut fraction = number.bytes()?.span(0, digits.min(9))?;
                 if trim {
                     while let Some(rest) = fraction.strip_suffix(b"0") {
                         fraction = rest;
@@ -420,7 +420,7 @@ pub(super) fn render(
                 continue;
             }
         }
-        out.append(ctx, number.bytes())?;
+        out.append(ctx, number.bytes()?)?;
     }
     Ok(())
 }
@@ -496,7 +496,7 @@ pub(crate) fn text(
     } else {
         numeric_offset(&mut out, offset.seconds, true)?;
     }
-    ctx.bytes(out.bytes())
+    ctx.bytes(out.bytes()?)
 }
 
 pub(super) fn mail_date(ctx: &mut CallContext, receiver: &Value, http: bool) -> Result<Value> {
@@ -528,7 +528,7 @@ pub(super) fn mail_date(ctx: &mut CallContext, receiver: &Value, http: bool) -> 
     } else {
         numeric_offset(&mut out, offset.seconds, false)?;
     }
-    ctx.bytes(out.bytes())
+    ctx.bytes(out.bytes()?)
 }
 
 #[cfg(test)]

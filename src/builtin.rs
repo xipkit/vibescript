@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{CallContext, Error, ErrorKind, Result, Value, json, math, ops, value::Kind};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -424,13 +425,13 @@ impl Builtin {
             return crate::duration::parse(ctx, args);
         }
         if self == Self::Money {
-            if args.len() != 1 {
+            let [value] = args else {
                 return Err(Error::new(
                     ErrorKind::Argument,
                     "money expects a single string literal",
                 ));
-            }
-            let Kind::Bytes(bytes) = &args[0].0 else {
+            };
+            let Kind::Bytes(bytes) = &value.0 else {
                 return Err(Error::new(
                     ErrorKind::Type,
                     "money expects a string literal",
@@ -439,20 +440,20 @@ impl Builtin {
             return crate::money::parse(ctx, bytes.data()).map(|value| Value(Kind::Money(value)));
         }
         if self == Self::MoneyCents {
-            if args.len() != 2 {
+            let [cents, currency] = args else {
                 return Err(Error::new(
                     ErrorKind::Argument,
                     "money_cents expects cents and currency",
                 ));
-            }
-            if !matches!(args[0].0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_)) {
+            };
+            if !matches!(cents.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_)) {
                 return Err(Error::new(
                     ErrorKind::Type,
                     "money_cents expects integer cents",
                 ));
             }
-            let cents = crate::conversion::int64(&args[0]).map_err(money_cents_error)?;
-            let Kind::Bytes(bytes) = &args[1].0 else {
+            let cents = crate::conversion::int64(cents).map_err(money_cents_error)?;
+            let Kind::Bytes(bytes) = &currency.0 else {
                 return Err(Error::new(
                     ErrorKind::Type,
                     "money_cents expects currency string",
@@ -498,7 +499,7 @@ impl Builtin {
             ));
         }
         ops::arity(args, 1)?;
-        let value = &args[0];
+        let value = args.at(0)?;
         match self {
             Self::ToInt => match &value.0 {
                 Kind::Int(_) | Kind::Big(_) => Ok(value.clone()),
@@ -658,7 +659,7 @@ fn call_math(
         })
     };
     let domain = || Error::new(ErrorKind::Arithmetic, format!("{name} out of domain"));
-    let x = number(&args[0])?;
+    let x = number(args.at(0)?)?;
     if matches!(method, Sqrt | Log | Log2 | Log10) && x < 0.0
         || matches!(method, Asin | Acos) && (x < -1.0 || x > 1.0)
     {
@@ -676,11 +677,11 @@ fn call_math(
         Exp => math::exp(x),
         Log2 => math::log2(x),
         Log10 => math::log10(x),
-        Atan2 => math::atan2(x, number(&args[1])?),
-        Hypot => math::hypot(x, number(&args[1])?),
+        Atan2 => math::atan2(x, number(args.at(1)?)?),
+        Hypot => math::hypot(x, number(args.at(1)?)?),
         Log if args.len() == 1 => math::log(x),
         Log => {
-            let base = number(&args[1])?;
+            let base = number(args.at(1)?)?;
             if base < 0.0 {
                 return Err(domain());
             }
