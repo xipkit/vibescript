@@ -1,4 +1,9 @@
-use crate::{CallContext, Error, ErrorKind, Result, Value, budget::Buffer, ops, scan, value::Kind};
+use crate::{
+    CallContext, Error, ErrorKind, Result, Value,
+    budget::{Buffer, CHUNK},
+    ops, scan,
+    value::Kind,
+};
 use std::cmp::Ordering;
 
 mod data;
@@ -59,48 +64,63 @@ fn entry(rune: char) -> Option<(&'static [u32; 5], u32)> {
         .map(|(_, maps, fold)| (maps, *fold))
 }
 
+/// Maps `bytes` a run at a time, hands each mapped piece to `emit` and
+/// reports whether any piece changed.
+///
+/// `emit` returns the steps its own work costs. They are summed with the
+/// walk's, a step per 64 bytes of an ASCII run and one for every other
+/// character, and charged with a checkpoint once per chunk of input: in text
+/// that mixes scripts a piece is a few bytes, too short to charge and
+/// checkpoint one at a time.
 fn walk(
     ctx: &mut CallContext,
     bytes: &[u8],
     transform: Transform,
     ascii: bool,
-    mut emit: impl FnMut(&mut CallContext, &[u8]) -> Result<()>,
+    mut emit: impl FnMut(&mut CallContext, &[u8]) -> Result<u64>,
 ) -> Result<bool> {
     let mut changed = false;
     let mut position = 0;
     let mut scratch = [0; 4096];
+    // Settled after every chunk or two of input, so the sum cannot wrap.
+    let mut pending = 0u64;
     while position < bytes.len() {
-        let end = position + (bytes.len() - position).min(scratch.len());
-        let chunk = &bytes[position..end];
-        let length = if ascii {
-            chunk.len()
-        } else {
-            scan::ascii_prefix(chunk)
-        };
-        if length > 0 {
-            ctx.work_bytes(length)?;
-            let original = &chunk[..length];
-            let mapped = &mut scratch[..length];
-            mapped.copy_from_slice(original);
-            transform.ascii(mapped, position == 0);
+        let settle = bytes.len().min(position + CHUNK);
+        while position < settle {
+            let end = position + (bytes.len() - position).min(scratch.len());
+            let chunk = &bytes[position..end];
+            let length = if ascii {
+                chunk.len()
+            } else {
+                scan::ascii_prefix(chunk)
+            };
+            if length > 0 {
+                pending = pending.wrapping_add((length as u64).div_ceil(64));
+                let original = &chunk[..length];
+                let mapped = &mut scratch[..length];
+                mapped.copy_from_slice(original);
+                transform.ascii(mapped, position == 0);
+                changed |= mapped != original;
+                pending = pending.wrapping_add(emit(ctx, mapped)?);
+                position += length;
+                continue;
+            }
+            pending = pending.wrapping_add(1);
+            let (rune, length, _) = scan::rune(&bytes[position..]);
+            let original = &bytes[position..position + length];
+            let encoded = entry(rune).map_or(0, |(maps, _)| maps[transform.index(position == 0)]);
+            let mapped = if encoded == 0 {
+                original
+            } else {
+                let start = (encoded >> 4) as usize;
+                &data::BYTES[start..start + (encoded & 15) as usize]
+            };
             changed |= mapped != original;
-            emit(ctx, mapped)?;
+            pending = pending.wrapping_add(emit(ctx, mapped)?);
             position += length;
-            continue;
         }
-        ctx.charge(1)?;
-        let (rune, length, _) = scan::rune(&bytes[position..]);
-        let original = &bytes[position..position + length];
-        let encoded = entry(rune).map_or(0, |(maps, _)| maps[transform.index(position == 0)]);
-        let mapped = if encoded == 0 {
-            original
-        } else {
-            let start = (encoded >> 4) as usize;
-            &data::BYTES[start..start + (encoded & 15) as usize]
-        };
-        changed |= mapped != original;
-        emit(ctx, mapped)?;
-        position += length;
+        ctx.charge_pending(&mut pending)?;
+        ctx.checkpoint()?;
     }
     Ok(changed)
 }
@@ -120,16 +140,15 @@ fn transform(
             return ctx.fail(ErrorKind::Memory, "case conversion output size overflow");
         };
         size = next;
-        Ok(())
+        Ok(0)
     })?;
     if !changed {
         return Ok(if bang { Value::nil() } else { receiver.clone() });
     }
     let mut output = Buffer::with_capacity(ctx, size)?;
-    walk(ctx, bytes, transform, ascii, |ctx, mapped| {
-        ctx.work_bytes(mapped.len())?;
+    walk(ctx, bytes, transform, ascii, |_, mapped| {
         output.data.extend_from_slice(mapped);
-        Ok(())
+        Ok((mapped.len() as u64).div_ceil(64))
     })?;
     Value::from_bytes(ctx, output)
 }
@@ -342,5 +361,120 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn a_walk_charges_each_piece_as_if_charged_where_it_was_mapped() {
+        for text in ops::testing::mixed_texts() {
+            let ascii = std::str::from_utf8(&text).is_err();
+            // A step per 64 bytes of each ASCII run, which is mapped at most
+            // 4096 bytes at a time, one for every other character, and three
+            // that `emit` asks for each piece.
+            let mut steps = 0;
+            let mut rest = &text[..];
+            while !rest.is_empty() {
+                let run = rest
+                    .iter()
+                    .take(4096)
+                    .take_while(|byte| ascii || byte.is_ascii())
+                    .count();
+                let length = if run > 0 {
+                    steps += run.div_ceil(64) as u64;
+                    run
+                } else {
+                    steps += 1;
+                    scan::rune(rest).1
+                };
+                steps += 3;
+                rest = &rest[length..];
+            }
+            for short in [0, 1, 2, 17, steps / 2, steps] {
+                if short > steps {
+                    continue;
+                }
+                let mut ctx = ops::testing::context(Some(1 + steps - short), None);
+                ctx.charge(1).unwrap();
+                let mut mapped = Vec::new();
+                let walked = walk(&mut ctx, &text, Transform::Swap, ascii, |_, piece| {
+                    mapped.extend_from_slice(piece);
+                    Ok(3)
+                });
+                if short == 0 {
+                    walked.unwrap();
+                    assert_eq!(ctx.stats().steps, 1 + steps);
+                    assert_eq!(mapped.len(), text.len());
+                } else {
+                    let error = walked.unwrap_err();
+                    assert_eq!(error.kind, ErrorKind::Steps);
+                    assert_eq!(ctx.charge(0).unwrap_err(), error);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_walk_notices_a_limit_cancellation_and_a_deadline_within_two_chunks() {
+        let long = "aé".repeat(100 * CHUNK);
+        // Each stops the walk once `after` bytes are mapped: at the start of
+        // a text of any length, or part of the way through a long one.
+        for (text, after) in [
+            ("a", 0),
+            ("é", 0),
+            (long.as_str(), 0),
+            (long.as_str(), 40 * CHUNK),
+        ] {
+            for kind in [ErrorKind::Steps, ErrorKind::Cancelled, ErrorKind::Deadline] {
+                if kind == ErrorKind::Steps && text.len() < CHUNK {
+                    continue;
+                }
+                // The long text costs two steps for every three bytes.
+                let limit = 10 + after as u64 * 2 / 3;
+                let mut ctx =
+                    ops::testing::context((kind == ErrorKind::Steps).then_some(limit), None);
+                ctx.charge(1).unwrap();
+                let mut mapped = 0;
+                let error = walk(
+                    &mut ctx,
+                    text.as_bytes(),
+                    Transform::Upper,
+                    false,
+                    |ctx, piece| {
+                        if mapped >= after {
+                            match kind {
+                                ErrorKind::Cancelled => ctx.cancellation().cancel(),
+                                ErrorKind::Deadline => {
+                                    ctx.options.deadline = Some(std::time::Instant::now());
+                                }
+                                _ => {}
+                            }
+                        }
+                        mapped += piece.len();
+                        Ok(0)
+                    },
+                )
+                .unwrap_err();
+                assert_eq!(error.kind, kind);
+                assert!(mapped < after + 2 * CHUNK, "{mapped}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_changed_result_costs_a_second_walk_and_a_step_per_64_bytes_of_each_piece_copied() {
+        // What changing the text adds to leaving it as it is.
+        let extra = |text: &str| {
+            let cost = |text: &str| {
+                let mut ctx = CallContext::new(CallOptions::default());
+                let input = ctx.import(&Value::bytes(text)).unwrap();
+                let before = ctx.stats().steps;
+                call(&mut ctx, "upcase", &input, &[]).unwrap();
+                ctx.stats().steps - before
+            };
+            cost(text) - cost(&text.to_uppercase())
+        };
+        // An ASCII run is scanned again and copied, 64 bytes a step for each.
+        assert_eq!(extra(&"a".repeat(6400)) - extra(&"a".repeat(64)), 2 * 99);
+        // So is each short run and each other character, a step for each.
+        assert_eq!(extra(&"aé".repeat(1000)) - extra("aé"), 4 * 999);
     }
 }
