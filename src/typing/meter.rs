@@ -887,7 +887,7 @@ mod tests {
         let meter = super::Meter::new(Default::default(), None);
         super::MemoSlot::default().replay(&meter);
         assert!(meter.stopped());
-        let error = crate::Error::from(meter.violation().unwrap());
+        let error = meter.violation().unwrap();
         assert_eq!(error.kind, crate::ErrorKind::Internal);
         assert!(
             error
