@@ -25,6 +25,8 @@ A sixteen-round confirmation targets 75 ms per case for the twelve largest initi
 
 The initial portable `array_map_select/unlimited` increase falls from 12.42% to 2.89% in the confirmation. The SIMD upcase control remains +6.90%; its source is untouched, and `text::case::call` (1,275 instructions, including its inlined walks) and `Transform::ascii` (114 instructions) have identical normalized instructions after resolving renamed constants to their contents. Placement and shared-host effects have not been isolated; the measured upcase increase is retained here.
 
+A separate twelve-round confirmation covers the other 37 cases that initially increased by more than 3% in either build, so every initial increase above that threshold was retimed. Its median per-case ratios are −0.46% SIMD and −0.96% portable. Two additional SIMD increases remain: `glue_orders/metered` is 328.328 → 342.317 µs (+4.26%), and `length_mixed_65536/metered` is 1.649 → 1.717 µs (+4.15%). The former is a possible record-processing cost of this change; these results do not establish zero regression in every workload. Portable increases in both confirmations stay below 3%.
+
 ## `simple::run` codegen
 
 Assembly comes from `cargo rustc --release --lib -- --emit=asm` in each revision. Counts cover the entire function, including cold failure paths, and are not dynamic instruction counts.
@@ -41,4 +43,4 @@ Assembly comes from `cargo rustc --release --lib -- --emit=asm` in each revision
 
 The same registers are saved in both prologues; the local stack allocation grows from 768 to 800 bytes. Register allocation and block layout change, so the additional cold error handling is not claimed to be codegen-neutral. The before/after timing above measures its effect.
 
-Raw samples, binary hashes, assembly, the normalized per-function diff and scripts are retained under `/Volumes/AI/Build/beck-vibe-162/`: `paired/`, `confirmation/`, `simple-codegen.diff`, `codegen-summary.json` and `upcase-resolved-codegen.json`.
+Raw samples, binary hashes, assembly, the normalized per-function diff and scripts are retained under `/Volumes/AI/Build/beck-vibe-162/`: `paired/`, `confirmation/`, `remaining/`, `simple-codegen.diff`, `codegen-summary.json` and `upcase-resolved-codegen.json`.
