@@ -204,7 +204,10 @@ fn text(name: &Value) -> &str {
 
 /// Opens a write address at a location `read` has just confirmed.
 fn open(ctx: &mut CallContext, storage: &Storage, location: &Location) -> Result<Address> {
-    let bindings = storage.bindings.as_ref().unwrap();
+    let bindings = storage
+        .bindings
+        .as_ref()
+        .ok_or(violation("published receiver must have root bindings"))?;
     let mut address =
         crate::objects::address(ctx, bindings, text(&location.name))?.in_environment()?;
     for key in &location.path.data {

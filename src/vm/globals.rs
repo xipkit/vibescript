@@ -14,7 +14,13 @@ pub(super) fn contains(ctx: &mut CallContext, name: &str) -> Result<bool> {
     for index in 0..ctx.capability_names.data.len() {
         ctx.charge(1)?;
         let candidate = ctx.capability_names.at(index)?.clone();
-        if crate::bytes::bytes_equal(ctx, candidate.as_bytes().unwrap(), name.as_bytes())? {
+        if crate::bytes::bytes_equal(
+            ctx,
+            candidate
+                .as_bytes()
+                .ok_or(violation("capability name must be bytes"))?,
+            name.as_bytes(),
+        )? {
             return Ok(true);
         }
     }
@@ -78,11 +84,7 @@ pub(super) fn types(
     })();
     ctx.options.globals = sources;
     for name in result?.data {
-        requires::get(
-            ctx,
-            storage,
-            std::str::from_utf8(name.as_bytes().unwrap()).unwrap(),
-        )?;
+        requires::get(ctx, storage, requires::binding_name(&name)?)?;
     }
     Ok(())
 }

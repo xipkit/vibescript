@@ -21,7 +21,7 @@ pub(super) fn set(
     name: &str,
     value: &Value,
 ) -> Result<()> {
-    let environment = environment(program).unwrap();
+    let environment = environment(program).ok_or(violation("file must have an environment"))?;
     if let Some(field) = crate::objects::field_slot(ctx, environment, name)? {
         address::refresh(
             ctx,
@@ -35,8 +35,12 @@ pub(super) fn set(
 }
 
 pub(super) fn address(program: &Program, ctx: &mut CallContext, name: &str) -> Result<Address> {
-    crate::objects::address(ctx, environment(program).unwrap(), name)
-        .and_then(|address| Ok(address.in_environment()?))
+    crate::objects::address(
+        ctx,
+        environment(program).ok_or(violation("file must have an environment"))?,
+        name,
+    )
+    .and_then(|address| Ok(address.in_environment()?))
 }
 
 pub(super) fn declare(
@@ -68,7 +72,7 @@ pub(super) fn local(
         return Ok(false);
     };
     let frame = frames.at(current)?;
-    let function = program.functions.at(frame.function().unwrap())?;
+    let function = program.functions.at(frame.required_function()?)?;
     let name = function.local_names.at(relative)?;
     if name.starts_with('\0') || storage.locals.at(absolute)?.is_some() {
         return Ok(false);
@@ -90,7 +94,7 @@ pub(super) fn local(
             let parent_function = parent_frame
                 .program
                 .functions
-                .at(parent_frame.function().unwrap())?;
+                .at(parent_frame.required_function()?)?;
             if parent_function.initializer {
                 return Ok(false);
             }
@@ -118,7 +122,7 @@ pub(super) fn unshadowed(
 ) -> Result<bool> {
     let function = program
         .functions
-        .at(frames.at(current)?.function().unwrap())?;
+        .at(frames.at(current)?.required_function()?)?;
     for (relative, candidate) in function.local_names.iter().enumerate() {
         ctx.charge(1)?;
         if candidate == name {
@@ -176,7 +180,12 @@ pub(super) fn global_address(
             return address(program, ctx, name);
         }
         let slot = global_slot(program, ctx, storage, index)?;
-        let mut value = storage.globals.at(slot)?.as_ref().unwrap().clone();
+        let mut value = storage
+            .globals
+            .at(slot)?
+            .as_ref()
+            .ok_or(violation("global binding must be present"))?
+            .clone();
         if read {
             if let (Kind::Builtin(current), Kind::Builtin(original)) =
                 (&value.0, &program.globals.at(index)?.1.0)
@@ -190,8 +199,15 @@ pub(super) fn global_address(
         return Ok(Address::global(slot, value));
     }
     if requires::get(ctx, storage, name)?.is_some() {
-        return crate::objects::address(ctx, storage.bindings.as_ref().unwrap(), name)
-            .and_then(|address| Ok(address.in_environment()?));
+        return crate::objects::address(
+            ctx,
+            storage
+                .bindings
+                .as_ref()
+                .ok_or(violation("global binding must be present"))?,
+            name,
+        )
+        .and_then(|address| Ok(address.in_environment()?));
     }
     let mut value = global_value(program, ctx, storage, index)?;
     if read {
@@ -279,7 +295,7 @@ pub(super) fn read_root(
         RootBinding::Value(value) => {
             let value = match value.0 {
                 Kind::Host(method) => {
-                    let owner = frames.data.last().unwrap().program.clone();
+                    let owner = frames.top()?.program.clone();
                     let value = capabilities::call(ctx, storage, &method, &[], &[], None, true)?;
                     return value.finish(&owner, ctx, frames, storage, stack, ReturnTo::Stack);
                 }

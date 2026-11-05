@@ -131,11 +131,19 @@ struct Observed {
 
 impl Observed {
     fn check(&self, result: Result<()>, reaction: Reaction) {
+        self.check_terminal(result, reaction);
+        self.check_callback(reaction);
+    }
+
+    fn check_terminal(&self, result: Result<()>, reaction: Reaction) {
         let error = result.expect_err("the corrupted block target must fail the call");
         assert!(is_internal(&error), "{reaction:?}: {error}");
+        assert_eq!(self.handlers.load(Ordering::Relaxed), 0, "{reaction:?}");
+    }
+
+    fn check_callback(&self, reaction: Reaction) {
         assert!(self.block.load(Ordering::Relaxed), "{reaction:?}");
         assert!(self.later.load(Ordering::Relaxed), "{reaction:?}");
-        assert_eq!(self.handlers.load(Ordering::Relaxed), 0, "{reaction:?}");
     }
 }
 
@@ -251,6 +259,125 @@ fn a_callback_cannot_swallow_an_internal_import_error() {
 }
 
 #[test]
+fn empty_stacks_in_vm_helpers_are_terminal() {
+    for op in [Op::Pop, Op::Dup, Op::LoopBody, Op::EnsureEnd] {
+        for reaction in [Reaction::Ignore, Reaction::Replace] {
+            let observed = Arc::new(Observed::default());
+            let mut engine = marking(&observed);
+            let seen = observed.clone();
+            engine.register_method(
+                "visit",
+                HostMethod::new_with_block("visit", move |call, _, _| {
+                    let error = call.call_block(&[]).unwrap_err();
+                    assert_eq!(error.kind, ErrorKind::Internal, "{op:?}: {error}");
+                    seen.block.store(true, Ordering::Relaxed);
+                    let later = call.context().checkpoint().unwrap_err();
+                    assert_eq!(later.kind, ErrorKind::Internal);
+                    assert_eq!(later.message, error.message);
+                    seen.later.store(true, Ordering::Relaxed);
+                    reaction.result()
+                }),
+            );
+            let script = corrupt(engine.compile(GUARDED_BLOCK).unwrap(), "<block>", |code| {
+                code[0] = op;
+            });
+            let error = script.call("run", &[], CallOptions::default()).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Internal, "{op:?}: {error}");
+            assert!(observed.block.load(Ordering::Relaxed));
+            assert!(observed.later.load(Ordering::Relaxed));
+            assert_eq!(observed.handlers.load(Ordering::Relaxed), 0);
+        }
+    }
+}
+
+#[test]
+fn a_native_frame_has_no_required_function() {
+    let script = Engine::new().compile("0").unwrap();
+    let mut execution =
+        Execution::new(&script, "__main__", &[], &[], CallOptions::default()).unwrap();
+    let run = execution.run.as_mut().unwrap();
+    let mut frame = Frame::new(run.root.clone(), &run.storage, Some(0), 0, 0);
+    assert_eq!(frame.required_function().unwrap(), 0);
+    frame.function = FrameCode::Iteration;
+    let error = Error::from(frame.required_function().unwrap_err());
+    assert_eq!(error.kind, ErrorKind::Internal);
+    assert!(error.message.ends_with("frame must have a function"));
+}
+
+#[test]
+fn a_callback_cannot_swallow_a_missing_code_roots_error() {
+    for reaction in [Reaction::Ignore, Reaction::Replace] {
+        let observed = Arc::new(Observed::default());
+        let mut engine = marking(&observed);
+        let seen = observed.clone();
+        let method = HostMethod::new_with_block("cap.store", move |call, _, _| {
+            call.context().code_roots = None;
+            let error = call
+                .set_receiver_field(b"value", &Value::int(1))
+                .unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Internal);
+            assert!(
+                error
+                    .message
+                    .ends_with("invocation must retain its code roots")
+            );
+            seen.block.store(true, Ordering::Relaxed);
+            let later = call.context().checkpoint().unwrap_err();
+            assert_eq!(later.message, error.message);
+            seen.later.store(true, Ordering::Relaxed);
+            reaction.result()
+        });
+        let capability = crate::Capability::from_value(
+            "cap",
+            Value::object(vec![(b"store".to_vec(), method.value())]),
+        );
+        engine.declare_capability(&capability).unwrap();
+        let script = engine
+            .compile("def run -> any;begin;cap.store();rescue;mark();ensure;mark();end;end")
+            .unwrap();
+        let error = script
+            .call(
+                "run",
+                &[],
+                CallOptions {
+                    capabilities: vec![capability],
+                    ..CallOptions::default()
+                },
+            )
+            .unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Internal);
+        assert!(observed.block.load(Ordering::Relaxed));
+        assert!(observed.later.load(Ordering::Relaxed));
+        assert_eq!(observed.handlers.load(Ordering::Relaxed), 0);
+    }
+}
+
+#[test]
+fn non_utf8_namespace_fields_keep_their_type_error() {
+    let script = Engine::new().compile("module Box;end").unwrap();
+    let mut execution =
+        Execution::new(&script, "__main__", &[], &[], CallOptions::default()).unwrap();
+    let run = execution.run.as_mut().unwrap();
+    let ctx = &mut execution.context;
+    let program = run.root.clone();
+    let state = namespaces::state(&program, ctx, &mut run.storage, 0).unwrap();
+    let key = ctx.bytes(&[0xff]).unwrap();
+    run.storage
+        .namespaces
+        .at_mut(state)
+        .unwrap()
+        .fields
+        .insert_field(ctx, key, Value::int(1))
+        .unwrap();
+    let value = Value(Kind::Namespace(
+        run.storage.namespaces.at(state).unwrap().namespace.clone(),
+    ));
+    let error = programs::snapshot(ctx, &run.storage, &value).unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Type);
+    assert_eq!(error.message, "namespace field name is not UTF-8");
+}
+
+#[test]
 fn an_import_with_a_slot_past_the_class_layout_is_terminal() {
     let script = corrupt(
         Engine::new()
@@ -343,10 +470,13 @@ mod asynchronous {
             let observed = Arc::new(Observed::default());
             let mut engine = marking(&observed);
             let seen = observed.clone();
+            let finished = Arc::new(AtomicBool::new(false));
+            let returned = finished.clone();
             engine.register_method(
                 "visit",
                 HostMethod::new_async("visit", move |call, _, _| {
                     let seen = seen.clone();
+                    let returned = returned.clone();
                     Box::pin(async move {
                         let block = call.call_block(vec![]).await;
                         seen.block
@@ -354,6 +484,7 @@ mod asynchronous {
                         let later = call.context().and_then(|ctx| ctx.checkpoint());
                         seen.later
                             .store(later.is_err_and(|e| is_internal(&e)), Ordering::Relaxed);
+                        returned.store(true, Ordering::Relaxed);
                         reaction.result()
                     })
                 }),
@@ -367,7 +498,58 @@ mod asynchronous {
             let result = runner
                 .call(script, "run".into(), vec![], CallOptions::default())
                 .await;
-            observed.check(result.map(drop), reaction);
+            // The watchdog can retire the callback at its await as soon as
+            // the block latches Internal. Both outcomes must be terminal;
+            // only a callback that finished can have consumed the error.
+            observed.check_terminal(result.map(drop), reaction);
+            if finished.load(Ordering::Relaxed) {
+                observed.check_callback(reaction);
+            }
         }
+    }
+
+    #[tokio::test]
+    async fn a_callback_retired_after_an_internal_block_error_stays_terminal() {
+        struct MarkDropped(Arc<AtomicBool>);
+        impl Drop for MarkDropped {
+            fn drop(&mut self) {
+                self.0.store(true, Ordering::Relaxed);
+            }
+        }
+
+        let observed = Arc::new(Observed::default());
+        let dropped = Arc::new(AtomicBool::new(false));
+        let completed = Arc::new(AtomicBool::new(false));
+        let mut engine = marking(&observed);
+        let on_drop = dropped.clone();
+        let on_complete = completed.clone();
+        engine.register_method(
+            "visit",
+            HostMethod::new_async("visit", move |call, _, _| {
+                let on_drop = on_drop.clone();
+                let on_complete = on_complete.clone();
+                Box::pin(async move {
+                    let _dropped = MarkDropped(on_drop);
+                    let _result = call.call_block(vec![]).await;
+                    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+                    on_complete.store(true, Ordering::Relaxed);
+                    Ok(Value::int(99))
+                })
+            }),
+        );
+        let script = corrupt(
+            engine.compile(GUARDED_BLOCK).unwrap(),
+            "run",
+            block_out_of_range,
+        );
+        let runner = Runner::new(1).unwrap();
+        let error = runner
+            .call(script, "run".into(), vec![], CallOptions::default())
+            .await
+            .unwrap_err();
+        assert!(is_internal(&error), "{error}");
+        assert!(dropped.load(Ordering::Relaxed));
+        assert!(!completed.load(Ordering::Relaxed));
+        assert_eq!(observed.handlers.load(Ordering::Relaxed), 0);
     }
 }
