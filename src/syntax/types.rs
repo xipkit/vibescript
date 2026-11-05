@@ -5,6 +5,9 @@ use crate::{
     types::Scalar,
 };
 
+#[cfg(test)]
+mod tests;
+
 impl<M: super::recovery::Mode> Parsing<'_, M> {
     pub(super) async fn hash_expr(&self) -> Result<Expr> {
         let (candidate, end, malformed) = {
@@ -85,6 +88,9 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             }
             Err(error) => {
                 work.checkpoint()?;
+                if error.kind != crate::ErrorKind::Syntax {
+                    return Err(error);
+                }
                 let mut p = self.p();
                 (
                     p.depth,
@@ -99,10 +105,8 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 ) = state;
                 p.type_structural_error = structural;
                 let Some(ty) = candidate else {
-                    if error.kind == crate::ErrorKind::Syntax {
-                        p.pos = start;
-                        p.type_shape(0)?;
-                    }
+                    p.pos = start;
+                    p.type_shape(0)?;
                     return Err(error);
                 };
                 p.pos = end;
@@ -113,6 +117,20 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
 }
 
 impl Parser<'_> {
+    /// Allows a syntax mismatch to fall back without hiding internal or quota errors.
+    pub(super) fn speculative_type<T>(
+        &mut self,
+        parse: impl FnOnce(&mut Self) -> Result<T>,
+    ) -> Result<Option<T>> {
+        let candidate = parse(self);
+        self.work.checkpoint()?;
+        match candidate {
+            Ok(value) => Ok(Some(value)),
+            Err(error) if error.kind == crate::ErrorKind::Syntax => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
     /// Parses an argument that is a type literal, such as `int` or
     /// `array<string>`, and where the call takes `types`, a tuple type.
     pub(super) fn argument_type_literal(&mut self, types: bool) -> Result<Option<Expr>> {
@@ -130,14 +148,13 @@ impl Parser<'_> {
         let start = self.pos;
         let offset = self.tokens[start].offset as u32;
         let structural = self.type_structural_error;
-        let candidate = self.type_expr(1, false);
-        self.work.checkpoint()?;
+        let candidate = self.speculative_type(|p| p.type_expr(1, false))?;
         let end = self.pos;
         self.line_breaks()?;
         let boundary = matches!(self.token(), Token::P(',' | ')'));
         self.pos = start;
         self.type_structural_error = structural;
-        let Ok(ty) = candidate else {
+        let Some(ty) = candidate else {
             return Ok(None);
         };
         self.work.ty(&ty)?;
@@ -231,14 +248,13 @@ impl Parser<'_> {
         let start = self.pos;
         let offset = self.tokens[start].offset as u32;
         let structural = self.type_structural_error;
-        let candidate = self.type_expr(1, false);
-        self.work.checkpoint()?;
+        let candidate = self.speculative_type(|p| p.type_expr(1, false))?;
         let end = self.pos;
         self.line_breaks()?;
         let boundary = matches!(self.token(), Token::P(',' | ')'));
         self.pos = start;
         self.type_structural_error = structural;
-        let Ok(ty) = candidate else {
+        let Some(ty) = candidate else {
             return Ok(None);
         };
         self.work.ty(&ty)?;
@@ -275,16 +291,15 @@ impl Parser<'_> {
     ) -> Result<(Option<Type>, usize, bool)> {
         let structural = self.type_structural_error;
         self.type_structural_error = false;
-        let candidate = self.type_shape(0);
-        self.work.checkpoint()?;
+        let candidate = self.speculative_type(|p| p.type_shape(0))?;
         let end = self.pos;
         let malformed = self.type_structural_error;
         self.type_structural_error = structural;
-        if let Ok(ty) = &candidate {
+        if let Some(ty) = &candidate {
             self.work.ty(ty)?;
         }
         let candidate = match candidate {
-            Ok(ty)
+            Some(ty)
                 if self.token() != &Token::P('?')
                     && !self.default_field(&ty)?
                     && self.literal_leaves(&ty, classes) =>
@@ -628,13 +643,12 @@ impl Parser<'_> {
         let saved = self.pos;
         self.bump()?;
         self.line_breaks()?;
-        let result = self.type_atom(depth).is_ok()
+        let result = self.speculative_type(|p| p.type_atom(depth))?.is_some()
             && matches!(
                 self.tokens[self.significant(self.pos)].token,
                 Token::P(',' | '|')
             );
         self.pos = saved;
-        self.work.checkpoint()?;
         Ok(result)
     }
 
@@ -661,11 +675,11 @@ impl Parser<'_> {
                 let structural = self.type_structural_error;
                 self.type_structural_error = false;
                 self.pos = peek;
-                let annotation = match self.type_expr(1, false) {
-                    Ok(ty) => {
+                let annotation = match self.speculative_type(|p| p.type_expr(1, false))? {
+                    Some(ty) => {
                         !self.default_field(&ty)? && self.type_boundary(self.pos - 1, parenthesized)
                     }
-                    Err(_) => self.type_structural_error,
+                    None => self.type_structural_error,
                 };
                 self.pos = saved;
                 self.type_structural_error = structural;
@@ -677,13 +691,13 @@ impl Parser<'_> {
                 let saved = self.pos;
                 let structural = self.type_structural_error;
                 self.pos = peek;
-                let annotation = match self.type_expr(1, false) {
-                    Ok(ty) => {
+                let annotation = match self.speculative_type(|p| p.type_expr(1, false))? {
+                    Some(ty) => {
                         self.declared_leaves(&ty)?
                             && !self.default_field(&ty)?
                             && self.type_boundary(self.pos - 1, parenthesized)
                     }
-                    Err(_) => false,
+                    None => false,
                 };
                 self.pos = saved;
                 self.type_structural_error = structural;
