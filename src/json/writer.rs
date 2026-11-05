@@ -8,28 +8,65 @@ use crate::{
 };
 use std::fmt::Write;
 
-// Zero means ordinary ASCII, one a six-byte escape, otherwise its short code.
-const ASCII_ESCAPES: [u8; 128] = {
-    let mut escapes = [0; 128];
-    let mut byte = 0;
-    let mut remaining: &mut [u8] = &mut escapes;
-    while let Some((value, tail)) = remaining.split_first_mut() {
-        *value = match byte {
-            8 => b'b',
-            12 => b'f',
+/// The longest escape, `\u00XX`.
+const LONGEST: usize = 6;
+
+/// The kind of a `\u00XX` escape in [`ESCAPES`].
+const LONG: u8 = 1;
+
+/// How each ASCII byte is written. An entry holds the escape's text, then
+/// its length, then its kind: zero for a byte that is written as itself,
+/// `LONG` for a `\u00XX` escape, otherwise the letter of a two-byte escape.
+static ESCAPES: [[u8; 8]; 128] = {
+    const fn digit(nibble: u8) -> u8 {
+        if nibble < 10 {
+            b'0' + nibble
+        } else {
+            b'a' + nibble - 10
+        }
+    }
+    let mut escapes = [[0; 8]; 128];
+    let mut byte = 0u8;
+    let mut remaining: &mut [[u8; 8]] = &mut escapes;
+    while let Some((escape, tail)) = remaining.split_first_mut() {
+        let letter = match byte {
             b'"' => b'"',
             b'\\' => b'\\',
             b'\n' => b'n',
             b'\r' => b'r',
             b'\t' => b't',
-            0..=31 | b'<' | b'>' | b'&' => 1,
+            8 => b'b',
+            12 => b'f',
             _ => 0,
         };
+        if letter != 0 {
+            *escape = [b'\\', letter, 0, 0, 0, 0, 2, letter];
+        } else if byte < 32 || matches!(byte, b'<' | b'>' | b'&') {
+            *escape = [
+                b'\\',
+                b'u',
+                b'0',
+                b'0',
+                digit(byte >> 4),
+                digit(byte & 15),
+                6,
+                LONG,
+            ];
+        }
         byte += 1;
         remaining = tail;
     }
     escapes
 };
+
+/// The kind of escape `byte` is written as, or zero when it has none.
+#[inline(always)]
+fn escape_kind(byte: u8) -> u8 {
+    ESCAPES.get(usize::from(byte)).map_or(0, |escape| escape[7])
+}
+
+/// Bytes of output a run of escapes is assembled in.
+const BLOCK: usize = 128;
 
 pub(super) struct Output {
     pub buffer: Buffer<u8>,
@@ -107,6 +144,70 @@ impl Output {
         self.buffer.data.extend_from_slice(&[b'\\', code]);
         *pending = pending.wrapping_add(1);
         Ok(())
+    }
+
+    /// Appends the escapes `input` starts with, along with each ordinary byte
+    /// that stands alone before another of them, and returns the input
+    /// consumed and the steps that appending them one at a time defers.
+    /// `input` begins at an escape or at the start of a span. The run stops
+    /// while the longest escape still fits under the capacity and the limit,
+    /// so none of those appends could have failed or grown the buffer;
+    /// nothing is consumed when there is no such room.
+    ///
+    /// The run is assembled in a local block, out of line, so that its
+    /// cursors and step count stay in registers. Appending escape by escape
+    /// carries the output length and the deferred steps through memory, and
+    /// that loop ran a tenth slower or faster with where the linker happened
+    /// to put it.
+    #[inline(never)]
+    fn put_run(&mut self, input: &[u8]) -> (usize, u64) {
+        let data = &mut self.buffer.data;
+        let room = data
+            .capacity()
+            .min(self.limit.unwrap_or(usize::MAX))
+            .saturating_sub(data.len());
+        // An escape is stored as its whole table entry, so each byte needs
+        // room for one.
+        let Some(last) = room.min(BLOCK).checked_sub(8) else {
+            return (0, 0);
+        };
+        let mut block = [0; BLOCK];
+        let (mut rest, mut written, mut steps) = (input, 0, 0u64);
+        while let [byte, tail @ ..] = rest {
+            if written > last {
+                break;
+            }
+            let Some(escape) = ESCAPES.get(usize::from(*byte)) else {
+                break;
+            };
+            let length = usize::from(escape[6]);
+            // At most two steps a byte, so the count cannot overflow.
+            if length != 0 {
+                let Some(slot) = block.get_mut(written..written + 8) else {
+                    break;
+                };
+                slot.copy_from_slice(escape);
+                written += length;
+                // One step for the escape and one for appending it.
+                steps = steps.wrapping_add(2);
+            } else if tail.first().is_some_and(|&next| escape_kind(next) != 0) {
+                // A one-byte span. A longer one is left to the span scanner.
+                let Some(slot) = block.get_mut(written) else {
+                    break;
+                };
+                *slot = *byte;
+                written += 1;
+                steps = steps.wrapping_add(1);
+            } else {
+                break;
+            }
+            rest = tail;
+        }
+        let Some(block) = block.get(..written) else {
+            return (0, 0);
+        };
+        data.extend_from_slice(block);
+        (input.len() - rest.len(), steps)
     }
 
     fn extend(&mut self, ctx: &mut CallContext, bytes: &[u8]) -> Result<()> {
@@ -429,49 +530,61 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
     let mut pending: u64 = 0;
     let mut settle_at = CHUNK;
     let mut i = 0;
-    while i < input.len() {
+    'bytes: while i < input.len() {
         if i >= settle_at {
             ctx.charge_pending(&mut pending)?;
             ctx.checkpoint()?;
             settle_at = i + CHUNK;
         }
-        let Some(&b) = input.get(i) else {
+        let Some(mut b) = input.get(i).copied() else {
             break;
         };
-        let escape = ASCII_ESCAPES.get(usize::from(b)).copied().unwrap_or(0);
-        if escape != 0 {
+        let mut escape = escape_kind(b);
+        while escape != 0 {
             pending = pending.wrapping_add(1);
             i += 1;
             // Go reserves room for the longest escape before any ASCII escape.
-            let reserved = out.buffer.data.len().saturating_add(6);
+            let reserved = out.buffer.data.len().saturating_add(LONGEST);
             if out.limit.is_some_and(|limit| reserved > limit) {
                 ctx.charge_pending(&mut pending)?;
                 out.check(ctx, reserved)?;
             }
-            if escape != 1 {
+            if escape != LONG {
                 out.put_escape(ctx, escape, &mut pending)?;
             } else {
-                let hex = b"0123456789abcdef";
-                let unicode = [
-                    b'\\',
-                    b'u',
-                    b'0',
-                    b'0',
-                    *hex.at((b >> 4) as usize)?,
-                    *hex.at((b & 15) as usize)?,
-                ];
-                out.put(ctx, &unicode, &mut pending)?;
+                let [text @ .., _, _] = *ESCAPES.at(usize::from(b))?;
+                out.put(ctx, &text, &mut pending)?;
             }
-            continue;
+            let Some(&next) = input.get(i) else {
+                break 'bytes;
+            };
+            b = next;
+            escape = escape_kind(b);
+            // A lone escape or a pair costs least appended in place, as
+            // above. A third in a row starts a run.
+            if escape != 0 && input.get(i + 1).is_some_and(|&next| escape_kind(next) != 0) {
+                let (run, steps) = out.put_run(input.tail(i)?);
+                i += run;
+                pending = pending.wrapping_add(steps);
+                continue 'bytes;
+            }
         }
         let window = input.span(i, input.len().min(i + CHUNK))?;
         if b < 128 {
             // A one-byte run between ASCII escapes needs no vector/SWAR mask.
-            if window.get(1).is_some_and(|&next| {
-                ASCII_ESCAPES
-                    .get(usize::from(next))
-                    .is_some_and(|&e| e != 0)
-            }) {
+            if window.get(1).is_some_and(|&next| escape_kind(next) != 0) {
+                // With another escape close behind it, it starts a run.
+                if window
+                    .get(2..4)
+                    .is_some_and(|ahead| ahead.iter().any(|&next| escape_kind(next) != 0))
+                {
+                    let (run, steps) = out.put_run(input.tail(i)?);
+                    if run != 0 {
+                        i += run;
+                        pending = pending.wrapping_add(steps);
+                        continue;
+                    }
+                }
                 out.put(ctx, window.span(0, 1)?, &mut pending)?;
                 i += 1;
                 continue;
@@ -565,6 +678,28 @@ mod tests {
                     "steps {steps}, memory {memory}"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn escape_runs_stop_at_the_limit_inside_a_larger_capacity() {
+        let input = b"\n\t\"\\a\n<\n\n\n&a\r";
+        for limit in 0..96 {
+            let run = |write: fn(&mut CallContext, &[u8], &mut Output, usize) -> Result<()>| {
+                let mut ctx = CallContext::new(CallOptions::default());
+                let mut out = Output {
+                    buffer: Buffer::untracked(Vec::with_capacity(256)),
+                    limit: Some(limit),
+                    script: true,
+                };
+                let result = write(&mut ctx, input, &mut out, 0);
+                (
+                    result.map_err(|error| (error.kind, error.message)),
+                    out.buffer.data.clone(),
+                    ctx.stats().steps,
+                )
+            };
+            assert_eq!(run(write_string), run(reference), "limit {limit}");
         }
     }
 
