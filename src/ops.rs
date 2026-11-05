@@ -760,10 +760,10 @@ pub(crate) fn index(ctx: &mut CallContext, value: &Value, index: &Value) -> Resu
                 return Ok(value);
             }
             let key = index.hash_key()?;
-            Ok(h.find(ctx, key)?
-                .and_then(|i| h.buffer.data.get(i))
-                .map(|entry| entry.1.clone())
-                .unwrap_or_default())
+            let Some(i) = h.find(ctx, key)? else {
+                return Ok(Value::nil());
+            };
+            Ok(h.buffer.at(i)?.1.clone())
         }
         Kind::Bytes(h) => {
             let bytes = h.data();
