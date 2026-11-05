@@ -1839,7 +1839,7 @@ fn put(out: &mut Text<'_>, text: &str, room: &mut usize) {
     while !text.is_char_boundary(end) {
         end -= 1;
     }
-    out.push_str(&text[..end]);
+    out.push_str(text.get(..end).unwrap_or(text));
     *room = if end < text.len() { 0 } else { *room - end };
 }
 

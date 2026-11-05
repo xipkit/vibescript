@@ -744,7 +744,7 @@ fn check_metered(input: &Input<'_>, depth: usize, meter: std::sync::Arc<meter::M
             checked.surfaced = checker_held;
             let budget = &input.budget;
             let asked = std::sync::atomic::AtomicU32::new(0);
-            crate::surface::add_to(
+            if let Err(error) = crate::surface::add_to(
                 &mut checked,
                 input.source,
                 input.tokens,
@@ -799,7 +799,9 @@ fn check_metered(input: &Input<'_>, depth: usize, meter: std::sync::Arc<meter::M
                 // memory leaves beside the check and the pass's footprint;
                 // more stops the check.
                 budget.memory.map(|left| left.saturating_sub(held)),
-            );
+            ) {
+                meter.violated(error);
+            }
             if checked.stopped {
                 meter.stop();
             }

@@ -2549,7 +2549,14 @@ impl<'a> Checker<'a> {
                 ty
             }
             _ => {
-                let operator = &op[..op.len() - 1];
+                let Some(operator) =
+                    self.meter
+                        .found(op.strip_suffix('=').ok_or(crate::checked::violation(
+                            "compound assignment must end with =",
+                        )))
+                else {
+                    return Ty::ERROR;
+                };
                 // The write reuses the types the read found for the target's
                 // receiver and selectors instead of checking them again.
                 let outer = self.set_memo(Some(super::Memo::default()));
@@ -2662,7 +2669,7 @@ impl<'a> Checker<'a> {
         let selector_span = self.spans.expr(selector);
         let receiver_text = self.source.get(receiver_span.start..receiver_span.end)?;
         let selector_text = self.source.get(selector_span.start..selector_span.end)?;
-        let operator = &op[..op.len() - 1];
+        let operator = op.strip_suffix('=')?;
         let grouped = matches!(
             value.node,
             Node::Integer(_)
@@ -2734,7 +2741,7 @@ impl<'a> Checker<'a> {
                 }
                 Node::Var(name) if name.starts_with('@') => {
                     let span = self.spans.expr(expr);
-                    self.write_ivar(&name[1..], ty, span, value);
+                    self.write_ivar(self.meter.text(name, 1..), ty, span, value);
                 }
                 Node::Var(name) => {
                     if let Some(id) = self.local(name) {
@@ -2842,7 +2849,7 @@ impl<'a> Checker<'a> {
                                 this.expr_against(
                                     value,
                                     declared,
-                                    &Purpose::Ivar(this.copy(&name[1..])),
+                                    &Purpose::Ivar(this.copy(this.meter.text(name, 1..))),
                                 )
                             })
                         }
@@ -2855,7 +2862,7 @@ impl<'a> Checker<'a> {
                 }
                 Node::Var(name) if name.starts_with('@') => {
                     let span = self.spans.expr(expr);
-                    let ivar = &name[1..];
+                    let ivar = self.meter.text(name, 1..);
                     let expected = self.ivar_type(ivar, span);
                     if matches!(&value.node, Node::Var(value) if value.as_str() == "self") {
                         self.storing_self = Some(self.copy(ivar));
@@ -3129,17 +3136,17 @@ impl<'a> Checker<'a> {
                 }
                 Node::Var(name) => {
                     let span = self.spans.expr(expr);
-                    if let Some(expected) = self.ivar_type(&name[1..], span) {
+                    if let Some(expected) = self.ivar_type(self.meter.text(name, 1..), span) {
                         if !self.types.assignable(ty, expected) {
                             self.mismatch(
                                 span,
                                 expected,
                                 ty,
-                                &Purpose::Ivar(self.copy(&name[1..])),
+                                &Purpose::Ivar(self.copy(self.meter.text(name, 1..))),
                             );
                         }
                     }
-                    self.mark_ivar_assigned(&name[1..]);
+                    self.mark_ivar_assigned(self.meter.text(name, 1..));
                 }
                 // A destructured element written through an index or a
                 // setter is checked as an assigned value is.
@@ -3407,7 +3414,12 @@ impl<'a> Checker<'a> {
         if let Some(declared) = self.constants.get(&key).copied() {
             if !self.types.assignable(ty, declared) {
                 let span = self.spans.expr(value);
-                self.mismatch(span, declared, ty, &Purpose::Ivar(self.copy(&name[1..])));
+                self.mismatch(
+                    span,
+                    declared,
+                    ty,
+                    &Purpose::Ivar(self.copy(self.meter.text(name, 1..))),
+                );
             }
             return;
         }
@@ -3542,7 +3554,7 @@ impl<'a> Checker<'a> {
                 && !self.types.assignable(Ty::BOOL, rest)
                 && !self.types.members(rest).contains(&Ty::BOOL)
             {
-                let text = &self.source[span.start..span.end];
+                let text = self.meter.text(self.source, span.start..span.end);
                 let replacement = if is_simple(expr) {
                     text!(self, "{text} != nil")
                 } else {

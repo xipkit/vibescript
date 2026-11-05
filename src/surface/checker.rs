@@ -32,15 +32,19 @@ const DEEP_STACK: usize = 256 << 20;
 #[cfg(test)]
 pub fn check(source: &str) -> crate::Result<Vec<Diagnostic>> {
     let tokens = tooling::tokens(source)?;
-    Ok(walk(
+    let room = Room::default();
+    let found = walk(
         source,
         &tokens,
         &CallTypes::default(),
         &mut || true,
         &|| false,
-        &Room::default(),
-    )
-    .unwrap_or_default())
+        &room,
+    );
+    match room.violation() {
+        Some(error) => Err(error),
+        None => Ok(found.unwrap_or_default()),
+    }
 }
 
 /// The removed spellings in `source`, whose tokens the compiler read, in
@@ -64,7 +68,12 @@ fn walk<'s>(
         Ok(tree) => diagnostics(source, &tree, calls, stop, room),
         // A parse that never reached the limit fails the same way without it.
         Err(fail) if fail.too_deep && afford() => deep(source, tokens, calls, stop, room),
-        Err(_) => None,
+        Err(fail) => {
+            if fail.invalid_text {
+                room.violated();
+            }
+            None
+        }
     }
 }
 
@@ -166,10 +175,10 @@ pub(crate) fn add_to(
     within: &(dyn Fn(u64) -> bool + Sync),
     canonical: &dyn Fn(&str, u64) -> Option<Option<crate::Error>>,
     room: Option<usize>,
-) {
+) -> crate::Result<()> {
     let Some(entries) = entries(tokens, &|| !within(checked.steps)) else {
         checked.stopped = true;
-        return;
+        return Ok(());
     };
     let read = u64::try_from(tokens.len() + interpolated + entries).unwrap_or(u64::MAX);
     checked.steps += read;
@@ -181,13 +190,16 @@ pub(crate) fn add_to(
     // A compilation stopped since the check last asked reads nothing.
     if stop() {
         checked.stopped = true;
-        return;
+        return Ok(());
     }
     let walked = walk(source, tokens, &checked.calls, &mut afford, &stop, &room);
+    if let Some(error) = room.violation() {
+        return Err(error);
+    }
     checked.surface_bytes += room.peak();
     if room.full() {
         checked.stopped = true;
-        return;
+        return Ok(());
     }
     let Some(surface) = walked else {
         // The compiler's grammar reads the removed syntax only so that these
@@ -197,11 +209,11 @@ pub(crate) fn add_to(
         checked.steps = room.total();
         if !affordable {
             checked.stopped = true;
-            return;
+            return Ok(());
         }
         let Some(error) = canonical(source, room.charged()) else {
             checked.stopped = true;
-            return;
+            return Ok(());
         };
         // A source both grammars accept that the rules cannot read skips
         // every rule, so the rules' parser has fallen behind the compiler's.
@@ -219,11 +231,11 @@ pub(crate) fn add_to(
                 error.message,
             ));
         }
-        return;
+        return Ok(());
     };
     checked.steps = room.total();
     if surface.is_empty() {
-        return;
+        return Ok(());
     }
     // Leaving out the checker's diagnostics a removed spelling contains,
     // and putting the two lists in order, is a step for each diagnostic,
@@ -233,7 +245,7 @@ pub(crate) fn add_to(
     checked.steps = room.total();
     if !affordable {
         checked.stopped = true;
-        return;
+        return Ok(());
     }
     // The spellings are in order of where they start, each with the
     // furthest end of those that start no later, so the spelling that
@@ -263,6 +275,7 @@ pub(crate) fn add_to(
     if !sorted || !room.within() {
         checked.stopped = true;
     }
+    Ok(())
 }
 
 #[cfg(not(target_os = "wasi"))]
@@ -275,6 +288,11 @@ fn deep<'s>(
 ) -> Option<Vec<Diagnostic>> {
     crate::threads::on_stack(DEEP_STACK, || {
         parse::parse_tokens(source, tokens, usize::MAX, stop)
+            .inspect_err(|fail| {
+                if fail.invalid_text {
+                    room.violated();
+                }
+            })
             .ok()
             .and_then(|tree| diagnostics(source, &tree, calls, stop, room))
     })
@@ -313,7 +331,16 @@ fn diagnostics<'s>(
         stopped: false,
         room,
     };
-    checker.found(source, tree, stop)
+    let found = checker.found(source, tree, stop);
+    if checker
+        .surface
+        .invalid_text
+        .load(std::sync::atomic::Ordering::Relaxed)
+    {
+        room.violated();
+        return None;
+    }
+    found
 }
 
 impl<'a> Checker<'a> {
@@ -326,7 +353,10 @@ impl<'a> Checker<'a> {
         stop: parse::Stop<'_>,
     ) -> Option<Vec<Diagnostic>> {
         self.program(&tree.body);
-        if self.stopped || self.room.full() {
+        if self.invalid_text.load(std::sync::atomic::Ordering::Relaxed)
+            || self.stopped
+            || self.room.full()
+        {
             return None;
         }
         let groups = self
@@ -405,7 +435,7 @@ impl<'a> Checker<'a> {
             }
             diagnostics.push(diagnostic);
         }
-        if self.stopped || stop() {
+        if self.invalid_text.load(std::sync::atomic::Ordering::Relaxed) || self.stopped || stop() {
             return None;
         }
         // Diagnostics of a span and code keep the order they were found in.
@@ -461,7 +491,9 @@ impl Checker<'_> {
     /// whether the walk should give up, as it does once its room is full.
     pub(super) fn halt(&mut self) -> bool {
         if !self.stopped {
-            self.stopped = !self.room.within() || (self.stop)();
+            self.stopped = self.invalid_text.load(std::sync::atomic::Ordering::Relaxed)
+                || !self.room.within()
+                || (self.stop)();
         }
         self.stopped
     }
@@ -637,6 +669,46 @@ impl<'a> Checker<'a> {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
+
+    #[test]
+    fn invalid_token_text_is_reported_before_diagnostics_are_changed() {
+        let source = "é = 1\n";
+        let mut checked = crate::Engine::new().type_check(source).unwrap();
+        let original = checked.diagnostics.clone();
+        let mut tokens = tooling::tokens(source).unwrap();
+        tokens[0].span.start = 1;
+        let error = add_to(
+            &mut checked,
+            source,
+            &tokens,
+            0,
+            &|_| true,
+            &|_, _| panic!("invalid ranges must not reach the canonical parser"),
+            None,
+        )
+        .unwrap_err();
+        assert_eq!(error.kind, crate::ErrorKind::Internal);
+        assert_eq!(checked.diagnostics, original);
+    }
+
+    #[test]
+    fn invalid_surface_text_stops_the_walk() {
+        let source = "é.to_s";
+        let tree = parse::parse(source).unwrap();
+        let surface = Surface::new(source, &tree, &|| false).unwrap();
+        assert_eq!(surface.source_text(1..2), "");
+        let room = Room::default();
+        let mut checker = Checker {
+            surface,
+            calls: &CallTypes::default(),
+            findings: Vec::new(),
+            stop: &|| false,
+            stopped: false,
+            room: &room,
+        };
+        assert!(checker.found(source, &tree, &|| false).is_none());
+        assert!(checker.stopped);
+    }
 
     #[test]
     fn parameter_kind_lookup_obeys_its_work_budget() {

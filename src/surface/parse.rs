@@ -24,6 +24,7 @@ pub struct Fail {
     /// it may parse; a parse that never reached the limit fails the same
     /// way without it.
     pub too_deep: bool,
+    pub invalid_text: bool,
 }
 
 type Result<T> = std::result::Result<T, Fail>;
@@ -35,6 +36,7 @@ pub fn parse(source: &str) -> Result<Tree> {
         offset: 0,
         message: error.to_string(),
         too_deep: false,
+        invalid_text: false,
     })?;
     let starts = Starts::new(&tokens, &|| false).expect("never stopped");
     let mut parser = Parser::new(source, tokens, starts, &|| false);
@@ -62,6 +64,7 @@ pub fn parse_tokens<'s>(
         offset: 0,
         message: "stopped".to_owned(),
         too_deep: false,
+        invalid_text: false,
     };
     let tokens = convert(source, tokens, 0, stop).ok_or_else(stopped)?;
     let starts = Starts::new(&tokens, stop).ok_or_else(stopped)?;
@@ -73,6 +76,14 @@ pub fn parse_tokens<'s>(
     } else {
         parser.program()
     };
+    if parser.invalid_text.load(Relaxed) {
+        return Err(Fail {
+            offset: 0,
+            message: "invalid UTF-8 source range".to_owned(),
+            too_deep: false,
+            invalid_text: true,
+        });
+    }
     if parser.stopped.load(Relaxed) {
         return Err(stopped());
     }
@@ -83,6 +94,7 @@ pub fn parse_tokens<'s>(
             offset,
             message: "nesting too deep".to_owned(),
             too_deep: true,
+            invalid_text: false,
         });
     }
     let body = body?;
@@ -391,6 +403,7 @@ struct Parser<'s> {
     unpolled: AtomicU32,
     /// Whether the parser gave up because the compilation stopped.
     stopped: AtomicBool,
+    invalid_text: std::sync::atomic::AtomicBool,
 }
 
 /// Whether the compilation a parse is part of has stopped.
@@ -447,6 +460,7 @@ impl<'s> Parser<'s> {
             stop,
             unpolled: AtomicU32::new(0),
             stopped: AtomicBool::new(false),
+            invalid_text: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -544,7 +558,19 @@ impl<'s> Parser<'s> {
 
     fn text(&self, index: usize) -> &'s str {
         let token = &self.tokens[index];
-        &self.source[token.start..token.end]
+        self.source_text(token.start..token.end)
+    }
+
+    fn source_text(&self, range: impl std::slice::SliceIndex<str, Output = str>) -> &'s str {
+        match self.source.get(range) {
+            Some(text) => text,
+            None => {
+                self.invalid_text
+                    .store(true, std::sync::atomic::Ordering::Relaxed);
+                self.stopped.store(true, Relaxed);
+                ""
+            }
+        }
     }
 
     fn word_at(&self, index: usize) -> Option<&'s str> {
@@ -595,6 +621,7 @@ impl<'s> Parser<'s> {
             offset: self.tokens[self.pos.min(self.tokens.len() - 1)].start,
             message: message.to_owned(),
             too_deep: false,
+            invalid_text: false,
         })
     }
 
@@ -3096,7 +3123,10 @@ impl<'s> Parser<'s> {
         if self.stopped.load(Relaxed) {
             return None;
         }
-        let text = &self.source[span.clone()];
+        let text = self.source_text(span.clone());
+        if self.invalid_text.load(Relaxed) {
+            return None;
+        }
         let Ok(tokens) = lex_until(text, span.start, self.stop) else {
             self.stopped.store((self.stop)(), Relaxed);
             return None;
@@ -3127,6 +3157,10 @@ impl<'s> Parser<'s> {
         self.too_deep = self.too_deep.or(parser.too_deep);
         self.stopped.store(
             self.stopped.load(Relaxed) || parser.stopped.load(Relaxed),
+            Relaxed,
+        );
+        self.invalid_text.store(
+            self.invalid_text.load(Relaxed) || parser.invalid_text.load(Relaxed),
             Relaxed,
         );
         // What the interpolation declared stays in it.

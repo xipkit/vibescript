@@ -99,6 +99,7 @@ pub struct Scope<'a> {
 pub struct Surface<'a> {
     /// The source the tree was parsed from.
     pub source: &'a str,
+    pub(super) invalid_text: std::sync::atomic::AtomicBool,
     /// Every token of the tree, interpolations' after the source's own.
     pub tokens: &'a [Token],
     /// Where the tokens start.
@@ -132,6 +133,7 @@ impl<'a> Surface<'a> {
     pub fn new(source: &'a str, tree: &'a Tree, stop: parse::Stop<'_>) -> Option<Self> {
         let mut surface = Self {
             source,
+            invalid_text: std::sync::atomic::AtomicBool::new(false),
             tokens: &tree.tokens,
             starts: &tree.starts,
             edits: Edits::default(),
@@ -166,7 +168,19 @@ impl<'a> Surface<'a> {
 
     /// The source text of `span`.
     pub fn text(&self, span: Span) -> &'a str {
-        &self.source[span.start..span.end]
+        self.source_text(span.start..span.end)
+    }
+
+    /// Reads source text, refusing the pass if a range splits UTF-8 or is out of bounds.
+    pub fn source_text(&self, range: impl std::slice::SliceIndex<str, Output = str>) -> &'a str {
+        match self.source.get(range) {
+            Some(text) => text,
+            None => {
+                self.invalid_text
+                    .store(true, std::sync::atomic::Ordering::Relaxed);
+                ""
+            }
+        }
     }
 
     /// The span of token `tok`.
@@ -180,7 +194,7 @@ impl<'a> Surface<'a> {
     /// The source text of token `tok`.
     pub fn token_text(&self, tok: Tok) -> &'a str {
         let token = &self.tokens[tok];
-        &self.source[token.start..token.end]
+        self.source_text(token.start..token.end)
     }
 
     /// The token that starts at `offset`.
