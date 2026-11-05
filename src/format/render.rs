@@ -118,13 +118,10 @@ fn printf(ctx: &mut CallContext, prepared: &Prepared, output: &mut Output) -> Re
             );
             if pattern.get(offset) == Some(&b'*') {
                 offset += 1;
-                field.precision = match star(args, &mut argument).filter(|n| *n >= 0) {
-                    Some(precision) => Some(precision as usize),
-                    None => {
-                        output.write(ctx, b"%!(BADPREC)")?;
-                        None
-                    }
-                };
+                field.precision = star(args, &mut argument).and_then(|n| usize::try_from(n).ok());
+                if field.precision.is_none() {
+                    output.write(ctx, b"%!(BADPREC)")?;
+                }
                 indexed = false;
             } else {
                 field.precision = Some(count(pattern, &mut offset).unwrap_or(0));

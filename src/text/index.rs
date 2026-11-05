@@ -1,5 +1,5 @@
 use crate::budget::CHUNK;
-use crate::numeric::to_i64;
+use crate::numeric::{to_i64, to_usize};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value, budget::Buffer, ops, scan, sequence, value::Kind,
 };
@@ -60,7 +60,7 @@ pub(super) fn call(
     if !reverse && offset > length as i128 || needle.len() > text.len().saturating_mul(4) {
         return Ok(Value::nil());
     }
-    let offset = offset.min(length as i128) as usize;
+    let offset = to_usize(offset.min(length as i128));
     if needle.is_empty() {
         return Ok(Value::int(to_i64(offset)));
     }

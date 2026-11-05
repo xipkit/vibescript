@@ -88,13 +88,12 @@ fn arguments(
 fn offset(ctx: &mut CallContext, text: &[u8], offset: i64) -> Result<Option<usize>> {
     let offset = if offset < 0 {
         let length = ops::runes(ctx, text)?.0;
-        let effective = length as i128 + i128::from(offset);
-        if effective < 0 {
+        let Ok(effective) = u64::try_from(length as i128 + i128::from(offset)) else {
             return Ok(None);
-        }
-        effective as u64
+        };
+        effective
     } else {
-        offset as u64
+        offset.unsigned_abs()
     };
     let mut position = 0;
     let mut remaining = offset;
