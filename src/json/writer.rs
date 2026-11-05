@@ -429,12 +429,15 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
     let mut pending: u64 = 0;
     let mut settle_at = CHUNK;
     let mut i = 0;
-    while let Some(&b) = input.get(i) {
+    while i < input.len() {
         if i >= settle_at {
             ctx.charge_pending(&mut pending)?;
             ctx.checkpoint()?;
             settle_at = i + CHUNK;
         }
+        let Some(&b) = input.get(i) else {
+            break;
+        };
         let escape = ASCII_ESCAPES.get(usize::from(b)).copied().unwrap_or(0);
         if escape != 0 {
             pending = pending.wrapping_add(1);
