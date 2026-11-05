@@ -61,8 +61,13 @@ pub fn template() -> Value {
         let options = Value::hash(
             keywords
                 .iter()
-                .map(|(key, value)| (key.as_bytes().unwrap().to_vec(), value.clone()))
-                .collect(),
+                .map(|(key, value)| {
+                    let key = key.as_bytes().ok_or_else(|| {
+                        Error::new(ErrorKind::Internal, "host keyword must have a bytes key")
+                    })?;
+                    Ok((key.to_vec(), value.clone()))
+                })
+                .collect::<vibescript::Result<_>>()?,
         );
         let args = ctx.array(args)?;
         ctx.array(&[args, options])
