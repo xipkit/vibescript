@@ -1,5 +1,8 @@
 #![no_main]
 
+#[path = "../support.rs"]
+mod support;
+
 use libfuzzer_sys::fuzz_target;
 use vibescript::{CallOptions, Engine, Limits};
 
@@ -15,7 +18,7 @@ fuzz_target!(|source: &str| {
         ..CallOptions::default()
     };
     let mut engine = Engine::new();
-    let _ = engine.compile_with_options(source, &options);
+    let _ = support::check(engine.compile_with_options(source, &options));
     engine.set_keep_type_checks(true);
-    let _ = engine.compile_with_options(source, &options);
+    let _ = support::check(engine.compile_with_options(source, &options));
 });

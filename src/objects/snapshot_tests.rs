@@ -90,7 +90,10 @@ fn snapshots_preserve_shared_class_namespace_and_function_environments() {
     let script = crate::Engine::new().compile("class Box; end; nil").unwrap();
     let unbound = Namespace::import(
         &mut ctx,
-        &Namespace::untracked(script.inner.code.program.namespaces[0].clone()),
+        &Namespace::declared(
+            script.inner.code.program.namespaces[0].clone(),
+            &script.inner.code,
+        ),
     )
     .unwrap();
     let namespace = Namespace::with_environment(&mut ctx, &unbound, environment.clone()).unwrap();

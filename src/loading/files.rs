@@ -1,4 +1,4 @@
-use crate::{CallContext, Error, ErrorKind, Result, Value, budget::Buffer};
+use crate::{CallContext, Error, ErrorKind, Result, Value, budget::Buffer, checked::Checked};
 use std::{
     fs,
     io::{self, Read},
@@ -67,7 +67,7 @@ fn read_contents(ctx: &mut CallContext, reader: &mut impl Read, limit: usize) ->
         } else {
             chunk.len()
         };
-        let read = reader.read(&mut chunk[..requested]);
+        let read = reader.read(chunk.span_mut(0, requested)?);
         ctx.checkpoint()?;
         let count = match read {
             Ok(count) => count,
@@ -98,7 +98,7 @@ fn read_contents(ctx: &mut CallContext, reader: &mut impl Read, limit: usize) ->
                 .min(limit);
             output.ensure(ctx, capacity)?;
         }
-        output.extend(ctx, &chunk[..count])?;
+        output.extend(ctx, chunk.span(0, count)?)?;
     }
     output.shrink(ctx)?;
     Value::from_bytes(ctx, output)

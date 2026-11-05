@@ -61,7 +61,7 @@ impl Frame {
                         (&value.0, key.as_bytes())
                     {
                         crate::capability::member_name(
-                            &crate::compilation::Meter(std::cell::RefCell::new(ctx)),
+                            &crate::compilation::Meter::new(ctx),
                             crate::syntax::HostName::METHOD,
                             name,
                             value,

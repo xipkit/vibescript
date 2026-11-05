@@ -1,5 +1,5 @@
 use crate::{CallContext, Result, Value, budget::Charge, hash::Hash, syntax::modules::Visibility};
-use std::sync::{Arc, OnceLock, Weak};
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub(crate) struct Method {
@@ -10,7 +10,6 @@ pub(crate) struct Method {
 
 #[derive(Debug)]
 pub(crate) struct Definition {
-    pub owner: OnceLock<Weak<crate::code::Code>>,
     pub index: usize,
     pub name: String,
     pub methods: Vec<Method>,
@@ -47,7 +46,6 @@ impl Definition {
                 .map(|(name, _)| name.capacity())
                 .sum::<usize>();
         Arc::new(Self {
-            owner: OnceLock::new(),
             index,
             name,
             methods,
@@ -84,6 +82,19 @@ impl Namespace {
         Arc::new(Self {
             definition,
             owner: None,
+            environment: None,
+            header: None,
+            _metadata: None,
+        })
+    }
+
+    /// The namespace `definition` declares in `owner`'s program, before any
+    /// call imports it: the compiled constant's runtime form, whose source
+    /// is the code that declares it.
+    pub fn declared(definition: Arc<Definition>, owner: &Arc<crate::code::Code>) -> Arc<Self> {
+        Arc::new(Self {
+            definition,
+            owner: Some(owner.clone()),
             environment: None,
             header: None,
             _metadata: None,
@@ -132,10 +143,7 @@ impl Namespace {
             .reserve(value.definition.bytes + size_of::<Charge>() + 2 * size_of::<usize>())?
             .map(Arc::new);
         let header = ctx.reserve(size_of::<Self>() + 2 * size_of::<usize>())?;
-        let owner = value
-            .owner
-            .clone()
-            .or_else(|| value.definition.owner.get().and_then(Weak::upgrade));
+        let owner = value.owner.clone();
         if let Some(owner) = &owner {
             crate::code::Code::retain(ctx, owner)?;
         }
@@ -155,11 +163,7 @@ impl Namespace {
         if ctx.snapshot_objects.is_none() {
             return Ok(None);
         }
-        let Some(owner) = value
-            .owner
-            .clone()
-            .or_else(|| value.definition.owner.get().and_then(Weak::upgrade))
-        else {
+        let Some(owner) = value.owner.clone() else {
             return Ok(None);
         };
         let count = ctx

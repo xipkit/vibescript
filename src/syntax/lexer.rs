@@ -1,8 +1,9 @@
+use super::Mode;
 use crate::{
     Error, Result,
-    compilation::{Boxed, Buffer, Bytes, Text, Work},
+    compilation::{Boxed, Buffer, Bytes, Shared, Text, Work},
 };
-use std::cell::{Cell, RefCell};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Clone, Copy, Debug, Eq)]
 pub(super) struct Word<'a>(&'a str);
@@ -291,28 +292,28 @@ impl Nesting {
 
 /// Answers to Go's label-colon scans, by colon offset and ternary depth.
 struct Memo {
-    answers: RefCell<Buffer<(usize, usize, bool)>>,
-    remaining: Cell<usize>,
+    answers: Shared<Buffer<(usize, usize, bool)>>,
+    remaining: AtomicUsize,
 }
 
 impl Memo {
     fn new(bytes: usize) -> Self {
         Self {
-            answers: RefCell::new(Buffer::new()),
-            remaining: Cell::new(bytes.saturating_mul(64)),
+            answers: Shared::new(Buffer::new()),
+            remaining: AtomicUsize::new(bytes.saturating_mul(64)),
         }
     }
 
     // Nested scans share a work bound even for unmetered editor tooling.
     // A depth limit alone still allows repeated scans of the same suffix.
     fn charge(&self, work: &dyn Work, offset: usize, amount: usize) -> Result<()> {
-        match self.remaining.get().checked_sub(amount) {
+        match self.remaining.load(Ordering::Relaxed).checked_sub(amount) {
             Some(remaining) => {
-                self.remaining.set(remaining);
+                self.remaining.store(remaining, Ordering::Relaxed);
                 Ok(())
             }
             None => {
-                self.remaining.set(0);
+                self.remaining.store(0, Ordering::Relaxed);
                 Err(Error::syntax(work, offset, super::TOO_DEEP))
             }
         }
@@ -322,6 +323,7 @@ impl Memo {
 struct Lexer<'a, 'w> {
     work: &'w dyn crate::compilation::Work,
     source: &'a str,
+    mode: Mode,
     pos: usize,
     limit: usize,
     depth: usize,
@@ -335,63 +337,76 @@ struct Lexer<'a, 'w> {
     found: bool,
 }
 
-pub(super) fn lex<'a>(
-    source: &'a str,
-    work: &dyn crate::compilation::Work,
-) -> Result<Buffer<Lexeme<'a>>> {
+/// What every lexing of one source shares: the source, the work it
+/// charges, the mode it reads in, and the nesting of string interpolations
+/// it starts inside.
+#[derive(Clone, Copy)]
+pub(super) struct Input<'a, 'w> {
+    pub source: &'a str,
+    pub work: &'w dyn crate::compilation::Work,
+    pub mode: Mode,
+    pub depth: usize,
+}
+
+impl<'a, 'w> Input<'a, 'w> {
+    /// A whole source, read in the default mode.
+    pub fn new(source: &'a str, work: &'w dyn crate::compilation::Work) -> Self {
+        Self {
+            source,
+            work,
+            mode: Mode::default(),
+            depth: 0,
+        }
+    }
+}
+
+pub(super) fn lex<'a>(input: Input<'a, '_>) -> Result<Buffer<Lexeme<'a>>> {
+    let source = input.source;
     if source.len() > super::MAX_SOURCE {
-        return Err(Error::syntax(work, 0, "source exceeds 8 MiB"));
+        return Err(Error::syntax(input.work, 0, "source exceeds 8 MiB"));
     }
     let memo = Memo::new(source.len());
     Lexer::new(
-        source,
+        input,
         0,
         source.len(),
-        0,
         source.len().saturating_mul(4),
-        work,
         &memo,
     )
     .tokens(source.len(), 0, false, false, None)
 }
 
 pub(super) fn modulo<'a>(
-    source: &'a str,
+    input: Input<'a, '_>,
     start: &Lexeme<'a>,
     limit: usize,
-    depth: usize,
-    work: &dyn crate::compilation::Work,
 ) -> Result<Buffer<Lexeme<'a>>> {
-    let memo = Memo::new(source.len());
+    let memo = Memo::new(input.source.len());
     let speculative = limit.saturating_sub(start.offset).saturating_mul(4);
-    Lexer::new(source, start.offset, limit, depth, speculative, work, &memo)
+    Lexer::new(input, start.offset, limit, speculative, &memo)
         .tokens(start.end, start.line, false, true, None)
 }
 
 pub(super) fn resume<'a>(
-    source: &'a str,
+    input: Input<'a, '_>,
     start: &Lexeme<'a>,
     until: usize,
     limit: usize,
-    depth: usize,
     previous: Option<&Lexeme<'a>>,
-    work: &dyn crate::compilation::Work,
 ) -> Result<Buffer<Lexeme<'a>>> {
-    let memo = Memo::new(source.len());
+    let memo = Memo::new(input.source.len());
     let speculative = limit.saturating_sub(start.offset).saturating_mul(4);
-    Lexer::new(source, start.offset, limit, depth, speculative, work, &memo)
+    Lexer::new(input, start.offset, limit, speculative, &memo)
         .tokens(until, start.line, false, false, previous)
 }
 
 pub(super) fn regex<'a>(
-    source: &'a str,
+    input: Input<'a, '_>,
     start: &Lexeme<'a>,
     limit: usize,
-    depth: usize,
-    work: &dyn crate::compilation::Work,
 ) -> Result<Buffer<Lexeme<'a>>> {
-    let memo = Memo::new(source.len());
-    Lexer::new(source, start.offset, limit, depth, 0, work, &memo).tokens(
+    let memo = Memo::new(input.source.len());
+    Lexer::new(input, start.offset, limit, 0, &memo).tokens(
         start.offset + 1,
         start.line,
         false,
@@ -402,20 +417,19 @@ pub(super) fn regex<'a>(
 
 impl<'a, 'w> Lexer<'a, 'w> {
     fn new(
-        source: &'a str,
+        input: Input<'a, 'w>,
         pos: usize,
         limit: usize,
-        depth: usize,
         speculative: usize,
-        work: &'w dyn crate::compilation::Work,
         memo: &'w Memo,
     ) -> Self {
         Self {
-            work,
-            source,
+            work: input.work,
+            source: input.source,
+            mode: input.mode,
             pos,
             limit,
-            depth,
+            depth: input.depth,
             speculative,
             tail: None,
             nesting: Nesting::default(),
@@ -563,7 +577,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
                         token
                     }
                     b'%' if !(skip_first_percent && i == first)
-                        && !super::canonical()
+                        && !self.mode.canonical
                         && self.percent_kind().is_some() =>
                     {
                         let ambiguous = self
@@ -652,7 +666,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
                 Err(error) if error.kind == crate::ErrorKind::Syntax && !interpolation => {
                     // Resolving an earlier percent token may require re-lexing this suffix.
                     i = self.limit;
-                    if super::recovery::lexical() {
+                    if self.mode.lexical {
                         i = source[start..self.limit]
                             .find('\n')
                             .map_or(self.limit, |end| start + end);
@@ -852,7 +866,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
         let assigns = matches!(last, Some(b'?' | b'!'))
             && bytes.get(end) == Some(&b'=')
             && !matches!(bytes.get(end + 1), Some(b'=' | b'~'))
-            && (last == Some(&b'!') || !super::suffixes::lenient());
+            && (last == Some(&b'!') || !self.mode.lenient);
         if assigns || (last == Some(&b'!') && bytes.get(end) == Some(&b'~')) {
             end - 1
         } else {
@@ -1245,6 +1259,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
         let mut scan = Lexer {
             work: self.work,
             source: self.source,
+            mode: self.mode,
             pos: start + 1,
             limit: self.limit,
             depth: self.depth,
@@ -1704,8 +1719,8 @@ mod tests {
     #[test]
     fn compilation_invalid_token_copies_share_the_accounted_message() {
         let mut context = CallContext::new(CallOptions::default());
-        let work = Meter(std::cell::RefCell::new(&mut context));
-        let tokens = lex("$", &work).unwrap();
+        let work = Meter::new(&mut context);
+        let tokens = lex(Input::new("$", &work)).unwrap();
         let copy = tokens[0].token.copy(&work).unwrap();
         let (Token::Invalid(original), Token::Invalid(duplicate)) = (&tokens[0].token, &copy)
         else {
@@ -1722,7 +1737,6 @@ mod tests {
         drop(copy);
         assert_eq!(context.stats().retained_memory_bytes, 0);
     }
-    use std::cell::RefCell;
 
     #[test]
     fn numbers_abutting_keywords_split_before_the_keyword() {
@@ -1742,7 +1756,7 @@ mod tests {
             ("2.5e-1while", Token::Float(0.25), "while"),
         ] {
             let mut context = CallContext::new(CallOptions::default());
-            let tokens = lex(source, &Meter(RefCell::new(&mut context))).unwrap();
+            let tokens = lex(Input::new(source, &Meter::new(&mut context))).unwrap();
             assert_eq!(tokens.len(), 3, "{source}");
             assert_eq!(tokens[0].token, number, "{source}");
             assert_eq!(tokens[0].offset, 0, "{source}");
@@ -1796,7 +1810,7 @@ mod tests {
         ] {
             let mut context = CallContext::new(CallOptions::default());
             let input = format!("{source} 1");
-            let tokens = lex(&input, &Meter(RefCell::new(&mut context))).unwrap();
+            let tokens = lex(Input::new(&input, &Meter::new(&mut context))).unwrap();
             let Token::Invalid(invalid) = &tokens[0].token else {
                 panic!(
                     "{source}: expected an invalid literal, got {:?}",
@@ -1815,7 +1829,7 @@ mod tests {
         ] {
             let mut context = CallContext::new(CallOptions::default());
             let input = format!("{source} 1");
-            let tokens = lex(&input, &Meter(RefCell::new(&mut context))).unwrap();
+            let tokens = lex(Input::new(&input, &Meter::new(&mut context))).unwrap();
             let Token::Invalid(invalid) = &tokens[0].token else {
                 panic!(
                     "{source}: expected a deferred literal, got {:?}",
@@ -1836,8 +1850,8 @@ mod tests {
             },
             ..CallOptions::default()
         });
-        let work = Meter(RefCell::new(&mut context));
-        let tokens = lex(source, &work).unwrap();
+        let work = Meter::new(&mut context);
+        let tokens = lex(Input::new(source, &work)).unwrap();
         assert!(tokens.iter().any(|lexeme| matches!(
             &lexeme.token,
             Token::Invalid(invalid) if invalid.message == super::super::TOO_DEEP
@@ -1933,7 +1947,7 @@ mod tests {
             ),
         ] {
             let mut context = CallContext::new(CallOptions::default());
-            let tokens = lex(source, &Meter(RefCell::new(&mut context))).unwrap();
+            let tokens = lex(Input::new(source, &Meter::new(&mut context))).unwrap();
             let got: Vec<_> = tokens
                 .iter()
                 .map(|lexeme| lexeme.token.copy(&()).unwrap())
@@ -1957,7 +1971,7 @@ mod tests {
                 },
                 ..CallOptions::default()
             });
-            let error = lex(&source, &Meter(RefCell::new(&mut context))).unwrap_err();
+            let error = lex(Input::new(&source, &Meter::new(&mut context))).unwrap_err();
             assert_eq!(error.kind, crate::ErrorKind::Steps);
             assert_eq!(context.charge(0).unwrap_err().kind, crate::ErrorKind::Steps);
             assert_eq!(context.stats().retained_memory_bytes, 0);
@@ -1970,7 +1984,7 @@ mod tests {
         for length in [1, 8192] {
             let source = "名".repeat(length);
             let mut context = CallContext::new(CallOptions::default());
-            let tokens = lex(&source, &Meter(RefCell::new(&mut context))).unwrap();
+            let tokens = lex(Input::new(&source, &Meter::new(&mut context))).unwrap();
             let Token::Word(word) = &tokens[0].token else {
                 panic!("expected identifier");
             };

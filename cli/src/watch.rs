@@ -205,7 +205,7 @@ mod tests {
         }
     }
 
-    fn wait_for(captured: &Captured, want: &str, count: usize) {
+    fn wait_for(captured: &mut Captured, want: &str, count: usize) {
         let appeared = captured.wait_for(Duration::from_secs(10), |text| {
             text.matches(want).count() >= count
         });
@@ -220,8 +220,8 @@ mod tests {
     struct Watching {
         stop: Arc<AtomicBool>,
         thread: Option<std::thread::JoinHandle<Result<(), String>>>,
-        out: Arc<Captured>,
-        status: Arc<Captured>,
+        out: Captured,
+        status: Captured,
     }
 
     impl Watching {
@@ -270,15 +270,19 @@ mod tests {
         let scratch = Scratch::new("rerun");
         let script = scratch.0.join("main.vibe");
         fs::write(&script, "def run -> string\n  \"first\"\nend\n").unwrap();
-        let watching = Watching::start(invocation(&script, &scratch.0));
-        wait_for(&watching.out, "first", 1);
+        let mut watching = Watching::start(invocation(&script, &scratch.0));
+        wait_for(&mut watching.out, "first", 1);
         fs::write(&script, "def run -> string\n  \"second result\"\nend\n").unwrap();
-        wait_for(&watching.out, "second result", 1);
-        wait_for(&watching.status, "change detected, re-running main.vibe", 1);
+        wait_for(&mut watching.out, "second result", 1);
+        wait_for(
+            &mut watching.status,
+            "change detected, re-running main.vibe",
+            1,
+        );
         fs::write(&script, "def run(\n").unwrap();
-        wait_for(&watching.status, "compile failed", 1);
+        wait_for(&mut watching.status, "compile failed", 1);
         fs::write(&script, "def run -> string\n  \"recovered output\"\nend\n").unwrap();
-        wait_for(&watching.out, "recovered output", 1);
+        wait_for(&mut watching.out, "recovered output", 1);
         let status = watching.finish();
         assert!(
             status.starts_with("watching 1 file(s); press ctrl-c to stop\n"),
@@ -295,16 +299,16 @@ mod tests {
         fs::create_dir(scratch.0.join("billing")).unwrap();
         let module = scratch.0.join("billing").join("helper.vibe");
         fs::write(&module, "def helper()\n  1\nend\n").unwrap();
-        let watching = Watching::start(invocation(&script, &scratch.0));
-        wait_for(&watching.out, "module watch up", 1);
+        let mut watching = Watching::start(invocation(&script, &scratch.0));
+        wait_for(&mut watching.out, "module watch up", 1);
         fs::write(&module, "def helper()\n  22\nend\n").unwrap();
-        wait_for(&watching.status, "change detected", 1);
+        wait_for(&mut watching.status, "change detected", 1);
         let nested = scratch.0.join("nested");
         fs::create_dir(&nested).unwrap();
         fs::write(nested.join("fees.vibe"), "def fees()\n  2\nend\n").unwrap();
-        wait_for(&watching.status, "change detected", 2);
+        wait_for(&mut watching.status, "change detected", 2);
         fs::remove_file(&module).unwrap();
-        wait_for(&watching.status, "change detected", 3);
+        wait_for(&mut watching.status, "change detected", 3);
         watching.finish();
     }
 

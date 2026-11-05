@@ -6,7 +6,11 @@ use std::{
     collections::{BTreeMap, BTreeSet, hash_map::RandomState},
     hash::BuildHasher,
     io::{self, Read, Write},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+        mpsc,
+    },
 };
 use vibescript::{
     CallOptions, Capability, Engine, Error, ErrorKind, HostMethod, Limits, Script, Signature,
@@ -307,7 +311,27 @@ fn capabilities(previews: Vec<Preview>) -> vibescript::Result<Vec<Capability>> {
     Ok(capabilities)
 }
 
-type Capture = Arc<Mutex<Vec<u8>>>;
+/// One output stream of a request: the writers send each write whole, and
+/// the response collects them once the run is over.
+#[derive(Clone)]
+struct Capture {
+    written: mpsc::Sender<Vec<u8>>,
+    /// How much the writers have sent, which [`OUTPUT_LIMIT`] bounds.
+    length: Arc<AtomicUsize>,
+}
+
+impl Capture {
+    fn new() -> (Self, mpsc::Receiver<Vec<u8>>) {
+        let (written, received) = mpsc::channel();
+        (
+            Self {
+                written,
+                length: Arc::default(),
+            },
+            received,
+        )
+    }
+}
 
 fn capture(
     buffer: &Capture,
@@ -315,19 +339,24 @@ fn capture(
     bytes: &[u8],
 ) -> vibescript::Result<()> {
     ctx.checkpoint()?;
-    let mut output = buffer.lock().unwrap();
-    if bytes.len() > OUTPUT_LIMIT - output.len() {
+    if bytes.is_empty() {
+        return Ok(());
+    }
+    let written = buffer.length.fetch_add(bytes.len(), Ordering::Relaxed);
+    if bytes.len() > OUTPUT_LIMIT - written.min(OUTPUT_LIMIT) {
+        buffer.length.fetch_sub(bytes.len(), Ordering::Relaxed);
         return Err(Error::new(
             ErrorKind::OutputLimit,
             "playground output exceeds 65536 bytes",
         ));
     }
-    output.extend_from_slice(bytes);
+    // The response's receiver outlives the engine that writes.
+    let _ = buffer.written.send(bytes.to_vec());
     Ok(())
 }
 
-fn lines(buffer: &Capture) -> Vec<String> {
-    let bytes = buffer.lock().unwrap();
+fn lines(received: &mpsc::Receiver<Vec<u8>>) -> Vec<String> {
+    let bytes: Vec<u8> = received.try_iter().flatten().collect();
     if bytes.is_empty() {
         return Vec::new();
     }
@@ -532,8 +561,8 @@ pub fn serve(reader: impl Read, mut writer: impl Write) -> io::Result<()> {
         .take(INPUT_LIMIT as u64 + 1)
         .read_to_end(&mut input)?;
     let mut response = Response::default();
-    let output = Capture::default();
-    let stderr = Capture::default();
+    let (output, output_written) = Capture::new();
+    let (stderr, stderr_written) = Capture::new();
     let result = if input.len() > INPUT_LIMIT {
         Err(invalid("request exceeds 1048576 bytes"))
     } else {
@@ -545,8 +574,8 @@ pub fn serve(reader: impl Read, mut writer: impl Write) -> io::Result<()> {
         response.fail(&error, "");
     }
     response.ok = response.error.is_none();
-    response.output = lines(&output);
-    response.stderr = lines(&stderr);
+    response.output = lines(&output_written);
+    response.stderr = lines(&stderr_written);
     serde_json::to_writer(&mut writer, &response)?;
     writer.write_all(b"\n")?;
     writer.flush()

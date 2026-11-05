@@ -6,10 +6,13 @@ use super::host::{self, Host};
 use std::{
     panic::{AssertUnwindSafe, catch_unwind},
     path::Path,
-    sync::{Arc, Mutex},
+    sync::mpsc,
     time::{Duration, Instant},
 };
 use vibescript::{CallOptions, Engine, Error, ErrorKind, Limits, ModuleConfig, Value};
+
+#[path = "../../fuzz/support.rs"]
+mod support;
 
 /// Native stack for a worker: deep syntax needs more than the main thread has.
 const STACK: usize = 256 << 20;
@@ -131,7 +134,7 @@ pub enum FindingKind {
     CheckFailed,
     /// The two builds observed different results or output.
     Mismatch,
-    /// Checking, compiling or running panicked.
+    /// Checking, compiling or running panicked or returned an internal error.
     Panic,
     /// Only one build compiled the program.
     CompileMismatch,
@@ -217,7 +220,8 @@ fn judge_in(case: &Case, directory: Option<&Path>) -> Verdict {
                     FindingKind::CompileMismatch,
                     format!("only the build with checks compiles; the other: {error}"),
                 ),
-                _ => Verdict::Rejected(first_code(&error)),
+                Ok(Err(_)) => Verdict::Rejected(first_code(&error)),
+                Err(panic) => finding(FindingKind::Panic, format!("compile with checks: {panic}")),
             };
         }
         Err(panic) => return finding(FindingKind::Panic, format!("compile: {panic}")),
@@ -283,7 +287,7 @@ pub enum Outcome {
     Failed,
     /// A limit stopped a run.
     Limited,
-    /// Checking, compiling or running panicked.
+    /// Checking, compiling or running panicked or returned an internal error.
     Panicked,
 }
 
@@ -336,12 +340,12 @@ fn finding(kind: FindingKind, detail: String) -> Verdict {
 /// The program with each top-level local's first assignment declaring the
 /// type the checker inferred for it, as `vibes repl` declares a session's
 /// variables, so that the build keeping every check verifies each inferred
-/// type; `None` when no local can be declared.
-pub fn annotate(case: &Case, scratch: &mut Scratch) -> Option<Case> {
+/// type, or a finding if checking crashed; `None` when no local can be declared.
+pub fn annotate(case: &Case, scratch: &mut Scratch) -> std::io::Result<Option<Annotation>> {
     let directory = if case.modules.is_empty() {
         None
     } else {
-        Some(scratch.directory(&case.modules).ok()?)
+        Some(scratch.directory(&case.modules)?)
     };
     let mut engine = Engine::new();
     if let Some(directory) = directory {
@@ -349,12 +353,23 @@ pub fn annotate(case: &Case, scratch: &mut Scratch) -> Option<Case> {
             paths: vec![directory],
             ..ModuleConfig::default()
         };
-        engine.set_module_config(config).ok()?;
+        engine
+            .set_module_config(config)
+            .map_err(std::io::Error::other)?;
     }
-    case.host.declare(&mut engine).ok()?;
-    let checked = catch_unwind(AssertUnwindSafe(|| engine.type_check(&case.main)))
-        .ok()?
-        .ok()?;
+    case.host
+        .declare(&mut engine)
+        .map_err(std::io::Error::other)?;
+    let checked = match capture(|| engine.type_check(&case.main)) {
+        Ok(Ok(checked)) => checked,
+        Ok(Err(_)) => return Ok(None),
+        Err(crash) => {
+            return Ok(Some(Annotation::Finding(Finding {
+                kind: FindingKind::Panic,
+                detail: format!("annotation: {crash}"),
+            })));
+        }
+    };
     let mut declared = std::collections::HashSet::new();
     let mut changed = false;
     let mut main = String::new();
@@ -380,14 +395,25 @@ pub fn annotate(case: &Case, scratch: &mut Scratch) -> Option<Case> {
             }
         }
     }
-    changed.then(|| Case {
-        main,
-        modules: case.modules.clone(),
-        host: case.host.clone(),
-    })
+    Ok(changed.then(|| {
+        Annotation::Case(Case {
+            main,
+            modules: case.modules.clone(),
+            host: case.host.clone(),
+        })
+    }))
 }
 
-type Captured = Arc<Mutex<Vec<u8>>>;
+/// The annotated program, or the failure encountered while inferring its locals.
+pub enum Annotation {
+    /// A program with its inferred local types declared.
+    Case(Case),
+    /// Inferring the types crashed; the original program reproduces it.
+    Finding(Finding),
+}
+
+/// One output stream of a compiled case, as the writers sent it.
+type Captured = mpsc::Receiver<Vec<u8>>;
 
 struct Compiled {
     script: vibescript::Script,
@@ -400,8 +426,8 @@ fn compile(
     directory: Option<&Path>,
     keep: bool,
 ) -> Result<Result<Compiled, Error>, String> {
-    let stdout = Captured::default();
-    let stderr = Captured::default();
+    let (out, stdout) = mpsc::channel();
+    let (err, stderr) = mpsc::channel();
     let mut engine = Engine::new();
     engine.set_keep_type_checks(keep);
     if let Some(directory) = directory {
@@ -410,7 +436,7 @@ fn compile(
             ..ModuleConfig::default()
         };
         if let Err(error) = engine.set_module_config(config) {
-            return Ok(Err(error));
+            return capture(|| Err(error));
         }
     }
     let seed = std::sync::atomic::AtomicU64::new(1);
@@ -424,28 +450,35 @@ fn compile(
         }
         Ok(output.len())
     });
-    let out = stdout.clone();
     engine.set_output_writer(move |_, bytes| {
-        out.lock().unwrap().extend_from_slice(bytes);
+        if !bytes.is_empty() {
+            let _ = out.send(bytes.to_vec());
+        }
         Ok(())
     });
-    let err = stderr.clone();
     engine.set_error_writer(move |_, bytes| {
-        err.lock().unwrap().extend_from_slice(bytes);
+        if !bytes.is_empty() {
+            let _ = err.send(bytes.to_vec());
+        }
         Ok(())
     });
     if let Err(error) = case.host.declare(&mut engine) {
-        return Ok(Err(error));
+        return capture(|| Err(error));
     }
-    catch_unwind(AssertUnwindSafe(|| engine.compile(&case.main)))
-        .map(|compiled| {
-            compiled.map(|script| Compiled {
-                script,
-                stdout,
-                stderr,
-            })
+    capture(|| engine.compile(&case.main)).map(|compiled| {
+        compiled.map(|script| Compiled {
+            script,
+            stdout,
+            stderr,
         })
-        .map_err(panic_message)
+    })
+}
+
+/// Captures both panics and returned invariant failures as harness crashes.
+fn capture<T>(
+    work: impl FnOnce() -> vibescript::Result<T>,
+) -> Result<vibescript::Result<T>, String> {
+    catch_unwind(AssertUnwindSafe(|| support::check(work()))).map_err(panic_message)
 }
 
 /// Runs the script's top-level statements, then each call the host makes
@@ -476,25 +509,23 @@ fn observe(compiled: &Compiled, host: &Host) -> Result<Observation, String> {
         unexpected: false,
     };
     let main_options = options()?;
-    let main = catch_unwind(AssertUnwindSafe(|| compiled.script.run(main_options)))
-        .map_err(panic_message)?;
+    let main = capture(|| compiled.script.run(main_options))?;
     observation.record(main, false);
     for call in &host.calls {
         let (args, keywords) = host::arguments(&call.args);
         let call_options = options()?;
-        let outcome = catch_unwind(AssertUnwindSafe(|| {
+        let outcome = capture(|| {
             compiled
                 .script
                 .call_with_keywords(&call.function, &args, &keywords, call_options)
-        }))
-        .map_err(panic_message)?;
+        })?;
         observation
             .result
             .push_str(&format!("; {}: ", call.function));
         observation.record(outcome, true);
     }
-    observation.stdout = std::mem::take(&mut *compiled.stdout.lock().unwrap());
-    observation.stderr = std::mem::take(&mut *compiled.stderr.lock().unwrap());
+    observation.stdout = compiled.stdout.try_iter().flatten().collect();
+    observation.stderr = compiled.stderr.try_iter().flatten().collect();
     Ok(observation)
 }
 
@@ -663,4 +694,44 @@ fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
                 .map(|text| (*text).to_owned())
         })
         .unwrap_or_else(|| "panic".to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[cfg_attr(not(panic = "unwind"), ignore = "catching a panic requires unwinding")]
+    fn internal_compile_errors_are_captured_as_crashes() {
+        let crash = capture::<()>(|| Err(Error::new(ErrorKind::Internal, "forced compiler bug")))
+            .unwrap_err();
+        assert!(crash.contains("forced compiler bug"), "{crash}");
+        assert!(capture::<()>(|| panic!("compiler panic")).is_err());
+        assert!(capture::<()>(|| Err(Error::new(ErrorKind::Syntax, "bad source"))).is_ok());
+    }
+
+    #[test]
+    #[cfg_attr(not(panic = "unwind"), ignore = "catching a panic requires unwinding")]
+    fn internal_runtime_errors_are_crashes_in_main_and_host_calls() {
+        for main in ["fault()", "def run\nfault()\nend"] {
+            let mut engine = Engine::new();
+            engine.register("fault", |_, _| {
+                Err(Error::new(ErrorKind::Internal, "forced VM bug"))
+            });
+            let compiled = Compiled {
+                script: engine.compile(main).unwrap(),
+                stdout: mpsc::channel().1,
+                stderr: mpsc::channel().1,
+            };
+            let mut host = Host::default();
+            if main.starts_with("def") {
+                host.calls.push(host::Call {
+                    function: "run".to_owned(),
+                    args: "{}".to_owned(),
+                });
+            }
+            let crash = observe(&compiled, &host).unwrap_err();
+            assert!(crash.contains("forced VM bug"), "{main}: {crash}");
+        }
+    }
 }

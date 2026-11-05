@@ -3,7 +3,7 @@
 // The original BSD license is reproduced in licenses/Go-BSD-3-Clause.txt.
 
 use super::{argument, clean, trimmed};
-use crate::{CallContext, Error, ErrorKind, Result, budget::Buffer};
+use crate::{CallContext, Error, ErrorKind, Result, budget::Buffer, checked::Checked};
 
 #[derive(Default)]
 pub(crate) struct Policy {
@@ -109,8 +109,7 @@ impl Pattern {
     fn parse(input: &[u8]) -> Result<Self> {
         let mut tokens = Vec::new();
         let mut at = 0;
-        while at < input.len() {
-            let byte = input[at];
+        while let Some(&byte) = input.get(at) {
             at += 1;
             let token = match byte {
                 b'*' => {
@@ -164,15 +163,19 @@ impl Pattern {
         let mut position = 0;
         while start < self.tokens.len() {
             ctx.charge(1)?;
-            let star = matches!(self.tokens[start], Token::Star);
+            let star = matches!(self.tokens.get(start), Some(Token::Star));
             start += usize::from(star);
             let mut end = start;
-            while end < self.tokens.len() && !matches!(self.tokens[end], Token::Star) {
+            while self
+                .tokens
+                .get(end)
+                .is_some_and(|token| !matches!(token, Token::Star))
+            {
                 ctx.charge(1)?;
                 end += 1;
             }
             if start == end && star {
-                for &byte in &input[position..] {
+                for &byte in input.tail(position)? {
                     ctx.charge(1)?;
                     if byte == b'/' {
                         return Ok(false);
@@ -188,7 +191,7 @@ impl Pattern {
                         break;
                     }
                 }
-                if !star || position == input.len() || input[position] == b'/' {
+                if !star || input.get(position).is_none_or(|&byte| byte == b'/') {
                     return Ok(false);
                 }
                 // Go searches each byte offset, including inside UTF-8 sequences.
@@ -207,16 +210,16 @@ impl Pattern {
         input: &[u8],
         mut at: usize,
     ) -> Result<Option<usize>> {
-        for token in &self.tokens[range] {
+        for token in self.tokens.span(range.start, range.end)? {
             ctx.charge(1)?;
-            if at == input.len() {
+            let Some(remaining @ [byte, ..]) = input.get(at..) else {
                 return Ok(None);
-            }
+            };
             let size = match token {
-                Token::Byte(byte) => (input[at] == *byte).then_some(1),
-                Token::Rune => (input[at] != b'/').then(|| crate::scan::rune(&input[at..]).1),
+                Token::Byte(expected) => (byte == expected).then_some(1),
+                Token::Rune => (*byte != b'/').then(|| crate::scan::rune(remaining).1),
                 Token::Class { negated, ranges } => {
-                    let (rune, size, _) = crate::scan::rune(&input[at..]);
+                    let (rune, size, _) = crate::scan::rune(remaining);
                     let mut matched = false;
                     for &(low, high) in ranges {
                         ctx.charge(1)?;
@@ -245,10 +248,11 @@ fn class_rune(input: &[u8], at: &mut usize) -> Result<char> {
     if byte == b'\\' {
         *at += 1;
     }
-    if *at >= input.len() {
-        return Err(bad_pattern());
-    }
-    let (rune, width, valid) = crate::scan::rune(&input[*at..]);
+    let remaining = input
+        .get(*at..)
+        .filter(|tail| !tail.is_empty())
+        .ok_or_else(bad_pattern)?;
+    let (rune, width, valid) = crate::scan::rune(remaining);
     *at += width;
     if !valid || *at == input.len() {
         return Err(bad_pattern());
@@ -260,6 +264,20 @@ fn class_rune(input: &[u8], at: &mut usize) -> Result<char> {
 mod tests {
     use super::*;
     use crate::{CallOptions, CancellationToken, Limits};
+
+    #[test]
+    fn chunk_rejects_invalid_token_ranges_without_panicking() {
+        let pattern = Pattern::parse(b"a").unwrap();
+        let mut ctx = CallContext::new(CallOptions::default());
+        for range in [0..2, 2..2] {
+            let error = pattern.chunk(&mut ctx, range, b"a", 0).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Internal);
+        }
+        assert_eq!(pattern.chunk(&mut ctx, 0..1, b"a", 0).unwrap(), Some(1));
+        for at in [1, 2] {
+            assert_eq!(pattern.chunk(&mut ctx, 0..1, b"a", at).unwrap(), None);
+        }
+    }
 
     fn decode_hex(value: &serde_json::Value) -> Vec<u8> {
         let text = value.as_str().unwrap().as_bytes();

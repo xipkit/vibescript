@@ -108,7 +108,7 @@ pub(crate) fn member(
         _ => compiled.as_ref().unwrap().view(),
     };
     let mut position = 0;
-    let mut remaining = offset as u64;
+    let mut remaining = offset.unsigned_abs();
     while remaining > 0 && position < text.len() {
         ctx.charge(1)?;
         position += scan::rune(&text[position..]).1;

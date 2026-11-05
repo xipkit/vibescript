@@ -49,66 +49,132 @@ mod rng;
 use harness::{Case, Scratch, Verdict};
 use std::{
     collections::BTreeMap,
+    io::Write,
     path::{Path, PathBuf},
     sync::{
-        Arc, Mutex,
+        Arc,
         atomic::{AtomicU64, Ordering},
         mpsc::{self, RecvTimeoutError},
     },
     time::{Duration, Instant},
 };
 
-/// Clears a worker's slot in the watch, removes its scratch directory and
-/// tells the watchdog it is done, however the worker ended.
+/// What a worker tells the thread that watches the run. Workers judge;
+/// the watcher owns the output, the totals and the findings written.
+enum Progress {
+    /// A worker started a seed.
+    Started { worker: usize, seed: u64 },
+    /// A worker finished, however it ended.
+    Done { worker: usize },
+    /// A verdict line of [`verdicts`].
+    Line(String),
+    /// A case of [`batch`] was judged.
+    Judged(Box<Judged>),
+}
+
+/// A case judged by a worker, and judged again annotated when the first
+/// verdict agreed.
+struct Judged {
+    seed: u64,
+    case: Case,
+    verdict: Verdict,
+    annotated: Option<(Case, Verdict)>,
+}
+
+/// The error a worker reports when the watcher has stopped listening, as it
+/// does once it has reported a stuck seed.
+fn watcher_gone() -> std::io::Error {
+    std::io::Error::other("the watcher stopped before the workers")
+}
+
+/// Removes a worker's scratch directory and tells the watcher it is done,
+/// however the worker ended.
 struct WorkerCleanup {
-    current: Watch,
     worker: usize,
     root: PathBuf,
-    done: mpsc::Sender<()>,
+    progress: mpsc::Sender<Progress>,
 }
 
 impl Drop for WorkerCleanup {
     fn drop(&mut self) {
-        if let Some(slot) = self
-            .current
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .get_mut(self.worker)
-        {
-            *slot = None;
-        }
         let _ = std::fs::remove_dir_all(&self.root);
-        let _ = self.done.send(());
+        let _ = self.progress.send(Progress::Done {
+            worker: self.worker,
+        });
     }
 }
 
-/// How long a seed may run before the watchdog reports it.
+/// How long a seed may run before the watcher reports it.
 const STUCK_AFTER: Duration = Duration::from_secs(120);
 
-/// How long the watchdog waits for a worker to finish between looks at the
-/// seeds in progress.
+/// How long the watcher waits for progress between looks at the seeds in
+/// progress.
 const WATCH_EVERY: Duration = Duration::from_millis(500);
 
-/// Waits for the workers, whose cleanup each sends once on `finished` and
-/// then drops its sender, looking for a seed that has run past
-/// [`STUCK_AFTER`] every [`WATCH_EVERY`]. Returns that seed, or `None` once
-/// every worker is done.
-fn watch(finished: &mpsc::Receiver<()>, current: &Watch) -> Option<u64> {
-    loop {
-        match finished.recv_timeout(WATCH_EVERY) {
-            Ok(()) => continue,
-            Err(RecvTimeoutError::Disconnected) => return None,
-            Err(RecvTimeoutError::Timeout) => {}
+/// The thread that watches a run: each worker's seed in progress and when
+/// it started, the verdict lines, and the totals and findings of a batch.
+struct Watcher<'a> {
+    current: Vec<Option<(u64, Instant)>>,
+    output: std::io::BufWriter<std::io::Stdout>,
+    totals: Totals,
+    /// Where a batch writes its findings; `None` for verdicts.
+    out: Option<&'a Path>,
+}
+
+impl<'a> Watcher<'a> {
+    fn new(jobs: usize, out: Option<&'a Path>) -> Self {
+        Self {
+            current: vec![None; jobs],
+            output: std::io::BufWriter::new(std::io::stdout()),
+            totals: Totals::default(),
+            out,
         }
-        let stuck = current
-            .lock()
-            .unwrap()
-            .iter()
-            .flatten()
-            .find(|(_, since)| since.elapsed() > STUCK_AFTER)
-            .map(|(seed, _)| *seed);
-        if stuck.is_some() {
-            return stuck;
+    }
+
+    /// Follows the workers' progress, whose cleanup each reports once and
+    /// then drops its sender, looking for a seed that has run past
+    /// [`STUCK_AFTER`] at least every [`WATCH_EVERY`]. Returns that seed,
+    /// or `None` once every worker is done.
+    fn watch(&mut self, progress: &mpsc::Receiver<Progress>) -> std::io::Result<Option<u64>> {
+        loop {
+            match progress.recv_timeout(WATCH_EVERY) {
+                Ok(Progress::Started { worker, seed }) => {
+                    if let Some(slot) = self.current.get_mut(worker) {
+                        *slot = Some((seed, Instant::now()));
+                    }
+                }
+                Ok(Progress::Done { worker }) => {
+                    if let Some(slot) = self.current.get_mut(worker) {
+                        *slot = None;
+                    }
+                }
+                Ok(Progress::Line(line)) => writeln!(self.output, "{line}")?,
+                Ok(Progress::Judged(judged)) => {
+                    if let Some(out) = self.out {
+                        let Judged {
+                            seed,
+                            case,
+                            verdict,
+                            annotated,
+                        } = *judged;
+                        record(&mut self.totals, out, seed, &case, &verdict)?;
+                        if let Some((annotated, verdict)) = annotated {
+                            annotated_record(&mut self.totals, out, seed, &annotated, &verdict)?;
+                        }
+                    }
+                }
+                Err(RecvTimeoutError::Disconnected) => return Ok(None),
+                Err(RecvTimeoutError::Timeout) => {}
+            }
+            let stuck = self
+                .current
+                .iter()
+                .flatten()
+                .find(|(_, since)| since.elapsed() > STUCK_AFTER)
+                .map(|(seed, _)| *seed);
+            if stuck.is_some() {
+                return Ok(stuck);
+            }
         }
     }
 }
@@ -229,7 +295,6 @@ fn verdicts(
     args: &[String],
     make_case: fn(u64, &str) -> std::io::Result<Case>,
 ) -> std::io::Result<u8> {
-    use std::io::Write;
     let from: u64 = option(args, "--from")
         .and_then(|value| value.parse().ok())
         .unwrap_or(0);
@@ -248,45 +313,36 @@ fn verdicts(
             "verdict seed range overflows u64",
         )
     })?;
-    let output = Arc::new(Mutex::new(std::io::BufWriter::new(std::io::stdout())));
-    let current: Watch = Arc::new(Mutex::new(vec![None; jobs]));
-    let (done, finished) = mpsc::channel();
+    let (progress, events) = mpsc::channel();
     let mut handles = Vec::new();
     for worker in 0..jobs {
-        let (next, output, current, source, done) = (
-            next.clone(),
-            output.clone(),
-            current.clone(),
-            source.clone(),
-            done.clone(),
-        );
+        let (next, progress, source) = (next.clone(), progress.clone(), source.clone());
         let handle = harness::spawn(move || {
             let root = scratch_root(worker + 1);
             let _cleanup = WorkerCleanup {
-                current: current.clone(),
                 worker,
                 root: root.clone(),
-                done,
+                progress: progress.clone(),
             };
             let mut scratch = Scratch::new(&root);
             while let Some(seed) = next_seed(&next, end) {
-                *current
-                    .lock()
-                    .unwrap()
-                    .get_mut(worker)
-                    .ok_or_else(|| std::io::Error::other("invalid worker index"))? =
-                    Some((seed, Instant::now()));
+                progress
+                    .send(Progress::Started { worker, seed })
+                    .map_err(|_| watcher_gone())?;
                 let case = make_case(seed, &source)?;
                 let outcome = harness::outcome(&case, &mut scratch)?;
-                writeln!(output.lock().unwrap(), "{seed} {}", outcome.line())?;
+                progress
+                    .send(Progress::Line(format!("{seed} {}", outcome.line())))
+                    .map_err(|_| watcher_gone())?;
             }
             Ok::<(), std::io::Error>(())
         })?;
         handles.push(handle);
     }
-    drop(done);
-    if let Some(seed) = watch(&finished, &current) {
-        let _ = output.lock().unwrap().flush();
+    drop(progress);
+    let mut watcher = Watcher::new(jobs, None);
+    if let Some(seed) = watcher.watch(&events)? {
+        let _ = watcher.output.flush();
         eprintln!("seed {seed} did not finish in two minutes");
         return Ok(3);
     }
@@ -295,7 +351,7 @@ fn verdicts(
             .join()
             .map_err(|_| std::io::Error::other("verdict worker panicked"))??;
     }
-    output.lock().unwrap().flush()?;
+    watcher.output.flush()?;
     Ok(0)
 }
 
@@ -473,11 +529,50 @@ fn describe(verdict: &Verdict) -> String {
     }
 }
 
-/// Each worker's current seed and when it started, for the watchdog.
-type Watch = Arc<Mutex<Vec<Option<(u64, Instant)>>>>;
-
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn annotation_crashes_keep_the_seed_and_program_while_the_campaign_continues() {
+        use super::{Case, Judged, Progress, Verdict};
+        let root = super::scratch_root(usize::MAX - 10);
+        std::fs::create_dir_all(&root).unwrap();
+        let case = Case::new("x = 42\nx\n");
+        let (progress, events) = super::mpsc::channel();
+        progress
+            .send(Progress::Judged(Box::new(Judged {
+                seed: 87,
+                case: case.clone(),
+                verdict: Verdict::Agreed("ok int(42)".to_owned()),
+                annotated: Some((
+                    case.clone(),
+                    Verdict::Finding(super::harness::Finding {
+                        kind: super::harness::FindingKind::Panic,
+                        detail: "annotation: forced internal error".to_owned(),
+                    }),
+                )),
+            })))
+            .unwrap();
+        progress
+            .send(Progress::Judged(Box::new(Judged {
+                seed: 88,
+                case: case.clone(),
+                verdict: Verdict::Agreed("ok int(42)".to_owned()),
+                annotated: None,
+            })))
+            .unwrap();
+        drop(progress);
+        let mut watcher = super::Watcher::new(1, Some(&root));
+        assert_eq!(watcher.watch(&events).unwrap(), None);
+        assert_eq!(watcher.totals.generated, 2);
+        assert_eq!(watcher.totals.annotated, 1);
+        assert_eq!(watcher.totals.findings.get("panic"), Some(&1));
+        let reproducer = std::fs::read_to_string(root.join("annotated-panic-87.vibe")).unwrap();
+        assert!(reproducer.contains("seed 87"), "{reproducer}");
+        assert!(reproducer.contains("forced internal error"), "{reproducer}");
+        assert_eq!(Case::parse(&reproducer).render(), case.render());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn scratch_write_failures_are_errors_instead_of_checker_findings() {
         let root = super::scratch_root(usize::MAX - 3);
@@ -487,6 +582,7 @@ mod tests {
         case.modules.push(("mod.vibe".into(), "1".into()));
         assert!(super::harness::judge(&case, &mut scratch).is_err());
         assert!(super::harness::outcome(&case, &mut scratch).is_err());
+        assert!(super::harness::annotate(&case, &mut scratch).is_err());
         std::fs::remove_file(root).unwrap();
     }
 
@@ -689,47 +785,58 @@ fn batch(args: &[String]) -> std::io::Result<u8> {
     })?;
     std::fs::create_dir_all(&out)?;
     let next = Arc::new(AtomicU64::new(from));
-    let totals = Arc::new(Mutex::new(Totals::default()));
-    let current: Watch = Arc::new(Mutex::new(vec![None; jobs]));
     let started = Instant::now();
-    let (done, finished) = mpsc::channel();
+    let (progress, events) = mpsc::channel();
     let mut handles = Vec::new();
     for worker in 0..jobs {
-        let next = next.clone();
-        let totals = totals.clone();
-        let current = current.clone();
-        let out = out.clone();
-        let source = source.clone();
-        let done = done.clone();
+        let (next, progress, source) = (next.clone(), progress.clone(), source.clone());
         let handle = harness::spawn(move || {
             let root = scratch_root(worker + 1);
             let _cleanup = WorkerCleanup {
-                current: current.clone(),
                 worker,
                 root: root.clone(),
-                done,
+                progress: progress.clone(),
             };
             let mut scratch = Scratch::new(&root);
             while let Some(seed) = next_seed(&next, end) {
-                *current
-                    .lock()
-                    .unwrap()
-                    .get_mut(worker)
-                    .ok_or_else(|| std::io::Error::other("invalid worker index"))? =
-                    Some((seed, Instant::now()));
+                progress
+                    .send(Progress::Started { worker, seed })
+                    .map_err(|_| watcher_gone())?;
                 let case = case_for(seed, &source)?;
                 let verdict = harness::judge(&case, &mut scratch)?;
-                record(&totals, &out, seed, &case, &verdict)?;
-                if matches!(verdict, Verdict::Agreed(_)) {
-                    annotated(&totals, &out, seed, &case, &mut scratch)?;
-                }
+                // The checker must accept its own inferences: a case it
+                // agreed on is judged again with its locals declared as the
+                // types it inferred.
+                let annotated = if matches!(verdict, Verdict::Agreed(_)) {
+                    match harness::annotate(&case, &mut scratch)? {
+                        Some(harness::Annotation::Case(annotated)) => {
+                            let verdict = harness::judge(&annotated, &mut scratch)?;
+                            Some((annotated, verdict))
+                        }
+                        Some(harness::Annotation::Finding(finding)) => {
+                            Some((case.clone(), Verdict::Finding(finding)))
+                        }
+                        None => None,
+                    }
+                } else {
+                    None
+                };
+                progress
+                    .send(Progress::Judged(Box::new(Judged {
+                        seed,
+                        case,
+                        verdict,
+                        annotated,
+                    })))
+                    .map_err(|_| watcher_gone())?;
             }
             Ok::<(), std::io::Error>(())
         })?;
         handles.push(handle);
     }
-    drop(done);
-    if let Some(seed) = watch(&finished, &current) {
+    drop(progress);
+    let mut watcher = Watcher::new(jobs, Some(&out));
+    if let Some(seed) = watcher.watch(&events)? {
         let case = case_for(seed, &source)?;
         let path = out.join(format!("hang-{seed}.vibe"));
         std::fs::write(&path, format!("# hang: seed {seed}\n{}", case.render()))?;
@@ -737,7 +844,7 @@ fn batch(args: &[String]) -> std::io::Result<u8> {
             "seed {seed} did not finish in two minutes; wrote {}",
             path.display()
         );
-        summary(&totals.lock().unwrap(), started, &out);
+        summary(&watcher.totals, started, &out);
         return Ok(3);
     }
     for handle in handles {
@@ -745,18 +852,17 @@ fn batch(args: &[String]) -> std::io::Result<u8> {
             .join()
             .map_err(|_| std::io::Error::other("differential worker panicked"))??;
     }
-    summary(&totals.lock().unwrap(), started, &out);
+    summary(&watcher.totals, started, &out);
     Ok(0)
 }
 
 fn record(
-    totals: &Mutex<Totals>,
+    totals: &mut Totals,
     out: &Path,
     seed: u64,
     case: &Case,
     verdict: &Verdict,
 ) -> std::io::Result<()> {
-    let mut totals = totals.lock().unwrap();
     totals.generated += 1;
     match verdict {
         Verdict::Rejected(reason) => {
@@ -803,22 +909,17 @@ fn record(
     Ok(())
 }
 
-/// Judges `case` again with its top-level locals declared with the types
-/// the checker inferred. The checker must accept its own inferences.
-fn annotated(
-    totals: &Mutex<Totals>,
+/// Records the verdict on `annotated`, a case judged again with its
+/// top-level locals declared with the types the checker inferred.
+fn annotated_record(
+    counts: &mut Totals,
     out: &Path,
     seed: u64,
-    case: &Case,
-    scratch: &mut Scratch,
+    annotated: &Case,
+    verdict: &Verdict,
 ) -> std::io::Result<()> {
-    let Some(annotated) = harness::annotate(case, scratch) else {
-        return Ok(());
-    };
-    let verdict = harness::judge(&annotated, scratch)?;
-    let mut counts = totals.lock().unwrap();
     counts.annotated += 1;
-    match &verdict {
+    match verdict {
         Verdict::Finding(finding) => {
             let Some(name) = counts.finding(finding) else {
                 return Ok(());

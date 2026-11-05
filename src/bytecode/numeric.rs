@@ -50,10 +50,7 @@ mod tests {
                 };
             }
         }
-        let code = Arc::new_cyclic(|owner| {
-            code.program.owner = owner.clone();
-            code
-        });
+        let code = Arc::new(code);
         (
             Script {
                 inner: Arc::new(crate::ScriptInner { code, ..inner }),

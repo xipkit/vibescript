@@ -92,13 +92,16 @@ impl Offset {
         } else {
             i128::from(index)
         };
-        if index < 0 || index >= values.len() as i128 {
+        let Some(value) = usize::try_from(index)
+            .ok()
+            .and_then(|index| values.get(index))
+        else {
             return Err(Error::new(
                 ErrorKind::Argument,
                 format!("{name} capture index out of bounds"),
             ));
-        }
-        Ok(values[index as usize].clone())
+        };
+        Ok(value.clone())
     }
 }
 
@@ -299,10 +302,12 @@ pub(crate) fn index(ctx: &mut CallContext, hash: &Hash, index: &Value) -> Result
     };
     Ok(Some(if index == 0 {
         hash.buffer.data[whole].1.clone()
-    } else if index < 0 || index > captures.len() as i128 {
-        Value::nil()
     } else {
-        captures[index as usize - 1].clone()
+        usize::try_from(index - 1)
+            .ok()
+            .and_then(|index| captures.get(index))
+            .cloned()
+            .unwrap_or_default()
     }))
 }
 

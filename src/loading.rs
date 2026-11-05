@@ -219,7 +219,7 @@ impl Loader {
                 let source_text = std::str::from_utf8(source.contents.as_bytes().unwrap())
                     .map_err(|_| {
                         crate::compilation::error(
-                            &crate::compilation::Meter(std::cell::RefCell::new(&mut *ctx)),
+                            &crate::compilation::Meter::new(&mut *ctx),
                             None,
                             format_args!("required source must be UTF-8"),
                         )
@@ -317,19 +317,15 @@ fn trimmed(input: &[u8]) -> &[u8] {
     let mut first = input.len();
     let mut last = 0;
     let mut at = 0;
-    while at < input.len() {
-        let (rune, width, _) = crate::scan::rune(&input[at..]);
+    while let Some(remaining) = input.get(at..).filter(|tail| !tail.is_empty()) {
+        let (rune, width, _) = crate::scan::rune(remaining);
         if !rune.is_whitespace() {
             first = first.min(at);
             last = at + width;
         }
         at += width;
     }
-    if last == 0 {
-        &input[..0]
-    } else {
-        &input[first..last]
-    }
+    input.get(first..last).unwrap_or_default()
 }
 
 // The output never exceeds max(input.len(), 1), so callers can reserve it first.
@@ -344,8 +340,9 @@ fn clean(input: &[u8], output: &mut Vec<u8>) {
             continue;
         }
         if part == b".." {
-            let start = output.iter().rposition(|&b| b == b'/').map_or(0, |i| i + 1);
-            if !output.is_empty() && output.len() > start && &output[start..] != b".." {
+            let last = output.rsplit(|&b| b == b'/').next().unwrap_or_default();
+            let start = output.len() - last.len();
+            if !last.is_empty() && last != b".." {
                 output.truncate(start.saturating_sub(1).max(usize::from(absolute)));
                 continue;
             }

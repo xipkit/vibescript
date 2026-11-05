@@ -14,7 +14,6 @@ use crate::compilation::Budget;
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
     mem::size_of,
-    rc::Rc,
     sync::{
         Arc,
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering::Relaxed},
@@ -405,12 +404,6 @@ impl<T: Heap> Heap for Vec<T> {
 impl<T: Heap> Heap for Option<T> {
     fn heap(&self) -> usize {
         self.as_ref().map_or(0, Heap::heap)
-    }
-}
-
-impl<T: Heap> Heap for Rc<T> {
-    fn heap(&self) -> usize {
-        2 * size_of::<usize>() + size_of::<T>() + (**self).heap()
     }
 }
 

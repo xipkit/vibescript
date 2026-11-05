@@ -13,8 +13,8 @@
 //! first grows, or grows past what a thread keeps.
 
 use super::{Argument, Block, Expr, Node, Rescue, Statement, Stmt, Target, Try, When};
+use crate::compilation::Shared;
 use crate::compilation::{Buffer, Bytes, IntoIter};
-use std::cell::RefCell;
 
 enum Part {
     Expr(Expr),
@@ -65,7 +65,7 @@ fn push(pending: &mut Vec<Part>, part: Part) {
 thread_local! {
     /// The stack drops on this thread share, kept with its capacity between
     /// them.
-    static PENDING: RefCell<Vec<Part>> = const { RefCell::new(Vec::new()) };
+    static PENDING: Shared<Vec<Part>> = const { Shared::new(Vec::new()) };
 }
 
 /// Drops what `start` puts on the stack, and what those put there in turn.
