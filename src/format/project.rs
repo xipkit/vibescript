@@ -1,4 +1,5 @@
 use super::*;
+use crate::checked::{Access, violation};
 use crate::numeric::{to_usize, unsigned_bits};
 
 pub(super) fn string_bytes(
@@ -107,7 +108,7 @@ fn integer_bytes(ctx: &mut CallContext, value: &Value, verb: u8, field: Field) -
         ctx.charge(1 + (digits / 16) as u64)?;
         (digits, float(value)?.is_sign_negative())
     } else {
-        let n = integer(value).unwrap();
+        let n = integer(value).ok_or(violation("integer format operand expected"))?;
         let magnitude = if verb == b'U' {
             unsigned_bits(n)
         } else {
@@ -136,7 +137,7 @@ fn digits(mut n: u64, base: u64) -> usize {
     digits
 }
 
-fn fixed_float(value: &Value, field: Field) -> crate::checked::Access<usize> {
+fn fixed_float(value: &Value, field: Field) -> Access<usize> {
     let n = float(value)?;
     let sign = usize::from(n.is_sign_negative() || field.flag(PLUS) || field.flag(SPACE));
     if matches!(value.0, Kind::Float(_)) && !n.is_finite() {
@@ -150,15 +151,17 @@ fn fixed_float(value: &Value, field: Field) -> crate::checked::Access<usize> {
         Kind::Int(n) => digits(n.unsigned_abs(), 10),
         _ if n.abs() < 1.0 => 1,
         _ => {
-            use std::fmt::Write;
             let mut number = crate::bytes::Number::new();
-            write!(number, "{:e}", n.abs()).unwrap();
+            number.format(format_args!("{:e}", n.abs()))?;
             let bytes = number.bytes();
-            let exponent = bytes.iter().rposition(|b| *b == b'e').unwrap();
+            let exponent = bytes
+                .iter()
+                .rposition(|b| *b == b'e')
+                .ok_or(violation("scientific exponent expected"))?;
             let exponent: i32 = std::str::from_utf8(&bytes[exponent + 1..])
-                .unwrap()
+                .map_err(|_| violation("scientific exponent must be UTF-8"))?
                 .parse()
-                .unwrap();
+                .map_err(|_| violation("scientific exponent must be an integer"))?;
             to_usize((exponent + 1).max(1))
         }
     };

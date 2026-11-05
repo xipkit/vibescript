@@ -4,6 +4,7 @@ use super::{
     search::{ABSENT, Search},
     text_limit, unicode, window,
 };
+use crate::checked::violation;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::Buffer,
@@ -71,16 +72,16 @@ impl Utility {
             text_limit(ctx, args[2].require_bytes()?, name, "replacement")?;
         }
         let program = Program::compile(ctx, pattern.clone(), self.name())?;
-        let mut search = Search::new(ctx, program.view(), self != Self::Match)?;
+        let mut search = Search::new(ctx, program.view()?, self != Self::Match)?;
         if self == Self::Match {
-            return match search.find(ctx, program.view(), text.require_bytes()?, 0)? {
+            return match search.find(ctx, program.view()?, text.require_bytes()?, 0)? {
                 Some(indices) => window(ctx, text, indices.data[0], indices.data[1]),
                 None => Ok(Value::nil()),
             };
         }
         replace(
             ctx,
-            program.view(),
+            program.view()?,
             &mut search,
             text,
             args[2].require_bytes()?,
@@ -96,8 +97,12 @@ fn replacement_name<'a>(
     let braced = template.first() == Some(&b'{');
     let start = usize::from(braced);
     let mut end = start;
-    let letters = unicode::group(b"L").unwrap().0;
-    let digits = unicode::group(b"Nd").unwrap().0;
+    let letters = unicode::group(b"L")
+        .ok_or(violation("Unicode letter group must exist"))?
+        .0;
+    let digits = unicode::group(b"Nd")
+        .ok_or(violation("Unicode decimal digit group must exist"))?
+        .0;
     while end < template.len() {
         ctx.charge(1)?;
         let (rune, width, _) = scan::rune(&template[end..]);
@@ -288,16 +293,21 @@ mod tests {
         ctx.options.limits.steps = None;
         let text = ctx.bytes(&vec![b'x'; 65536]).unwrap();
         let program = Program::compile(&mut ctx, Value::bytes(b"(x+)"), "Regex.match").unwrap();
-        let mut search = Search::new(&mut ctx, program.view(), true).unwrap();
+        let mut search = Search::new(&mut ctx, program.view().unwrap(), true).unwrap();
         drop(
             search
-                .find(&mut ctx, program.view(), text.as_bytes().unwrap(), 0)
+                .find(
+                    &mut ctx,
+                    program.view().unwrap(),
+                    text.as_bytes().unwrap(),
+                    0,
+                )
                 .unwrap(),
         );
         let baseline = ctx.stats();
         let error = replace(
             &mut ctx,
-            program.view(),
+            program.view().unwrap(),
             &mut search,
             &text,
             b"$1$1$1$1$1$1$1$1$1$1$1$1$1$1$1$1$1",
@@ -316,10 +326,15 @@ mod tests {
         let text = ctx.bytes(&vec![b'x'; 65536]).unwrap();
         let input_memory = ctx.stats().retained_memory_bytes;
         let program = Program::compile(&mut ctx, Value::bytes(b"^z"), "Regex.match").unwrap();
-        let mut search = Search::new(&mut ctx, program.view(), true).unwrap();
+        let mut search = Search::new(&mut ctx, program.view().unwrap(), true).unwrap();
         assert!(
             search
-                .find(&mut ctx, program.view(), text.as_bytes().unwrap(), 0)
+                .find(
+                    &mut ctx,
+                    program.view().unwrap(),
+                    text.as_bytes().unwrap(),
+                    0
+                )
                 .unwrap()
                 .is_none()
         );
@@ -327,7 +342,7 @@ mod tests {
         ctx.options.limits.memory_bytes = Some(baseline.peak_memory_bytes + 1024);
         let output = replace(
             &mut ctx,
-            program.view(),
+            program.view().unwrap(),
             &mut search,
             &text,
             b"replacement",

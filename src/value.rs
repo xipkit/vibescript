@@ -341,7 +341,7 @@ impl Value {
     /// Returns a money value's signed cents and uppercase currency code.
     pub fn as_money(&self) -> Option<(i64, &str)> {
         if let Kind::Money(money) = &self.0 {
-            Some((money.cents(), money.currency()))
+            Some((money.cents(), money.currency().ok()?))
         } else {
             None
         }
@@ -699,7 +699,8 @@ impl Value {
 impl CallContext {
     /// Parses an integer in base 2 through 36, charging conversion work and retained storage.
     pub fn parse_integer(&mut self, text: &str, radix: u32) -> Result<Value> {
-        crate::integer::parse(self, text.as_bytes(), radix)
+        let result = crate::integer::parse(self, text.as_bytes(), radix);
+        self.latch_internal(result)
     }
 
     /// Imports a host value, sharing immutable bytes and charging retained storage to this call.

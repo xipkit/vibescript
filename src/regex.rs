@@ -1,3 +1,4 @@
+use crate::checked::violation;
 use crate::{CallContext, Error, ErrorKind, Result, Value, scan, value::Kind};
 use program::Program;
 use search::Search;
@@ -104,8 +105,11 @@ pub(crate) fn member(
         Some(Program::compile(ctx, args[0].clone(), "string.match?")?)
     };
     let program = match &args[0].0 {
-        Kind::Regex(regex) => regex.view(),
-        _ => compiled.as_ref().unwrap().view(),
+        Kind::Regex(regex) => regex.view()?,
+        _ => compiled
+            .as_ref()
+            .ok_or(violation("string pattern must be compiled"))?
+            .view()?,
     };
     let mut position = 0;
     let mut remaining = offset.unsigned_abs();
@@ -129,13 +133,56 @@ mod tests {
     use crate::CallOptions;
 
     #[test]
+    fn corrupted_program_source_returns_an_internal_error() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let mut program = Program::compile(&mut ctx, Value::bytes(b"a"), "Regex.match").unwrap();
+        program.source = Value::nil();
+        let error = match program.view() {
+            Ok(_) => panic!("corrupted regex source was accepted"),
+            Err(error) => Error::from(error),
+        };
+        assert_eq!(error.kind, ErrorKind::Internal);
+    }
+
+    #[test]
+    fn missing_match_and_substitution_block_results_are_internal_errors() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let receiver = Value::bytes(b"a");
+        let args = [Value::regex(b"a", "").unwrap()];
+        let mut matcher = operations::Driver::new(&mut ctx, "match", &receiver, &args, false, true)
+            .unwrap()
+            .unwrap();
+        assert!(matches!(
+            matcher.advance(&mut ctx, None).unwrap(),
+            crate::iteration::Progress::Yield(..)
+        ));
+        let error = match matcher.advance(&mut ctx, None) {
+            Ok(_) => panic!("missing match result was accepted"),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind, ErrorKind::Internal);
+        let mut substitute = substitute::Driver::new(&mut ctx, "sub", &receiver, &args, &[], true)
+            .unwrap()
+            .unwrap();
+        assert!(matches!(
+            substitute.advance(&mut ctx, None).unwrap(),
+            crate::iteration::Progress::Yield(..)
+        ));
+        let error = match substitute.advance(&mut ctx, None) {
+            Ok(_) => panic!("missing substitution result was accepted"),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind, ErrorKind::Internal);
+    }
+
+    #[test]
     fn compiled_program_search_and_capture_charges_have_independent_lifetimes() {
         let mut ctx = CallContext::new(CallOptions::default());
         let program = Program::compile(&mut ctx, Value::bytes(b"(a+)(b?)"), "Regex.match").unwrap();
         assert!(ctx.stats().retained_memory_bytes > 0);
-        let mut search = Search::new(&mut ctx, program.view(), true).unwrap();
+        let mut search = Search::new(&mut ctx, program.view().unwrap(), true).unwrap();
         let captures = search
-            .find(&mut ctx, program.view(), b"zaab", 0)
+            .find(&mut ctx, program.view().unwrap(), b"zaab", 0)
             .unwrap()
             .unwrap();
         assert_eq!(captures.data, [1, 4, 1, 3, 3, 4]);
@@ -169,8 +216,10 @@ mod tests {
             Program::compile(&mut ctx, Value::bytes(b"(a?){1000}"), "Regex.match").unwrap();
         let baseline = ctx.stats().retained_memory_bytes;
         ctx.options.limits.memory_bytes = Some(baseline + 32768);
-        let mut search = Search::new(&mut ctx, program.view(), true).unwrap();
-        let error = search.find(&mut ctx, program.view(), b"a", 0).unwrap_err();
+        let mut search = Search::new(&mut ctx, program.view().unwrap(), true).unwrap();
+        let error = search
+            .find(&mut ctx, program.view().unwrap(), b"a", 0)
+            .unwrap_err();
         assert_eq!(error.kind, ErrorKind::Memory);
         drop(search);
         assert_eq!(ctx.stats().retained_memory_bytes, baseline);

@@ -1,4 +1,5 @@
 use self::traversal::{Entries, Frame, Stack};
+use crate::checked::violation;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, MAX_VALUE_DEPTH},
@@ -6,7 +7,6 @@ use crate::{
     bytes, ops, scan,
     value::Kind,
 };
-use std::fmt::Write;
 
 pub(crate) mod basic;
 pub(crate) mod bounded;
@@ -53,7 +53,9 @@ fn walk(ctx: &mut CallContext, value: &Value, out: &mut Buffer<u8>, limit: usize
                     stack.push(ctx, Frame::new(Entries::Array(&h.buffer.data), ()))?;
                 }
                 Kind::Hash(h) if h.tag.protected() => {
-                    let index = h.find(ctx, b"to_s")?.unwrap();
+                    let index = h
+                        .find(ctx, b"to_s")?
+                        .ok_or(violation("protected hash must contain to_s"))?;
                     out.extend(ctx, h.buffer.data[index].1.require_bytes()?)?;
                 }
                 Kind::Hash(h) if h.object => out.extend(ctx, b"<object>")?,
@@ -105,7 +107,7 @@ fn leaf(ctx: &mut CallContext, value: &Value, out: &mut Buffer<u8>) -> Result<()
         Kind::Enum(_) | Kind::EnumMember(_) => crate::enums::append(ctx, value, out)?,
         Kind::Range(r) => {
             let mut text = bytes::Number::new();
-            write!(text, "{r}").unwrap();
+            text.format(format_args!("{r}"))?;
             out.extend(ctx, text.bytes())?;
         }
         _ => {
@@ -256,6 +258,23 @@ mod tests {
     use super::traversal::support::{nested_arrays, nested_hashes, on_small_stack};
     use super::*;
     use crate::CallOptions;
+
+    #[test]
+    fn protected_hashes_without_display_text_return_internal_errors() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let mut hash = crate::hash::Hash::empty();
+        hash.tag = crate::hash::Tag::Match;
+        hash.object = true;
+        let value = Value::from_hash(&mut ctx, hash).unwrap();
+        assert_eq!(
+            display(&mut ctx, &value).unwrap_err().kind,
+            ErrorKind::Internal
+        );
+        assert_eq!(
+            bounded::render(&mut ctx, &value, 1024).unwrap_err().kind,
+            ErrorKind::Internal
+        );
+    }
 
     fn rendered(ctx: &mut CallContext, value: &Value, limit: usize) -> Result<Vec<u8>> {
         let mut out = Buffer::empty();

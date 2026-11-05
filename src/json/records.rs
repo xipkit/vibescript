@@ -1,3 +1,4 @@
+use crate::checked::{Access, Checked, violation};
 use crate::{
     CallContext, Result, Value,
     records::Fields,
@@ -182,7 +183,7 @@ impl<'a> Records<'a> {
 
     /// Returns a previously imported name.
     pub fn get(&self, slot: (usize, usize)) -> Option<&Value> {
-        let record = self.records[slot.0].as_ref().unwrap();
+        let record = self.records.get(slot.0)?.as_ref()?;
         record.fields.get(slot.1)
     }
 
@@ -209,12 +210,21 @@ impl<'a> Records<'a> {
     }
 
     /// Shares the builder's already charged key at its declared slot.
-    pub fn remember(&mut self, depth: usize, slot: (usize, usize), key: &Value) {
-        self.names |= name_bit(key.as_bytes().unwrap());
-        let record = self.records[slot.0].as_mut().unwrap();
+    pub fn remember(&mut self, depth: usize, slot: (usize, usize), key: &Value) -> Access<()> {
+        self.names |= name_bit(
+            key.as_bytes()
+                .ok_or(violation("record key must be bytes"))?,
+        );
+        let record = self
+            .records
+            .at_mut(slot.0)?
+            .as_mut()
+            .ok_or(violation("record sharing slot must be initialized"))?;
         record.fields.remember(slot.1, key);
         let ty = record.ty;
-        self.ready[depth] = self.complete(ty);
+        let complete = self.complete(ty);
+        *self.ready.at_mut(depth)? = complete;
+        Ok(())
     }
 
     /// Releases names from discarded subtrees while preserving surviving sharing.
@@ -281,6 +291,20 @@ fn name_bit(name: &[u8]) -> u64 {
 mod tests {
     use super::*;
     use crate::{CallOptions, types::Field, value::Kind};
+
+    #[test]
+    fn missing_sharing_slots_are_absent_and_cannot_be_remembered() {
+        let mut records = Records::default();
+        for slot in [(0, 0), (16, 0), (usize::MAX, usize::MAX)] {
+            assert!(records.get(slot).is_none());
+            let error = crate::Error::from(
+                records
+                    .remember(0, slot, &Value::bytes(b"name"))
+                    .unwrap_err(),
+            );
+            assert_eq!(error.kind, crate::ErrorKind::Internal);
+        }
+    }
 
     fn padded(input: impl AsRef<[u8]>) -> Vec<u8> {
         let mut input = input.as_ref().to_vec();
@@ -465,7 +489,7 @@ mod tests {
             assert_eq!(slot.is_some(), index < 128);
             if let Some(slot) = slot {
                 let key = ctx.bytes(name.as_bytes()).unwrap();
-                records.remember(1, slot, &key);
+                records.remember(1, slot, &key).unwrap();
                 assert_eq!(records.get(slot).unwrap().as_bytes(), key.as_bytes());
             }
         }

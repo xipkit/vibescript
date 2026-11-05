@@ -1,4 +1,5 @@
 use super::unicode;
+use crate::checked::{Access, Checked};
 use crate::{CallContext, Error, ErrorKind, Result, budget::Buffer};
 use std::hash::{Hash, Hasher};
 
@@ -194,7 +195,7 @@ pub(super) fn parse(ctx: &mut CallContext, pattern: &[u8]) -> Result<Parsed> {
     parser.parsed.names.push(parser.ctx, (0, 0))?;
     while parser.position < text.len() {
         parser.ctx.charge(1)?;
-        let flags = parser.group().flags;
+        let flags = parser.group()?.flags;
         let start = parser.position;
         match parser.next(|_| crate::checked::internal("regex cursor ended before the pattern"))? {
             '(' => parser.open()?,
@@ -203,7 +204,7 @@ pub(super) fn parse(ctx: &mut CallContext, pattern: &[u8]) -> Result<Parsed> {
                     return Err(parser.syntax(UNEXPECTED_PAREN, 0..text.len()));
                 }
                 let child = parser.finish()?;
-                let group = parser.groups.data.pop().unwrap();
+                let group = parser.groups.pop()?;
                 let node = if group.capture == 0 {
                     child
                 } else {
@@ -213,11 +214,11 @@ pub(super) fn parse(ctx: &mut CallContext, pattern: &[u8]) -> Result<Parsed> {
             }
             '|' => {
                 let sequence = parser.sequence()?;
-                let alternate = match parser.group().alternate {
+                let alternate = match parser.group()?.alternate {
                     Some(left) => parser.node(Kind::Alt(left, sequence))?,
                     None => sequence,
                 };
-                let group = parser.group();
+                let group = parser.group()?;
                 group.alternate = Some(alternate);
                 group.quantified = false;
             }
@@ -327,8 +328,8 @@ impl Parser<'_> {
     fn peek(&self) -> Option<u8> {
         self.remaining().first().copied()
     }
-    fn group(&mut self) -> &mut Group {
-        self.groups.data.last_mut().unwrap()
+    fn group(&mut self) -> Access<&mut Group> {
+        self.groups.top_mut()
     }
 
     /// Reads the next rune; `end` explains a pattern that stops here.
@@ -643,28 +644,28 @@ impl Parser<'_> {
     }
 
     fn literal(&mut self, rune: u32) -> Result<()> {
-        let fold = self.group().flags & FOLD != 0;
+        let fold = self.group()?.flags & FOLD != 0;
         let node = self.node(Kind::Rune(rune, fold))?;
         self.atom(node)
     }
 
     fn atom(&mut self, node: usize) -> Result<()> {
-        if let Some(last) = self.group().last.take() {
-            let sequence = match self.group().sequence {
+        if let Some(last) = self.group()?.last.take() {
+            let sequence = match self.group()?.sequence {
                 Some(left) => self.node(Kind::Concat(left, last))?,
                 None => last,
             };
-            self.group().sequence = Some(sequence);
+            self.group()?.sequence = Some(sequence);
         }
-        let group = self.group();
+        let group = self.group()?;
         group.last = Some(node);
         group.quantified = false;
         Ok(())
     }
 
     fn sequence(&mut self) -> Result<usize> {
-        let last = self.group().last.take();
-        let sequence = self.group().sequence.take();
+        let last = self.group()?.last.take();
+        let sequence = self.group()?.sequence.take();
         match (sequence, last) {
             (Some(a), Some(b)) => self.node(Kind::Concat(a, b)),
             (Some(node), None) | (None, Some(node)) => Ok(node),
@@ -674,7 +675,7 @@ impl Parser<'_> {
 
     fn finish(&mut self) -> Result<usize> {
         let sequence = self.sequence()?;
-        match self.group().alternate.take() {
+        match self.group()?.alternate.take() {
             Some(alternate) => self.node(Kind::Alt(alternate, sequence)),
             None => Ok(sequence),
         }
@@ -684,14 +685,14 @@ impl Parser<'_> {
     fn repeat(&mut self, start: usize, min: usize, max: usize, counted: bool) -> Result<()> {
         // Go reads a lazy `?` before checking the operand.
         let after = self.position + usize::from(self.peek() == Some(b'?'));
-        if self.group().quantified {
-            let previous = self.group().repeated;
+        if self.group()?.quantified {
+            let previous = self.group()?.repeated;
             return Err(self.syntax(INVALID_REPEAT_OP, previous..after));
         }
-        let Some(child) = self.group().last else {
+        let Some(child) = self.group()?.last else {
             return Err(self.syntax(MISSING_REPEAT_ARGUMENT, start..after));
         };
-        let mut greedy = self.group().flags & UNGREEDY == 0;
+        let mut greedy = self.group()?.flags & UNGREEDY == 0;
         if self.peek() == Some(b'?') {
             self.position += 1;
             greedy = !greedy;
@@ -708,7 +709,7 @@ impl Parser<'_> {
         {
             return Err(self.syntax(INVALID_REPEAT_SIZE, start..self.position));
         }
-        let group = self.group();
+        let group = self.group()?;
         group.last = Some(node);
         group.quantified = true;
         group.repeated = start;
@@ -754,7 +755,7 @@ impl Parser<'_> {
 
     fn open(&mut self) -> Result<()> {
         let start = self.position - 1;
-        let mut flags = self.group().flags;
+        let mut flags = self.group()?.flags;
         let mut capture = true;
         let mut name = (0, 0);
         if self.peek() == Some(b'?') {
@@ -785,8 +786,8 @@ impl Parser<'_> {
                                 return Err(self.syntax(INVALID_PERL_OP, start..self.position));
                             }
                             if self.text.as_bytes()[self.position - 1] == b')' {
-                                self.group().flags = flags;
-                                self.group().quantified = false;
+                                self.group()?.flags = flags;
+                                self.group()?.quantified = false;
                                 return Ok(());
                             }
                             break;
