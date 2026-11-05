@@ -11,10 +11,10 @@ impl Compiler<'_> {
     pub(super) fn number_binary(&mut self, op: &str, a: &Expr, b: &Expr) -> Result<usize> {
         let number = self.number_pair(a, b);
         let instruction = self.binary(op)?;
-        let Op::Binary(operator, _) = self.code[instruction] else {
+        let Op::Binary(operator, _) = *self.code.at(instruction)? else {
             unreachable!()
         };
-        self.code[instruction] = Op::Binary(operator, number);
+        *self.code.at_mut(instruction)? = Op::Binary(operator, number);
         Ok(instruction)
     }
 

@@ -24,6 +24,7 @@ mod bytecode;
 mod bytes;
 mod capability;
 mod casing;
+mod checked;
 mod code;
 mod collections;
 mod combinatorics;

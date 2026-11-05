@@ -60,7 +60,8 @@ pub(super) fn bind(
                 // declares nothing pays for no check.
                 if !declared.is_empty() {
                     ctx.charge((capabilities.len() - index) as u64)?;
-                    let replaced = capabilities[index + 1..]
+                    let replaced = capabilities
+                        .tail(index + 1)?
                         .iter()
                         .any(|later| later.name == capability.name);
                     if !replaced {

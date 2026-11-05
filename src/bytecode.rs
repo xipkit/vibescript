@@ -1,6 +1,7 @@
 use crate::{
     Result, Value,
     builtin::{Builtin, Global},
+    checked::{Checked, violation},
     compilation::{Buffer, Frame, Name, Shared, Table, Tasks, framed},
     syntax::{
         self, Argument, ArgumentKind, Block, CallForm, Expr, Node, ParamKind, Statement, Stmt,
@@ -527,7 +528,9 @@ impl Bits {
         if self.0.len() <= word {
             self.0.resize(word + 1, 0);
         }
-        self.0[word] |= 1 << (index % 64);
+        if let Some(bits) = self.0.get_mut(word) {
+            *bits |= 1 << (index % 64);
+        }
     }
 
     /// Whether the set holds instruction `index`.
@@ -789,8 +792,8 @@ pub(crate) fn compile_parsed(
             work,
             facts,
             aliases: &typing.aliases,
-            namespace: contexts[index].0,
-            instance: contexts[index].2,
+            namespace: contexts.at(index)?.0,
+            instance: contexts.at(index)?.2,
             program: &mut program,
             block: None,
             typed: Table::new(),
@@ -823,11 +826,13 @@ pub(crate) fn compile_parsed(
         let mut c = compiling.compiler.into_inner();
         crate::budget::Charge::merge(&mut handler_locals, c.handler_locals.take());
         let finish = c.emit(Op::Finish);
-        c.locations[finish] = def.body.last().map_or(def.offset, |stmt| stmt.offset);
+        *c.locations.at_mut(finish)? = def.body.last().map_or(def.offset, |stmt| stmt.offset);
         // The top level, a namespace body and an accessor keep their
         // value; a getter returns it explicitly anyway.
-        let returns_nil =
-            index != 0 && def.return_type.is_none() && def.accessor.is_none() && !contexts[index].1;
+        let returns_nil = index != 0
+            && def.return_type.is_none()
+            && def.accessor.is_none()
+            && !contexts.at(index)?.1;
         let plain_finish = returns_nil || c.plain_result(&def.body);
         c.mark_plain(finish, plain_finish);
         let return_type = def
@@ -839,21 +844,27 @@ pub(crate) fn compile_parsed(
         // which reads as nil whatever its declared type, so a method keeps
         // its result check unless the checker proves its class assigns every
         // variable before any method can read it.
-        let unassigned = contexts[index].2 && !facts.proven_result(&def);
-        let return_check = return_type
-            .filter(|&ty| facts.keep_type_checks || unassigned || c.program.types[ty].unproven());
+        let unassigned = contexts.at(index)?.2 && !facts.proven_result(&def);
+        let return_check = match return_type {
+            Some(ty)
+                if facts.keep_type_checks || unassigned || c.program.types.at(ty)?.unproven() =>
+            {
+                Some(ty)
+            }
+            _ => None,
+        };
         debug_assert_eq!(c.code.len(), c.locations.len());
         let function = Function {
             offset: def.offset,
             private: def.private,
             locations: c.locations,
             trace_name: def.name.rsplit(['.', '#']).next().unwrap().into(),
-            instance: contexts[index].2,
+            instance: contexts.at(index)?.2,
             accessor: def
                 .accessor
                 .map(|(name, setter)| (name.into_string(), setter)),
-            namespace: contexts[index].0,
-            initializer: contexts[index].1,
+            namespace: contexts.at(index)?.0,
+            initializer: contexts.at(index)?.1,
             name: def.name.into_string(),
             params,
             binds_parameters,
@@ -871,7 +882,7 @@ pub(crate) fn compile_parsed(
             return_type,
             return_check,
         };
-        program.functions[index] = function;
+        *program.functions.at_mut(index)? = function;
     }
     program.shared_slots = HashMap::new();
     loops::discarded(&mut program.functions, &mut program.extended);
@@ -898,7 +909,7 @@ impl Program {
         for index in 0..self.functions.len() {
             work.checkpoint()?;
             work.charge(1)?;
-            let function = &self.functions[index];
+            let function = self.functions.at(index)?;
             let (true, Some(class)) = (function.instance, function.namespace) else {
                 continue;
             };
@@ -911,29 +922,32 @@ impl Program {
                 else {
                     continue;
                 };
-                let raw = &self.members[name as usize];
+                let raw = self.members.at(name as usize)?;
                 let field = raw.strip_prefix('@').unwrap_or(raw);
                 let checked = matches!(op, Op::BindIvar(..))
                     || (raw.starts_with('@') && !raw.starts_with("@@"));
                 if checked
-                    && self
-                        .instance_variable_type(class, field, work)?
-                        .is_none_or(|ty| !self.types[ty].unproven())
+                    && match self.instance_variable_type(class, field, work)? {
+                        Some(ty) => !self.types.at(ty)?.unproven(),
+                        None => true,
+                    }
                 {
                     proven.insert(ip);
                 }
             }
-            self.functions[index].proven_ivars = proven;
-            let layout = &self.field_layouts[&class];
-            for op in &mut self.functions[index].code {
+            self.functions.at_mut(index)?.proven_ivars = proven;
+            let layout = self.field_layouts.get(&class).ok_or(violation(
+                "a class with instance variables has no field layout",
+            ))?;
+            for op in &mut self.functions.at_mut(index)?.code {
                 work.checkpoint()?;
                 work.charge(1)?;
                 let name = match *op {
-                    Op::BindIvar(name, _) => self.members[name as usize].as_str(),
+                    Op::BindIvar(name, _) => self.members.at(name as usize)?.as_str(),
                     Op::NamespaceVariable(name, _)
                     | Op::NamespaceStore(name)
                     | Op::NamespaceAddress(name, _) => {
-                        let raw = &self.members[name as usize];
+                        let raw = self.members.at(name as usize)?;
                         if !raw.starts_with('@') || raw.starts_with("@@") {
                             continue;
                         }
@@ -979,7 +993,7 @@ impl Program {
                 }
             }
         }
-        let methods = &self.namespaces[class].instance_methods;
+        let methods = &self.namespaces.at(class)?.instance_methods;
         let mut getter = None;
         let mut setter = None;
         for method in methods {
@@ -993,7 +1007,7 @@ impl Program {
             }
         }
         if let Some(setter) = setter {
-            let function = &self.functions[setter];
+            let function = self.functions.at(setter)?;
             return Ok(function
                 .accessor
                 .as_ref()
@@ -1001,7 +1015,7 @@ impl Program {
                 .and_then(|_| function.params.first().and_then(|param| param.ty)));
         }
         Ok(getter.and_then(|getter| {
-            let function = &self.functions[getter];
+            let function = self.functions.get(getter)?;
             function
                 .accessor
                 .as_ref()
@@ -1041,7 +1055,7 @@ fn local_names(
     let mut names = vec![String::new(); slots];
     for (name, &index) in locals.iter(work)? {
         work.bytes(name.len())?;
-        names[index] = name.as_str().to_owned();
+        *names.at_mut(index)? = name.as_str().to_owned();
     }
     Ok(names)
 }
@@ -1452,25 +1466,27 @@ impl Compiler<'_> {
         Ok(self.emit(Op::Binary(operator, false)))
     }
     fn patch(&mut self, pos: usize, target: usize) {
-        match &mut self.code[pos] {
-            Op::RaiseStart(_, n)
-            | Op::Jump(n)
-            | Op::JumpFalse(n)
-            | Op::JumpTrue(n)
-            | Op::JumpNil(n)
-            | Op::AddressJumpNil(n, _)
-            | Op::Bind(_, n)
-            | Op::NamespaceConstant(_, n)
-            | Op::NamespaceConstantAddress(_, n)
-            | Op::FileValue(_, n, _)
-            | Op::FileAddress(_, n)
-            | Op::RootAddress(_, n)
-            | Op::AmbientValue(_, n)
-            | Op::AmbientAddress(_, n)
-            | Op::ImplicitAddress(_, n)
-            | Op::TypeShadowed(_, n)
-            | Op::AddressBound(_, n)
-            | Op::ReceiverBound(_, n) => *n = narrow(target),
+        match self.code.get_mut(pos) {
+            Some(
+                Op::RaiseStart(_, n)
+                | Op::Jump(n)
+                | Op::JumpFalse(n)
+                | Op::JumpTrue(n)
+                | Op::JumpNil(n)
+                | Op::AddressJumpNil(n, _)
+                | Op::Bind(_, n)
+                | Op::NamespaceConstant(_, n)
+                | Op::NamespaceConstantAddress(_, n)
+                | Op::FileValue(_, n, _)
+                | Op::FileAddress(_, n)
+                | Op::RootAddress(_, n)
+                | Op::AmbientValue(_, n)
+                | Op::AmbientAddress(_, n)
+                | Op::ImplicitAddress(_, n)
+                | Op::TypeShadowed(_, n)
+                | Op::AddressBound(_, n)
+                | Op::ReceiverBound(_, n),
+            ) => *n = narrow(target),
             _ => unreachable!(),
         }
     }
@@ -1553,7 +1569,7 @@ impl Compiler<'_> {
     fn initialize_namespaces(&mut self, name: &str) -> Result<()> {
         for index in 0..self.program.namespaces.len() {
             self.work.charge(1)?;
-            let module = &self.program.namespaces[index];
+            let module = self.program.namespaces.at(index)?;
             self.work.bytes(name.len().min(module.name.len()))?;
             if module.body.is_some()
                 && module
@@ -1745,7 +1761,9 @@ impl Compiler<'_> {
     /// `subject`, unless the checker proves the check (see
     /// [`crate::types::Type::unproven`]).
     fn check(&mut self, ty: usize, subject: usize) {
-        if self.facts.keep_type_checks || self.program.types[ty].unproven() {
+        // A type the table lacks is checked, so the VM reports the bug.
+        if self.facts.keep_type_checks || self.program.types.get(ty).is_none_or(|ty| ty.unproven())
+        {
             self.emit(Op::Check(narrow(ty), narrow(subject)));
         }
     }
@@ -1858,7 +1876,7 @@ impl Compiler<'_> {
             if name.starts_with('\0') {
                 continue;
             }
-            captures[slot] = self.outer_binding(name)?;
+            *captures.at_mut(slot)? = self.outer_binding(name)?;
         }
         let local_names = local_names(&self.locals, self.slots, self.work)?;
         let child = self.swap_scope(parent);
@@ -2029,9 +2047,13 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 self.c().declare_expr(value)?;
                 self.expr(value).await?;
                 // The checker proves most defaults' types.
-                if let Some(ty) = ty.filter(|&ty| {
-                    self.c().facts.keep_type_checks || self.c().program.types[ty].unproven()
-                }) {
+                let checked = match ty {
+                    Some(ty) => {
+                        self.c().facts.keep_type_checks || self.c().program.types.at(ty)?.unproven()
+                    }
+                    None => false,
+                };
+                if let Some(ty) = ty.filter(|_| checked) {
                     let mut c = self.c();
                     let label = c.program.constants.len();
                     c.program
@@ -2074,10 +2096,14 @@ impl<'a, 'x> Compiling<'a, 'x> {
             for (param, compiled) in def.params.iter().zip(&params) {
                 work.checkpoint()?;
                 work.charge(1)?;
+                let proven_type = match compiled.ty {
+                    Some(ty) => !c.program.types.at(ty)?.unproven(),
+                    None => true,
+                };
                 direct &= param.kind == ParamKind::Positional
                     && param.default.is_none()
                     && !(c.instance && param.ivar.is_some())
-                    && compiled.ty.is_none_or(|ty| !c.program.types[ty].unproven());
+                    && proven_type;
             }
             self.proven.replace(direct.then_some(c.code.len()));
             if c.facts.keep_type_checks {
@@ -2281,7 +2307,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 let mut c = self.c();
                 c.emit(Op::LoopBody);
                 let end = c.emit(Op::LoopEnd);
-                c.code[mark] = Op::LoopStart {
+                *c.code.at_mut(mark)? = Op::LoopStart {
                     iterable: false,
                     expression,
                     next: narrow(next),
@@ -2320,7 +2346,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 let mut c = self.c();
                 c.emit(Op::LoopBody);
                 let end = c.emit(Op::LoopEnd);
-                c.code[mark] = Op::LoopStart {
+                *c.code.at_mut(mark)? = Op::LoopStart {
                     iterable: true,
                     expression,
                     next: narrow(next),
@@ -2465,7 +2491,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                         self.assignment_rhs(binding_target, &[left, right]).await?;
                         let mut c = self.c();
                         let instruction = c.number_store(slot, left, right);
-                        c.locations[instruction] = rhs.offset;
+                        *c.locations.at_mut(instruction)? = rhs.offset;
                         return Ok(());
                     }
                 }
@@ -2493,7 +2519,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     self.address_target(target, false).await?;
                     let mut c = self.c();
                     let store = c.emit(Op::AddressStore);
-                    c.locations[store] = target.offset;
+                    *c.locations.at_mut(store)? = target.offset;
                 } else {
                     self.address_target(target, true).await?;
                     if matches!(op, "||=" | "&&=") {
@@ -2511,7 +2537,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                         self.assignment_rhs(binding_target, &[rhs]).await?;
                         let mut c = self.c();
                         let store = c.emit(Op::AddressStore);
-                        c.locations[store] = target.offset;
+                        *c.locations.at_mut(store)? = target.offset;
                         let end = c.emit(Op::Jump(0));
                         let drop = c.code.len();
                         c.patch(skip, drop);
@@ -2523,8 +2549,8 @@ impl<'a, 'x> Compiling<'a, 'x> {
                         let mut c = self.c();
                         let operator = c.number_binary(binary.unwrap(), target, rhs)?;
                         let store = c.emit(Op::AddressStore);
-                        c.locations[operator] = target.offset;
-                        c.locations[store] = target.offset;
+                        *c.locations.at_mut(operator)? = target.offset;
+                        *c.locations.at_mut(store)? = target.offset;
                     }
                 }
             }
@@ -2598,7 +2624,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     if text.is_empty() {
                         text.extend_from_slice(work, b"destructured value")?;
                     }
-                    if c.facts.keep_type_checks || c.program.types[ty].unproven() {
+                    if c.facts.keep_type_checks || c.program.types.at(ty)?.unproven() {
                         let label = c.program.constants.len();
                         c.program.constants.push(Value::bytes(&*text));
                         c.emit(Op::Normalize(narrow(ty), narrow(label)));
@@ -2614,7 +2640,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 let mut c = self.c();
                 if c.namespace_binding(name)? {
                     c.check_local(name)?;
-                    c.store_namespace_name(name);
+                    c.store_namespace_name(name)?;
                 } else if let Some(global) = c.global_binding(name)? {
                     c.emit(Op::StoreGlobal(narrow(global)));
                 } else {
@@ -2709,7 +2735,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     self.expr(part).await?;
                     let mut c = self.c();
                     let instruction = c.emit(Op::TextPart);
-                    c.locations[instruction] = part.offset;
+                    *c.locations.at_mut(instruction)? = part.offset;
                 }
                 self.c().emit(Op::TextEnd(*symbol));
             }
@@ -2876,10 +2902,10 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     let mut c = self.c();
                     c.literal(key.clone());
                     let ip = c.code.len() - 1;
-                    let Op::Shared(slot) = c.code[ip] else {
+                    let Op::Shared(slot) = *c.code.at(ip)? else {
                         unreachable!()
                     };
-                    c.code[ip] = Op::IndexLiteral(slot);
+                    *c.code.at_mut(ip)? = Op::IndexLiteral(slot);
                     let plain = c.facts.plain(e);
                     c.mark_plain(ip, plain);
                     return Ok(());
@@ -3417,7 +3443,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
         let plain = c.plain_result(&block.body);
         c.mark_plain(finish, plain);
         let parent_offset = c.offset;
-        c.locations[finish] = block.body.last().map_or(parent_offset, |stmt| stmt.offset);
+        *c.locations.at_mut(finish)? = block.body.last().map_or(parent_offset, |stmt| stmt.offset);
         debug_assert_eq!(c.code.len(), c.locations.len());
         Ok(block_arity)
     }
@@ -3792,15 +3818,15 @@ fn target_label(
 
 fn decimal_digits(mut value: u64, digits: &mut [u8; 20]) -> &str {
     let mut start = digits.len();
-    loop {
+    for digit in digits.iter_mut().rev() {
         start -= 1;
-        digits[start] = b'0' + (value % 10) as u8;
+        *digit = b'0' + (value % 10) as u8;
         value /= 10;
         if value == 0 {
             break;
         }
     }
-    std::str::from_utf8(&digits[start..]).unwrap()
+    std::str::from_utf8(digits.get(start..).unwrap_or_default()).unwrap()
 }
 
 fn target_names<'a>(
@@ -3855,8 +3881,9 @@ fn statement_names<'a>(
                 let mut kept = start;
                 for index in start..names.len() {
                     work.charge(1)?;
-                    if names[index] != binding {
-                        names[kept] = names[index];
+                    let name = *names.at(index)?;
+                    if name != binding {
+                        *names.at_mut(kept)? = name;
                         kept += 1;
                     }
                 }

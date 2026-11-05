@@ -42,7 +42,7 @@ impl Run {
                 ));
             }
             for (index, value) in args.positional.data.iter_mut().enumerate() {
-                let Some(ty) = &signature.params[index] else {
+                let Some(ty) = signature.params.at(index)? else {
                     continue;
                 };
                 *value = self.host_value(
@@ -52,7 +52,7 @@ impl Run {
                     value.clone(),
                     crate::types::Context::HostArgument(
                         name,
-                        &signature.source.params[index].name,
+                        &signature.source.params.at(index)?.name,
                         index,
                     ),
                 )?;

@@ -148,9 +148,9 @@ impl Execution {
                     .or_insert_with(|| value.clone());
             }
         }
-        let names = &code.program.functions[entry].local_names;
+        let names = &code.program.functions.at(entry)?.local_names;
         for (slot, value) in locals.data {
-            bindings.insert(names[slot].clone(), value);
+            bindings.insert(names.at(slot)?.clone(), value);
         }
         Ok((outcome, bindings))
     }
@@ -248,14 +248,14 @@ pub(super) fn capture_root_locals(
     frame: &Frame,
     storage: &mut Storage,
 ) -> Result<()> {
-    let function = &frame.program.functions[frame.function().unwrap()];
+    let function = frame.program.functions.at(frame.function().unwrap())?;
     let mut captured = Buffer::empty();
     for (slot, name) in function.local_names.iter().enumerate() {
         ctx.charge(1)?;
         if name.is_empty() || name.starts_with('\0') {
             continue;
         }
-        if let Some(value) = &storage.locals.data[frame.local_base() + slot] {
+        if let Some(value) = storage.locals.at(frame.local_base() + slot)? {
             crate::exports::check(ctx, value)?;
             captured.push(ctx, (slot, value.clone()))?;
         }

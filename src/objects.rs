@@ -343,7 +343,7 @@ fn new_scoped(
         .then(|| Namespace::import(ctx, class))
         .transpose()?;
     let class = imported.as_ref().unwrap_or(class);
-    let known = heap.data.read(|data| {
+    let known = heap.data.read(|data| -> Result<Option<Arc<Namespace>>> {
         for candidate in &data.classes.data {
             ctx.charge(1)?;
             if candidate.same_binding(class) {
@@ -357,7 +357,7 @@ fn new_scoped(
     } else {
         // Importing a captured environment can allocate objects in this heap.
         let class = Namespace::import(ctx, class)?;
-        heap.data.with(|data| {
+        heap.data.with(|data| -> Result<Arc<Namespace>> {
             let class = data.namespace(ctx, &heap, &class, true)?.unwrap_or(class);
             data.classes.push(ctx, class.clone())?;
             Ok(class)
