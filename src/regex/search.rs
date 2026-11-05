@@ -58,13 +58,24 @@ struct Literal {
 /// Returns the least member of a rune's case-folding orbit, or the rune itself
 /// without folding. Two runes match under folding exactly when these agree.
 fn canonical(rune: u32, fold: bool) -> u32 {
-    if !fold {
-        return rune;
-    }
     if rune < 128 {
-        // The non-ASCII members of the K and S orbits are larger than both letters.
-        return (rune as u8).to_ascii_uppercase() as u32;
+        // An ASCII letter's orbit starts at its upper case, one bit away; the
+        // non-ASCII members of the K and S orbits are larger than both
+        // letters. Arithmetic rather than a test of `fold`, since the scan
+        // does this for every ASCII byte.
+        let lower = (rune as u8).is_ascii_lowercase();
+        rune ^ (u32::from(lower & fold) << 5)
+    } else if fold {
+        least(rune)
+    } else {
+        rune
     }
+}
+
+/// Walks a non-ASCII rune's case-folding orbit for its least member. Out of
+/// line, so that `canonical` stays a few instructions wherever it is inlined.
+#[inline(never)]
+fn least(rune: u32) -> u32 {
     let mut least = rune;
     let mut current = unicode::fold(rune);
     while current != rune {
@@ -136,30 +147,55 @@ impl Literal {
         from: usize,
     ) -> Result<Option<(usize, usize)>> {
         let runes = &self.runes.data;
+        let first = runes[0];
         let mut start = from;
         let mut position = from;
         let mut matched = 0;
         let mut work = 0;
-        // Every byte of a miss runs this loop, so only the ASCII step is
-        // inline. The decoder and the failure links are calls: inlined, they
-        // competed for the registers the loop's counters live in, and overflow
-        // checks tipped one of the counters onto the stack.
         while position < text.len() {
             if work >= CHUNK {
                 ctx.work_bytes(work)?;
                 work = 0;
             }
             let byte = text[position];
+            // An ASCII byte that cannot begin the literal.
+            let idle = |byte: u8| byte < 128 && canonical(u32::from(byte), self.fold) != first;
+            if matched == 0 && idle(byte) {
+                // With nothing matched, a run of such bytes only moves the
+                // start. Most of a scan is these runs, so they get a loop of
+                // their own. It stops where the next charge falls due, which
+                // leaves every charge where a byte at a time would put it.
+                let window = &text[position..text.len().min(position + (CHUNK - work))];
+                let skipped = window
+                    .iter()
+                    .position(|&byte| !idle(byte))
+                    .unwrap_or(window.len());
+                work += skipped;
+                position += skipped;
+                start = position;
+                continue;
+            }
             let (rune, width) = if byte < 128 {
-                (canonical(u32::from(byte), self.fold), 1)
+                (u32::from(byte), 1)
             } else {
-                self.decode(&text[position..])
+                scan::code_point(&text[position..])
             };
             work += width;
             position += width;
+            let rune = canonical(rune, self.fold);
             if matched > 0 && rune != runes[matched] {
                 let partial = matched;
-                (matched, start) = self.fall_back(text, rune, partial, start);
+                while matched > 0 && rune != runes[matched] {
+                    matched = self.table.data[matched - 1] as usize;
+                }
+                // The partial match loses its first `partial - matched` runes.
+                for _ in matched..partial {
+                    start += if text[start] < 128 {
+                        1
+                    } else {
+                        scan::code_point(&text[start..]).1
+                    };
+                }
                 work += 2 * (partial - matched);
             }
             if rune == runes[matched] {
@@ -174,35 +210,6 @@ impl Literal {
         }
         ctx.work_bytes(work)?;
         Ok(None)
-    }
-
-    /// Decodes the rune `text` starts with into its canonical form and width.
-    #[inline(never)]
-    fn decode(&self, text: &[u8]) -> (u32, usize) {
-        let (rune, width, _) = scan::rune(text);
-        (canonical(rune as u32, self.fold), width)
-    }
-
-    /// Follows the failure links from a partial match of `matched` runes that
-    /// `rune` does not extend, until it extends what is left or nothing is.
-    /// Returns the runes still matched, and `start` moved past the runes the
-    /// partial match lost.
-    #[inline(never)]
-    fn fall_back(
-        &self,
-        text: &[u8],
-        rune: u32,
-        matched: usize,
-        mut start: usize,
-    ) -> (usize, usize) {
-        let mut kept = matched;
-        while kept > 0 && rune != self.runes.data[kept] {
-            kept = self.table.data[kept - 1] as usize;
-        }
-        for _ in kept..matched {
-            start += scan::rune(&text[start..]).1;
-        }
-        (kept, start)
     }
 }
 
@@ -639,8 +646,11 @@ mod tests {
     #[test]
     fn literal_scans_charge_like_rune_at_a_time_matching() {
         // Mostly the literals' own runes, so partial matches and the failure
-        // links they fall back along are frequent.
-        let pieces: [&[u8]; 12] = [
+        // links they fall back along are frequent; and runs of a byte that
+        // begins none of them, long enough to be cut by a charge.
+        let pieces: [&[u8]; 14] = [
+            &[b'x'; 1531],
+            b"xx",
             b"a",
             b"a",
             b"a",
@@ -678,6 +688,7 @@ mod tests {
                     .unwrap();
             let search = Search::new(&mut ctx, program.view(), false).unwrap();
             let literal = search.literal.as_ref().unwrap();
+            let mut texts = Vec::new();
             for case in 0..200 {
                 // Some texts span several chunks, so charges fall mid-scan.
                 let target = if case % 20 == 0 {
@@ -689,12 +700,23 @@ mod tests {
                 while text.len() < target {
                     text.extend_from_slice(pieces[next(pieces.len())]);
                 }
-                for from in [0, text.len() / 3, text.len()] {
+                texts.push(text);
+            }
+            // Runs that end on a charge, just before one and just after.
+            for run in [CHUNK - 1, CHUNK, CHUNK + 1, 2 * CHUNK] {
+                let mut text = vec![b'x'; run];
+                for _ in 0..40 {
+                    text.extend_from_slice(pieces[next(pieces.len())]);
+                }
+                texts.push(text);
+            }
+            for text in &texts {
+                for from in [0, text.len().min(1), text.len() / 3, text.len()] {
                     let before = ctx.stats().steps;
-                    let found = literal.scan(&mut ctx, &text, from).unwrap();
+                    let found = literal.scan(&mut ctx, text, from).unwrap();
                     assert_eq!(
                         (found, ctx.stats().steps - before),
-                        reference_scan(literal, &text, from),
+                        reference_scan(literal, text, from),
                         "{pattern} from {from} in {text:?}"
                     );
                 }

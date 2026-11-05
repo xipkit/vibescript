@@ -567,6 +567,12 @@ static UTF8_SECOND: [(u8, u8); 5] = [
 ];
 
 fn rune_width(s: &[u8]) -> (usize, bool) {
+    sequence(s)
+}
+
+/// The body of [`rune_width`], for a decoder that has to stay a leaf.
+#[inline(always)]
+fn sequence(s: &[u8]) -> (usize, bool) {
     let tag = UTF8_LEAD[usize::from(s[0])];
     let n = usize::from(tag & 7);
     if n <= 1 {
@@ -601,6 +607,26 @@ pub(crate) fn rune(s: &[u8]) -> (char, usize, bool) {
     (char::from_u32(cp).unwrap(), n, true)
 }
 
+/// Decodes one rune as [`rune`] does, to its code point and width.
+///
+/// Never inlined and calling nothing, for a loop that keeps only its ASCII
+/// step inline: one call per rune, with no registers to save around it.
+#[inline(never)]
+pub(crate) fn code_point(s: &[u8]) -> (u32, usize) {
+    if s[0] < 128 {
+        return (u32::from(s[0]), 1);
+    }
+    let (n, valid) = sequence(s);
+    if !valid {
+        return (u32::from(char::REPLACEMENT_CHARACTER), 1);
+    }
+    let mut cp = u32::from(s[0] & (0x7f >> n));
+    for &byte in &s[1..n] {
+        cp = (cp << 6) | u32::from(byte & 0x3f);
+    }
+    (cp, n)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -623,8 +649,10 @@ mod tests {
                 let mut buffer = [0; 4];
                 let bytes = ch.encode_utf8(&mut buffer).as_bytes();
                 assert_eq!(rune(bytes), (ch, bytes.len(), true), "U+{cp:04X}");
+                assert_eq!(code_point(bytes), (cp, bytes.len()), "U+{cp:04X}");
                 for len in 1..bytes.len() {
                     assert_eq!(rune(&bytes[..len]), ('\u{fffd}', 1, false));
+                    assert_eq!(code_point(&bytes[..len]), (0xfffd, 1));
                 }
             }
         }
@@ -636,6 +664,12 @@ mod tests {
                         assert_eq!(
                             rune(&bytes[..len]),
                             reference_rune(&bytes[..len]),
+                            "{bytes:02x?}/{len}"
+                        );
+                        let (ch, width, _) = reference_rune(&bytes[..len]);
+                        assert_eq!(
+                            code_point(&bytes[..len]),
+                            (ch as u32, width),
                             "{bytes:02x?}/{len}"
                         );
                     }
