@@ -325,11 +325,12 @@ pub(crate) fn unicode_span(s: &[u8]) -> TextSpan {
 pub(crate) fn ascii_case(s: &mut [u8], upper: bool) {
     #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
     let tail = {
-        let mut chunks = s.chunks_exact_mut(16);
-        for chunk in &mut chunks {
-            vector_case(chunk.try_into().unwrap(), upper);
+        let (mut rest, tail) = s.split_at_mut(s.len() / 16 * 16);
+        while let Some((chunk, tail)) = rest.split_first_chunk_mut::<16>() {
+            vector_case(chunk, upper);
+            rest = tail;
         }
-        chunks.into_remainder()
+        tail
     };
     #[cfg(not(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64"))))]
     let tail = s;
@@ -642,7 +643,10 @@ pub(crate) fn rune(s: &[u8]) -> (char, usize, bool) {
     for &byte in &s[1..n] {
         cp = (cp << 6) | u32::from(byte & 0x3f);
     }
-    (char::from_u32(cp).unwrap(), n, true)
+    match char::from_u32(cp) {
+        Some(rune) => (rune, n, true),
+        None => ('\u{fffd}', 1, false),
+    }
 }
 
 /// Decodes one rune as [`rune`] does, to its code point and width.

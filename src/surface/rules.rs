@@ -892,7 +892,9 @@ impl<'a> Checker<'a> {
             };
             return self.apply_pattern(expr, Some(call), pattern, &captures, place);
         }
-        let receiver = call.receiver.as_ref().unwrap();
+        let Some(receiver) = call.receiver.as_ref() else {
+            return false;
+        };
         // A namespace member, such as `Time.gm`.
         if let ExprKind::Name(name) = &receiver.kind
             && namespace_name(name)
@@ -1060,7 +1062,7 @@ impl<'a> Checker<'a> {
                     ));
                     return false;
                 }
-                Some(matched.into_iter().next().unwrap())
+                matched.into_iter().next()
             }
         };
         let Some((pattern, captures)) = decision else {

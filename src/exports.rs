@@ -69,7 +69,11 @@ impl Function {
             ErrorKind::Type,
             format!(
                 "{} is a function and cannot be used as a value; call it through its module",
-                self.code.program.functions[self.index].name
+                self.code
+                    .program
+                    .functions
+                    .get(self.index)
+                    .map_or("", |function| function.name.as_str())
             ),
         )
     }

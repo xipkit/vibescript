@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK, Charge},
@@ -77,7 +78,7 @@ where
             .len()
             .saturating_mul(lookup.len().max(1).ilog2() as usize + 1),
     )?;
-    lookup.sort_unstable_by(|&a, &b| values[a].name.cmp(&values[b].name));
+    lookup.sort_unstable_by_key(|&index| values.get(index).map(|member| &member.name));
     let bytes = size_of::<Definition>()
         + 2 * size_of::<usize>()
         + name.capacity()
@@ -203,8 +204,8 @@ impl Enumeration {
         while lower < upper {
             ctx.charge(1)?;
             let middle = lower + (upper - lower) / 2;
-            let index = self.definition.lookup[middle];
-            let candidate = self.definition.members[index].name.as_bytes();
+            let index = *self.definition.lookup.at(middle)?;
+            let candidate = self.definition.members.at(index)?.name.as_bytes();
             let order = compare_names(ctx, candidate, name)?;
             match order {
                 Ordering::Less => lower = middle + 1,
@@ -313,8 +314,9 @@ impl Member {
         Self::new(ctx, enumeration, value.index)
     }
 
-    pub fn definition(&self) -> &MemberDefinition {
-        &self.enumeration.definition.members[self.index]
+    /// Returns this member's declaration, reporting an invalid member index.
+    pub fn definition(&self) -> crate::checked::Access<&MemberDefinition> {
+        self.enumeration.definition.members.at(self.index)
     }
 }
 
@@ -384,9 +386,9 @@ pub(crate) fn call(
     }
     let value = match (&receiver.0, name) {
         (Kind::Enum(e), "name") => ctx.bytes(e.definition.name.as_bytes())?,
-        (Kind::EnumMember(m), "name") => ctx.bytes(m.definition().name.as_bytes())?,
+        (Kind::EnumMember(m), "name") => ctx.bytes(m.definition()?.name.as_bytes())?,
         (Kind::EnumMember(m), "symbol") => {
-            Value::copy_bytes(ctx, m.definition().symbol.as_bytes(), true)?
+            Value::copy_bytes(ctx, m.definition()?.symbol.as_bytes(), true)?
         }
         (Kind::EnumMember(m), "enum") => Value(Kind::Enum(m.enumeration.clone())),
         _ => return Ok(None),
@@ -406,7 +408,7 @@ pub(crate) fn append(ctx: &mut CallContext, value: &Value, output: &mut Buffer<u
         Kind::EnumMember(m) => [
             m.enumeration.definition.name.as_bytes(),
             b"::",
-            m.definition().name.as_bytes(),
+            m.definition()?.name.as_bytes(),
         ],
         _ => {
             return Err(crate::checked::internal("enum or enum member expected"));

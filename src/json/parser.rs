@@ -1,5 +1,6 @@
 use crate::CallContext;
 use crate::bytes::Number;
+use crate::checked::violation;
 use crate::scan::Class;
 use crate::{
     Error, ErrorKind, Result, Value,
@@ -7,7 +8,6 @@ use crate::{
     hash::Hash,
     scan,
 };
-use std::fmt::Write;
 
 /// Small documents use ordinary hashes instead of setting up schema tables.
 pub(super) const RECORD_MIN_BYTES: usize = CHUNK / 2;
@@ -105,7 +105,7 @@ impl Failure {
                 let mut quoted = Vec::new();
                 crate::shapes::quote(&input[start..end], &mut quoted);
                 out.write_str("invalid number ")?;
-                out.write_str(std::str::from_utf8(&quoted).unwrap())
+                out.write_str(&String::from_utf8_lossy(&quoted))
             }
             Detail::Character(byte, context) => {
                 out.write_str("invalid character ")?;
@@ -120,15 +120,15 @@ impl Failure {
 // those bits unchanged, so the original polynomial reduces to a byte XOR.
 #[inline(always)]
 fn cache_slot(bytes: &[u8]) -> usize {
-    let mut words = bytes.chunks_exact(4);
-    let mut hash = words.by_ref().fold(0u32, |hash, word| {
-        hash ^ u32::from_ne_bytes(word.try_into().unwrap())
-    });
+    let mut rest = bytes;
+    let mut hash = 0u32;
+    while let Some((word, tail)) = rest.split_first_chunk::<4>() {
+        hash ^= u32::from_ne_bytes(*word);
+        rest = tail;
+    }
     hash ^= hash >> 16;
     hash ^= hash >> 8;
-    words
-        .remainder()
-        .iter()
+    rest.iter()
         .fold(hash as usize, |hash, &byte| hash ^ usize::from(byte))
         & 31
 }
@@ -162,7 +162,7 @@ pub(crate) fn parse_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
     const DIGITS: usize = 1100;
     if input.len() <= DIGITS {
         return std::str::from_utf8(input)
-            .unwrap()
+            .map_err(|_| Error::new(ErrorKind::Json, "invalid JSON number"))?
             .parse()
             .map_err(|_| Error::new(ErrorKind::Json, "invalid JSON number"));
     }
@@ -232,11 +232,11 @@ pub(crate) fn parse_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
         exponent = exponent.saturating_sub(1);
     }
     let mut suffix = Number::new();
-    write!(suffix, "e{exponent}").unwrap();
-    text[used..used + suffix.bytes().len()].copy_from_slice(suffix.bytes());
-    used += suffix.bytes().len();
+    suffix.format(format_args!("e{exponent}"))?;
+    text[used..used + suffix.bytes()?.len()].copy_from_slice(suffix.bytes()?);
+    used += suffix.bytes()?.len();
     std::str::from_utf8(&text[..used])
-        .unwrap()
+        .map_err(|_| Error::new(ErrorKind::Json, "invalid JSON number"))?
         .parse()
         .map_err(|_| Error::new(ErrorKind::Json, "invalid JSON number"))
 }
@@ -462,7 +462,10 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                     }
                     Frame::Hash { out, key } => {
                         let capacity = if RECORDS && out.buffer.data.is_empty() {
-                            self.records.as_ref().unwrap().capacity(open - 1)
+                            self.records
+                                .as_ref()
+                                .ok_or(violation("record parser must have sharing tables"))?
+                                .capacity(open - 1)
                         } else {
                             None
                         };
@@ -491,7 +494,7 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                                 if RECORDS {
                                     self.records
                                         .as_mut()
-                                        .unwrap()
+                                        .ok_or(violation("record parser must have sharing tables"))?
                                         .discard_unused(self.keys.as_ref());
                                 }
                             }
@@ -540,7 +543,7 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                 };
                 self.records
                     .as_mut()
-                    .unwrap()
+                    .ok_or(violation("record parser must have sharing tables"))?
                     .start(self.typed.ty, frames.data.len(), key, index);
             }
             self.typed.start(
@@ -608,14 +611,13 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
     /// Rejects a container opener once `MAX_VALUE_DEPTH` containers are open.
     fn enter(&mut self, frames: &Buffer<Frame>) -> Result<()> {
         if frames.data.len() >= MAX_VALUE_DEPTH {
-            let error = self
+            let result = self
                 .ctx
-                .guard::<()>(ErrorKind::Recursion, "JSON nesting too deep")
-                .unwrap_err();
-            if error.kind == ErrorKind::Recursion {
+                .guard::<()>(ErrorKind::Recursion, "JSON nesting too deep");
+            if matches!(&result, Err(error) if error.kind == ErrorKind::Recursion) {
                 self.failure = Some(Failure::Depth);
             }
-            return Err(error);
+            return result;
         }
         Ok(())
     }
@@ -836,7 +838,8 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                             } else {
                                 high as u32
                             };
-                            let ch = char::from_u32(cp).unwrap();
+                            let ch = char::from_u32(cp)
+                                .ok_or(violation("decoded JSON escape must be a Unicode scalar"))?;
                             let mut buf = [0; 4];
                             out.extend(self.ctx.settled(), ch.encode_utf8(&mut buf).as_bytes())?;
                         }
@@ -859,7 +862,9 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
         let Some(records) = self.records.as_mut() else {
             return Ok(value);
         };
-        let name = value.as_bytes().unwrap();
+        let name = value
+            .as_bytes()
+            .ok_or(violation("decoded JSON key must be bytes"))?;
         let Some(slot) = records.slot(self.ctx.settled(), self.record_depth, name)? else {
             return Ok(value);
         };
@@ -876,10 +881,10 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
             .or(cached)
         {
             let shared = shared.clone();
-            records.remember(self.record_depth, slot, &shared);
+            records.remember(self.record_depth, slot, &shared)?;
             return Ok(shared);
         }
-        records.remember(self.record_depth, slot, &value);
+        records.remember(self.record_depth, slot, &value)?;
         Ok(value)
     }
 
@@ -928,7 +933,7 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                     .filter(|records| RECORDS && !records.ready(self.record_depth))
                 {
                     if let Some(slot) = records.slot(&mut self.ctx, self.record_depth, bytes)? {
-                        records.remember(self.record_depth, slot, hit);
+                        records.remember(self.record_depth, slot, hit)?;
                     }
                 }
                 return Ok(hit.clone());
@@ -963,8 +968,8 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
         if let Some(slot) = slot {
             self.records
                 .as_mut()
-                .unwrap()
-                .remember(self.record_depth, slot, &value);
+                .ok_or(violation("record parser must have sharing tables"))?
+                .remember(self.record_depth, slot, &value)?;
         }
         if let Some(slot) = cache {
             let cache = if KEY {
@@ -972,7 +977,9 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
             } else {
                 &mut self.strings
             };
-            let keys = &mut cache.as_mut().unwrap()[slot];
+            let keys = &mut cache
+                .as_mut()
+                .ok_or(violation("JSON string cache must be initialized"))?[slot];
             keys[1] = std::mem::replace(&mut keys[0], value.clone());
         }
         Ok(value)
@@ -1121,6 +1128,18 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn invalid_float_text_remains_an_ordinary_json_error() {
+        let mut ctx = CallContext::new(crate::CallOptions::default());
+        for input in [b"\xff".as_slice(), b"1e+", b"no"] {
+            assert_eq!(
+                parse_float(&mut ctx, input).unwrap_err().kind,
+                ErrorKind::Json
+            );
+            ctx.checkpoint().unwrap();
+        }
+    }
     use crate::{CallOptions, Limits};
 
     #[test]

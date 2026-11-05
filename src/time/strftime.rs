@@ -1,6 +1,5 @@
 use super::format::{self, MONTHS, OUTPUT_LIMIT, Output, View, WEEKDAYS};
 use crate::{CallContext, Error, ErrorKind, Result, Value, bytes, casing, numeric::to_usize, scan};
-use std::fmt::Write;
 
 #[derive(Clone, Copy, Default)]
 struct Token {
@@ -251,8 +250,8 @@ fn directive(
     let mut number = bytes::Number::new();
     macro_rules! numeric {
         ($value:expr, $width:expr, $pad:expr, $kind:expr) => {{
-            write!(number, "{}", $value).unwrap();
-            (number.bytes(), $width, $pad, $kind)
+            number.format(format_args!("{}", $value))?;
+            (number.bytes()?, $width, $pad, $kind)
         }};
     }
     let (text, default_width, default_pad, kind): (&[u8], usize, u8, Kind) = match token.directive {
@@ -294,9 +293,9 @@ fn directive(
         ),
         b's' => numeric!(view.stamp.seconds(), 1, b'0', Kind::Numeric),
         b'L' | b'N' => {
-            write!(number, "{:09}", view.stamp.nanos()).unwrap();
+            number.format(format_args!("{:09}", view.stamp.nanos()))?;
             (
-                number.bytes(),
+                number.bytes()?,
                 if token.directive == b'L' { 3 } else { 9 },
                 b'0',
                 Kind::Subsecond,
@@ -331,23 +330,21 @@ fn directive(
             let magnitude = seconds.unsigned_abs();
             let (hours, minutes, seconds_part) =
                 (magnitude / 3600, magnitude % 3600 / 60, magnitude % 60);
-            write!(
-                number,
+            number.format(format_args!(
                 "{}{:02}",
                 if seconds < 0 { '-' } else { '+' },
                 hours
-            )
-            .unwrap();
+            ))?;
             if token.colons != 3 || minutes != 0 || seconds_part != 0 {
                 if token.colons > 0 {
-                    number.write_char(':').unwrap();
+                    number.append(":")?;
                 }
-                write!(number, "{minutes:02}").unwrap();
+                number.format(format_args!("{minutes:02}"))?;
             }
             if token.colons == 2 || (token.colons == 3 && seconds_part != 0) {
-                write!(number, ":{seconds_part:02}").unwrap();
+                number.format(format_args!(":{seconds_part:02}"))?;
             }
-            (number.bytes(), 0, b'0', Kind::Offset)
+            (number.bytes()?, 0, b'0', Kind::Offset)
         }
         b'n' => (b"\n", 1, b' ', Kind::Literal),
         b't' => (b"\t", 1, b' ', Kind::Literal),

@@ -80,11 +80,21 @@ impl<'a> Tokens<'a> {
     ) -> crate::Result<()> {
         while self.before.len() < range.start {
             work.charge(1)?;
-            self.before.push(work, self.after.pop().unwrap())?;
+            self.before.push(
+                work,
+                self.after.pop().ok_or(crate::checked::violation(
+                    "token gap must have a following token",
+                ))?,
+            )?;
         }
         while self.before.len() > range.start {
             work.charge(1)?;
-            self.after.push(work, self.before.pop().unwrap())?;
+            self.after.push(
+                work,
+                self.before.pop().ok_or(crate::checked::violation(
+                    "token gap must have a preceding token",
+                ))?,
+            )?;
         }
         self.after.truncate(self.after.len() - range.len());
         for token in replacement {

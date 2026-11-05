@@ -138,7 +138,7 @@ pub(crate) fn endpoint(value: &Value) -> Result<i64> {
             }
             let mut text = crate::bytes::Number::new();
             crate::ops::format_float(&mut text, n)?;
-            let text = std::str::from_utf8(text.bytes())
+            let text = std::str::from_utf8(text.bytes()?)
                 .map_err(|_| crate::checked::violation("formatted number must be UTF-8"))?;
             if n.is_finite() {
                 format!("float {text} is out of integer range")
@@ -213,10 +213,10 @@ pub(crate) fn method(
         |problem: &str| Error::new(ErrorKind::Argument, format!("range.{name} {problem}"));
     match method {
         Include => {
-            if args.len() != 1 {
+            let [value] = args else {
                 return Err(argument("expects one argument"));
-            }
-            Ok(Value::boolean(range.contains(&args[0])))
+            };
+            Ok(Value::boolean(range.contains(value)))
         }
         Length | ToArray => {
             if !args.is_empty() {
@@ -255,13 +255,13 @@ pub(crate) fn method(
             if args.is_empty() {
                 return Ok(Value::int(endpoint));
             }
-            if args.len() != 1 {
+            let [count] = args else {
                 return Err(argument("expects at most one argument"));
-            }
+            };
             if range.start.is_none() {
                 return Err(open_error("beginless"));
             }
-            let count = match args[0].0 {
+            let count = match count.0 {
                 Kind::Int(count) if count < 0 => {
                     return Err(argument("count must be non-negative"));
                 }

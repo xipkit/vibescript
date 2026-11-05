@@ -1,3 +1,4 @@
+use crate::checked::violation;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK},
@@ -97,7 +98,9 @@ fn render(ctx: &mut CallContext, receiver: &Value, context: &Value, strict: bool
     scan = 0;
     while let Some(placeholder) = next(ctx, bytes, &mut scan)? {
         output.extend(ctx, &bytes[last..placeholder.open])?;
-        let index = cache.find(ctx, &bytes[placeholder.key])?.unwrap();
+        let index = cache
+            .find(ctx, &bytes[placeholder.key])?
+            .ok_or(violation("prepared template key must be cached"))?;
         let replacement = &cache.buffer.data[index].1;
         let part = if matches!(replacement.0, Kind::Nil) {
             &bytes[placeholder.open..placeholder.end]
@@ -124,7 +127,7 @@ fn scalar(ctx: &mut CallContext, value: &Value, key: &[u8]) -> Result<Value> {
     ctx.charge(1)?;
     match &value.0 {
         Kind::Bytes(_) | Kind::Symbol(_) => Ok(value.clone()),
-        Kind::EnumMember(member) => ctx.bytes(member.definition().symbol.as_bytes()),
+        Kind::EnumMember(member) => ctx.bytes(member.definition()?.symbol.as_bytes()),
         Kind::Nil
         | Kind::Bool(_)
         | Kind::Int(_)

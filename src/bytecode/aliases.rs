@@ -106,10 +106,10 @@ impl Aliases {
         }
         let mut scopes: HashMap<String, HashMap<String, types::Type>> = HashMap::new();
         for (entry, resolved) in declared.iter().zip(resolving.resolved) {
-            scopes
-                .entry(entry.scope.clone())
-                .or_default()
-                .insert(entry.alias.name.to_string(), resolved.unwrap());
+            scopes.entry(entry.scope.clone()).or_default().insert(
+                entry.alias.name.to_string(),
+                resolved.ok_or(crate::checked::violation("type alias must be resolved"))?,
+            );
         }
         Ok(Self { scopes, builtins })
     }
@@ -197,7 +197,13 @@ impl Resolving<'_> {
                 return self.builtin(name).map(|ty| copy_type(ty, work)).transpose();
             };
             self.resolve(target, work)?;
-            let resolved = self.resolved.at(target)?.as_ref().unwrap();
+            let resolved = self
+                .resolved
+                .at(target)?
+                .as_ref()
+                .ok_or(crate::checked::violation(
+                    "referenced type alias must be resolved",
+                ))?;
             nodes += resolved.nodes();
             work.charge(resolved.nodes())?;
             if nodes > MAX_NODES {

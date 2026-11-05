@@ -3,6 +3,7 @@ use super::{
     search::{ABSENT, Search},
     value::Regex,
 };
+use crate::checked::violation;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value, budget::Buffer, bytes, iteration::Progress, ops,
     scan, value::Kind,
@@ -127,11 +128,11 @@ impl Matcher {
         };
         let search = regex
             .as_ref()
-            .map(|re| Search::new(ctx, re.view(), captures))
+            .map(|re| Search::new(ctx, re.view()?, captures))
             .transpose()?;
         let mut named = false;
         if let Some(regex) = &regex {
-            for &(start, end) in regex.view().names {
+            for &(start, end) in regex.view()?.names {
                 ctx.charge(1)?;
                 named |= start != end;
             }
@@ -159,7 +160,14 @@ impl Matcher {
         if let Some(regex) = &self.regex {
             return Ok(self
                 .cursor
-                .next(ctx, self.search.as_mut().unwrap(), regex.view(), text)?
+                .next(
+                    ctx,
+                    self.search
+                        .as_mut()
+                        .ok_or(violation("regex matcher must have a search"))?,
+                    regex.view()?,
+                    text,
+                )?
                 .map(|indices| Location {
                     whole: [indices.data[0], indices.data[1]],
                     captures: Some(indices),
@@ -201,7 +209,7 @@ impl Matcher {
         let Some(regex) = &self.regex else {
             return emit(ctx, template);
         };
-        let view = regex.view();
+        let view = regex.view()?;
         let mut position = 0;
         while position < template.len() {
             let start = position;
@@ -392,7 +400,9 @@ pub(crate) fn member(
     }
     let mut output = Buffer::with_capacity(ctx, length)?;
     matcher.reset();
-    let first = matcher.next(ctx, text)?.unwrap();
+    let first = matcher.next(ctx, text)?.ok_or(violation(
+        "repeated substitution pass must retain its first match",
+    ))?;
     pass(
         ctx,
         &mut matcher,
@@ -481,7 +491,7 @@ impl Driver {
         let receiver = self.receiver.clone();
         let text = receiver.require_bytes()?;
         if self.waiting {
-            let returned = returned.unwrap();
+            let returned = returned.ok_or(violation("substitution block must return a value"))?;
             let replacement = crate::text::bounded::render(ctx, &returned, super::MAX_TEXT)?;
             drop(returned);
             if !self.spec.all && self.spec.regex {

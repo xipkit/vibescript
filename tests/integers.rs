@@ -13,6 +13,31 @@ fn run(source: &str) -> vibescript::Outcome {
 }
 
 #[test]
+fn host_integer_parse_errors_allow_further_conversion_and_script_work() {
+    let mut engine = Engine::new();
+    engine.register("convert", |ctx, _| {
+        for (text, radix) in [("ff", 10), ("1", 1), ("", 16), ("é", 36)] {
+            assert_eq!(
+                ctx.parse_integer(text, radix).unwrap_err().kind,
+                ErrorKind::Argument
+            );
+            ctx.checkpoint()?;
+        }
+        let text = "f".repeat(40);
+        ctx.parse_integer(&text, 16)
+    });
+    let outcome = engine
+        .compile("convert().as(int) + 1")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap();
+    assert_eq!(
+        outcome.value.to_string(),
+        "1461501637330902918203684832716283019655932542976"
+    );
+}
+
+#[test]
 fn promotion_normalizes_results_without_expanding_the_value_representation() {
     assert_eq!(std::mem::size_of::<Value>(), 16);
     for (source, expected) in [

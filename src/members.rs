@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     bytecode::{CallSite, Method},
@@ -322,7 +323,7 @@ fn dispatch(
                         "attempted to call non-callable value",
                     ));
                 }
-                let result = hash.buffer.data[index].1.clone();
+                let result = hash.buffer.at(index)?.1.clone();
                 return Ok((receiver, result));
             }
             return Err(unknown_hash_member(ctx, hash, name));
@@ -535,10 +536,10 @@ pub(crate) fn field(
     if let Kind::Hash(hash) = &receiver.0 {
         if hash.object || !hash_builtin(name) {
             if let Some(index) = hash.find(ctx, name.as_bytes())? {
-                if !site.scope && names::universal(name) && !callable(&hash.buffer.data[index].1) {
+                if !site.scope && names::universal(name) && !callable(&hash.buffer.at(index)?.1) {
                     return Ok(None);
                 }
-                return Ok(Some(hash.buffer.data[index].1.clone()));
+                return Ok(Some(hash.buffer.at(index)?.1.clone()));
             }
             if site.scope {
                 let keys = hash

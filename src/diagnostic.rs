@@ -82,10 +82,13 @@ macro_rules! registry {
             let mut sorted = 1;
             while sorted < registry.len() {
                 let mut at = sorted;
-                while at > 0 && registry[at - 1].code.0 > registry[at].code.0 {
-                    let previous = registry[at - 1];
-                    registry[at - 1] = registry[at];
-                    registry[at] = previous;
+                while let Some((before, after)) = registry.split_at_mut_checked(at) {
+                    let [.., previous] = before else { break };
+                    let [current, ..] = after else { break };
+                    if previous.code.0 <= current.code.0 {
+                        break;
+                    }
+                    std::mem::swap(previous, current);
                     at -= 1;
                 }
                 sorted += 1;
@@ -387,10 +390,10 @@ impl Fix {
     /// are put in order first, as [`Self::apply`] puts them.
     pub(crate) fn applies(&self, source: &str) -> bool {
         let key = |span: Span| (span.start, span.end);
-        let ordered = self
-            .edits
-            .windows(2)
-            .all(|pair| key(pair[0].span) <= key(pair[1].span));
+        let ordered = self.edits.windows(2).all(|pair| match pair {
+            [a, b] => key(a.span) <= key(b.span),
+            _ => true,
+        });
         if ordered {
             return applies_in_order(self.edits.iter().map(|edit| edit.span), source);
         }

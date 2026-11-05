@@ -19,11 +19,12 @@ struct TargetText<'w> {
 }
 
 impl TargetText<'_> {
-    fn text(&self) -> &str {
+    fn text(&self) -> crate::checked::Access<&str> {
         let bytes = &self.bytes[..self.len];
         match std::str::from_utf8(bytes) {
-            Ok(text) => text,
-            Err(error) => std::str::from_utf8(&bytes[..error.valid_up_to()]).unwrap(),
+            Ok(text) => Ok(text),
+            Err(error) => std::str::from_utf8(&bytes[..error.valid_up_to()])
+                .map_err(|_| crate::checked::violation("target excerpt prefix must be UTF-8")),
         }
     }
 }
@@ -214,8 +215,13 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 let start = p.tokens[p.pos].offset;
                 let ty = p.type_expr(1, false)?;
                 if rest && !ty.captures(false) {
-                    let excerpt = target_excerpt(value.as_ref().unwrap(), work)?;
-                    let text = excerpt.text();
+                    let excerpt = target_excerpt(
+                        value
+                            .as_ref()
+                            .ok_or(crate::checked::violation("typed target must have a value"))?,
+                        work,
+                    )?;
+                    let text = excerpt.text()?;
                     return Err(Error::syntax(
                         work,
                         start,
@@ -225,7 +231,15 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                         ),
                     ));
                 }
-                value = Some(Target::Typed(Boxed::new(work, value.take().unwrap())?, ty));
+                value = Some(Target::Typed(
+                    Boxed::new(
+                        work,
+                        value
+                            .take()
+                            .ok_or(crate::checked::violation("typed target must have a value"))?,
+                    )?,
+                    ty,
+                ));
             }
             if rest {
                 if has_rest {
@@ -249,7 +263,10 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let target = if tuple {
             Target::Tuple(parts)
         } else {
-            parts.pop().unwrap().0.unwrap()
+            parts
+                .pop()
+                .and_then(|part| part.0)
+                .ok_or(crate::checked::violation("single target must have a value"))?
         };
         let p = self.p();
         let offset = target.offset().unwrap_or(p.tokens[p.pos].offset as u32);
@@ -448,7 +465,7 @@ mod walk_tests {
         context.options.limits.steps = Some(8);
         let work = Meter::new(&mut context);
         let text = super::target_excerpt(target, &work).unwrap();
-        assert_eq!(text.text().len(), 68);
+        assert_eq!(text.text().unwrap().len(), 68);
         assert_eq!(work.0.borrow().stats().peak_memory_bytes, 0);
     }
 

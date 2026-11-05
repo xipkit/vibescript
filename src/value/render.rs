@@ -169,7 +169,12 @@ fn open<'a>(
         (Kind::Function(function), Mode::Display) => write!(
             f,
             "<function {}>",
-            function.code.program.functions[function.index].name
+            function
+                .code
+                .program
+                .functions
+                .get(function.index)
+                .map_or("", |function| function.name.as_str())
         ),
         (Kind::Builtin(builtin), Mode::Display) => write!(f, "<builtin {}>", builtin.name()),
         (Kind::Offset(offset), Mode::Display) => write!(f, "<builtin {}>", offset.name()),
@@ -178,7 +183,9 @@ fn open<'a>(
             f,
             "{}::{}",
             m.enumeration.definition.name,
-            m.definition().name
+            m.definition()
+                .ok()
+                .map_or("", |definition| definition.name.as_str())
         ),
         (Kind::Bool(b), Mode::Display) => write!(f, "{b}"),
         (Kind::Int(n), Mode::Display) => write!(f, "{n}"),
