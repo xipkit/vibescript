@@ -120,18 +120,14 @@ impl fmt::Display for Name {
 mod tests {
     use super::*;
     use crate::{CallContext, CallOptions, ErrorKind, compilation::Meter};
-    use std::{cell::RefCell, time::Instant};
+    use std::time::Instant;
 
     #[test]
     fn shared_names_release_the_budget_at_the_compiled_boundary() {
         for shared in [false, true] {
             let mut context = CallContext::new(CallOptions::default());
             let memory = context.identity();
-            let name = Name::join(
-                &Meter(RefCell::new(&mut context)),
-                &["日本語", "::", "member"],
-            )
-            .unwrap();
+            let name = Name::join(&Meter::new(&mut context), &["日本語", "::", "member"]).unwrap();
             let retained = context.stats().retained_memory_bytes;
             assert!(retained > name.len());
             let alias = shared.then(|| name.clone());
@@ -153,7 +149,7 @@ mod tests {
     fn generated_names_fail_without_releasing_the_original_name() {
         for shortage in [0, 1] {
             let mut context = CallContext::new(CallOptions::default());
-            let work = Meter(RefCell::new(&mut context));
+            let work = Meter::new(&mut context);
             let original = Name::new(&work, "member").unwrap();
             let before = work.0.borrow().stats().retained_memory_bytes;
             let generated = Name::join(&work, &["Outer::", &original, "="]).unwrap();
@@ -184,7 +180,7 @@ mod tests {
             } else {
                 context.cancellation().cancel();
             }
-            let work = Meter(RefCell::new(&mut context));
+            let work = Meter::new(&mut context);
             let kind = if deadline {
                 ErrorKind::Deadline
             } else {

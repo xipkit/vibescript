@@ -28,10 +28,7 @@ fn corrupt(script: Script, function: &str, edit: impl FnOnce(&mut [Op])) -> Scri
         .find(|candidate| candidate.name == function)
         .unwrap();
     edit(function.code.as_mut_slice());
-    let code = Arc::new_cyclic(|owner| {
-        code.program.owner = owner.clone();
-        code
-    });
+    let code = Arc::new(code);
     Script {
         inner: Arc::new(crate::ScriptInner {
             code,

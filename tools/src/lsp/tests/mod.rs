@@ -28,6 +28,8 @@ pub(super) fn message(method: &str, id: Option<&str>, params: Option<Value>) -> 
         id: id.map(Box::from),
         method: method.to_owned(),
         params: params.map(|params| params.to_string().into_boxed_str()),
+        token: None,
+        index: 0,
     }
 }
 

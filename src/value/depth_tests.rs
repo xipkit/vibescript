@@ -117,6 +117,35 @@ fn concurrent_last_owners_release_deep_subtrees() {
     }
 }
 
+/// Destroying a deep container beside a weak observer takes the walk's
+/// replacement branch in `destroy::unique`, which otherwise only a race with
+/// another owner's drop reaches; see `concurrent_last_owners_release_deep_subtrees`.
+#[test]
+#[allow(
+    clippy::disallowed_types,
+    clippy::disallowed_methods,
+    reason = "a test observer that reaches the replacement branch on purpose; the crate itself makes no weak reference to a container"
+)]
+fn host_container_cleanup_tolerates_internal_weak_observers() {
+    on_small_stack(|| {
+        let child = array_chain(DEEP);
+        let Kind::Array(array) = &child.0 else {
+            panic!("unexpected test fixture")
+        };
+        let weak = Arc::downgrade(array);
+        drop(Value::array(vec![child]));
+        assert!(weak.upgrade().is_none());
+
+        let child = hash_chain(DEEP);
+        let Kind::Hash(hash) = &child.0 else {
+            panic!("unexpected test fixture")
+        };
+        let weak = Arc::downgrade(hash);
+        drop(Value::hash(vec![(b"k".to_vec(), child)]));
+        assert!(weak.upgrade().is_none());
+    });
+}
+
 #[test]
 fn charged_values_release_storage_when_dropped_elsewhere_or_after_exhaustion() {
     let mut ctx = context();

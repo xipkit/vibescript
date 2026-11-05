@@ -34,10 +34,10 @@ pub(crate) struct Spans<'a> {
     meter: std::sync::Arc<super::meter::Meter>,
     /// Where each expression's last token starts, by node, so shared
     /// subtrees are walked once.
-    lasts: std::cell::RefCell<CountedMap<usize, usize>>,
+    lasts: crate::compilation::Shared<CountedMap<usize, usize>>,
     /// [`Self::furthest`] of each statement measured, by node, so a
     /// statement nested in many that are measured is walked once.
-    furthest: std::cell::RefCell<CountedMap<usize, usize>>,
+    furthest: crate::compilation::Shared<CountedMap<usize, usize>>,
     /// What the tokens hold when they are a merged copy of their own.
     owned: usize,
     /// The most that parsing one interpolation again held.
@@ -96,7 +96,7 @@ impl<'a> Spans<'a> {
             });
             let inner = crate::syntax::record::tokens_within(
                 &source[start..end],
-                &crate::compilation::Meter(std::cell::RefCell::new(&mut context)),
+                &crate::compilation::Meter::new(&mut context),
             );
             let used = context.stats();
             let charged = meter.charge(used.steps);
@@ -193,8 +193,8 @@ impl<'a> Spans<'a> {
             source,
             tokens,
             meter,
-            lasts: std::cell::RefCell::default(),
-            furthest: std::cell::RefCell::default(),
+            lasts: crate::compilation::Shared::default(),
+            furthest: crate::compilation::Shared::default(),
             owned,
             parsing,
         }
@@ -526,7 +526,7 @@ impl<'a> Spans<'a> {
     /// remembered: the check has stopped, and finds it again if asked.
     fn remember(
         &self,
-        table: &std::cell::RefCell<CountedMap<usize, usize>>,
+        table: &crate::compilation::Shared<CountedMap<usize, usize>>,
         key: usize,
         position: usize,
     ) {
