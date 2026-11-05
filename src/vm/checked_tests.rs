@@ -259,8 +259,26 @@ fn a_callback_cannot_swallow_an_internal_import_error() {
 }
 
 #[test]
-fn empty_stacks_in_vm_helpers_are_terminal() {
-    for op in [Op::Pop, Op::Dup, Op::LoopBody, Op::EnsureEnd] {
+fn missing_vm_operands_are_terminal_in_host_blocks() {
+    for op in [
+        Op::Pop,
+        Op::Dup,
+        Op::LoopBody,
+        Op::EnsureEnd,
+        Op::Return,
+        Op::TextPart,
+        Op::TextEnd(false),
+        Op::Range(true, false, false),
+        Op::Range(false, true, false),
+        Op::RaiseValue,
+        Op::Yield(0),
+        Op::Bind(0, 0),
+        Op::Attach(0),
+        Op::LoopEnd,
+        Op::AddressStore,
+        Op::AddressDrop,
+        Op::NamespaceConstant(0, 0),
+    ] {
         for reaction in [Reaction::Ignore, Reaction::Replace] {
             let observed = Arc::new(Observed::default());
             let mut engine = marking(&observed);
@@ -302,6 +320,108 @@ fn a_native_frame_has_no_required_function() {
     let error = Error::from(frame.required_function().unwrap_err());
     assert_eq!(error.kind, ErrorKind::Internal);
     assert!(error.message.ends_with("frame must have a function"));
+}
+
+#[test]
+fn missing_run_state_latches_before_returning_to_the_host() {
+    for missing in ["entry", "result", "driver"] {
+        let script = Engine::new().compile("0").unwrap();
+        let mut execution =
+            Execution::new(&script, "__main__", &[], &[], CallOptions::default()).unwrap();
+        let run = execution.run.as_mut().unwrap();
+        let ctx = &mut execution.context;
+        let boundary = match missing {
+            "entry" => {
+                run.pending_entry = None;
+                None
+            }
+            "result" => Some(0),
+            "driver" => {
+                let mut frame = Frame::new(run.root.clone(), &run.storage, None, 0, 0);
+                frame.function = FrameCode::PooledIteration;
+                run.frames.push(ctx, frame).unwrap();
+                None
+            }
+            _ => panic!("unknown case"),
+        };
+        let error = run.resume(ctx, boundary, None).err().unwrap();
+        assert_eq!(error.kind, ErrorKind::Internal, "{missing}: {error}");
+        assert!(error.class().is_none());
+        let later = ctx.checkpoint().unwrap_err();
+        assert_eq!(later.kind, ErrorKind::Internal);
+        assert_eq!(later.message, error.message);
+    }
+}
+
+#[test]
+fn malformed_integer_literals_bypass_script_handlers() {
+    for body in [
+        "123456",
+        "begin;123456;rescue;42;end",
+        "begin;123456;ensure;return 42;end",
+    ] {
+        let source = format!("def run -> int;{body};end");
+        let script = corrupt(Engine::new().compile(&source).unwrap(), "run", |code| {
+            let constant = code
+                .iter_mut()
+                .find(|op| matches!(op, Op::Constant(_)))
+                .unwrap();
+            let Op::Constant(index) = *constant else {
+                panic!("expected a constant");
+            };
+            *constant = Op::Integer(index, 10);
+        });
+        let error = script.call("run", &[], CallOptions::default()).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Internal, "{body}: {error}");
+        assert!(error.message.ends_with("integer literal must be bytes"));
+    }
+}
+
+#[test]
+fn an_open_range_in_an_active_loop_is_an_internal_error() {
+    for (start, end) in [(None, Some(3)), (Some(1), None)] {
+        let script = corrupt(
+            Engine::new().compile("123456").unwrap(),
+            "__main__",
+            |code| {
+                code[0] = Op::IterNext;
+            },
+        );
+        let mut execution =
+            Execution::new(&script, "__main__", &[], &[], CallOptions::default()).unwrap();
+        let run = execution.run.as_mut().unwrap();
+        let ctx = &mut execution.context;
+        run.storage
+            .loops
+            .push(
+                ctx,
+                LoopState {
+                    base: 0,
+                    address_base: 0,
+                    bypass_base: 0,
+                    argument_base: 0,
+                    text_base: 0,
+                    next: 0,
+                    end: 0,
+                    expression: true,
+                    source: Value(Kind::Range(Range::untracked(start, end, false))),
+                    position: 0,
+                    length: 3,
+                    last: Value::nil(),
+                    broken: false,
+                    break_value: None,
+                },
+            )
+            .unwrap();
+        let error = run.run(ctx).unwrap_err();
+        assert_eq!(
+            error.kind,
+            ErrorKind::Internal,
+            "{start:?}..{end:?}: {error}"
+        );
+        assert!(error.message.contains("iterated range must have"));
+        assert_eq!(ctx.checkpoint().unwrap_err().message, error.message);
+    }
 }
 
 #[test]
