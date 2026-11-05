@@ -234,31 +234,35 @@ impl<'a> Spans<'a> {
     }
 
     fn text(&self, index: usize) -> &'a str {
-        let span = &self.tokens[index].span;
-        &self.source[span.start..span.end]
+        let Some(token) = self.tokens.get(index) else {
+            return "";
+        };
+        &self.source[token.span.start..token.span.end]
     }
 
     /// The span of the word or token starting at `offset`.
     pub fn token(&self, offset: usize) -> Span {
-        match self.token_at(offset) {
-            Some(index) => {
-                let span = &self.tokens[index].span;
-                Span::new(span.start, span.end)
-            }
+        match self
+            .token_at(offset)
+            .and_then(|index| self.tokens.get(index))
+        {
+            Some(token) => Span::new(token.span.start, token.span.end),
             None => Span::new(offset, self.word_end(offset)),
         }
     }
 
     fn word_end(&self, offset: usize) -> usize {
         let bytes = self.source.as_bytes();
-        let mut end = offset;
-        while end < bytes.len()
-            && (bytes[end].is_ascii_alphanumeric()
-                || matches!(bytes[end], b'_' | b'@' | b'?' | b'!')
-                || bytes[end] >= 0x80)
-        {
-            end += 1;
-        }
+        let word = bytes
+            .get(offset..)
+            .unwrap_or_default()
+            .iter()
+            .take_while(|&&byte| {
+                byte.is_ascii_alphanumeric()
+                    || matches!(byte, b'_' | b'@' | b'?' | b'!')
+                    || byte >= 0x80
+            });
+        let end = offset + word.count();
         if end == offset {
             (offset + 1).min(bytes.len()).max(offset)
         } else {
@@ -274,9 +278,12 @@ impl<'a> Spans<'a> {
             if self.step(1) {
                 break;
             }
-            if self.tokens[index].kind == TokenKind::Word && self.text(index) == name {
-                let span = &self.tokens[index].span;
-                return Span::new(span.start, span.end);
+            let word = self
+                .tokens
+                .get(index)
+                .filter(|token| token.kind == TokenKind::Word);
+            if let Some(token) = word.filter(|_| self.text(index) == name) {
+                return Span::new(token.span.start, token.span.end);
             }
         }
         self.token(offset)
@@ -309,21 +316,38 @@ impl<'a> Spans<'a> {
         Span::new(start, self.close(start, last))
     }
 
+    /// The first token from `index` up to `limit` that is not a newline, or
+    /// `limit`.
+    fn past_newlines(&self, mut index: usize, limit: usize) -> usize {
+        while index < limit
+            && self
+                .tokens
+                .get(index)
+                .is_some_and(|token| token.kind == TokenKind::Newline)
+        {
+            index += 1;
+        }
+        index
+    }
+
     /// Moves `start` back over each `(` that opens a group closing before
     /// `end`, as `(a + b)` does in `(a + b) * c`, whose tree starts at `a`.
     fn open(&self, mut start: usize, end: usize) -> usize {
         let Some(mut first) = self.token_at(start) else {
             return start;
         };
-        while first > 0 && self.tokens[first - 1].kind == TokenKind::Punct('(') {
+        while let Some(opening) = first
+            .checked_sub(1)
+            .and_then(|before| self.tokens.get(before))
+            .filter(|token| token.kind == TokenKind::Punct('('))
+        {
             // The matching `)` must come before the expression's end.
             let mut depth = 0;
             let mut closes = None;
-            for index in first - 1..self.tokens.len() {
+            for token in self.tokens.iter().skip(first - 1) {
                 if self.step(1) {
                     return start;
                 }
-                let token = &self.tokens[index];
                 if token.span.start >= end {
                     break;
                 }
@@ -343,7 +367,7 @@ impl<'a> Spans<'a> {
                 break;
             }
             first -= 1;
-            start = self.tokens[first].span.start;
+            start = opening.span.start;
         }
         start
     }
@@ -352,31 +376,33 @@ impl<'a> Spans<'a> {
     /// at `last`: the end of that token, then the closing brackets opened
     /// since `start`.
     fn close(&self, start: usize, last: usize) -> usize {
-        let Some(last_index) = self.token_at(last) else {
+        let Some((last_index, last_token)) = self
+            .token_at(last)
+            .and_then(|index| Some((index, self.tokens.get(index)?)))
+        else {
             return self.word_end(last);
         };
         let first = self.token_from(start);
         let mut depth: i64 = 0;
         if self.step(last_index.saturating_sub(first) + 1) {
-            return self.tokens[last_index].span.end;
+            return last_token.span.end;
         }
-        for index in first..=last_index {
-            match &self.tokens[index].kind {
+        for token in self.tokens.get(first..=last_index).unwrap_or_default() {
+            match &token.kind {
                 TokenKind::Punct('(' | '[' | '{') => depth += 1,
                 TokenKind::Punct(')' | ']' | '}') => depth -= 1,
                 _ => (),
             }
         }
-        let mut end = self.tokens[last_index].span.end;
-        let mut index = last_index + 1;
-        while depth > 0 && index < self.tokens.len() {
-            if self.step(1) {
+        let mut end = last_token.span.end;
+        for (index, token) in self.tokens.iter().enumerate().skip(last_index + 1) {
+            if depth <= 0 || self.step(1) {
                 break;
             }
-            match &self.tokens[index].kind {
+            match &token.kind {
                 TokenKind::Punct(')' | ']' | '}') => {
                     depth -= 1;
-                    end = self.tokens[index].span.end;
+                    end = token.span.end;
                 }
                 TokenKind::Punct('(' | '[' | '{') => depth += 1,
                 TokenKind::Newline | TokenKind::Punct(',') => (),
@@ -384,7 +410,6 @@ impl<'a> Spans<'a> {
                 TokenKind::Eof => break,
                 _ => (),
             }
-            index += 1;
         }
         end
     }
@@ -404,18 +429,17 @@ impl<'a> Spans<'a> {
             if self.step(1) {
                 return None;
             }
-            let dot = matches!(
-                self.tokens[index].kind,
-                TokenKind::Punct('.') | TokenKind::Operator("&." | "::")
-            );
+            let dot = self.tokens.get(index).is_some_and(|token| {
+                matches!(
+                    token.kind,
+                    TokenKind::Punct('.') | TokenKind::Operator("&." | "::")
+                )
+            });
             if dot {
-                let mut next = index + 1;
-                while next < limit && self.tokens[next].kind == TokenKind::Newline {
-                    next += 1;
-                }
+                let next = self.past_newlines(index + 1, limit);
                 if next < limit && self.text(next) == name {
-                    let span = &self.tokens[next].span;
-                    return Some(Span::new(span.start, span.end));
+                    let token = self.tokens.get(next)?;
+                    return Some(Span::new(token.span.start, token.span.end));
                 }
             }
             index += 1;
@@ -426,13 +450,11 @@ impl<'a> Spans<'a> {
     /// The dot or scope operator before a member's name.
     pub fn member_operator(&self, receiver: &Expr, name: &str) -> Option<Span> {
         let member = self.member(receiver, name)?;
-        let mut index = self.token_from(member.start);
-        while index > 0 {
-            index -= 1;
+        let before = self.tokens.get(..self.token_from(member.start))?;
+        for token in before.iter().rev() {
             if self.step(1) {
                 return None;
             }
-            let token = &self.tokens[index];
             if token.kind != TokenKind::Newline {
                 return Some(Span::new(token.span.start, token.span.end));
             }
@@ -446,12 +468,12 @@ impl<'a> Spans<'a> {
         let end = self.expr(whole).end;
         let last = self.last(receiver);
         let from = self.token_at(last).unwrap_or_else(|| self.token_from(last));
-        for index in from + 1..self.tokens.len().min(from + 64) {
-            if self.tokens[index].kind == TokenKind::Punct('[') {
-                return Some(Span::new(self.tokens[index].span.start, end));
-            }
-        }
-        None
+        self.tokens
+            .iter()
+            .take(from + 64)
+            .skip(from + 1)
+            .find(|token| token.kind == TokenKind::Punct('['))
+            .map(|token| Span::new(token.span.start, end))
     }
 
     /// The start of an expression's last token, remembered per node so a
@@ -494,7 +516,10 @@ impl<'a> Spans<'a> {
                 | Node::Call(_, args, CallForm::Bare | CallForm::Auto)
                     if !args.is_empty() =>
                 {
-                    (&args[args.len() - 1].value, Trail::None)
+                    let Some(last) = args.last() else {
+                        break self.furthest(Item::Expr(current), true);
+                    };
+                    (&last.value, Trail::None)
                 }
                 Node::Binary(_, _, right) => (&**right, Trail::None),
                 Node::Unary(_, value) => (&**value, Trail::None),
@@ -640,27 +665,29 @@ impl<'a> Spans<'a> {
             if self.step(1) {
                 return last;
             }
-            match &self.tokens[index].kind {
-                TokenKind::Punct(')' | ']' | '}') | TokenKind::Newline => index += 1,
-                TokenKind::Punct('.') | TokenKind::Operator("&." | "::") => break,
+            match self.tokens.get(index).map(|token| &token.kind) {
+                Some(TokenKind::Punct(')' | ']' | '}') | TokenKind::Newline) => index += 1,
+                Some(TokenKind::Punct('.') | TokenKind::Operator("&." | "::")) => break,
                 _ => return last,
             }
         }
-        index += 1;
-        while index < limit && self.tokens[index].kind == TokenKind::Newline {
-            index += 1;
-        }
+        index = self.past_newlines(index + 1, limit);
         if index >= limit || self.text(index) != name {
             return last;
         }
-        let at = self.tokens[index].span.start;
+        let Some(found) = self.tokens.get(index) else {
+            return last;
+        };
         if parenthesized
             && self.tokens.get(index + 1).map(|token| &token.kind) == Some(&TokenKind::Punct('('))
-            && self.tokens.get(index + 2).map(|token| &token.kind) == Some(&TokenKind::Punct(')'))
+            && let Some(closing) = self
+                .tokens
+                .get(index + 2)
+                .filter(|token| token.kind == TokenKind::Punct(')'))
         {
-            return self.tokens[index + 2].span.start;
+            return closing.span.start;
         }
-        at
+        found.span.start
     }
 
     /// The operator token of a binary expression located at `offset`, all
@@ -673,7 +700,10 @@ impl<'a> Spans<'a> {
     /// operator's, which is located at its last character.
     pub fn containing(&self, offset: usize) -> Span {
         let index = self.token_from(offset + 1).checked_sub(1);
-        match index.map(|index| &self.tokens[index].span) {
+        match index
+            .and_then(|index| self.tokens.get(index))
+            .map(|token| &token.span)
+        {
             Some(span) if span.start <= offset && offset < span.end => {
                 Span::new(span.start, span.end)
             }
@@ -702,7 +732,10 @@ fn first_offset(expr: &Expr, meter: &super::meter::Meter) -> usize {
             | Node::Scope(receiver, _, _)
             | Node::BlockCall(receiver, _)
             | Node::ComputedCall(receiver, _) => receiver,
-            Node::Conditional(branches, _) if !branches.is_empty() => &branches[0].0,
+            Node::Conditional(branches, _) => match branches.first() {
+                Some((condition, _)) => condition,
+                None => break,
+            },
             _ => break,
         };
         first = first.min(current.offset as usize);
