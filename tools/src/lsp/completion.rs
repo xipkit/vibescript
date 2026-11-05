@@ -400,8 +400,7 @@ fn def_lines<S: AsRef<str>>(lines: &[S]) -> HashMap<String, usize> {
         let Some(rest) = decl.strip_prefix("def ") else {
             continue;
         };
-        let end = rest.find(['(', ' ', '\t']).unwrap_or(rest.len());
-        let name = &rest[..end];
+        let name = rest.split(['(', ' ', '\t']).next().unwrap_or(rest);
         if !name.is_empty() {
             found.entry(name.to_owned()).or_insert(index);
         }
