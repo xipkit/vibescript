@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK},
@@ -226,7 +227,7 @@ impl Binding {
                 }
                 _ => {
                     if let Some(index) = arguments.keywords.find(ctx, param.name.as_bytes())? {
-                        used.data[index] = true;
+                        *used.at_mut(index)? = true;
                         Source::Keyword(index)
                     } else if param.default {
                         Source::Default
@@ -246,12 +247,12 @@ impl Binding {
             return Err(Error::argument("unexpected positional arguments"));
         }
         if !keyword_rest {
-            for (index, used) in used.data.iter().enumerate() {
+            for (used, (key, _)) in used.data.iter().zip(&arguments.keywords.buffer.data) {
                 ctx.charge(1)?;
                 if !used {
                     return Err(Error::argument(format!(
                         "unexpected keyword argument {}",
-                        arguments.keywords.buffer.data[index].0
+                        key
                     )));
                 }
             }
@@ -265,15 +266,22 @@ impl Binding {
 
     pub fn value(&self, ctx: &mut CallContext, param: usize) -> Result<Option<Value>> {
         ctx.charge(1)?;
-        Ok(Some(match self.sources.data[param] {
-            Source::Positional(index) => self.arguments.positional.data[index].clone(),
-            Source::Keyword(index) => self.arguments.keywords.buffer.data[index].1.clone(),
-            Source::Rest(start) => ctx.array(&self.arguments.positional.data[start..])?,
+        Ok(Some(match *self.sources.at(param)? {
+            Source::Positional(index) => self.arguments.positional.at(index)?.clone(),
+            Source::Keyword(index) => self.arguments.keywords.buffer.at(index)?.1.clone(),
+            Source::Rest(start) => ctx.array(self.arguments.positional.tail(start)?)?,
             Source::KeywordRest => {
                 let mut buffer = Buffer::empty();
-                for (index, pair) in self.arguments.keywords.buffer.data.iter().enumerate() {
+                for (pair, used) in self
+                    .arguments
+                    .keywords
+                    .buffer
+                    .data
+                    .iter()
+                    .zip(&self.used.data)
+                {
                     ctx.charge(1)?;
-                    if !self.used.data[index] {
+                    if !used {
                         buffer.push(ctx, pair.clone())?;
                     }
                 }
@@ -307,11 +315,12 @@ pub(crate) fn ordered_hash(
             ctx.charge(1)?;
             let mut child = root * 2 + 1;
             if child + 1 < values.len()
-                && compare_keys(ctx, &values[child].0, &values[child + 1].0)? == Ordering::Less
+                && compare_keys(ctx, &values.at(child)?.0, &values.at(child + 1)?.0)?
+                    == Ordering::Less
             {
                 child += 1;
             }
-            if compare_keys(ctx, &values[root].0, &values[child].0)? != Ordering::Less {
+            if compare_keys(ctx, &values.at(root)?.0, &values.at(child)?.0)? != Ordering::Less {
                 break;
             }
             values.swap(root, child);
@@ -325,7 +334,32 @@ pub(crate) fn ordered_hash(
     for end in (1..buffer.data.len()).rev() {
         ctx.charge(1)?;
         buffer.data.swap(0, end);
-        sift(ctx, &mut buffer.data[..end], 0)?;
+        sift(ctx, buffer.span_mut(0, end)?, 0)?;
     }
     Hash::from_entries(ctx, buffer)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn invalid_binding_indices_report_internal_errors() {
+        for source in [Source::Positional(1), Source::Keyword(0), Source::Rest(2)] {
+            let binding = Binding {
+                arguments: Arguments {
+                    positional: Buffer::untracked(vec![Value::int(1)]),
+                    ..Arguments::empty()
+                },
+                sources: Buffer::untracked(vec![source]),
+                used: Buffer::empty(),
+            };
+            let mut ctx = CallContext::new(crate::CallOptions::default());
+            for param in [0, usize::MAX] {
+                let error = binding.value(&mut ctx, param).unwrap_err();
+                assert_eq!(error.kind, ErrorKind::Internal);
+                assert!(error.message.contains("out of range"), "{error}");
+            }
+        }
+    }
 }

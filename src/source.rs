@@ -73,17 +73,22 @@ impl Source {
 
     fn location(&self, offset: u32) -> (&str, Position) {
         let offset = boundary(&self.text, offset as usize);
-        let checkpoint = &self.checkpoints[self
-            .checkpoints
-            .partition_point(|p| p.offset as usize <= offset)
-            - 1];
-        (
-            &self.text[checkpoint.offset as usize..offset],
-            Position {
-                line: checkpoint.line as usize,
-                column: checkpoint.column as usize,
-            },
-        )
+        let checkpoint = self.checkpoints.get(
+            self.checkpoints
+                .partition_point(|p| p.offset as usize <= offset)
+                .saturating_sub(1),
+        );
+        let (start, position) =
+            checkpoint.map_or((0, Position { line: 1, column: 1 }), |checkpoint| {
+                (
+                    checkpoint.offset as usize,
+                    Position {
+                        line: checkpoint.line as usize,
+                        column: checkpoint.column as usize,
+                    },
+                )
+            });
+        (self.text.get(start..offset).unwrap_or_default(), position)
     }
 
     pub fn position(&self, offset: u32) -> Position {
@@ -181,8 +186,11 @@ impl<'a> Snippet<'a> {
         Self {
             text: &text[start..end],
             caret: &text[start..offset],
-            prefix: start > 0 && text.as_bytes()[start - 1] != b'\n',
-            suffix: end < text.len() && text.as_bytes()[end] != b'\n',
+            prefix: start
+                .checked_sub(1)
+                .and_then(|at| text.as_bytes().get(at))
+                .is_some_and(|&b| b != b'\n'),
+            suffix: text.as_bytes().get(end).is_some_and(|&b| b != b'\n'),
             position,
             filename,
         }

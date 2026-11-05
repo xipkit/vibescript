@@ -108,7 +108,7 @@ fn leaf(ctx: &mut CallContext, value: &Value, out: &mut Buffer<u8>) -> Result<()
         Kind::Range(r) => {
             let mut text = bytes::Number::new();
             text.format(format_args!("{r}"))?;
-            out.extend(ctx, text.bytes())?;
+            out.extend(ctx, text.bytes()?)?;
         }
         _ => {
             let atom = ops::to_string(ctx, value)?;

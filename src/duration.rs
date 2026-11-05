@@ -97,7 +97,7 @@ pub(crate) fn parse(ctx: &mut CallContext, args: &[Value]) -> Result<Value> {
 pub(crate) fn text(ctx: &mut CallContext, seconds: i64) -> Result<Value> {
     let mut out = bytes::Number::new();
     out.format(format_args!("{seconds}s"))?;
-    ctx.bytes(out.bytes())
+    ctx.bytes(out.bytes()?)
 }
 
 fn components(seconds: i64) -> [i64; 4] {
@@ -135,7 +135,7 @@ fn iso8601(ctx: &mut CallContext, seconds: i64) -> Result<Value> {
             }
         }
     }
-    ctx.bytes(out.bytes())
+    ctx.bytes(out.bytes()?)
 }
 
 fn parts(ctx: &mut CallContext, seconds: i64) -> Result<Value> {

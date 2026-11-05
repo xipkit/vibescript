@@ -390,18 +390,18 @@ pub(super) fn render(
                 number.format(format_args!("{:09}", view.stamp.nanos()))?;
                 let mut end = digits.min(9);
                 if trim {
-                    while end > 0 && number.bytes()[end - 1] == b'0' {
+                    while end > 0 && number.bytes()?[end - 1] == b'0' {
                         end -= 1;
                     }
                 }
                 if !trim || end > 0 {
                     out.append(ctx, &[separator])?;
-                    out.append(ctx, &number.bytes()[..end])?;
+                    out.append(ctx, &number.bytes()?[..end])?;
                 }
                 continue;
             }
         }
-        out.append(ctx, number.bytes())?;
+        out.append(ctx, number.bytes()?)?;
     }
     Ok(())
 }
@@ -477,7 +477,7 @@ pub(crate) fn text(
     } else {
         numeric_offset(&mut out, offset.seconds, true)?;
     }
-    ctx.bytes(out.bytes())
+    ctx.bytes(out.bytes()?)
 }
 
 pub(super) fn mail_date(ctx: &mut CallContext, receiver: &Value, http: bool) -> Result<Value> {
@@ -508,7 +508,7 @@ pub(super) fn mail_date(ctx: &mut CallContext, receiver: &Value, http: bool) -> 
     } else {
         numeric_offset(&mut out, offset.seconds, false)?;
     }
-    ctx.bytes(out.bytes())
+    ctx.bytes(out.bytes()?)
 }
 
 #[cfg(test)]

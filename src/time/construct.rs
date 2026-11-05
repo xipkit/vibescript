@@ -244,7 +244,7 @@ fn required_year(year: &Value) -> Result<i64> {
             ops::format_float(&mut text, n)?;
             Err(argument(format!(
                 "Time constructor year {} is out of range",
-                String::from_utf8_lossy(text.bytes())
+                String::from_utf8_lossy(text.bytes()?)
             )))
         }
         _ => Err(argument(format!(

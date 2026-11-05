@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, MAX_VALUE_DEPTH},
@@ -67,10 +68,9 @@ impl Compare {
         let mut parents: Buffer<Frame<'a>> = Buffer::empty();
         loop {
             let i = current.index;
-            if i < current.a.len().min(current.b.len()) {
+            if let Some((a, b)) = current.a.get(i).zip(current.b.get(i)) {
                 current.index += 1;
-                let (a, b): (&'a [Value], &'a [Value]) = (current.a, current.b);
-                match self.step(ctx, &a[i], &b[i], depth + parents.data.len() + 1)? {
+                match self.step(ctx, a, b, depth + parents.data.len() + 1)? {
                     Step::Done(cmp) => {
                         if cmp != Some(Ordering::Equal) {
                             current.finish(cmp);
@@ -357,7 +357,7 @@ impl Driver {
         }
         if self.method.by() && self.position < array.len() {
             ctx.charge(1)?;
-            let value = array[self.position].clone();
+            let value = array.at(self.position)?.clone();
             self.position += 1;
             self.waiting = true;
             return Ok(Progress::Yield([value, Value::nil(), Value::nil()], 1));
@@ -370,8 +370,8 @@ impl Driver {
                             self.waiting = true;
                             return Ok(Progress::Yield(
                                 [
-                                    self.values.data[a].clone(),
-                                    self.values.data[b].clone(),
+                                    self.values.at(a)?.clone(),
+                                    self.values.at(b)?.clone(),
                                     Value::nil(),
                                 ],
                                 2,
@@ -384,8 +384,8 @@ impl Driver {
                         };
                         comparison = Some(self.compare.required(
                             ctx,
-                            &keys[a],
-                            &keys[b],
+                            keys.at(a)?,
+                            keys.at(b)?,
                             self.method.incomparable(),
                         )?);
                     }
@@ -407,7 +407,7 @@ impl Driver {
                 let incomparable = self.method.incomparable();
                 let order = self
                     .compare
-                    .required(ctx, item, &array[self.best], incomparable)?;
+                    .required(ctx, item, array.at(self.best)?, incomparable)?;
                 if order
                     == if self.method == Method::Max {
                         Ordering::Greater
@@ -420,7 +420,7 @@ impl Driver {
                 if self.method == Method::Minmax
                     && self
                         .compare
-                        .required(ctx, item, &array[self.maximum], incomparable)?
+                        .required(ctx, item, array.at(self.maximum)?, incomparable)?
                         == Ordering::Greater
                 {
                     self.maximum = index;

@@ -153,7 +153,7 @@ fn fixed_float(value: &Value, field: Field) -> Access<usize> {
         _ => {
             let mut number = crate::bytes::Number::new();
             number.format(format_args!("{:e}", n.abs()))?;
-            let bytes = number.bytes();
+            let bytes = number.bytes()?;
             let exponent = bytes
                 .iter()
                 .rposition(|b| *b == b'e')

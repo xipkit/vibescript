@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value, budget::Buffer, hash::Hash, value::Kind,
 };
@@ -89,10 +90,10 @@ pub(crate) fn builtin_name(name: &str) -> Option<BuiltinName> {
         if !c.is_ascii() {
             return None;
         }
-        folded[length] = c as u8;
+        *folded.get_mut(length)? = c as u8;
         length += 1;
     }
-    Some(match &folded[..length] {
+    Some(match folded.get(..length)? {
         b"any" => BuiltinName::Scalar(Scalar::Any),
         b"int" => BuiltinName::Scalar(Scalar::Int),
         b"float" => BuiltinName::Scalar(Scalar::Float),
@@ -388,7 +389,7 @@ fn visit(
                 };
                 if changed && output.is_none() {
                     let mut buffer = Buffer::with_capacity(ctx, items.len())?;
-                    buffer.extend(ctx, &items[..index])?;
+                    buffer.extend(ctx, items.span(0, index)?)?;
                     output = Some(buffer);
                 }
                 if let Some(output) = &mut output {
@@ -476,7 +477,7 @@ fn visit(
                 };
                 if changed && output.is_none() {
                     let mut buffer = Buffer::with_capacity(ctx, items.len())?;
-                    buffer.extend(ctx, &items[..index])?;
+                    buffer.extend(ctx, items.span(0, index)?)?;
                     output = Some(buffer);
                 }
                 if let Some(output) = &mut output {
@@ -582,10 +583,10 @@ fn shape_field<'a>(
     while lower < upper {
         ctx.charge(1)?;
         let middle = lower + (upper - lower) / 2;
-        match crate::enums::compare_names(ctx, &fields[middle].name, key)? {
+        match crate::enums::compare_names(ctx, &fields.at(middle)?.name, key)? {
             std::cmp::Ordering::Less => lower = middle + 1,
             std::cmp::Ordering::Greater => upper = middle,
-            std::cmp::Ordering::Equal => return Ok(Some(&fields[middle])),
+            std::cmp::Ordering::Equal => return Ok(Some(fields.at(middle)?)),
         }
     }
     Ok(None)
@@ -602,7 +603,7 @@ fn append_hash(
 ) -> Result<()> {
     if changed && output.is_none() {
         let mut buffer = Buffer::with_capacity(ctx, source.buffer.data.len())?;
-        buffer.extend(ctx, &source.buffer.data[..index])?;
+        buffer.extend(ctx, source.buffer.span(0, index)?)?;
         *output = Some(buffer);
     }
     if let Some(output) = output {
