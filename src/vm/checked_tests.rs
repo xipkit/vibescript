@@ -131,11 +131,19 @@ struct Observed {
 
 impl Observed {
     fn check(&self, result: Result<()>, reaction: Reaction) {
+        self.check_terminal(result, reaction);
+        self.check_callback(reaction);
+    }
+
+    fn check_terminal(&self, result: Result<()>, reaction: Reaction) {
         let error = result.expect_err("the corrupted block target must fail the call");
         assert!(is_internal(&error), "{reaction:?}: {error}");
+        assert_eq!(self.handlers.load(Ordering::Relaxed), 0, "{reaction:?}");
+    }
+
+    fn check_callback(&self, reaction: Reaction) {
         assert!(self.block.load(Ordering::Relaxed), "{reaction:?}");
         assert!(self.later.load(Ordering::Relaxed), "{reaction:?}");
-        assert_eq!(self.handlers.load(Ordering::Relaxed), 0, "{reaction:?}");
     }
 }
 
@@ -462,10 +470,13 @@ mod asynchronous {
             let observed = Arc::new(Observed::default());
             let mut engine = marking(&observed);
             let seen = observed.clone();
+            let finished = Arc::new(AtomicBool::new(false));
+            let returned = finished.clone();
             engine.register_method(
                 "visit",
                 HostMethod::new_async("visit", move |call, _, _| {
                     let seen = seen.clone();
+                    let returned = returned.clone();
                     Box::pin(async move {
                         let block = call.call_block(vec![]).await;
                         seen.block
@@ -473,6 +484,7 @@ mod asynchronous {
                         let later = call.context().and_then(|ctx| ctx.checkpoint());
                         seen.later
                             .store(later.is_err_and(|e| is_internal(&e)), Ordering::Relaxed);
+                        returned.store(true, Ordering::Relaxed);
                         reaction.result()
                     })
                 }),
@@ -486,7 +498,58 @@ mod asynchronous {
             let result = runner
                 .call(script, "run".into(), vec![], CallOptions::default())
                 .await;
-            observed.check(result.map(drop), reaction);
+            // The watchdog can retire the callback at its await as soon as
+            // the block latches Internal. Both outcomes must be terminal;
+            // only a callback that finished can have consumed the error.
+            observed.check_terminal(result.map(drop), reaction);
+            if finished.load(Ordering::Relaxed) {
+                observed.check_callback(reaction);
+            }
         }
+    }
+
+    #[tokio::test]
+    async fn a_callback_retired_after_an_internal_block_error_stays_terminal() {
+        struct MarkDropped(Arc<AtomicBool>);
+        impl Drop for MarkDropped {
+            fn drop(&mut self) {
+                self.0.store(true, Ordering::Relaxed);
+            }
+        }
+
+        let observed = Arc::new(Observed::default());
+        let dropped = Arc::new(AtomicBool::new(false));
+        let completed = Arc::new(AtomicBool::new(false));
+        let mut engine = marking(&observed);
+        let on_drop = dropped.clone();
+        let on_complete = completed.clone();
+        engine.register_method(
+            "visit",
+            HostMethod::new_async("visit", move |call, _, _| {
+                let on_drop = on_drop.clone();
+                let on_complete = on_complete.clone();
+                Box::pin(async move {
+                    let _dropped = MarkDropped(on_drop);
+                    let _result = call.call_block(vec![]).await;
+                    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+                    on_complete.store(true, Ordering::Relaxed);
+                    Ok(Value::int(99))
+                })
+            }),
+        );
+        let script = corrupt(
+            engine.compile(GUARDED_BLOCK).unwrap(),
+            "run",
+            block_out_of_range,
+        );
+        let runner = Runner::new(1).unwrap();
+        let error = runner
+            .call(script, "run".into(), vec![], CallOptions::default())
+            .await
+            .unwrap_err();
+        assert!(is_internal(&error), "{error}");
+        assert!(dropped.load(Ordering::Relaxed));
+        assert!(!completed.load(Ordering::Relaxed));
+        assert_eq!(observed.handlers.load(Ordering::Relaxed), 0);
     }
 }
