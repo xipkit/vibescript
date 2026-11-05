@@ -98,7 +98,7 @@ pub(super) fn string(ctx: &mut CallContext, receiver: &Value) -> Result<Option<C
         .owner
         .as_ref()
         .ok_or_else(|| Error::new(ErrorKind::Type, "namespace has no executable source"))?;
-    for param in &owner.program.functions[call.function].params {
+    for param in &owner.program.functions.at(call.function)?.params {
         ctx.charge(1)?;
         if matches!(
             param.kind,

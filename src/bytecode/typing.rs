@@ -58,7 +58,7 @@ impl Typing {
             .blocks
             .binary_search_by_key(&offset, |(offset, _)| *offset)
             .ok()?;
-        Some(&self.blocks[index].1)
+        Some(&self.blocks.get(index)?.1)
     }
 
     /// Takes the instance variables the class at `offset` declares and the

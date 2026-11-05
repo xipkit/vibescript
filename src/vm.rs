@@ -5,6 +5,7 @@ use crate::{
     budget::Buffer,
     builtin::Global,
     bytecode::{ArgumentOp, Invocation, NO_SLOT, Op, Operator, Receiving, Selection, narrow},
+    checked::{Access, Checked, violation},
     hash::Hash,
     iteration::{self, Iteration, Progress},
     members,
@@ -21,6 +22,8 @@ pub(crate) mod asynchronous;
 mod asynchronous_tests;
 mod call_targets;
 mod capabilities;
+#[cfg(test)]
+mod checked_tests;
 mod dispatch;
 mod execution;
 mod file_bindings;
@@ -181,9 +184,9 @@ impl LoopState {
         }
         ctx.charge(1)?;
         let value = match &self.source.0 {
-            Kind::Array(h) => h.buffer.data[to_usize(self.position)].clone(),
+            Kind::Array(h) => h.buffer.at(to_usize(self.position))?.clone(),
             Kind::Hash(h) => {
-                let (key, value) = &h.buffer.data[to_usize(self.position)];
+                let (key, value) = h.buffer.at(to_usize(self.position))?;
                 ctx.array(&[key.clone(), value.clone()])?
             }
             Kind::Range(r) => {
@@ -365,7 +368,19 @@ impl Run {
         }
     }
 
+    /// Runs until the host must act or the boundary completes. An internal
+    /// error latches the invocation on every way out, whichever step raised it.
     fn resume(
+        &mut self,
+        ctx: &mut CallContext,
+        boundary: Option<usize>,
+        pending: Option<Result<Event>>,
+    ) -> Result<Step> {
+        let step = self.drive(ctx, boundary, pending);
+        ctx.latch_internal(step)
+    }
+
+    fn drive(
         &mut self,
         ctx: &mut CallContext,
         boundary: Option<usize>,
@@ -403,7 +418,7 @@ impl Run {
                             handlers::intercept(ctx, frames, storage, stack, control, floor)?
                         {
                             if control.exits(storage, floor) {
-                                unwind(frames, storage, stack, floor);
+                                unwind(frames, storage, stack, floor)?;
                                 return Ok(Some(Exit::Control(control)));
                             }
                             handlers::apply_control(
@@ -425,6 +440,11 @@ impl Run {
                 Ok(Some(exit)) => return Ok(Step::Complete(exit)),
                 Ok(None) => (),
                 Err(error) => {
+                    // A VM invariant failed: the host sees it as it is, past
+                    // any rescue or ensure.
+                    if error.kind == ErrorKind::Internal {
+                        ctx.latch(&error);
+                    }
                     if ctx.exhausted() || storage.handlers.data.is_empty() {
                         return Err(error);
                     }
@@ -464,9 +484,9 @@ impl Run {
                     while *initializer < program.namespaces.len() {
                         let module = *initializer;
                         *initializer += 1;
-                        if let Some(body) = program.namespaces[module].body {
+                        if let Some(body) = program.namespaces.at(module)?.body {
                             let state = namespaces::state(program, ctx, storage, module)?;
-                            if !storage.namespaces.data[state].initialized {
+                            if !storage.namespaces.at(state)?.initialized {
                                 enter_arguments(
                                     program,
                                     ctx,
@@ -487,22 +507,31 @@ impl Run {
                     }
                 }
                 let current = frames.data.len() - 1;
-                if !Arc::ptr_eq(active, &frames.data[current].program) {
-                    *active = frames.data[current].program.clone();
+                let executing = frames.at(current)?;
+                if !Arc::ptr_eq(active, &executing.program) {
+                    *active = executing.program.clone();
                     if storage.releasing {
                         programs::release(ctx, storage)?;
                     }
                 }
-                if frames.data[current].host {
+                if executing.host {
                     return Ok(Event::Host);
                 }
-                if frames.data[current].function().is_none() {
+                if executing.function().is_none() {
                     ctx.charge(1)?;
-                    let pooled = frames.data[current].pooled_iteration();
+                    // The frame's fields, copied before the stack changes under it.
+                    let pooled = executing.pooled_iteration();
+                    let iteration_base = executing.iteration_base();
+                    let block = executing.block;
+                    let (plain_yields, mutating, plain_result) = (
+                        executing.plain_yields,
+                        executing.mutating,
+                        executing.plain_result,
+                    );
                     let waiting = if pooled {
                         storage.iteration_pool.last().unwrap().waiting
                     } else {
-                        storage.iterations.data[frames.data[current].iteration_base()].waiting()
+                        storage.iterations.at(iteration_base)?.waiting()
                     };
                     let returned = if waiting {
                         Some(stack.data.pop().unwrap())
@@ -516,17 +545,19 @@ impl Run {
                             .unwrap()
                             .advance(ctx, returned)?
                     } else {
-                        storage.iterations.data[frames.data[current].iteration_base()]
+                        storage
+                            .iterations
+                            .at_mut(iteration_base)?
                             .advance(ctx, returned)?
                     };
                     match progress {
                         Progress::Yield(args, count) => {
-                            if !frames.data[current].plain_yields {
-                                for value in &args[..count] {
+                            if !plain_yields {
+                                for value in args.span(0, count)? {
                                     crate::exports::check(ctx, value)?;
                                 }
                             }
-                            let block = frames.data[current].block.unwrap();
+                            let block = block.unwrap();
                             for value in args.into_iter().take(count) {
                                 stack.push(ctx, value)?;
                             }
@@ -536,10 +567,9 @@ impl Run {
                             let mutation = if pooled {
                                 None
                             } else {
-                                storage.iterations.data[frames.data[current].iteration_base()]
-                                    .take_mutation()
+                                storage.iterations.at_mut(iteration_base)?.take_mutation()
                             };
-                            if frames.data[current].mutating {
+                            if mutating {
                                 let address = storage.addresses.data.pop().unwrap();
                                 if let Some(mutation) = mutation {
                                     let guard_program = programs::address(ctx, storage, &address)?;
@@ -564,9 +594,8 @@ impl Run {
                                     )?;
                                 }
                             }
-                            let plain = frames.data[current].plain_result;
-                            unwind(frames, storage, stack, current);
-                            if !plain {
+                            unwind(frames, storage, stack, current)?;
+                            if !plain_result {
                                 crate::exports::check(ctx, &value)?;
                             }
                             stack.push(ctx, value)?;
@@ -580,11 +609,11 @@ impl Run {
             let program = &**active;
             let hosts = &program.code.hosts;
             let (outer, rest) = frames.data.split_at_mut(current);
-            let frame = &mut rest[0];
-            let function = &program.functions[frame.function().unwrap()];
+            let frame = rest.at_mut(0)?;
+            let function = program.functions.at(frame.function().unwrap())?;
             simple::run(ctx, program, function, outer, frame, storage, stack)?;
-            let op = function.code[frame.ip];
-            let frame = &mut frames.data[current];
+            let op = *function.code.at(frame.ip)?;
+            let frame = frames.at_mut(current)?;
             frame.ip += 1;
             // Returns, and calls without host bindings, need nothing from the
             // prologue below.
@@ -600,7 +629,7 @@ impl Run {
                         frames,
                         storage,
                         callee as usize,
-                        &stack.data[base..],
+                        stack.tail(base)?,
                         base,
                     )?;
                     stack.data.truncate(base);
@@ -657,7 +686,7 @@ impl Run {
                         && !storage.releasing
                         && !(program.index != 0 && program.file && program.environment.is_some())
                     {
-                        unwind(frames, storage, stack, current);
+                        unwind(frames, storage, stack, current)?;
                         stack.push(ctx, value)?;
                         continue;
                     }
@@ -674,12 +703,12 @@ impl Run {
             let caller_instance = matches!(frame.receiver, Some(Value(Kind::Instance(_))));
             ctx.charge(1)?;
             let op = match op {
-                Op::Extended(index) => program.extended[index as usize].op(),
+                Op::Extended(index) => program.extended.at(index as usize)?.op(),
                 op => op,
             };
             let mut slot = |slot: usize, skip: bool| -> Result<usize> {
                 // A bound local of the executing frame always resolves to itself.
-                if !skip && storage.locals.data[local_base + slot].is_some() {
+                if !skip && storage.locals.at(local_base + slot)?.is_some() {
                     return Ok(local_base + slot);
                 }
                 resolve_slot(ctx, frames, storage, current, slot, skip)
@@ -731,7 +760,7 @@ impl Run {
                     let target = storage.arguments.data.pop().unwrap().target;
                     if let Some(target) = target {
                         let base = stack.data.len() - count as usize;
-                        let mut args = Arguments::from_values(ctx, &stack.data[base..])?;
+                        let mut args = Arguments::from_values(ctx, stack.tail(base)?)?;
                         args.target = Some(target);
                         if let Op::CallBlock(_, _, function) = op {
                             args.block = Some(Block::new(function as usize, current));
@@ -747,17 +776,17 @@ impl Run {
                     file_bindings::local(
                         program, ctx, frames, storage, current, relative, absolute,
                     )?
-                    .then_some(function.local_names[relative].as_str()),
+                    .then_some(function.local_names.at(relative)?.as_str()),
                     None,
                 ),
                 Some((relative, absolute)) => (
                     None,
                     requires::local(ctx, frames, storage, current, relative, absolute)?
-                        .then_some(function.local_names[relative].as_str()),
+                        .then_some(function.local_names.at(relative)?.as_str()),
                 ),
                 None => (None, None),
             };
-            let frame = &mut frames.data[current];
+            let frame = frames.at_mut(current)?;
             match op {
                 Op::TryBegin(spec) => handlers::begin(ctx, frames, storage, stack, spec as usize)?,
                 Op::TryBody | Op::TryEnd => {
@@ -772,15 +801,17 @@ impl Run {
                     return Ok(Event::Control(handlers::retry(storage)?));
                 }
                 Op::RaiseStart(named, target) => {
-                    let named = named.map(|index| program.raises[index as usize]);
+                    let named = named
+                        .map(|index| program.raises.at(index as usize).copied())
+                        .transpose()?;
                     let class = if let Some((name, slot)) = named {
                         let local = if let Some(slot) = slot {
                             let slot = resolve_slot(ctx, frames, storage, current, slot, false)?;
-                            storage.locals.data[slot].is_some()
+                            storage.locals.at(slot)?.is_some()
                         } else {
                             false
                         };
-                        let name = &program.members[name];
+                        let name = program.members.at(name)?;
                         let bound = local
                             || runtime_bound(program, ctx, frames, storage, current, name)?
                             || handlers::class_constant_bound(ctx, frames, storage, current, name)?;
@@ -792,7 +823,7 @@ impl Run {
                     } else {
                         None
                     };
-                    let frame = &mut frames.data[current];
+                    let frame = frames.at_mut(current)?;
                     let mut args = Arguments::empty();
                     args.target = Some(crate::arguments::Target::Raise(class, Value::nil()));
                     storage.arguments.push(ctx, args)?;
@@ -828,7 +859,7 @@ impl Run {
                 Op::UnboundClass(name) => {
                     return Err(Error::new(
                         ErrorKind::Name,
-                        format!("class {} is not bound", program.members[name as usize]),
+                        format!("class {} is not bound", program.members.at(name as usize)?),
                     ));
                 }
                 Op::Unsupported => {
@@ -843,7 +874,7 @@ impl Run {
                     };
                     let instance = instance.clone();
                     let slot = frame.local_base() + local as usize;
-                    let value = storage.locals.data[slot].as_ref().unwrap().clone();
+                    let value = storage.locals.at(slot)?.as_ref().unwrap().clone();
                     let value = if function.proven_ivars.contains(frame.ip - 1) {
                         value
                     } else {
@@ -852,7 +883,7 @@ impl Run {
                             frames,
                             storage,
                             &instance,
-                            &program.members[name as usize],
+                            program.members.at(name as usize)?,
                             value,
                         )?
                     };
@@ -860,10 +891,10 @@ impl Run {
                         ctx,
                         storage,
                         &instance,
-                        &program.members[name as usize],
+                        program.members.at(name as usize)?,
                         &value,
                     )?;
-                    storage.locals.data[slot] = Some(value);
+                    *storage.locals.at_mut(slot)? = Some(value);
                 }
                 Op::InstanceField(slot) => {
                     let Some(Value(Kind::Instance(instance))) = &frame.receiver else {
@@ -889,16 +920,15 @@ impl Run {
                     } else {
                         None
                     };
-                    let value = local
-                        .map_or_else(
-                            || stack.data.last().unwrap(),
-                            |local| storage.locals.data[local].as_ref().unwrap(),
-                        )
-                        .clone();
+                    let value = match local {
+                        Some(local) => storage.locals.at(local)?.as_ref().unwrap(),
+                        None => stack.data.last().unwrap(),
+                    }
+                    .clone();
                     let value = if function.proven_ivars.contains(frame.ip - 1) {
                         value
                     } else {
-                        let name = &instance.class().field_layout().unwrap()[slot as usize];
+                        let name = instance.class().field_layout().unwrap().at(slot as usize)?;
                         normalize_ivar(ctx, frames, storage, &instance, name, value)?
                     };
                     address::refresh(
@@ -910,15 +940,15 @@ impl Run {
                     )?;
                     crate::objects::set_slot(ctx, &instance, slot as usize, value.clone())?;
                     if let Some(local) = local {
-                        storage.locals.data[local] = Some(value);
+                        *storage.locals.at_mut(local)? = Some(value);
                     } else {
                         *stack.data.last_mut().unwrap() = value;
                     }
                 }
                 Op::InitNamespace(module) => {
                     let state = namespaces::state(program, ctx, storage, module as usize)?;
-                    if !storage.namespaces.data[state].initialized {
-                        let body = program.namespaces[module as usize].body.unwrap();
+                    if !storage.namespaces.at(state)?.initialized {
+                        let body = program.namespaces.at(module as usize)?.body.unwrap();
                         enter_arguments(
                             program,
                             ctx,
@@ -932,7 +962,7 @@ impl Run {
                     }
                 }
                 Op::AmbientValue(name, next) | Op::AmbientAddress(name, next) => {
-                    let name = &program.members[name as usize];
+                    let name = program.members.at(name as usize)?;
                     let address = matches!(op, Op::AmbientAddress(..));
                     if !address
                         || !name
@@ -943,7 +973,7 @@ impl Run {
                         if let Some(slot) =
                             namespaces::ambient_slot(ctx, frames, storage, current, name)?
                         {
-                            let value = storage.locals.data[slot].as_ref().unwrap().clone();
+                            let value = storage.locals.at(slot)?.as_ref().unwrap().clone();
                             if address {
                                 storage
                                     .addresses
@@ -951,12 +981,12 @@ impl Run {
                             } else {
                                 stack.push(ctx, value)?;
                             }
-                            frames.data[current].ip = next as usize;
+                            frames.at_mut(current)?.ip = next as usize;
                         }
                     }
                 }
                 Op::ImplicitAddress(name, next) => {
-                    let name = &program.members[name as usize];
+                    let name = program.members.at(name as usize)?;
                     if file_bindings::root_binding(program, ctx, storage, name)?.is_none()
                         && global_index(program, name).is_none()
                     {
@@ -970,12 +1000,12 @@ impl Run {
                             name,
                         )? {
                             storage.addresses.push(ctx, address)?;
-                            frames.data[current].ip = next as usize;
+                            frames.at_mut(current)?.ip = next as usize;
                         }
                     }
                 }
                 Op::FileValue(name, next, receiving) => {
-                    let name = &program.members[name as usize];
+                    let name = program.members.at(name as usize)?;
                     if let Some(mut value) = file_bindings::get(program, ctx, name)? {
                         if let Kind::Offset(offset) = &value.0 {
                             return Err(offset.value_error());
@@ -994,7 +1024,7 @@ impl Run {
                         if let Some(binding) =
                             file_bindings::root_binding(program, ctx, storage, name)?
                         {
-                            frames.data[current].ip = next as usize;
+                            frames.at_mut(current)?.ip = next as usize;
                             file_bindings::receive_root(
                                 program, ctx, frames, storage, stack, binding, receiving,
                             )?;
@@ -1002,7 +1032,7 @@ impl Run {
                     }
                 }
                 Op::FileAddress(name, next) => {
-                    let name = &program.members[name as usize];
+                    let name = program.members.at(name as usize)?;
                     if file_bindings::unshadowed(program, ctx, frames, storage, current, name)? {
                         let address = if file_bindings::get(program, ctx, name)?.is_some() {
                             Some(file_bindings::address(program, ctx, name)?)
@@ -1011,7 +1041,7 @@ impl Run {
                         };
                         if let Some(address) = address {
                             storage.addresses.push(ctx, address)?;
-                            frames.data[current].ip = next as usize;
+                            frames.at_mut(current)?.ip = next as usize;
                         }
                     }
                 }
@@ -1022,10 +1052,10 @@ impl Run {
                         frames,
                         storage,
                         current,
-                        &program.members[name as usize],
+                        program.members.at(name as usize)?,
                     )? {
                         storage.addresses.push(ctx, address)?;
-                        frames.data[current].ip = next as usize;
+                        frames.at_mut(current)?.ip = next as usize;
                     }
                 }
                 Op::PrepareMember(site, mutating) => {
@@ -1041,7 +1071,7 @@ impl Run {
                         let field = members::prepare(
                             ctx,
                             site,
-                            &program.members[site.name as usize],
+                            program.members.at(site.name as usize)?,
                             receiver,
                         )?;
                         match field {
@@ -1078,24 +1108,24 @@ impl Run {
                         ctx,
                         storage,
                         namespace.unwrap(),
-                        &program.members[name as usize],
+                        program.members.at(name as usize)?,
                     )? {
                         stack.push(ctx, value)?;
-                        frames.data[current].ip = next as usize;
+                        frames.at_mut(current)?.ip = next as usize;
                     }
                 }
                 Op::NamespaceConstantAddress(name, next) => {
                     let module = namespace.unwrap();
-                    let name = &program.members[name as usize];
+                    let name = program.members.at(name as usize)?;
                     if namespaces::field(program, ctx, storage, module, name)?.is_some() {
                         let address =
                             namespaces::address(program, ctx, storage, module, name, false)?;
                         storage.addresses.push(ctx, address)?;
-                        frames.data[current].ip = next as usize;
+                        frames.at_mut(current)?.ip = next as usize;
                     }
                 }
                 Op::NamespaceVariable(name, optional) => {
-                    let raw = &program.members[name as usize];
+                    let raw = program.members.at(name as usize)?;
                     if raw.starts_with('@') && !raw.starts_with("@@") {
                         let Some(Value(Kind::Instance(instance))) = &frame.receiver else {
                             return Err(Error::new(
@@ -1110,7 +1140,7 @@ impl Run {
                     }
                     let (module, name) = namespaces::variable_name(
                         namespace,
-                        &program.members[name as usize],
+                        program.members.at(name as usize)?,
                         false,
                     )?;
                     let value = namespaces::field(program, ctx, storage, module, name)?;
@@ -1127,7 +1157,7 @@ impl Run {
                     stack.push(ctx, value)?;
                 }
                 Op::NamespaceAddress(name, optional) => {
-                    let raw = &program.members[name as usize];
+                    let raw = program.members.at(name as usize)?;
                     if raw.starts_with('@') && !raw.starts_with("@@") {
                         let Some(Value(Kind::Instance(instance))) = &frame.receiver else {
                             return Err(Error::new(
@@ -1142,7 +1172,7 @@ impl Run {
                     }
                     let (module, name) = namespaces::variable_name(
                         namespace,
-                        &program.members[name as usize],
+                        program.members.at(name as usize)?,
                         false,
                     )?;
                     if raw.starts_with("@@")
@@ -1161,7 +1191,7 @@ impl Run {
                         {
                             Address::new(
                                 Some(slot),
-                                storage.locals.data[slot].as_ref().unwrap().clone(),
+                                storage.locals.at(slot)?.as_ref().unwrap().clone(),
                             )
                         } else if let Some(&index) = program.declaration_names.get(name) {
                             Address::new(None, declaration_value(program, ctx, storage, index)?)
@@ -1176,7 +1206,7 @@ impl Run {
                     storage.addresses.push(ctx, address)?;
                 }
                 Op::NamespaceStore(name) => {
-                    let raw = &program.members[name as usize];
+                    let raw = program.members.at(name as usize)?;
                     if raw.starts_with('@') && !raw.starts_with("@@") {
                         let self_value = frame.receiver.clone();
                         let Some(Value(Kind::Instance(instance))) = &self_value else {
@@ -1197,7 +1227,7 @@ impl Run {
                     }
                     let (module, name) = namespaces::variable_name(
                         namespace,
-                        &program.members[name as usize],
+                        program.members.at(name as usize)?,
                         true,
                     )?;
                     namespaces::set(
@@ -1214,13 +1244,13 @@ impl Run {
                         && requires::contains(
                             ctx,
                             storage,
-                            file_bindings::declaration_name(program, index as usize),
+                            file_bindings::declaration_name(program, index as usize)?,
                         )?
                     {
                         requires::set(
                             ctx,
                             storage,
-                            file_bindings::declaration_name(program, index as usize),
+                            file_bindings::declaration_name(program, index as usize)?,
                             stack.data.last().unwrap(),
                         )?;
                         continue;
@@ -1230,7 +1260,7 @@ impl Run {
                             program,
                             ctx,
                             storage,
-                            file_bindings::declaration_name(program, index as usize),
+                            file_bindings::declaration_name(program, index as usize)?,
                             stack.data.last().unwrap(),
                         )?;
                         continue;
@@ -1255,16 +1285,16 @@ impl Run {
                     }
                 }
                 Op::Integer(n, radix) => {
-                    let text = program.constants[n as usize].as_bytes().unwrap();
+                    let text = program.constants.at(n as usize)?.as_bytes().unwrap();
                     let value = crate::integer::parse(ctx, text, radix)?;
                     stack.push(ctx, value)?;
                 }
                 Op::Regex(n) => {
-                    let v = program.regexes[n as usize].value(ctx)?;
+                    let v = program.regexes.at(n as usize)?.value(ctx)?;
                     stack.push(ctx, v)?;
                 }
                 Op::Constant(n) => {
-                    let v = ctx.import(&program.constants[n as usize])?;
+                    let v = ctx.import(program.constants.at(n as usize)?)?;
                     stack.push(ctx, v)?;
                 }
                 Op::Shared(slot) => {
@@ -1273,7 +1303,7 @@ impl Run {
                 }
                 Op::TypeShadowed(guard, next) => {
                     let self_value = frame.receiver.clone();
-                    for name in &program.type_guards[guard as usize] {
+                    for name in program.type_guards.at(guard as usize)? {
                         // A method reachable through implicit self also turns
                         // the braced group back into a hash, as a bare call.
                         if runtime_bound(program, ctx, frames, storage, current, name)?
@@ -1289,7 +1319,7 @@ impl Run {
                                 namespaces::Member::Function(_)
                             )
                         {
-                            frames.data[current].ip = next as usize;
+                            frames.at_mut(current)?.ip = next as usize;
                             break;
                         }
                     }
@@ -1330,7 +1360,7 @@ impl Run {
                     } else if let Some(name) = root_local {
                         requires::get(ctx, storage, name)?.unwrap()
                     } else {
-                        storage.locals.data[n as usize].clone().unwrap_or_default()
+                        storage.locals.at(n as usize)?.clone().unwrap_or_default()
                     };
                     if let Kind::Offset(offset) = &v.0 {
                         return Err(offset.value_error());
@@ -1348,9 +1378,10 @@ impl Run {
                     } else {
                         None
                     };
+                    let member = program.members.at(name as usize)?;
                     if let Some(value) = scoped
                         .as_ref()
-                        .or(storage.locals.data[slot as usize].as_ref())
+                        .or(storage.locals.at(slot as usize)?.as_ref())
                     {
                         if let Kind::Offset(offset) = &value.0 {
                             return Err(offset.value_error());
@@ -1362,31 +1393,18 @@ impl Run {
                             _ => value.clone(),
                         };
                         stack.push(ctx, value)?;
-                    } else if let Some(value) = namespaces::constant(
-                        program,
-                        ctx,
-                        storage,
-                        namespace,
-                        &program.members[name as usize],
-                    )? {
-                        stack.push(ctx, value)?;
-                    } else if let Some(slot) = namespaces::ambient_slot(
-                        ctx,
-                        frames,
-                        storage,
-                        current,
-                        &program.members[name as usize],
-                    )? {
-                        stack.push(ctx, storage.locals.data[slot].as_ref().unwrap().clone())?;
-                    } else if let Some(&index) = program
-                        .declaration_names
-                        .get(&program.members[name as usize])
+                    } else if let Some(value) =
+                        namespaces::constant(program, ctx, storage, namespace, member)?
                     {
+                        stack.push(ctx, value)?;
+                    } else if let Some(slot) =
+                        namespaces::ambient_slot(ctx, frames, storage, current, member)?
+                    {
+                        stack.push(ctx, storage.locals.at(slot)?.as_ref().unwrap().clone())?;
+                    } else if let Some(&index) = program.declaration_names.get(member) {
                         let value = declaration_value(program, ctx, storage, index)?;
                         stack.push(ctx, value)?;
-                    } else if let Some(&function) =
-                        program.names.get(&program.members[name as usize])
-                    {
+                    } else if let Some(&function) = program.names.get(member) {
                         receive_function(
                             program,
                             ctx,
@@ -1396,28 +1414,30 @@ impl Run {
                             function,
                             receiving,
                         )?;
-                    } else if let Some(host) = program
-                        .hosts
-                        .iter()
-                        .position(|h| h == &program.members[name as usize])
-                    {
+                    } else if let Some(host) = program.hosts.iter().position(|h| h == member) {
                         if !receiving.runs_static(None) {
-                            return Err(receive_host(program, &program.hosts[host], receiving));
+                            return Err(receive_host(program, program.hosts.at(host)?, receiving));
                         }
-                        let value =
-                            capabilities::registered(ctx, storage, &hosts[host], &[], &[], None)?;
+                        let value = capabilities::registered(
+                            ctx,
+                            storage,
+                            hosts.at(host)?,
+                            &[],
+                            &[],
+                            None,
+                        )?;
                         value.finish(program, ctx, frames, storage, stack, ReturnTo::Stack)?;
                     } else if let Some(binding) = file_bindings::root_binding(
                         program,
                         ctx,
                         storage,
-                        &program.members[name as usize],
+                        program.members.at(name as usize)?,
                     )? {
                         file_bindings::receive_root(
                             program, ctx, frames, storage, stack, binding, receiving,
                         )?;
                     } else if let Some(global) =
-                        global_index(program, &program.members[name as usize])
+                        global_index(program, program.members.at(name as usize)?)
                     {
                         let mut value = global_value(program, ctx, storage, global)?;
                         if let Kind::Offset(offset) = &value.0 {
@@ -1453,7 +1473,7 @@ impl Run {
                     };
                     if let Some(value) = scoped
                         .as_ref()
-                        .or(storage.locals.data[slot as usize].as_ref())
+                        .or(storage.locals.at(slot as usize)?.as_ref())
                     {
                         stack.push(ctx, value.clone())?;
                         frame.ip = next as usize;
@@ -1464,7 +1484,7 @@ impl Run {
                         program,
                         ctx,
                         storage,
-                        &program.members[name as usize],
+                        program.members.at(name as usize)?,
                     )? {
                         file_bindings::receive_root(
                             program, ctx, frames, storage, stack, binding, receiving,
@@ -1492,7 +1512,7 @@ impl Run {
                         && file_bindings::get(
                             program,
                             ctx,
-                            program.globals[index as usize].0.name(),
+                            program.globals.at(index as usize)?.0.name(),
                         )?
                         .is_none()
                     {
@@ -1500,7 +1520,7 @@ impl Run {
                             program,
                             ctx,
                             storage,
-                            program.globals[index as usize].0.name(),
+                            program.globals.at(index as usize)?.0.name(),
                         )? {
                             file_bindings::read_root(ctx, frames, storage, stack, binding)?;
                             continue;
@@ -1520,7 +1540,7 @@ impl Run {
                         && file_bindings::get(
                             program,
                             ctx,
-                            program.globals[index as usize].0.name(),
+                            program.globals.at(index as usize)?.0.name(),
                         )?
                         .is_none()
                     {
@@ -1528,7 +1548,7 @@ impl Run {
                             program,
                             ctx,
                             storage,
-                            program.globals[index as usize].0.name(),
+                            program.globals.at(index as usize)?.0.name(),
                         )? {
                             file_bindings::receive_root(
                                 program, ctx, frames, storage, stack, binding, receiving,
@@ -1538,7 +1558,7 @@ impl Run {
                     }
                     let mut value = global_value(program, ctx, storage, index as usize)?;
                     if let (Kind::Builtin(current), Kind::Builtin(original)) =
-                        (&value.0, &program.globals[index as usize].1.0)
+                        (&value.0, &program.globals.at(index as usize)?.1.0)
                     {
                         if current == original && receiving.runs_static(None) {
                             value = current.read(ctx)?;
@@ -1551,13 +1571,13 @@ impl Run {
                         && requires::contains(
                             ctx,
                             storage,
-                            program.globals[index as usize].0.name(),
+                            program.globals.at(index as usize)?.0.name(),
                         )?
                     {
                         requires::set(
                             ctx,
                             storage,
-                            program.globals[index as usize].0.name(),
+                            program.globals.at(index as usize)?.0.name(),
                             stack.data.last().unwrap(),
                         )?;
                         continue;
@@ -1567,7 +1587,7 @@ impl Run {
                             program,
                             ctx,
                             storage,
-                            program.globals[index as usize].0.name(),
+                            program.globals.at(index as usize)?.0.name(),
                             stack.data.last().unwrap(),
                         )?;
                         continue;
@@ -1581,7 +1601,7 @@ impl Run {
                         &mut storage.addresses.data,
                         &[],
                     )?;
-                    storage.globals.data[index] = Some(value.clone());
+                    *storage.globals.at_mut(index)? = Some(value.clone());
                 }
                 Op::ResolveGlobalCall(index) => {
                     let value = global_value(program, ctx, storage, index as usize)?;
@@ -1594,7 +1614,7 @@ impl Run {
                         && file_bindings::get(
                             program,
                             ctx,
-                            program.globals[index as usize].0.name(),
+                            program.globals.at(index as usize)?.0.name(),
                         )?
                         .is_none()
                     {
@@ -1602,7 +1622,7 @@ impl Run {
                             program,
                             ctx,
                             storage,
-                            program.globals[index as usize].0.name(),
+                            program.globals.at(index as usize)?.0.name(),
                         )? {
                             match binding {
                                 file_bindings::RootBinding::Value(value) => {
@@ -1620,7 +1640,10 @@ impl Run {
                                     frames.data.last_mut().unwrap().return_to = ReturnTo::Address;
                                 }
                                 file_bindings::RootBinding::Host(owner, host) => {
-                                    return Err(callable_value_error(&owner.hosts[host], "method"));
+                                    return Err(callable_value_error(
+                                        owner.hosts.at(host)?,
+                                        "method",
+                                    ));
                                 }
                             }
                             continue;
@@ -1644,12 +1667,18 @@ impl Run {
                         .unwrap()
                         .value(ctx, param as usize)?
                     {
-                        let param =
-                            &program.functions[frame.function().unwrap()].params[param as usize];
+                        let param = program
+                            .functions
+                            .at(frame.function().unwrap())?
+                            .params
+                            .at(param as usize)?;
                         let slot = frame.local_base() + param.slot;
-                        let ty = param
-                            .ty
-                            .filter(|&ty| frame.checked || program.types[ty].unproven());
+                        let ty = match param.ty {
+                            Some(ty) if frame.checked || program.types.at(ty)?.unproven() => {
+                                Some(ty)
+                            }
+                            _ => None,
+                        };
                         let value = if let Some(ty) = ty {
                             normalize_type(
                                 program,
@@ -1663,8 +1692,8 @@ impl Run {
                         } else {
                             value
                         };
-                        storage.locals.data[slot] = Some(value);
-                        frames.data[current].ip = next as usize;
+                        *storage.locals.at_mut(slot)? = Some(value);
+                        frames.at_mut(current)?.ip = next as usize;
                     }
                 }
                 Op::Normalize(ty, label) => {
@@ -1678,7 +1707,7 @@ impl Run {
                         (
                             ty as usize,
                             crate::types::Context::Argument(
-                                program.constants[label as usize].as_bytes().unwrap(),
+                                program.constants.at(label as usize)?.as_bytes().unwrap(),
                             ),
                         ),
                         value,
@@ -1696,7 +1725,7 @@ impl Run {
                         (
                             ty as usize,
                             crate::types::Context::Subject(
-                                program.constants[subject as usize].as_bytes().unwrap(),
+                                program.constants.at(subject as usize)?.as_bytes().unwrap(),
                             ),
                         ),
                         value,
@@ -1711,7 +1740,10 @@ impl Run {
                     if let Some(name) = file_local {
                         file_bindings::declare(program, ctx, storage, name)?;
                     } else if root_local.is_none() {
-                        storage.locals.data[slot as usize].get_or_insert_with(Value::nil);
+                        storage
+                            .locals
+                            .at_mut(slot as usize)?
+                            .get_or_insert_with(Value::nil);
                     }
                 }
                 Op::Bypass(slot) => {
@@ -1730,10 +1762,10 @@ impl Run {
                         .truncate(storage.bypasses.data.len() - n as usize);
                 }
                 Op::Shadow(slot) => {
-                    storage.locals.data[frame.local_base() + slot as usize] = Some(Value::nil())
+                    *storage.locals.at_mut(frame.local_base() + slot as usize)? = Some(Value::nil())
                 }
                 Op::BlockArg(index, autosplat) => {
-                    let value = block_arg(frame, stack, index as usize, autosplat).cloned();
+                    let value = block_arg(frame, stack, index as usize, autosplat)?.cloned();
                     stack.push(ctx, value.unwrap_or_default())?;
                 }
                 Op::Attach(function) => {
@@ -1770,7 +1802,7 @@ impl Run {
                         requires::set(ctx, storage, name, value)?;
                     } else {
                         address::refresh(ctx, n as usize, value, &mut storage.addresses.data, &[])?;
-                        storage.locals.data[n as usize] = Some(value.clone());
+                        *storage.locals.at_mut(n as usize)? = Some(value.clone());
                     }
                 }
                 Op::Pop => {
@@ -1830,7 +1862,7 @@ impl Run {
                                     &[],
                                 )?;
                             }
-                            storage.locals.data[n as usize] = Some(value.clone());
+                            *storage.locals.at_mut(n as usize)? = Some(value.clone());
                             stack.push(ctx, value)?;
                             continue;
                         }
@@ -1855,7 +1887,7 @@ impl Run {
                         };
                         continue;
                     }
-                    storage.locals.data[n as usize] = None;
+                    *storage.locals.at_mut(n as usize)? = None;
                     let value = ops::binary(ctx, "+", a, b)?;
                     if let Some(name) = root_local {
                         requires::set(ctx, storage, name, &value)?;
@@ -1867,7 +1899,7 @@ impl Run {
                             &mut storage.addresses.data,
                             &[],
                         )?;
-                        storage.locals.data[n as usize] = Some(value.clone());
+                        *storage.locals.at_mut(n as usize)? = Some(value.clone());
                     }
                     stack.push(ctx, value)?;
                 }
@@ -1972,8 +2004,8 @@ impl Run {
                         n
                     };
                     let base = stack.data.len() - n as usize - 1;
-                    let root = &stack.data[base];
-                    let args = &stack.data[base + 1..];
+                    let root = stack.at(base)?;
+                    let args = stack.tail(base + 1)?;
                     if matches!(root.0, Kind::Instance(_)) {
                         let call = operators::index(
                             program,
@@ -1988,14 +2020,16 @@ impl Run {
                         continue;
                     }
                     let value = if n == 1 {
-                        ops::index(ctx, root, &args[0])?
+                        ops::index(ctx, root, args.at(0)?)?
                     } else {
                         ops::index_many(ctx, root, args)?
                     };
                     if matches!(value.0, Kind::Host(_))
                         && matches!(root.0, Kind::Hash(_))
                         && matches!(
-                            program.functions[frame.function().unwrap()]
+                            program
+                                .functions
+                                .at(frame.function().unwrap())?
                                 .code
                                 .get(frame.ip),
                             Some(Op::CallValue)
@@ -2019,7 +2053,7 @@ impl Run {
                     } else {
                         Address::new(
                             Some(n as usize),
-                            storage.locals.data[n as usize].clone().unwrap_or_default(),
+                            storage.locals.at(n as usize)?.clone().unwrap_or_default(),
                         )
                     };
                     storage.addresses.push(ctx, address)?;
@@ -2030,7 +2064,7 @@ impl Run {
                             requires::address(program, ctx, frames, storage, current, name)?
                         {
                             storage.addresses.push(ctx, address)?;
-                            frames.data[current].ip = next as usize;
+                            frames.at_mut(current)?.ip = next as usize;
                             continue;
                         }
                     }
@@ -2040,13 +2074,13 @@ impl Run {
                         if file_bindings::get(program, ctx, name)?.is_some() {
                             let address = file_bindings::address(program, ctx, name)?;
                             storage.addresses.push(ctx, address)?;
-                            frames.data[current].ip = next as usize;
+                            frames.at_mut(current)?.ip = next as usize;
                         }
-                    } else if let Some(value) = &storage.locals.data[slot as usize] {
+                    } else if let Some(value) = storage.locals.at(slot as usize)? {
                         storage
                             .addresses
                             .push(ctx, Address::new(Some(slot as usize), value.clone()))?;
-                        frames.data[current].ip = next as usize;
+                        frames.at_mut(current)?.ip = next as usize;
                     }
                 }
                 Op::AddressValue => {
@@ -2064,7 +2098,7 @@ impl Run {
                             "[]",
                             (namespace, caller_instance),
                         )?;
-                        let args = Arguments::from_values(ctx, &stack.data[base..])?;
+                        let args = Arguments::from_values(ctx, stack.tail(base)?)?;
                         storage.addresses.data.pop();
                         enter_arguments(program, ctx, frames, storage, call, args, base)?;
                         frames.data.last_mut().unwrap().return_to = ReturnTo::Address;
@@ -2076,11 +2110,11 @@ impl Run {
                         .data
                         .last_mut()
                         .unwrap()
-                        .index(ctx, &stack.data[base..])?;
+                        .index(ctx, stack.tail(base)?)?;
                     stack.data.truncate(base);
                 }
                 Op::AddressNamespaceField(site) => {
-                    let name = &program.members[site.name as usize];
+                    let name = program.members.at(site.name as usize)?;
                     let address = storage.addresses.data.pop().unwrap();
                     if let Kind::Namespace(receiver) = &address.value.0 {
                         namespaces::member(
@@ -2112,7 +2146,7 @@ impl Run {
                     }
                 }
                 Op::AddressMember(site) => {
-                    let name = &program.members[site.name as usize];
+                    let name = program.members.at(site.name as usize)?;
                     if let Some(function) = crate::exports::member(
                         ctx,
                         site,
@@ -2210,7 +2244,7 @@ impl Run {
                             let Kind::Hash(hash) = &address.value.0 else {
                                 unreachable!()
                             };
-                            let value = &hash.buffer.data[index].1;
+                            let value = &hash.buffer.at(index)?.1;
                             if members::callable(value) {
                                 let value = value.clone();
                                 let value =
@@ -2261,7 +2295,7 @@ impl Run {
                 Op::AddressMemberTarget(site, read) => {
                     let address = storage.addresses.data.last_mut().unwrap();
                     address.check_present(ctx)?;
-                    let name = &program.members[site.name as usize];
+                    let name = program.members.at(site.name as usize)?;
                     let key = ctx.bytes(name.as_bytes())?;
                     address.member_target = true;
                     address.selectors.push(ctx, key)?;
@@ -2361,7 +2395,7 @@ impl Run {
                         && matches!(address.value.0, Kind::Namespace(_) | Kind::Instance(_))
                     {
                         let receiver = &address.value;
-                        let key = address.selectors.data[0].require_bytes()?;
+                        let key = address.selectors.at(0)?.require_bytes()?;
                         let name = std::str::from_utf8(key).unwrap();
                         if let Some(function) = namespaces::setter(
                             program,
@@ -2468,7 +2502,7 @@ impl Run {
                         capabilities::member(
                             ctx,
                             site,
-                            &program.members[site.name as usize],
+                            program.members.at(site.name as usize)?,
                             &address.value,
                         )?
                         .map(|method| crate::capability::SelectedMethod {
@@ -2483,7 +2517,7 @@ impl Run {
                             storage,
                             &method.method,
                             Some(&method.receiver),
-                            &stack.data[base..],
+                            stack.tail(base)?,
                             &[],
                             None,
                             site.auto,
@@ -2499,7 +2533,7 @@ impl Run {
                         crate::exports::member(
                             ctx,
                             site,
-                            &program.members[site.name as usize],
+                            program.members.at(site.name as usize)?,
                             &address.value,
                         )?
                     };
@@ -2508,7 +2542,7 @@ impl Run {
                             return Err(function.value_error());
                         }
                         let base = stack.data.len() - n as usize;
-                        let args = Arguments::from_values(ctx, &stack.data[base..])?;
+                        let args = Arguments::from_values(ctx, stack.tail(base)?)?;
                         stack.data.truncate(base);
                         storage.addresses.data.pop();
                         requires::invoke(ctx, frames, storage, &function, args, site.auto, base)?;
@@ -2518,7 +2552,7 @@ impl Run {
                     let address = storage.addresses.data.pop().unwrap();
                     if matches!(address.value.0, Kind::Namespace(_) | Kind::Instance(_)) {
                         let receiver = &address.value;
-                        let name = &program.members[site.name as usize];
+                        let name = program.members.at(site.name as usize)?;
                         match namespaces::member(
                             ctx,
                             storage,
@@ -2533,7 +2567,7 @@ impl Run {
                             },
                         )? {
                             namespaces::Member::Function(function) => {
-                                let args = Arguments::from_values(ctx, &stack.data[base..])?;
+                                let args = Arguments::from_values(ctx, stack.tail(base)?)?;
                                 enter_arguments(
                                     program, ctx, frames, storage, function, args, base,
                                 )?;
@@ -2547,7 +2581,7 @@ impl Run {
                                     site,
                                     Some(receiver),
                                     value,
-                                    &stack.data[base..],
+                                    stack.tail(base)?,
                                     &[],
                                     None,
                                 )?;
@@ -2563,7 +2597,7 @@ impl Run {
                                 continue;
                             }
                             namespaces::Member::IsType(module) => {
-                                let args = Arguments::from_values(ctx, &stack.data[base..])?;
+                                let args = Arguments::from_values(ctx, stack.tail(base)?)?;
                                 let value = dispatch::type_predicate(
                                     program, ctx, frames, storage, &module, &args,
                                 )?;
@@ -2590,8 +2624,8 @@ impl Run {
                         },
                         &mut storage.addresses.data,
                         |ctx, receiver| {
-                            let name = &program.members[site.name as usize];
-                            let args = &stack.data[base..];
+                            let name = program.members.at(site.name as usize)?;
+                            let args = stack.tail(base)?;
                             match members::direct::update(ctx, site.method, name, receiver, args) {
                                 Ok(result) => result,
                                 Err(receiver) => members::call(ctx, site, name, receiver, args),
@@ -2606,12 +2640,12 @@ impl Run {
                     let values = source
                         .as_array()
                         .unwrap_or_else(|| std::slice::from_ref(source));
-                    let value = match program.selections[selection as usize] {
+                    let value = match *program.selections.at(selection as usize)? {
                         Selection::At(n) => values.get(n).cloned().unwrap_or_default(),
                         Selection::Rest { leading, trailing } => {
                             let start = leading.min(values.len());
                             let end = values.len().saturating_sub(trailing).max(start);
-                            ctx.array(&values[start..end])?
+                            ctx.array(values.span(start, end)?)?
                         }
                         Selection::Tail {
                             leading,
@@ -2735,7 +2769,7 @@ impl Run {
                         frames,
                         storage,
                         function as usize,
-                        &stack.data[base..],
+                        stack.tail(base)?,
                         base,
                     )?;
                     stack.data.truncate(base);
@@ -2752,7 +2786,7 @@ impl Run {
                 }
                 Op::AutoCall(function, receiving) => {
                     if let Some(value) =
-                        globals::get(ctx, storage, &program.functions[function as usize].name)?
+                        globals::get(ctx, storage, &program.functions.at(function as usize)?.name)?
                     {
                         file_bindings::receive_root(
                             program,
@@ -2776,7 +2810,8 @@ impl Run {
                     )?;
                 }
                 Op::HostValue(host, receiving) => {
-                    if let Some(value) = globals::get(ctx, storage, &program.hosts[host as usize])?
+                    if let Some(value) =
+                        globals::get(ctx, storage, program.hosts.at(host as usize)?)?
                     {
                         file_bindings::receive_root(
                             program,
@@ -2792,14 +2827,14 @@ impl Run {
                     if !receiving.runs_static(None) {
                         return Err(receive_host(
                             program,
-                            &program.hosts[host as usize],
+                            program.hosts.at(host as usize)?,
                             receiving,
                         ));
                     }
                     let value = capabilities::registered(
                         ctx,
                         storage,
-                        &hosts[host as usize],
+                        hosts.at(host as usize)?,
                         &[],
                         &[],
                         None,
@@ -2813,7 +2848,7 @@ impl Run {
                     {
                         let mut args = Arguments::empty();
                         if let Some(value) =
-                            globals::get(ctx, storage, &program.members[name as usize])?
+                            globals::get(ctx, storage, program.members.at(name as usize)?)?
                         {
                             args.target = Some(value_invocation(&value));
                         }
@@ -2860,7 +2895,7 @@ impl Run {
                 Op::ResolveCall(slot, name) => {
                     let self_value = frame.receiver.clone();
                     let name_index = name;
-                    let name = &program.members[name as usize];
+                    let name = program.members.at(name as usize)?;
                     let scoped = !file_bypassed(ctx, program, storage, name)?;
                     let target = if let Some(Some(value)) = storage.locals.data.get(slot as usize) {
                         value_invocation(value)
@@ -2874,7 +2909,7 @@ impl Run {
                     )? {
                         value_invocation(&value)
                     } else if let Some(slot) = ambient_call(ctx, frames, storage, current, name)? {
-                        value_invocation(storage.locals.data[slot].as_ref().unwrap())
+                        value_invocation(storage.locals.at(slot)?.as_ref().unwrap())
                     } else if let Some(value) = scoped
                         .then(|| file_bindings::get(program, ctx, name))
                         .transpose()?
@@ -2922,7 +2957,7 @@ impl Run {
                                         ctx,
                                         storage,
                                         self_value.as_ref(),
-                                        &program.namespaces[module],
+                                        program.namespaces.at(module)?,
                                         name,
                                     ));
                                 }
@@ -2940,7 +2975,7 @@ impl Run {
                 Op::Argument(op) => {
                     let value = stack.data.pop().unwrap();
                     let name = if let ArgumentOp::Keyword(name) = op {
-                        &program.members[name as usize]
+                        program.members.at(name as usize)?
                     } else {
                         ""
                     };
@@ -2982,7 +3017,7 @@ impl Run {
                             let value = capabilities::registered(
                                 ctx,
                                 storage,
-                                &owner.code.hosts[host],
+                                owner.code.hosts.at(host)?,
                                 &args.positional.data,
                                 &args.keywords.buffer.data,
                                 args.block,
@@ -3015,7 +3050,7 @@ impl Run {
                                 ErrorKind::Runtime,
                                 format!(
                                     "{kind}.{} requires a {required} receiver, got nil",
-                                    program.members[name]
+                                    program.members.at(name)?
                                 ),
                             ));
                         }
@@ -3024,7 +3059,9 @@ impl Run {
                             Invocation::Member(
                                 crate::bytecode::CallSite {
                                     name: narrow(name),
-                                    method: crate::bytecode::Method::parse(&program.members[name]),
+                                    method: crate::bytecode::Method::parse(
+                                        program.members.at(name)?,
+                                    ),
                                     auto: false,
                                     scope: false,
                                 },
@@ -3075,7 +3112,7 @@ impl Run {
                         }
                     };
                     let target = if let Invocation::ImplicitMember(module, name) = target {
-                        let receiver = if let Some(value) = &frames.data[current].receiver {
+                        let receiver = if let Some(value) = &frames.at(current)?.receiver {
                             value.clone()
                         } else {
                             namespaces::value(program, ctx, storage, module as usize)?
@@ -3085,7 +3122,7 @@ impl Run {
                             crate::bytecode::CallSite {
                                 name,
                                 method: crate::bytecode::Method::parse(
-                                    &program.members[name as usize],
+                                    program.members.at(name as usize)?,
                                 ),
                                 auto: false,
                                 scope: false,
@@ -3152,7 +3189,7 @@ impl Run {
                             let value = capabilities::registered(
                                 ctx,
                                 storage,
-                                &hosts[host as usize],
+                                hosts.at(host as usize)?,
                                 &args.positional.data,
                                 &args.keywords.buffer.data,
                                 args.block,
@@ -3160,7 +3197,7 @@ impl Run {
                             value.finish(program, ctx, frames, storage, stack, ReturnTo::Stack)?;
                         }
                         Invocation::Member(site, mutating) => {
-                            let ip = frames.data[current].ip - 1;
+                            let ip = frames.at(current)?.ip - 1;
                             dispatch::member(
                                 program,
                                 ctx,
@@ -3169,7 +3206,7 @@ impl Run {
                                 stack,
                                 dispatch::Call {
                                     site,
-                                    name: &program.members[site.name as usize],
+                                    name: program.members.at(site.name as usize)?,
                                     mutating,
                                     args,
                                     access: namespaces::Access {
@@ -3199,8 +3236,8 @@ impl Run {
                     let value = capabilities::registered(
                         ctx,
                         storage,
-                        &hosts[host as usize],
-                        &stack.data[base..],
+                        hosts.at(host as usize)?,
+                        stack.tail(base)?,
                         &[],
                         None,
                     )?;
@@ -3219,17 +3256,17 @@ impl Run {
                 )?,
                 Op::MethodOf(function, class, n) => {
                     let base = stack.data.len() - n as usize - 1;
-                    if let Kind::Instance(instance) = &stack.data[base].0 {
+                    if let Kind::Instance(instance) = &stack.at(base)?.0 {
                         if program.namespace_matches(class as usize, instance.class()) {
                             let call = crate::namespace::Call {
                                 function: function as usize,
-                                receiver: Some(std::mem::take(&mut stack.data[base])),
+                                receiver: Some(std::mem::take(stack.at_mut(base)?)),
                                 constructor: false,
                                 ignore_arguments: false,
                             };
                             // The dynamic call that follows is for other receivers.
-                            frames.data[current].ip += 1;
-                            let args = &stack.data[base + 1..];
+                            frames.at_mut(current)?.ip += 1;
+                            let args = stack.tail(base + 1)?;
                             enter_values(program, ctx, frames, storage, call, args, base)?;
                             stack.data.truncate(base);
                         }
@@ -3237,14 +3274,14 @@ impl Run {
                 }
                 Op::Direct(site, n) => {
                     let base = stack.data.len() - n as usize - 1;
-                    let name = &program.members[site.name as usize];
-                    let ip = frames.data[current].ip - 1;
+                    let name = program.members.at(site.name as usize)?;
+                    let ip = frames.at(current)?.ip - 1;
                     // A member that can iterate took its arguments through a
                     // list, whose checks the direct call makes too unless
                     // the checker proved them plain.
                     let listed = iteration::method(name);
                     if listed && !function.plain_inputs.contains(ip) {
-                        for arg in &stack.data[base + 1..] {
+                        for arg in stack.tail(base + 1)? {
                             crate::exports::check(ctx, arg)?;
                         }
                     }
@@ -3252,14 +3289,14 @@ impl Run {
                         ctx,
                         site.method.unwrap(),
                         name,
-                        &stack.data[base],
-                        &stack.data[base + 1..],
+                        stack.at(base)?,
+                        stack.tail(base + 1)?,
                     )?;
                     if let Some(value) = direct {
                         stack.data.truncate(base);
                         stack.push(ctx, value)?;
                     } else if listed {
-                        let args = Arguments::from_values(ctx, &stack.data[base + 1..])?;
+                        let args = Arguments::from_values(ctx, stack.tail(base + 1)?)?;
                         stack.data.truncate(base + 1);
                         dispatch::member(
                             program,
@@ -3343,16 +3380,19 @@ impl Run {
                 // A value the checker proved plain needs no scan. A call that
                 // entered a frame left no value yet.
                 && !(frames.data.len() == current + 1
-                    && function.plain_values.contains(frames.data[current].ip - 1))
+                    && function.plain_values.contains(frames.at(current)?.ip - 1))
             {
-                let frame = &frames.data[current];
+                let frame = frames.at(current)?;
                 let target = matches!(
-                    frame.program.functions[frame.function().unwrap()]
+                    frame
+                        .program
+                        .functions
+                        .at(frame.function().unwrap())?
                         .code
                         .get(frame.ip),
                     Some(Op::CallValue)
                 );
-                if let Some(value) = visible_top(&frames.data, stack) {
+                if let Some(value) = visible_top(&frames.data, stack)? {
                     if !target || !matches!(value.0, Kind::Function(_) | Kind::Host(_)) {
                         crate::exports::check(ctx, value)?;
                     }
@@ -3376,16 +3416,16 @@ fn method(
     (namespace, caller_instance): (Option<usize>, bool),
 ) -> Result<()> {
     let base = stack.data.len() - n - 1;
-    let root = std::mem::take(&mut stack.data[base]);
+    let root = std::mem::take(stack.at_mut(base)?);
     if let Some(method) =
-        capabilities::member(ctx, site, &program.members[site.name as usize], &root)?
+        capabilities::member(ctx, site, program.members.at(site.name as usize)?, &root)?
     {
         let value = capabilities::call_on(
             ctx,
             storage,
             &method,
             Some(&root),
-            &stack.data[base + 1..],
+            stack.tail(base + 1)?,
             &[],
             None,
             site.auto,
@@ -3394,20 +3434,20 @@ fn method(
         value.finish(program, ctx, frames, storage, stack, ReturnTo::Stack)?;
         return Ok(());
     }
-    if dispatch::is_parse_as(ctx, site, &program.members[site.name as usize], &root)? {
-        let value = dispatch::parse_as(program, ctx, frames, storage, &stack.data[base + 1..])?;
+    if dispatch::is_parse_as(ctx, site, program.members.at(site.name as usize)?, &root)? {
+        let value = dispatch::parse_as(program, ctx, frames, storage, stack.tail(base + 1)?)?;
         stack.data.truncate(base);
         stack.push(ctx, value)?;
         return Ok(());
     }
     if matches!(root.0, Kind::Hash(_)) {
         if let Some(Value(Kind::Function(function))) =
-            members::field(ctx, site, &program.members[site.name as usize], &root)?
+            members::field(ctx, site, program.members.at(site.name as usize)?, &root)?
         {
             if site.auto && site.scope {
                 return Err(function.value_error());
             }
-            let args = Arguments::from_values(ctx, &stack.data[base + 1..])?;
+            let args = Arguments::from_values(ctx, stack.tail(base + 1)?)?;
             stack.data.truncate(base);
             requires::invoke(ctx, frames, storage, &function, args, site.auto, base)?;
             return Ok(());
@@ -3415,7 +3455,7 @@ fn method(
     }
     if matches!(root.0, Kind::Namespace(_) | Kind::Instance(_)) {
         let receiver = &root;
-        let name = &program.members[site.name as usize];
+        let name = program.members.at(site.name as usize)?;
         match namespaces::member(
             ctx,
             storage,
@@ -3430,7 +3470,7 @@ fn method(
             },
         )? {
             namespaces::Member::Function(function) => {
-                let args = &stack.data[base + 1..];
+                let args = stack.tail(base + 1)?;
                 enter_values(program, ctx, frames, storage, function, args, base)?;
                 stack.data.truncate(base);
                 return Ok(());
@@ -3442,7 +3482,7 @@ fn method(
                     site,
                     Some(receiver),
                     value,
-                    &stack.data[base + 1..],
+                    stack.tail(base + 1)?,
                     &[],
                     None,
                 )?;
@@ -3451,7 +3491,7 @@ fn method(
                 return Ok(());
             }
             namespaces::Member::IsType(module) => {
-                let args = Arguments::from_values(ctx, &stack.data[base + 1..])?;
+                let args = Arguments::from_values(ctx, stack.tail(base + 1)?)?;
                 let value =
                     dispatch::type_predicate(program, ctx, frames, storage, &module, &args)?;
                 stack.data.truncate(base);
@@ -3466,9 +3506,9 @@ fn method(
     let (_, value) = members::call(
         ctx,
         site,
-        &program.members[site.name as usize],
+        program.members.at(site.name as usize)?,
         root,
-        &stack.data[base + 1..],
+        stack.tail(base + 1)?,
     )?;
     stack.data.truncate(base);
     stack.push(ctx, value)?;
@@ -3477,7 +3517,7 @@ fn method(
 
 fn frame_offset(frame: &Frame) -> Option<(&crate::bytecode::Program, u32)> {
     let program = &frame.program.code.program;
-    let function = &program.functions[frame.function()?];
+    let function = program.functions.get(frame.function()?)?;
     Some((
         program,
         function
@@ -3501,9 +3541,10 @@ fn diagnostic_site<'a>(
     {
         let function = frame.function().unwrap();
         let owner = &frame.program.code.program;
-        let op = owner.functions[function]
-            .code
-            .get(frame.ip.saturating_sub(1));
+        let op = owner
+            .functions
+            .get(function)
+            .and_then(|function| function.code.get(frame.ip.saturating_sub(1)));
         // A frame binding its parameters, or checking the host's arguments
         // to them, reports a mismatch where it was called.
         if (!frame.binding && !frame.checked)
@@ -3514,15 +3555,17 @@ fn diagnostic_site<'a>(
         {
             break;
         }
-        frames = &frames[..index];
+        frames = frames.get(..index).unwrap_or_default();
         program = owner;
         entry = function;
     }
-    let (program, offset) = frames
-        .iter()
-        .rev()
-        .find_map(frame_offset)
-        .unwrap_or((program, program.functions[entry].offset));
+    let (program, offset) = frames.iter().rev().find_map(frame_offset).unwrap_or((
+        program,
+        program
+            .functions
+            .get(entry)
+            .map_or(0, |function| function.offset),
+    ));
     (program, frames, offset)
 }
 
@@ -3535,11 +3578,7 @@ fn trace_entries<'a>(
         .iter()
         .rev()
         .filter(|frame| !frame.binding)
-        .filter_map(|frame| {
-            frame
-                .function()
-                .map(|index| &frame.program.functions[index])
-        })
+        .filter_map(|frame| frame.program.functions.get(frame.function()?))
         .find(|function| function.name != "<block>" && !function.initializer)
         .filter(|function| function.name != "__main__")
         .map(|function| &function.trace_name);
@@ -3550,7 +3589,7 @@ fn trace_entries<'a>(
             .rev()
             .filter_map(move |(index, frame)| {
                 let owner = &frame.program.code.program;
-                let function = &owner.functions[frame.function()?];
+                let function = owner.functions.get(frame.function()?)?;
                 if function.name == "<block>"
                     || function.name == "__main__"
                     || function.initializer
@@ -3558,7 +3597,8 @@ fn trace_entries<'a>(
                 {
                     return None;
                 }
-                let (caller, at) = frames[..index]
+                let (caller, at) = frames
+                    .get(..index)?
                     .iter()
                     .rev()
                     .find_map(frame_offset)
@@ -3602,29 +3642,22 @@ fn normalize_return(
     frame: usize,
     value: Value,
 ) -> Result<Value> {
-    let program = &frames.data[frame].program;
-    if frames.data[frame].constructor {
-        return Ok(frames.data[frame].receiver.as_ref().unwrap().clone());
+    let returning = frames.at(frame)?;
+    let program = &returning.program;
+    if returning.constructor {
+        return Ok(returning.receiver.as_ref().unwrap().clone());
     }
-    let Some(function) = frames.data[frame].function() else {
+    let Some(function) = returning.function() else {
         return Ok(value);
     };
-    let Some(ty) = program.functions[function].return_check else {
+    let Some(ty) = program.functions.at(function)?.return_check else {
         return Ok(value);
     };
-    normalize_type(
-        program,
-        ctx,
-        frames,
-        storage,
-        frame,
-        (
-            ty,
-            crate::types::Context::Return(&program.functions[function].trace_name),
-        ),
-        value,
-    )
-    .map_err(|error| diagnose(program, &frames.data[..frame], function, error))
+    let context = crate::types::Context::Return(&program.functions.at(function)?.trace_name);
+    match normalize_type(program, ctx, frames, storage, frame, (ty, context), value) {
+        Ok(value) => Ok(value),
+        Err(error) => Err(diagnose(program, frames.span(0, frame)?, function, error)),
+    }
 }
 
 fn runtime_bound(
@@ -3639,15 +3672,18 @@ fn runtime_bound(
     let mut scope = Some(current);
     while let Some(index) = scope {
         ctx.charge(1)?;
-        let frame = &frames.data[index];
+        let frame = frames.at(index)?;
         if let Some(function) = frame.function() {
-            for (slot, candidate) in frame.program.functions[function]
+            for (slot, candidate) in frame
+                .program
+                .functions
+                .at(function)?
                 .local_names
                 .iter()
                 .enumerate()
             {
                 ctx.charge(1)?;
-                if storage.locals.data[frame.local_base() + slot].is_some()
+                if storage.locals.at(frame.local_base() + slot)?.is_some()
                     && crate::enums::compare_names(ctx, candidate.as_bytes(), name.as_bytes())?
                         == std::cmp::Ordering::Equal
                 {
@@ -3725,7 +3761,7 @@ fn property_type(
         return Ok(Some(ty));
     }
     let ty = if let Some(setter) = setter {
-        let function = &program.functions[setter];
+        let function = program.functions.at(setter)?;
         if function
             .accessor
             .as_ref()
@@ -3737,7 +3773,7 @@ fn property_type(
         }
     } else {
         getter.and_then(|getter| {
-            let function = &program.functions[getter];
+            let function = program.functions.get(getter)?;
             function
                 .accessor
                 .as_ref()
@@ -3777,7 +3813,7 @@ fn prepare_type<'a>(
     (ty, context): (usize, crate::types::Context<'_>),
 ) -> Result<crate::types::Prepared<'a>> {
     let mut failed = None;
-    let prepared = crate::types::prepare(ctx, &program.types[ty], |ctx, name| {
+    let prepared = crate::types::prepare(ctx, program.types.at(ty)?, |ctx, name| {
         resolve_type(program, ctx, frames, storage, lexical, name, false).inspect_err(|_| {
             failed = Some(name.to_owned());
         })
@@ -3805,7 +3841,7 @@ fn address_guard<'a>(
     let Some(ty) = property_type(program, ctx, instance, name)? else {
         return Ok(None);
     };
-    crate::types::prepare(ctx, &program.types[ty], |ctx, name| {
+    crate::types::prepare(ctx, program.types.at(ty)?, |ctx, name| {
         resolve_type(program, ctx, frames, storage, None, name, false)
     })
     .map(Some)
@@ -3820,7 +3856,7 @@ fn normalize_type(
     annotation: (usize, crate::types::Context<'_>),
     value: Value,
 ) -> Result<Value> {
-    let lexical = frames.data[frame].parent();
+    let lexical = frames.at(frame)?.parent();
     prepare_type(program, ctx, frames, storage, lexical, annotation)?.normalize_with(
         ctx,
         value,
@@ -3852,12 +3888,12 @@ fn resolve_type(
         let mut scope = lexical;
         while let Some(index) = scope {
             ctx.charge(1)?;
-            let frame = &frames.data[index];
-            let function = &frame.program.functions[frame.function().unwrap()];
+            let frame = frames.at(index)?;
+            let function = frame.program.functions.at(frame.function().unwrap())?;
             let mut found = None;
             for (slot, candidate) in function.local_names.iter().enumerate() {
                 ctx.charge(1)?;
-                if let Some(value) = &storage.locals.data[frame.local_base() + slot] {
+                if let Some(value) = storage.locals.at(frame.local_base() + slot)? {
                     if let Some(value) =
                         type_candidate(ctx, candidate, value, binding, member, fold, enum_only)?
                     {
@@ -3909,11 +3945,14 @@ fn resolve_type(
             } else {
                 None
             };
-            let value = scoped.as_ref().unwrap_or_else(|| {
-                storage.globals.data[program.global_base + index]
+            let value = match scoped.as_ref() {
+                Some(value) => value,
+                None => storage
+                    .globals
+                    .at(program.global_base + index)?
                     .as_ref()
-                    .unwrap_or(original)
-            });
+                    .unwrap_or(original),
+            };
             if let Some(value) =
                 type_candidate(ctx, global.name(), value, binding, member, fold, enum_only)?
             {
@@ -3960,7 +3999,7 @@ fn resolve_type(
         }
     }
     if program.file && program.index != 0 {
-        let root = storage.programs.data[0].program.clone();
+        let root = storage.programs.at(0)?.program.clone();
         return resolve_type(&root, ctx, frames, storage, None, name, enum_only);
     }
     Err(Error::new(ErrorKind::Type, "unknown named type"))
@@ -4034,7 +4073,7 @@ fn type_candidate(
         return Ok(None);
     }
     if let Some(index) = namespace.find(ctx, member.as_bytes())? {
-        let value = &namespace.buffer.data[index].1;
+        let value = &namespace.buffer.at(index)?.1;
         if (matches!(value.0, Kind::Enum(_))
             || (!enum_only && matches!(value.0, Kind::Namespace(_))))
         {
@@ -4123,17 +4162,17 @@ fn implicit_read(
     name: usize,
     receiving: Receiving,
 ) -> Result<()> {
-    let self_value = frames.data[current].receiver.clone();
-    let text = &program.members[name];
+    let self_value = frames.at(current)?.receiver.clone();
+    let text = program.members.at(name)?;
     match namespaces::implicit(program, ctx, storage, namespace, self_value.as_ref(), text)? {
         namespaces::Member::Function(_) if !receiving.runs_static(None) => {
-            let module = &program.namespaces[namespace.unwrap()];
+            let module = program.namespaces.at(namespace.unwrap())?;
             let separator = if matches!(self_value, Some(Value(Kind::Instance(_)))) {
                 '#'
             } else {
                 '.'
             };
-            let member = &program.members[receiving.member().unwrap()];
+            let member = program.members.at(receiving.member().unwrap())?;
             Err(callable_member_error(
                 "method",
                 &format!("{}{separator}{text}", module.name),
@@ -4170,7 +4209,7 @@ fn implicit_read(
                     ctx,
                     storage,
                     self_value.as_ref(),
-                    &program.namespaces[module],
+                    program.namespaces.at(module)?,
                     text,
                 ));
             }
@@ -4233,25 +4272,26 @@ fn undefined(
     ];
     // A block also sees the assigned locals of the frames it is written in.
     let lexical = std::iter::successors(Some(current), |&index| {
-        let frame = &frames.data[index];
+        let frame = frames.data.get(index)?;
         let block = frame
             .function()
-            .is_some_and(|function| frame.program.functions[function].name == "<block>");
+            .and_then(|function| frame.program.functions.get(function))
+            .is_some_and(|function| function.name == "<block>");
         block.then_some(frame.parent()).flatten()
     });
     let locals = lexical.flat_map(|index| {
-        let frame = &frames.data[index];
+        let frame = frames.data.get(index);
+        let local_base = frame.map_or(0, Frame::local_base);
         frame
-            .function()
-            .map(|function| frame.program.functions[function].local_names.as_slice())
-            .unwrap_or_default()
+            .and_then(|frame| frame.program.functions.get(frame.function()?))
+            .map_or(&[][..], |function| function.local_names.as_slice())
             .iter()
             .enumerate()
-            .filter(|(slot, _)| {
+            .filter(move |(slot, _)| {
                 storage
                     .locals
                     .data
-                    .get(frame.local_base() + slot)
+                    .get(local_base + slot)
                     .is_some_and(Option::is_some)
             })
             .map(|(_, local)| local.as_bytes())
@@ -4292,7 +4332,7 @@ fn declaration_value(
         if let Some(value) = globals::get(
             ctx,
             storage,
-            file_bindings::declaration_name(program, index),
+            file_bindings::declaration_name(program, index)?,
         )? {
             return Ok(value);
         }
@@ -4301,7 +4341,7 @@ fn declaration_value(
         if let Some(value) = file_bindings::get(
             program,
             ctx,
-            file_bindings::declaration_name(program, index),
+            file_bindings::declaration_name(program, index)?,
         )? {
             return Ok(value);
         }
@@ -4312,9 +4352,9 @@ fn declaration_value(
             return Ok(value.clone());
         }
     }
-    let value = if let Kind::Namespace(namespace) = &program.declarations[index].0 {
+    let value = if let Kind::Namespace(namespace) = &program.declarations.at(index)?.0 {
         namespaces::value(program, ctx, storage, namespace.definition.index)?
-    } else if let Kind::Enum(enumeration) = &program.declarations[index].0 {
+    } else if let Kind::Enum(enumeration) = &program.declarations.at(index)?.0 {
         ctx.charge(1)?;
         Value(Kind::Enum(if scoped {
             crate::enums::Enumeration::fresh(ctx, enumeration)?
@@ -4322,14 +4362,14 @@ fn declaration_value(
             crate::enums::Enumeration::instantiate(ctx, enumeration)?
         }))
     } else {
-        ctx.import(&program.declarations[index])?
+        ctx.import(program.declarations.at(index)?)?
     };
     if scoped {
         file_bindings::set(
             program,
             ctx,
             storage,
-            file_bindings::declaration_name(program, index),
+            file_bindings::declaration_name(program, index)?,
             &value,
         )?;
     }
@@ -4346,20 +4386,21 @@ fn global_value(
     index: usize,
 ) -> Result<Value> {
     if file_bindings::environment(program).is_some() {
-        if let Some(value) = file_bindings::get(program, ctx, program.globals[index].0.name())? {
+        if let Some(value) = file_bindings::get(program, ctx, program.globals.at(index)?.0.name())?
+        {
             return Ok(value);
         }
         let slot = file_bindings::global_slot(program, ctx, storage, index)?;
-        return Ok(storage.globals.data[slot].as_ref().unwrap().clone());
+        return Ok(storage.globals.at(slot)?.as_ref().unwrap().clone());
     }
-    if let Some(value) = requires::get(ctx, storage, program.globals[index].0.name())? {
+    if let Some(value) = requires::get(ctx, storage, program.globals.at(index)?.0.name())? {
         return Ok(value);
     }
     let slot = program.global_base + index;
-    if storage.globals.data[slot].is_none() {
-        storage.globals.data[slot] = Some(ctx.import(&program.globals[index].1)?);
+    if storage.globals.at(slot)?.is_none() {
+        *storage.globals.at_mut(slot)? = Some(ctx.import(&program.globals.at(index)?.1)?);
     }
-    Ok(storage.globals.data[slot].as_ref().unwrap().clone())
+    Ok(storage.globals.at(slot)?.as_ref().unwrap().clone())
 }
 
 fn callable_value_error(name: &str, kind: &str) -> Error {
@@ -4387,21 +4428,22 @@ fn receive_function(
     function: usize,
     receiving: Receiving,
 ) -> Result<()> {
-    let fun = &program.functions[function];
+    let fun = program.functions.at(function)?;
     let runs = receiving.runs_static(Some(fun.params.len()));
     if runs {
         return enter_auto(program, ctx, frames, storage, function, base);
     }
-    let member = &program.members[receiving.member().unwrap()];
+    let member = program.members.at(receiving.member().unwrap())?;
     Err(callable_member_error("function", &fun.name, member))
 }
 
 /// The error for reading a host method for `receiving`.
 fn receive_host(program: &Program, host: &str, receiving: Receiving) -> Error {
     match receiving.member() {
-        Some(member) if !receiving.runs_static(None) => {
-            callable_member_error("method", host, &program.members[member])
-        }
+        Some(member) if !receiving.runs_static(None) => match program.members.get(member) {
+            Some(name) => callable_member_error("method", host, name),
+            None => crate::checked::internal("member name is out of range"),
+        },
         _ => callable_value_error(host, "method"),
     }
 }
@@ -4414,7 +4456,7 @@ fn enter_auto(
     function: usize,
     base: usize,
 ) -> Result<()> {
-    let fun = &program.functions[function];
+    let fun = program.functions.at(function)?;
     if fun.params.iter().any(|param| {
         !param.default
             && !matches!(
@@ -4436,7 +4478,7 @@ fn enter(
     args: &[Value],
     base: usize,
 ) -> Result<()> {
-    let fun = &program.functions[function];
+    let fun = program.functions.at(function)?;
     let start = match fun.proven {
         _ if fun.plain => 0,
         Some(start) => start,
@@ -4456,7 +4498,7 @@ fn enter(
     let pinned = programs::pin(ctx, storage, program.index)?;
     for (param, arg) in fun.params.iter().zip(args) {
         ctx.charge(1)?;
-        storage.locals.data[local_base + param.slot] = Some(arg.clone());
+        *storage.locals.at_mut(local_base + param.slot)? = Some(arg.clone());
     }
     // Built within the push, which spares the frame an intermediate copy.
     frames.push(
@@ -4552,23 +4594,25 @@ fn check_entry(
     storage: &mut Storage,
 ) -> Result<()> {
     let current = frames.data.len() - 1;
-    let start = frames.data[current].ip;
-    frames.data[current].checked = true;
-    let function = &program.functions[frames.data[current].function().unwrap()];
+    let start = frames.at(current)?.ip;
+    frames.at_mut(current)?.checked = true;
+    let function = program
+        .functions
+        .at(frames.at(current)?.function().unwrap())?;
     for (index, param) in function.params.iter().enumerate() {
         let Some(ty) = param.ty else {
             continue;
         };
         // The parameter's `Bind` is instruction `index` of the prologue.
-        frames.data[current].ip = index + 1;
-        let slot = frames.data[current].local_base() + param.slot;
-        let value = storage.locals.data[slot].take().unwrap();
+        frames.at_mut(current)?.ip = index + 1;
+        let slot = frames.at(current)?.local_base() + param.slot;
+        let value = storage.locals.at_mut(slot)?.take().unwrap();
         let context = crate::types::Context::Argument(param.name.as_bytes());
         let value = normalize_type(program, ctx, frames, storage, current, (ty, context), value)?;
-        storage.locals.data[slot] = Some(value);
+        *storage.locals.at_mut(slot)? = Some(value);
     }
-    frames.data[current].ip = start;
-    frames.data[current].checked = false;
+    frames.at_mut(current)?.ip = start;
+    frames.at_mut(current)?.checked = false;
     Ok(())
 }
 
@@ -4590,7 +4634,7 @@ fn call_block(
         frames,
         storage,
         callee,
-        &stack.data[base..],
+        stack.tail(base)?,
         base,
     )?;
     frames.data.last_mut().unwrap().block = Some(Block::new(block, parent));
@@ -4656,7 +4700,7 @@ fn receiving<'a>(
     program: &'a Program,
     call: &crate::namespace::Call,
 ) -> Result<&'a crate::bytecode::Function> {
-    let fun = &program.functions[call.function];
+    let fun = program.functions.at(call.function)?;
     if fun.instance
         && !matches!(&call.receiver, Some(Value(Kind::Instance(instance))) if fun.namespace.is_some_and(|namespace| program.namespace_matches(namespace, instance.class())))
     {
@@ -4682,7 +4726,7 @@ fn bind(
     checked: bool,
 ) -> Result<()> {
     let function = call.function;
-    let fun = &program.functions[function];
+    let fun = program.functions.at(function)?;
     ctx.charge(1)?;
     if frames.data.len() >= ctx.options.limits.recursion {
         return recursion_exceeded(ctx);
@@ -4704,7 +4748,7 @@ fn bind(
         frame.binding = true;
     } else {
         for (i, param) in fun.params.iter().enumerate() {
-            storage.locals.data[frame.local_base() + param.slot] = binding.value(ctx, i)?;
+            *storage.locals.at_mut(frame.local_base() + param.slot)? = binding.value(ctx, i)?;
         }
     }
     frames.push(ctx, frame)
@@ -4762,7 +4806,10 @@ fn open_locals(
     function: Option<usize>,
 ) -> Result<usize> {
     let local_base = storage.locals.data.len();
-    let locals = function.map_or(0, |index| program.functions[index].locals);
+    let locals = match function {
+        Some(index) => program.functions.at(index)?.locals,
+        None => 0,
+    };
     let Some(capacity) = local_base.checked_add(locals) else {
         return ctx.fail(ErrorKind::Memory, "allocation size overflow");
     };
@@ -4896,7 +4943,7 @@ fn file_bypassed(
     for bypass in &storage.bypasses.data {
         if let Bypass::File(owner, function, slot) = *bypass {
             if owner == program.index {
-                let local = &program.functions[function].local_names[slot];
+                let local = program.functions.at(function)?.local_names.at(slot)?;
                 ctx.work_bytes(local.len().max(name.len()))?;
                 if local == name {
                     return Ok(true);
@@ -4929,11 +4976,15 @@ fn resolve_slot(
     mut slot: usize,
     skip: bool,
 ) -> Result<usize> {
-    let own = frames.data[frame].local_base() + slot;
-    let function = &frames.data[frame].program.functions[frames.data[frame].function().unwrap()];
-    if function.initializer && storage.locals.data[own].is_none() {
+    let resolving = frames.at(frame)?;
+    let own = resolving.local_base() + slot;
+    let function = resolving
+        .program
+        .functions
+        .at(resolving.function().unwrap())?;
+    if function.initializer && storage.locals.at(own)?.is_none() {
         if let Some(slot) =
-            namespaces::ambient_slot(ctx, frames, storage, frame, &function.local_names[slot])?
+            namespaces::ambient_slot(ctx, frames, storage, frame, function.local_names.at(slot)?)?
         {
             return Ok(if skip && bypassed(ctx, storage, slot)? {
                 usize::MAX
@@ -4943,8 +4994,8 @@ fn resolve_slot(
         }
     }
     loop {
-        let local = frames.data[frame].local_base() + slot;
-        if storage.locals.data[local].is_some() {
+        let local = frames.at(frame)?.local_base() + slot;
+        if storage.locals.at(local)?.is_some() {
             if !skip {
                 return Ok(local);
             }
@@ -4953,17 +5004,21 @@ fn resolve_slot(
                 return Ok(local);
             }
         }
-        let Some(capture) = frames.data[frame].program.functions
-            [frames.data[frame].function().unwrap()]
-        .captures
-        .get(slot)
-        .copied()
-        .flatten() else {
+        let resolving = frames.at(frame)?;
+        let Some(capture) = resolving
+            .program
+            .functions
+            .at(resolving.function().unwrap())?
+            .captures
+            .get(slot)
+            .copied()
+            .flatten()
+        else {
             return Ok(if skip { usize::MAX } else { own });
         };
         for _ in 0..=capture.depth {
             ctx.charge(1)?;
-            frame = frames.data[frame].parent().unwrap();
+            frame = frames.at(frame)?.parent().unwrap();
         }
         slot = capture.slot;
     }
@@ -4984,7 +5039,7 @@ fn enter_block(
         return recursion_exceeded(ctx);
     }
     let base = stack.data.len() - count;
-    let parent = &frames.data[block.parent()];
+    let parent = frames.at(block.parent())?;
     let (receiver, home, outer) = (parent.receiver.clone(), parent.home, parent.block);
     let program = parent.program.clone();
     let mut frame = new_frame(ctx, &program, storage, Some(block.function()), base)?;
@@ -4994,7 +5049,10 @@ fn enter_block(
     frame.block = outer;
     frame.block_args = narrow(count);
     // Charges the work of copying the arguments, as a separate list did.
-    for chunk in stack.data[base..].chunks(crate::budget::CHUNK / std::mem::size_of::<Value>()) {
+    for chunk in stack
+        .tail(base)?
+        .chunks(crate::budget::CHUNK / std::mem::size_of::<Value>())
+    {
         ctx.work_bytes(std::mem::size_of_val(chunk))?;
     }
     frames.push(ctx, frame)
@@ -5020,12 +5078,14 @@ fn shared(
     storage: &mut Storage,
     slot: usize,
 ) -> Result<Value> {
-    let base = storage.programs.data[program.index].shared;
-    if let Some(Some(value)) = base.map(|base| &storage.shared.data[base + slot]) {
+    let base = storage.programs.at(program.index)?.shared;
+    if let Some(base) = base
+        && let Some(value) = storage.shared.at(base + slot)?
+    {
         ctx.charge(1)?;
         return Ok(value.clone());
     }
-    let value = ctx.import(&program.constants[program.shared[slot]])?;
+    let value = ctx.import(program.constants.at(*program.shared.at(slot)?)?)?;
     let base = match base {
         Some(base) => base,
         None => {
@@ -5035,17 +5095,17 @@ fn shared(
                 .shared
                 .data
                 .resize(base + program.shared.len(), None);
-            storage.programs.data[program.index].shared = Some(base);
+            storage.programs.at_mut(program.index)?.shared = Some(base);
             base
         }
     };
-    storage.shared.data[base + slot] = Some(value.clone());
+    *storage.shared.at_mut(base + slot)? = Some(value.clone());
     Ok(value)
 }
 
 /// The top of the operand stack below the arguments that block frames keep
 /// there, which a frame's own values would otherwise sit directly on.
-fn visible_top<'a>(frames: &[Frame], stack: &'a Buffer<Value>) -> Option<&'a Value> {
+fn visible_top<'a>(frames: &[Frame], stack: &'a Buffer<Value>) -> Access<Option<&'a Value>> {
     let mut length = stack.data.len();
     for frame in frames.iter().rev() {
         if length != frame.base() + frame.block_args() {
@@ -5053,7 +5113,7 @@ fn visible_top<'a>(frames: &[Frame], stack: &'a Buffer<Value>) -> Option<&'a Val
         }
         length = frame.base();
     }
-    length.checked_sub(1).map(|top| &stack.data[top])
+    length.checked_sub(1).map(|top| stack.at(top)).transpose()
 }
 
 /// The argument a block's prologue reads at `index`: from the one argument
@@ -5063,13 +5123,13 @@ fn block_arg<'a>(
     stack: &'a Buffer<Value>,
     index: usize,
     autosplat: bool,
-) -> Option<&'a Value> {
-    let args = &stack.data[frame.base()..frame.base() + frame.block_args()];
+) -> Access<Option<&'a Value>> {
+    let args = stack.span(frame.base(), frame.base() + frame.block_args())?;
     let args = match args {
         [single] if autosplat => single.as_array().unwrap_or(args),
         _ => args,
     };
-    args.get(index)
+    Ok(args.get(index))
 }
 
 fn unwind(
@@ -5077,20 +5137,20 @@ fn unwind(
     storage: &mut Storage,
     stack: &mut Buffer<Value>,
     target: usize,
-) {
+) -> Access<()> {
     let mut binding = 0;
     let mut pooled = 0;
-    for frame in &frames.data[target..] {
+    for frame in frames.tail(target)? {
         binding += usize::from(frame.binding);
         pooled += usize::from(frame.pooled_iteration());
         if let ReturnTo::Require(index) = frame.return_to {
-            requires::abandon(storage, index);
+            requires::abandon(storage, index)?;
         }
-        programs::defer_release(storage, frame.program.index);
+        programs::defer_release(storage, frame.program.index)?;
     }
     let parameters = storage.parameters.data.len() - binding;
     storage.parameters.data.truncate(parameters);
-    let frame = &frames.data[target];
+    let frame = frames.at(target)?;
     storage.loops.data.truncate(frame.loop_base());
     storage.arguments.data.truncate(frame.argument_base());
     stack.data.truncate(frame.base());
@@ -5101,6 +5161,7 @@ fn unwind(
     storage.bypasses.data.truncate(frame.bypass_base());
     storage.texts.data.truncate(frame.text_base());
     frames.data.truncate(target);
+    Ok(())
 }
 
 fn release_iteration_pool(storage: &mut Storage, pooled: usize) {

@@ -11,22 +11,27 @@ impl Key {
             bytes: [0; 22],
             start: 22,
         };
+        // Twenty digits hold any usize, with room for the kind and a lead byte.
         loop {
             key.start -= 1;
-            key.bytes[key.start] = b'0' + (index % 10) as u8;
+            if let Some(byte) = key.bytes.get_mut(key.start) {
+                *byte = b'0' + (index % 10) as u8;
+            }
             index /= 10;
             if index == 0 {
                 break;
             }
         }
         key.start -= 1;
-        key.bytes[key.start] = kind;
+        if let Some(byte) = key.bytes.get_mut(key.start) {
+            *byte = kind;
+        }
         key.start -= 1;
         key
     }
 
     fn text(&self) -> &str {
-        std::str::from_utf8(&self.bytes[self.start..]).unwrap()
+        std::str::from_utf8(self.bytes.get(self.start..).unwrap_or_default()).unwrap()
     }
 }
 

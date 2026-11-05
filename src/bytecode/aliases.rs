@@ -1,5 +1,6 @@
 //! Type aliases, resolved once per program so annotations can substitute them.
 
+use crate::checked::Checked;
 use crate::{
     Error, Result,
     compilation::{Buffer, Type, Work},
@@ -160,18 +161,18 @@ impl Aliases {
 
 impl Resolving<'_> {
     fn resolve(&mut self, position: usize, work: &dyn Work) -> Result<()> {
-        if self.resolved[position].is_some() {
+        if self.resolved.at(position)?.is_some() {
             return Ok(());
         }
         let declared = self.declared;
-        let entry = &declared[position];
+        let entry = declared.at(position)?;
         if let Some(start) = self.path.iter().position(|&open| open == position) {
-            let mut cycle: Vec<&str> = self.path[start..]
-                .iter()
-                .map(|&open| declared[open].alias.name.as_str())
-                .collect();
+            let mut cycle = Vec::new();
+            for &open in self.path.tail(start)? {
+                cycle.push(declared.at(open)?.alias.name.as_str());
+            }
             cycle.push(&entry.alias.name);
-            let first = &declared[self.path[start]].alias;
+            let first = &declared.at(*self.path.at(start)?)?.alias;
             return Err(Error::syntax(
                 work,
                 first.offset as usize,
@@ -196,7 +197,7 @@ impl Resolving<'_> {
                 return self.builtin(name).map(|ty| copy_type(ty, work)).transpose();
             };
             self.resolve(target, work)?;
-            let resolved = self.resolved[target].as_ref().unwrap();
+            let resolved = self.resolved.at(target)?.as_ref().unwrap();
             nodes += resolved.nodes();
             work.charge(resolved.nodes())?;
             if nodes > MAX_NODES {
@@ -212,7 +213,7 @@ impl Resolving<'_> {
                 format_args!("type alias {} nests too deeply", entry.alias.name),
             ));
         }
-        self.resolved[position] = Some(compiled);
+        *self.resolved.at_mut(position)? = Some(compiled);
         Ok(())
     }
 
@@ -245,12 +246,12 @@ fn copy_type(ty: &types::Type, work: &dyn Work) -> Result<types::Type> {
         TypeKind::Array(element) => TypeKind::Array(
             element
                 .as_ref()
-                .map(|element| Ok(Box::new(copy_type(element, work)?)))
+                .map(|element| -> Result<_> { Ok(Box::new(copy_type(element, work)?)) })
                 .transpose()?,
         ),
         TypeKind::Hash(pair) => TypeKind::Hash(
             pair.as_ref()
-                .map(|pair| {
+                .map(|pair| -> Result<_> {
                     Ok(Box::new((
                         copy_type(&pair.0, work)?,
                         copy_type(&pair.1, work)?,
@@ -284,7 +285,7 @@ fn copy_type(ty: &types::Type, work: &dyn Work) -> Result<types::Type> {
         TypeKind::Literal(described) => TypeKind::Literal(
             described
                 .as_ref()
-                .map(|described| Ok(Box::new(copy_type(described, work)?)))
+                .map(|described| -> Result<_> { Ok(Box::new(copy_type(described, work)?)) })
                 .transpose()?,
         ),
         TypeKind::Named => TypeKind::Named,
@@ -324,7 +325,9 @@ pub(super) fn scope(
     namespaces: &[std::sync::Arc<crate::namespace::Definition>],
     namespace: Option<usize>,
 ) -> &str {
-    namespace.map_or("", |index| namespaces[index].name.as_str())
+    namespace
+        .and_then(|index| namespaces.get(index))
+        .map_or("", |namespace| namespace.name.as_str())
 }
 
 #[cfg(test)]

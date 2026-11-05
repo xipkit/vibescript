@@ -48,6 +48,9 @@ pub enum ErrorKind {
     Host,
     /// An attached block transferred control outside the host callback.
     ControlFlow,
+    /// An invariant of the compiler or VM did not hold: a bug in vibescript,
+    /// not in the script, which no `rescue` can catch.
+    Internal,
 }
 
 /// A script-visible exception class, independent of the host error category.
@@ -204,7 +207,10 @@ impl Error {
     /// syntax failures from host-side compilation have no script exception class.
     pub fn class(&self) -> Option<ErrorClass> {
         match self.kind {
-            ErrorKind::Cancelled | ErrorKind::Deadline | ErrorKind::ControlFlow => None,
+            ErrorKind::Cancelled
+            | ErrorKind::Deadline
+            | ErrorKind::ControlFlow
+            | ErrorKind::Internal => None,
             ErrorKind::Syntax if !self.required_syntax => None,
             _ => Some(self.class),
         }

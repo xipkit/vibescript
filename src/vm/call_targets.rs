@@ -14,11 +14,12 @@ pub(super) fn identifier(
     slot: usize,
     index: usize,
 ) -> Result<Target> {
-    let name = &program.members[index];
-    let frame = &frames.data[current];
-    let namespace = frame
-        .function()
-        .and_then(|f| frame.program.functions[f].namespace);
+    let name = program.members.at(index)?;
+    let frame = frames.at(current)?;
+    let namespace = match frame.function() {
+        Some(f) => frame.program.functions.at(f)?.namespace,
+        None => None,
+    };
     if let Some(Some(value)) = storage.locals.data.get(slot) {
         return Ok(value_invocation(value));
     }
@@ -26,9 +27,7 @@ pub(super) fn identifier(
         return Ok(value_invocation(&value));
     }
     if let Some(slot) = namespaces::ambient_slot(ctx, frames, storage, current, name)? {
-        return Ok(value_invocation(
-            storage.locals.data[slot].as_ref().unwrap(),
-        ));
+        return Ok(value_invocation(storage.locals.at(slot)?.as_ref().unwrap()));
     }
     if let Some(value) = file_bindings::get(program, ctx, name)? {
         return Ok(value_invocation(&value));
@@ -70,8 +69,8 @@ pub(super) fn identifier(
             Some(module) if !names::universal(name) => Err(namespaces::missing_implicit(
                 ctx,
                 storage,
-                frames.data[current].receiver.as_ref(),
-                &program.namespaces[module],
+                frames.at(current)?.receiver.as_ref(),
+                program.namespaces.at(module)?,
                 name,
             )),
             Some(_) => Ok(Target::Member(Value::nil(), index)),
@@ -91,7 +90,7 @@ pub(super) fn member(
     namespace: Option<usize>,
     instance: bool,
 ) -> Result<Target> {
-    let name = &program.members[site.name as usize];
+    let name = program.members.at(site.name as usize)?;
     ctx.work_bytes(name.len())?;
     if matches!(receiver.0, Kind::Namespace(_) | Kind::Instance(_)) {
         match namespaces::member(

@@ -5,22 +5,24 @@ use super::{Extended, Function, Op};
 pub(super) fn discarded(functions: &mut [Function], extended: &mut [Extended]) {
     for function in functions {
         for ip in 0..function.code.len() {
-            let Op::LoopStart {
+            let Some(Op::LoopStart {
                 end, expression, ..
-            } = function.code[ip]
+            }) = function.code.get(ip)
             else {
                 continue;
             };
-            let end = end as usize;
-            let following = function.code[end + 1..]
-                .iter()
-                .find(|op| !matches!(op, Op::Declare(_)));
+            let (end, expression) = (*end as usize, *expression);
+            let following = function
+                .code
+                .get(end + 1..)
+                .and_then(|rest| rest.iter().find(|op| !matches!(op, Op::Declare(_))));
             let unused = expression
                 || matches!(following, Some(Op::Pop))
                 || (function.returns_nil && matches!(following, Some(Op::Finish)));
             if unused
-                && let Op::Extended(index) = function.code[end - 2]
-                && let Extended::Shovel(_, last) = &mut extended[index as usize]
+                && let Some(Op::Extended(index)) =
+                    end.checked_sub(2).and_then(|at| function.code.get(at))
+                && let Some(Extended::Shovel(_, last)) = extended.get_mut(*index as usize)
             {
                 *last = true;
             }

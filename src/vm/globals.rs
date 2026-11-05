@@ -13,7 +13,7 @@ pub(super) fn validate(ctx: &mut CallContext) -> Result<()> {
 pub(super) fn contains(ctx: &mut CallContext, name: &str) -> Result<bool> {
     for index in 0..ctx.capability_names.data.len() {
         ctx.charge(1)?;
-        let candidate = ctx.capability_names.data[index].clone();
+        let candidate = ctx.capability_names.at(index)?.clone();
         if crate::bytes::bytes_equal(ctx, candidate.as_bytes().unwrap(), name.as_bytes())? {
             return Ok(true);
         }

@@ -39,10 +39,12 @@ impl HostControl {
     /// receiver already belongs to this invocation.
     pub fn receiver(&self, ctx: &mut CallContext, storage: &Storage) -> Result<Option<Value>> {
         ctx.checkpoint()?;
-        self.receiver
+        let receiver = self
+            .receiver
             .as_ref()
             .map(|receiver| programs::snapshot(ctx, storage, receiver))
-            .transpose()
+            .transpose();
+        ctx.latch_internal(receiver)
     }
 
     /// Stores a field in the member receiver, publishing it to the capability
@@ -61,7 +63,8 @@ impl HostControl {
                 "host method has no member receiver",
             ));
         };
-        publication::set_field(ctx, storage, receiver, &mut self.location, key, value)
+        let stored = publication::set_field(ctx, storage, receiver, &mut self.location, key, value);
+        ctx.latch_internal(stored)
     }
 
     pub fn completed(&mut self, result: Result<Exit>) -> Result<Value> {
@@ -147,7 +150,7 @@ impl Run {
             &args.keywords.buffer.data,
             args.block.is_some(),
         )?;
-        let program = self.frames.data[current].program.clone();
+        let program = self.frames.at(current)?.program.clone();
         self.host_arguments(ctx, &program, &method, &mut args)?;
         Ok(HostRequest {
             current,
@@ -235,6 +238,9 @@ impl Run {
         boundary: BlockBoundary,
         result: Result<Exit>,
     ) -> Result<Exit> {
+        // Preparing the block can fail before the run loop sees the error, and
+        // so can the steps below; either way the callback gets it latched.
+        let result = ctx.latch_internal(result);
         let result = (|| match result {
             Ok(Exit::Value(value)) => {
                 programs::snapshot(ctx, &self.storage, &value).map(Exit::Value)
@@ -257,15 +263,19 @@ impl Run {
             result => result,
         })();
         self.storage.handlers.data.truncate(boundary.handlers);
-        if self.frames.data.len() > boundary.floor {
+        let result = if self.frames.data.len() > boundary.floor {
             unwind(
                 &mut self.frames,
                 &mut self.storage,
                 &mut self.stack,
                 boundary.floor,
-            );
-        }
-        result
+            )
+            .map_err(Error::from)
+            .and(result)
+        } else {
+            result
+        };
+        ctx.latch_internal(result)
     }
 }
 

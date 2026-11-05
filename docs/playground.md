@@ -165,8 +165,8 @@ plus the fixed preview status; requests cannot supply executable host behavior.
 
 All fields except the last three are always present. `error.kind` is the engine
 category: `Syntax`, `Type`, `Name`, `Argument`, `Arithmetic`, `Json`, `OutputLimit`,
-`Steps`, `Memory`, `Recursion`, `Runtime`, `Host`, `Cancelled`, `Deadline` or
-`ControlFlow`. Invalid requests use `Argument`. `location` is null when unavailable,
+`Steps`, `Memory`, `Recursion`, `Runtime`, `Host`, `Cancelled`, `Deadline`,
+`ControlFlow` or `Internal`. Invalid requests use `Argument`. `location` is null when unavailable,
 otherwise `{file: string|null, line: integer, column: integer, offset: integer|null}`.
 Lines and Unicode character columns are one-based; byte offsets are zero-based.
 The main source has `file: null`.
