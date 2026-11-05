@@ -8,7 +8,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let brace = {
             let mut p = self.p();
             let next = p.significant(p.pos);
-            let brace = match &p.tokens[next].token {
+            let brace = match &p.tokens.at(next)?.token {
                 Token::Word(w) if w == "do" && !p.mode.canonical => {
                     (next != p.pos || p.can_attach_do()).then_some(false)
                 }
@@ -72,7 +72,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             let mut p = self.p();
             let open = p.pos;
             let first = p.significant(open + 1);
-            let key = match &p.tokens[first].token {
+            let key = match &p.tokens.at(first)?.token {
                 Token::Word(word) if !word.starts_with('@') => {
                     p.pos = first;
                     let typed = p.typed_local_ahead();
@@ -84,8 +84,8 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             };
             // A key is never the last token, which is the end of input.
             if !key
-                || p.tokens[first + 1].token != Token::P(':')
-                || p.tokens[first + 1].offset != p.tokens[first].end
+                || p.tokens.at(first + 1)?.token != Token::P(':')
+                || p.tokens.at(first + 1)?.offset != p.tokens.at(first)?.end
             {
                 return Ok(());
             }
@@ -99,18 +99,20 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             Err(error) => return Err(error),
         };
         let p = self.p();
-        let brace = p.tokens[open].offset;
+        let brace = p.tokens.at(open)?.offset;
         let message = format!(
             "a hash literal passed to `{name}` needs parentheses, as in `{name}({{ ... }})`; after a call, `{{` starts a block"
         );
-        let close = end.map(|end| p.tokens[end - 1].end);
+        let close = end
+            .and_then(|end| p.tokens.get(end - 1))
+            .map(|token| token.end);
         let span = crate::diagnostic::Span::new(brace, close.unwrap_or(brace + 1));
         let mut diagnostic = crate::diagnostic::Diagnostic::error(
             crate::diagnostic::Code::HASH_ARGUMENT,
             span,
             message.clone(),
         );
-        let ends_call = |index: usize| match &p.tokens[index].token {
+        let ends_call = |index: usize| match p.token_at(index) {
             Token::EndLine | Token::Eof | Token::P('}' | ')' | ']') => true,
             Token::Word(word) => matches!(word.as_str(), "if" | "unless" | "while" | "until"),
             _ => false,
@@ -122,7 +124,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 "pass the hash in parentheses",
                 vec![
                     crate::diagnostic::Edit {
-                        span: crate::diagnostic::Span::new(p.tokens[open - 1].end, brace),
+                        span: crate::diagnostic::Span::new(p.tokens.at(open - 1)?.end, brace),
                         replacement: "(".to_owned(),
                     },
                     crate::diagnostic::Edit {
@@ -140,7 +142,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let (offset, outer, outer_it) = {
             let mut p = self.p();
             p.work.charge(1)?;
-            let offset = p.tokens[p.pos].offset as u32;
+            let offset = p.tokens.at(p.pos)?.offset as u32;
             p.bump()?;
             p.line_breaks()?;
             (offset, p.locals.copy(p.work)?, p.declared_it)
@@ -194,7 +196,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                     p.declare_block_parameter(&target, &params)?;
                     params.push(work, target)?;
                     let comma = p.significant(p.pos);
-                    if p.tokens[comma].token != Token::P(',') {
+                    if p.tokens.at(comma)?.token != Token::P(',') {
                         break;
                     }
                     p.pos = comma + 1;
@@ -228,7 +230,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let work = self.p().work;
         let (close, open) = {
             let mut p = self.p();
-            let open = p.tokens[p.pos].offset;
+            let open = p.tokens.at(p.pos)?.offset;
             let close = match p.token() {
                 Token::P('(') => ')',
                 Token::P('[') => ']',
@@ -236,7 +238,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                     let name = p.name()?;
                     let target = Target::Value(p.make(Node::Var(name), 1)?);
                     let colon = p.significant(p.pos);
-                    if p.tokens[colon].token != Token::P(':') {
+                    if p.tokens.at(colon)?.token != Token::P(':') {
                         return Ok(target);
                     }
                     p.pos = colon + 1;
@@ -251,7 +253,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             p.enter()?;
             p.bump()?;
             let next = p.significant(p.pos);
-            if p.tokens[next].token == Token::P(close) {
+            if p.tokens.at(next)?.token == Token::P(close) {
                 p.pos = next;
                 return p.expected(Label::Text("destructuring assignment target"));
             }
@@ -283,7 +285,7 @@ impl Parser<'_> {
     /// Whether the `{` at the current token starts `lhs`'s block: it follows
     /// a `)`, or `lhs` is a call.
     pub(super) fn block_follows(&self, lhs: &Expr) -> Result<bool> {
-        Ok(self.tokens[self.pos - 1].token == Token::P(')') || self.block_owner(lhs)?)
+        Ok(self.tokens.at(self.pos - 1)?.token == Token::P(')') || self.block_owner(lhs)?)
     }
     /// Whether `lhs` is a call that a `{` after it gives a block: a function
     /// or method name or a call with arguments, and not a value such as a

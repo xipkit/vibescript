@@ -44,13 +44,13 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             work.charge(1)?;
             let line = p.previous()?.line;
             let mut next = p.pos;
-            while p.tokens[next].token == Token::EndLine
-                && p.tokens[next].line != p.tokens[next].end_line
+            while p.tokens.at(next)?.token == Token::EndLine
+                && p.tokens.at(next)?.line != p.tokens.at(next)?.end_line
             {
                 work.charge(1)?;
                 next += 1;
             }
-            if p.tokens[next].token == Token::P('(') {
+            if p.tokens.at(next)?.token == Token::P('(') {
                 p.pos = next;
             }
             (line, p.take_p('('))
@@ -61,7 +61,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             let mut args = Buffer::new();
             let starts = {
                 let p = self.p();
-                p.tokens[p.pos].line == line && p.starts_expression()
+                p.tokens.at(p.pos)?.line == line && p.starts_expression()
             };
             if starts {
                 args.push(work, self.line_expr(0).await?)?;
@@ -69,8 +69,8 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                     {
                         let mut p = self.p();
                         if !(p.token() == &Token::P(',')
-                            && p.tokens[p.pos].line == line
-                            && p.tokens[p.pos + 1].line == line)
+                            && p.tokens.at(p.pos)?.line == line
+                            && p.tokens.at(p.pos + 1)?.line == line)
                         {
                             break;
                         }
@@ -107,18 +107,18 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             args.push(work, argument)?;
             let last = p.previous()?;
             if p.token() != &Token::P(',')
-                || p.tokens[p.pos].line != last.line
-                || p.tokens[p.pos + 1].line != last.line
+                || p.tokens.at(p.pos)?.line != last.line
+                || p.tokens.at(p.pos + 1)?.line != last.line
             {
                 break;
             }
             // Read a hash literal after a comma, to refuse it with a fix.
-            let brace = p.tokens[p.pos + 1].token == Token::P('{');
+            let brace = p.tokens.at(p.pos + 1)?.token == Token::P('{');
             if !brace && !p.command_argument_start(p.pos + 1, true) {
                 break;
             }
             if brace {
-                hash.get_or_insert(p.tokens[p.pos + 1].offset);
+                hash.get_or_insert(p.tokens.at(p.pos + 1)?.offset);
             }
             p.bump()?;
         }
@@ -179,7 +179,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
     async fn call_argument(&self, parenthesized: bool, types: bool) -> Result<Argument> {
         let ampersand = {
             let mut p = self.p();
-            let offset = p.tokens[p.pos].offset;
+            let offset = p.tokens.at(p.pos)?.offset;
             (p.token() == &Token::Op("&")).then(|| {
                 p.pos += 1;
                 offset
@@ -252,34 +252,40 @@ impl Parser<'_> {
     /// gives the call parentheses; without them a hash first after the call
     /// would read as a block.
     fn hash_argument(&self, start: usize, brace: usize) -> Error {
-        let callee = &self.tokens[start - 1];
-        let name = match &callee.token {
-            Token::Word(name) => name.as_str(),
+        let callee = start
+            .checked_sub(1)
+            .and_then(|index| self.tokens.get(index));
+        let name = match callee.map(|callee| &callee.token) {
+            Some(Token::Word(name)) => name.as_str(),
             _ => "the call",
         };
         let message = format!(
             "a hash literal passed to `{name}` needs parentheses, as in `{name}(..., {{ ... }})`; after a call, `{{` starts a block"
         );
         let span = crate::diagnostic::Span::new(brace, brace + 1);
-        let edits = vec![
-            crate::diagnostic::Edit {
-                span: crate::diagnostic::Span::new(callee.end, self.tokens[start].offset),
-                replacement: "(".to_owned(),
-            },
-            crate::diagnostic::Edit {
-                span: crate::diagnostic::Span::at(self.previous().map_or(brace, |last| last.end)),
-                replacement: ")".to_owned(),
-            },
-        ];
-        let diagnostic = crate::diagnostic::Diagnostic::error(
+        let mut diagnostic = crate::diagnostic::Diagnostic::error(
             crate::diagnostic::Code::HASH_ARGUMENT,
             span,
             &message,
-        )
-        .with_fix(crate::diagnostic::Fix::edits(
-            "give the call parentheses",
-            edits,
-        ));
+        );
+        if let Some((callee, argument)) = callee.zip(self.tokens.get(start)) {
+            let edits = vec![
+                crate::diagnostic::Edit {
+                    span: crate::diagnostic::Span::new(callee.end, argument.offset),
+                    replacement: "(".to_owned(),
+                },
+                crate::diagnostic::Edit {
+                    span: crate::diagnostic::Span::at(
+                        self.previous().map_or(brace, |last| last.end),
+                    ),
+                    replacement: ")".to_owned(),
+                },
+            ];
+            diagnostic = diagnostic.with_fix(crate::diagnostic::Fix::edits(
+                "give the call parentheses",
+                edits,
+            ));
+        }
         Error::syntax(self.work, brace, message).with_diagnostic(diagnostic)
     }
 
@@ -293,7 +299,7 @@ impl Parser<'_> {
     }
 
     pub(super) fn keyword_label(&self, pos: usize) -> bool {
-        matches!(&self.tokens[pos].token, Token::Word(word) if !word.starts_with('@'))
+        matches!(self.token_at(pos), Token::Word(word) if !word.starts_with('@'))
             && self
                 .tokens
                 .get(pos + 1)
@@ -323,7 +329,7 @@ impl Parser<'_> {
             _ => false,
         };
         let previous = self.previous()?;
-        let next = &self.tokens[self.pos];
+        let next = self.tokens.at(self.pos)?;
         if next.line != previous.end_line {
             return Ok(false);
         }
@@ -353,7 +359,7 @@ impl Parser<'_> {
                         .is_some_and(|byte| !matches!(byte, b' ' | b'\t' | b'\r' | b'\n'))
                         || (op == "//"
                             && matches!(
-                                self.tokens[self.pos + 1].token,
+                                self.tokens.at(self.pos + 1)?.token,
                                 Token::EndLine | Token::Eof
                             )))
             }
@@ -376,7 +382,7 @@ impl Parser<'_> {
         if self.keyword_label(pos) {
             return true;
         }
-        match &self.tokens[pos].token {
+        match self.token_at(pos) {
             Token::Word(w) if w == "then" => self.then_stop != Some(self.groups),
             Token::Word(w) => {
                 !reserved(w) || matches!(w.as_str(), "case" | "for" | "yield" | "begin")
@@ -428,8 +434,10 @@ impl Parser<'_> {
                 || (!parenthesized
                     && (self.token() == &Token::Eof
                         || (self.token() == &Token::EndLine
-                            && self.tokens[self.pos].line != self.tokens[self.pos].end_line)
-                        || self.tokens[self.pos].line != self.tokens[self.pos - 1].end_line));
+                            && self.tokens.at(self.pos)?.line
+                                != self.tokens.at(self.pos)?.end_line)
+                        || self.tokens.at(self.pos)?.line
+                            != self.tokens.at(self.pos - 1)?.end_line));
             if shorthand {
                 return Ok(Some(self.make(Node::Var(name.clone()), 1)?));
             }

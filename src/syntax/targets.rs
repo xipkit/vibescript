@@ -1,4 +1,5 @@
 use super::*;
+use crate::checked::Checked;
 
 /// Where a destructuring target list appears.
 #[derive(Clone, Copy, PartialEq)]
@@ -20,10 +21,10 @@ struct TargetText<'w> {
 
 impl TargetText<'_> {
     fn text(&self) -> crate::checked::Access<&str> {
-        let bytes = &self.bytes[..self.len];
+        let bytes = self.bytes.span(0, self.len)?;
         match std::str::from_utf8(bytes) {
             Ok(text) => Ok(text),
-            Err(error) => std::str::from_utf8(&bytes[..error.valid_up_to()])
+            Err(error) => std::str::from_utf8(bytes.split_at(error.valid_up_to()).0)
                 .map_err(|_| crate::checked::violation("target excerpt prefix must be UTF-8")),
         }
     }
@@ -43,9 +44,13 @@ impl crate::shapes::TypeWriter for TargetText<'_> {
 
     fn write(&mut self, bytes: &[u8]) -> Result<()> {
         self.node()?;
-        let count = bytes.len().min(self.bytes.len() - self.len);
+        let capacity = self.bytes.len();
+        let tail = self.bytes.span_mut(self.len, capacity)?;
+        let count = bytes.len().min(tail.len());
         self.work.bytes(count)?;
-        self.bytes[self.len..self.len + count].copy_from_slice(&bytes[..count]);
+        tail.split_at_mut(count)
+            .0
+            .copy_from_slice(bytes.split_at(count).0);
         self.len += count;
         if count < bytes.len() {
             self.clipped = true;
@@ -117,12 +122,12 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         loop {
             let (rest, anonymous, group, star) = {
                 let mut p = self.p();
-                let star = p.tokens[p.pos].offset as u32;
+                let star = p.tokens.at(p.pos)?.offset as u32;
                 let rest = p.token() == &Token::Op("*");
                 let mut anonymous = false;
                 if rest {
                     let next = p.significant(p.pos + 1);
-                    anonymous = match &p.tokens[next].token {
+                    anonymous = match &p.tokens.at(next)?.token {
                         Token::P(',' | ')' | ']') => true,
                         Token::Op(op) => assignment(op),
                         Token::Word(w) => place == Place::For && *w == "in",
@@ -151,10 +156,10 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 let open = {
                     let mut p = self.p();
                     p.enter()?;
-                    let open = p.tokens[p.pos].offset as u32;
+                    let open = p.tokens.at(p.pos)?.offset as u32;
                     p.bump()?;
                     let next = p.significant(p.pos);
-                    if p.tokens[next].token == Token::P(close) {
+                    if p.tokens.at(next)?.token == Token::P(close) {
                         p.pos = next;
                         return p.expected(Label::Text("destructuring assignment target"));
                     }
@@ -186,7 +191,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 let expression = expression?;
                 // Go checks a statement's lone target only once an operator follows.
                 let lone = place == Place::Statement && parts.is_empty() && !rest;
-                let listed = p.tokens[p.significant(p.pos)].token == Token::P(',');
+                let listed = p.tokens.at(p.significant(p.pos))?.token == Token::P(',');
                 if !lone || listed {
                     p.assignment_member(&expression)?;
                     if let Some(offset) = expression.safe_navigation() {
@@ -209,10 +214,10 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             };
             let mut p = self.p();
             let colon = p.significant(p.pos);
-            if typed && value.is_some() && p.tokens[colon].token == Token::P(':') {
+            if typed && value.is_some() && p.tokens.at(colon)?.token == Token::P(':') {
                 p.pos = colon + 1;
                 p.line_breaks()?;
-                let start = p.tokens[p.pos].offset;
+                let start = p.tokens.at(p.pos)?.offset;
                 let ty = p.type_expr(1, false)?;
                 if rest && !ty.captures(false) {
                     let excerpt = target_excerpt(
@@ -253,7 +258,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             }
             parts.push(work, (value, rest))?;
             let comma = p.significant(p.pos);
-            if p.tokens[comma].token != Token::P(',') {
+            if p.tokens.at(comma)?.token != Token::P(',') {
                 break;
             }
             p.pos = comma + 1;
@@ -269,7 +274,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 .ok_or(crate::checked::violation("single target must have a value"))?
         };
         let p = self.p();
-        let offset = target.offset().unwrap_or(p.tokens[p.pos].offset as u32);
+        let offset = target.offset().unwrap_or(p.tokens.at(p.pos)?.offset as u32);
         p.check_depth(target.depth(p.work)?, offset)?;
         Ok((target, tuple))
     }
@@ -331,7 +336,7 @@ impl Parser<'_> {
                 continue;
             }
             let mut repeated = false;
-            for (other, _) in &names[..index] {
+            for (other, _) in names.span(0, index)? {
                 if same_binding(self.work, other, name)? {
                     repeated = true;
                     break;
