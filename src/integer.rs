@@ -680,7 +680,9 @@ pub(crate) fn true_divide(ctx: &mut CallContext, a: &Value, b: &Value) -> Result
     } else {
         shift_right(ctx, am, shift as usize)?
     };
-    let (quotient, remainder) = divide(ctx, Magnitude::Words(&scaled.data), bm)?;
+    let (mut quotient, remainder) = divide(ctx, Magnitude::Words(&scaled.data), bm)?;
+    // Division can leave a high zero word, which must not count toward precision.
+    trim(ctx, &mut quotient.data)?;
     inexact |= remainder.data.iter().any(|&word| word != 0);
     let quotient = Magnitude::Words(&quotient.data);
     let quotient_bits = to_i64(quotient.bits());

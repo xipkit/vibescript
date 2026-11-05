@@ -105,6 +105,60 @@ fn slash_divides_integers_to_the_nearest_float() {
 }
 
 #[test]
+fn slash_rounds_signed_multiword_quotients_to_the_exact_float_bits() {
+    // Exact-rational Python oracles, including both sides of halfway cases.
+    for (a, b, bits) in [
+        (
+            "438499415816851821364379576622053552960",
+            "1458869100353507768418856817186111746",
+            0x4072_c932_bd4e_c583,
+        ),
+        ("(2**53+1)*d-1", "2**53*d", 0x3ff0_0000_0000_0000),
+        ("(2**53+1)*d", "2**53*d", 0x3ff0_0000_0000_0000),
+        ("(2**53+1)*d+1", "2**53*d", 0x3ff0_0000_0000_0001),
+        ("(2**53+3)*d", "2**53*d", 0x3ff0_0000_0000_0002),
+        ("(2**1024-2**971)*d", "d", 0x7fef_ffff_ffff_ffff),
+        ("(2**1024-2**970)*d-1", "d", 0x7fef_ffff_ffff_ffff),
+        ("d", "2**1022*d", 0x0010_0000_0000_0000),
+        ("d", "2**1074*d", 0x0000_0000_0000_0001),
+        ("d-1", "2**1075*d", 0x0000_0000_0000_0000),
+        ("d", "2**1075*d", 0x0000_0000_0000_0000),
+        ("d+1", "2**1075*d", 0x0000_0000_0000_0001),
+        ("3*d", "2**1075*d", 0x0000_0000_0000_0002),
+    ] {
+        for an in [false, true] {
+            for bn in [false, true] {
+                let (sa, sb) = (if an { "-" } else { "" }, if bn { "-" } else { "" });
+                let expression = format!("d=2**80+1; a={a}; b={b}; {sa}a / {sb}b");
+                let expected = bits | (u64::from(an != bn) << 63);
+                assert_eq!(
+                    run(&expression).as_float().unwrap().to_bits(),
+                    expected,
+                    "{expression}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn slash_checks_the_float_range_after_rounding_multiword_quotients() {
+    for a in ["(2**1024-2**970)*d", "(2**1024-2**970)*d+1", "2**1024*d"] {
+        for an in ["", "-"] {
+            for bn in ["", "-"] {
+                let expression = format!("d=2**80+1; a={a}; {an}a / {bn}d");
+                let error = failure(&expression);
+                assert_eq!(error.kind, ErrorKind::Arithmetic, "{expression}");
+                assert_eq!(
+                    error.message, "integer division result is out of float range",
+                    "{expression}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn slash_raises_for_zero_divisors_and_quotients_beyond_the_float_range() {
     for expression in ["7 / 0", "(2 ** 70) / 0", "0 / 0"] {
         let error = failure(expression);
