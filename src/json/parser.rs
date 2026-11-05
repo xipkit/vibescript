@@ -71,37 +71,48 @@ impl Failure {
         input: &[u8],
         out: &mut impl std::fmt::Write,
     ) -> std::fmt::Result {
-        let number = |out: &mut dyn std::fmt::Write, start: usize, end: usize| {
-            let mut quoted = Vec::new();
-            crate::shapes::quote(&input[start..end], &mut quoted);
-            out.write_str(std::str::from_utf8(&quoted).unwrap())
-        };
-        if let Self::Range(start, end) = self {
-            write!(out, "{name} invalid number ")?;
-            return number(out, start, end);
+        enum Detail {
+            Text(&'static str),
+            Number(usize, usize),
+            Character(u8, &'static str),
         }
-        write!(out, "{name} invalid JSON: ")?;
-        let (byte, context) = match self {
-            Self::End => return out.write_str("unexpected end of JSON input"),
-            Self::Trailing => return out.write_str("trailing data"),
-            Self::Depth => return out.write_str("exceeded max depth"),
-            Self::Number(start, end) => {
-                out.write_str("invalid number ")?;
-                return number(out, start, end);
-            }
-            Self::Range(..) => return Err(std::fmt::Error),
-            Self::Value(byte) => (byte, "looking for beginning of value"),
-            Self::AfterElement(byte) => (byte, "after array element"),
-            Self::KeyStart(byte) => (byte, "looking for beginning of object key string"),
-            Self::AfterKey(byte) => (byte, "after object key"),
-            Self::AfterValue(byte) => (byte, "after object value"),
-            Self::Literal(byte) => (byte, "in string literal"),
-            Self::Escape(byte) => (byte, "in string escape code"),
-            Self::Unicode(byte) => (byte, "in unicode escape"),
+        const SYNTAX: &str = "invalid JSON: ";
+        let (frame, detail) = match self {
+            Self::Range(start, end) => ("", Detail::Number(start, end)),
+            Self::Number(start, end) => (SYNTAX, Detail::Number(start, end)),
+            Self::End => (SYNTAX, Detail::Text("unexpected end of JSON input")),
+            Self::Trailing => (SYNTAX, Detail::Text("trailing data")),
+            Self::Depth => (SYNTAX, Detail::Text("exceeded max depth")),
+            Self::Value(byte) => (
+                SYNTAX,
+                Detail::Character(byte, "looking for beginning of value"),
+            ),
+            Self::AfterElement(byte) => (SYNTAX, Detail::Character(byte, "after array element")),
+            Self::KeyStart(byte) => (
+                SYNTAX,
+                Detail::Character(byte, "looking for beginning of object key string"),
+            ),
+            Self::AfterKey(byte) => (SYNTAX, Detail::Character(byte, "after object key")),
+            Self::AfterValue(byte) => (SYNTAX, Detail::Character(byte, "after object value")),
+            Self::Literal(byte) => (SYNTAX, Detail::Character(byte, "in string literal")),
+            Self::Escape(byte) => (SYNTAX, Detail::Character(byte, "in string escape code")),
+            Self::Unicode(byte) => (SYNTAX, Detail::Character(byte, "in unicode escape")),
         };
-        out.write_str("invalid character ")?;
-        quote_byte(byte, out)?;
-        write!(out, " {context}")
+        write!(out, "{name} {frame}")?;
+        match detail {
+            Detail::Text(text) => out.write_str(text),
+            Detail::Number(start, end) => {
+                let mut quoted = Vec::new();
+                crate::shapes::quote(&input[start..end], &mut quoted);
+                out.write_str("invalid number ")?;
+                out.write_str(std::str::from_utf8(&quoted).unwrap())
+            }
+            Detail::Character(byte, context) => {
+                out.write_str("invalid character ")?;
+                quote_byte(byte, out)?;
+                write!(out, " {context}")
+            }
+        }
     }
 }
 
@@ -1111,6 +1122,64 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
 mod tests {
     use super::*;
     use crate::{CallOptions, Limits};
+
+    #[test]
+    fn every_failure_renders_the_reference_wording() {
+        let input = b"1e999";
+        let cases = [
+            (Failure::Range(0, 5), "JSON.parse invalid number \"1e999\""),
+            (
+                Failure::Number(0, 2),
+                "JSON.parse invalid JSON: invalid number \"1e\"",
+            ),
+            (
+                Failure::End,
+                "JSON.parse invalid JSON: unexpected end of JSON input",
+            ),
+            (Failure::Trailing, "JSON.parse invalid JSON: trailing data"),
+            (
+                Failure::Depth,
+                "JSON.parse invalid JSON: exceeded max depth",
+            ),
+            (
+                Failure::Value(b'x'),
+                "JSON.parse invalid JSON: invalid character 'x' looking for beginning of value",
+            ),
+            (
+                Failure::AfterElement(b'x'),
+                "JSON.parse invalid JSON: invalid character 'x' after array element",
+            ),
+            (
+                Failure::KeyStart(b'x'),
+                "JSON.parse invalid JSON: invalid character 'x' looking for beginning of object key string",
+            ),
+            (
+                Failure::AfterKey(b'x'),
+                "JSON.parse invalid JSON: invalid character 'x' after object key",
+            ),
+            (
+                Failure::AfterValue(b'x'),
+                "JSON.parse invalid JSON: invalid character 'x' after object value",
+            ),
+            (
+                Failure::Literal(b'\t'),
+                "JSON.parse invalid JSON: invalid character '\\t' in string literal",
+            ),
+            (
+                Failure::Escape(b'x'),
+                "JSON.parse invalid JSON: invalid character 'x' in string escape code",
+            ),
+            (
+                Failure::Unicode(b'x'),
+                "JSON.parse invalid JSON: invalid character 'x' in unicode escape",
+            ),
+        ];
+        for (failure, expected) in cases {
+            let mut out = String::new();
+            failure.render("JSON.parse", input, &mut out).unwrap();
+            assert_eq!(out, expected, "{failure:?}");
+        }
+    }
 
     #[test]
     fn word_cache_hash_preserves_the_original_sets() {
