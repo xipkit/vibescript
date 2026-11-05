@@ -508,6 +508,11 @@ impl<'a> Checker<'a> {
         }
         let (parsed, tokens, _tokens_held) = match parse {
             Ok(parsed) => parsed,
+            Err(error) if error.kind == crate::ErrorKind::Internal => {
+                self.meter.violated(error);
+                self.stopped = true;
+                return Err("the check stopped for an internal error".into());
+            }
             Err(error)
                 if matches!(
                     error.kind,
@@ -539,6 +544,11 @@ impl<'a> Checker<'a> {
                     self.stopped = true;
                     self.meter.stop();
                     return Err("the check ran out of its budget".into());
+                }
+                if error.kind == crate::ErrorKind::Internal {
+                    self.meter.violated(error);
+                    self.stopped = true;
+                    return Err("the check stopped for an internal error".into());
                 }
                 return Err(text!(self, "{error}"));
             }

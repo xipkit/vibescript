@@ -472,7 +472,7 @@ impl Types {
     }
 
     /// The first invariant this table's check found broken, if any.
-    pub fn violation(&self) -> Option<crate::checked::Violation> {
+    pub fn violation(&self) -> Option<crate::Error> {
         self.meter.violation()
     }
 
