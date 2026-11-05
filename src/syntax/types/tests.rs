@@ -2,7 +2,19 @@ use super::*;
 use crate::{Error, ErrorKind, budget::Charge, compilation::Work};
 use std::cell::Cell;
 
-struct FailedInvariant(Cell<bool>);
+struct FailedInvariant {
+    skip: Cell<usize>,
+    failed: Cell<bool>,
+}
+
+impl FailedInvariant {
+    fn new(skip: usize) -> Self {
+        Self {
+            skip: Cell::new(skip),
+            failed: Cell::new(false),
+        }
+    }
+}
 
 impl Work for FailedInvariant {
     fn charge(&self, _: usize) -> Result<()> {
@@ -10,10 +22,15 @@ impl Work for FailedInvariant {
     }
 
     fn bytes(&self, bytes: usize) -> Result<()> {
-        // Inject a one-shot invariant failure while bump reads the type name.
+        // Inject a one-shot invariant failure on a selected name read.
         // A later checkpoint deliberately cannot recover it from a quota latch.
-        if bytes == "Invariant".len() && !self.0.replace(true) {
-            return Err(crate::checked::violation("injected type-name invariant").into());
+        if bytes == "Invariant".len() && !self.failed.get() {
+            if let Some(left) = self.skip.get().checked_sub(1) {
+                self.skip.set(left);
+            } else {
+                self.failed.set(true);
+                return Err(crate::checked::violation("injected type-name invariant").into());
+            }
         }
         Ok(())
     }
@@ -37,11 +54,11 @@ fn preserves_invariant(source: &str, probe: impl FnOnce(&mut Parser<'_>) -> Resu
         .type_names
         .insert(&(), Name::new(&(), "Invariant").unwrap(), ())
         .unwrap();
-    let work = FailedInvariant(Cell::new(false));
+    let work = FailedInvariant::new(0);
     parser.work = &work;
     let error = probe(&mut parser).unwrap_err();
     assert!(
-        work.0.get(),
+        work.failed.get(),
         "the speculative parse did not reach the invariant"
     );
     assert_eq!(error.kind, ErrorKind::Internal);
@@ -103,13 +120,33 @@ fn class_var_preserves_internal_error() {
 
 #[test]
 fn full_parse_preserves_internal_error() {
-    let source = "f(Invariant)";
+    full_parse_invariant("f(Invariant)", 0);
+}
+
+fn full_parse_invariant(source: &str, skip: usize) {
     let mut parser = crate::syntax::parser(source, &()).unwrap();
-    let work = FailedInvariant(Cell::new(false));
+    let work = FailedInvariant::new(skip);
     parser.work = &work;
     let parsing = Parsing::<crate::syntax::recovery::FailFast>::new(parser);
     let error = parsing.run(crate::syntax::Call::Program).err().unwrap();
-    assert!(work.0.get());
+    assert!(work.failed.get());
+    assert_eq!(work.skip.get(), 0);
     assert_eq!(error.kind, ErrorKind::Internal);
     assert!(error.message.ends_with("injected type-name invariant"));
+}
+
+#[test]
+fn shape_value_assignment_preserves_internal_error() {
+    // The candidate and its type accounting read the key four times first.
+    full_parse_invariant("x = {invariant: int}", 4);
+}
+
+#[test]
+fn shape_value_argument_preserves_internal_error() {
+    full_parse_invariant("g({invariant: int})", 4);
+}
+
+#[test]
+fn shape_value_cast_preserves_internal_error() {
+    full_parse_invariant("v.as({invariant: int})", 4);
 }

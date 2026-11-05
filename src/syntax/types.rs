@@ -88,6 +88,9 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             }
             Err(error) => {
                 work.checkpoint()?;
+                if error.kind != crate::ErrorKind::Syntax {
+                    return Err(error);
+                }
                 let mut p = self.p();
                 (
                     p.depth,
@@ -102,10 +105,8 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 ) = state;
                 p.type_structural_error = structural;
                 let Some(ty) = candidate else {
-                    if error.kind == crate::ErrorKind::Syntax {
-                        p.pos = start;
-                        p.type_shape(0)?;
-                    }
+                    p.pos = start;
+                    p.type_shape(0)?;
                     return Err(error);
                 };
                 p.pos = end;
