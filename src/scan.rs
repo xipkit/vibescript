@@ -279,7 +279,7 @@ pub(crate) fn text_span(s: &[u8], class: Class) -> TextSpan {
 #[inline(always)]
 pub(crate) fn unicode_span(s: &[u8]) -> TextSpan {
     // Most runs are a character or a word between ASCII. Those stay in the
-    // caller: a call costs them about a sixth, and a block scan that ends in
+    // caller: a call costs them up to a tenth, and a block scan that ends in
     // its first or second block costs more than it saves.
     const HIGH: u128 = 0x8080_8080_8080_8080_8080_8080_8080_8080;
     let (start, mut runes) = match s.first_chunk::<16>() {
