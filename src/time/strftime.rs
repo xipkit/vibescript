@@ -1,4 +1,5 @@
 use super::format::{self, MONTHS, OUTPUT_LIMIT, Output, View, WEEKDAYS};
+use crate::checked::Checked;
 use crate::{CallContext, Error, ErrorKind, Result, Value, bytes, casing, numeric::to_usize, scan};
 
 #[derive(Clone, Copy, Default)]
@@ -17,7 +18,7 @@ struct Token {
 fn diagnostic(prefix: &str, format: &[u8], suffix: &str) -> Error {
     let mut message = prefix.as_bytes().to_vec();
     if format.len() > 256 {
-        let mut shown = format[..256].to_vec();
+        let mut shown: Vec<u8> = format.iter().take(256).copied().collect();
         shown.extend_from_slice(b"...");
         crate::shapes::quote(&shown, &mut message);
     } else {
@@ -41,9 +42,9 @@ fn checkpoint(ctx: &mut CallContext, index: usize) -> Result<()> {
 fn token(ctx: &mut CallContext, input: &[u8]) -> Result<Option<Token>> {
     let mut token = Token::default();
     let mut i = 1;
-    while i < input.len() {
+    while let Some(&byte) = input.get(i) {
         checkpoint(ctx, i)?;
-        match input[i] {
+        match byte {
             b'-' => token.no_pad = true,
             b'_' => token.pad = Some(b' '),
             b'0' => token.pad = Some(b'0'),
@@ -55,11 +56,11 @@ fn token(ctx: &mut CallContext, input: &[u8]) -> Result<Option<Token>> {
     }
     let start = i;
     let mut width = Some(0i64);
-    while input.get(i).is_some_and(u8::is_ascii_digit) {
+    while let Some(&byte @ b'0'..=b'9') = input.get(i) {
         checkpoint(ctx, i)?;
         width = width
             .and_then(|n| n.checked_mul(10))
-            .and_then(|n| n.checked_add(i64::from(input[i] - b'0')));
+            .and_then(|n| n.checked_add(i64::from(byte - b'0')));
         i += 1;
     }
     if i > start {
@@ -83,29 +84,32 @@ fn supported(token: Token) -> bool {
         && b"%AaBbCcDdeFHhIjkLlMmNnPpRrSsTtuwXxYyZz".contains(&token.directive)
 }
 
-pub(super) fn recognized(ctx: &mut CallContext, input: &[u8]) -> Result<bool> {
+pub(super) fn recognized(ctx: &mut CallContext, mut input: &[u8]) -> Result<bool> {
     let mut i = 0;
     let mut recognized = false;
-    while i < input.len() {
+    while let Some((&byte, rest)) = input.split_first() {
         checkpoint(ctx, i)?;
-        if input[i] != b'%' {
+        if byte != b'%' {
             i += 1;
+            input = rest;
             continue;
         }
-        let Some(token) = token(ctx, &input[i..])? else {
+        let Some(token) = token(ctx, input)? else {
             return Ok(false);
         };
         recognized |= supported(token) && (token.directive != b'%' || token.length != 2);
         i += token.length;
+        input = input.tail(token.length)?;
     }
     Ok(recognized)
 }
 
-fn layout_signature(ctx: &mut CallContext, input: &[u8]) -> Result<bool> {
+fn layout_signature(ctx: &mut CallContext, mut input: &[u8]) -> Result<bool> {
     let mut signature = false;
-    for i in 0..input.len() {
+    let mut i = 0;
+    while let Some((&byte, rest)) = input.split_first() {
         checkpoint(ctx, i)?;
-        if input[i] == b'%' {
+        if byte == b'%' {
             return Ok(false);
         }
         signature |= [
@@ -117,7 +121,9 @@ fn layout_signature(ctx: &mut CallContext, input: &[u8]) -> Result<bool> {
             b"02-01",
         ]
         .iter()
-        .any(|signature| input[i..].starts_with(signature));
+        .any(|signature| input.starts_with(signature));
+        input = rest;
+        i += 1;
     }
     Ok(signature)
 }
@@ -161,7 +167,7 @@ fn mapped_size(ctx: &mut CallContext, mut input: &[u8], upper: Option<bool>) -> 
             return ctx.fail(ErrorKind::Memory, "case mapping size overflow");
         };
         size = next;
-        input = &input[length..];
+        input = input.tail(length)?;
         scanned = (scanned + length) % 1024;
         if scanned < length {
             scanned = 0;
@@ -191,18 +197,20 @@ fn mapped(
         let mut utf8 = [0; 4];
         let bytes = casing::map(char, upper).encode_utf8(&mut utf8).as_bytes();
         if used + bytes.len() > buffer.len() {
-            out.append(ctx, &buffer[..used])?;
+            out.append(ctx, buffer.span(0, used)?)?;
             used = 0;
         }
-        buffer[used..used + bytes.len()].copy_from_slice(bytes);
+        buffer
+            .span_mut(used, used + bytes.len())?
+            .copy_from_slice(bytes);
         used += bytes.len();
-        input = &input[length..];
+        input = input.tail(length)?;
         scanned += length;
         if scanned >= 1024 {
             scanned = 0;
         }
     }
-    out.append(ctx, &buffer[..used])
+    out.append(ctx, buffer.span(0, used)?)
 }
 
 fn padded(
@@ -221,12 +229,15 @@ fn padded(
     };
     let size = mapped_size(ctx, text, upper)?;
     out.reserve(ctx, size.saturating_add(padding))?;
-    let sign = signed && pad == b'0' && matches!(text.first(), Some(b'+' | b'-'));
-    if sign {
-        out.append(ctx, &text[..1])?;
-    }
+    let text = match text.split_first() {
+        Some((&sign @ (b'+' | b'-'), rest)) if signed && pad == b'0' => {
+            out.append(ctx, &[sign])?;
+            rest
+        }
+        _ => text,
+    };
     out.repeat(ctx, pad, padding)?;
-    mapped(ctx, out, &text[usize::from(sign)..], upper)
+    mapped(ctx, out, text, upper)
 }
 
 #[derive(Clone, Copy)]
@@ -310,16 +321,26 @@ fn directive(
             };
             (text, 0, b' ', Kind::Name)
         }
-        b'A' => (WEEKDAYS[to_usize(view.date.weekday)], 0, b' ', Kind::Name),
-        b'a' => (
-            &WEEKDAYS[to_usize(view.date.weekday)][..3],
+        b'A' => (
+            *WEEKDAYS.at(to_usize(view.date.weekday))?,
             0,
             b' ',
             Kind::Name,
         ),
-        b'B' => (MONTHS[to_usize(view.date.month) - 1], 0, b' ', Kind::Name),
+        b'a' => (
+            WEEKDAYS.at(to_usize(view.date.weekday))?.span(0, 3)?,
+            0,
+            b' ',
+            Kind::Name,
+        ),
+        b'B' => (
+            *MONTHS.at(to_usize(view.date.month) - 1)?,
+            0,
+            b' ',
+            Kind::Name,
+        ),
         b'b' | b'h' => (
-            &MONTHS[to_usize(view.date.month) - 1][..3],
+            MONTHS.at(to_usize(view.date.month) - 1)?.span(0, 3)?,
             0,
             b' ',
             Kind::Name,
@@ -370,7 +391,7 @@ fn directive(
             padded(
                 ctx,
                 out,
-                &buffer[..length],
+                buffer.span(0, length)?,
                 width,
                 if token.pad == Some(b'0') { b'0' } else { b' ' },
                 false,
@@ -379,7 +400,7 @@ fn directive(
         }
         Kind::Subsecond => {
             out.reserve(ctx, width)?;
-            out.append(ctx, &text[..width.min(9)])?;
+            out.append(ctx, text.span(0, width.min(9))?)?;
             out.repeat(ctx, b'0', width.saturating_sub(9))
         }
         Kind::Offset => padded(ctx, out, text, width, b'0', true, None),
@@ -414,16 +435,17 @@ fn render(
     inherited: bool,
     out: &mut Output<'_>,
 ) -> Result<()> {
-    while !input.is_empty() {
+    while let Some(&first) = input.first() {
         ctx.charge(1)?;
         ctx.checkpoint()?;
-        if input[0] != b'%' {
-            let n = input[..input.len().min(4096)]
+        if first != b'%' {
+            let n = input
                 .iter()
+                .take(4096)
                 .position(|&b| b == b'%')
                 .unwrap_or(input.len().min(4096));
-            out.append(ctx, &input[..n])?;
-            input = &input[n..];
+            out.append(ctx, input.span(0, n)?)?;
+            input = input.tail(n)?;
             continue;
         }
         let token = token(ctx, input)?
@@ -431,9 +453,9 @@ fn render(
         if supported(token) {
             directive(ctx, view, token, inherited, out)?;
         } else {
-            out.append(ctx, &input[..token.length])?;
+            out.append(ctx, input.span(0, token.length)?)?;
         }
-        input = &input[token.length..];
+        input = input.tail(token.length)?;
     }
     Ok(())
 }

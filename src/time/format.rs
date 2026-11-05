@@ -7,7 +7,7 @@ use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::Buffer,
     bytes,
-    checked::{Access, violation},
+    checked::{Access, Checked, violation},
     numeric::to_usize,
     value::Kind,
 };
@@ -109,7 +109,9 @@ impl<'a> Output<'a> {
                 Destination::Compare(input, equal) => {
                     *equal &= input.get(self.length..end) == Some(chunk);
                 }
-                Destination::Fixed(buffer) => buffer[self.length..end].copy_from_slice(chunk),
+                Destination::Fixed(buffer) => {
+                    buffer.span_mut(self.length, end)?.copy_from_slice(chunk)
+                }
             }
             self.length = end;
         }
@@ -121,7 +123,7 @@ impl<'a> Output<'a> {
         let mut remaining = count;
         while remaining > 0 {
             let n = remaining.min(chunk.len());
-            self.append(ctx, &chunk[..n])?;
+            self.append(ctx, chunk.span(0, n)?)?;
             remaining -= n;
         }
         Ok(())
@@ -207,7 +209,10 @@ fn at(ctx: &mut CallContext, input: &[u8]) -> Result<Option<(Token, usize)>> {
     use Part::*;
     use Token::*;
     let number = |part, width, pad, length| Some((Number(part, width, pad), length));
-    let token = match input[0] {
+    let Some((&first, rest)) = input.split_first() else {
+        return Ok(None);
+    };
+    let token = match first {
         b'J' if input.starts_with(b"January") => Some((Name(Month, true), 7)),
         b'J' if input.starts_with(b"Jan") && !input.get(3).is_some_and(u8::is_ascii_lowercase) => {
             Some((Name(Month, false), 3))
@@ -217,8 +222,15 @@ fn at(ctx: &mut CallContext, input: &[u8]) -> Result<Option<(Token, usize)>> {
             Some((Name(Weekday, false), 3))
         }
         b'M' if input.starts_with(b"MST") => Some((ZoneName, 3)),
-        b'0' if input.get(1).is_some_and(|b| (b'1'..=b'6').contains(b)) => {
-            let part = [Month, Day, Hour12, Minute, Second, YearShort][(input[1] - b'1') as usize];
+        b'0' if matches!(rest.first(), Some(b'1'..=b'6')) => {
+            let part = match rest.first() {
+                Some(b'1') => Month,
+                Some(b'2') => Day,
+                Some(b'3') => Hour12,
+                Some(b'4') => Minute,
+                Some(b'5') => Second,
+                _ => YearShort,
+            };
             number(part, 2, b'0', 2)
         }
         b'0' if input.starts_with(b"002") => number(YearDay, 3, b'0', 3),
@@ -243,10 +255,10 @@ fn at(ctx: &mut CallContext, input: &[u8]) -> Result<Option<(Token, usize)>> {
                 (b"07:00", true, false, false),
                 (b"07", false, false, true),
             ] {
-                if input[1..].starts_with(suffix) {
+                if rest.starts_with(suffix) {
                     found = Some((
                         Zone(NumericZone {
-                            iso: input[0] == b'Z',
+                            iso: first == b'Z',
                             colon,
                             seconds,
                             short,
@@ -258,9 +270,9 @@ fn at(ctx: &mut CallContext, input: &[u8]) -> Result<Option<(Token, usize)>> {
             }
             found
         }
-        b'.' | b',' if matches!(input.get(1), Some(b'0' | b'9')) => {
+        b'.' | b',' if matches!(rest.first(), Some(b'0' | b'9')) => {
             let mut end = 1;
-            while input.get(end) == Some(&input[1]) {
+            while input.get(end) == rest.first() {
                 if end % 1024 == 0 {
                     ctx.charge(1)?;
                     ctx.checkpoint()?;
@@ -270,7 +282,10 @@ fn at(ctx: &mut CallContext, input: &[u8]) -> Result<Option<(Token, usize)>> {
             if input.get(end).is_some_and(u8::is_ascii_digit) {
                 None
             } else {
-                Some((Fraction(input[0], (end - 1) & 0xfff, input[1] == b'9'), end))
+                Some((
+                    Fraction(first, (end - 1) & 0xfff, rest.first() == Some(&b'9')),
+                    end,
+                ))
             }
         }
         _ => None,
@@ -279,14 +294,18 @@ fn at(ctx: &mut CallContext, input: &[u8]) -> Result<Option<(Token, usize)>> {
 }
 
 pub(super) fn next(ctx: &mut CallContext, input: &[u8]) -> Result<(usize, Option<Token>, usize)> {
-    for i in 0..input.len() {
+    let mut suffix = input;
+    let mut i = 0;
+    while let Some((_, rest)) = suffix.split_first() {
         if i % 1024 == 0 {
             ctx.charge(1)?;
             ctx.checkpoint()?;
         }
-        if let Some((token, length)) = at(ctx, &input[i..])? {
+        if let Some((token, length)) = at(ctx, suffix)? {
             return Ok((i, Some(token), i + length));
         }
+        suffix = rest;
+        i += 1;
     }
     Ok((input.len(), None, input.len()))
 }
@@ -344,8 +363,8 @@ pub(super) fn render(
 ) -> Result<()> {
     while !layout.is_empty() {
         let (prefix, token, end) = next(ctx, layout)?;
-        out.append(ctx, &layout[..prefix])?;
-        layout = &layout[end..];
+        out.append(ctx, layout.span(0, prefix)?)?;
+        layout = layout.tail(end)?;
         let Some(token) = token else {
             break;
         };
@@ -354,13 +373,13 @@ pub(super) fn render(
             Token::Number(part, width, pad) => integer(&mut number, view.part(part), width, pad)?,
             Token::Name(part, full) => {
                 let name = match part {
-                    Part::Month => MONTHS[to_usize(view.date.month) - 1],
-                    Part::Weekday => WEEKDAYS[to_usize(view.date.weekday)],
+                    Part::Month => *MONTHS.at(to_usize(view.date.month) - 1)?,
+                    Part::Weekday => *WEEKDAYS.at(to_usize(view.date.weekday))?,
                     _ => {
                         return Err(crate::checked::internal("month or weekday name expected"));
                     }
                 };
-                out.append(ctx, if full { name } else { &name[..3] })?;
+                out.append(ctx, if full { name } else { name.span(0, 3)? })?;
             }
             Token::Meridian(upper) => {
                 let text: &[u8] = match (view.date.hour < 12, upper) {
@@ -388,15 +407,15 @@ pub(super) fn render(
                     continue;
                 }
                 number.format(format_args!("{:09}", view.stamp.nanos()))?;
-                let mut end = digits.min(9);
+                let mut fraction = number.bytes().span(0, digits.min(9))?;
                 if trim {
-                    while end > 0 && number.bytes()[end - 1] == b'0' {
-                        end -= 1;
+                    while let Some(rest) = fraction.strip_suffix(b"0") {
+                        fraction = rest;
                     }
                 }
-                if !trim || end > 0 {
+                if !trim || !fraction.is_empty() {
                     out.append(ctx, &[separator])?;
-                    out.append(ctx, &number.bytes()[..end])?;
+                    out.append(ctx, fraction)?;
                 }
                 continue;
             }
@@ -488,10 +507,11 @@ pub(super) fn mail_date(ctx: &mut CallContext, receiver: &Value, http: bool) -> 
         offset(ctx, receiver)?
     };
     let date = calendar::civil(stamp.seconds(), offset.seconds);
-    let weekday = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][to_usize(date.weekday)];
+    let weekday = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].at(to_usize(date.weekday))?;
     let month = [
         "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    ][to_usize(date.month) - 1];
+    ]
+    .at(to_usize(date.month) - 1)?;
     let mut out = bytes::Number::new();
     out.format(format_args!("{weekday}, {:02} {month} ", date.day))?;
     year(&mut out, date.year)?;
