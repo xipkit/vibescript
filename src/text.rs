@@ -75,7 +75,7 @@ fn walk(ctx: &mut CallContext, value: &Value, out: &mut Buffer<u8>, limit: usize
                 if position > 0 {
                     out.extend(ctx, b", ")?;
                 }
-                let (key, value) = frame.entries.get(position);
+                let (key, value) = frame.entries.get(position)?;
                 if let Some(key) = key {
                     out.extend(ctx, key.require_bytes()?)?;
                     out.extend(ctx, b": ")?;

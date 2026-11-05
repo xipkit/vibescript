@@ -1,4 +1,5 @@
 use super::traversal::{Entries, Frame, Stack};
+use crate::checked::Checked;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK, MAX_VALUE_DEPTH},
@@ -195,11 +196,11 @@ fn walk(ctx: &mut CallContext, value: &Value, out: &mut Output, limit: usize) ->
                 if position > 0 {
                     out.append(ctx, b", ")?;
                 }
-                let index = frame
-                    .extra
-                    .as_ref()
-                    .map_or(position, |order| order.data[position]);
-                let (key, value) = frame.entries.get(index);
+                let index = match &frame.extra {
+                    Some(order) => *order.at(position)?,
+                    None => position,
+                };
+                let (key, value) = frame.entries.get(index)?;
                 if let Some(key) = key {
                     label(ctx, key.require_bytes()?, out)?;
                     out.append(ctx, b": ")?;
@@ -305,8 +306,8 @@ fn object_order(ctx: &mut CallContext, hash: &Hash) -> Result<Buffer<usize>> {
             Action::Compare(a, b) => {
                 comparison = Some(crate::enums::compare_names(
                     ctx,
-                    hash.buffer.data[order.data[a]].0.require_bytes()?,
-                    hash.buffer.data[order.data[b]].0.require_bytes()?,
+                    hash.buffer.at(*order.at(a)?)?.0.require_bytes()?,
+                    hash.buffer.at(*order.at(b)?)?.0.require_bytes()?,
                 )?);
             }
             Action::Swap(a, b) => order.data.swap(a, b),
@@ -331,7 +332,7 @@ fn bare_identifier(ctx: &mut CallContext, bytes: &[u8]) -> Result<bool> {
             ctx.work_bytes((bytes.len() - index).min(CHUNK))?;
             checkpoint = index + CHUNK;
         }
-        let (ch, width, valid) = scan::rune(&bytes[index..]);
+        let (ch, width, valid) = scan::rune(bytes.tail(index)?);
         if !valid || !(ch == '_' || unicode::letter(ch) || (index > 0 && unicode::digit(ch))) {
             return Ok(false);
         }
@@ -355,11 +356,11 @@ fn quoted(ctx: &mut CallContext, bytes: &[u8], out: &mut Output) -> Result<()> {
             b'#' if bytes.get(index + 1) == Some(&b'{') => b"\\#",
             _ => continue,
         };
-        out.append(ctx, &bytes[start..index])?;
+        out.append(ctx, bytes.span(start, index)?)?;
         out.append(ctx, escaped)?;
         start = index + 1;
     }
-    out.append(ctx, &bytes[start..])?;
+    out.append(ctx, bytes.tail(start)?)?;
     out.append(ctx, b"\"")
 }
 

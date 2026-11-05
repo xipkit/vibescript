@@ -3,7 +3,7 @@ use super::{
     program::{Op, View},
     unicode,
 };
-use crate::checked::violation;
+use crate::checked::{Access, Checked, violation};
 use crate::{
     CallContext, Result,
     budget::{Buffer, CHUNK},
@@ -52,9 +52,9 @@ fn anchored(
     let mut pending = Buffer::empty();
     let mut pc = start;
     loop {
-        let next = if visited[pc] == 0 {
-            visited[pc] = 1;
-            let instruction = program.instructions[pc];
+        let next = if *visited.at(pc)? == 0 {
+            *visited.at_mut(pc)? = 1;
+            let instruction = *program.instructions.at(pc)?;
             match instruction.op {
                 Op::Fail | Op::Assert(Assertion::BeginText) => None,
                 Op::Split => {
@@ -139,7 +139,7 @@ fn prefix(
     let mut pc = program.start;
     loop {
         ctx.charge(1)?;
-        let instruction = program.instructions[pc];
+        let instruction = *program.instructions.at(pc)?;
         match instruction.op {
             Op::Save(slot) => literal.saves.push(ctx, (slot, literal.runes.data.len()))?,
             Op::Rune(rune, fold) if literal.runes.data.is_empty() || fold == literal.fold => {
@@ -164,13 +164,13 @@ fn prefix(
     literal.table.ensure(ctx, runes.len())?;
     literal.table.data.push(0);
     let mut matched = 0;
-    for i in 1..runes.len() {
+    for rune in runes.iter().skip(1) {
         ctx.charge(1)?;
-        while matched > 0 && runes[i] != runes[matched] {
+        while matched > 0 && rune != runes.at(matched)? {
             ctx.charge(1)?;
-            matched = literal.table.data[matched - 1] as usize;
+            matched = *literal.table.at(matched - 1)? as usize;
         }
-        if runes[i] == runes[matched] {
+        if rune == runes.at(matched)? {
             matched += 1;
         }
         literal.table.data.push(matched as u32);
@@ -190,7 +190,7 @@ impl Literal {
         from: usize,
     ) -> Result<Option<(usize, usize)>> {
         let runes = &self.runes.data;
-        let first = runes[0];
+        let first = *runes.at(0)?;
         let mut start = from;
         let mut position = from;
         let mut matched = 0;
@@ -200,7 +200,9 @@ impl Literal {
                 ctx.work_bytes(work)?;
                 work = 0;
             }
-            let byte = text[position];
+            let Some(&byte) = text.get(position) else {
+                break;
+            };
             // An ASCII byte that cannot begin the literal.
             let idle = |byte: u8| byte < 128 && canonical(u32::from(byte), self.fold) != first;
             if matched == 0 && idle(byte) {
@@ -208,7 +210,7 @@ impl Literal {
                 // start. Most of a scan is these runs, so they get a loop of
                 // their own. It stops where the next charge falls due, which
                 // leaves every charge where a byte at a time would put it.
-                let window = &text[position..text.len().min(position + (CHUNK - work))];
+                let window = text.span(position, text.len().min(position + (CHUNK - work)))?;
                 let skipped = window
                     .iter()
                     .position(|&byte| !idle(byte))
@@ -221,27 +223,27 @@ impl Literal {
             let (rune, width) = if byte < 128 {
                 (u32::from(byte), 1)
             } else {
-                scan::code_point(&text[position..])
+                scan::code_point(text.tail(position)?)
             };
             work += width;
             position += width;
             let rune = canonical(rune, self.fold);
-            if matched > 0 && rune != runes[matched] {
+            if matched > 0 && rune != *runes.at(matched)? {
                 let partial = matched;
-                while matched > 0 && rune != runes[matched] {
-                    matched = self.table.data[matched - 1] as usize;
+                while matched > 0 && rune != *runes.at(matched)? {
+                    matched = *self.table.at(matched - 1)? as usize;
                 }
                 // The partial match loses its first `partial - matched` runes.
                 for _ in matched..partial {
-                    start += if text[start] < 128 {
+                    start += if *text.at(start)? < 128 {
                         1
                     } else {
-                        scan::code_point(&text[start..]).1
+                        scan::code_point(text.tail(start)?).1
                     };
                 }
                 work += 2 * (partial - matched);
             }
-            if rune == runes[matched] {
+            if rune == *runes.at(matched)? {
                 matched += 1;
                 if matched == runes.len() {
                     ctx.work_bytes(work)?;
@@ -294,8 +296,8 @@ impl Search {
             return Ok(None);
         };
         let mut captures = self.captures(ctx)?;
-        captures.data[0] = start;
-        captures.data[1] = end;
+        *captures.at_mut(0)? = start;
+        *captures.at_mut(1)? = end;
         let mut position = start;
         let mut offset = 0;
         for &(slot, runes) in &self
@@ -308,11 +310,11 @@ impl Search {
             ctx.charge(1)?;
             while offset < runes {
                 ctx.charge(1)?;
-                position += scan::rune(&text[position..]).1;
+                position += scan::rune(text.tail(position)?).1;
                 offset += 1;
             }
             if slot < self.slots {
-                captures.data[slot] = position;
+                *captures.at_mut(slot)? = position;
             }
         }
         Ok(Some(captures))
@@ -359,13 +361,13 @@ impl Search {
         while let Some(action) = self.actions.data.pop() {
             ctx.charge(1)?;
             match action {
-                Action::Restore(slot, value) => captures.data[slot] = value,
+                Action::Restore(slot, value) => *captures.at_mut(slot)? = value,
                 Action::Visit(pc) => {
-                    if self.visited.data[pc] == self.epoch {
+                    if *self.visited.at(pc)? == self.epoch {
                         continue;
                     }
-                    self.visited.data[pc] = self.epoch;
-                    let instruction = program.instructions[pc];
+                    *self.visited.at_mut(pc)? = self.epoch;
+                    let instruction = *program.instructions.at(pc)?;
                     match instruction.op {
                         Op::Fail => (),
                         Op::Split => {
@@ -376,8 +378,8 @@ impl Search {
                         Op::Save(slot) => {
                             if slot < self.slots {
                                 self.actions
-                                    .push(ctx, Action::Restore(slot, captures.data[slot]))?;
-                                captures.data[slot] = position;
+                                    .push(ctx, Action::Restore(slot, *captures.at(slot)?))?;
+                                *captures.at_mut(slot)? = position;
                             }
                             self.actions.push(ctx, Action::Visit(instruction.next))?;
                         }
@@ -429,7 +431,7 @@ impl Search {
         let mut before = if from == 0 {
             None
         } else {
-            Some(previous(text, from))
+            Some(previous(text, from)?)
         };
         let mut best = None;
         loop {
@@ -443,19 +445,19 @@ impl Search {
                     };
                     if start != position {
                         position = start;
-                        before = Some(previous(text, start));
+                        before = Some(previous(text, start)?);
                     }
                 }
             }
             let (after, width) = if position < text.len() {
-                let (rune, width, _) = scan::rune(&text[position..]);
+                let (rune, width, _) = scan::rune(text.tail(position)?);
                 (Some(rune as u32), width)
             } else {
                 (None, 0)
             };
             if best.is_none() && (!self.anchored || position == 0) {
                 let mut captures = self.captures(ctx)?;
-                captures.data[0] = position;
+                *captures.at_mut(0)? = position;
                 self.add(
                     ctx,
                     program,
@@ -471,7 +473,7 @@ impl Search {
             std::mem::swap(&mut self.current, &mut self.next);
             self.advance_epoch(ctx)?;
             let following = if position + width < text.len() {
-                Some(scan::rune(&text[position + width..]).0 as u32)
+                Some(scan::rune(text.tail(position + width)?).0 as u32)
             } else {
                 None
             };
@@ -483,9 +485,9 @@ impl Search {
                     self.pool.push(ctx, thread.captures)?;
                     continue;
                 }
-                let instruction = program.instructions[thread.pc];
+                let instruction = *program.instructions.at(thread.pc)?;
                 if matches!(instruction.op, Op::Match) {
-                    thread.captures.data[1] = position;
+                    *thread.captures.at_mut(1)? = position;
                     if let Some(old) = best.replace(thread.captures) {
                         self.pool.push(ctx, old)?;
                     }
@@ -528,16 +530,16 @@ impl Search {
     }
 }
 
-fn previous(bytes: &[u8], position: usize) -> u32 {
+fn previous(bytes: &[u8], position: usize) -> Access<u32> {
     let mut start = position - 1;
-    while start > position.saturating_sub(4) && bytes[start] & 0xc0 == 0x80 {
+    while start > position.saturating_sub(4) && bytes.at(start)? & 0xc0 == 0x80 {
         start -= 1;
     }
-    let (rune, width, valid) = scan::rune(&bytes[start..position]);
+    let (rune, width, valid) = scan::rune(bytes.span(start, position)?);
     if valid && start + width == position {
-        rune as u32
+        Ok(rune as u32)
     } else {
-        0xfffd
+        Ok(0xfffd)
     }
 }
 
@@ -590,6 +592,26 @@ mod tests {
             }
         }
         found
+    }
+
+    #[test]
+    fn invalid_program_and_literal_indices_return_internal_errors() {
+        let mut ctx = context(None);
+        let mut program = Program::compile(&mut ctx, Value::bytes(b"aab"), "Regex.match").unwrap();
+        program.start = usize::MAX;
+        let error = Search::new(&mut ctx, program.view().unwrap(), false)
+            .err()
+            .unwrap();
+        assert_eq!(error.kind, ErrorKind::Internal);
+        assert!(error.message.contains("out of range"));
+
+        let program = Program::compile(&mut ctx, Value::bytes(b"aab"), "Regex.match").unwrap();
+        let mut search = Search::new(&mut ctx, program.view().unwrap(), false).unwrap();
+        let literal = search.literal.as_mut().unwrap();
+        literal.table.data.fill(u32::MAX);
+        let error = literal.scan(&mut ctx, b"aaac", 0).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Internal);
+        assert!(error.message.contains("out of range"));
     }
 
     #[test]
