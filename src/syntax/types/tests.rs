@@ -1,17 +1,17 @@
 use super::*;
 use crate::{Error, ErrorKind, budget::Charge, compilation::Work};
-use std::cell::Cell;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering::Relaxed};
 
 struct FailedInvariant {
-    skip: Cell<usize>,
-    failed: Cell<bool>,
+    skip: AtomicUsize,
+    failed: AtomicBool,
 }
 
 impl FailedInvariant {
     fn new(skip: usize) -> Self {
         Self {
-            skip: Cell::new(skip),
-            failed: Cell::new(false),
+            skip: AtomicUsize::new(skip),
+            failed: AtomicBool::new(false),
         }
     }
 }
@@ -24,11 +24,11 @@ impl Work for FailedInvariant {
     fn bytes(&self, bytes: usize) -> Result<()> {
         // Inject a one-shot invariant failure on a selected name read.
         // A later checkpoint deliberately cannot recover it from a quota latch.
-        if bytes == "Invariant".len() && !self.failed.get() {
-            if let Some(left) = self.skip.get().checked_sub(1) {
-                self.skip.set(left);
+        if bytes == "Invariant".len() && !self.failed.load(Relaxed) {
+            if let Some(left) = self.skip.load(Relaxed).checked_sub(1) {
+                self.skip.store(left, Relaxed);
             } else {
-                self.failed.set(true);
+                self.failed.store(true, Relaxed);
                 return Err(crate::checked::violation("injected type-name invariant").into());
             }
         }
@@ -58,7 +58,7 @@ fn preserves_invariant(source: &str, probe: impl FnOnce(&mut Parser<'_>) -> Resu
     parser.work = &work;
     let error = probe(&mut parser).unwrap_err();
     assert!(
-        work.failed.get(),
+        work.failed.load(Relaxed),
         "the speculative parse did not reach the invariant"
     );
     assert_eq!(error.kind, ErrorKind::Internal);
@@ -129,8 +129,8 @@ fn full_parse_invariant(source: &str, skip: usize) {
     parser.work = &work;
     let parsing = Parsing::<crate::syntax::recovery::FailFast>::new(parser);
     let error = parsing.run(crate::syntax::Call::Program).err().unwrap();
-    assert!(work.failed.get());
-    assert_eq!(work.skip.get(), 0);
+    assert!(work.failed.load(Relaxed));
+    assert_eq!(work.skip.load(Relaxed), 0);
     assert_eq!(error.kind, ErrorKind::Internal);
     assert!(error.message.ends_with("injected type-name invariant"));
 }
