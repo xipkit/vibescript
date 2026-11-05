@@ -25,6 +25,11 @@ are also saved per binary in `summary.json` under `timing_reliability`, with
 `UNRELIABLE` warning on stderr. Results are still saved and the command exits
 successfully; rerun on a quiet machine before drawing performance conclusions.
 
+## Build time
+
+The [linker comparison](linkers.md) measures mold against Apple's linker and
+Rust's bundled LLD, separating link time from warm development and gate rebuilds.
+
 ## Service footprint
 
 `scripts/footprint.py` measures a fresh embedding process at startup, after

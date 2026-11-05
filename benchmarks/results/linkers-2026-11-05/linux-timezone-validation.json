@@ -1,0 +1,34 @@
+[
+  {
+    "profile": "dev",
+    "variant": "baseline",
+    "timezone": "America/Detroit",
+    "passed": true,
+    "returncode": 0,
+    "output": "\nrunning 1 test\ntest site::unchanged_site_examples_match_go_results ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1278 filtered out; finished in 0.96s\n\n"
+  },
+  {
+    "profile": "dev",
+    "variant": "mold",
+    "timezone": "America/Detroit",
+    "passed": true,
+    "returncode": 0,
+    "output": "\nrunning 1 test\ntest site::unchanged_site_examples_match_go_results ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1278 filtered out; finished in 0.96s\n\n"
+  },
+  {
+    "profile": "gate",
+    "variant": "baseline",
+    "timezone": "America/Detroit",
+    "passed": true,
+    "returncode": 0,
+    "output": "\nrunning 1 test\ntest site::unchanged_site_examples_match_go_results ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1278 filtered out; finished in 0.15s\n\n"
+  },
+  {
+    "profile": "gate",
+    "variant": "mold",
+    "timezone": "America/Detroit",
+    "passed": true,
+    "returncode": 0,
+    "output": "\nrunning 1 test\ntest site::unchanged_site_examples_match_go_results ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1278 filtered out; finished in 0.15s\n\n"
+  }
+]

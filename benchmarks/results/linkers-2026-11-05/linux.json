@@ -1,0 +1,2182 @@
+{
+  "metadata": {
+    "platform": "Linux-7.0.0-1019-azure-x86_64-with-glibc2.43",
+    "host": "x86_64-unknown-linux-gnu",
+    "cpu": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           48 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  4\nOn-line CPU(s) list:                     0-3\nVendor ID:                               AuthenticAMD\nModel name:                              AMD EPYC 7763 64-Core Processor\nCPU family:                              25\nModel:                                   1\nThread(s) per core:                      2\nCore(s) per socket:                      2\nSocket(s):                               1\nStepping:                                1\nBogoMIPS:                                4890.85\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good nopl tsc_reliable nonstop_tsc cpuid extd_apicid aperfmperf tsc_known_freq pni pclmulqdq ssse3 fma cx16 pcid sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm cmp_legacy svm cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw topoext vmmcall fsgsbase bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clflushopt clwb sha_ni xsaveopt xsavec xgetbv1 xsaves user_shstk clzero xsaveerptr rdpru arat npt nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold v_vmsave_vmload umip vaes vpclmulqdq rdpid fsrm\nVirtualization:                          AMD-V\nHypervisor vendor:                       Microsoft\nVirtualization type:                     full\nL1d cache:                               64 KiB (2 instances)\nL1i cache:                               64 KiB (2 instances)\nL2 cache:                                1 MiB (2 instances)\nL3 cache:                                32 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-3\nVulnerability Gather data sampling:      Not affected\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             Not affected\nVulnerability L1tf:                      Not affected\nVulnerability Mds:                       Not affected\nVulnerability Meltdown:                  Not affected\nVulnerability Mmio stale data:           Not affected\nVulnerability Old microcode:             Not affected\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Not affected\nVulnerability Spec rstack overflow:      Vulnerable: Safe RET, no microcode\nVulnerability Spec store bypass:         Vulnerable\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; Retpolines; STIBP disabled; RSB filling; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                     Not affected\nVulnerability Tsa:                       Vulnerable: No microcode\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Not affected",
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)\nbinary: rustc\ncommit-hash: 48a229ceaefd4985c50990b14116b6d856af0985\ncommit-date: 2026-09-01\nhost: x86_64-unknown-linux-gnu\nrelease: 1.98.1\nLLVM version: 22.1.8",
+    "clang": "Ubuntu clang version 21.1.8 (6ubuntu1)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /usr/lib/llvm-21/bin",
+    "baseline": "LLD 22.1.8 (/checkout/src/llvm-project/llvm 52ed14fcd56afc30f9cccd8ca8ce237c2eef7e04) (compatible with GNU linkers)",
+    "mold_version": "mold 3.0.0 (331ac663668dc0b1f4949403854613b9b1913025; compatible with GNU ld)",
+    "mold_revision": "331ac663668dc0b1f4949403854613b9b1913025",
+    "source_revision": "7467a2ac75df6d02bb5df6e41fc9853171562501",
+    "cargo_lock_sha256": "e261045eb7e7ae0af69a056ec17d9a7bfbae556717037ac4cc6619eae3c4ff39",
+    "python": "3.14.4 (main, Aug 20 2026, 10:41:58) [GCC 15.2.0]",
+    "rounds": 5,
+    "cargo_jobs": 3,
+    "rustflags": ""
+  },
+  "summary": [
+    {
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "baseline",
+      "n": 5,
+      "rebuild_median_s": 0.582503402000043,
+      "link_median_s": 0.23264634099996329,
+      "rebuild_min_s": 0.5790331900000183,
+      "rebuild_max_s": 0.5867434839999532,
+      "link_min_s": 0.2287098310000033,
+      "link_max_s": 0.23608034800002997
+    },
+    {
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "mold",
+      "n": 5,
+      "rebuild_median_s": 0.49313214899996183,
+      "link_median_s": 0.14607487300003186,
+      "rebuild_min_s": 0.4887357470000211,
+      "rebuild_max_s": 0.49740057899998646,
+      "link_min_s": 0.14249775799999043,
+      "link_max_s": 0.14836087799994857
+    },
+    {
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "baseline",
+      "n": 5,
+      "rebuild_median_s": 3.652811824999958,
+      "link_median_s": 0.34281647500000645,
+      "rebuild_min_s": 3.63196353699999,
+      "rebuild_max_s": 3.6929220400000986,
+      "link_min_s": 0.33997399899999436,
+      "link_max_s": 0.3499743979999721
+    },
+    {
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "mold",
+      "n": 5,
+      "rebuild_median_s": 3.545116481999969,
+      "link_median_s": 0.19876897300002838,
+      "rebuild_min_s": 3.5031942219999905,
+      "rebuild_max_s": 3.5688007900000116,
+      "link_min_s": 0.19472016800000347,
+      "link_max_s": 0.20308978499997465
+    },
+    {
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "baseline",
+      "n": 5,
+      "rebuild_median_s": 4.302657773999954,
+      "link_median_s": 0.08232351700007712,
+      "rebuild_min_s": 4.2892627899999525,
+      "rebuild_max_s": 4.429141733000051,
+      "link_min_s": 0.0817518740000196,
+      "link_max_s": 0.09560726699999123
+    },
+    {
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "mold",
+      "n": 5,
+      "rebuild_median_s": 4.275610143999984,
+      "link_median_s": 0.06335356499994305,
+      "rebuild_min_s": 4.261963691000005,
+      "rebuild_max_s": 4.285702285999946,
+      "link_min_s": 0.06207215200004157,
+      "link_max_s": 0.06387310800005253
+    },
+    {
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "baseline",
+      "n": 5,
+      "rebuild_median_s": 46.02962896100007,
+      "link_median_s": 0.15916568500006179,
+      "rebuild_min_s": 45.61090796899998,
+      "rebuild_max_s": 46.208126625000205,
+      "link_min_s": 0.1563092860001234,
+      "link_max_s": 0.16058641399990847
+    },
+    {
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "mold",
+      "n": 5,
+      "rebuild_median_s": 45.56463462500005,
+      "link_median_s": 0.10644640600003186,
+      "rebuild_min_s": 45.454787839000005,
+      "rebuild_max_s": 46.026829636,
+      "link_min_s": 0.10584436499993899,
+      "link_max_s": 0.11073483599989231
+    }
+  ],
+  "samples": [
+    {
+      "id": "dev-cli-baseline-0",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": true,
+      "returncode": 0,
+      "rebuild_s": 32.79879100800002,
+      "link_s": 1.743956326999978,
+      "links": [
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.15626092299999073,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/build/libc-fef4a680aa8c4060/build_script_build-fef4a680aa8c4060",
+          "arguments_sha256": "125689310c6a319cbf6025668858b3d06741887902acead1d28fe1cc7c3fe6b3"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.20169581799999037,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/build/proc-macro2-a411f7480bd0f42c/build_script_build-a411f7480bd0f42c",
+          "arguments_sha256": "d42a28177f0609ea91a1d6cc2f9b9fb3cfeeca2521b422c02c0143b978b63dfd"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.1538381999999956,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/build/rustix-387528c3f67fe31e/build_script_build-387528c3f67fe31e",
+          "arguments_sha256": "c101a1ed656c5b8f74e3008c2c82b83cfec3ac7c5e8d6c5497471c37c5871473"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.060565006000018684,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/build/quote-1c85044effa74c64/build_script_build-1c85044effa74c64",
+          "arguments_sha256": "31f89fbaac9871fec7ea9273558ee5a32ce7f03bd25b9354b124a4453aea4d89"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05192853100001571,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/build/io-lifetimes-f799601e37c76af3/build_script_build-f799601e37c76af3",
+          "arguments_sha256": "e28324494da87961d0f95304ce013654da97a0f706ae47041ec30bc432801711"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.055913105000001906,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/build/io-lifetimes-9f9b0e9b48574cb6/build_script_build-9f9b0e9b48574cb6",
+          "arguments_sha256": "7908b97b9716db70d3aa83e8782a187cb36cc2633c94b3a47528f986d755568b"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.045387814000008575,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/build/io-extras-3f82050a7fe084e6/build_script_build-3f82050a7fe084e6",
+          "arguments_sha256": "340c213c676bfaad05bff700a474cec613108f525e5fd8f93305a98b2bc6571a"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.06145026499999062,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/build/cap-primitives-faf04d6f863be152/build_script_build-faf04d6f863be152",
+          "arguments_sha256": "1965f80e3060a36a3d082634ab2e25aad62254990ff39e71249043269441c0de"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.06616940699998963,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/build/cap-std-857cd5f2ce31291b/build_script_build-857cd5f2ce31291b",
+          "arguments_sha256": "cecf3a6b015a7363237599cb7691acb5569dd130f9f9d8a6b54e1c82198d5131"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.07331766400000106,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/build/serde_core-304eefece1a1291c/build_script_build-304eefece1a1291c",
+          "arguments_sha256": "cd53d51804df4fe21b11d7fb7aca0f486653be567662b62c01e7cc3b20def634"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.043949030000021594,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/build/parking_lot_core-61246ed223da5f57/build_script_build-61246ed223da5f57",
+          "arguments_sha256": "773824ad944fb28ee505f178d2b2e3a42f01c4ed6e4327c8f685cb2269b7546e"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.04946625699997753,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/build/signal-hook-112904c118828de3/build_script_build-112904c118828de3",
+          "arguments_sha256": "7080cdf7aa4f3db453d1b69ed520865c6daf49bc83836dfe50435ea946125669"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05104165499997748,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/build/zmij-00ef422b5889701d/build_script_build-00ef422b5889701d",
+          "arguments_sha256": "0daf5e1654531df8d1a4de3dccb2c2305209ef08ba9be75fc7f66508f7265909"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.04522264700000278,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/build/getrandom-18779180ef56a978/build_script_build-18779180ef56a978",
+          "arguments_sha256": "c15c85160d35dd426102e3e1767b9571cfdcb0c3f840dfd8c7b255cd2b21e2d7"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05574711799999932,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/build/cap-fs-ext-bc9feda261b7a730/build_script_build-bc9feda261b7a730",
+          "arguments_sha256": "e1c2374c3d256f652cd5b2263414130bb20195ef91012b92e367f273e92234da"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.06160161500000072,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/build/serde-d6689255ae87d4dc/build_script_build-d6689255ae87d4dc",
+          "arguments_sha256": "f2dab23e23be924c0fac2a5749637ffdaa728c7bec68dea051ee6f347016e251"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.06800264399998923,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/libtokio_macros-ff06e361f360b6d6.so",
+          "arguments_sha256": "abb7fba331aa731eed32a77b98fd72f4cc01afe10942fe4f9c5119299a96d9cd"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.04315968600002407,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/build/serde_json-436ca1a6d53fb23a/build_script_build-436ca1a6d53fb23a",
+          "arguments_sha256": "42b5220594dd00d148ac7b3259c8a9bef610b74d78e073ff3f545ad2483b58a4"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.06908914699999968,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/libdocument_features-8aead1bfd33b73fc.so",
+          "arguments_sha256": "08f7faea5a6e36ca1095cd618d3e669eae7f5dc90bbcb5a7927861f85731f274"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.09296229100002051,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/libserde_derive-893b6035efe31402.so",
+          "arguments_sha256": "5e442a472e0690e4404e02294b19ed5306a5bdbd0a3306ecbef68de8b80eb322"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.23718750399996225,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/vibes-19e6d56adaec48ae",
+          "arguments_sha256": "7030be5ee730433bac636cc7d867a42a5dc11bf0d5fc7a2d20990ae1a23a4abc"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "dev-cli-mold-0",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": true,
+      "returncode": 0,
+      "rebuild_s": 0.496867280999993,
+      "link_s": 0.14781328400005123,
+      "links": [
+        {
+          "sample": "dev-cli-mold-0",
+          "variant": "mold",
+          "seconds": 0.14781328400005123,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/vibes-19e6d56adaec48ae",
+          "arguments_sha256": "ec48a57c46f66d41b19a58841e9199c859d2de20967eb23e48c071829fcebede"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "dev-cli-mold-1",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 0.49313214899996183,
+      "link_s": 0.14608582399995385,
+      "links": [
+        {
+          "sample": "dev-cli-mold-1",
+          "variant": "mold",
+          "seconds": 0.14608582399995385,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/vibes-19e6d56adaec48ae",
+          "arguments_sha256": "e62d9781b126ade6021e873a6f4afda7ea2dd2f4e711e3f84721d38a6fca5169"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "dev-cli-baseline-1",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 0.5791691569999671,
+      "link_s": 0.23264634099996329,
+      "links": [
+        {
+          "sample": "dev-cli-baseline-1",
+          "variant": "baseline",
+          "seconds": 0.23264634099996329,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/vibes-19e6d56adaec48ae",
+          "arguments_sha256": "6088c60b3d3a18dd4cfaba8f0d4862fb2e3bb8fd5e44d8ff4f512e5b1ec73f3f"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "dev-cli-baseline-2",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 0.5867434839999532,
+      "link_s": 0.2357469330000299,
+      "links": [
+        {
+          "sample": "dev-cli-baseline-2",
+          "variant": "baseline",
+          "seconds": 0.2357469330000299,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/vibes-19e6d56adaec48ae",
+          "arguments_sha256": "23092ee5c5c447ece16460349fd57d2721f54b0a440b70815f2f1d80e23597c7"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "dev-cli-mold-2",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 0.49644573199998376,
+      "link_s": 0.14607487300003186,
+      "links": [
+        {
+          "sample": "dev-cli-mold-2",
+          "variant": "mold",
+          "seconds": 0.14607487300003186,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/vibes-19e6d56adaec48ae",
+          "arguments_sha256": "a0c38ecf6a4184cd0881b85c0ac996921f83ca592392bf6118a539edb402ce70"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "dev-cli-mold-3",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 0.4887357470000211,
+      "link_s": 0.14278785099998004,
+      "links": [
+        {
+          "sample": "dev-cli-mold-3",
+          "variant": "mold",
+          "seconds": 0.14278785099998004,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/vibes-19e6d56adaec48ae",
+          "arguments_sha256": "b07de6caa75e39fb935a6c197bed8693054af71a266d1ae18cc9bef538e7453f"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "dev-cli-baseline-3",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 0.582503402000043,
+      "link_s": 0.23608034800002997,
+      "links": [
+        {
+          "sample": "dev-cli-baseline-3",
+          "variant": "baseline",
+          "seconds": 0.23608034800002997,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/vibes-19e6d56adaec48ae",
+          "arguments_sha256": "7b0742bc6ff87d3fc431709b049a6c608c1ea573d1fe2e82b7583069ece13c58"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "dev-cli-baseline-4",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 0.5829332609999938,
+      "link_s": 0.2287098310000033,
+      "links": [
+        {
+          "sample": "dev-cli-baseline-4",
+          "variant": "baseline",
+          "seconds": 0.2287098310000033,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/vibes-19e6d56adaec48ae",
+          "arguments_sha256": "89bef16525f6615c388c0116cd796c543e624dc7c2187333cbe169e5ec6aa4ef"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "dev-cli-mold-4",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 0.49740057899998646,
+      "link_s": 0.14836087799994857,
+      "links": [
+        {
+          "sample": "dev-cli-mold-4",
+          "variant": "mold",
+          "seconds": 0.14836087799994857,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/vibes-19e6d56adaec48ae",
+          "arguments_sha256": "0830308a90811f245ae97f2eae7120844daf040a40bd426fede30515956beb3f"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "dev-cli-mold-5",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 0.49232169999999087,
+      "link_s": 0.14249775799999043,
+      "links": [
+        {
+          "sample": "dev-cli-mold-5",
+          "variant": "mold",
+          "seconds": 0.14249775799999043,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/vibes-19e6d56adaec48ae",
+          "arguments_sha256": "1e0809849e782cbb111667fefb6ca99e2b6c20f3b5e1aae72450d8db15bedd5b"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ],
+      "validation": {
+        "passed": true,
+        "returncode": 0,
+        "output_tail": "42\n"
+      }
+    },
+    {
+      "id": "dev-cli-baseline-5",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 0.5790331900000183,
+      "link_s": 0.2318929760000401,
+      "links": [
+        {
+          "sample": "dev-cli-baseline-5",
+          "variant": "baseline",
+          "seconds": 0.2318929760000401,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/vibes-19e6d56adaec48ae",
+          "arguments_sha256": "6f0073ad86a9b86c3d039a8dc6688494cf7f19132baf094cc9043edbc2ac9ec1"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ],
+      "validation": {
+        "passed": true,
+        "returncode": 0,
+        "output_tail": "42\n"
+      }
+    },
+    {
+      "id": "dev-integration-baseline-0",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": true,
+      "returncode": 0,
+      "rebuild_s": 41.537302590000024,
+      "link_s": 0.5100034779999874,
+      "links": [
+        {
+          "sample": "dev-integration-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05968788100000211,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/build/serde_json-035de6074402b8db/build_script_build-035de6074402b8db",
+          "arguments_sha256": "ff7be87d803f726dd8acb482646661ab6dfc3e4dc1308c6385fa747a6585d518"
+        },
+        {
+          "sample": "dev-integration-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05080295099998011,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/build/serde_core-d67557c37d205b40/build_script_build-d67557c37d205b40",
+          "arguments_sha256": "2303ab318a52b19c86de9f5b6cad070bf92737aac1f8e5b8edf94d6452aba0a8"
+        },
+        {
+          "sample": "dev-integration-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.0580360270000142,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/build/rustix-1ce1fba55cb7aafc/build_script_build-1ce1fba55cb7aafc",
+          "arguments_sha256": "88e46d7d005c43f7cff71c012f4b8eaebfc953380faede77ca6e014a790af21c"
+        },
+        {
+          "sample": "dev-integration-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.34147661899999093,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/all-4917ac447a125b9b",
+          "arguments_sha256": "d5dd1f4494cc6e8ef17d578412c3a1f7dd4f86e65bbd8446babfdbeca4c7e6de"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "dev-integration-mold-0",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": true,
+      "returncode": 0,
+      "rebuild_s": 3.5251886990000116,
+      "link_s": 0.19668117500003746,
+      "links": [
+        {
+          "sample": "dev-integration-mold-0",
+          "variant": "mold",
+          "seconds": 0.19668117500003746,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/all-4917ac447a125b9b",
+          "arguments_sha256": "43c5424063595a11f2f2294fb87477b9777f083c896cc6b468943f3219e0acdd"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "dev-integration-mold-1",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 3.5688007900000116,
+      "link_s": 0.19472016800000347,
+      "links": [
+        {
+          "sample": "dev-integration-mold-1",
+          "variant": "mold",
+          "seconds": 0.19472016800000347,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/all-4917ac447a125b9b",
+          "arguments_sha256": "95ceadde996db8d11a98a54f818ca513851d35ca6b7839ad0b264feb654b810a"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "dev-integration-baseline-1",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 3.647548454999992,
+      "link_s": 0.34414297600000054,
+      "links": [
+        {
+          "sample": "dev-integration-baseline-1",
+          "variant": "baseline",
+          "seconds": 0.34414297600000054,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/all-4917ac447a125b9b",
+          "arguments_sha256": "ed7944781aa8eeaf2be13bf870afa29f660dbc78a393adcafef2a7205bff5d9c"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "dev-integration-baseline-2",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 3.6773118550000277,
+      "link_s": 0.3422969360000252,
+      "links": [
+        {
+          "sample": "dev-integration-baseline-2",
+          "variant": "baseline",
+          "seconds": 0.3422969360000252,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/all-4917ac447a125b9b",
+          "arguments_sha256": "79678081c8518c6ef36c33176a61652cf9c77d7ab21e2ff52776cf39d3e14781"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "dev-integration-mold-2",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 3.5031942219999905,
+      "link_s": 0.19876897300002838,
+      "links": [
+        {
+          "sample": "dev-integration-mold-2",
+          "variant": "mold",
+          "seconds": 0.19876897300002838,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/all-4917ac447a125b9b",
+          "arguments_sha256": "f2bff544c6f647e6d9ce8c33e3aa96ddd01b6008172af24b3ba97083b6d19d30"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "dev-integration-mold-3",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 3.5257585850000055,
+      "link_s": 0.19800461300002326,
+      "links": [
+        {
+          "sample": "dev-integration-mold-3",
+          "variant": "mold",
+          "seconds": 0.19800461300002326,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/all-4917ac447a125b9b",
+          "arguments_sha256": "008c9ebd79ba21cb0732f7038aa07a9e06d4676dabee635141dfa6dc4ef28a06"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "dev-integration-baseline-3",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 3.63196353699999,
+      "link_s": 0.33997399899999436,
+      "links": [
+        {
+          "sample": "dev-integration-baseline-3",
+          "variant": "baseline",
+          "seconds": 0.33997399899999436,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/all-4917ac447a125b9b",
+          "arguments_sha256": "316c507dc714fb481a204626fa60f2ac0863e4587ae54cc4d23266ad87ea9995"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "dev-integration-baseline-4",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 3.652811824999958,
+      "link_s": 0.34281647500000645,
+      "links": [
+        {
+          "sample": "dev-integration-baseline-4",
+          "variant": "baseline",
+          "seconds": 0.34281647500000645,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/all-4917ac447a125b9b",
+          "arguments_sha256": "e3c1b7b9ed386af9d50d8c2756aff30de4fcfc4c5c7a4998f3d9f1aebf1dd1ee"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "dev-integration-mold-4",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 3.545116481999969,
+      "link_s": 0.20308978499997465,
+      "links": [
+        {
+          "sample": "dev-integration-mold-4",
+          "variant": "mold",
+          "seconds": 0.20308978499997465,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/all-4917ac447a125b9b",
+          "arguments_sha256": "aecef6875ff54dce20d6d87a8ac2ed6645fda9a7f85b6d81ad24abf1ea652713"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "dev-integration-mold-5",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 3.5453482550000217,
+      "link_s": 0.19932763599996406,
+      "links": [
+        {
+          "sample": "dev-integration-mold-5",
+          "variant": "mold",
+          "seconds": 0.19932763599996406,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/all-4917ac447a125b9b",
+          "arguments_sha256": "e5165a8708202402592b3cafc9eaa347411ff606e16f17b770272f11065fd1ff"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ],
+      "validation": {
+        "passed": false,
+        "returncode": 101,
+        "output_tail": "\": String(\"Production\"), \"freeze_at\": String(\"2023-11-20T20:53:20Z\"), \"starts_at\": String(\"2023-11-21T15:53:20Z\")}, \"sandbox\": Object {\"duration\": String(\"PT20M\"), \"ends_at\": String(\"2023-11-21T21:13:20Z\"), \"environment\": String(\"Sandbox\"), \"freeze_at\": String(\"2023-11-21T20:23:20Z\"), \"starts_at\": String(\"2023-11-21T15:53:20Z\")}}\n\n\nfailures:\n    site::unchanged_site_examples_match_go_results\n\ntest result: FAILED. 1278 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 158.37s\n\n"
+      }
+    },
+    {
+      "id": "dev-integration-baseline-5",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 3.6929220400000986,
+      "link_s": 0.3499743979999721,
+      "links": [
+        {
+          "sample": "dev-integration-baseline-5",
+          "variant": "baseline",
+          "seconds": 0.3499743979999721,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/debug/deps/all-4917ac447a125b9b",
+          "arguments_sha256": "c58afaf7896226cf9b53b47d9837fc064c44eb4a380ff0a2730b2aa6cb5d4095"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ],
+      "validation": {
+        "passed": false,
+        "returncode": 101,
+        "output_tail": "\": String(\"Production\"), \"freeze_at\": String(\"2023-11-20T20:53:20Z\"), \"starts_at\": String(\"2023-11-21T15:53:20Z\")}, \"sandbox\": Object {\"duration\": String(\"PT20M\"), \"ends_at\": String(\"2023-11-21T21:13:20Z\"), \"environment\": String(\"Sandbox\"), \"freeze_at\": String(\"2023-11-21T20:23:20Z\"), \"starts_at\": String(\"2023-11-21T15:53:20Z\")}}\n\n\nfailures:\n    site::unchanged_site_examples_match_go_results\n\ntest result: FAILED. 1278 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 158.10s\n\n"
+      }
+    },
+    {
+      "id": "gate-cli-baseline-0",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": true,
+      "returncode": 0,
+      "rebuild_s": 76.81255553899996,
+      "link_s": 1.0947310430002517,
+      "links": [
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.04586528899994846,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/build/rustix-d3eaba39224fa1be/build_script_build-d3eaba39224fa1be",
+          "arguments_sha256": "6ee730d2898c7f1bb5792d2ec5cd3e3a7361ccd087d969d2e8bc440e3a4d9d1b"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.041032620000009956,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/build/proc-macro2-eeb070180a3dc2e6/build_script_build-eeb070180a3dc2e6",
+          "arguments_sha256": "53b57ef38836dda1574c5cfacfa751348b74527a0fe6aa027ad8b7caa36ff148"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.04446156900007736,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/build/libc-ef5857739d906c94/build_script_build-ef5857739d906c94",
+          "arguments_sha256": "721f6dfde412aadc4fa97dfeab4a568d9f65e005686633352e071ed3fed5b431"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05030374000000393,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/build/quote-058bca564c2302ba/build_script_build-058bca564c2302ba",
+          "arguments_sha256": "124b68bb2cdf8ed457dfa75f5a209732ee19e16eeab4bfc8fc945cf5c8a19fe8"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.04340114199999334,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/build/io-lifetimes-142441988c3cdcfb/build_script_build-142441988c3cdcfb",
+          "arguments_sha256": "024e60d934c8e027f0bf364c1a8b2c1ceab0e8d59890d69b2235b40f272c21f1"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.054197045000023536,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/build/io-lifetimes-83a1bbf4620a25d7/build_script_build-83a1bbf4620a25d7",
+          "arguments_sha256": "8065e1aeaaf0e1e8cb02a85e9a43ced484659331585f32aa530e9c37ff16bebf"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.041759130000059486,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/build/io-extras-084f0606be3c73c7/build_script_build-084f0606be3c73c7",
+          "arguments_sha256": "f1c05984cb3c2bb1c6709d1652265918f01e384f453e8712ea9750d77f0da239"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05226030599999376,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/build/cap-primitives-f208fa3e05cd410e/build_script_build-f208fa3e05cd410e",
+          "arguments_sha256": "d0103f76e4f4c2ece895b6db1d927e31c9a909f9e6631fa7c7b67956c705b603"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.051248348000058286,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/build/cap-std-48cd8358f78f5393/build_script_build-48cd8358f78f5393",
+          "arguments_sha256": "81b57648b79b64e51185cee94c5aa52cfe1f790212037a0b8cdfc1599beb5e7e"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.0516142530000252,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/build/serde_core-2929d2027d8773aa/build_script_build-2929d2027d8773aa",
+          "arguments_sha256": "aaf4e09e65b7be20926faa9b732638f5987ae8f08fc3d7c00afe5d90c7aafd9d"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.03619495099997039,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/build/signal-hook-0ee5f486d8330ce7/build_script_build-0ee5f486d8330ce7",
+          "arguments_sha256": "95fa5caac688b16ac47b59d23ec002c9b0be20d1ae59f4336af788983e8634fb"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.050868380999986584,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/build/parking_lot_core-fb149664fb6a08f6/build_script_build-fb149664fb6a08f6",
+          "arguments_sha256": "ef46fb4106340ac9fd3bb06028b1764591c29b77156175b39a20a425adcce3aa"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.04125899500002106,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/build/cap-fs-ext-8415e6aa31d641a4/build_script_build-8415e6aa31d641a4",
+          "arguments_sha256": "cab435ed37c573751d41b30046f8e2900af269919d2c64bbe54b092da4bfc1ea"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.051993396999932884,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/build/zmij-323833ffaef4934f/build_script_build-323833ffaef4934f",
+          "arguments_sha256": "be97fe9d528519c222c6f7ffe9741a02a4dd879731f8d66e76f6679d37454dbc"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.048805407000031664,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/build/getrandom-db2ba7087c3bfc56/build_script_build-db2ba7087c3bfc56",
+          "arguments_sha256": "9a3b8909b85ad41c21d4b7b56514e6c52b5b05a800dc15327d32e5338bc5ffe0"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.050459420000038335,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/build/serde_json-715fb9ad8bc43e97/build_script_build-715fb9ad8bc43e97",
+          "arguments_sha256": "a4c453b3cc4371570bd424db7d270cc43d2a750bb2a67051374ed281bb006292"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.06875621500000761,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/libtokio_macros-2d128cbec1b6c124.so",
+          "arguments_sha256": "d828ef9031e2998b6490af647501a30b38943dbaa7d443c93c73cf9f1e706655"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05135591100008696,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/build/serde-d05e75f27dd91e00/build_script_build-d05e75f27dd91e00",
+          "arguments_sha256": "daee261c68e78e0b1360615f40f3ea1bfdfb34e3503208bfdd3b301dbdf149dd"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.0785482270000557,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/libserde_derive-a62411808bf2b726.so",
+          "arguments_sha256": "f8b9d933d3838517f268ca7304cfe1a366f873d188e2b2591cd5b1bc4bd092df"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05820211200000358,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/libdocument_features-0d675ca392255075.so",
+          "arguments_sha256": "188fe47f20c93ee90106fe7586def51a6b6d05db94573bfbaea873b84aa28719"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.08214458499992361,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/vibes-8485dc7787dd90e2",
+          "arguments_sha256": "9907e554e3fe724cbb7369d0fc30320690f58e0440da54ce1994e1a76a57ae16"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "gate-cli-mold-0",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": true,
+      "returncode": 0,
+      "rebuild_s": 4.266900050999993,
+      "link_s": 0.06390585999997711,
+      "links": [
+        {
+          "sample": "gate-cli-mold-0",
+          "variant": "mold",
+          "seconds": 0.06390585999997711,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/vibes-8485dc7787dd90e2",
+          "arguments_sha256": "e4aa897c4401053bf17aaa893d65b35ead84923b32d608730485781496ead69b"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "gate-cli-mold-1",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 4.282027319999997,
+      "link_s": 0.06335356499994305,
+      "links": [
+        {
+          "sample": "gate-cli-mold-1",
+          "variant": "mold",
+          "seconds": 0.06335356499994305,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/vibes-8485dc7787dd90e2",
+          "arguments_sha256": "586f3c8228cec7f888c53f9b1fdcfe8e77955bd7675f3c47a258f462f36276f8"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "gate-cli-baseline-1",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 4.302657773999954,
+      "link_s": 0.08232351700007712,
+      "links": [
+        {
+          "sample": "gate-cli-baseline-1",
+          "variant": "baseline",
+          "seconds": 0.08232351700007712,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/vibes-8485dc7787dd90e2",
+          "arguments_sha256": "27313a0bf200c1ed6481e4cfe686da7a5e1ea4b1a1fb53069d6bf2360b94828f"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "gate-cli-baseline-2",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 4.2892627899999525,
+      "link_s": 0.08231100199998309,
+      "links": [
+        {
+          "sample": "gate-cli-baseline-2",
+          "variant": "baseline",
+          "seconds": 0.08231100199998309,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/vibes-8485dc7787dd90e2",
+          "arguments_sha256": "8e8e5a6218c6572e4347fbaa5af6547179bf506e130a82139f5bf6cf503a4b20"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "gate-cli-mold-2",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 4.285702285999946,
+      "link_s": 0.06207215200004157,
+      "links": [
+        {
+          "sample": "gate-cli-mold-2",
+          "variant": "mold",
+          "seconds": 0.06207215200004157,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/vibes-8485dc7787dd90e2",
+          "arguments_sha256": "d5337d7099d16c1f7933b182e967966a3cf0096bdcd6a9a826c5fb4c56f3c7e8"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "gate-cli-mold-3",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 4.275610143999984,
+      "link_s": 0.06366145100002996,
+      "links": [
+        {
+          "sample": "gate-cli-mold-3",
+          "variant": "mold",
+          "seconds": 0.06366145100002996,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/vibes-8485dc7787dd90e2",
+          "arguments_sha256": "204ec7814a5baf08f97258c9a04f5424c5e2d2c24930ef231f4927f49255b482"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "gate-cli-baseline-3",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 4.429141733000051,
+      "link_s": 0.09560726699999123,
+      "links": [
+        {
+          "sample": "gate-cli-baseline-3",
+          "variant": "baseline",
+          "seconds": 0.09560726699999123,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/vibes-8485dc7787dd90e2",
+          "arguments_sha256": "9bc85597e0f3f338dd7660a8b8536b0f497cf67b879b6ba27813644ae0f98e61"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "gate-cli-baseline-4",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 4.34855630200002,
+      "link_s": 0.0817518740000196,
+      "links": [
+        {
+          "sample": "gate-cli-baseline-4",
+          "variant": "baseline",
+          "seconds": 0.0817518740000196,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/vibes-8485dc7787dd90e2",
+          "arguments_sha256": "7f8a02c49f03f83bc381f3262e59e40d521eb47bc0170114b5e82b01a2ec4961"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "gate-cli-mold-4",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 4.261963691000005,
+      "link_s": 0.06322923200002606,
+      "links": [
+        {
+          "sample": "gate-cli-mold-4",
+          "variant": "mold",
+          "seconds": 0.06322923200002606,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/vibes-8485dc7787dd90e2",
+          "arguments_sha256": "a8f11c8f705a76835688fed5b92b2a147cbef00ab4278234fef0e3f65f08bf60"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "gate-cli-mold-5",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 4.273113888000012,
+      "link_s": 0.06387310800005253,
+      "links": [
+        {
+          "sample": "gate-cli-mold-5",
+          "variant": "mold",
+          "seconds": 0.06387310800005253,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/vibes-8485dc7787dd90e2",
+          "arguments_sha256": "1468dc5e561d69ffa5af3fd0a128bbb4e979a135505f6a7783ccc8893d3a809b"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ],
+      "validation": {
+        "passed": true,
+        "returncode": 0,
+        "output_tail": "42\n"
+      }
+    },
+    {
+      "id": "gate-cli-baseline-5",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 4.291723117999936,
+      "link_s": 0.08425457999999253,
+      "links": [
+        {
+          "sample": "gate-cli-baseline-5",
+          "variant": "baseline",
+          "seconds": 0.08425457999999253,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/vibes-8485dc7787dd90e2",
+          "arguments_sha256": "fbf640400b60ad4814a2498539c45399e42feb63fa63735aad6f6164d0a8eae3"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ],
+      "validation": {
+        "passed": true,
+        "returncode": 0,
+        "output_tail": "42\n"
+      }
+    },
+    {
+      "id": "gate-integration-baseline-0",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": true,
+      "returncode": 0,
+      "rebuild_s": 105.71455538600003,
+      "link_s": 0.2787657420001324,
+      "links": [
+        {
+          "sample": "gate-integration-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.04228305600008753,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/build/serde_json-05d3c92560ab740f/build_script_build-05d3c92560ab740f",
+          "arguments_sha256": "044204a48f13ed40bfcbd11e35613337fc8c8340fdd819cbde4567694671f2e8"
+        },
+        {
+          "sample": "gate-integration-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.04281957199998487,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/build/serde_core-c6614f0b92298155/build_script_build-c6614f0b92298155",
+          "arguments_sha256": "ec160db75d81eb2ce00f1c737db6e35f66683a4a8e6b768c7b0e4fa27989f4a9"
+        },
+        {
+          "sample": "gate-integration-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.04207071899998027,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/build/rustix-d6a202975b768298/build_script_build-d6a202975b768298",
+          "arguments_sha256": "775e5f7f77bbdf53b6863f2d907d9cea991f55d30422a6e379ad177cfb513c3a"
+        },
+        {
+          "sample": "gate-integration-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.1515923950000797,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/all-718a8d40ddf075f5",
+          "arguments_sha256": "68fae43bdbafafd81fcd731c8dd4db0f146461260faa07719aba15a2c530ebd4"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "gate-integration-mold-0",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": true,
+      "returncode": 0,
+      "rebuild_s": 45.547372681999946,
+      "link_s": 0.10766394500001297,
+      "links": [
+        {
+          "sample": "gate-integration-mold-0",
+          "variant": "mold",
+          "seconds": 0.10766394500001297,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/all-718a8d40ddf075f5",
+          "arguments_sha256": "ca2112fa6532e3ca3fe5f230ac7ace073b03b6366ff5ba75efb04f583e872135"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "gate-integration-mold-1",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 45.454787839000005,
+      "link_s": 0.10644640600003186,
+      "links": [
+        {
+          "sample": "gate-integration-mold-1",
+          "variant": "mold",
+          "seconds": 0.10644640600003186,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/all-718a8d40ddf075f5",
+          "arguments_sha256": "9a93b849fe734b3107486b7b50e88fbe72f8a2757c47c33aee2802790205a0d3"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "gate-integration-baseline-1",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 45.87160474899997,
+      "link_s": 0.16058641399990847,
+      "links": [
+        {
+          "sample": "gate-integration-baseline-1",
+          "variant": "baseline",
+          "seconds": 0.16058641399990847,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/all-718a8d40ddf075f5",
+          "arguments_sha256": "8936da578c2e6184692f42f01884da8ca86e3c584b02397e9fcf1f50a9d33c4c"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "gate-integration-baseline-2",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 46.208126625000205,
+      "link_s": 0.1563092860001234,
+      "links": [
+        {
+          "sample": "gate-integration-baseline-2",
+          "variant": "baseline",
+          "seconds": 0.1563092860001234,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/all-718a8d40ddf075f5",
+          "arguments_sha256": "9eba21790b5ac0e5c700ac3e7a4428ec36fd9dad565060b5c9879c7cc60de92a"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "gate-integration-mold-2",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 45.50413825999999,
+      "link_s": 0.10604877200012197,
+      "links": [
+        {
+          "sample": "gate-integration-mold-2",
+          "variant": "mold",
+          "seconds": 0.10604877200012197,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/all-718a8d40ddf075f5",
+          "arguments_sha256": "9ce54b29babda23f2d42760d8e7ab93c8869a7b4897b2a0b718a62a7044ab17f"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "gate-integration-mold-3",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 45.56463462500005,
+      "link_s": 0.10766015400008655,
+      "links": [
+        {
+          "sample": "gate-integration-mold-3",
+          "variant": "mold",
+          "seconds": 0.10766015400008655,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/all-718a8d40ddf075f5",
+          "arguments_sha256": "7c56b12e358a4e923c4bfbe5b6d776363f85fc722723366fa2224f44afed64ea"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "gate-integration-baseline-3",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 46.03072662599993,
+      "link_s": 0.1595047659998272,
+      "links": [
+        {
+          "sample": "gate-integration-baseline-3",
+          "variant": "baseline",
+          "seconds": 0.1595047659998272,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/all-718a8d40ddf075f5",
+          "arguments_sha256": "b1e8390806ac8ea6490bf4953534a74a9a0de61b14a86c8cb18d4752da44a37d"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "gate-integration-baseline-4",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 46.02962896100007,
+      "link_s": 0.15916568500006179,
+      "links": [
+        {
+          "sample": "gate-integration-baseline-4",
+          "variant": "baseline",
+          "seconds": 0.15916568500006179,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/all-718a8d40ddf075f5",
+          "arguments_sha256": "ce8ffecfc02dc5520f3f01e611923902485e8dc8ee2f0b7f276957b918728c16"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "gate-integration-mold-4",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 46.026829636,
+      "link_s": 0.10584436499993899,
+      "links": [
+        {
+          "sample": "gate-integration-mold-4",
+          "variant": "mold",
+          "seconds": 0.10584436499993899,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/all-718a8d40ddf075f5",
+          "arguments_sha256": "2d5c2d896ad4fc9928442418aa65b185c5a07b1912c89d58e7ad00d906dab4d0"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "gate-integration-mold-5",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 46.02095681799983,
+      "link_s": 0.11073483599989231,
+      "links": [
+        {
+          "sample": "gate-integration-mold-5",
+          "variant": "mold",
+          "seconds": 0.11073483599989231,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/all-718a8d40ddf075f5",
+          "arguments_sha256": "64db81756eba2e9f13a805ebbfd4a33934925c007903e9069b5b611320a1fb8d"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ],
+      "validation": {
+        "passed": false,
+        "returncode": 101,
+        "output_tail": "t\": String(\"Production\"), \"freeze_at\": String(\"2023-11-20T20:53:20Z\"), \"starts_at\": String(\"2023-11-21T15:53:20Z\")}, \"sandbox\": Object {\"duration\": String(\"PT20M\"), \"ends_at\": String(\"2023-11-21T21:13:20Z\"), \"environment\": String(\"Sandbox\"), \"freeze_at\": String(\"2023-11-21T20:23:20Z\"), \"starts_at\": String(\"2023-11-21T15:53:20Z\")}}\n\n\nfailures:\n    site::unchanged_site_examples_match_go_results\n\ntest result: FAILED. 1278 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 25.11s\n\n"
+      }
+    },
+    {
+      "id": "gate-integration-baseline-5",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 45.61090796899998,
+      "link_s": 0.15714397500005362,
+      "links": [
+        {
+          "sample": "gate-integration-baseline-5",
+          "variant": "baseline",
+          "seconds": 0.15714397500005362,
+          "returncode": 0,
+          "output": "/home/runner/work/vibescript/vibescript/target/gate/deps/all-718a8d40ddf075f5",
+          "arguments_sha256": "00d7273b0e1ac00fdcf7e5a6d1ce4fe8b4b2ad39c57c438c625e4ea567aac44a"
+        }
+      ],
+      "command": [
+        "/home/runner/work/vibescript/vibescript/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ],
+      "validation": {
+        "passed": false,
+        "returncode": 101,
+        "output_tail": "t\": String(\"Production\"), \"freeze_at\": String(\"2023-11-20T20:53:20Z\"), \"starts_at\": String(\"2023-11-21T15:53:20Z\")}, \"sandbox\": Object {\"duration\": String(\"PT20M\"), \"ends_at\": String(\"2023-11-21T21:13:20Z\"), \"environment\": String(\"Sandbox\"), \"freeze_at\": String(\"2023-11-21T20:23:20Z\"), \"starts_at\": String(\"2023-11-21T15:53:20Z\")}}\n\n\nfailures:\n    site::unchanged_site_examples_match_go_results\n\ntest result: FAILED. 1278 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 24.90s\n\n"
+      }
+    }
+  ]
+}

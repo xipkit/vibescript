@@ -1,0 +1,2188 @@
+{
+  "metadata": {
+    "platform": "macOS-27.2-arm64-arm-64bit-Mach-O",
+    "host": "aarch64-apple-darwin",
+    "cpu": "Apple M1 Max",
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01) (Homebrew)\nbinary: rustc\ncommit-hash: 48a229ceaefd4985c50990b14116b6d856af0985\ncommit-date: 2026-09-01\nhost: aarch64-apple-darwin\nrelease: 1.98.1\nLLVM version: 22.1.8",
+    "clang": "Apple clang version 21.0.0 (clang-2100.4.1.1)\nTarget: arm64-apple-darwin27.2.0\nThread model: posix\nInstalledDir: /Library/Developer/CommandLineTools/usr/bin",
+    "baseline": "@(#)PROGRAM:ld PROJECT:ld-27106.1\nBUILD 19:06:34 Oct 19 2026\nconfigured to support archs: armv6 armv7 armv7s arm64 arm64e arm64_32 i386 x86_64 x86_64h armv6m armv7k armv7m armv7em armv8m.main armv8.1m.main\nLTO support using: LLVM version 21.0.0 (static support for 30, runtime is 30)\nTAPI support using: Apple TAPI version 21.0.0 (tapi-2100.3.8.1)",
+    "mold_version": "mold-macho 3.0.0 (331ac663668dc0b1f4949403854613b9b1913025)\nconfigured to support archs: arm64 x86_64",
+    "mold_revision": "331ac663668dc0b1f4949403854613b9b1913025",
+    "source_revision": "cdbe59dee24ee6c7eeefa7b835e31802bfce1df1",
+    "cargo_lock_sha256": "e261045eb7e7ae0af69a056ec17d9a7bfbae556717037ac4cc6619eae3c4ff39",
+    "python": "3.14.8 (main, Sep 30 2026, 17:55:09) [Clang 21.0.0 (clang-2100.3.34.2)]",
+    "rounds": 5,
+    "cargo_jobs": 3,
+    "rustflags": "",
+    "memory_bytes": 34359738368,
+    "logical_cpus": 10,
+    "followup_metadata_probes": [
+      "sysctl -n machdep.cpu.brand_string hw.memsize hw.logicalcpu (outside sandbox)",
+      "linkers/ld64.mold -v"
+    ]
+  },
+  "summary": [
+    {
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "baseline",
+      "n": 5,
+      "rebuild_median_s": 0.6911254589940654,
+      "link_median_s": 0.18590137499268167,
+      "rebuild_min_s": 0.6786021669977345,
+      "rebuild_max_s": 0.6930980000033742,
+      "link_min_s": 0.1828615419944981,
+      "link_max_s": 0.1927327500015963
+    },
+    {
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "mold",
+      "n": 5,
+      "rebuild_median_s": 0.6163792909937911,
+      "link_median_s": 0.1335365420090966,
+      "rebuild_min_s": 0.6127915830002166,
+      "rebuild_max_s": 0.6712565420020837,
+      "link_min_s": 0.11846574999799486,
+      "link_max_s": 0.15522429200063925
+    },
+    {
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "baseline",
+      "n": 5,
+      "rebuild_median_s": 3.1404682919965126,
+      "link_median_s": 0.36128245799045544,
+      "rebuild_min_s": 2.974912250007037,
+      "rebuild_max_s": 4.214338042002055,
+      "link_min_s": 0.2327566659951117,
+      "link_max_s": 0.4294033749902155
+    },
+    {
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "mold",
+      "n": 5,
+      "rebuild_median_s": 2.8481669159955345,
+      "link_median_s": 0.1628668750054203,
+      "rebuild_min_s": 2.8090502499981085,
+      "rebuild_max_s": 3.1314311669993913,
+      "link_min_s": 0.15380825000465848,
+      "link_max_s": 0.28157441699295305
+    },
+    {
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "baseline",
+      "n": 5,
+      "rebuild_median_s": 3.6365612499939743,
+      "link_median_s": 0.07703979099460412,
+      "rebuild_min_s": 3.5835424169927137,
+      "rebuild_max_s": 3.723723249990144,
+      "link_min_s": 0.07582824998826254,
+      "link_max_s": 0.08059849998971913
+    },
+    {
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "mold",
+      "n": 5,
+      "rebuild_median_s": 3.675773291994119,
+      "link_median_s": 0.052406958988285623,
+      "rebuild_min_s": 3.5573639999929583,
+      "rebuild_max_s": 3.73738241699175,
+      "link_min_s": 0.05036470899358392,
+      "link_max_s": 0.061251582999830134
+    },
+    {
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "baseline",
+      "n": 5,
+      "rebuild_median_s": 38.2408070419915,
+      "link_median_s": 0.1314716250053607,
+      "rebuild_min_s": 38.11745487499866,
+      "rebuild_max_s": 38.40338075000909,
+      "link_min_s": 0.12970758399751503,
+      "link_max_s": 0.2489455420000013
+    },
+    {
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "mold",
+      "n": 5,
+      "rebuild_median_s": 38.30032508300792,
+      "link_median_s": 0.11070716599351726,
+      "rebuild_min_s": 38.22561795900401,
+      "rebuild_max_s": 39.38343508300022,
+      "link_min_s": 0.10388320800848305,
+      "link_max_s": 0.12328524999611545
+    }
+  ],
+  "samples": [
+    {
+      "id": "dev-cli-baseline-0",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": true,
+      "returncode": 0,
+      "rebuild_s": 26.38425649999408,
+      "link_s": 1.4705805409903405,
+      "links": [
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.08924345800187439,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/build/proc-macro2-66a2223677f632fb/build_script_build-66a2223677f632fb",
+          "arguments_sha256": "1442656f3bf76ba0529424fbb6ab5b92519fbd5e374cf90b338f7dbbdaab6ac6"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.08975379199546296,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/build/libc-bc7fb664415b39e9/build_script_build-bc7fb664415b39e9",
+          "arguments_sha256": "0388c1c30bf6a38d6bcc7002ffaabf3f8a0d55d1dcd0362e918c7b1e8b88daab"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.08871629100758582,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/build/quote-66436ef9a7310d63/build_script_build-66436ef9a7310d63",
+          "arguments_sha256": "b725acba3a32356ba268ad8713d53174b5d66ff42caf7420ede6366287605cc7"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.053765459000715055,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/build/rustix-49b8eaa5340baa6a/build_script_build-49b8eaa5340baa6a",
+          "arguments_sha256": "7cba297ebe685b5f56468221e4859712a6c18353b2a4860358c6d46bfcd52ca0"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05346329099847935,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/build/io-lifetimes-802b516a4fec7a68/build_script_build-802b516a4fec7a68",
+          "arguments_sha256": "087765e629320db5eb2c36764d397f47e245764c5666a95e622357612d24fd88"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.051655624993145466,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/build/io-lifetimes-591a0e0635b86e67/build_script_build-591a0e0635b86e67",
+          "arguments_sha256": "3f3f3886d8ab244ac7d4ef34e9875c71fb9d393eec09cb0b237e2c571ff254da"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05130325000209268,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/build/io-extras-b8d672451be770eb/build_script_build-b8d672451be770eb",
+          "arguments_sha256": "28cad0c94507040fd491c3d897de6817dbeafb2c8e85e68cee7751e438fd334a"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05333341700315941,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/build/cap-primitives-ad1779dd5e431034/build_script_build-ad1779dd5e431034",
+          "arguments_sha256": "4bd9d06aa86aeacc40e64a4f95477d567076fb2147300a80cbecfaea2a5219da"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05521695899369661,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/build/serde_core-eff50a4eb9943ed8/build_script_build-eff50a4eb9943ed8",
+          "arguments_sha256": "8576920609032a250567601ffab6c5b5d1a44fccb05c19413525be275d6f5a51"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.06337775000429247,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/build/cap-std-8b5a3226a086a949/build_script_build-8b5a3226a086a949",
+          "arguments_sha256": "93a4b53bdc63b813a9d6c5f78d3ccc9c0200e80a844f5dad453ba8ecaba6926e"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.057677333999890834,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/build/getrandom-74dc65819ac2d204/build_script_build-74dc65819ac2d204",
+          "arguments_sha256": "15db01da133c2fe7a95e69d30f0f37a19e74829f666db495c1756b0a9cc3d934"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05545566600630991,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/build/zmij-9008e5fc4ac765b2/build_script_build-9008e5fc4ac765b2",
+          "arguments_sha256": "a4b3024f393c6ce9c27eb19332caa4980b3d7b60d0c437364bfb865463eab777"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.06187741599569563,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/build/parking_lot_core-e339a0e797a17949/build_script_build-e339a0e797a17949",
+          "arguments_sha256": "43b9b3d64c3fbe9d28dd8e917e0fee6ea46f6ddea4faf1b676cd5a9a9f60eb4e"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.060971583996433765,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/build/signal-hook-72ee75359e1f62c9/build_script_build-72ee75359e1f62c9",
+          "arguments_sha256": "69c58831ef6b04d080c4c2af010450ad459ed9a8b405963efccc9d4cd5c950fe"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05252962499798741,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/build/cap-fs-ext-e53a6319a0ee131a/build_script_build-e53a6319a0ee131a",
+          "arguments_sha256": "6634e40133397346bc83b1d5263dd8c6de6e1095eca2c5dae038a8361bb1abc9"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.0723441250011092,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/libtokio_macros-f1b52e9abfbf7b63.dylib",
+          "arguments_sha256": "46b6d355324dcc8b5b00742f44169fa5ef6bd8cc5dcd0831270780a39ebba2da"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05184712499612942,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/build/serde_json-edb057e0e04aae1e/build_script_build-edb057e0e04aae1e",
+          "arguments_sha256": "553ac833abb50561a4e2cc7e0928ab7604f2916f5627c09626c6f9e239be9ad7"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.06617220799671486,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/build/serde-4a25e059df867b8e/build_script_build-4a25e059df867b8e",
+          "arguments_sha256": "94feba4f89ef9fd551e1456eae0ecff673c326c92d552b44395b64a7254910e2"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.06004974999814294,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/libdocument_features-779bec982cbe9490.dylib",
+          "arguments_sha256": "2c7b5f79fdd329e2b9b4c96dfa1011e1158083172d40e15501b30ddae269268d"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.06804687500698492,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/libserde_derive-2ca36aaf5e0f0279.dylib",
+          "arguments_sha256": "59d3863b03bb15fd1d221689fec70c01c2046b7c389df7eecb7e3b8948ef8abe"
+        },
+        {
+          "sample": "dev-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.2137795409944374,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/vibes-f6ebe79f97db8ad5",
+          "arguments_sha256": "e9b8c9445da32d245d8455e788fe874194f521e26c21f3514d6d72e323566edb"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "dev-cli-mold-0",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": true,
+      "returncode": 0,
+      "rebuild_s": 0.7679357089946279,
+      "link_s": 0.17750733300636057,
+      "links": [
+        {
+          "sample": "dev-cli-mold-0",
+          "variant": "mold",
+          "seconds": 0.17750733300636057,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/vibes-f6ebe79f97db8ad5",
+          "arguments_sha256": "b18dc370d2214a4e5e9d722b1870b75e258238002eb390bcdaafe91af861f4a0"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "dev-cli-mold-1",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 0.6163792909937911,
+      "link_s": 0.1335365420090966,
+      "links": [
+        {
+          "sample": "dev-cli-mold-1",
+          "variant": "mold",
+          "seconds": 0.1335365420090966,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/vibes-f6ebe79f97db8ad5",
+          "arguments_sha256": "e6d5c448603face10bf1d78bf2fa8d72d0ca069be20547e9305efa97fd20366c"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "dev-cli-baseline-1",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 0.6911254589940654,
+      "link_s": 0.1927327500015963,
+      "links": [
+        {
+          "sample": "dev-cli-baseline-1",
+          "variant": "baseline",
+          "seconds": 0.1927327500015963,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/vibes-f6ebe79f97db8ad5",
+          "arguments_sha256": "d1333150c7390107809cc695ce7d2871f66a3dafa687c73cceffaa492c312b54"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "dev-cli-baseline-2",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 0.6786021669977345,
+      "link_s": 0.18590137499268167,
+      "links": [
+        {
+          "sample": "dev-cli-baseline-2",
+          "variant": "baseline",
+          "seconds": 0.18590137499268167,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/vibes-f6ebe79f97db8ad5",
+          "arguments_sha256": "ffde5aa74a6cd522824a4a4ff31bf7f6fd5f7d27e2d3a71b4db824a7aa447a19"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "dev-cli-mold-2",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 0.6712565420020837,
+      "link_s": 0.15522429200063925,
+      "links": [
+        {
+          "sample": "dev-cli-mold-2",
+          "variant": "mold",
+          "seconds": 0.15522429200063925,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/vibes-f6ebe79f97db8ad5",
+          "arguments_sha256": "041420cde067438fb7b8448bb038dce525616f81e19431ea33e24682259554af"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "dev-cli-mold-3",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 0.6513374579953961,
+      "link_s": 0.14169925000169314,
+      "links": [
+        {
+          "sample": "dev-cli-mold-3",
+          "variant": "mold",
+          "seconds": 0.14169925000169314,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/vibes-f6ebe79f97db8ad5",
+          "arguments_sha256": "56c65d1b1a6720acbb3042f8816f278dfc6b35728353028696db860edc02d5e6"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "dev-cli-baseline-3",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 0.692022832998191,
+      "link_s": 0.18882004199258517,
+      "links": [
+        {
+          "sample": "dev-cli-baseline-3",
+          "variant": "baseline",
+          "seconds": 0.18882004199258517,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/vibes-f6ebe79f97db8ad5",
+          "arguments_sha256": "5b67c7c7bb49aba2a4c449b4ab345fde1b51c9b7a737399dd3daeb37cb9ae5a4"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "dev-cli-baseline-4",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 0.6930980000033742,
+      "link_s": 0.18527100000937935,
+      "links": [
+        {
+          "sample": "dev-cli-baseline-4",
+          "variant": "baseline",
+          "seconds": 0.18527100000937935,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/vibes-f6ebe79f97db8ad5",
+          "arguments_sha256": "5b25b951c70da17ddcf33d48c1901bb713f1c50f132ea43c6982c968c47cbcaa"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "dev-cli-mold-4",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 0.6128295829985291,
+      "link_s": 0.11846574999799486,
+      "links": [
+        {
+          "sample": "dev-cli-mold-4",
+          "variant": "mold",
+          "seconds": 0.11846574999799486,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/vibes-f6ebe79f97db8ad5",
+          "arguments_sha256": "dee52abd548a57e0cb59060866bfb05bedaee7125dfc86af8834b1903e935d1b"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "dev-cli-mold-5",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 0.6127915830002166,
+      "link_s": 0.12349870899925008,
+      "links": [
+        {
+          "sample": "dev-cli-mold-5",
+          "variant": "mold",
+          "seconds": 0.12349870899925008,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/vibes-f6ebe79f97db8ad5",
+          "arguments_sha256": "674ff255edb9d47476c5feea6394333ad4eecab635eb3b8f70fe346e1e9c7867"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ],
+      "validation": {
+        "passed": true,
+        "returncode": 0,
+        "output_tail": "42\n"
+      }
+    },
+    {
+      "id": "dev-cli-baseline-5",
+      "profile": "dev",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 0.681288541003596,
+      "link_s": 0.1828615419944981,
+      "links": [
+        {
+          "sample": "dev-cli-baseline-5",
+          "variant": "baseline",
+          "seconds": 0.1828615419944981,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/vibes-f6ebe79f97db8ad5",
+          "arguments_sha256": "cd5a0a71a09cf20ad6b318fc24201aeaa4922d7286bd847ffa62d285da1e6f7d"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ],
+      "validation": {
+        "passed": true,
+        "returncode": 0,
+        "output_tail": "42\n"
+      }
+    },
+    {
+      "id": "dev-integration-baseline-0",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": true,
+      "returncode": 0,
+      "rebuild_s": 33.76364300001296,
+      "link_s": 0.7433938750036759,
+      "links": [
+        {
+          "sample": "dev-integration-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05060329100524541,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/build/serde_core-f622438d78a0a9c9/build_script_build-f622438d78a0a9c9",
+          "arguments_sha256": "0188f2a399a83b1c8da51ab61e5a5108049fe09b8f594f51e31a53ce474bb3b3"
+        },
+        {
+          "sample": "dev-integration-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.0563426669978071,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/build/rustix-e005674cc6ab2c57/build_script_build-e005674cc6ab2c57",
+          "arguments_sha256": "f109ac3683ca26599d950fc634b583d8ac769e6c5c757f28c4897da4fb004021"
+        },
+        {
+          "sample": "dev-integration-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05611124999995809,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/build/serde_json-d0b35f2f697ce8c6/build_script_build-d0b35f2f697ce8c6",
+          "arguments_sha256": "b2f7f187650d7c7077b26e649b6d342aa959d077d9275ed389c2cb8174161aea"
+        },
+        {
+          "sample": "dev-integration-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.5803366670006653,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/all-1ec9d1f884e34f81",
+          "arguments_sha256": "f38e5938e0460c06b02e0680d1a029529eaa35f58d54e973a5a70b60fa8594a2"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "dev-integration-mold-0",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": true,
+      "returncode": 0,
+      "rebuild_s": 3.210436875000596,
+      "link_s": 0.2737769999948796,
+      "links": [
+        {
+          "sample": "dev-integration-mold-0",
+          "variant": "mold",
+          "seconds": 0.2737769999948796,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/all-1ec9d1f884e34f81",
+          "arguments_sha256": "869e558c69f6d7761f64820a3d46d123b07d001f3f6dd57978b5857ace6c176e"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "dev-integration-mold-1",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 2.8090502499981085,
+      "link_s": 0.19386308301181998,
+      "links": [
+        {
+          "sample": "dev-integration-mold-1",
+          "variant": "mold",
+          "seconds": 0.19386308301181998,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/all-1ec9d1f884e34f81",
+          "arguments_sha256": "a427ea8204867f09e821f63e2d925e37f5cccfb64842946171de97f532beb534"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "dev-integration-baseline-1",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 4.214338042002055,
+      "link_s": 0.38236004099599086,
+      "links": [
+        {
+          "sample": "dev-integration-baseline-1",
+          "variant": "baseline",
+          "seconds": 0.38236004099599086,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/all-1ec9d1f884e34f81",
+          "arguments_sha256": "15737e41d932516bcc788b192d7043e6923938491c04ec43b3f49948576c6c77"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "dev-integration-baseline-2",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 3.1404682919965126,
+      "link_s": 0.36128245799045544,
+      "links": [
+        {
+          "sample": "dev-integration-baseline-2",
+          "variant": "baseline",
+          "seconds": 0.36128245799045544,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/all-1ec9d1f884e34f81",
+          "arguments_sha256": "aa97f4b8c5473f958abcdb1f7710246a36c80a3fe9e83d0fb7f85b06ace7ec11"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "dev-integration-mold-2",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 3.1314311669993913,
+      "link_s": 0.28157441699295305,
+      "links": [
+        {
+          "sample": "dev-integration-mold-2",
+          "variant": "mold",
+          "seconds": 0.28157441699295305,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/all-1ec9d1f884e34f81",
+          "arguments_sha256": "1c789a7126871c53f4e3401d42d33bb2eedc7a96b5c41fe037ff5e56e9ecb2bb"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "dev-integration-mold-3",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 2.8481669159955345,
+      "link_s": 0.15862804200151004,
+      "links": [
+        {
+          "sample": "dev-integration-mold-3",
+          "variant": "mold",
+          "seconds": 0.15862804200151004,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/all-1ec9d1f884e34f81",
+          "arguments_sha256": "3851e86f9411de679e9b2054bbedd0242aae3d2aa360bd376be8d82a527c8d7e"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "dev-integration-baseline-3",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 2.974912250007037,
+      "link_s": 0.2327566659951117,
+      "links": [
+        {
+          "sample": "dev-integration-baseline-3",
+          "variant": "baseline",
+          "seconds": 0.2327566659951117,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/all-1ec9d1f884e34f81",
+          "arguments_sha256": "b1c2527297429b828e96aec1f346b37071124c3ba7b1a4c6f58b46dd0e893606"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "dev-integration-baseline-4",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 3.0400981660059188,
+      "link_s": 0.3102513329940848,
+      "links": [
+        {
+          "sample": "dev-integration-baseline-4",
+          "variant": "baseline",
+          "seconds": 0.3102513329940848,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/all-1ec9d1f884e34f81",
+          "arguments_sha256": "7591de81e6f0378f75e81d3046d83bed98889ba8a99d519f6e70c611330b6819"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "dev-integration-mold-4",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 2.908670125005301,
+      "link_s": 0.15380825000465848,
+      "links": [
+        {
+          "sample": "dev-integration-mold-4",
+          "variant": "mold",
+          "seconds": 0.15380825000465848,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/all-1ec9d1f884e34f81",
+          "arguments_sha256": "2f3bcff9df411c80b3fdd9e81c4508bbc4d3f1184dfca88cd264b62ef61f2496"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "dev-integration-mold-5",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 2.8426810410019243,
+      "link_s": 0.1628668750054203,
+      "links": [
+        {
+          "sample": "dev-integration-mold-5",
+          "variant": "mold",
+          "seconds": 0.1628668750054203,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/all-1ec9d1f884e34f81",
+          "arguments_sha256": "b7701849f8611a4be02d7b6f417a5c12a766dddc4fcc516dda137ae5e99e5242"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ],
+      "validation": {
+        "passed": true,
+        "returncode": 0,
+        "output_tail": "apshots_capture_partial_initialization_without_replaying_effects ... ok\ntest vm_snapshots::vm_snapshots_keep_class_state_shared_inside_each_copy ... ok\ntest vm_snapshots::vm_state_in_deep_receivers_uses_the_default_stack_through_copy_and_drop ... ok\ntest static_types::scaling::unions_and_shapes_past_their_bounds_are_reported_where_they_are_written ... ok\ntest language::language_conformance ... ok\n\ntest result: ok. 1279 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 59.90s\n\n"
+      }
+    },
+    {
+      "id": "dev-integration-baseline-5",
+      "profile": "dev",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 4.06901895799092,
+      "link_s": 0.4294033749902155,
+      "links": [
+        {
+          "sample": "dev-integration-baseline-5",
+          "variant": "baseline",
+          "seconds": 0.4294033749902155,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/debug/deps/all-1ec9d1f884e34f81",
+          "arguments_sha256": "7a854e010311ed7356241c8e8e42d6a8006b33b157a601d7b26c3155a25c88d5"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "dev",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ],
+      "validation": {
+        "passed": true,
+        "returncode": 0,
+        "output_tail": "apshots_capture_partial_initialization_without_replaying_effects ... ok\ntest vm_snapshots::vm_snapshots_keep_class_state_shared_inside_each_copy ... ok\ntest vm_snapshots::vm_state_in_deep_receivers_uses_the_default_stack_through_copy_and_drop ... ok\ntest static_types::scaling::unions_and_shapes_past_their_bounds_are_reported_where_they_are_written ... ok\ntest language::language_conformance ... ok\n\ntest result: ok. 1279 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 58.96s\n\n"
+      }
+    },
+    {
+      "id": "gate-cli-baseline-0",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": true,
+      "returncode": 0,
+      "rebuild_s": 62.65865462500369,
+      "link_s": 1.1751032909669448,
+      "links": [
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05952620900643524,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/build/proc-macro2-cc1f92347f5e7dd1/build_script_build-cc1f92347f5e7dd1",
+          "arguments_sha256": "9dc0cfdb26cda0bce7d636108b1c787e986c58473e1443d346ac50e6253ac46a"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05955654200806748,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/build/quote-973c8489a136e3db/build_script_build-973c8489a136e3db",
+          "arguments_sha256": "62be6cae597b2122a93b7b2e707931efa7fe56cf2ff22603167d848ebd53a975"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05304829200031236,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/build/libc-818305cffe756b6a/build_script_build-818305cffe756b6a",
+          "arguments_sha256": "cdb46d0fc6597f7f415c887abf6d0e03a276b026cb11834e47cad65a478ea4ff"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05016333299863618,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/build/rustix-3907830bf29cd781/build_script_build-3907830bf29cd781",
+          "arguments_sha256": "52d759b648ecdd03daef83b48b66e69df28382a728e049f52cc7a1d3dfefc1fe"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05100516699894797,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/build/io-lifetimes-0848700abde09887/build_script_build-0848700abde09887",
+          "arguments_sha256": "1629bb25c619ebba68e6624e532a92778aa5a20cc9a09294c673c3a3addbe17d"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05176862499502022,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/build/io-lifetimes-f6ade39bf78e1bfc/build_script_build-f6ade39bf78e1bfc",
+          "arguments_sha256": "535a785a0a526cae0ef156cd0083d7df61a3be07221c6a2b0beda8a9ea03ef49"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05005274999712128,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/build/io-extras-1a0d21d76d9b70d8/build_script_build-1a0d21d76d9b70d8",
+          "arguments_sha256": "32840605b0f1ae6c6e45cd170512ec27f5aab94adc3d846e9a00c7a800ceb687"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05067833299108315,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/build/cap-primitives-a27fa54d3de4160a/build_script_build-a27fa54d3de4160a",
+          "arguments_sha256": "4bc07c7ebf8614fc1feb0be19b6fe842c2b7585cec53b04fa6927c3c54e1ab9d"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.052327832992887124,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/build/cap-std-e6f97159128df1e7/build_script_build-e6f97159128df1e7",
+          "arguments_sha256": "a4c86639b62cc400aa0de82aa2261eb0775643cfcb665d09387a6af64779e8b5"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05051966699829791,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/build/serde_core-61e3f4facf97368b/build_script_build-61e3f4facf97368b",
+          "arguments_sha256": "611c46c5707d67074face5ab2b5831e15b4ed86ee9ea481323e64ba17c213af6"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05192904100113083,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/build/signal-hook-0b6b24a749d31264/build_script_build-0b6b24a749d31264",
+          "arguments_sha256": "5b06d2b85761d5444841eefa61e3d5ca9e1c89d2561bc2f6e48f3bb130af76c4"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05651279199810233,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/build/getrandom-b6cc12956e2532d5/build_script_build-b6cc12956e2532d5",
+          "arguments_sha256": "0bd991ef9e34ca59b2e70e817650d63e95f7495e81e6324cff535baa9b29e1fc"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05979016699711792,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/build/zmij-270402ea65ab5994/build_script_build-270402ea65ab5994",
+          "arguments_sha256": "82609c7acf41b4dd3fca3c7821a2a2183a699ee5cccfadd9a90847ae8a5eb4ff"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.051770042002317496,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/build/cap-fs-ext-fcf9e30ecc6a9bd2/build_script_build-fcf9e30ecc6a9bd2",
+          "arguments_sha256": "1d342bbd4cde1a8e4563408b65fd91de9edffb76947348aa4fd12c4dfbe4301d"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.06291654099186417,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/build/parking_lot_core-af4c11fb940b6354/build_script_build-af4c11fb940b6354",
+          "arguments_sha256": "d75fb280b8c8153d2b246c9547c87b5caca5d59f28dd323dcb8a54cbbcbd1917"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.0582489579974208,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/libtokio_macros-8294f93b9a7a97f6.dylib",
+          "arguments_sha256": "000ec63683e7606c0ca2ff2871889ddf354641f3eb851c7c1a5b1333269c214c"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.04997049999656156,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/build/serde_json-7454782269e76b8b/build_script_build-7454782269e76b8b",
+          "arguments_sha256": "ee1368e440e1f823394efc79a06d29e3090a96abd9bc8eab0348e1ac9dc04b2d"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05725795798934996,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/build/serde-facdabf9cf289cd5/build_script_build-facdabf9cf289cd5",
+          "arguments_sha256": "01e250b0f882878c93489c4e57dd48e7a4d84cc436fdbdbb8751226e42bcf352"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05351958300161641,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/libdocument_features-beac44b63d3e7915.dylib",
+          "arguments_sha256": "1960dcf2b0d83b75b63aa4339a5e99222d7086fb29fc9ea8c8417dc0254fa6b0"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.06541016600385774,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/libserde_derive-3376bef561b3157c.dylib",
+          "arguments_sha256": "9d9cb91a3333340a3f75b2c439ad3016ed9f7d5cfc4beff53a4c55ece131527e"
+        },
+        {
+          "sample": "gate-cli-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.07913079200079665,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/vibes-0d9feb896c0497a8",
+          "arguments_sha256": "4e4fe085a05af4fecc884672f9f55b0437e51ea6d3b11a17b544144286f8ede6"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "gate-cli-mold-0",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": true,
+      "returncode": 0,
+      "rebuild_s": 3.8566132910054876,
+      "link_s": 0.06382129099802114,
+      "links": [
+        {
+          "sample": "gate-cli-mold-0",
+          "variant": "mold",
+          "seconds": 0.06382129099802114,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/vibes-0d9feb896c0497a8",
+          "arguments_sha256": "b13c4564450095d7293b83b1309aabea2b36d85ec194e3cde99bbb0e0e31956b"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "gate-cli-mold-1",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 3.6999289999948815,
+      "link_s": 0.061251582999830134,
+      "links": [
+        {
+          "sample": "gate-cli-mold-1",
+          "variant": "mold",
+          "seconds": 0.061251582999830134,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/vibes-0d9feb896c0497a8",
+          "arguments_sha256": "21119712be0bb2ede306912f267f6cc3981e9424543791807f480bfea94056e6"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "gate-cli-baseline-1",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 3.696270833010203,
+      "link_s": 0.07582824998826254,
+      "links": [
+        {
+          "sample": "gate-cli-baseline-1",
+          "variant": "baseline",
+          "seconds": 0.07582824998826254,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/vibes-0d9feb896c0497a8",
+          "arguments_sha256": "caeecf09f922c6b7e611657fcb120fabdf6ea4352b000e2eab55fc6ae439c089"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "gate-cli-baseline-2",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 3.723723249990144,
+      "link_s": 0.07703979099460412,
+      "links": [
+        {
+          "sample": "gate-cli-baseline-2",
+          "variant": "baseline",
+          "seconds": 0.07703979099460412,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/vibes-0d9feb896c0497a8",
+          "arguments_sha256": "9e9cafe52bc9d94a9b2c21e0ea8e9a614390ec29477f4a32cd7e52f0198162c3"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "gate-cli-mold-2",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 3.73738241699175,
+      "link_s": 0.05309066599875223,
+      "links": [
+        {
+          "sample": "gate-cli-mold-2",
+          "variant": "mold",
+          "seconds": 0.05309066599875223,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/vibes-0d9feb896c0497a8",
+          "arguments_sha256": "6f4849fa060ac48a61b8b84902195763326844841593fda1487cd4f7eb457068"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "gate-cli-mold-3",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 3.675773291994119,
+      "link_s": 0.05204520899860654,
+      "links": [
+        {
+          "sample": "gate-cli-mold-3",
+          "variant": "mold",
+          "seconds": 0.05204520899860654,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/vibes-0d9feb896c0497a8",
+          "arguments_sha256": "049cb06fdbaf34254e1c7e9b4e1e52bcca500d91f135a5a3b448d30a25a929fc"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "gate-cli-baseline-3",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 3.635998750003637,
+      "link_s": 0.08059849998971913,
+      "links": [
+        {
+          "sample": "gate-cli-baseline-3",
+          "variant": "baseline",
+          "seconds": 0.08059849998971913,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/vibes-0d9feb896c0497a8",
+          "arguments_sha256": "f6a5150da767900692b2520a41f696d213ba6a529738d25b24f88e759fc6e347"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "gate-cli-baseline-4",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 3.6365612499939743,
+      "link_s": 0.07659670800785534,
+      "links": [
+        {
+          "sample": "gate-cli-baseline-4",
+          "variant": "baseline",
+          "seconds": 0.07659670800785534,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/vibes-0d9feb896c0497a8",
+          "arguments_sha256": "e07fbf348c2588f988fe92770814e7a9ce54ed6d787a0d0350aec39407a411c7"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "gate-cli-mold-4",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 3.595316791004734,
+      "link_s": 0.052406958988285623,
+      "links": [
+        {
+          "sample": "gate-cli-mold-4",
+          "variant": "mold",
+          "seconds": 0.052406958988285623,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/vibes-0d9feb896c0497a8",
+          "arguments_sha256": "77a99997d6cc77b363eae7dce42e60ac976d97849f379d50f61a3f19206381e1"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ]
+    },
+    {
+      "id": "gate-cli-mold-5",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 3.5573639999929583,
+      "link_s": 0.05036470899358392,
+      "links": [
+        {
+          "sample": "gate-cli-mold-5",
+          "variant": "mold",
+          "seconds": 0.05036470899358392,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/vibes-0d9feb896c0497a8",
+          "arguments_sha256": "b77b1536f107192bb43f777944709e9c16214baa94be0d4a7d1e646bac925bd4"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ],
+      "validation": {
+        "passed": true,
+        "returncode": 0,
+        "output_tail": "42\n"
+      }
+    },
+    {
+      "id": "gate-cli-baseline-5",
+      "profile": "gate",
+      "workload": "cli",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 3.5835424169927137,
+      "link_s": 0.07822324999142438,
+      "links": [
+        {
+          "sample": "gate-cli-baseline-5",
+          "variant": "baseline",
+          "seconds": 0.07822324999142438,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/vibes-0d9feb896c0497a8",
+          "arguments_sha256": "416acc33c004fb656dbc81b6c8edd5ce30ec7945b5d12c7a9f237edcf33319ea"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibes",
+        "--bin",
+        "vibes"
+      ],
+      "validation": {
+        "passed": true,
+        "returncode": 0,
+        "output_tail": "42\n"
+      }
+    },
+    {
+      "id": "gate-integration-baseline-0",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": true,
+      "returncode": 0,
+      "rebuild_s": 85.89626483300526,
+      "link_s": 0.2736934989807196,
+      "links": [
+        {
+          "sample": "gate-integration-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.05028233298799023,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/build/serde_core-9632991f2d8a8384/build_script_build-9632991f2d8a8384",
+          "arguments_sha256": "809185c0c9b22b80c30484abcd1baf8f3f288a887bda8ecd669af1a23039eace"
+        },
+        {
+          "sample": "gate-integration-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.0498703339981148,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/build/rustix-15988b988a46fff7/build_script_build-15988b988a46fff7",
+          "arguments_sha256": "d8e9c8b5b98e91829cdb2e58bf1cadc95caf88389b2464624c0a3177721efb29"
+        },
+        {
+          "sample": "gate-integration-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.04551529099990148,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/build/serde_json-e3ee097ddcf28a49/build_script_build-e3ee097ddcf28a49",
+          "arguments_sha256": "3f4f8d24757773bd9dde7be7e3b6b928b1cb04a329a1c102f9d588c4fd5f1fe2"
+        },
+        {
+          "sample": "gate-integration-baseline-0",
+          "variant": "baseline",
+          "seconds": 0.12802554099471308,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/all-6afe0e40f3815b17",
+          "arguments_sha256": "eda0c19dc5c625d3e45521d866d62b7248174b0764abc5c34114f2ba587b4d34"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "gate-integration-mold-0",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": true,
+      "returncode": 0,
+      "rebuild_s": 37.101232540997444,
+      "link_s": 0.2290981669939356,
+      "links": [
+        {
+          "sample": "gate-integration-mold-0",
+          "variant": "mold",
+          "seconds": 0.2290981669939356,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/all-6afe0e40f3815b17",
+          "arguments_sha256": "59f1cbe5a95c528a215603d4c8cef71cb36991f06f255992ba95be8be81bd91e"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "gate-integration-mold-1",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 39.38343508300022,
+      "link_s": 0.10972929200215731,
+      "links": [
+        {
+          "sample": "gate-integration-mold-1",
+          "variant": "mold",
+          "seconds": 0.10972929200215731,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/all-6afe0e40f3815b17",
+          "arguments_sha256": "dfbff10c0ed8f59bba317838ac2568fb1b810e1bf407ab9abe73f5b7bfc74eed"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "gate-integration-baseline-1",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 38.11745487499866,
+      "link_s": 0.12972383300075307,
+      "links": [
+        {
+          "sample": "gate-integration-baseline-1",
+          "variant": "baseline",
+          "seconds": 0.12972383300075307,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/all-6afe0e40f3815b17",
+          "arguments_sha256": "bbe808a4c0a34028b09b211d3f922e13cc8e8d8e029aacda73629ab612be9531"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "gate-integration-baseline-2",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 38.15495412499877,
+      "link_s": 0.1335154170083115,
+      "links": [
+        {
+          "sample": "gate-integration-baseline-2",
+          "variant": "baseline",
+          "seconds": 0.1335154170083115,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/all-6afe0e40f3815b17",
+          "arguments_sha256": "3714178dd485d2bd43c0ec32e6f9d3712baa33acb548bb7caffb58b97b0dcd0d"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "gate-integration-mold-2",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 38.899415332998615,
+      "link_s": 0.12328524999611545,
+      "links": [
+        {
+          "sample": "gate-integration-mold-2",
+          "variant": "mold",
+          "seconds": 0.12328524999611545,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/all-6afe0e40f3815b17",
+          "arguments_sha256": "701982bf24bf6479c2e66ed4a9a4e102994a21694dff26339923549244f0c046"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "gate-integration-mold-3",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 38.30032508300792,
+      "link_s": 0.10388320800848305,
+      "links": [
+        {
+          "sample": "gate-integration-mold-3",
+          "variant": "mold",
+          "seconds": 0.10388320800848305,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/all-6afe0e40f3815b17",
+          "arguments_sha256": "24b80c30d8abae11b35a69474cc510927e2b614ae8a9c2a0746275bf8cde2d88"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "gate-integration-baseline-3",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 38.2408070419915,
+      "link_s": 0.12970758399751503,
+      "links": [
+        {
+          "sample": "gate-integration-baseline-3",
+          "variant": "baseline",
+          "seconds": 0.12970758399751503,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/all-6afe0e40f3815b17",
+          "arguments_sha256": "77f81eda0f75f14263fbfd68e55d3936ea837206b130a2ad3977a669c51777fc"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "gate-integration-baseline-4",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 38.389074625010835,
+      "link_s": 0.1314716250053607,
+      "links": [
+        {
+          "sample": "gate-integration-baseline-4",
+          "variant": "baseline",
+          "seconds": 0.1314716250053607,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/all-6afe0e40f3815b17",
+          "arguments_sha256": "d70c3ad7a7d0352dc1d4aac1361bca64c2efd9694e7d45f8de6b79dc16df6d68"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "gate-integration-mold-4",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 38.22561795900401,
+      "link_s": 0.11070716599351726,
+      "links": [
+        {
+          "sample": "gate-integration-mold-4",
+          "variant": "mold",
+          "seconds": 0.11070716599351726,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/all-6afe0e40f3815b17",
+          "arguments_sha256": "95dd82ddbb9a27d742858abfd3ca26359aead4b555c15b438958f0dcd446c160"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ]
+    },
+    {
+      "id": "gate-integration-mold-5",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "mold",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 38.2397009159904,
+      "link_s": 0.12031870801001787,
+      "links": [
+        {
+          "sample": "gate-integration-mold-5",
+          "variant": "mold",
+          "seconds": 0.12031870801001787,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/all-6afe0e40f3815b17",
+          "arguments_sha256": "536726c46bf97a84248dca4b1f534590453e830c9bdd5caba95b8f9879595671"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ],
+      "validation": {
+        "passed": true,
+        "returncode": 0,
+        "output_tail": "ns_ambient_globals ... ok\ntest vm_snapshots::unbound_snapshots_capture_partial_initialization_without_replaying_effects ... ok\ntest vm_snapshots::vm_snapshots_keep_class_state_shared_inside_each_copy ... ok\ntest vm_snapshots::vm_state_in_deep_receivers_uses_the_default_stack_through_copy_and_drop ... ok\ntest upstream_driver::complex_examples_stress ... ok\ntest language::language_conformance ... ok\n\ntest result: ok. 1279 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.93s\n\n"
+      }
+    },
+    {
+      "id": "gate-integration-baseline-5",
+      "profile": "gate",
+      "workload": "integration",
+      "variant": "baseline",
+      "warmup": false,
+      "returncode": 0,
+      "rebuild_s": 38.40338075000909,
+      "link_s": 0.2489455420000013,
+      "links": [
+        {
+          "sample": "gate-integration-baseline-5",
+          "variant": "baseline",
+          "seconds": 0.2489455420000013,
+          "returncode": 0,
+          "output": "/private/tmp/vibescript-link-bench/target/gate/deps/all-6afe0e40f3815b17",
+          "arguments_sha256": "018cf28c76b62ac91b69b1ce9ba811093e3643ea82f9ab33f9c9b16652ea94da"
+        }
+      ],
+      "command": [
+        "/private/tmp/vibescript-link-bench/scripts/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--all-features",
+        "--profile",
+        "gate",
+        "--message-format=json-render-diagnostics",
+        "-p",
+        "vibescript",
+        "--test",
+        "all",
+        "--no-run"
+      ],
+      "validation": {
+        "passed": true,
+        "returncode": 0,
+        "output_tail": "ns_ambient_globals ... ok\ntest vm_snapshots::unbound_snapshots_capture_partial_initialization_without_replaying_effects ... ok\ntest vm_snapshots::vm_snapshots_keep_class_state_shared_inside_each_copy ... ok\ntest vm_snapshots::vm_state_in_deep_receivers_uses_the_default_stack_through_copy_and_drop ... ok\ntest upstream_driver::complex_examples_stress ... ok\ntest language::language_conformance ... ok\n\ntest result: ok. 1279 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.75s\n\n"
+      }
+    }
+  ]
+}
