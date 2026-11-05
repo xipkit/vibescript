@@ -721,7 +721,8 @@ impl CallContext {
             self.charge(1)?;
             return Ok(value.clone());
         }
-        self.import_value(value, false)
+        let result = self.import_value(value, false);
+        self.latch_internal(result)
     }
 
     /// Imports source-heap references rooted in temporarily allocated containers.
