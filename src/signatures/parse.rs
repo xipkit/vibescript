@@ -114,15 +114,12 @@ fn lex(source: &str) -> Result<Vec<Lexed<'_>>> {
                     };
                     (token, &rest[end..])
                 }
-                Some(_) => {
+                Some(c) => {
                     let Some(punct) = PUNCTUATION.iter().find(|p| rest.starts_with(**p)) else {
                         return Err(ParseError {
                             line: index + 1,
                             column: column(rest),
-                            message: format!(
-                                "unexpected character {:?}",
-                                rest.chars().next().unwrap()
-                            ),
+                            message: format!("unexpected character {:?}", c),
                         });
                     };
                     (Token::Punct(punct), &rest[punct.len()..])
@@ -894,10 +891,9 @@ fn union(arms: Vec<Type>) -> Type {
             arm => flat.push(arm),
         }
     }
-    if flat.len() == 1 {
-        flat.pop().unwrap()
-    } else {
-        Type::Union(flat)
+    match <[Type; 1]>::try_from(flat) {
+        Ok([only]) => only,
+        Err(flat) => Type::Union(flat),
     }
 }
 

@@ -410,7 +410,9 @@ fn visit(
                     break;
                 }
             }
-            let found = found.unwrap();
+            let found = found.ok_or(crate::checked::violation(
+                "named annotation must have a resolved type",
+            ))?;
             if let Kind::Namespace(class) = &found.0 {
                 let matches = matches!(&value.0, Kind::Instance(instance) if instance.class().same_type(class));
                 return Ok(matches.then_some((value, false)));
@@ -632,6 +634,23 @@ mod tests {
     use super::*;
     use crate::{CallOptions, Limits};
     use std::sync::Arc;
+
+    #[test]
+    fn a_missing_prepared_type_is_an_internal_error() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let ty = Type::named("Missing".into());
+        let prepared = Prepared {
+            ty: &ty,
+            names: Buffer::empty(),
+        };
+        let error = prepared.normalize(&mut ctx, Value::int(1)).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Internal);
+        assert!(
+            error
+                .message
+                .contains("named annotation must have a resolved type")
+        );
+    }
 
     fn array(element: Type) -> Type {
         Type {

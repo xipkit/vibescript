@@ -1054,13 +1054,12 @@ impl Types {
                     {
                         return ScratchVec::new(&self.meter);
                     }
-                    if index
-                        .heads
-                        .get_mut(&head)
-                        .unwrap()
-                        .push(ledger, alternative)
-                        .is_err()
-                    {
+                    let Some(alternatives) = self.meter.found(index.heads.get_mut(&head).ok_or(
+                        crate::checked::violation("union index must contain its head"),
+                    )) else {
+                        return ScratchVec::new(&self.meter);
+                    };
+                    if alternatives.push(ledger, alternative).is_err() {
                         return ScratchVec::new(&self.meter);
                     }
                 }

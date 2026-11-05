@@ -643,7 +643,14 @@ impl<'a> Checker<'a> {
             }
             self.defaults = Some((defaults, bytes));
         }
-        let (defaults, bytes) = self.defaults.take().unwrap();
+        let Some((defaults, bytes)) =
+            self.meter
+                .found(self.defaults.take().ok_or(crate::checked::violation(
+                    "class defaults must be collected before they are read",
+                )))
+        else {
+            return Vec::new();
+        };
         let mut defaults = defaults;
         let taken = defaults.remove(&offset).unwrap_or_default();
         // The caller keeps the removed list charged until its defaults
@@ -1995,7 +2002,15 @@ impl<'a> Checker<'a> {
             return Ty::ERROR;
         }
         let value = self.stmts(body, Self::body_want(last));
-        let context = self.frame.contexts.pop().unwrap();
+        let Some(context) = self.meter.found(
+            self.frame
+                .contexts
+                .pop()
+                .ok_or(crate::checked::violation("loop body must have a context")),
+        ) else {
+            self.frame.flow.rollback(before);
+            return Ty::ERROR;
+        };
         let mut values = self.finish_loop(before, context, !infinite);
         // A `break` without a value leaves the loop's value as it was.
         if !infinite || (last && values.contains(&Ty::NIL)) {
@@ -2098,7 +2113,15 @@ impl<'a> Checker<'a> {
             return Ty::ERROR;
         }
         let value = self.stmts(body, Self::body_want(last));
-        let mut context = self.frame.contexts.pop().unwrap();
+        let Some(mut context) = self.meter.found(
+            self.frame
+                .contexts
+                .pop()
+                .ok_or(crate::checked::violation("loop body must have a context")),
+        ) else {
+            self.frame.flow.rollback(before);
+            return Ty::ERROR;
+        };
         let skips = !context.exits().nexts.is_empty();
         // A `break` gives the loop its value instead of the iterable.
         let mut values = self.finish_loop(before, context, true);
@@ -2362,7 +2385,12 @@ impl<'a> Checker<'a> {
         }
         let branch = self.frame.flow.peek(mark);
         let tables = self.meter.tables();
-        let exits = self.frame.contexts.last_mut().unwrap().exits();
+        let Some(context) = self.meter.found(self.frame.contexts.last_mut().ok_or(
+            crate::checked::violation("control flow exit must have a context"),
+        )) else {
+            return;
+        };
+        let exits = context.exits();
         // A check the budget stops records neither.
         if exits.values.reserve(tables, 1).is_ok() && exits.record(tables, branch, true).is_ok() {
             exits.values.push_within(value);
@@ -2379,7 +2407,12 @@ impl<'a> Checker<'a> {
         };
         let branch = self.frame.flow.peek(context.mark());
         let tables = self.meter.tables();
-        let exits = self.frame.contexts.last_mut().unwrap().exits();
+        let Some(context) = self.meter.found(self.frame.contexts.last_mut().ok_or(
+            crate::checked::violation("control flow exit must have a context"),
+        )) else {
+            return;
+        };
+        let exits = context.exits();
         let kept = exits.record(tables, branch, leaves);
         // A check the budget stops keeps no more of them.
         if kept.is_err() {
@@ -2510,7 +2543,7 @@ impl<'a> Checker<'a> {
                     );
                 }
                 let ty = self.expr(value, Some(current));
-                self.memo.get_mut().unwrap().replay = true;
+                self.memo.replay(&self.meter);
                 self.target_write(target, ty, value);
                 self.restore_memo(outer);
                 ty
@@ -2523,7 +2556,7 @@ impl<'a> Checker<'a> {
                 let current = self.target_read(target);
                 let right = self.expr(value, None);
                 let span = self.spans.stmt(stmt);
-                self.memo.get_mut().unwrap().replay = true;
+                self.memo.replay(&self.meter);
                 let result = match self.optional_element(target, op, value, current) {
                     Some(present) => {
                         self.binary_types(operator, present, right, span, Some((None, value)))
@@ -2876,7 +2909,13 @@ impl<'a> Checker<'a> {
                             ty
                         }
                         None if self.host_global(name).is_some() => {
-                            let global = self.host_global(name).unwrap();
+                            let Some(global) = self.meter.found(self.host_global(name).ok_or(
+                                crate::checked::violation(
+                                    "host global assignment must have a declared type",
+                                ),
+                            )) else {
+                                return Ty::ERROR;
+                            };
                             self.expr_against(value, global, &Purpose::Global(self.copy(name)))
                         }
                         None => {
@@ -3054,7 +3093,14 @@ impl<'a> Checker<'a> {
         match target {
             Target::Value(expr) => match &expr.node {
                 Node::Var(name) if assignment && self.host_global(name).is_some() => {
-                    let global = self.host_global(name).unwrap();
+                    let Some(global) =
+                        self.meter
+                            .found(self.host_global(name).ok_or(crate::checked::violation(
+                                "host global target must have a declared type",
+                            )))
+                    else {
+                        return;
+                    };
                     let span = self.spans.expr(expr);
                     self.global_write(name, global, ty, span);
                 }
@@ -3103,7 +3149,7 @@ impl<'a> Checker<'a> {
                     // receiver and keys, and the write replays their types.
                     let outer = self.set_memo(Some(super::Memo::default()));
                     self.expr(expr, None);
-                    self.memo.get_mut().unwrap().replay = true;
+                    self.memo.replay(&self.meter);
                     self.index_write(expr, receiver, selectors, ty, expr, false);
                     self.restore_memo(outer);
                 }
@@ -3131,7 +3177,13 @@ impl<'a> Checker<'a> {
                         ..
                     }) if assignment && self.host_global(name).is_some() => {
                         // The value already has the declared type.
-                        let global = self.host_global(name).unwrap();
+                        let Some(global) = self.meter.found(self.host_global(name).ok_or(
+                            crate::checked::violation(
+                                "host global target must have a declared type",
+                            ),
+                        )) else {
+                            return;
+                        };
                         let span = self.spans.token(*offset as usize);
                         self.global_declaration(name, global, declared, span);
                     }

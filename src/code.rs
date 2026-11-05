@@ -142,7 +142,11 @@ impl Code {
                 })
             })?;
         let resolve = |path: &str, origin: Option<&crate::loading::Origin>, ctx: &mut _| {
-            loader.unwrap().source(path, origin, ctx)
+            loader
+                .ok_or(crate::checked::violation(
+                    "module resolver must have a loader",
+                ))?
+                .source(path, origin, ctx)
         };
         let mut registered_hosts =
             crate::compilation::Buffer::with_capacity(work, registered.clone().size_hint().0)?;

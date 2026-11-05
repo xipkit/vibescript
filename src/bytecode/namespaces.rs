@@ -24,13 +24,17 @@ impl Program {
     ) -> Result<usize> {
         let mut stack = vec![self.open_module(module, qualifier, work)?];
         loop {
-            let top = stack.last_mut().unwrap();
+            let top = stack
+                .last_mut()
+                .ok_or(violation("module stack must not be empty"))?;
             if let Some(child) = top.children.next() {
                 let frame = self.open_module(child, top.name.as_str(), work)?;
                 stack.push(frame);
                 continue;
             }
-            let frame = stack.pop().unwrap();
+            let frame = stack
+                .pop()
+                .ok_or(violation("completed module must have a frame"))?;
             let short = frame.short.clone();
             let index = self.close_module(frame, functions, contexts, typing, work)?;
             match stack.last_mut() {

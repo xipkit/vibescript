@@ -507,7 +507,7 @@ impl Inference {
         }
         let mut fields = Vec::with_capacity(entries.len());
         for (key, field) in entries {
-            let key = key.as_bytes().unwrap();
+            let key = key.as_bytes()?;
             self.charge(1 + key.len())?;
             let field = self.infer(field, depth + 1)?;
             fields.push((String::from_utf8_lossy(key).into_owned(), field));

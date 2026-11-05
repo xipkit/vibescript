@@ -668,7 +668,7 @@ impl<'a> Checker<'a> {
         let result = self.checked_member(call, receiver, ty, safe);
         let valid = self.diagnostics.len() == reported;
         // Another argument's type, as the call just checked it.
-        self.memo.get_mut().unwrap().replay = true;
+        self.memo.replay(&self.meter);
         self.mute += 1;
         let other = literal.or_else(|| argument.map(|value| self.expr(value, None)));
         self.mute -= 1;
@@ -758,7 +758,7 @@ impl<'a> Checker<'a> {
         let branch = self.frame.flow.rollback(mark);
         self.explore(&mut branches, branch);
         // Reuse evaluated argument types, but check every receiver's contract.
-        self.memo.get_mut().unwrap().replay = true;
+        self.memo.replay(&self.meter);
         for &alternative in rest {
             // A check one alternative stops checks no more of them.
             if self.halted() {
@@ -870,7 +870,10 @@ impl<'a> Checker<'a> {
     fn field_addresses(&mut self, receiver: &Expr, name: &str) {
         let mut node = receiver;
         while let Node::Member(inner, member) | Node::SafeMember(inner, member) = &node.node {
-            let types = &self.memo.get().unwrap().types;
+            let Some(memo) = self.memo.get() else {
+                return;
+            };
+            let types = &memo.types;
             let called = types.get(&(std::ptr::from_ref(node) as usize)).copied();
             let Some(inner_ty) = types.get(&(std::ptr::from_ref(&**inner) as usize)).copied()
             else {
@@ -1473,7 +1476,9 @@ impl<'a> Checker<'a> {
                 if name.chars().next().is_some_and(char::is_uppercase)
                     && namespace.statics.contains_key(name)
                 {
-                    let span = self.spans.member_operator(receiver, name).unwrap();
+                    let Some(span) = self.spans.member_operator(receiver, name) else {
+                        return self.dispatch(&call, receiver, ty);
+                    };
                     self.report(
                         Diagnostic::error(
                             Code::SCOPED_CALL,
@@ -2898,7 +2903,17 @@ impl<'a> Checker<'a> {
             }
         }
         let live = self.frame.flow.live;
-        let mut context = self.frame.contexts.pop().unwrap();
+        let Some(mut context) = self.meter.found(
+            self.frame
+                .contexts
+                .pop()
+                .ok_or(crate::checked::violation("block body must have a context")),
+        ) else {
+            self.frame.flow.rollback(before);
+            self.close_scope();
+            self.put_back_memo(outer_memo);
+            return (Ty::ERROR, Vec::new());
+        };
         let mut results = match &mut context {
             Context::Block { results, .. } => std::mem::take(results),
             Context::Loop { .. } => CountedVec::new(),

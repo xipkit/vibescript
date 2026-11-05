@@ -129,7 +129,9 @@ impl<C, T> Tasks<C, T> {
         push(&mut stack, start(call)?)?;
         let mut context = Context::from_waker(Waker::noop());
         loop {
-            let (task, _) = stack.last_mut().unwrap();
+            let (task, _) = stack.last_mut().ok_or(crate::checked::violation(
+                "compiler task stack must not be empty",
+            ))?;
             match task.as_mut().poll(&mut context) {
                 Poll::Ready(result) => {
                     stack.pop();

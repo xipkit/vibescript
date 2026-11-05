@@ -394,14 +394,26 @@ impl<'a> Parser<'a> {
         self.work.charge(1)?;
         // A quoted index can extend past a tentative percent-literal delimiter.
         // Re-lex its suffix through the next intact token boundary.
-        let limit = self.tokens.last().unwrap().offset;
+        let limit = self
+            .tokens
+            .last()
+            .ok_or(crate::checked::violation(
+                "token stream must end with a sentinel",
+            ))?
+            .offset;
         let tokens = lexer::modulo(self.lexing(), &self.tokens[self.pos], limit)?;
         self.replace_lexed(tokens, limit)
     }
 
     pub(super) fn expand_regex(&mut self) -> Result<()> {
         self.work.charge(1)?;
-        let limit = self.tokens.last().unwrap().offset;
+        let limit = self
+            .tokens
+            .last()
+            .ok_or(crate::checked::violation(
+                "token stream must end with a sentinel",
+            ))?
+            .offset;
         let tokens = lexer::regex(self.lexing(), &self.tokens[self.pos], limit)?;
         self.replace_lexed(tokens, limit)
     }
@@ -412,7 +424,9 @@ impl<'a> Parser<'a> {
         limit: usize,
     ) -> Result<()> {
         self.work.charge(1)?;
-        let mut cursor = tokens.pop().unwrap();
+        let mut cursor = tokens.pop().ok_or(crate::checked::violation(
+            "re-lexed tokens must end with a sentinel",
+        ))?;
         let mut finish = self.pos + 1;
         loop {
             while self.tokens[finish].offset < cursor.offset {
@@ -424,7 +438,9 @@ impl<'a> Parser<'a> {
                 break;
             }
             let mut suffix = lexer::resume(self.lexing(), &cursor, end, limit, tokens.last())?;
-            cursor = suffix.pop().unwrap();
+            cursor = suffix.pop().ok_or(crate::checked::violation(
+                "re-lexed suffix must end with a sentinel",
+            ))?;
             tokens.extend(self.work, suffix)?;
         }
         self.tokens.replace(self.pos..finish, tokens, self.work)?;
