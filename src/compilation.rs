@@ -139,6 +139,8 @@ impl Work for Meter<'_> {
         self.0.borrow_mut().charge(steps as u64)
     }
     fn bytes(&self, bytes: usize) -> Result<()> {
+        #[cfg(test)]
+        module_tests::injected(bytes)?;
         self.0.borrow_mut().work_bytes(bytes)
     }
     fn checkpoint(&self) -> Result<()> {
@@ -161,3 +163,6 @@ impl Work for Meter<'_> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod module_tests;
