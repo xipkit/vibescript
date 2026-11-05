@@ -126,9 +126,9 @@ pub(super) fn stored_name(
         }
         return Err(super::io_error("checking module filename", error));
     }
-    let total = u32::from_ne_bytes(output[..4].try_into().unwrap()) as usize;
-    let offset = i32::from_ne_bytes(output[4..8].try_into().unwrap()) as i64 + 4;
-    let length = u32::from_ne_bytes(output[8..12].try_into().unwrap()) as usize;
+    let total = u32::from_ne_bytes([output[0], output[1], output[2], output[3]]) as usize;
+    let offset = i32::from_ne_bytes([output[4], output[5], output[6], output[7]]) as i64 + 4;
+    let length = u32::from_ne_bytes([output[8], output[9], output[10], output[11]]) as usize;
     if !(12..=output.len()).contains(&total)
         || offset < 12
         || offset as usize > total

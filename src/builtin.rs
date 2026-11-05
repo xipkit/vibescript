@@ -1,5 +1,4 @@
 use crate::{CallContext, Error, ErrorKind, Result, Value, json, math, ops, value::Kind};
-use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Builtin {
@@ -136,7 +135,7 @@ impl Global {
 
     pub fn value(self) -> Value {
         use Builtin::*;
-        let field = |name: &str, value| (Value::bytes(name.as_bytes()), value);
+        let field = |name: &str, value| (name.as_bytes().to_vec(), value);
         let mut entries = match self {
             Self::Require => return Value(Kind::Builtin(Require)),
             Self::Output(kind) => return Value(Kind::Builtin(Output(kind))),
@@ -183,7 +182,7 @@ impl Global {
             .into_iter()
             .map(|constructor| {
                 field(
-                    constructor.name().strip_prefix("Time.").unwrap(),
+                    Time(constructor).member_name(),
                     Value(Kind::Builtin(Time(constructor))),
                 )
             })
@@ -224,25 +223,13 @@ impl Global {
                     crate::builtin::Math::Log,
                 ] {
                     let builtin = Math(method);
-                    entries.push(field(
-                        builtin.name().strip_prefix("Math.").unwrap(),
-                        Value(Kind::Builtin(builtin)),
-                    ));
+                    entries.push(field(builtin.member_name(), Value(Kind::Builtin(builtin))));
                 }
                 entries
             }
         };
-        entries.sort_unstable_by(|(left, _), (right, _)| {
-            left.as_bytes().unwrap().cmp(right.as_bytes().unwrap())
-        });
-        let depth = 1 + entries
-            .iter()
-            .map(|(_, value)| value.depth())
-            .max()
-            .unwrap_or(0);
-        let mut hash = crate::hash::Hash::untracked(entries, depth);
-        Arc::get_mut(&mut hash).unwrap().object = true;
-        Value(Kind::Hash(hash))
+        entries.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
+        Value::object(entries)
     }
 }
 
@@ -306,6 +293,12 @@ impl Builtin {
                 Log => "Math.log",
             },
         }
+    }
+
+    /// The member part of a qualified name, or the whole unqualified name.
+    fn member_name(self) -> &'static str {
+        let name = self.name();
+        name.rsplit_once('.').map_or(name, |(_, member)| member)
     }
 
     /// Refuses the builtin as a value, naming it as the script wrote it, as Go does:
@@ -527,7 +520,9 @@ impl Builtin {
             },
             Self::ToFloat => match &value.0 {
                 Kind::Int(_) | Kind::Big(_) | Kind::Float(_) => {
-                    Ok(Value::float(value.as_float().unwrap()))
+                    Ok(Value::float(value.as_float().ok_or(
+                        crate::checked::violation("numeric value expected"),
+                    )?))
                 }
                 Kind::Bytes(bytes) => {
                     crate::conversion::float(ctx, bytes.data(), "to_float").map(Value::float)

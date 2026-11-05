@@ -145,7 +145,11 @@ impl Sort {
                     }
                 }
                 Task::InsertResult { a, b, i, j } => {
-                    if result.take().unwrap() == Ordering::Less {
+                    if result
+                        .take()
+                        .ok_or(crate::checked::violation("sort comparison result expected"))?
+                        == Ordering::Less
+                    {
                         self.tasks.push(ctx, Task::Insert { a, b, i, j: j - 1 })?;
                         return Ok(Action::Swap(j, j - 1));
                     }
@@ -235,7 +239,10 @@ impl Sort {
                     }
                 }
                 Task::SearchResult(mut search, h) => {
-                    let less = result.take().unwrap() == Ordering::Less;
+                    let less = result
+                        .take()
+                        .ok_or(crate::checked::violation("sort comparison result expected"))?
+                        == Ordering::Less;
                     if less == matches!(search.kind, SearchKind::Left) {
                         search.lo = h + 1;
                     } else {

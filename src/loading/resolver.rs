@@ -118,7 +118,12 @@ impl Resolver {
                     "require: relative module requires a module caller",
                 ));
             };
-            name = relative_name(ctx, &caller.relative, name.as_bytes().unwrap())?;
+            name = relative_name(
+                ctx,
+                &caller.relative,
+                name.as_bytes()
+                    .ok_or(crate::checked::violation("module bytes expected"))?,
+            )?;
             Some(caller.root.clone())
         } else {
             if self.roots.is_empty() {
@@ -129,7 +134,11 @@ impl Resolver {
             }
             None
         };
-        self.policy.check(ctx, name.as_bytes().unwrap())?;
+        self.policy.check(
+            ctx,
+            name.as_bytes()
+                .ok_or(crate::checked::violation("module bytes expected"))?,
+        )?;
         let roots = if request.relative {
             &self.roots[..0]
         } else {
@@ -149,7 +158,10 @@ impl Resolver {
         candidate: &Candidate,
     ) -> Result<Option<files::Source>> {
         if let Some(sources) = candidate.root.sources() {
-            let name = candidate.relative.as_bytes().unwrap();
+            let name = candidate
+                .relative
+                .as_bytes()
+                .ok_or(crate::checked::violation("module bytes expected"))?;
             ctx.charge(name.len() as u64 + 1)?;
             let Some(source) = std::str::from_utf8(name)
                 .ok()
@@ -166,7 +178,10 @@ impl Resolver {
                 },
             }));
         }
-        let relative = candidate.path.strip_prefix(candidate.root.path()).unwrap();
+        let relative = candidate
+            .path
+            .strip_prefix(candidate.root.path())
+            .map_err(|_| crate::checked::violation("module candidate must be inside its root"))?;
         let file = match candidate.root.open(ctx, relative) {
             Ok(files::Opened::File(file)) => file,
             Ok(files::Opened::Missing) => return Ok(None),
@@ -192,15 +207,20 @@ impl Resolver {
             ctx.checkpoint()?;
             return Ok(true);
         }
-        let result = (|| {
-            let relative = candidate.path.strip_prefix(candidate.root.path()).unwrap();
+        let result: Result<bool> = (|| {
+            let relative = candidate
+                .path
+                .strip_prefix(candidate.root.path())
+                .map_err(|_| {
+                    crate::checked::violation("module candidate must be inside its root")
+                })?;
             let files::Opened::File(file) = candidate.root.open(ctx, relative)? else {
                 return Ok(false);
             };
             Ok(files::stamp(ctx, &file)? == stamp)
         })();
         match result {
-            Err(_) if !ctx.exhausted() => Ok(false),
+            Err(ref error) if error.kind != ErrorKind::Internal && !ctx.exhausted() => Ok(false),
             other => other,
         }
     }
@@ -216,7 +236,10 @@ impl Candidates<'_> {
             self.roots.next().cloned()
         };
         let Some(root) = root else { return Ok(None) };
-        let bytes = self.name.as_bytes().unwrap();
+        let bytes = self
+            .name
+            .as_bytes()
+            .ok_or(crate::checked::violation("module bytes expected"))?;
         let Some(capacity) = root
             .path()
             .as_os_str()
@@ -266,11 +289,15 @@ impl Candidates<'_> {
 
 impl Candidate {
     // Cached code owns immutable origin metadata independently of a call's values.
-    pub fn origin(&self) -> Origin {
-        Origin {
+    pub fn origin(&self) -> Result<Origin> {
+        Ok(Origin {
             root: self.root.clone(),
-            relative: Arc::from(self.relative.as_bytes().unwrap()),
-        }
+            relative: Arc::from(
+                self.relative
+                    .as_bytes()
+                    .ok_or(crate::checked::violation("module bytes expected"))?,
+            ),
+        })
     }
 }
 

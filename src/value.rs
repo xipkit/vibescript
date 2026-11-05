@@ -94,7 +94,7 @@ impl<T: Element + Clone> Heap<T> {
             let (depth, at_max) = (heap.depth, heap.at_max);
             *heap = Self::new(ctx, buffer, depth, at_max)?;
         }
-        Ok(Arc::get_mut(heap).unwrap())
+        Ok(Arc::get_mut(heap).ok_or(crate::checked::violation("array must be uniquely owned"))?)
     }
 }
 
@@ -189,7 +189,7 @@ impl Value {
     /// Returns a regex's source bytes and canonical flag letters.
     pub fn as_regex(&self) -> Option<(&[u8], &str)> {
         if let Kind::Regex(regex) = &self.0 {
-            Some((regex.source.as_bytes().unwrap(), regex.flags()))
+            Some((regex.source.as_bytes()?, regex.flags()))
         } else {
             None
         }
@@ -262,9 +262,9 @@ impl Value {
     }
     /// Creates a caller-owned insertion-ordered hash with string keys, replacing duplicate values.
     pub fn hash(entries: Vec<(Vec<u8>, Value)>) -> Self {
-        Self(Kind::Hash(Self::hash_data(entries)))
+        Self(Kind::Hash(Arc::new(Self::hash_data(entries))))
     }
-    fn hash_data(entries: Vec<(Vec<u8>, Value)>) -> Arc<Hash> {
+    fn hash_data(entries: Vec<(Vec<u8>, Value)>) -> Hash {
         let mut values: Vec<(Value, Value)> = Vec::with_capacity(entries.len());
         let mut positions: HashMap<Arc<Vec<u8>>, usize> = HashMap::with_capacity(entries.len());
         for (key, value) in entries {
@@ -285,8 +285,8 @@ impl Value {
     /// descriptors. Imports and script mutations follow ordinary value semantics.
     pub fn object(entries: Vec<(Vec<u8>, Value)>) -> Self {
         let mut hash = Self::hash_data(entries);
-        Arc::get_mut(&mut hash).unwrap().object = true;
-        Self(Kind::Hash(hash))
+        hash.object = true;
+        Self(Kind::Hash(Arc::new(hash)))
     }
     /// Returns an integer when this value fits the compact signed 64-bit representation.
     pub fn as_int(&self) -> Option<i64> {
@@ -553,7 +553,9 @@ impl Value {
             buffer.extend(ctx, &heap.buffer.data[start..end])?;
             return Self::from_array(ctx, buffer);
         }
-        let writable = Arc::get_mut(&mut heap).unwrap();
+        let writable = Arc::get_mut(&mut heap).ok_or(crate::checked::violation(
+            "array slice must be uniquely owned",
+        ))?;
         if start != 0 {
             for i in 0..length {
                 ctx.charge(1)?;

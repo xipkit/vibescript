@@ -128,7 +128,10 @@ fn check_depth(ctx: &mut CallContext, value: &Value) -> Result<()> {
             }
         };
         let Some(child) = child else {
-            let finished = frames.data.pop().unwrap();
+            let finished = frames
+                .data
+                .pop()
+                .ok_or(crate::checked::violation("export frame expected"))?;
             if !frames.data.is_empty() {
                 seen.insert(ctx, finished.value)?;
             }

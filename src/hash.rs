@@ -39,7 +39,9 @@ impl Index {
                 _header: header,
             });
         }
-        Ok(Arc::get_mut(index).unwrap())
+        Ok(Arc::get_mut(index).ok_or(crate::checked::violation(
+            "hash index must be uniquely owned",
+        ))?)
     }
 
     fn vacant(&self, ctx: &mut CallContext, hash: usize) -> Result<usize> {
@@ -134,7 +136,7 @@ impl Hash {
         }
     }
 
-    pub fn untracked(data: Vec<(Value, Value)>, depth: usize) -> Arc<Self> {
+    pub fn untracked(data: Vec<(Value, Value)>, depth: usize) -> Self {
         let at_max = data
             .iter()
             .filter(|(_, v)| v.depth() + 1 == depth && depth > 1)
@@ -143,7 +145,7 @@ impl Hash {
         hash.buffer = Buffer::untracked(data);
         hash.depth = depth;
         hash.at_max = at_max;
-        Arc::new(hash)
+        hash
     }
 
     pub(crate) fn into_buffer(mut self) -> Buffer<(Value, Value)> {
@@ -186,7 +188,7 @@ impl Hash {
             }
             .into_arc(ctx)?;
         }
-        Ok(Arc::get_mut(hash).unwrap())
+        Ok(Arc::get_mut(hash).ok_or(crate::checked::violation("hash must be uniquely owned"))?)
     }
 
     /// Records a container's nesting depth and the count of entries at that
@@ -320,7 +322,14 @@ impl Hash {
             self.buffer.push(ctx, (key, value))?;
             if let Some(slot) = slot {
                 // ensure_index made the table unique before entries were changed.
-                let index = Arc::get_mut(self.index.as_mut().unwrap()).unwrap();
+                let index = Arc::get_mut(
+                    self.index
+                        .as_mut()
+                        .ok_or(crate::checked::violation("hash index expected"))?,
+                )
+                .ok_or(crate::checked::violation(
+                    "hash index must be uniquely owned",
+                ))?;
                 index.buckets.data[slot] = len - 1;
             }
         }
@@ -434,7 +443,11 @@ impl Hash {
             ctx.charge(1)?;
             self.buffer.data.swap(i, i + 1);
         }
-        let (_, removed) = self.buffer.data.pop().unwrap();
+        let (_, removed) = self
+            .buffer
+            .data
+            .pop()
+            .ok_or(crate::checked::violation("removed hash entry expected"))?;
         if self.buffer.data.is_empty() {
             self.buffer = Buffer::empty();
         } else if self.buffer.data.len() < self.buffer.data.capacity() / 2 {
@@ -475,7 +488,9 @@ impl Hash {
             return ctx.fail(ErrorKind::Memory, "hash index size overflow");
         };
         let mut index = Index::new(ctx, size)?;
-        let writable = Arc::get_mut(&mut index).unwrap();
+        let writable = Arc::get_mut(&mut index).ok_or(crate::checked::violation(
+            "new hash index must be uniquely owned",
+        ))?;
         for (i, (key, _)) in self.buffer.data.iter().enumerate() {
             let hash = hash_key(ctx, key.require_bytes()?)?;
             let slot = writable.vacant(ctx, hash)?;

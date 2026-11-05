@@ -44,7 +44,13 @@ impl Source {
         let mut position = Position { line: 1, column: 1 };
         for (offset, ch) in text.char_indices() {
             work.charge(1)?;
-            if offset - checkpoints.last().unwrap().offset as usize >= STRIDE {
+            if offset
+                - checkpoints
+                    .last()
+                    .ok_or(crate::checked::violation("source checkpoint expected"))?
+                    .offset as usize
+                >= STRIDE
+            {
                 checkpoints.push(Checkpoint {
                     offset: offset as u32,
                     line: position.line as u32,
@@ -259,10 +265,15 @@ pub(crate) fn formatted(
     }
     ctx.work_bytes(length.0)?;
     let mut buffer = Buffer::with_capacity(ctx, length.0)?;
-    std::io::Write::write_fmt(&mut buffer.data, args).unwrap();
+    std::io::Write::write_fmt(&mut buffer.data, args)
+        .map_err(|_| crate::checked::violation("diagnostic formatting failed"))?;
     debug_assert_eq!(buffer.data.len(), length.0);
     let (bytes, charge) = buffer.into_parts();
-    Ok((String::from_utf8(bytes).unwrap(), charge))
+    Ok((
+        String::from_utf8(bytes)
+            .map_err(|_| crate::checked::violation("formatted diagnostic must be UTF-8"))?,
+        charge,
+    ))
 }
 
 pub(crate) fn parse_error(

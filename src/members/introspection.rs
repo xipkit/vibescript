@@ -177,13 +177,15 @@ impl<'a> Atom<'a> {
             };
             ctx.work_bytes(name.len())?;
             let last = name
-                .rsplit("::")
-                .next()
-                .unwrap()
-                .rsplit('.')
-                .next()
-                .unwrap();
-            if self.name.rsplit('.').next().unwrap() == last {
+                .rsplit_once("::")
+                .map_or(name.as_str(), |(_, last)| last);
+            let last = last.rsplit_once('.').map_or(last, |(_, last)| last);
+            if self
+                .name
+                .rsplit_once('.')
+                .map_or(self.name, |(_, last)| last)
+                == last
+            {
                 if self.nullable && matches!(receiver.0, Kind::Nil) {
                     return Ok(true);
                 }
@@ -222,7 +224,7 @@ fn identifier(text: &str) -> bool {
 fn atom_error(text: &[u8], unknown: bool) -> Error {
     let mut quoted = Vec::new();
     crate::shapes::quote(text, &mut quoted);
-    let quoted = std::str::from_utf8(&quoted).unwrap();
+    let quoted = String::from_utf8_lossy(&quoted);
     Error::new(
         ErrorKind::Type,
         if unknown {

@@ -137,8 +137,9 @@ pub(crate) fn endpoint(value: &Value) -> Result<i64> {
                 return Ok(n);
             }
             let mut text = crate::bytes::Number::new();
-            crate::ops::format_float(&mut text, n);
-            let text = std::str::from_utf8(text.bytes()).unwrap();
+            crate::ops::format_float(&mut text, n)?;
+            let text = std::str::from_utf8(text.bytes())
+                .map_err(|_| crate::checked::violation("formatted number must be UTF-8"))?;
             if n.is_finite() {
                 format!("float {text} is out of integer range")
             } else {

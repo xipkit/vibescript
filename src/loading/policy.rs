@@ -82,7 +82,7 @@ fn normalize(input: &[u8], output: &mut Vec<u8>) {
         output.clear();
         return;
     }
-    let base = output.rsplit(|&b| b == b'/').next().unwrap();
+    let base = &output[output.iter().rposition(|&b| b == b'/').map_or(0, |i| i + 1)..];
     if let Some(stem) = base.strip_suffix(b".vibe") {
         if !stem.is_empty() && !stem.contains(&b'.') {
             output.truncate(output.len() - 5);

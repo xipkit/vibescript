@@ -260,7 +260,7 @@ fn leaf(ctx: &mut CallContext, value: &Value, out: &mut Output) -> Result<()> {
         }
         Kind::Bool(value) => return out.append(ctx, if *value { b"true" } else { b"false" }),
         Kind::Int(value) => write!(scalar, "{value}").unwrap(),
-        Kind::Float(value) => ops::format_float(&mut scalar, *value),
+        Kind::Float(value) => ops::format_float(&mut scalar, *value)?,
         Kind::Range(range) => write!(scalar, "{range}").unwrap(),
         Kind::Money(money) => write!(scalar, "{money}").unwrap(),
         Kind::Duration(seconds) => write!(scalar, "{seconds}s").unwrap(),

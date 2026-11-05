@@ -305,9 +305,12 @@ impl Address {
                 }
                 _ => None,
             };
-            let context = name.as_ref().map_or(crate::types::Context::Value, |name| {
-                crate::types::Context::Ivar(name.as_bytes().unwrap())
-            });
+            let context = match &name {
+                Some(name) => crate::types::Context::Ivar(name.as_bytes().ok_or(
+                    crate::checked::violation("instance field name must be bytes"),
+                )?),
+                None => crate::types::Context::Value,
+            };
             updated = guard.normalize_with(ctx, updated, context)?;
         }
         refresh(ctx, root.clone(), &updated, pending, &changes.data)?;

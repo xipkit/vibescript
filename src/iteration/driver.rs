@@ -388,7 +388,12 @@ pub(crate) fn start_pooled(
         state.length = args.len() as i128;
     }
     if method == Fill {
-        let original = receiver.as_array().unwrap().len();
+        let original = receiver
+            .as_array()
+            .ok_or(crate::checked::violation(
+                "iteration receiver must be an array",
+            ))?
+            .len();
         let (start, end, length) = mutate::fill_span(ctx, args, original)?;
         state.start = to_i64(start);
         state.width = end;
@@ -460,7 +465,7 @@ impl Loop {
                 let value = self
                     .receiver
                     .as_array()
-                    .unwrap()
+                    .ok_or(crate::checked::violation("fill receiver must be an array"))?
                     .get(self.position as usize)
                     .cloned()
                     .unwrap_or_default();
@@ -504,7 +509,9 @@ impl Loop {
                 let matched = ops::case_matches(
                     ctx,
                     Some(&args[0]),
-                    self.accumulator.as_ref().unwrap(),
+                    self.accumulator
+                        .as_ref()
+                        .ok_or(crate::checked::violation("iteration pattern expected"))?,
                     false,
                 )?;
                 if matched != (self.method == Grep) {
@@ -513,7 +520,15 @@ impl Loop {
             }
             if self.block && !(self.method == DropWhile && !self.dropping) {
                 let (args, count) = if self.method == Reduce {
-                    ([self.accumulator.take().unwrap(), args[0].clone()], 2)
+                    (
+                        [
+                            self.accumulator.take().ok_or(crate::checked::violation(
+                                "iteration accumulator expected",
+                            ))?,
+                            args[0].clone(),
+                        ],
+                        2,
+                    )
                 } else {
                     (args, count)
                 };
@@ -548,7 +563,9 @@ impl Loop {
         };
         self.pending_index = index as u64;
         if matches!(self.method, SliceWhen | ChunkWhile) {
-            let array = self.receiver.as_array().unwrap();
+            let array = self.receiver.as_array().ok_or(crate::checked::violation(
+                "iteration receiver must be an array",
+            ))?;
             args = [
                 array[index as usize - 1].clone(),
                 array[index as usize].clone(),
@@ -724,8 +741,9 @@ impl Loop {
                 self.hash.insert(ctx, key, pair[1].clone())?;
             }
             TransformKeys | TransformValues => {
-                let (key, original) =
-                    &self.receiver.as_hash().unwrap()[self.pending_index as usize];
+                let (key, original) = &self.receiver.as_hash().ok_or(crate::checked::violation(
+                    "iteration receiver must be a hash",
+                ))?[self.pending_index as usize];
                 let (key, value) = if self.method == TransformKeys {
                     let key = value.key_name_for("hash.transform_keys block returned an")?;
                     (ctx.bytes(key)?, original.clone())
@@ -780,7 +798,10 @@ impl Loop {
                 }
             }
             Sum => {
-                let previous = self.accumulator.take().unwrap();
+                let previous = self
+                    .accumulator
+                    .take()
+                    .ok_or(crate::checked::violation("iteration accumulator expected"))?;
                 let array = matches!(self.receiver.0, Kind::Array(_));
                 if matches!(previous.0, Kind::Bytes(_)) != matches!(value.0, Kind::Bytes(_)) {
                     return Err(argument(if array {
@@ -829,7 +850,9 @@ impl Loop {
         let control = match &key.0 {
             Kind::Nil => Control::Separator,
             Kind::Symbol(_) => {
-                let name = key.as_bytes().unwrap();
+                let name = key
+                    .as_bytes()
+                    .ok_or(crate::checked::violation("iteration key must be bytes"))?;
                 ctx.work_bytes(name.len())?;
                 match name {
                     b"_separator" => Control::Separator,
@@ -890,7 +913,9 @@ impl Loop {
     }
 
     fn flush_adjacent(&mut self, ctx: &mut CallContext, end: usize) -> Result<()> {
-        let array = self.receiver.as_array().unwrap();
+        let array = self.receiver.as_array().ok_or(crate::checked::violation(
+            "iteration receiver must be an array",
+        ))?;
         let part = array_copy(ctx, &array[self.start as usize..end])?;
         if part.depth() + 1 > MAX_VALUE_DEPTH {
             return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
@@ -930,7 +955,14 @@ impl Loop {
                     return Ok(self.receiver.clone());
                 }
                 if self.method != Fill
-                    && self.output.data.len() == self.receiver.as_array().unwrap().len()
+                    && self.output.data.len()
+                        == self
+                            .receiver
+                            .as_array()
+                            .ok_or(crate::checked::violation(
+                                "iteration receiver must be an array",
+                            ))?
+                            .len()
                 {
                     return Ok(self.receiver.clone());
                 }
