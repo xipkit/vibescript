@@ -2,6 +2,7 @@ use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, Charge, MAX_VALUE_DEPTH},
     bytecode::Method,
+    checked::Checked,
     collections,
     hash::Hash,
     hash_blocks, mutate, ops, ordering,
