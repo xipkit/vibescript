@@ -1060,6 +1060,44 @@ mod tests {
     }
 
     #[test]
+    fn long_additions_preserve_chunk_charges_and_stop_before_unpaid_work() {
+        let value = vec![1; 2 * CHUNK + 7];
+        let mut out = vec![1; value.len()];
+        let mut ctx = unlimited_context();
+        add_into(&mut ctx, &mut out, &value).unwrap();
+        assert!(out.iter().all(|&word| word == 2));
+        assert_eq!(ctx.stats().steps, 33);
+
+        let mut ctx = CallContext::new(crate::CallOptions {
+            limits: crate::Limits {
+                steps: Some(16),
+                ..crate::Limits::default()
+            },
+            ..crate::CallOptions::default()
+        });
+        let mut out = vec![1; value.len()];
+        let error = add_into(&mut ctx, &mut out, &value).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Steps);
+        assert_eq!(ctx.stats().steps, 32);
+        let (paid, unpaid) = out.split_at(CHUNK);
+        assert!(paid.iter().all(|&word| word == 2));
+        assert!(unpaid.iter().all(|&word| word == 1));
+        assert_eq!(ctx.checkpoint().unwrap_err(), error);
+    }
+
+    #[test]
+    fn long_division_preserves_chunk_charges() {
+        let divisor = vec![1; 2 * CHUNK + 7];
+        let mut dividend = divisor.clone();
+        dividend[0] += 1;
+        let mut ctx = unlimited_context();
+        let (quotient, remainder) = long_divide(&mut ctx, &dividend, &divisor).unwrap();
+        assert_eq!(quotient.data, [1]);
+        assert_eq!(remainder.data, [1]);
+        assert_eq!(ctx.stats().steps, 266);
+    }
+
+    #[test]
     fn imported_backing_has_independent_budget_lifetimes() {
         let host = Value::parse_integer(&"f".repeat(8192), 16).unwrap();
         let mut first = CallContext::new(CallOptions::default());
