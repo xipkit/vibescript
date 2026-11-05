@@ -1209,7 +1209,18 @@ mod tests {
     #[tokio::test]
     async fn borrowed_nested_work_keeps_context_and_finalizes_once() {
         use std::{future::poll_fn, sync::atomic::AtomicUsize};
-        for mode in ["success", "abandon", "panic", "quota_panic"] {
+        for (body, mode) in [
+            ("nested { leaf() }", "success"),
+            ("nested { leaf() }", "abandon"),
+            ("nested { leaf() }", "panic"),
+            ("nested { leaf() }", "quota_panic"),
+            ("leaf()", "success"),
+            ("leaf()", "panic"),
+            ("leaf()", "quota_panic"),
+            ("sync_leaf()", "success"),
+            ("sync_leaf()", "panic"),
+            ("sync_leaf()", "quota_panic"),
+        ] {
             let finished = Arc::new(AtomicUsize::new(0));
             let inspected = Arc::new(AtomicBool::new(false));
             let handlers = Arc::new(AtomicUsize::new(0));
@@ -1296,12 +1307,20 @@ mod tests {
                     })
                 }),
             );
+            engine.register("sync_leaf", move |ctx, _| match mode {
+                "panic" => panic!("synchronous host panic"),
+                "quota_panic" => {
+                    let _ignored = ctx.bytes(&vec![0; 65_536]);
+                    panic!("synchronous host panic after quota");
+                }
+                _ => Ok(Value::int(7)),
+            });
             let marked = handlers.clone();
             engine.register("mark", move |_, _| {
                 marked.fetch_add(1, Ordering::SeqCst);
                 Ok(Value::nil())
             });
-            let script = engine.compile("def run -> any; begin; inspect { nested { leaf() } }; rescue; mark(); ensure; mark(); end; end").unwrap();
+            let script = engine.compile(&format!("def run -> any; begin; inspect {{ {body} }}; rescue; mark(); ensure; mark(); end; end")).unwrap();
             let done = finished.clone();
             let work = work(
                 &script,
@@ -1338,13 +1357,13 @@ mod tests {
                         "quota_panic" => ErrorKind::Memory,
                         _ => ErrorKind::Internal,
                     };
-                    assert_eq!(result.unwrap_err().kind, expected, "{mode}");
-                    assert_eq!(handlers.load(Ordering::SeqCst), 0, "{mode}");
+                    assert_eq!(result.unwrap_err().kind, expected, "{body}/{mode}");
+                    assert_eq!(handlers.load(Ordering::SeqCst), 0, "{body}/{mode}");
                 }
             }
-            assert!(inspected.load(Ordering::SeqCst), "{mode}");
-            assert_eq!(finished.load(Ordering::SeqCst), 1, "{mode}");
-            assert_eq!(slots.available_permits(), 1, "{mode}");
+            assert!(inspected.load(Ordering::SeqCst), "{body}/{mode}");
+            assert_eq!(finished.load(Ordering::SeqCst), 1, "{body}/{mode}");
+            assert_eq!(slots.available_permits(), 1, "{body}/{mode}");
         }
     }
 
