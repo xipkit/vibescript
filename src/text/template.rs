@@ -173,9 +173,10 @@ fn field<'a>(ctx: &mut CallContext, value: &'a Value, key: &[u8]) -> Result<Opti
     if key.is_empty() {
         return Ok(None);
     }
-    Ok(hash
-        .find(ctx, key)?
-        .and_then(|index| hash.buffer.data.get(index).map(|(_, value)| value)))
+    let Some(index) = hash.find(ctx, key)? else {
+        return Ok(None);
+    };
+    Ok(Some(&hash.buffer.at(index)?.1))
 }
 
 /// One `{{ key }}` placeholder: its full byte span and the trimmed key.
