@@ -211,6 +211,76 @@ mod tests {
     }
 
     #[test]
+    fn every_leaf_kind_has_its_own_display_text() {
+        let script = crate::Engine::new()
+            .compile(
+                r#"
+class Point
+end
+enum Status
+  Draft
+end
+def helper -> int
+  1
+end
+def run -> any
+  [/a.b/i, {x: int}, Point.new, Point, Status, Status::Draft, 123456789012345678901234, 5.seconds]
+end
+def matched -> any
+  "ab".match(/b/)
+end
+"#,
+            )
+            .unwrap();
+        let value = script
+            .call("run", &[], crate::CallOptions::default())
+            .unwrap()
+            .value;
+        assert_eq!(
+            value.to_string(),
+            "[/a.b/i, <Shape { x: int }>, <Point instance>, <Class Point>, <Enum Status>, \
+             Status::Draft, 123456789012345678901234, 5s]"
+        );
+
+        let matched = script
+            .call("matched", &[], crate::CallOptions::default())
+            .unwrap()
+            .value;
+        let Kind::Hash(matched) = &matched.0 else {
+            panic!("match data is a hash");
+        };
+        let offsets: Vec<String> = matched
+            .buffer
+            .data
+            .iter()
+            .filter(|(_, value)| matches!(value.0, Kind::Offset(_)))
+            .map(|(_, value)| value.to_string())
+            .collect();
+        assert_eq!(
+            offsets,
+            ["<builtin match_data.begin>", "<builtin match_data.end>"]
+        );
+
+        let host = crate::HostMethod::new("sms.deliver", |_, _, _| Ok(Value::nil()));
+        assert_eq!(host.value().to_string(), "<builtin sms.deliver>");
+
+        let mut ctx = crate::CallContext::new(crate::CallOptions::default());
+        let environment = crate::objects::environment(&mut ctx).unwrap();
+        let code = script.inner.code.clone();
+        let helper = code
+            .program
+            .functions
+            .iter()
+            .position(|function| function.name == "helper")
+            .unwrap();
+        let function = crate::exports::Function::new(&mut ctx, code, environment, helper).unwrap();
+        assert_eq!(
+            Value(Kind::Function(function)).to_string(),
+            "<function helper>"
+        );
+    }
+
+    #[test]
     fn leaves_render_in_both_modes_inside_containers() {
         let value = Value::array(vec![
             Value::nil(),
