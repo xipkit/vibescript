@@ -623,7 +623,7 @@ mod tests {
             let program =
                 Program::compile(&mut ctx, Value::bytes(pattern.as_bytes()), "Regex.match")
                     .unwrap();
-            let search = Search::new(&mut ctx, program.view(), false).unwrap();
+            let search = Search::new(&mut ctx, program.view().unwrap(), false).unwrap();
             assert_eq!(search.anchored, expected, "{pattern}");
         }
     }
@@ -675,7 +675,7 @@ mod tests {
             let program =
                 Program::compile(&mut ctx, Value::bytes(pattern.as_bytes()), "Regex.match")
                     .unwrap();
-            let view = program.view();
+            let view = program.view().unwrap();
             for captures in [false, true] {
                 for text in texts {
                     let mut fast = Search::new(&mut ctx, view, captures).unwrap();
@@ -711,11 +711,11 @@ mod tests {
                 let program =
                     Program::compile(&mut ctx, Value::bytes(br"\AID-[0-9]+\z"), "Regex.match")
                         .unwrap();
-                let mut search = Search::new(&mut ctx, program.view(), false).unwrap();
+                let mut search = Search::new(&mut ctx, program.view().unwrap(), false).unwrap();
                 let before = ctx.stats().steps;
                 assert!(
                     search
-                        .find(&mut ctx, program.view(), &vec![b'x'; length], from)
+                        .find(&mut ctx, program.view().unwrap(), &vec![b'x'; length], from)
                         .unwrap()
                         .is_none()
                 );
@@ -733,7 +733,7 @@ mod tests {
             let mut ctx = context(None);
             let program =
                 Program::compile(&mut ctx, Value::bytes(br"\Aa+z"), "Regex.match").unwrap();
-            let view = program.view();
+            let view = program.view().unwrap();
             let mut fast = Search::new(&mut ctx, view, captures).unwrap();
             let mut plain = Search::new(&mut ctx, view, captures).unwrap();
             plain.anchored = false;
@@ -753,14 +753,14 @@ mod tests {
             let mut ctx = context(None);
             let program =
                 Program::compile(&mut ctx, Value::bytes(br"\Aa+z"), "Regex.match").unwrap();
-            let mut search = Search::new(&mut ctx, program.view(), false).unwrap();
+            let mut search = Search::new(&mut ctx, program.view().unwrap(), false).unwrap();
             if kind == ErrorKind::Steps {
                 ctx.options.limits.steps = Some(ctx.stats().steps + 1000);
             } else {
                 ctx.cancellation().cancel();
             }
             let error = search
-                .find(&mut ctx, program.view(), &vec![b'a'; 16384], 0)
+                .find(&mut ctx, program.view().unwrap(), &vec![b'a'; 16384], 0)
                 .unwrap_err();
             assert_eq!(error.kind, kind);
         }
