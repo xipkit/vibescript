@@ -1,6 +1,7 @@
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, Charge, MAX_VALUE_DEPTH, Memory},
+    checked::{Access, Checked},
     hash::Hash,
     namespace::Namespace,
     value::Kind,
@@ -75,7 +76,7 @@ impl<'a> MapFrame<'a> {
                 let Some(Mapped::Array(buffer)) = &mut self.mapped else {
                     unreachable!()
                 };
-                buffer.data[index] = value;
+                *buffer.at_mut(index)? = value;
             }
             Kind::Hash(hash) => {
                 if self.mapped.is_none() {
@@ -86,7 +87,7 @@ impl<'a> MapFrame<'a> {
                 let Some(Mapped::Hash(buffer)) = &mut self.mapped else {
                     unreachable!()
                 };
-                buffer.data[index].1 = value;
+                buffer.at_mut(index)?.1 = value;
             }
             _ => unreachable!(),
         }
@@ -360,6 +361,22 @@ fn new_scoped(
 }
 
 impl Data {
+    /// The fields of an instance in this heap, found by its slot.
+    #[inline]
+    #[track_caller]
+    fn fields(&self, instance: &Instance) -> Access<&Fields> {
+        let slot = instance.identity.slot.load(Ordering::Relaxed);
+        Ok(&self.entries.at(slot)?.fields)
+    }
+
+    /// The fields of an instance in this heap, mutably.
+    #[inline]
+    #[track_caller]
+    fn fields_mut(&mut self, instance: &Instance) -> Access<&mut Fields> {
+        let slot = instance.identity.slot.load(Ordering::Relaxed);
+        Ok(&mut self.entries.at_mut(slot)?.fields)
+    }
+
     fn root(
         &self,
         ctx: &mut CallContext,
@@ -397,7 +414,7 @@ impl Data {
             (Owner::Internal(_), true) | (Owner::External(_), false) => Ok(None),
             (_, true) => {
                 let slot = instance.identity.slot.load(Ordering::Relaxed);
-                Ok(Some(self.entries.data[slot].internal.clone()))
+                Ok(Some(self.entries.at(slot)?.internal.clone()))
             }
             (_, false) => self.root(ctx, heap, &instance.identity).map(Some),
         }
@@ -510,7 +527,7 @@ pub(crate) fn field(
 ) -> Result<Option<Value>> {
     let heap = instance.heap()?;
     let mut data = heap.data.lock().unwrap();
-    let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+    let fields = data.fields(instance)?;
     let Some(index) = fields.find(ctx, instance.class(), name)? else {
         return Ok(None);
     };
@@ -526,11 +543,7 @@ pub(crate) fn get_slot(
 ) -> Result<Value> {
     let heap = instance.heap()?;
     let mut data = heap.data.lock().unwrap();
-    let Some(value) = data.entries.data[instance.identity.slot.load(Ordering::Relaxed)]
-        .fields
-        .get(slot)
-        .cloned()
-    else {
+    let Some(value) = data.fields(instance)?.get(slot).cloned() else {
         return Ok(Value::nil());
     };
     Ok(data.map(ctx, &heap, &value, false)?.unwrap_or(value))
@@ -547,7 +560,7 @@ pub(crate) fn address_slot(
     let instance = data
         .instance(ctx, &heap, instance, false)?
         .unwrap_or_else(|| instance.clone());
-    let fields = &mut data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+    let fields = data.fields_mut(&instance)?;
     if fields.get(slot).is_none() {
         fields.set_slot(ctx, slot, Value::nil())?;
     }
@@ -563,7 +576,7 @@ pub(crate) fn with_field_names<R>(
 ) -> Result<R> {
     let heap = instance.heap()?;
     let data = heap.data.lock().unwrap();
-    let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+    let fields = data.fields(instance)?;
     Ok(render(&mut fields.names(instance.class())))
 }
 
@@ -578,7 +591,7 @@ pub(crate) fn children(
         ctx.charge(1)?;
         values.push(ctx, Value(Kind::Instance(environment.clone())))?;
     }
-    let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+    let fields = data.fields(instance)?;
     for (_, value) in fields.iter().rev() {
         ctx.charge(1)?;
         values.push(ctx, value.clone())?;
@@ -592,7 +605,7 @@ pub(crate) fn bindings(
 ) -> Result<Buffer<(Value, Value)>> {
     let heap = instance.heap()?;
     let mut data = heap.data.lock().unwrap();
-    let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+    let fields = data.fields(instance)?;
     let mut values = fields.bindings(ctx, instance.class())?;
     for (_, value) in &mut values.data {
         ctx.charge(1)?;
@@ -614,8 +627,7 @@ pub(crate) fn set(
     let mut data = heap.data.lock().unwrap();
     let value = data.map(ctx, &heap, &value, true)?.unwrap_or(value);
     data.reserve_scratch(ctx, value.depth())?;
-    data.entries.data[instance.identity.slot.load(Ordering::Relaxed)]
-        .fields
+    data.fields_mut(instance)?
         .set(ctx, instance.class(), name, value)
 }
 
@@ -629,8 +641,7 @@ pub(crate) fn address(
     let instance = data
         .instance(ctx, &heap, instance, false)?
         .unwrap_or_else(|| instance.clone());
-    let object = instance.identity.slot.load(Ordering::Relaxed);
-    let fields = &mut data.entries.data[object].fields;
+    let fields = data.fields_mut(&instance)?;
     let field = if let Some(field) = fields.find(ctx, instance.class(), name)? {
         field
     } else {
@@ -653,24 +664,25 @@ pub(crate) enum FieldName {
 
 impl FieldName {
     pub fn as_bytes(&self) -> Option<&[u8]> {
-        Some(match self {
-            Self::Declared(class, slot) => class.field_layout().unwrap()[*slot].as_bytes(),
-            Self::Named(value) => value.as_bytes().unwrap(),
-        })
+        match self {
+            Self::Declared(class, slot) => Some(class.field_layout()?.get(*slot)?.as_bytes()),
+            Self::Named(value) => value.as_bytes(),
+        }
     }
 }
 
 pub(crate) fn field_name(instance: &Arc<Instance>, field: usize) -> Result<FieldName> {
-    if instance.class().field_layout().is_some() {
+    if let Some(layout) = instance.class().field_layout() {
+        layout.at(field)?;
         return Ok(FieldName::Declared(instance.class().clone(), field));
     }
     let heap = instance.heap()?;
     let data = heap.data.lock().unwrap();
-    let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+    let fields = data.fields(instance)?;
     let Fields::Named(named) = fields else {
         unreachable!()
     };
-    Ok(FieldName::Named(named.buffer.data[field].0.clone()))
+    Ok(FieldName::Named(named.buffer.at(field)?.0.clone()))
 }
 
 pub(crate) fn field_slot(
@@ -680,9 +692,7 @@ pub(crate) fn field_slot(
 ) -> Result<Option<usize>> {
     let heap = instance.heap()?;
     let data = heap.data.lock().unwrap();
-    data.entries.data[instance.identity.slot.load(Ordering::Relaxed)]
-        .fields
-        .find(ctx, instance.class(), name)
+    data.fields(instance)?.find(ctx, instance.class(), name)
 }
 
 pub(crate) fn set_slot(
@@ -696,7 +706,7 @@ pub(crate) fn set_slot(
     let mut data = heap.data.lock().unwrap();
     let value = data.map(ctx, &heap, &value, true)?.unwrap_or(value);
     data.reserve_scratch(ctx, value.depth())?;
-    let fields = &mut data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+    let fields = data.fields_mut(instance)?;
     fields.set_slot(ctx, field, value)
 }
 
@@ -745,7 +755,7 @@ fn snapshot_root(ctx: &mut CallContext, instance: &Arc<Instance>) -> Result<Arc<
     let mut index = 0;
     while index < ctx.snapshot_objects.as_ref().unwrap().data.len() {
         ctx.charge(1)?;
-        let (source, target) = &ctx.snapshot_objects.as_ref().unwrap().data[index];
+        let (source, target) = ctx.snapshot_objects.as_ref().unwrap().at(index)?;
         // Importing already copied fields and class environments must reuse the
         // new identities instead of making snapshots of the snapshot itself.
         if *source == instance.identity.id || target.same(instance) {
@@ -836,16 +846,12 @@ fn collect(ctx: &mut CallContext, heap: &Arc<Heap>, shrink: bool) -> Result<()> 
         data.scratch = Buffer::empty();
     }
     let mut slot = 0;
-    while slot < data.classes.data.len() {
+    while let Some(class) = data.classes.data.get(slot) {
         ctx.charge(1)?;
         let mut used = false;
         for entry in &data.entries.data {
             ctx.charge(1)?;
-            if entry
-                .internal
-                .class()
-                .same_binding(&data.classes.data[slot])
-            {
+            if entry.internal.class().same_binding(class) {
                 used = true;
                 break;
             }
@@ -872,13 +878,13 @@ fn collect(ctx: &mut CallContext, heap: &Arc<Heap>, shrink: bool) -> Result<()> 
 
 fn prune_classes(data: &mut Data) {
     let mut slot = 0;
-    while slot < data.classes.data.len() {
-        if data.entries.data.iter().any(|entry| {
-            entry
-                .internal
-                .class()
-                .same_binding(&data.classes.data[slot])
-        }) {
+    while let Some(class) = data.classes.data.get(slot) {
+        if data
+            .entries
+            .data
+            .iter()
+            .any(|entry| entry.internal.class().same_binding(class))
+        {
             slot += 1;
         } else {
             data.classes.data.swap_remove(slot);
@@ -903,24 +909,20 @@ fn reclaim(data: &mut Data, tick: &mut impl FnMut() -> Result<()>) -> Result<usi
         }
     }
     while let Some(slot) = data.pending.data.pop() {
-        if let Some(environment) = &data.entries.data[slot].internal.class().environment {
+        let entry = data.entries.at(slot)?;
+        if let Some(environment) = &entry.internal.class().environment {
             tick()?;
             mark_instance(environment, &mut data.pending.data);
         }
-        for (_, value) in data.entries.data[slot].fields.iter() {
+        for (_, value) in entry.fields.iter() {
             depth = depth.max(value.depth());
             mark_references(value, &mut data.pending.data, &mut data.scratch.data, tick)?;
         }
     }
     let mut slot = 0;
-    while slot < data.entries.data.len() {
+    while let Some(entry) = data.entries.data.get(slot) {
         tick()?;
-        if data.entries.data[slot]
-            .internal
-            .identity
-            .marked
-            .load(Ordering::Relaxed)
-        {
+        if entry.internal.identity.marked.load(Ordering::Relaxed) {
             slot += 1;
         } else {
             let removed = data.entries.data.swap_remove(slot);
@@ -1043,6 +1045,9 @@ fn push_scratch(scratch: &mut Vec<(Value, usize)>, value: Value) -> Result<()> {
 
 #[cfg(test)]
 mod retirement_tests;
+
+#[cfg(test)]
+mod checked_tests;
 
 #[cfg(test)]
 mod environments_tests;

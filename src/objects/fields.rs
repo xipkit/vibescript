@@ -92,7 +92,7 @@ impl Fields {
     pub fn set_slot(&mut self, ctx: &mut CallContext, slot: usize, value: Value) -> Result<()> {
         match self {
             Self::Named(named) => {
-                let name = named.buffer.data[slot].0.clone();
+                let name = named.buffer.at(slot)?.0.clone();
                 named.insert_field(ctx, name, value)
             }
             Self::Slots {
@@ -121,31 +121,33 @@ impl Fields {
                         next: ABSENT,
                     });
                 }
-                if values.data[slot].next == ABSENT {
+                if values.at(slot)?.next == ABSENT {
                     if *last == END {
                         *first = slot as u32;
                     } else {
-                        values.data[*last as usize].next = slot as u32;
+                        values.at_mut(*last as usize)?.next = slot as u32;
                     }
-                    values.data[slot].previous = *last;
-                    values.data[slot].next = END;
+                    let linked = values.at_mut(slot)?;
+                    linked.previous = *last;
+                    linked.next = END;
                     *last = slot as u32;
                 }
-                values.data[slot].value = value;
+                values.at_mut(slot)?.value = value;
                 Ok(())
             }
         }
     }
 
-    pub fn name<'a>(&'a self, class: &'a Namespace, slot: usize) -> &'a [u8] {
-        match self {
-            Self::Named(named) => named.buffer.data[slot].0.as_bytes().unwrap(),
-            Self::Slots { .. } => class.field_layout().unwrap()[slot].as_bytes(),
-        }
+    pub fn name<'a>(&'a self, class: &'a Namespace, slot: usize) -> Access<&'a [u8]> {
+        Ok(match self {
+            Self::Named(named) => named.buffer.at(slot)?.0.as_bytes().unwrap(),
+            Self::Slots { .. } => class.field_layout().unwrap().at(slot)?.as_bytes(),
+        })
     }
 
     pub fn names<'a>(&'a self, class: &'a Namespace) -> impl Iterator<Item = &'a [u8]> {
-        self.iter().map(move |(slot, _)| self.name(class, slot))
+        self.iter()
+            .filter_map(move |(slot, _)| self.name(class, slot).ok())
     }
 
     pub fn iter(&self) -> Iter<'_> {
@@ -177,7 +179,7 @@ impl Fields {
             Self::Slots { .. } => {
                 let mut values = Buffer::with_capacity(ctx, self.iter().count())?;
                 for (slot, value) in self.iter() {
-                    let name = ctx.bytes(self.name(class, slot))?;
+                    let name = ctx.bytes(self.name(class, slot)?)?;
                     values.data.push((name, value.clone()));
                 }
                 Ok(values)
@@ -210,13 +212,14 @@ impl<'a> Iterator for Iter<'a> {
                     return None;
                 }
                 let slot = *first as usize;
+                let entry = values.get(slot)?;
                 if *first == *last {
                     *first = END;
                     *last = END;
                 } else {
-                    *first = values[slot].next;
+                    *first = entry.next;
                 }
-                Some((slot, &values[slot].value))
+                Some((slot, &entry.value))
             }
         }
     }
@@ -235,13 +238,14 @@ impl DoubleEndedIterator for Iter<'_> {
                     return None;
                 }
                 let slot = *last as usize;
+                let entry = values.get(slot)?;
                 if *first == *last {
                     *first = END;
                     *last = END;
                 } else {
-                    *last = values[slot].previous;
+                    *last = entry.previous;
                 }
-                Some((slot, &values[slot].value))
+                Some((slot, &entry.value))
             }
         }
     }
@@ -269,6 +273,63 @@ mod tests {
         assert!(ctx.stats().retained_memory_bytes > 0);
         drop(fields);
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+
+    fn linked(previous: u32, next: u32) -> Slot {
+        Slot {
+            value: Value::int(1),
+            previous,
+            next,
+        }
+    }
+
+    fn assert_internal(result: Result<()>) {
+        assert_eq!(result.unwrap_err().kind, ErrorKind::Internal);
+    }
+
+    #[test]
+    fn a_named_slot_out_of_range_is_an_internal_error() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let mut fields = Fields::Named(Hash::empty());
+        assert_internal(fields.set_slot(&mut ctx, 0, Value::nil()));
+    }
+
+    #[test]
+    fn linking_past_a_broken_last_slot_is_an_internal_error_and_changes_nothing() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let mut fields = Fields::Slots {
+            values: Buffer::untracked(vec![linked(ABSENT, ABSENT)]),
+            first: 9,
+            last: 9,
+        };
+        assert_internal(fields.set_slot(&mut ctx, 0, Value::int(2)));
+        let Fields::Slots {
+            values,
+            first,
+            last,
+        } = &fields
+        else {
+            panic!("slots")
+        };
+        assert_eq!((*first, *last), (9, 9));
+        assert_eq!(values.data[0].next, ABSENT);
+    }
+
+    #[test]
+    fn iteration_stops_at_a_broken_link_in_either_direction() {
+        let fields = Fields::Slots {
+            values: Buffer::untracked(vec![linked(END, 9), linked(9, END)]),
+            first: 0,
+            last: 1,
+        };
+        let mut forward = fields.iter();
+        assert_eq!(forward.next().unwrap().0, 0);
+        assert!(forward.next().is_none());
+        assert!(forward.next().is_none());
+        let mut backward = fields.iter();
+        assert_eq!(backward.next_back().unwrap().0, 1);
+        assert!(backward.next_back().is_none());
+        assert!(backward.next_back().is_none());
     }
 
     #[test]
