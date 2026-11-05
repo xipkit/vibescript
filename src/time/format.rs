@@ -8,6 +8,7 @@ use crate::{
     budget::Buffer,
     bytes,
     checked::{Access, violation},
+    numeric::to_usize,
     value::Kind,
 };
 
@@ -353,8 +354,8 @@ pub(super) fn render(
             Token::Number(part, width, pad) => integer(&mut number, view.part(part), width, pad)?,
             Token::Name(part, full) => {
                 let name = match part {
-                    Part::Month => MONTHS[view.date.month as usize - 1],
-                    Part::Weekday => WEEKDAYS[view.date.weekday as usize],
+                    Part::Month => MONTHS[to_usize(view.date.month) - 1],
+                    Part::Weekday => WEEKDAYS[to_usize(view.date.weekday)],
                     _ => {
                         return Err(crate::checked::internal("month or weekday name expected"));
                     }
@@ -487,10 +488,10 @@ pub(super) fn mail_date(ctx: &mut CallContext, receiver: &Value, http: bool) -> 
         offset(ctx, receiver)?
     };
     let date = calendar::civil(stamp.seconds(), offset.seconds);
-    let weekday = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][date.weekday as usize];
+    let weekday = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][to_usize(date.weekday)];
     let month = [
         "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    ][date.month as usize - 1];
+    ][to_usize(date.month) - 1];
     let mut out = bytes::Number::new();
     out.format(format_args!("{weekday}, {:02} {month} ", date.day))?;
     year(&mut out, date.year)?;

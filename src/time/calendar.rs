@@ -2,7 +2,7 @@
 // Copyright 2009 The Go Authors. All rights reserved.
 // See licenses/Go-BSD-3-Clause.txt.
 
-use crate::numeric::{to_i64, wrapped};
+use crate::numeric::{to_i64, to_usize, unsigned_bits, wrapped};
 
 pub(super) const UNIX_TO_INTERNAL: i64 = 62_135_596_800;
 const ABSOLUTE_YEARS: u64 = 292_277_022_400;
@@ -23,8 +23,8 @@ pub(super) struct Civil {
 
 fn date_to_days(year: i64, month: i64, day: i64) -> u64 {
     let jan_feb = u64::from(month < 3);
-    let month = month as u64 + 12 * jan_feb;
-    let year = (year as u64)
+    let month = unsigned_bits(month) + 12 * jan_feb;
+    let year = unsigned_bits(year)
         .wrapping_sub(jan_feb)
         .wrapping_add(ABSOLUTE_YEARS);
     let yearday = (979 * month - 2919) >> 5;
@@ -33,7 +33,7 @@ fn date_to_days(year: i64, month: i64, day: i64) -> u64 {
     let century_days = 146097u64.wrapping_mul(century) / 4;
     century_days
         .wrapping_add(1461 * cyear / 4 + yearday)
-        .wrapping_add(day as u64)
+        .wrapping_add(unsigned_bits(day))
         .wrapping_sub(1)
 }
 
@@ -51,15 +51,17 @@ pub(super) fn normalized(parts: [i64; 6]) -> i64 {
     wrapped(
         date_to_days(year, month, day)
             .wrapping_mul(86400)
-            .wrapping_add((hour * 3600 + minute * 60 + second) as u64)
+            .wrapping_add(unsigned_bits(hour * 3600 + minute * 60 + second))
             .wrapping_sub(UNIX_TO_ABSOLUTE),
     )
 }
 
 pub(super) fn civil(seconds: i64, offset: i32) -> Civil {
-    let absolute = seconds
-        .wrapping_add(i64::from(offset))
-        .wrapping_add_unsigned(UNIX_TO_ABSOLUTE) as u64;
+    let absolute = unsigned_bits(
+        seconds
+            .wrapping_add(i64::from(offset))
+            .wrapping_add_unsigned(UNIX_TO_ABSOLUTE),
+    );
     let days = absolute / 86400;
     let d = 4 * days + 3;
     let century = d / 146097;
@@ -89,7 +91,7 @@ pub(super) fn leap(year: i64) -> bool {
 }
 
 pub(super) fn days_before(month: i64) -> i64 {
-    [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334][month as usize - 1]
+    [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334][to_usize(month) - 1]
 }
 
 pub(super) fn days_in(year: i64, month: i64) -> i64 {

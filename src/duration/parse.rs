@@ -1,7 +1,7 @@
 // Go-style duration parsing adapts time/format.go from the Go standard library.
 // Copyright 2010 The Go Authors. All rights reserved.
 // See licenses/Go-BSD-3-Clause.txt.
-use crate::{CallContext, Error, ErrorKind, Result};
+use crate::{CallContext, Error, ErrorKind, Result, numeric::float_to_u64};
 
 /// A parse failure worded as Go's `ParseDurationString` reports it.
 fn failure(message: &'static str) -> Error {
@@ -172,7 +172,7 @@ pub(super) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<i64> {
         if value > (1u64 << 63) / unit {
             return Err(format());
         }
-        let value = value * unit + (fraction as f64 * (unit as f64 / scale)) as u64;
+        let value = value * unit + float_to_u64(fraction as f64 * (unit as f64 / scale));
         if value > 1 << 63 {
             return Err(format());
         }

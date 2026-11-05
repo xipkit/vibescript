@@ -8,7 +8,9 @@ use crate::{
     checked::{Access, Checked, violation},
     hash::Hash,
     iteration::{self, Iteration, Progress},
-    members, ops,
+    members,
+    numeric::to_usize,
+    ops,
     range::Range,
     value::Kind,
 };
@@ -182,9 +184,9 @@ impl LoopState {
         }
         ctx.charge(1)?;
         let value = match &self.source.0 {
-            Kind::Array(h) => h.buffer.at(self.position as usize)?.clone(),
+            Kind::Array(h) => h.buffer.at(to_usize(self.position))?.clone(),
             Kind::Hash(h) => {
-                let (key, value) = h.buffer.at(self.position as usize)?;
+                let (key, value) = h.buffer.at(to_usize(self.position))?;
                 ctx.array(&[key.clone(), value.clone()])?
             }
             Kind::Range(r) => {
