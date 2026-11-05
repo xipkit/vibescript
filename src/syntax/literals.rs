@@ -202,7 +202,9 @@ impl<'a> Parser<'a> {
         let (key, label) = match self.bump()? {
             Token::Word(w) => (Bytes::from_slice(self.work, w.as_bytes())?, Some(w)),
             Token::Bytes(b) => (b, None),
-            _ => unreachable!(),
+            _ => {
+                return Err(crate::checked::internal("hash label must be text"));
+            }
         };
         self.line_breaks()?;
         self.expect_p(':')?;
@@ -347,7 +349,11 @@ impl<'a> Parser<'a> {
         self.suffixed = parser.suffixed;
         let expr = match result {
             Ok(Parsed::Expr(expr)) => expr,
-            Ok(_) => unreachable!(),
+            Ok(_) => {
+                return Err(crate::checked::internal(
+                    "parser task expected an expression",
+                ));
+            }
             Err(error) if error.kind == crate::ErrorKind::Syntax => {
                 return Err(if error.message == ADJACENT_EXPRESSIONS {
                     error

@@ -12,7 +12,7 @@ impl Compiler<'_> {
         let number = self.number_pair(a, b);
         let instruction = self.binary(op)?;
         let Op::Binary(operator, _) = *self.code.at(instruction)? else {
-            unreachable!()
+            return Err(crate::checked::internal("binary instruction expected"));
         };
         *self.code.at_mut(instruction)? = Op::Binary(operator, number);
         Ok(instruction)

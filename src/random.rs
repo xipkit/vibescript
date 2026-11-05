@@ -410,7 +410,7 @@ mod tests {
                 Method::Uuid => Bytes::header_bytes() + 36,
                 Method::Id => Bytes::header_bytes() + 16,
                 Method::Seed => Seeded::storage(),
-                _ => unreachable!(),
+                _ => panic!("unexpected test fixture"),
             };
             ctx.options.limits.memory_bytes = Some(storage - 1);
             assert_eq!(

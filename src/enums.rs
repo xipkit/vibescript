@@ -408,7 +408,9 @@ pub(crate) fn append(ctx: &mut CallContext, value: &Value, output: &mut Buffer<u
             b"::",
             m.definition().name.as_bytes(),
         ],
-        _ => unreachable!(),
+        _ => {
+            return Err(crate::checked::internal("enum or enum member expected"));
+        }
     };
     let Some(len) = parts
         .iter()
@@ -459,7 +461,7 @@ mod tests {
         let name = "A".repeat(16384);
         let original = compile(name.clone(), vec![name.clone()], &()).unwrap();
         let Kind::Enum(enumeration) = &original.0 else {
-            unreachable!()
+            panic!("unexpected test fixture")
         };
         let mut ctx = CallContext::new(CallOptions {
             limits: Limits {

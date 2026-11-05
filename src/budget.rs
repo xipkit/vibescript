@@ -1229,7 +1229,7 @@ mod limit_tests {
                     ctx.options.deadline = Some(Instant::now());
                     ctx.checkpoint().unwrap_err()
                 }
-                _ => unreachable!(),
+                _ => panic!("unexpected test fixture"),
             };
             let steps = ctx.stats().steps;
             assert_eq!(

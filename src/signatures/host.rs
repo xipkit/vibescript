@@ -33,10 +33,7 @@ pub(crate) fn table(
         }
         let function = match host {
             Registered::Callback(_) => unsigned(name, !keywordless.contains(name), false),
-            Registered::Method(method) => match &method.value().0 {
-                Kind::Host(bound) => method_function(name, bound),
-                _ => unreachable!(),
-            },
+            Registered::Method(method) => method_function(name, &method.bound()),
         };
         table
             .items
@@ -116,10 +113,7 @@ pub(crate) fn factory(name: &str) -> crate::Result<Item> {
 pub(crate) fn function(name: &str, host: &Registered) -> Function {
     match host {
         Registered::Callback(_) => unsigned(name, true, false),
-        Registered::Method(method) => match &method.value().0 {
-            Kind::Host(bound) => method_function(name, bound),
-            _ => unreachable!(),
-        },
+        Registered::Method(method) => method_function(name, &method.bound()),
     }
 }
 
@@ -136,7 +130,11 @@ fn documented(item: Item, doc: &str) -> Item {
 /// A bound value as a declaration: a host method becomes a function, an
 /// object holding host methods a namespace, and any other value a constant.
 pub(crate) fn binding(name: &str, value: &Value) -> Item {
-    binding_in(name, value, &Methods::of(value), 0)
+    match binding_in(name, value, &Methods::of(value), 0) {
+        Member::Function(function) => Item::Function(function),
+        Member::Module(module) => Item::Module(module),
+        Member::Constant(constant) => Item::Constant(constant),
+    }
 }
 
 /// How deep objects of host methods nest as namespaces; one nested deeper
@@ -146,9 +144,9 @@ pub(crate) fn binding(name: &str, value: &Value) -> Item {
 pub(crate) const NAMESPACE_DEPTH: usize = 64;
 
 /// [`binding`] of a value `depth` objects deep in its template.
-fn binding_in(name: &str, value: &Value, methods: &Methods, depth: usize) -> Item {
+fn binding_in(name: &str, value: &Value, methods: &Methods, depth: usize) -> Member {
     match &value.0 {
-        Kind::Host(bound) => Item::Function(method_function(name, bound)),
+        Kind::Host(bound) => Member::Function(method_function(name, bound)),
         Kind::Hash(hash) if methods.holds(value) && depth < NAMESPACE_DEPTH => {
             let members = hash
                 .buffer
@@ -156,21 +154,16 @@ fn binding_in(name: &str, value: &Value, methods: &Methods, depth: usize) -> Ite
                 .iter()
                 .filter_map(|(key, field)| {
                     let key = member_key(key.as_bytes()?)?;
-                    Some(match binding_in(key, field, methods, depth + 1) {
-                        Item::Function(function) => Member::Function(function),
-                        Item::Module(module) => Member::Module(module),
-                        Item::Constant(constant) => Member::Constant(constant),
-                        _ => unreachable!(),
-                    })
+                    Some(binding_in(key, field, methods, depth + 1))
                 })
                 .collect();
-            Item::Module(Module {
+            Member::Module(Module {
                 doc: Vec::new(),
                 name: name.to_owned(),
                 members,
             })
         }
-        _ => Item::Constant(Constant {
+        _ => Member::Constant(Constant {
             doc: Vec::new(),
             name: name.to_owned(),
             ty: match methods.holds(value) {
@@ -477,7 +470,7 @@ impl Inference {
         let ty = match &value.0 {
             Kind::Array(array) => self.array(&array.buffer.data, depth)?,
             Kind::Hash(hash) => self.hash(&hash.buffer.data, depth)?,
-            _ => unreachable!(),
+            _ => return None,
         };
         let id = self.intern(ty)?;
         if shared {

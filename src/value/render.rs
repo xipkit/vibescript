@@ -196,6 +196,6 @@ fn scalar(value: &Value, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Kind::Bytes(h) | Kind::Symbol(h) => {
             write!(f, "{}", String::from_utf8_lossy(h.data()))
         }
-        Kind::Array(_) | Kind::Hash(_) => unreachable!("containers open render frames"),
+        Kind::Array(_) | Kind::Hash(_) => Err(fmt::Error),
     }
 }

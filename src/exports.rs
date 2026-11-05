@@ -121,7 +121,11 @@ fn check_depth(ctx: &mut CallContext, value: &Value) -> Result<()> {
         let child = match &parent.0 {
             Kind::Array(array) => array.buffer.data.get(position),
             Kind::Hash(hash) => hash.buffer.data.get(position).map(|(_, value)| value),
-            _ => unreachable!(),
+            _ => {
+                return Err(crate::checked::internal(
+                    "export frame requires a container",
+                ));
+            }
         };
         let Some(child) = child else {
             let finished = frames.data.pop().unwrap();
