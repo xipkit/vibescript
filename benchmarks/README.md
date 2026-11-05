@@ -16,6 +16,15 @@ The JSON suite in `scripts/json_fixtures.py` covers roughly 1 KB, 16 KB, 256 KB 
 
 `--baseline DIR` adds the `rust-portable` and `rust-simd` timing and allocation binaries of an earlier revision, preserved in `DIR` with a `revision` file holding its full commit hash, for before-and-after comparisons. A run writes its environment, raw samples, allocations and `summary.json` to `benchmarks/results/<timestamp>`, or to `--out`.
 
+After measuring, each binary reports how many case medians exceed 1.2 times that
+case's fastest round and which rounds had more than half the cases exceed 1.4
+times their own fastest sample. Round numbers start at one. These diagnostics
+are also saved per binary in `summary.json` under `timing_reliability`, with
+`pulled_up_medians`, `case_count`, `disturbed_rounds`, and `reliable`. More than
+5% pulled-up medians, or at least half the rounds disturbed, produces an
+`UNRELIABLE` warning on stderr. Results are still saved and the command exits
+successfully; rerun on a quiet machine before drawing performance conclusions.
+
 ## Service footprint
 
 `scripts/footprint.py` measures a fresh embedding process at startup, after
