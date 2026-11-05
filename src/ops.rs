@@ -1154,8 +1154,11 @@ pub(crate) fn runes(ctx: &mut CallContext, bytes: &[u8]) -> Result<(usize, bool)
     // An ASCII run costs a step per 64 bytes and every other character one.
     // The steps are summed here and charged, with a checkpoint, once a chunk
     // of input has been counted: in text that mixes scripts a run is a few
-    // bytes, and a charge for each would cost more than the scan. A character
-    // takes at least a byte and costs at most a step, so neither sum can wrap.
+    // bytes, and a charge for each would cost more than the scan. They are
+    // charged as single steps, so a call the limit stops reports a count one
+    // past it, as it did when its short runs were charged one at a time. A
+    // character takes at least a byte and costs at most a step, so neither
+    // sum can wrap.
     let mut pending = 0u64;
     while !rest.is_empty() {
         let settle = rest.len().saturating_sub(CHUNK);
@@ -1184,7 +1187,7 @@ pub(crate) fn runes(ctx: &mut CallContext, bytes: &[u8]) -> Result<(usize, bool)
                 rest = &rest[n..];
             }
         }
-        ctx.charge_pending(&mut pending)?;
+        ctx.charge_each(std::mem::take(&mut pending))?;
         ctx.checkpoint()?;
     }
     Ok((count, valid))
@@ -1941,23 +1944,15 @@ mod tests {
                 ctx.charge(1).unwrap();
                 let error = runes(&mut ctx, &text).unwrap_err();
                 assert_eq!(error.kind, ErrorKind::Steps);
+                assert_eq!(ctx.stats().steps, limit + 1);
                 assert_eq!(ctx.charge(0).unwrap_err(), error);
             }
         }
     }
 
     #[test]
-    fn runes_notice_a_limit_cancellation_and_a_deadline_within_two_chunks() {
+    fn runes_notice_cancellation_and_a_deadline_within_two_chunks() {
         let text = "aé".repeat(100 * CHUNK);
-        // A limit reached at the start, and one reached part of the way.
-        for limit in [10, 40 * CHUNK as u64] {
-            let mut ctx = context(Some(limit), None);
-            let error = runes(&mut ctx, text.as_bytes()).unwrap_err();
-            assert_eq!(error.kind, ErrorKind::Steps);
-            // What was counted before it was noticed, at most a step a byte.
-            assert!(ctx.stats().steps <= limit + 2 * CHUNK as u64);
-        }
-
         for text in ["a", "é", "\u{ff}", text.as_str()] {
             for kind in [ErrorKind::Cancelled, ErrorKind::Deadline] {
                 let mut ctx = context(None, None);
@@ -1969,6 +1964,7 @@ mod tests {
                 }
                 let error = runes(&mut ctx, text.as_bytes()).unwrap_err();
                 assert_eq!(error.kind, kind);
+                // What was counted before it was noticed, at most a step a byte.
                 assert!(ctx.stats().steps <= 1 + 2 * CHUNK as u64);
             }
         }

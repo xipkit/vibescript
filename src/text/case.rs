@@ -71,7 +71,9 @@ fn entry(rune: char) -> Option<(&'static [u32; 5], u32)> {
 /// walk's, a step per 64 bytes of an ASCII run and one for every other
 /// character, and charged with a checkpoint once per chunk of input: in text
 /// that mixes scripts a piece is a few bytes, too short to charge and
-/// checkpoint one at a time.
+/// checkpoint one at a time. They are charged as single steps, so a call the
+/// limit stops reports a count one past it, as it did when its short pieces
+/// were charged one at a time.
 fn walk(
     ctx: &mut CallContext,
     bytes: &[u8],
@@ -119,7 +121,7 @@ fn walk(
             pending = pending.wrapping_add(emit(ctx, mapped)?);
             position += length;
         }
-        ctx.charge_pending(&mut pending)?;
+        ctx.charge_each(std::mem::take(&mut pending))?;
         ctx.checkpoint()?;
     }
     Ok(changed)
@@ -406,6 +408,7 @@ mod tests {
                 } else {
                     let error = walked.unwrap_err();
                     assert_eq!(error.kind, ErrorKind::Steps);
+                    assert_eq!(ctx.stats().steps, 2 + steps - short);
                     assert_eq!(ctx.charge(0).unwrap_err(), error);
                 }
             }
