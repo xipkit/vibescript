@@ -309,6 +309,21 @@ mod tests {
     }
 
     #[test]
+    fn a_named_name_out_of_range_is_a_violation() {
+        let class = Namespace::untracked(crate::namespace::Definition::new(
+            0,
+            "Node".into(),
+            Vec::new(),
+            Vec::new(),
+            Some((0, false)),
+            Vec::new(),
+            None,
+        ));
+        let fields = Fields::Named(Hash::empty());
+        assert!(fields.name(&class, 0).is_err());
+    }
+
+    #[test]
     fn linking_past_a_broken_last_slot_is_an_internal_error_and_changes_nothing() {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut fields = Fields::Slots {
