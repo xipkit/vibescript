@@ -1,5 +1,5 @@
 use super::*;
-use crate::checked::violation;
+use crate::checked::{Checked, violation};
 use crate::{budget::CHUNK, scan};
 
 mod number;
@@ -34,7 +34,7 @@ impl Output {
         let mut remaining = count;
         while remaining > 0 {
             let count = remaining.min(chunk.len());
-            self.write(ctx, &chunk[..count])?;
+            self.write(ctx, chunk.span(0, count)?)?;
             remaining -= count;
         }
         Ok(())
@@ -67,16 +67,19 @@ fn printf(ctx: &mut CallContext, prepared: &Prepared, output: &mut Output) -> Re
     while offset < pattern.len() {
         ctx.charge(1)?;
         let start = offset;
-        while offset < pattern.len() && pattern[offset] != b'%' {
+        while pattern.get(offset).is_some_and(|&byte| byte != b'%') {
             offset += 1;
         }
-        output.write(ctx, &pattern[start..offset])?;
+        output.write(ctx, pattern.span(start, offset)?)?;
         if offset == pattern.len() {
             break;
         }
         offset += 1;
         let mut field = Field::default();
-        while offset < pattern.len() && field.take_flag(pattern[offset]) {
+        while pattern
+            .get(offset)
+            .is_some_and(|&byte| field.take_flag(byte))
+        {
             offset += 1;
         }
         let mut good = true;
@@ -109,7 +112,7 @@ fn printf(ctx: &mut CallContext, prepared: &Prepared, output: &mut Output) -> Re
                 good = false;
             }
         }
-        if offset + 1 < pattern.len() && pattern[offset] == b'.' {
+        if offset + 1 < pattern.len() && pattern.get(offset) == Some(&b'.') {
             offset += 1;
             if indexed {
                 good = false;
@@ -147,7 +150,7 @@ fn printf(ctx: &mut CallContext, prepared: &Prepared, output: &mut Output) -> Re
             output.write(ctx, b"%!(NOVERB)")?;
             break;
         }
-        let (verb, width, _) = scan::rune(&pattern[offset..]);
+        let (verb, width, _) = scan::rune(pattern.tail(offset)?);
         offset += width;
         if verb == '%' {
             output.write(ctx, b"%")?;
@@ -157,13 +160,13 @@ fn printf(ctx: &mut CallContext, prepared: &Prepared, output: &mut Output) -> Re
             output.write(ctx, verb.encode_utf8(&mut bytes).as_bytes())?;
             output.write(ctx, if good { b"(MISSING)" } else { b"(BADINDEX)" })?;
         } else {
-            item(ctx, &args[argument], verb, field, output)?;
+            item(ctx, args.at(argument)?, verb, field, output)?;
             argument += 1;
         }
     }
     if !reordered && argument < args.len() {
         output.write(ctx, b"%!(EXTRA ")?;
-        for (index, argument) in args[argument..].iter().enumerate() {
+        for (index, argument) in args.tail(argument)?.iter().enumerate() {
             if index > 0 {
                 output.write(ctx, b", ")?;
             }
@@ -194,7 +197,7 @@ fn arg_index(
     *reordered = true;
     let start = *offset;
     let close = (pattern.len() - start >= 3)
-        .then(|| pattern[start + 1..].iter().position(|b| *b == b']'))
+        .then(|| pattern.get(start + 1..)?.iter().position(|b| *b == b']'))
         .flatten()
         .map(|n| start + n + 1);
     let Some(close) = close else {
@@ -203,7 +206,9 @@ fn arg_index(
         return false;
     };
     let mut end = start + 1;
-    let number = count(&pattern[..close], &mut end);
+    let number = pattern
+        .get(..close)
+        .and_then(|prefix| count(prefix, &mut end));
     *offset = close + 1;
     if let Some(number) = number.filter(|_| end == close) {
         if number > 0 && number <= length {
@@ -220,14 +225,14 @@ fn arg_index(
 fn count(pattern: &[u8], offset: &mut usize) -> Option<usize> {
     let start = *offset;
     let mut count = 0usize;
-    while pattern.get(*offset).is_some_and(u8::is_ascii_digit) {
+    while let Some(&byte) = pattern.get(*offset).filter(|byte| byte.is_ascii_digit()) {
         if count > 1_000_000 {
             *offset = pattern.len();
             return None;
         }
         count = count
             .saturating_mul(10)
-            .saturating_add((pattern[*offset] - b'0') as usize);
+            .saturating_add((byte - b'0') as usize);
         *offset += 1;
     }
     (*offset != start).then_some(count)
@@ -296,7 +301,7 @@ fn item(
         } else {
             bytes.len()
         };
-        return pad(ctx, output, &bytes[..length], field);
+        return pad(ctx, output, bytes.span(0, length)?, field);
     }
     if argument.text.is_some() || matches!(argument.value.0, Kind::Bytes(_) | Kind::Symbol(_)) {
         let value = text(ctx, argument)?;
@@ -308,7 +313,7 @@ fn item(
                 } else {
                     precision_bytes(ctx, bytes, precision)?
                 };
-                &bytes[..length]
+                bytes.span(0, length)?
             } else {
                 bytes
             };
@@ -436,7 +441,10 @@ fn hex(
         }
         output.write(
             ctx,
-            &[digits[(byte >> 4) as usize], digits[(byte & 15) as usize]],
+            &[
+                *digits.at((byte >> 4) as usize)?,
+                *digits.at((byte & 15) as usize)?,
+            ],
         )?;
     }
     if field.flag(MINUS) {
@@ -457,9 +465,9 @@ fn quote(ctx: &mut CallContext, output: &mut Output, bytes: &[u8], field: Field)
         let mut offset = 0;
         while offset < bytes.len() {
             ctx.charge(1)?;
-            let (rune, width, valid) = scan::rune(&bytes[offset..]);
+            let (rune, width, valid) = scan::rune(bytes.tail(offset)?);
             if !valid {
-                escape(ctx, &mut rendered, bytes[offset] as u32, b'x', 2)?;
+                escape(ctx, &mut rendered, *bytes.at(offset)? as u32, b'x', 2)?;
             } else {
                 match rune {
                     '"' | '\\' => rendered.extend(ctx, &[b'\\', rune as u8])?,
@@ -472,7 +480,7 @@ fn quote(ctx: &mut CallContext, output: &mut Output, bytes: &[u8], field: Field)
                     '\u{b}' => rendered.extend(ctx, b"\\v")?,
                     c if c.is_ascii() && (!c.is_ascii_control()) => rendered.push(ctx, c as u8)?,
                     c if !field.flag(PLUS) && crate::printable::is_print(c) => {
-                        rendered.extend(ctx, &bytes[offset..offset + width])?
+                        rendered.extend(ctx, bytes.span(offset, offset + width)?)?
                     }
                     c if c < ' ' || c == '\u{7f}' => escape(ctx, &mut rendered, c as u32, b'x', 2)?,
                     c if c <= '\u{ffff}' => escape(ctx, &mut rendered, c as u32, b'u', 4)?,
@@ -497,7 +505,7 @@ fn escape(
     for shift in (0..digits).rev() {
         output.push(
             ctx,
-            b"0123456789abcdef"[((value >> (shift * 4)) & 15) as usize],
+            *b"0123456789abcdef".at(((value >> (shift * 4)) & 15) as usize)?,
         )?;
     }
     Ok(())
@@ -507,7 +515,7 @@ fn can_backquote(ctx: &mut CallContext, bytes: &[u8]) -> Result<bool> {
     let mut offset = 0;
     while offset < bytes.len() {
         ctx.charge(1)?;
-        let (rune, width, valid) = scan::rune(&bytes[offset..]);
+        let (rune, width, valid) = scan::rune(bytes.tail(offset)?);
         if !valid
             || rune == '\u{feff}'
             || rune == '\u{7f}'

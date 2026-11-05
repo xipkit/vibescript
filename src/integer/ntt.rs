@@ -6,6 +6,7 @@
 //! one word operation, charged like the schoolbook loops at one step per
 //! sixteen.
 
+use crate::checked::{Access, Checked};
 use crate::{CallContext, Error, ErrorKind, Result, budget::Buffer};
 
 /// The prime modulus.
@@ -181,8 +182,8 @@ impl Roots {
         Ok(())
     }
 
-    fn block(&self, half: usize) -> &[u64] {
-        &self.table.data[half..2 * half]
+    fn block(&self, half: usize) -> Access<&[u64]> {
+        self.table.span(half, 2 * half)
     }
 }
 
@@ -198,7 +199,7 @@ pub(super) fn forward(
     let mut half = data.len() / 2;
     while half != 0 {
         meter.spend(ctx, data.len() / 2)?;
-        let twiddles = roots.block(half);
+        let twiddles = roots.block(half)?;
         for block in data.chunks_exact_mut(2 * half) {
             let (low, high) = block.split_at_mut(half);
             for ((x, y), &w) in low.iter_mut().zip(high.iter_mut()).zip(twiddles) {
@@ -223,17 +224,23 @@ pub(super) fn inverse(
     let mut half = 1;
     while half < data.len() {
         meter.spend(ctx, data.len() / 2)?;
-        let twiddles = roots.block(half);
+        let twiddles = roots.block(half)?;
         for block in data.chunks_exact_mut(2 * half) {
             let (low, high) = block.split_at_mut(half);
-            let (a, b) = (low[0], high[0]);
-            low[0] = add(a, b);
-            high[0] = sub(a, b);
+            let (x, low) = low
+                .split_first_mut()
+                .ok_or_else(|| crate::checked::violation("empty transform half"))?;
+            let (y, high) = high
+                .split_first_mut()
+                .ok_or_else(|| crate::checked::violation("empty transform half"))?;
+            let (a, b) = (*x, *y);
+            *x = add(a, b);
+            *y = sub(a, b);
             // The inverse root w^-k is -w^(h-k), since w^h = -1.
-            for ((x, y), &w) in low[1..]
+            for ((x, y), &w) in low
                 .iter_mut()
-                .zip(high[1..].iter_mut())
-                .zip(twiddles[1..].iter().rev())
+                .zip(high.iter_mut())
+                .zip(twiddles.iter().skip(1).rev())
             {
                 let t = mul(*y, w);
                 let a = *x;
@@ -287,16 +294,19 @@ fn spread(
 ) -> Result<()> {
     meter.spend(ctx, data.len())?;
     for (pair, &word) in data.chunks_exact_mut(2).zip(words) {
-        pair[0] = (word & 0xffff) as u64;
-        pair[1] = (word >> 16) as u64;
+        let (low, high) = pair.split_at_mut(1);
+        low.fill((word & 0xffff) as u64);
+        high.fill((word >> 16) as u64);
     }
     if scale != 1 {
         meter.spend(ctx, 2 * words.len())?;
-        for value in &mut data[..2 * words.len()] {
+        for value in data.span_mut(0, 2 * words.len())? {
             *value = mul(*value, scale);
         }
     }
-    data[2 * words.len()..].fill(0);
+    data.get_mut(2 * words.len()..)
+        .ok_or_else(|| crate::checked::violation("transform shorter than words"))?
+        .fill(0);
     Ok(())
 }
 
@@ -312,7 +322,12 @@ fn accumulate(
     meter.spend(ctx, length)?;
     let mut carry = 0u128;
     for (word, pair) in out.iter_mut().zip(data.chunks_exact(2)).take(length) {
-        carry += pair[0] as u128 + ((pair[1] as u128) << 16) + *word as u128;
+        let [low, high] = pair else {
+            return Err(crate::checked::internal(
+                "transform coefficient pair is incomplete",
+            ));
+        };
+        carry += *low as u128 + ((*high as u128) << 16) + *word as u128;
         *word = carry as u32;
         carry >>= 32;
     }
@@ -321,8 +336,8 @@ fn accumulate(
         if (index - length) % 16 == 0 {
             meter.spend(ctx, 16)?;
         }
-        carry += out[index] as u128;
-        out[index] = carry as u32;
+        carry += *out.at(index)? as u128;
+        *out.at_mut(index)? = carry as u32;
         carry >>= 32;
         index += 1;
     }
@@ -367,7 +382,7 @@ pub(super) fn multiply_into(
         accumulate(
             ctx,
             &mut meter,
-            &mut out[index * piece..],
+            out.span_mut(index * piece, out.len())?,
             &data.data,
             chunk.len() + b.len(),
         )?;
@@ -402,7 +417,12 @@ pub(super) fn multiply_cyclic(
     meter.spend(ctx, words)?;
     let mut carry = 0u128;
     for pair in data.data.chunks_exact(2) {
-        carry += pair[0] as u128 + ((pair[1] as u128) << 16);
+        let [low, high] = pair else {
+            return Err(crate::checked::internal(
+                "transform coefficient pair is incomplete",
+            ));
+        };
+        carry += *low as u128 + ((*high as u128) << 16);
         out.data.push(carry as u32);
         carry >>= 32;
     }

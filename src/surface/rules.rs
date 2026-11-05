@@ -88,7 +88,11 @@ impl<'a> Checker<'a> {
     /// Rewrites a percent literal as an array literal.
     pub(super) fn words(&mut self, expr: &'a Expr, place: Place) {
         let tok = self.token_at(expr.span.start);
-        let TokenKind::Words { symbols, entries } = &self.tokens[tok].kind else {
+        let Some(Token {
+            kind: TokenKind::Words { symbols, entries },
+            ..
+        }) = self.tokens.get(tok)
+        else {
             return;
         };
         let removed = excerpt(self.text(expr.span));
@@ -159,7 +163,10 @@ impl<'a> Checker<'a> {
         {
             return;
         }
-        let TokenKind::Symbol { name, .. } = &self.tokens[self.token_at(selector.span.start)].kind
+        let Some(Token {
+            kind: TokenKind::Symbol { name, .. },
+            ..
+        }) = self.tokens.get(self.token_at(selector.span.start))
         else {
             return;
         };
@@ -242,9 +249,12 @@ impl<'a> Checker<'a> {
         } else if !self.parens_optional(expr, call) {
             return;
         }
+        let Some((open, close)) = self.tokens.get(*open).zip(self.tokens.get(*close)) else {
+            return;
+        };
         let span = Span {
-            start: self.tokens[*open].start,
-            end: self.tokens[*close].end,
+            start: open.start,
+            end: close.end,
         };
         let removed = written!(self, "{}()", call.name);
         let advice = written!(
@@ -273,7 +283,9 @@ impl<'a> Checker<'a> {
             // A host object's own `send`, such as a capability's.
             return;
         }
-        let span = self.token_span(call.name_tok);
+        let Some(span) = self.token_span(call.name_tok) else {
+            return;
+        };
         let direct = "call the member directly, or use `case` over the name";
         if call.name == "respond_to?" {
             self.report(Finding::new(
@@ -291,7 +303,7 @@ impl<'a> Checker<'a> {
         let first = args.items.first();
         let symbol = first.and_then(|arg| match (&arg.kind, &arg.value.kind) {
             (ArgKind::Positional, ExprKind::Symbol) => {
-                match &self.tokens[self.token_at(arg.value.span.start)].kind {
+                match &self.tokens.get(self.token_at(arg.value.span.start))?.kind {
                     TokenKind::Symbol {
                         name,
                         quoted: false,
@@ -319,7 +331,9 @@ impl<'a> Checker<'a> {
             ));
             return;
         }
-        let rest = &args.items[1..];
+        let Some((_, rest)) = args.items.split_first() else {
+            return;
+        };
         if rest
             .iter()
             .any(|arg| !self.room.charge(1) || arg.kind != ArgKind::Positional)
@@ -340,7 +354,7 @@ impl<'a> Checker<'a> {
             Piece::Source(receiver.span),
             Piece::Text(self.copied(self.text(Span {
                 start: receiver.span.end,
-                end: self.tokens[call.name_tok].start,
+                end: span.start,
             }))),
             Piece::Text(name),
         ];
@@ -360,9 +374,16 @@ impl<'a> Checker<'a> {
         let end = match &call.block {
             Some(block) => {
                 pieces.push(Piece::Text(" ".into()));
+                let Some((open, close)) = self
+                    .tokens
+                    .get(block.open)
+                    .zip(self.tokens.get(block.close))
+                else {
+                    return;
+                };
                 pieces.push(Piece::Source(Span {
-                    start: self.tokens[block.open].start,
-                    end: self.tokens[block.close].end,
+                    start: open.start,
+                    end: close.end,
                 }));
                 expr.span.end
             }
@@ -437,7 +458,9 @@ impl<'a> Checker<'a> {
         if hash_new || !((called || lowercase) && self.scopes_functions(receiver)) {
             return;
         }
-        let span = self.token_span(operator);
+        let Some(span) = self.token_span(operator) else {
+            return;
+        };
         let receiver = excerpt(self.text(receiver.span));
         let advice = written!(
             self,
@@ -480,8 +503,10 @@ impl<'a> Checker<'a> {
                 return;
             }
             if matches!(arg.value.kind, ExprKind::Symbol)
-                && let TokenKind::Symbol { name, .. } =
-                    &self.tokens[self.token_at(arg.value.span.start)].kind
+                && let Some(Token {
+                    kind: TokenKind::Symbol { name, .. },
+                    ..
+                }) = self.tokens.get(self.token_at(arg.value.span.start))
                 && let Some(literal) = string_literal(name, self.room)
             {
                 let removed = self.text(arg.value.span);
@@ -548,9 +573,16 @@ impl<'a> Checker<'a> {
         else {
             return false;
         };
+        let Some((operator, name)) = self
+            .tokens
+            .get(operator)
+            .zip(self.tokens.get(call.name_tok))
+        else {
+            return false;
+        };
         let span = Span {
-            start: self.tokens[operator].start,
-            end: self.tokens[call.name_tok].end,
+            start: operator.start,
+            end: name.end,
         };
         let removed = self.copied(self.text(span));
         let receiver_text = excerpt(self.text(receiver.span));
@@ -652,8 +684,10 @@ impl<'a> Checker<'a> {
             .position(|param| param.kind == ParamKind::Keyword)
             .unwrap_or(0);
         let star = def.star.is_none()
-            && !def.params[..index]
+            && !def
+                .params
                 .iter()
+                .take(index)
                 .any(|param| param.kind == ParamKind::Rest);
         // The parameters in their new form, whose defaults the source
         // sizes, written through the room.
@@ -692,7 +726,10 @@ impl<'a> Checker<'a> {
         );
         let previous = self.enter(Rule::KeywordParameter, span, removed, advice);
         if star {
-            self.edits.insert(def.params[index].span.start, "*, ");
+            let Some(param) = def.params.get(index) else {
+                return;
+            };
+            self.edits.insert(param.span.start, "*, ");
         }
         for (param, ty) in old.iter().zip(types) {
             if self.halt() {
@@ -701,8 +738,13 @@ impl<'a> Checker<'a> {
             let Some(colon) = param.keyword_colon else {
                 continue;
             };
-            let colon = self.token_span(colon);
-            let name_end = self.tokens[param.name_tok].end;
+            let Some(colon) = self.token_span(colon) else {
+                return;
+            };
+            let Some(name) = self.tokens.get(param.name_tok) else {
+                return;
+            };
+            let name_end = name.end;
             let declared = ty.map(|ty| written!(self, ": {ty}")).unwrap_or_default();
             match (&param.ty, &param.default) {
                 (Some(ty), _) => self.edits.text(
@@ -738,6 +780,9 @@ impl<'a> Checker<'a> {
     pub(super) fn type_names(&mut self, ty: &'a TypeExpr) {
         match &ty.kind {
             TypeKind::Named(tok, args) => {
+                let Some(token_span) = self.token_span(*tok) else {
+                    return;
+                };
                 let written = self.token_text(*tok);
                 let (name, suffix) = match written.strip_suffix('?') {
                     Some(name) => (name, "?"),
@@ -748,7 +793,7 @@ impl<'a> Checker<'a> {
                 if lower == "nil" && name != "nil" {
                     self.report(Finding::new(
                         Rule::TypeName,
-                        self.token_span(*tok),
+                        token_span,
                         name,
                         "type names are lowercase; `nil` here would read as a keyword default",
                     ));
@@ -756,7 +801,7 @@ impl<'a> Checker<'a> {
                 if super::parse::respelled_type(&lower) && lower != "nil" {
                     let canonical = if lower == "object" { "hash" } else { &lower };
                     if canonical != name {
-                        let span = self.token_span(*tok);
+                        let span = token_span;
                         let advice = if lower == "object" {
                             "use `hash`".to_owned()
                         } else {
@@ -810,7 +855,9 @@ impl<'a> Checker<'a> {
         if matches!(call.name.as_str(), "eql?" | "equal?")
             && let Some(receiver) = &call.receiver
         {
-            let span = self.token_span(call.name_tok);
+            let Some(span) = self.token_span(call.name_tok) else {
+                return false;
+            };
             let mut finding = Finding::new(
                 Rule::Equality,
                 span,
@@ -858,7 +905,9 @@ impl<'a> Checker<'a> {
         if candidates.is_empty() {
             return false;
         }
-        let span = self.token_span(call.name_tok);
+        let Some(span) = self.token_span(call.name_tok) else {
+            return false;
+        };
         if call.scoped(self.tokens) {
             return false;
         }
@@ -1180,7 +1229,9 @@ impl<'a> Checker<'a> {
     /// with arguments or a block its replacement has no place for, or on
     /// the implicit `self` of a method, leaving the rewrite to a person.
     pub(super) fn unmatched(&mut self, call: &'a Call, pattern: &Pattern) {
-        let span = self.token_span(call.name_tok);
+        let Some(span) = self.token_span(call.name_tok) else {
+            return;
+        };
         self.unmatched_at(span, &call.name, pattern);
     }
 
@@ -1220,7 +1271,15 @@ impl<'a> Checker<'a> {
         captures: &Captures<'_>,
         place: Place,
     ) -> bool {
-        let span = call.map_or(expr.span, |call| self.token_span(call.name_tok));
+        let span = match call {
+            Some(call) => {
+                let Some(span) = self.token_span(call.name_tok) else {
+                    return false;
+                };
+                span
+            }
+            None => expr.span,
+        };
         let rule = rule_of(pattern);
         let advice = pattern.advice();
         let pieces = match &pattern.rewrite {
@@ -1408,9 +1467,16 @@ impl<'a> Checker<'a> {
         }
         if let Some(block) = call.and_then(|call| call.block.as_ref()) {
             pieces.push(Piece::Text(" ".into()));
+            let Some((open, close)) = self
+                .tokens
+                .get(block.open)
+                .zip(self.tokens.get(block.close))
+            else {
+                return false;
+            };
             pieces.push(Piece::Source(Span {
-                start: self.tokens[block.open].start,
-                end: self.tokens[block.close].end,
+                start: open.start,
+                end: close.end,
             }));
         }
         if operator && place == Place::Tight {
@@ -1430,8 +1496,12 @@ impl<'a> Checker<'a> {
         if block.brace {
             return;
         }
-        let open = &self.tokens[block.open];
-        let open_span = self.token_span(block.open);
+        let Some(open) = self.tokens.get(block.open) else {
+            return;
+        };
+        let Some(open_span) = self.token_span(block.open) else {
+            return;
+        };
         let advice = "write the block with braces";
         // Parentheses would turn a command's bare keywords from an options
         // hash into keyword arguments, so such a block stays as written.
@@ -1452,27 +1522,40 @@ impl<'a> Checker<'a> {
             return;
         }
         let previous_group = self.enter(Rule::DoBlock, open_span, "do ... end", advice);
-        let previous = self.tokens[..block.open]
+        let previous = self
+            .tokens
             .iter()
+            .take(block.open)
             .rev()
             .find(|token| !matches!(token.kind, TokenKind::Newline | TokenKind::Semicolon))
             .map_or(callee_end, |token| token.end);
         if self.source[previous..open.start].contains('\n') {
             // A brace must follow its call on the same line, with its
             // parameters, while comments stay where they are.
-            let moved_end = block
-                .pipes
-                .map_or(open.end, |(_, close)| self.tokens[close].end);
+            let moved_end = match block.pipes {
+                Some((_, close)) => {
+                    let Some(close) = self.tokens.get(close) else {
+                        return;
+                    };
+                    close.end
+                }
+                None => open.end,
+            };
             let line_end = self.source[moved_end..]
                 .find('\n')
                 .map_or(self.source.len(), |index| moved_end + index);
             let rest_blank = self.source[moved_end..line_end].trim().is_empty();
             let mut pieces = vec![Piece::Text(" {".into())];
             if let Some((open_pipe, close_pipe)) = block.pipes {
+                let Some((open_pipe, close_pipe)) =
+                    self.tokens.get(open_pipe).zip(self.tokens.get(close_pipe))
+                else {
+                    return;
+                };
                 pieces.push(Piece::Text(" ".into()));
                 pieces.push(Piece::Source(Span {
-                    start: self.tokens[open_pipe].start,
-                    end: self.tokens[close_pipe].end,
+                    start: open_pipe.start,
+                    end: close_pipe.end,
                 }));
             }
             self.edits.replace(
@@ -1508,7 +1591,9 @@ impl<'a> Checker<'a> {
         } else {
             self.edits.text(open_span, "{");
         }
-        let close = self.token_span(block.close);
+        let Some(close) = self.token_span(block.close) else {
+            return;
+        };
         self.edits.text(close, "}");
         // Braces bind to the nearest call, so a command call's arguments
         // get parentheses to keep the block on the call it belonged to.
@@ -1517,7 +1602,10 @@ impl<'a> Checker<'a> {
             && args.parens.is_none()
             && let (Some(first), Some(last)) = (args.items.first(), args.items.last())
         {
-            let name_end = self.tokens[call.name_tok].end;
+            let Some(name) = self.tokens.get(call.name_tok) else {
+                return;
+            };
+            let name_end = name.end;
             self.edits.text(
                 Span {
                     start: name_end,
@@ -1551,7 +1639,10 @@ impl<'a> Checker<'a> {
                     "=="
                 };
                 // `i==3` flipped as `i!=3` would lex `i!` as a name.
-                let start = self.tokens[*op].start;
+                let Some(token) = self.tokens.get(*op) else {
+                    return;
+                };
+                let start = token.start;
                 let glued = self.source[..start]
                     .chars()
                     .next_back()
@@ -1561,14 +1652,19 @@ impl<'a> Checker<'a> {
                 } else {
                     flipped.to_owned()
                 };
-                let span = self.token_span(*op);
+                let Some(span) = self.token_span(*op) else {
+                    return;
+                };
                 self.edits.text(span, text);
             }
             ExprKind::Unary(op, operand)
                 if self.token_text(*op) == "!" && self.primary(operand) =>
             {
+                let Some(token) = self.tokens.get(*op) else {
+                    return;
+                };
                 let span = Span {
-                    start: self.tokens[*op].start,
+                    start: token.start,
                     end: operand.span.start,
                 };
                 self.edits.text(span, "");

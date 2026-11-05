@@ -1,5 +1,5 @@
 use super::*;
-use crate::checked::{Access, violation};
+use crate::checked::{Access, Checked, violation};
 use crate::numeric::{to_usize, unsigned_bits};
 
 pub(super) fn string_bytes(
@@ -158,7 +158,7 @@ fn fixed_float(value: &Value, field: Field) -> Access<usize> {
                 .iter()
                 .rposition(|b| *b == b'e')
                 .ok_or(violation("scientific exponent expected"))?;
-            let exponent: i32 = std::str::from_utf8(&bytes[exponent + 1..])
+            let exponent: i32 = std::str::from_utf8(bytes.tail(exponent + 1)?)
                 .map_err(|_| violation("scientific exponent must be UTF-8"))?
                 .parse()
                 .map_err(|_| violation("scientific exponent must be an integer"))?;

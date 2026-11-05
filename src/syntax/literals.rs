@@ -1,4 +1,5 @@
 use super::*;
+use crate::checked::Checked;
 
 // The first operand of an expression, parsed without a task when it is a
 // single token.
@@ -82,8 +83,8 @@ impl<'a> Parser<'a> {
         self.work.charge(1)?;
         self.enter()?;
         self.work.charge(1)?;
-        let offset = self.tokens[self.pos].offset as u32;
-        let line = self.tokens[self.pos].line;
+        let offset = self.tokens.at(self.pos)?.offset as u32;
+        let line = self.tokens.at(self.pos)?.line;
         let mut lhs = match self.bump()? {
             Token::Word(w) => match w.as_str() {
                 "nil" => self.make(Node::Literal(Value::nil()), 1)?,
@@ -112,11 +113,11 @@ impl<'a> Parser<'a> {
             Token::Regex(pattern, flags) => self.make(Node::Regex(pattern, flags), 1),
             Token::Bytes(b) => self.make(Node::Literal(b.into_value(false)), 1),
             Token::Template(parts) => {
-                let offset = self.tokens[self.pos - 1].offset;
+                let offset = self.tokens.at(self.pos - 1)?.offset;
                 self.template(parts, false, offset)
             }
             Token::Words(words) => {
-                let offset = self.tokens[self.pos - 1].offset;
+                let offset = self.tokens.at(self.pos - 1)?.offset;
                 // Go lexes a `%` after an operand as modulo and reads it again
                 // as a percent literal only for a command argument.
                 if words.ambiguous && self.pos - 1 != self.percent_argument {
@@ -153,9 +154,9 @@ impl<'a> Parser<'a> {
     /// input names nothing.
     pub(super) fn variable_name(&self, name: &str) -> Result<Expr> {
         if name.starts_with('@') {
-            self.binding_name(name, self.tokens[self.pos - 1].offset)?;
+            self.binding_name(name, self.tokens.at(self.pos - 1)?.offset)?;
         } else {
-            self.read_spelling(name, self.tokens[self.pos - 1].offset)?;
+            self.read_spelling(name, self.tokens.at(self.pos - 1)?.offset)?;
             self.suffix_read(name)?;
         }
         if matches!(name, "@" | "@@") {
@@ -166,11 +167,11 @@ impl<'a> Parser<'a> {
             };
             return Err(Error::syntax(
                 self.work,
-                self.tokens[self.pos - 1].offset,
+                self.tokens.at(self.pos - 1)?.offset,
                 format_args!("expected {expected}, got {got}"),
             ));
         }
-        self.block_reference(name, self.tokens[self.pos - 1].offset)?;
+        self.block_reference(name, self.tokens.at(self.pos - 1)?.offset)?;
         self.make(Node::Var(Name::new(self.work, name)?), 1)
     }
 
@@ -178,25 +179,27 @@ impl<'a> Parser<'a> {
     pub(super) fn negative_literal(&self, sign: usize) -> Result<bool> {
         // An adjacent minus belongs to the numeric receiver; power keeps the
         // outer sign.
-        Ok(self.tokens[sign].end == self.tokens[sign + 1].offset
-            && matches!(
-                self.tokens[sign + 1].token,
-                Token::Int(_) | Token::BigInt(..) | Token::Float(_)
-            )
-            && !self
-                .tokens
-                .find(sign + 2..self.tokens.len(), self.work, |next| {
-                    next.token != Token::EndLine || next.line == next.end_line
-                })?
-                .is_some_and(|next| next.token == Token::Op("**")))
+        Ok(
+            self.tokens.at(sign)?.end == self.tokens.at(sign + 1)?.offset
+                && matches!(
+                    self.tokens.at(sign + 1)?.token,
+                    Token::Int(_) | Token::BigInt(..) | Token::Float(_)
+                )
+                && !self
+                    .tokens
+                    .find(sign + 2..self.tokens.len(), self.work, |next| {
+                        next.token != Token::EndLine || next.line == next.end_line
+                    })?
+                    .is_some_and(|next| next.token == Token::Op("**")),
+        )
     }
 
     fn hash_label(&mut self) -> Result<(Bytes, Option<Expr>)> {
-        let offset = self.tokens[self.pos].offset as u32;
+        let offset = self.tokens.at(self.pos)?.offset as u32;
         let labeled = matches!(self.token(), Token::Word(w) if !w.starts_with('@'))
             || matches!(self.token(), Token::Bytes(_));
         let colon = self.significant(self.pos + 1);
-        if !labeled || self.tokens[colon].token != Token::P(':') {
+        if !labeled || self.tokens.at(colon)?.token != Token::P(':') {
             return self.err(INVALID_HASH_PAIR);
         }
         let (key, label) = match self.bump()? {
@@ -286,7 +289,7 @@ impl<'a> Parser<'a> {
         self.work.charge(1)?;
         while tokens.len() >= 2 {
             self.work.charge(1)?;
-            let tail = &tokens[tokens.len() - 2];
+            let tail = tokens.at(tokens.len() - 2)?;
             if tail.token != Token::EndLine || tail.line == tail.end_line {
                 break;
             }
@@ -329,7 +332,7 @@ impl<'a> Parser<'a> {
             additions: std::mem::take(&mut self.additions),
         };
         while parser.token() == &Token::EndLine
-            && parser.tokens[parser.pos].line != parser.tokens[parser.pos].end_line
+            && parser.tokens.at(parser.pos)?.line != parser.tokens.at(parser.pos)?.end_line
         {
             self.work.charge(1)?;
             parser.pos += 1;
@@ -401,7 +404,7 @@ impl<'a> Parser<'a> {
                 "token stream must end with a sentinel",
             ))?
             .offset;
-        let tokens = lexer::modulo(self.lexing(), &self.tokens[self.pos], limit)?;
+        let tokens = lexer::modulo(self.lexing(), self.tokens.at(self.pos)?, limit)?;
         self.replace_lexed(tokens, limit)
     }
 
@@ -414,7 +417,7 @@ impl<'a> Parser<'a> {
                 "token stream must end with a sentinel",
             ))?
             .offset;
-        let tokens = lexer::regex(self.lexing(), &self.tokens[self.pos], limit)?;
+        let tokens = lexer::regex(self.lexing(), self.tokens.at(self.pos)?, limit)?;
         self.replace_lexed(tokens, limit)
     }
 
@@ -429,11 +432,15 @@ impl<'a> Parser<'a> {
         ))?;
         let mut finish = self.pos + 1;
         loop {
-            while self.tokens[finish].offset < cursor.offset {
+            while self.tokens.at(finish)?.offset < cursor.offset {
                 self.work.charge(1)?;
                 finish += 1;
             }
-            let end = self.tokens[finish - 1].end.max(self.tokens[finish].offset);
+            let end = self
+                .tokens
+                .at(finish - 1)?
+                .end
+                .max(self.tokens.at(finish)?.offset);
             if end <= cursor.offset {
                 break;
             }

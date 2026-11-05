@@ -142,7 +142,7 @@ impl<'a> HostName<'a> {
     /// script can call as a root.
     pub(crate) fn exported_root(self, name: &str) -> Error {
         // Enough bytes for `source_text` to mark a cut.
-        let shown = String::from_utf8_lossy(&name.as_bytes()[..name.len().min(72)]);
+        let shown = String::from_utf8_lossy(name.as_bytes().split_at(name.len().min(72)).0);
         Error::new(
             crate::ErrorKind::Argument,
             format!(
@@ -157,7 +157,7 @@ impl<'a> HostName<'a> {
     /// The error for a template, named by this method's owner, that holds a
     /// function a script exports at `key`.
     pub(crate) fn exported_member(self, key: &[u8]) -> Error {
-        let shown = String::from_utf8_lossy(&key[..key.len().min(72)]);
+        let shown = String::from_utf8_lossy(key.split_at(key.len().min(72)).0);
         let (kind, owner) = self.owner.unwrap_or((self.kind, ""));
         Error::new(
             crate::ErrorKind::Argument,
@@ -173,7 +173,7 @@ impl<'a> HostName<'a> {
     fn error(self, name: &[u8], reason: impl std::fmt::Display) -> Error {
         use std::fmt::Write;
         // Enough bytes for `source_text` to mark a cut.
-        let shown = String::from_utf8_lossy(&name[..name.len().min(72)]);
+        let shown = String::from_utf8_lossy(name.split_at(name.len().min(72)).0);
         let mut message = format!("invalid {} name \"{}\"", self.kind, source_text(&shown));
         if let Some((kind, owner)) = self.owner {
             let _ = write!(message, " in {kind} \"{}\"", source_text(owner));
@@ -373,7 +373,7 @@ impl Parser<'_> {
     /// Reports whether the token at `index` is an identifier, as opposed to a
     /// keyword or variable.
     pub(super) fn ident(&self, index: usize) -> bool {
-        matches!(&self.tokens[index].token, Token::Word(w) if !keyword(w) && !w.starts_with('@'))
+        matches!(self.token_at(index), Token::Word(w) if !keyword(w) && !w.starts_with('@'))
     }
     /// Consumes a symbol token and returns its name.
     pub(super) fn symbol_name(&mut self) -> Result<Option<Name>> {
@@ -392,7 +392,7 @@ impl Parser<'_> {
         if let Err(error) = method_spelling(&name, false)
             && !self.mode.lenient
         {
-            let token = &self.tokens[self.pos];
+            let token = self.tokens.at(self.pos)?;
             if matches!(token.token, Token::QuotedSymbol(_)) {
                 use crate::diagnostic::{Code, Diagnostic, Fix, Span};
                 let message = error.message();
@@ -431,7 +431,7 @@ impl Parser<'_> {
     }
     fn read_name(&mut self, method: bool) -> Result<Name> {
         self.work.charge(1)?;
-        let offset = self.tokens[self.pos].offset;
+        let offset = self.tokens.at(self.pos)?.offset;
         if let Token::Word(w) = self.bump()? {
             if method {
                 self.method_spelling(&w, offset)?;
@@ -470,9 +470,9 @@ impl Parser<'_> {
     pub(super) fn assignment_starts(&self, index: usize) -> bool {
         let mut first = index;
         while let Some(previous) = first.checked_sub(1) {
-            match &self.tokens[previous].token {
+            match self.token_at(previous) {
                 Token::P('.') | Token::Op("&." | "::") => match previous.checked_sub(1) {
-                    Some(receiver) if matches!(self.tokens[receiver].token, Token::Word(_)) => {
+                    Some(receiver) if matches!(*self.token_at(receiver), Token::Word(_)) => {
                         first = receiver;
                     }
                     _ => return false,
@@ -484,9 +484,9 @@ impl Parser<'_> {
             None => true,
             Some(previous) => {
                 matches!(
-                    &self.tokens[previous].token,
+                    self.token_at(previous),
                     Token::EndLine | Token::P('{' | '|')
-                ) || matches!(&self.tokens[previous].token, Token::Word(word)
+                ) || matches!(self.token_at(previous), Token::Word(word)
                 if matches!(word.as_str(), "def" | "then" | "do" | "else" | "begin" | "ensure"))
             }
         }
@@ -503,9 +503,12 @@ impl Parser<'_> {
         // A name that is a whole destructuring target, even in a nested
         // group such as `a, [x, y] = ...`, binds.
         let target = self.target_start == Some(self.pos - 1)
-            && matches!(self.tokens[self.pos].token, Token::P(',' | ']' | ')' | ':'));
+            && matches!(
+                self.tokens.at(self.pos)?.token,
+                Token::P(',' | ']' | ')' | ':')
+            );
         let binding = target
-            || match &self.tokens[self.pos].token {
+            || match &self.tokens.at(self.pos)?.token {
                 // A comma after a name that does not start a statement separates
                 // an element or argument, as in `{ a: s.empty??, b: 1 }`.
                 Token::P(',') => self.assignment_starts(self.pos - 1),
@@ -529,7 +532,7 @@ impl Parser<'_> {
             // before any closing parentheses around the target.
             for index in (0..self.pos).rev() {
                 self.work.charge(1)?;
-                let token = &self.tokens[index];
+                let token = self.tokens.at(index)?;
                 if matches!(token.token, Token::Word(_)) {
                     return Err(self.name_suffix_error(token.end - 1));
                 }
