@@ -133,10 +133,9 @@ pub(super) fn check(
             no_keywords()
         }
         Fetch => {
-            if args.is_empty() || args.len() > 2 {
+            let ([index] | [index, _]) = args else {
                 return refuse("expects index and optional default");
-            }
-            let index = &args[0];
+            };
             if crate::sequence::integer(index).is_err() {
                 return Err(type_error(format!("array.{name} index must be integer")));
             }
