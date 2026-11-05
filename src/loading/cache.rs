@@ -2,11 +2,8 @@ use super::{
     files::{Root, Stamp},
     resolver::Origin,
 };
-use crate::{CallContext, Error, ErrorKind, Result};
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex, MutexGuard},
-};
+use crate::{CallContext, Error, ErrorKind, Result, actor::Actor};
+use std::{collections::HashMap, sync::Arc};
 
 pub(super) struct Entry<T> {
     pub origin: Origin,
@@ -40,14 +37,14 @@ impl<T> State<T> {
 }
 
 pub(super) struct Cache<T> {
-    state: Mutex<State<T>>,
+    state: Actor<State<T>>,
     limit: usize,
 }
 
 impl<T> Cache<T> {
     pub fn new(limit: usize) -> Self {
         Self {
-            state: Mutex::new(State::new()),
+            state: Actor::new(State::new()),
             limit,
         }
     }
@@ -59,8 +56,9 @@ impl<T> Cache<T> {
         name: &[u8],
     ) -> Result<(Epoch, Option<Arc<Entry<T>>>)> {
         key_work(ctx, root, name)?;
-        let state = self.lock(ctx)?;
-        Ok((state.epoch.clone(), state.get(root, name).cloned()))
+        self.with_state(ctx, |state| {
+            Ok((state.epoch.clone(), state.get(root, name).cloned()))
+        })
     }
 
     pub fn insert(
@@ -77,8 +75,7 @@ impl<T> Cache<T> {
             stamp,
             code,
         });
-        {
-            let mut state = self.lock(ctx)?;
+        self.with_state(ctx, |state| {
             if !Arc::ptr_eq(&state.epoch.0, &epoch.0) {
                 // A clear must not be undone by a compilation that began before it.
                 Ok(entry.clone())
@@ -101,18 +98,17 @@ impl<T> Cache<T> {
                 state.count += 1;
                 Ok(entry.clone())
             }
-        }
+        })
     }
 
     pub fn invalidate(&self, ctx: &mut CallContext, entry: &Arc<Entry<T>>) -> Result<()> {
         key_work(ctx, &entry.origin.root, &entry.origin.relative)?;
-        let removed = {
-            let mut state = self.lock(ctx)?;
+        let removed = self.with_state(ctx, |state| {
             let Some(existing) = state.get(&entry.origin.root, &entry.origin.relative) else {
-                return Ok(());
+                return Ok(None);
             };
             if !Arc::ptr_eq(existing, entry) {
-                return Ok(());
+                return Ok(None);
             }
             let modules = state.modules.get_mut(&entry.origin.root).unwrap();
             let removed = modules.remove(entry.origin.relative.as_ref());
@@ -120,26 +116,33 @@ impl<T> Cache<T> {
                 state.modules.remove(&entry.origin.root);
             }
             state.count -= 1;
-            removed
-        };
+            Ok(removed)
+        })?;
+        // Code can retain host callbacks whose destructors reenter the engine.
         drop(removed);
         Ok(())
     }
 
     pub fn clear(&self) {
-        let old = {
-            let mut state = self.state.lock().unwrap();
-            std::mem::replace(&mut *state, State::new())
-        };
+        let old = self
+            .state
+            .with(|state| std::mem::replace(state, State::new()));
         // Code can retain host callbacks whose destructors reenter the engine.
         drop(old);
     }
 
-    fn lock(&self, ctx: &mut CallContext) -> Result<MutexGuard<'_, State<T>>> {
+    /// Runs `f` on the cache's state, checking the call's budget before
+    /// waiting its turn and again once it has it.
+    fn with_state<R>(
+        &self,
+        ctx: &mut CallContext,
+        f: impl FnOnce(&mut State<T>) -> Result<R>,
+    ) -> Result<R> {
         ctx.checkpoint()?;
-        let state = self.state.lock().unwrap();
-        ctx.checkpoint()?;
-        Ok(state)
+        self.state.with(|state| {
+            ctx.checkpoint()?;
+            f(state)
+        })
     }
 }
 

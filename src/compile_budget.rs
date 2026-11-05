@@ -4,7 +4,6 @@ use crate::{
     CallContext, CallOptions, Engine, Result, Script, Stats,
     compilation::{Meter, Work},
 };
-use std::cell::RefCell;
 
 /// A cumulative work budget for parsing, compilation and type checking.
 ///
@@ -43,7 +42,7 @@ impl CompileBudget {
             source,
             &engine.hosts,
             &engine.declared,
-            &Meter(RefCell::new(&mut self.context)),
+            &Meter::new(&mut self.context),
             &engine.loader,
         )?;
         self.context.checkpoint()?;
@@ -63,7 +62,7 @@ impl CompileBudget {
         let declaration = crate::declared::Declaration::retained_value(
             name,
             value,
-            &Meter(RefCell::new(&mut self.context)),
+            &Meter::new(&mut self.context),
         )?;
         self.context.checkpoint()?;
         std::sync::Arc::make_mut(&mut engine.declared).insert(name.to_owned(), declaration);
@@ -74,7 +73,7 @@ impl CompileBudget {
     /// Parses the names of top-level functions, aliases, classes, modules and
     /// enums without checking their types. Names are grouped by declaration kind.
     pub fn declaration_names(&mut self, source: &str) -> Result<Vec<String>> {
-        let work = Meter(RefCell::new(&mut self.context));
+        let work = Meter::new(&mut self.context);
         work.checkpoint()?;
         let parsed = crate::syntax::parse(source, &work).map_err(|error| {
             crate::source::parse_error(
@@ -103,7 +102,7 @@ impl CompileBudget {
     /// Type checks source and returns its diagnostics and session annotations.
     /// A quota failure or interruption returns an error, never partial findings.
     pub fn type_check(&mut self, engine: &Engine, source: &str) -> Result<crate::typing::Checked> {
-        let work = Meter(RefCell::new(&mut self.context));
+        let work = Meter::new(&mut self.context);
         work.checkpoint()?;
         for name in engine.hosts.keys() {
             crate::syntax::host_function_name(&work, crate::syntax::HostName::FUNCTION, name)?;
@@ -266,11 +265,11 @@ mod tests {
 mod retained_tests {
     use super::*;
     use crate::{CancellationToken, Error, ErrorKind, budget::Charge};
-    use std::cell::Cell;
+    use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
     struct InterruptDuringParse<'a> {
         work: Meter<'a>,
-        remaining_steps: Cell<usize>,
+        remaining_steps: AtomicUsize,
         token: CancellationToken,
     }
 
@@ -279,8 +278,8 @@ mod retained_tests {
             self.work.budget()
         }
         fn charge(&self, steps: usize) -> Result<()> {
-            let left = self.remaining_steps.get().saturating_sub(steps);
-            self.remaining_steps.set(left);
+            let left = self.remaining_steps.load(Relaxed).saturating_sub(steps);
+            self.remaining_steps.store(left, Relaxed);
             if left == 0 {
                 self.token.cancel();
             }
@@ -355,14 +354,14 @@ mod retained_tests {
             ..CallOptions::default()
         });
         let work = InterruptDuringParse {
-            work: Meter(RefCell::new(&mut context)),
+            work: Meter::new(&mut context),
             // Scanning the padding comment spends steps on every pointer width.
-            remaining_steps: Cell::new(1024),
+            remaining_steps: AtomicUsize::new(1024),
             token,
         };
         let error = crate::declared::Declaration::retained_value("A", value, &work).unwrap_err();
         assert_eq!(error.kind, ErrorKind::Cancelled);
-        assert_eq!(work.remaining_steps.get(), 0);
+        assert_eq!(work.remaining_steps.load(Relaxed), 0);
         assert!(context.stats().steps > 0);
         // This API accepts only the namespace/enum preparation needed by sessions.
         assert_eq!(

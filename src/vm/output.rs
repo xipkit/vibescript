@@ -35,21 +35,23 @@ pub(super) fn resume(
     loop {
         let args = storage.arguments.data.last_mut().unwrap();
         let Some(Target::Output(kind, index)) = args.target else {
-            unreachable!()
+            return Err(crate::checked::internal(
+                "output arguments have no output target",
+            ));
         };
         if index == args.positional.data.len() {
             let args = storage.arguments.data.pop().unwrap();
             let value = if kind != Output::Inspect {
                 Value::nil()
             } else if args.positional.data.len() == 1 {
-                args.positional.data[0].clone()
+                args.positional.at(0)?.clone()
             } else {
                 Value::from_array(ctx, args.positional)?
             };
             return stack.push(ctx, value);
         }
         ctx.charge(1)?;
-        let original = args.positional.data[index].clone();
+        let original = args.positional.at(index)?.clone();
         if let Some(value) = returned.take() {
             let rendered = if matches!(value.0, Kind::Bytes(_)) {
                 &value

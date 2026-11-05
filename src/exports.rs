@@ -121,7 +121,11 @@ fn check_depth(ctx: &mut CallContext, value: &Value) -> Result<()> {
         let child = match &parent.0 {
             Kind::Array(array) => array.buffer.data.get(position),
             Kind::Hash(hash) => hash.buffer.data.get(position).map(|(_, value)| value),
-            _ => unreachable!(),
+            _ => {
+                return Err(crate::checked::internal(
+                    "export frame requires a container",
+                ));
+            }
         };
         let Some(child) = child else {
             let finished = frames.data.pop().unwrap();
@@ -354,17 +358,6 @@ mod check_tests {
                 assert_eq!(ctx.stats().retained_memory_bytes, 0);
             }
         };
-        // WASI has no threads, so this runs within the default wasm stack.
-        if cfg!(target_os = "wasi") {
-            return deep();
-        }
-        std::thread::scope(|scope| {
-            std::thread::Builder::new()
-                .stack_size(96 << 10)
-                .spawn_scoped(scope, deep)
-                .unwrap()
-                .join()
-                .unwrap();
-        });
+        crate::threads::on_stack(96 << 10, deep).unwrap();
     }
 }

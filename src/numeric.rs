@@ -1,6 +1,21 @@
 use crate::{CallContext, Error, ErrorKind, Result, Value, bytes, integer, ops, value::Kind};
 use std::{cmp::Ordering, fmt::Write};
 
+/// Converts a count, a length or another unsigned value known to fit. Nothing
+/// in memory is larger than `isize::MAX`, so the limit stays out of reach; past
+/// it the result saturates instead of turning negative.
+#[inline]
+pub(crate) fn to_i64<T: TryInto<i64>>(value: T) -> i64 {
+    value.try_into().unwrap_or(i64::MAX)
+}
+
+/// Reads `value`'s bits as two's complement, for arithmetic that wraps on
+/// purpose.
+#[inline]
+pub(crate) const fn wrapped(value: u64) -> i64 {
+    i64::from_ne_bytes(value.to_ne_bytes())
+}
+
 pub(crate) fn call(
     ctx: &mut CallContext,
     name: &str,
@@ -113,7 +128,11 @@ fn division(ctx: &mut CallContext, method: &str, a: &Value, b: &Value) -> Result
                 };
                 ctx.array(&[q, r])
             }
-            _ => unreachable!(),
+            _ => {
+                return Err(crate::checked::internal(
+                    "unsupported numeric division method",
+                ));
+            }
         };
     }
     let a = a.as_float().unwrap();
@@ -303,14 +322,18 @@ fn integer_round(
     let negative = match &value.0 {
         Kind::Int(n) => *n < 0,
         Kind::Big(n) => n.negative,
-        _ => unreachable!(),
+        _ => {
+            return Err(crate::checked::internal(
+                "integer rounding requires an integer",
+            ));
+        }
     };
     let away =
         matches!(mode, Rounding::Floor) && negative || matches!(mode, Rounding::Ceil) && !negative;
     let digits = digits.unsigned_abs();
     // This conservative bit bound proves the bucket exceeds twice the magnitude.
     // Extreme precisions that return zero never need to construct that bucket.
-    if digits as usize > integer::bits(value) / 3 + 1 && !away {
+    if digits as usize > integer::bits(value)? / 3 + 1 && !away {
         return Ok(Value::int(0));
     }
     let bucket = pow10(ctx, digits)?;
@@ -343,7 +366,7 @@ fn float_digits(ctx: &mut CallContext, number: f64, digits: i32, mode: Rounding)
     let bits = number.abs().to_bits();
     let raw = ((bits >> 52) & 0x7ff) as i32;
     let exponent = if raw == 0 {
-        64 - bits.leading_zeros() as i32 - 1074
+        (64i32 - 1074).saturating_sub_unsigned(bits.leading_zeros())
     } else {
         raw - 1022
     };
@@ -403,7 +426,7 @@ fn rational_round(ctx: &mut CallContext, number: f64, digits: u32) -> Result<f64
     let mantissa = bits & ((1u64 << 52) - 1) | if exponent == 0 { 0 } else { 1u64 << 52 };
     let shift = exponent.max(1) - 1075;
     let scale = pow10(ctx, digits)?;
-    let numerator = calculate(ctx, "*", &Value::int(mantissa as i64), &scale)?;
+    let numerator = calculate(ctx, "*", &Value::int(to_i64(mantissa)), &scale)?;
     let power = integer::binary(
         ctx,
         "**",
@@ -435,4 +458,25 @@ fn rational_round(ctx: &mut CallContext, number: f64, digits: u32) -> Result<f64
         .unwrap()
         .parse()
         .map_err(|_| Error::new(ErrorKind::Arithmetic, "float rounding failed"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn to_i64_keeps_what_fits_and_never_turns_negative() {
+        assert_eq!(to_i64(0usize), 0);
+        assert_eq!(to_i64(i64::MAX as u64), i64::MAX);
+        assert_eq!(to_i64(1u64 << 63), i64::MAX);
+        assert_eq!(to_i64(u64::MAX), i64::MAX);
+    }
+
+    #[test]
+    fn wrapped_reads_the_bits_as_twos_complement() {
+        assert_eq!(wrapped(5), 5);
+        assert_eq!(wrapped(i64::MAX as u64), i64::MAX);
+        assert_eq!(wrapped(1u64 << 63), i64::MIN);
+        assert_eq!(wrapped(u64::MAX), -1);
+    }
 }

@@ -20,7 +20,7 @@ use crate::{
     },
     types::Scalar,
 };
-use std::{collections::HashMap, rc::Rc, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 pub(crate) type FnId = usize;
 pub(crate) type NsId = u32;
@@ -35,7 +35,7 @@ pub(crate) struct FnDecl<'a> {
     /// Whether it is an instance method, rather than a top-level function or
     /// a `def self.` method.
     pub instance: bool,
-    pub sig: Rc<Sig>,
+    pub sig: Arc<Sig>,
     /// Whether it is the top-level statements.
     pub main: bool,
     /// Who may call it with a receiver; a function outside a class is public.
@@ -195,7 +195,7 @@ impl Heap for Enum {
     }
 }
 
-/// Its signature, which an `Rc` shares, is counted where it is made.
+/// Its signature, which an `Arc` shares, is counted where it is made.
 impl super::counted::Owned for FnDecl<'_> {
     fn owned(&self) -> usize {
         0
@@ -267,7 +267,7 @@ pub(crate) struct Program<'a> {
     /// Namespaces by the offset of their `class` or `module` keyword.
     pub by_offset: CountedMap<u32, NsId>,
     /// Host functions registered on the engine.
-    pub hosts: CountedMap<String, Rc<Sig>>,
+    pub hosts: CountedMap<String, Arc<Sig>>,
     pub declared_calls: CountedSet<String>,
     /// Globals and capabilities the host declares, as values, by name.
     pub declared: CountedMap<String, Ty>,
@@ -477,7 +477,7 @@ impl<'a> Checker<'a> {
                         .insert_kept(&mut kept, name.clone(), ty);
                 }
                 crate::signatures::Item::Function(function) => {
-                    let sig = Rc::new(
+                    let sig = Arc::new(
                         self.converter
                             .convert_owned(&mut self.types, function, None)
                             .host(),
@@ -828,8 +828,7 @@ impl<'a> Checker<'a> {
         let mut setter_name = ScratchVec::new(&self.meter);
         setter_name.extend_from_slice(name.as_bytes()).ok()?;
         setter_name.push(b'=').ok()?;
-        let setter_name =
-            std::str::from_utf8(&setter_name).expect("source name followed by equals");
+        let setter_name = std::str::from_utf8(&setter_name).ok()?;
         let methods = &self.program.namespaces[ns].methods;
         if let Some(&id) = methods.get(setter_name) {
             let function = &self.program.fns[id];
@@ -1254,7 +1253,7 @@ impl<'a> Checker<'a> {
         }
         self.held();
         self.meter.declarations().kept(sig.heap());
-        let sig = Rc::new(sig);
+        let sig = Arc::new(sig);
         self.program.fns.push_within(FnDecl {
             def: Some(def),
             owner,

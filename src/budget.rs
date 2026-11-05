@@ -1,10 +1,12 @@
 use crate::{Error, ErrorKind, Result, Value};
 use std::{
     collections::BTreeMap,
+    fmt,
     mem::size_of,
+    num::NonZeroU64,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
     time::Instant,
 };
@@ -113,8 +115,8 @@ pub struct Stats {
     pub retained_memory_bytes: usize,
 }
 
-#[derive(Debug, Default)]
 pub(crate) struct Memory {
+    id: MemoryId,
     #[cfg(not(target_arch = "x86_64"))]
     used: AtomicUsize,
     #[cfg(target_arch = "x86_64")]
@@ -126,7 +128,44 @@ pub(crate) struct Memory {
     pub(crate) interrupted: AtomicBool,
 }
 
+/// Names an invocation's memory account without holding it, so a
+/// capability's grant can be checked against a later call by value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct MemoryId(NonZeroU64);
+
+/// The account's counters, without its id: two invocations that did the
+/// same work read the same, which tests of equivalent paths compare.
+impl fmt::Debug for Memory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut memory = f.debug_struct("Memory");
+        memory
+            .field("used", &self.used())
+            .field("peak", &self.peak.load(Ordering::Relaxed));
+        #[cfg(feature = "tokio")]
+        memory.field("interrupted", &self.interrupted.load(Ordering::Relaxed));
+        memory.finish()
+    }
+}
+
 impl Memory {
+    fn new() -> Self {
+        static NEXT: AtomicU64 = AtomicU64::new(1);
+        // The counter reaches zero only after 2^64 invocations.
+        let id = NonZeroU64::new(NEXT.fetch_add(1, Ordering::Relaxed)).unwrap_or(NonZeroU64::MAX);
+        Self {
+            id: MemoryId(id),
+            #[cfg(not(target_arch = "x86_64"))]
+            used: AtomicUsize::new(0),
+            #[cfg(target_arch = "x86_64")]
+            reserved: AtomicUsize::new(0),
+            #[cfg(target_arch = "x86_64")]
+            released: AtomicUsize::new(0),
+            peak: AtomicUsize::new(0),
+            #[cfg(feature = "tokio")]
+            interrupted: AtomicBool::new(false),
+        }
+    }
+
     fn used(&self) -> usize {
         #[cfg(target_arch = "x86_64")]
         {
@@ -258,7 +297,7 @@ impl CallContext {
         Self {
             options,
             strict_effects: false,
-            memory: Arc::new(Memory::default()),
+            memory: Arc::new(Memory::new()),
             steps: 0,
             exhausted: None,
             objects: None,
@@ -504,7 +543,6 @@ impl CallContext {
     }
 
     pub(crate) fn fail<T>(&mut self, kind: ErrorKind, message: impl Into<String>) -> Result<T> {
-        let first = self.exhausted.is_none();
         let err = Error::new(kind, message);
         if matches!(
             kind,
@@ -514,16 +552,36 @@ impl CallContext {
                 | ErrorKind::Recursion
                 | ErrorKind::Cancelled
                 | ErrorKind::Deadline
-        ) && self.exhausted.is_none()
-        {
-            self.exhausted = Some(err.clone());
-            #[cfg(feature = "tokio")]
-            self.memory.interrupted.store(true, Ordering::Release);
-        }
-        if first && self.exhausted.is_some() {
-            tripped();
+                | ErrorKind::Internal
+        ) {
+            self.latch(&err);
         }
         Err(self.exhausted.clone().unwrap_or(err))
+    }
+
+    /// Latches `error` as the invocation's terminal failure unless one is
+    /// latched already: every later charge or checkpoint returns it, and no
+    /// rescue or ensure runs. An internal error latches this way, since the
+    /// VM's state can no longer be trusted to run a handler.
+    pub(crate) fn latch(&mut self, error: &Error) {
+        if self.exhausted.is_none() {
+            self.exhausted = Some(error.clone());
+            #[cfg(feature = "tokio")]
+            self.memory.interrupted.store(true, Ordering::Release);
+            tripped();
+        }
+    }
+
+    /// Passes `result` through, first latching an internal error. Every way
+    /// an error leaves the VM for a handler or for host code goes through
+    /// here, so neither can continue the invocation past a failed invariant.
+    pub(crate) fn latch_internal<T>(&mut self, result: Result<T>) -> Result<T> {
+        if let Err(error) = &result
+            && error.kind == ErrorKind::Internal
+        {
+            self.latch(error);
+        }
+        result
     }
 
     pub(crate) fn exhausted(&self) -> bool {
@@ -599,6 +657,10 @@ impl CallContext {
 
     pub(crate) fn identity(&self) -> Arc<Memory> {
         self.memory.clone()
+    }
+
+    pub(crate) fn memory_id(&self) -> MemoryId {
+        self.memory.id
     }
 }
 
@@ -807,7 +869,7 @@ impl<T: Clone> Buffer<T> {
 #[cfg(test)]
 mod accounting_tests {
     use super::*;
-    use std::sync::Mutex;
+    use crate::actor::Actor;
     #[cfg(not(target_os = "wasi"))]
     use std::sync::mpsc;
 
@@ -833,21 +895,27 @@ mod accounting_tests {
         let mut first = ctx.reserve(60).unwrap().unwrap();
         let (sent, received) = mpsc::channel();
         let (resume, resumed) = mpsc::channel();
-        let worker = std::thread::spawn(move || {
+        let worker = move || {
             first.release(20);
             sent.send(()).unwrap();
             resumed.recv().unwrap();
             drop(first);
+        };
+        // The body owns the sender the worker waits on, so a failed assertion
+        // drops it while unwinding and the worker ends instead of blocking
+        // the join.
+        let ((), (second, error)) = crate::threads::alongside(worker, || {
+            received.recv().unwrap();
+            assert_eq!(counters(&ctx), (0, 60, 40));
+            let second = ctx.reserve(60).unwrap();
+            assert_eq!(counters(&ctx), (0, 100, 100));
+            let error = ctx.reserve(1).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Memory);
+            assert_eq!(error.message, "memory quota exceeded (100 bytes)");
+            resume.send(()).unwrap();
+            drop(resume);
+            (second, error)
         });
-        received.recv().unwrap();
-        assert_eq!(counters(&ctx), (0, 60, 40));
-        let second = ctx.reserve(60).unwrap();
-        assert_eq!(counters(&ctx), (0, 100, 100));
-        let error = ctx.reserve(1).unwrap_err();
-        assert_eq!(error.kind, ErrorKind::Memory);
-        assert_eq!(error.message, "memory quota exceeded (100 bytes)");
-        resume.send(()).unwrap();
-        worker.join().unwrap();
         drop(second);
         assert_eq!(counters(&ctx), (0, 100, 0));
         assert_eq!(ctx.reserve(0).unwrap_err(), error);
@@ -857,11 +925,11 @@ mod accounting_tests {
 
     #[test]
     fn retained_result_releases_after_call_and_last_clone_on_another_thread() {
-        let observed = Arc::new(Mutex::new(None));
+        let observed = Arc::new(Actor::new(None));
         let saved = observed.clone();
         let mut engine = crate::Engine::new();
         engine.register("retain", move |ctx, _| {
-            *saved.lock().unwrap() = Some(ctx.identity());
+            saved.with(|memory| *memory = Some(ctx.identity()));
             ctx.bytes(b"retained result")
         });
         let result = engine
@@ -869,21 +937,16 @@ mod accounting_tests {
             .unwrap()
             .call("run", &[], CallOptions::default())
             .unwrap();
-        let memory = observed.lock().unwrap().take().unwrap();
+        let memory = observed.with(Option::take).unwrap();
         let retained = result.stats.retained_memory_bytes;
         assert!(retained > 0);
         assert_eq!(memory.used(), retained);
         let clone = result.value.clone();
         drop(result);
         assert_eq!(memory.used(), retained);
-        #[cfg(not(target_os = "wasi"))]
-        std::thread::spawn(move || drop(clone)).join().unwrap();
-        #[cfg(target_os = "wasi")]
-        drop(clone);
+        crate::threads::elsewhere(move || drop(clone));
         assert_eq!(memory.used(), 0);
-        let weak = Arc::downgrade(&memory);
-        drop(memory);
-        assert!(weak.upgrade().is_none());
+        assert_eq!(Arc::strong_count(&memory), 1);
     }
 
     #[test]
@@ -935,19 +998,21 @@ mod accounting_tests {
     fn concurrent_drops_do_not_lose_reservations() {
         let mut ctx = CallContext::new(CallOptions::default());
         let (send, receive) = mpsc::sync_channel(32);
-        let worker = std::thread::spawn(move || {
+        let worker = move || {
             while let Ok(charge) = receive.recv() {
                 drop(charge);
             }
+        };
+        let ((), retained) = crate::threads::alongside(worker, || {
+            let retained = ctx.reserve(7).unwrap();
+            for _ in 0..10_000 {
+                send.send(ctx.reserve(13).unwrap()).unwrap();
+                let temporary = ctx.reserve(11).unwrap();
+                drop(temporary);
+            }
+            drop(send);
+            retained
         });
-        let retained = ctx.reserve(7).unwrap();
-        for _ in 0..10_000 {
-            send.send(ctx.reserve(13).unwrap()).unwrap();
-            let temporary = ctx.reserve(11).unwrap();
-            drop(temporary);
-        }
-        drop(send);
-        worker.join().unwrap();
         assert_eq!(ctx.stats().retained_memory_bytes, 7);
         assert!((20..=7 + 34 * 13 + 11).contains(&ctx.stats().peak_memory_bytes));
         drop(retained);
@@ -957,7 +1022,7 @@ mod accounting_tests {
     #[test]
     fn ignored_host_quota_errors_cannot_be_rescued_by_script() {
         for steps in [true, false] {
-            let observed = Arc::new(Mutex::new(None));
+            let observed = Arc::new(Actor::new(None));
             let saved = observed.clone();
             let mut engine = crate::Engine::new();
             engine.register("exhaust", move |ctx, _| {
@@ -966,7 +1031,7 @@ mod accounting_tests {
                 } else {
                     ctx.reserve(16 << 20).unwrap_err()
                 };
-                *saved.lock().unwrap() = Some((error, counters(ctx), ctx.identity()));
+                saved.with(|saved| *saved = Some((error, counters(ctx), ctx.identity())));
                 Ok(Value::nil())
             });
             let error = engine
@@ -974,7 +1039,7 @@ mod accounting_tests {
                 .unwrap()
                 .call("run", &[], CallOptions::default())
                 .unwrap_err();
-            let (original, stats, memory) = observed.lock().unwrap().take().unwrap();
+            let (original, stats, memory) = observed.with(Option::take).unwrap();
             assert_eq!(
                 (error.kind, error.message),
                 (original.kind, original.message)
@@ -987,7 +1052,7 @@ mod accounting_tests {
     #[cfg(feature = "tokio")]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn async_resumption_and_task_drops_keep_exact_accounting() {
-        let observed = Arc::new(Mutex::new(None));
+        let observed = Arc::new(Actor::new(None));
         let saved = observed.clone();
         let mut engine = crate::Engine::new();
         engine.register_method(
@@ -997,13 +1062,15 @@ mod accounting_tests {
                 Box::pin(async move {
                     let (temporary, before, allocated) = {
                         let ctx = call.context()?;
-                        *saved.lock().unwrap() = Some(ctx.identity());
+                        saved.with(|memory| *memory = Some(ctx.identity()));
                         let before = counters(ctx);
                         let value = ctx.bytes(&[b'x'; 512])?;
                         let allocated = counters(ctx);
                         (value, before, allocated)
                     };
-                    tokio::spawn(async move { drop(temporary) }).await.unwrap();
+                    crate::asynchronous::blocking(move || drop(temporary))
+                        .await
+                        .unwrap();
                     tokio::task::yield_now().await;
                     let ctx = call.context()?;
                     assert_eq!(counters(ctx), (allocated.0, allocated.1, before.2));
@@ -1017,10 +1084,10 @@ mod accounting_tests {
             .call(script, "run".into(), vec![], CallOptions::default())
             .await
             .unwrap();
-        let memory = observed.lock().unwrap().take().unwrap();
+        let memory = observed.with(Option::take).unwrap();
         assert_eq!(memory.used(), result.stats.retained_memory_bytes);
         assert!(result.stats.retained_memory_bytes > 0);
-        tokio::task::spawn_blocking(move || drop(result))
+        crate::asynchronous::blocking(move || drop(result))
             .await
             .unwrap();
         assert_eq!(memory.used(), 0);
@@ -1166,7 +1233,7 @@ mod limit_tests {
                     ctx.options.deadline = Some(Instant::now());
                     ctx.checkpoint().unwrap_err()
                 }
-                _ => unreachable!(),
+                _ => panic!("unexpected test fixture"),
             };
             let steps = ctx.stats().steps;
             assert_eq!(
@@ -1228,27 +1295,39 @@ mod limit_tests {
 }
 
 /// What the engine calls the first time each budget stops the work it
-/// bounds; see [`set_budget_hook`].
-static HOOK: std::sync::RwLock<Option<fn()>> = std::sync::RwLock::new(None);
+/// bounds, once set; see [`set_budget_hook`].
+static HOOK: std::sync::OnceLock<fn()> = std::sync::OnceLock::new();
+
+/// Whether [`HOOK`] is called. The trip path runs inside the object heap's
+/// methods, so this is a flag beside the hook rather than an actor.
+static HOOK_ON: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Sets a function the engine calls, on the thread doing the work, the
 /// first time any call's or compilation's budget stops it: its steps, its
 /// memory, its deadline or its cancellation. A test measures with it what
-/// the work does after it should stop.
+/// the work does after it should stop. A process has one such function:
+/// `None` turns it off, and `Some` of the same function back on.
 #[doc(hidden)]
 pub fn set_budget_hook(hook: Option<fn()>) {
-    *HOOK
-        .write()
-        .unwrap_or_else(std::sync::PoisonError::into_inner) = hook;
+    use std::sync::atomic::Ordering;
+    let Some(hook) = hook else {
+        HOOK_ON.store(false, Ordering::Release);
+        return;
+    };
+    let set = HOOK.get_or_init(|| hook);
+    assert!(
+        std::ptr::fn_addr_eq(*set, hook),
+        "a process has one budget hook; this one was set with another"
+    );
+    HOOK_ON.store(true, Ordering::Release);
 }
 
 /// Tells the hook [`set_budget_hook`] set, if any, that a budget stopped its
 /// work.
 pub(crate) fn tripped() {
-    let hook = *HOOK
-        .read()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    if let Some(hook) = hook {
+    if HOOK_ON.load(std::sync::atomic::Ordering::Acquire)
+        && let Some(hook) = HOOK.get()
+    {
         hook();
     }
 }

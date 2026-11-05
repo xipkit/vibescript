@@ -12,7 +12,6 @@ use std::{
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
-    thread,
     time::{Duration, Instant, SystemTime},
 };
 
@@ -56,7 +55,7 @@ pub fn watch(
             if stop() {
                 break;
             }
-            thread::sleep((wake - now).min(STOP_POLL));
+            pause((wake - now).min(STOP_POLL));
             continue;
         }
         if stop() {
@@ -75,6 +74,15 @@ pub fn watch(
     }
     status.line("watch stopped");
     Ok(())
+}
+
+/// Waits before the files and the stop condition are looked at again.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the watch loop polls a flag that a signal handler sets, which cannot wake a waiter, and the CLI has no async runtime to block"
+)]
+fn pause(duration: Duration) {
+    std::thread::sleep(duration);
 }
 
 fn full_scan_interval(interval: Duration) -> Duration {
@@ -162,8 +170,9 @@ fn resolve(path: &Path) -> PathBuf {
 #[cfg(not(target_os = "wasi"))]
 mod tests {
     use super::*;
+    use crate::output::Captured;
     use std::sync::{
-        Arc, Mutex,
+        Arc,
         atomic::{AtomicBool, Ordering},
     };
 
@@ -196,39 +205,36 @@ mod tests {
         }
     }
 
-    fn text(buffer: &Arc<Mutex<Vec<u8>>>) -> String {
-        String::from_utf8_lossy(&buffer.lock().unwrap()).into_owned()
-    }
-
-    fn wait_for(buffer: &Arc<Mutex<Vec<u8>>>, want: &str, count: usize) {
-        let deadline = Instant::now() + Duration::from_secs(10);
-        while Instant::now() < deadline {
-            if text(buffer).matches(want).count() >= count {
-                return;
-            }
-            thread::sleep(Duration::from_millis(5));
-        }
-        panic!(
+    fn wait_for(captured: &mut Captured, want: &str, count: usize) {
+        let appeared = captured.wait_for(Duration::from_secs(10), |text| {
+            text.matches(want).count() >= count
+        });
+        assert!(
+            appeared,
             "timed out waiting for {want:?} x{count}, got {:?}",
-            text(buffer)
+            captured.text()
         );
     }
 
     /// Runs the watch loop on a thread until the returned guard stops it.
     struct Watching {
         stop: Arc<AtomicBool>,
-        thread: Option<thread::JoinHandle<Result<(), String>>>,
-        out: Arc<Mutex<Vec<u8>>>,
-        status: Arc<Mutex<Vec<u8>>>,
+        thread: Option<std::thread::JoinHandle<Result<(), String>>>,
+        out: Captured,
+        status: Captured,
     }
 
     impl Watching {
+        #[allow(
+            clippy::disallowed_methods,
+            reason = "the watch loop runs beside the test until finish stops and joins it"
+        )]
         fn start(invocation: run::Invocation) -> Self {
             let stop = Arc::new(AtomicBool::new(false));
             let (out_sink, out) = Sink::buffer();
             let (status_sink, status) = Sink::buffer();
             let flag = stop.clone();
-            let thread = thread::spawn(move || {
+            let thread = std::thread::spawn(move || {
                 watch(
                     &invocation,
                     Duration::from_millis(10),
@@ -249,7 +255,7 @@ mod tests {
             self.stop.store(true, Ordering::SeqCst);
             let result = self.thread.take().unwrap().join().unwrap();
             assert_eq!(result, Ok(()));
-            text(&self.status)
+            self.status.text()
         }
     }
 
@@ -264,15 +270,19 @@ mod tests {
         let scratch = Scratch::new("rerun");
         let script = scratch.0.join("main.vibe");
         fs::write(&script, "def run -> string\n  \"first\"\nend\n").unwrap();
-        let watching = Watching::start(invocation(&script, &scratch.0));
-        wait_for(&watching.out, "first", 1);
+        let mut watching = Watching::start(invocation(&script, &scratch.0));
+        wait_for(&mut watching.out, "first", 1);
         fs::write(&script, "def run -> string\n  \"second result\"\nend\n").unwrap();
-        wait_for(&watching.out, "second result", 1);
-        wait_for(&watching.status, "change detected, re-running main.vibe", 1);
+        wait_for(&mut watching.out, "second result", 1);
+        wait_for(
+            &mut watching.status,
+            "change detected, re-running main.vibe",
+            1,
+        );
         fs::write(&script, "def run(\n").unwrap();
-        wait_for(&watching.status, "compile failed", 1);
+        wait_for(&mut watching.status, "compile failed", 1);
         fs::write(&script, "def run -> string\n  \"recovered output\"\nend\n").unwrap();
-        wait_for(&watching.out, "recovered output", 1);
+        wait_for(&mut watching.out, "recovered output", 1);
         let status = watching.finish();
         assert!(
             status.starts_with("watching 1 file(s); press ctrl-c to stop\n"),
@@ -289,16 +299,16 @@ mod tests {
         fs::create_dir(scratch.0.join("billing")).unwrap();
         let module = scratch.0.join("billing").join("helper.vibe");
         fs::write(&module, "def helper()\n  1\nend\n").unwrap();
-        let watching = Watching::start(invocation(&script, &scratch.0));
-        wait_for(&watching.out, "module watch up", 1);
+        let mut watching = Watching::start(invocation(&script, &scratch.0));
+        wait_for(&mut watching.out, "module watch up", 1);
         fs::write(&module, "def helper()\n  22\nend\n").unwrap();
-        wait_for(&watching.status, "change detected", 1);
+        wait_for(&mut watching.status, "change detected", 1);
         let nested = scratch.0.join("nested");
         fs::create_dir(&nested).unwrap();
         fs::write(nested.join("fees.vibe"), "def fees()\n  2\nend\n").unwrap();
-        wait_for(&watching.status, "change detected", 2);
+        wait_for(&mut watching.status, "change detected", 2);
         fs::remove_file(&module).unwrap();
-        wait_for(&watching.status, "change detected", 3);
+        wait_for(&mut watching.status, "change detected", 3);
         watching.finish();
     }
 

@@ -6,10 +6,27 @@ use super::host::{self, Host};
 use std::{
     panic::{AssertUnwindSafe, catch_unwind},
     path::Path,
-    sync::{Arc, Mutex},
+    sync::mpsc,
     time::{Duration, Instant},
 };
 use vibescript::{CallOptions, Engine, Error, ErrorKind, Limits, ModuleConfig, Value};
+
+/// Native stack for a worker: deep syntax needs more than the main thread has.
+const STACK: usize = 256 << 20;
+
+/// Starts `work` on a thread with [`STACK`] bytes of native stack.
+///
+/// A worker that hangs is abandoned, so the watchdog can report the seed and
+/// exit; the others are joined.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the harness's one thread spawn: a hung worker must be abandoned for the watchdog to exit, and the harness has no async runtime"
+)]
+pub fn spawn<T: Send + 'static>(
+    work: impl FnOnce() -> T + Send + 'static,
+) -> std::io::Result<std::thread::JoinHandle<T>> {
+    std::thread::Builder::new().stack_size(STACK).spawn(work)
+}
 
 /// A program: the script and the files it may require, by relative path.
 #[derive(Clone, Debug, Default)]
@@ -182,20 +199,20 @@ impl Scratch {
 }
 
 /// Checks `case`, then runs it in both builds and compares them.
-pub fn judge(case: &Case, scratch: &mut Scratch) -> Verdict {
+pub fn judge(case: &Case, scratch: &mut Scratch) -> std::io::Result<Verdict> {
     let directory = if case.modules.is_empty() {
         None
     } else {
-        Some(
-            scratch
-                .directory(&case.modules)
-                .expect("write required files"),
-        )
+        Some(scratch.directory(&case.modules)?)
     };
-    let normal = match compile(case, directory.as_deref(), false) {
+    Ok(judge_in(case, directory.as_deref()))
+}
+
+fn judge_in(case: &Case, directory: Option<&Path>) -> Verdict {
+    let normal = match compile(case, directory, false) {
         Ok(Ok(script)) => script,
         Ok(Err(error)) => {
-            return match compile(case, directory.as_deref(), true) {
+            return match compile(case, directory, true) {
                 Ok(Ok(_)) => finding(
                     FindingKind::CompileMismatch,
                     format!("only the build with checks compiles; the other: {error}"),
@@ -205,7 +222,7 @@ pub fn judge(case: &Case, scratch: &mut Scratch) -> Verdict {
         }
         Err(panic) => return finding(FindingKind::Panic, format!("compile: {panic}")),
     };
-    let kept = match compile(case, directory.as_deref(), true) {
+    let kept = match compile(case, directory, true) {
         Ok(Ok(script)) => script,
         Ok(Err(error)) => {
             return finding(
@@ -289,17 +306,17 @@ impl Outcome {
 /// Checks `case` and, once the checker accepts it, runs it once, with the
 /// host's calls into it, keeping every check the checker proves, so that a
 /// run the checker's proofs do not hold for fails.
-pub fn outcome(case: &Case, scratch: &mut Scratch) -> Outcome {
+pub fn outcome(case: &Case, scratch: &mut Scratch) -> std::io::Result<Outcome> {
     let directory = if case.modules.is_empty() {
         None
     } else {
-        Some(
-            scratch
-                .directory(&case.modules)
-                .expect("write required files"),
-        )
+        Some(scratch.directory(&case.modules)?)
     };
-    let compiled = match compile(case, directory.as_deref(), true) {
+    Ok(outcome_in(case, directory.as_deref()))
+}
+
+fn outcome_in(case: &Case, directory: Option<&Path>) -> Outcome {
+    let compiled = match compile(case, directory, true) {
         Ok(Ok(compiled)) => compiled,
         Ok(Err(error)) => return Outcome::Rejected(first_code(&error)),
         Err(_) => return Outcome::Panicked,
@@ -370,7 +387,8 @@ pub fn annotate(case: &Case, scratch: &mut Scratch) -> Option<Case> {
     })
 }
 
-type Captured = Arc<Mutex<Vec<u8>>>;
+/// One output stream of a compiled case, as the writers sent it.
+type Captured = mpsc::Receiver<Vec<u8>>;
 
 struct Compiled {
     script: vibescript::Script,
@@ -383,8 +401,8 @@ fn compile(
     directory: Option<&Path>,
     keep: bool,
 ) -> Result<Result<Compiled, Error>, String> {
-    let stdout = Captured::default();
-    let stderr = Captured::default();
+    let (out, stdout) = mpsc::channel();
+    let (err, stderr) = mpsc::channel();
     let mut engine = Engine::new();
     engine.set_keep_type_checks(keep);
     if let Some(directory) = directory {
@@ -401,18 +419,22 @@ fn compile(
         for chunk in output.chunks_mut(8) {
             let state = seed.fetch_add(0x9e37_79b9_7f4a_7c15, std::sync::atomic::Ordering::Relaxed);
             let bytes = super::rng::mix(state).to_le_bytes();
-            chunk.copy_from_slice(&bytes[..chunk.len()]);
+            for (target, byte) in chunk.iter_mut().zip(bytes) {
+                *target = byte;
+            }
         }
         Ok(output.len())
     });
-    let out = stdout.clone();
     engine.set_output_writer(move |_, bytes| {
-        out.lock().unwrap().extend_from_slice(bytes);
+        if !bytes.is_empty() {
+            let _ = out.send(bytes.to_vec());
+        }
         Ok(())
     });
-    let err = stderr.clone();
     engine.set_error_writer(move |_, bytes| {
-        err.lock().unwrap().extend_from_slice(bytes);
+        if !bytes.is_empty() {
+            let _ = err.send(bytes.to_vec());
+        }
         Ok(())
     });
     if let Err(error) = case.host.declare(&mut engine) {
@@ -443,8 +465,9 @@ fn observe(compiled: &Compiled, host: &Host) -> Result<Observation, String> {
             deadline: Some(Instant::now() + Duration::from_secs(10)),
             ..CallOptions::default()
         };
-        host.grant(&mut options);
-        options
+        host.grant(&mut options)
+            .map_err(|error| error.to_string())?;
+        Ok::<_, String>(options)
     };
     let mut observation = Observation {
         result: String::new(),
@@ -455,15 +478,17 @@ fn observe(compiled: &Compiled, host: &Host) -> Result<Observation, String> {
         type_error: false,
         unexpected: false,
     };
-    let main =
-        catch_unwind(AssertUnwindSafe(|| compiled.script.run(options()))).map_err(panic_message)?;
+    let main_options = options()?;
+    let main = catch_unwind(AssertUnwindSafe(|| compiled.script.run(main_options)))
+        .map_err(panic_message)?;
     observation.record(main, false);
     for call in &host.calls {
         let (args, keywords) = host::arguments(&call.args);
+        let call_options = options()?;
         let outcome = catch_unwind(AssertUnwindSafe(|| {
             compiled
                 .script
-                .call_with_keywords(&call.function, &args, &keywords, options())
+                .call_with_keywords(&call.function, &args, &keywords, call_options)
         }))
         .map_err(panic_message)?;
         observation
@@ -471,8 +496,8 @@ fn observe(compiled: &Compiled, host: &Host) -> Result<Observation, String> {
             .push_str(&format!("; {}: ", call.function));
         observation.record(outcome, true);
     }
-    observation.stdout = std::mem::take(&mut *compiled.stdout.lock().unwrap());
-    observation.stderr = std::mem::take(&mut *compiled.stderr.lock().unwrap());
+    observation.stdout = compiled.stdout.try_iter().flatten().collect();
+    observation.stderr = compiled.stderr.try_iter().flatten().collect();
     Ok(observation)
 }
 

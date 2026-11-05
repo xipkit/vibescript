@@ -89,7 +89,7 @@ impl Failure {
                 out.write_str("invalid number ")?;
                 return number(out, start, end);
             }
-            Self::Range(..) => unreachable!(),
+            Self::Range(..) => return Err(std::fmt::Error),
             Self::Value(byte) => (byte, "looking for beginning of value"),
             Self::AfterElement(byte) => (byte, "after array element"),
             Self::KeyStart(byte) => (byte, "looking for beginning of object key string"),

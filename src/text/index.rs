@@ -1,4 +1,5 @@
 use crate::budget::CHUNK;
+use crate::numeric::to_i64;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value, budget::Buffer, ops, scan, sequence, value::Kind,
 };
@@ -61,7 +62,7 @@ pub(super) fn call(
     }
     let offset = offset.min(length as i128) as usize;
     if needle.is_empty() {
-        return Ok(Value::int(offset as i64));
+        return Ok(Value::int(to_i64(offset)));
     }
     let count = ops::runes(ctx, needle)?.0;
     if count > length || !reverse && count > length - offset {
@@ -129,7 +130,7 @@ pub(super) fn call(
             matched += 1;
         }
         if matched == count {
-            found = Value::int((index + 1 - count) as i64);
+            found = Value::int(to_i64(index + 1 - count));
             if !reverse {
                 break;
             }
@@ -177,7 +178,7 @@ fn search_ascii(
             matched += 1;
         }
         if matched == pattern.len() {
-            found = Value::int((index + 1 - pattern.len()) as i64);
+            found = Value::int(to_i64(index + 1 - pattern.len()));
             if !reverse {
                 break;
             }
@@ -228,11 +229,11 @@ mod tests {
                         let output = call(
                             &mut ctx,
                             text.as_bytes(),
-                            &[needle, Value::int(offset as i64)],
+                            &[needle, Value::int(to_i64(offset))],
                             reverse,
                         )
                         .unwrap();
-                        assert_eq!(output.as_int(), expected.map(|&i| i as i64));
+                        assert_eq!(output.as_int(), expected.map(|&i| to_i64(i)));
                     }
                 }
             }

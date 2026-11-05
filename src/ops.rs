@@ -4,6 +4,7 @@ use crate::{
     bytecode::{Method, Operator},
     bytes,
     hash::Hash,
+    numeric::to_i64,
     scan::{self, Class},
     value::Kind,
 };
@@ -937,7 +938,7 @@ pub(crate) fn method(
         return crate::range::method(ctx, method, name, range, args);
     }
     match method {
-        Dup | ToString => unreachable!(),
+        Dup | ToString => Err(crate::checked::internal("member was not dispatched")),
         Prepend | Pop | Shift | Delete | Insert | Clear | Fill | Replace => {
             crate::mutate::call(ctx, method, name, value, args).map(|(_, result)| result)
         }
@@ -962,7 +963,7 @@ pub(crate) fn method(
         Even | Odd => {
             arity(args, 0)?;
             Ok(Value::boolean(if value.is_integer() {
-                crate::integer::odd(&value) == matches!(method, Odd)
+                crate::integer::odd(&value)? == matches!(method, Odd)
             } else {
                 return Err(type_error());
             }))
@@ -992,11 +993,11 @@ pub(crate) fn method(
                 Kind::Hash(h) => h.buffer.data.len(),
                 _ => return Err(type_error()),
             };
-            Ok(Value::int(n as i64))
+            Ok(Value::int(to_i64(n)))
         }
         ByteSize => {
             member_arity(&value, name, args)?;
-            Ok(Value::int(value.require_bytes()?.len() as i64))
+            Ok(Value::int(to_i64(value.require_bytes()?.len())))
         }
         Include | Index | Rindex => {
             let found = if let Some(array) = value.as_array() {
@@ -1049,7 +1050,7 @@ pub(crate) fn method(
             if matches!(method, Include) {
                 Ok(Value::boolean(found.is_some()))
             } else {
-                Ok(found.map(|n| Value::int(n as i64)).unwrap_or_default())
+                Ok(found.map(|n| Value::int(to_i64(n))).unwrap_or_default())
             }
         }
         Split => crate::text::split::call(ctx, &value, args),
@@ -1400,19 +1401,8 @@ pub(crate) mod testing {
 
     /// Runs `work` on a thread whose native stack is far too small for a
     /// depth-proportional recursion over the tested values.
-    pub(crate) fn on_small_stack<T: Send + 'static>(
-        work: impl FnOnce() -> T + Send + 'static,
-    ) -> T {
-        // WASI has no threads, so this runs within the default wasm stack.
-        if cfg!(target_os = "wasi") {
-            return work();
-        }
-        std::thread::Builder::new()
-            .stack_size(256 << 10)
-            .spawn(work)
-            .unwrap()
-            .join()
-            .unwrap()
+    pub(crate) fn on_small_stack<T: Send>(work: impl FnOnce() -> T + Send) -> T {
+        crate::threads::on_stack(256 << 10, work).unwrap()
     }
 
     pub(crate) fn context(steps: Option<u64>, memory_bytes: Option<usize>) -> CallContext {

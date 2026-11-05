@@ -5,6 +5,7 @@
 use super::{argument, clean, trimmed};
 use crate::{CallContext, Error, ErrorKind, Result, budget::Buffer};
 
+#[derive(Default)]
 pub(crate) struct Policy {
     allow: Vec<Pattern>,
     deny: Vec<Pattern>,
@@ -223,7 +224,7 @@ impl Pattern {
                     }
                     (matched != *negated).then_some(size)
                 }
-                Token::Star => unreachable!(),
+                Token::Star => return Err(crate::checked::internal("glob chunk contains a star")),
             };
             let Some(size) = size else { return Ok(None) };
             at += size;

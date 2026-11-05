@@ -1,10 +1,10 @@
 //! The Content-Length-framed message loop over a byte stream pair.
 
-use super::server::{InFlight, Inbound, Outbound, Server, change_params};
+use super::server::{Inbound, Outbound, Server, change_params};
 use super::transport::{self, Frame};
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::io::{self, BufRead, BufReader, Read, Write};
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::mpsc;
 use std::time::Duration;
 use vibescript::CancellationToken;
 
@@ -44,7 +44,7 @@ pub fn serve(
     mut output: impl Write,
     cancellation: &CancellationToken,
 ) -> io::Result<()> {
-    let mut messages = Messages::new(input, server.in_flight.clone());
+    let mut messages = Messages::new(input, server.options().cancellation.clone())?;
     while let Some(event) = messages
         .next(cancellation)
         .map_err(|error| context("lsp read", error))?
@@ -61,7 +61,11 @@ pub fn serve(
                 code: -32800,
                 message: "request cancelled",
             }],
-            None => server.dispatch(&message),
+            None => {
+                let replies = server.dispatch(&message);
+                messages.settled(&message, server);
+                replies
+            }
         };
         for reply in replies {
             transport::write(&mut output, &reply.json())
@@ -90,6 +94,10 @@ enum Source<R> {
     Threaded {
         receiver: mpsc::Receiver<Event>,
         queue: VecDeque<Event>,
+        /// The document versions the server did not keep, by URI and the
+        /// index of the message that brought them, which the reader stops
+        /// tracking.
+        rejected: mpsc::Sender<(String, u64)>,
     },
 }
 
@@ -102,47 +110,77 @@ struct Messages<R> {
 const READ_AHEAD: usize = 16;
 
 impl<R: Read + Send + 'static> Messages<R> {
-    fn new(input: R, in_flight: InFlight) -> Self {
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "the reader blocks in read until the client closes its end, so the server cannot join it; it ends with its input, and the server has no async runtime"
+    )]
+    fn new(input: R, cancellation: CancellationToken) -> io::Result<Self> {
         let (sender, receiver) = mpsc::sync_channel(READ_AHEAD);
-        let input = Arc::new(Mutex::new(Some(input)));
-        let shared = input.clone();
+        let (rejected, forgotten) = mpsc::channel();
+        // The input is handed over once the thread runs, so a thread that
+        // cannot start leaves it to be read here.
+        let (hand, taken) = mpsc::sync_channel(1);
         let spawned = std::thread::Builder::new()
             .name("vibes-lsp-reader".to_owned())
             .spawn(move || {
-                let taken = shared.lock().unwrap_or_else(|e| e.into_inner()).take();
-                if let Some(input) = taken {
-                    read_ahead(BufReader::new(input), &sender, &in_flight);
+                if let Ok(input) = taken.recv() {
+                    let mut tracking = Tracking::new(cancellation, forgotten);
+                    read_ahead(BufReader::new(input), &sender, &mut tracking);
                 }
             });
         let source = match spawned {
-            Ok(_) => Source::Threaded {
-                receiver,
-                queue: VecDeque::new(),
-            },
-            Err(_) => {
-                let input = input.lock().unwrap_or_else(|e| e.into_inner()).take();
-                Source::Inline(BufReader::new(
-                    input.expect("the reader thread never started"),
-                ))
+            Ok(_) => {
+                hand.send(input)
+                    .map_err(|_| io::Error::other("reader thread ended before taking its input"))?;
+                Source::Threaded {
+                    receiver,
+                    queue: VecDeque::new(),
+                    rejected,
+                }
             }
+            Err(_) => Source::Inline(BufReader::new(input)),
         };
-        Self { source }
+        Ok(Self { source })
+    }
+
+    /// Tells the reader when the document `message` opened or changed is
+    /// not one the server kept, so the reader stops tracking that version.
+    fn settled(&self, message: &Inbound, server: &Server) {
+        let Source::Threaded { rejected, .. } = &self.source else {
+            return;
+        };
+        if !matches!(
+            message.method.as_str(),
+            "textDocument/didOpen" | "textDocument/didChange"
+        ) {
+            return;
+        }
+        if let Some(uri) = message.document()
+            && server.document(&uri).is_none()
+        {
+            // A reader that has ended has nothing left to track.
+            let _ = rejected.send((uri, message.index));
+        }
     }
 }
 
-/// Reads and decodes messages ahead of the server. A change or close for the
-/// document being analyzed cancels that analysis, since its result would be
-/// superseded before it could be published.
+/// Reads and decodes messages ahead of the server. Each document open or
+/// change carries the token the server analyzes it under, and a change or
+/// close for the same document cancels the analysis of the version before
+/// it, since its result would be superseded before it could be published.
 fn read_ahead<R: Read>(
     mut reader: BufReader<R>,
     sender: &mpsc::SyncSender<Event>,
-    in_flight: &InFlight,
+    tracking: &mut Tracking,
 ) {
+    let mut index = 0;
     loop {
         let event = match read_message(&mut reader) {
-            Ok(Some(message)) => {
-                if let Some(message) = &message {
-                    supersede(message, in_flight);
+            Ok(Some(mut message)) => {
+                if let Some(message) = &mut message {
+                    index += 1;
+                    message.index = index;
+                    tracking.supersede(message);
                 }
                 Ok(message)
             }
@@ -156,20 +194,68 @@ fn read_ahead<R: Read>(
     }
 }
 
-fn supersede(message: &Inbound, in_flight: &InFlight) {
-    if !matches!(
-        message.method.as_str(),
-        "textDocument/didChange" | "textDocument/didClose"
-    ) {
-        return;
+/// The documents the reader tracks: the token of each open document's
+/// latest version, so a change or close cancels its own document's analysis
+/// however many other documents' notifications arrived in between.
+///
+/// Every open and change gets a token, so a document the server admits can
+/// always be cancelled. The table holds the documents the server keeps and
+/// the versions it has not settled yet: a close forgets its document, and
+/// the server reports each version it did not keep, which the reader forgets
+/// when it next reads. So the table is bounded by the server's documents and
+/// the messages read ahead of it, which the queue to the server holds too.
+struct Tracking {
+    cancellation: CancellationToken,
+    /// Each tracked document's latest version: the index of the message
+    /// that brought it and the token its analysis runs under.
+    analyzing: HashMap<String, (u64, CancellationToken)>,
+    rejected: mpsc::Receiver<(String, u64)>,
+}
+
+impl Tracking {
+    fn new(cancellation: CancellationToken, rejected: mpsc::Receiver<(String, u64)>) -> Self {
+        Self {
+            cancellation,
+            analyzing: HashMap::new(),
+            rejected,
+        }
     }
-    let Some(uri) = message.document() else {
-        return;
-    };
-    let in_flight = in_flight.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some((current, token)) = in_flight.as_ref() {
-        if uri == *current {
+
+    /// Cancels the analysis of the version of a document that `message`
+    /// changes or closes, and gives an open or a change the token its own
+    /// analysis runs under, for the next change or close to cancel.
+    fn supersede(&mut self, message: &mut Inbound) {
+        // What the server has settled since the last message read.
+        for (uri, index) in self.rejected.try_iter() {
+            if self
+                .analyzing
+                .get(&uri)
+                .is_some_and(|(version, _)| *version == index)
+            {
+                self.analyzing.remove(&uri);
+            }
+        }
+        let changes = matches!(
+            message.method.as_str(),
+            "textDocument/didChange" | "textDocument/didClose"
+        );
+        let opens = matches!(
+            message.method.as_str(),
+            "textDocument/didOpen" | "textDocument/didChange"
+        );
+        if !changes && !opens {
+            return;
+        }
+        let Some(uri) = message.document() else {
+            return;
+        };
+        if changes && let Some((_, token)) = self.analyzing.remove(&uri) {
             token.cancel();
+        }
+        if opens {
+            let token = self.cancellation.child_token();
+            message.token = Some(token.clone());
+            self.analyzing.insert(uri, (message.index, token));
         }
     }
 }
@@ -193,7 +279,9 @@ impl<R: Read> Messages<R> {
         }
         let (receiver, queue) = match &mut self.source {
             Source::Inline(reader) => return read_message(reader),
-            Source::Threaded { receiver, queue } => (receiver, queue),
+            Source::Threaded {
+                receiver, queue, ..
+            } => (receiver, queue),
         };
         let event = match queue.pop_front() {
             Some(event) => event,
@@ -254,5 +342,66 @@ impl<R: Read> Messages<R> {
         })?;
         queue.remove(position);
         Some(id.clone())
+    }
+}
+
+#[cfg(test)]
+mod tracking_tests {
+    use super::*;
+
+    fn message(method: &str, uri: &str, index: u64) -> Inbound {
+        let params = format!(r#"{{"textDocument":{{"uri":"{uri}","text":""}}}}"#);
+        Inbound {
+            id: None,
+            method: method.to_owned(),
+            params: Some(params.into_boxed_str()),
+            token: None,
+            index,
+        }
+    }
+
+    #[test]
+    fn the_table_follows_the_servers_documents() {
+        let (rejected, forgotten) = mpsc::channel();
+        let mut tracking = Tracking::new(CancellationToken::new(), forgotten);
+        let mut open_a = message("textDocument/didOpen", "a", 1);
+        let mut open_b = message("textDocument/didOpen", "b", 2);
+        tracking.supersede(&mut open_a);
+        tracking.supersede(&mut open_b);
+        assert!(open_a.token.is_some() && open_b.token.is_some());
+        assert_eq!(tracking.analyzing.len(), 2);
+        // The server did not keep A's version; a stale report for B names a
+        // version B has moved past, so B stays. Both apply at the next read.
+        rejected.send(("a".to_owned(), 1)).unwrap();
+        rejected.send(("b".to_owned(), 1)).unwrap();
+        let mut change_b = message("textDocument/didChange", "b", 3);
+        tracking.supersede(&mut change_b);
+        assert!(
+            open_b
+                .token
+                .as_ref()
+                .is_some_and(CancellationToken::is_cancelled)
+        );
+        assert_eq!(tracking.analyzing.len(), 1);
+        assert_eq!(tracking.analyzing["b"].0, 3);
+        // A change to a document the reader no longer tracks still gets a
+        // token for its own analysis.
+        let mut change_a = message("textDocument/didChange", "a", 4);
+        tracking.supersede(&mut change_a);
+        assert!(
+            change_a
+                .token
+                .as_ref()
+                .is_some_and(|token| !token.is_cancelled())
+        );
+        tracking.supersede(&mut message("textDocument/didClose", "a", 5));
+        tracking.supersede(&mut message("textDocument/didClose", "b", 6));
+        assert!(
+            change_a
+                .token
+                .as_ref()
+                .is_some_and(CancellationToken::is_cancelled)
+        );
+        assert!(tracking.analyzing.is_empty());
     }
 }

@@ -31,23 +31,25 @@ pub(super) fn resume(
     loop {
         let args = storage.arguments.data.last_mut().unwrap();
         let Some(Target::Format(index)) = args.target else {
-            unreachable!()
+            return Err(crate::checked::internal(
+                "format arguments have no format target",
+            ));
         };
         if index == args.positional.data.len() {
             let args = storage.arguments.data.pop().unwrap();
             let value = crate::format::format(
                 ctx,
-                args.positional.data[0].require_bytes()?,
-                &args.positional.data[1..],
+                args.positional.at(0)?.require_bytes()?,
+                args.positional.tail(1)?,
             )?;
             return stack.push(ctx, value);
         }
         ctx.charge(1)?;
         if let Some(value) = returned.take() {
             if matches!(value.0, Kind::Bytes(_)) {
-                args.positional.data[index] = value;
+                *args.positional.at_mut(index)? = value;
             }
-        } else if let Some(call) = operators::string(ctx, &args.positional.data[index])? {
+        } else if let Some(call) = operators::string(ctx, args.positional.at(index)?)? {
             enter_arguments(
                 program,
                 ctx,

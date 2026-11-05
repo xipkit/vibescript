@@ -1,4 +1,5 @@
 use super::*;
+use crate::numeric::to_i64;
 
 pub(crate) struct Loop {
     pub(super) method: MethodKind,
@@ -111,7 +112,7 @@ pub(crate) fn start_pooled(
         && matches!(name, "delete_if" | "keep_if" | "delete")
     {
         let Kind::Hash(hash) = &receiver.0 else {
-            unreachable!()
+            return Err(crate::checked::internal("protected receiver is not a hash"));
         };
         return Err(hash.tag.mutation_error(name));
     }
@@ -344,7 +345,9 @@ pub(crate) fn start_pooled(
                 }
             }
         }
-        _ => unreachable!(),
+        _ => {
+            return Err(crate::checked::internal("iteration source is not iterable"));
+        }
     };
     if method == EachCons {
         state.length = (state.length - state.width as i128 + 1).max(0);
@@ -387,7 +390,7 @@ pub(crate) fn start_pooled(
     if method == Fill {
         let original = receiver.as_array().unwrap().len();
         let (start, end, length) = mutate::fill_span(ctx, args, original)?;
-        state.start = start as i64;
+        state.start = to_i64(start);
         state.width = end;
         state.length = length as i128;
         if start == end && length == original {
@@ -404,7 +407,11 @@ pub(crate) fn start_pooled(
             (Kind::Hash(before), Kind::Hash(after)) => {
                 before.buffer.data.len() != after.buffer.data.len()
             }
-            _ => unreachable!(),
+            _ => {
+                return Err(crate::checked::internal(
+                    "deletion changed the container kind",
+                ));
+            }
         };
         if changed {
             state.mutation = Some(Mutation::Replace(updated));
@@ -571,7 +578,7 @@ impl Loop {
                         array.buffer.data[index].clone()
                     };
                     if matches!(self.method, EachIndex | MapIndex) {
-                        args[1] = Value::int(index as i64);
+                        args[1] = Value::int(to_i64(index));
                         count = 2;
                     }
                 }
@@ -599,7 +606,9 @@ impl Loop {
                         (i128::from(self.start) + index * i128::from(self.stride)) as i64,
                     )
                 }
-                _ => unreachable!(),
+                _ => {
+                    return Err(crate::checked::internal("iteration source is not iterable"));
+                }
             }
         }
         Ok((args, count))
@@ -674,7 +683,7 @@ impl Loop {
                 self.accumulator = Some(if self.method == Find {
                     self.pending[0].clone()
                 } else {
-                    Value::int(self.pending_index as i64)
+                    Value::int(to_i64(self.pending_index))
                 });
                 return Ok(true);
             }
@@ -887,7 +896,7 @@ impl Loop {
             return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
         }
         self.output.push(ctx, part)?;
-        self.start = end as i64;
+        self.start = to_i64(end);
         Ok(())
     }
 

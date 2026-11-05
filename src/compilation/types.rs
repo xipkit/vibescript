@@ -125,12 +125,12 @@ impl Type {
             TypeKind::Array(element) => types::TypeKind::Array(
                 element
                     .as_ref()
-                    .map(|ty| Ok(Box::new(ty.compile_with(work, resolve)?)))
+                    .map(|ty| -> Result<_> { Ok(Box::new(ty.compile_with(work, resolve)?)) })
                     .transpose()?,
             ),
             TypeKind::Hash(pair) => types::TypeKind::Hash(
                 pair.as_ref()
-                    .map(|pair| {
+                    .map(|pair| -> Result<_> {
                         let key = pair.0.compile_with(work, resolve)?;
                         Ok(Box::new((key, pair.1.compile_with(work, resolve)?)))
                     })
@@ -165,7 +165,7 @@ impl Type {
             TypeKind::Literal(described) => types::TypeKind::Literal(
                 described
                     .as_ref()
-                    .map(|ty| Ok(Box::new(ty.compile_with(work, resolve)?)))
+                    .map(|ty| -> Result<_> { Ok(Box::new(ty.compile_with(work, resolve)?)) })
                     .transpose()?,
             ),
             TypeKind::Named => {
@@ -231,12 +231,12 @@ impl FieldDescription for Field {
 mod tests {
     use super::*;
     use crate::{CallContext, CallOptions, ErrorKind, compilation::Meter};
-    use std::{cell::RefCell, sync::Arc};
+    use std::sync::Arc;
 
     fn parse(context: &mut CallContext, annotation: &str) -> Type {
         let mut parsed = crate::syntax::parse(
             &format!("def take(value:{annotation});value;end"),
-            &Meter(RefCell::new(context)),
+            &Meter::new(context),
         )
         .unwrap_or_else(|error| panic!("{annotation}: {error}"));
         parsed.functions.remove(1).params.remove(0).ty.unwrap()
@@ -249,7 +249,7 @@ mod tests {
             let mut context = CallContext::new(CallOptions::default());
             let original = parse(&mut context, annotation);
             let before = context.stats().retained_memory_bytes;
-            let copy = original.copy(&Meter(RefCell::new(&mut context))).unwrap();
+            let copy = original.copy(&Meter::new(&mut context)).unwrap();
             let additional = context.stats().retained_memory_bytes - before;
             assert!(additional > 0);
             drop(copy);
@@ -260,13 +260,13 @@ mod tests {
                 _ => additional,
             };
             context.options.limits.memory_bytes = Some(before + budget);
-            let result = original.copy(&Meter(RefCell::new(&mut context)));
+            let result = original.copy(&Meter::new(&mut context));
             if fraction == 3 {
                 let copy = result.unwrap();
                 assert_eq!(copy.name.as_ptr(), original.name.as_ptr());
                 drop(original);
                 assert!(context.stats().retained_memory_bytes > 0);
-                let compiled = copy.compile(&Meter(RefCell::new(&mut context))).unwrap();
+                let compiled = copy.compile(&Meter::new(&mut context)).unwrap();
                 drop(copy);
                 assert_eq!(context.stats().retained_memory_bytes, 0);
                 assert_eq!(compiled.name, "array");
@@ -292,18 +292,18 @@ mod tests {
             ("{:\"ready?\": int}", "{ \"ready?\": int }"),
         ] {
             let mut context = CallContext::new(CallOptions::default());
-            let memory = Arc::downgrade(&context.identity());
+            let memory = context.identity();
             let ty = parse(&mut context, annotation);
             let before = context.stats().retained_memory_bytes;
             let mut text = Vec::new();
             crate::shapes::format(&ty, &mut text).unwrap();
             assert_eq!(text, expected.as_bytes());
-            let compiled = ty.compile(&Meter(RefCell::new(&mut context))).unwrap();
+            let compiled = ty.compile(&Meter::new(&mut context)).unwrap();
             assert_eq!(context.stats().retained_memory_bytes, before);
             drop(ty);
             assert_eq!(context.stats().retained_memory_bytes, 0);
             drop(context);
-            assert!(memory.upgrade().is_none());
+            assert_eq!(Arc::strong_count(&memory), 1);
             text.clear();
             crate::shapes::format(&compiled, &mut text).unwrap();
             assert_eq!(text, expected.as_bytes());

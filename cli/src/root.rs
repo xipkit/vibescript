@@ -87,7 +87,7 @@ pub fn main(args: Vec<OsString>) -> ExitCode {
         if spec.name == "repl" {
             return repl::run(args.into_iter().skip(1));
         }
-        return finish(run_command(spec.name, &args[1..]));
+        return finish(run_command(spec.name, args.get(1..).unwrap_or_default()));
     }
     if text == "--version" {
         return finish(print(&format!(

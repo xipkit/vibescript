@@ -47,7 +47,7 @@ pub(super) fn set_field(
     }
     reject_method_field(ctx, target.as_ref().unwrap_or(receiver), key)?;
     crate::capability::member_name(
-        &crate::compilation::Meter(std::cell::RefCell::new(ctx)),
+        &crate::compilation::Meter::new(ctx),
         crate::syntax::HostName::METHOD,
         key,
         value,
@@ -89,7 +89,7 @@ fn reject_method_field(ctx: &mut CallContext, node: &Value, key: &[u8]) -> Resul
         return Ok(());
     };
     if let Some(index) = hash.find(ctx, key)? {
-        if matches!(hash.buffer.data[index].1.0, Kind::Host(_)) {
+        if matches!(hash.buffer.at(index)?.1.0, Kind::Host(_)) {
             return Err(Error::new(
                 ErrorKind::Type,
                 format!(
@@ -119,11 +119,11 @@ fn locate(ctx: &mut CallContext, storage: &Storage, receiver: &Value) -> Result<
     };
     let mut names = Buffer::empty();
     for index in 0..ctx.capability_names.data.len() {
-        let name = ctx.capability_names.data[index].clone();
+        let name = ctx.capability_names.at(index)?.clone();
         names.push(ctx, name)?;
     }
     let globals = std::mem::take(&mut ctx.options.globals);
-    let listed = (|| {
+    let listed = (|| -> Result<()> {
         for name in globals.keys() {
             let name = ctx.bytes(name.as_bytes())?;
             names.push(ctx, name)?;
@@ -158,7 +158,7 @@ fn locate(ctx: &mut CallContext, storage: &Storage, receiver: &Value) -> Result<
     }
     let mut next = 0;
     while next < nodes.data.len() {
-        let (hash, depth) = (nodes.data[next].hash.clone(), nodes.data[next].depth);
+        let (hash, depth) = (nodes.at(next)?.hash.clone(), nodes.at(next)?.depth);
         if depth + 1 < crate::budget::MAX_VALUE_DEPTH {
             for (key, child) in &hash.buffer.data {
                 ctx.charge(1)?;
@@ -169,17 +169,17 @@ fn locate(ctx: &mut CallContext, storage: &Storage, receiver: &Value) -> Result<
                     let mut path = Buffer::with_capacity(ctx, depth + 1)?;
                     path.data.push(key.clone());
                     let mut at = next;
-                    while nodes.data[at].parent != usize::MAX {
-                        path.data.push(nodes.data[at].key.clone());
-                        at = nodes.data[at].parent;
+                    while nodes.at(at)?.parent != usize::MAX {
+                        path.data.push(nodes.at(at)?.key.clone());
+                        at = nodes.at(at)?.parent;
                     }
                     path.data.reverse();
                     return Ok(Some(Location {
-                        name: names.data[nodes.data[at].root].clone(),
+                        name: names.at(nodes.at(at)?.root)?.clone(),
                         path,
                     }));
                 }
-                let root = nodes.data[next].root;
+                let root = nodes.at(next)?.root;
                 nodes.push(
                     ctx,
                     Node {
@@ -206,7 +206,7 @@ fn text(name: &Value) -> &str {
 fn open(ctx: &mut CallContext, storage: &Storage, location: &Location) -> Result<Address> {
     let bindings = storage.bindings.as_ref().unwrap();
     let mut address =
-        crate::objects::address(ctx, bindings, text(&location.name))?.in_environment();
+        crate::objects::address(ctx, bindings, text(&location.name))?.in_environment()?;
     for key in &location.path.data {
         address.index(ctx, std::slice::from_ref(key))?;
     }
@@ -229,7 +229,7 @@ fn read(ctx: &mut CallContext, storage: &Storage, location: &Location) -> Result
         let Some(index) = hash.find(ctx, key.require_bytes()?)? else {
             return Ok(None);
         };
-        value = hash.buffer.data[index].1.clone();
+        value = hash.buffer.at(index)?.1.clone();
     }
     Ok(matches!(value.0, Kind::Hash(_)).then_some(value))
 }

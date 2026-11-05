@@ -377,32 +377,48 @@ impl Inputs {
     /// Returns a root's open handle, reopening an evicted root only when it
     /// is still the directory found during discovery.
     fn handle(&mut self, root: usize) -> Result<&dir::Dir, String> {
-        if self.roots[root].handle.is_none() {
-            let path = &self.roots[root].path;
+        let candidate = self.roots.get(root).ok_or("invalid directory root")?;
+        if candidate.handle.is_none() {
+            let path = &candidate.path;
             let handle =
                 dir::Dir::root(path).map_err(|error| compat::path_error("open", path, &error))?;
             let identity = handle
                 .identity()
                 .map_err(|error| compat::path_error("stat", path, &error))?;
-            if identity != self.roots[root].identity {
+            if identity != candidate.identity {
                 return Err("directory changed after discovery".to_owned());
             }
             if self.open.len() == MAX_OPEN_ROOTS {
-                let evicted = self.open[self.next_eviction];
-                self.roots[evicted].handle = None;
-                self.open[self.next_eviction] = root;
+                let slot = self
+                    .open
+                    .get_mut(self.next_eviction)
+                    .ok_or("invalid directory eviction slot")?;
+                self.roots
+                    .get_mut(*slot)
+                    .ok_or("invalid evicted directory root")?
+                    .handle = None;
+                *slot = root;
                 self.next_eviction = (self.next_eviction + 1) % MAX_OPEN_ROOTS;
             } else {
                 self.open.push(root);
             }
-            self.roots[root].handle = Some(handle);
+            self.roots
+                .get_mut(root)
+                .ok_or("invalid directory root")?
+                .handle = Some(handle);
         }
-        Ok(self.roots[root].handle.as_ref().expect("opened above"))
+        self.roots
+            .get(root)
+            .ok_or("invalid directory root")?
+            .handle
+            .as_ref()
+            .ok_or_else(|| "directory handle was not opened".to_owned())
     }
 
     fn open(&mut self, index: usize, write: bool) -> Result<fs::File, String> {
-        let name = self.files[index].name.clone();
-        match self.files[index].root {
+        let candidate = self.files.get(index).ok_or("invalid file index")?;
+        let name = candidate.name.clone();
+        match candidate.root {
             Some(root) => self
                 .handle(root)?
                 .open(&name, write)
@@ -429,7 +445,9 @@ impl Inputs {
     pub fn read(&mut self, index: usize) -> Result<(Vec<u8>, Info), String> {
         let mut file = self.open(index, false)?;
         let info = Info::of(&file).map_err(|error| compat::reason(&error))?;
-        if !info.regular || info.identity != self.files[index].identity {
+        if !info.regular
+            || info.identity != self.files.get(index).ok_or("invalid file index")?.identity
+        {
             return Err("file changed after discovery".to_owned());
         }
         if info.len > MAX_SOURCE_BYTES {
@@ -661,6 +679,8 @@ mod dir {
                 let rights = wasi::RIGHTS_FD_WRITE
                     | wasi::RIGHTS_FD_FILESTAT_GET
                     | wasi::RIGHTS_FD_FILESTAT_SET_SIZE;
+                let length = i32::try_from(leaf.len()).map_err(io::Error::other)?;
+                let rights = i64::try_from(rights).map_err(io::Error::other)?;
                 let mut fd = std::mem::MaybeUninit::<wasi::Fd>::uninit();
                 // SAFETY: `parent` is a live descriptor and `leaf` a live
                 // buffer of the given length for the call, and `fd` has room
@@ -670,9 +690,9 @@ mod dir {
                         parent.as_raw_fd(),
                         0,
                         leaf.as_ptr() as i32,
-                        leaf.len() as i32,
+                        length,
                         0,
-                        rights as i64,
+                        rights,
                         0,
                         0,
                         fd.as_mut_ptr() as i32,
@@ -1096,6 +1116,10 @@ mod tests {
     /// refused rather than block the open until a writer or reader appears.
     #[cfg(unix)]
     #[test]
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "a regression would block the open forever, so the thread that tries it is abandoned rather than joined"
+    )]
     fn a_fifo_swapped_in_is_refused_without_blocking() {
         for selection in [Selection::Format, Selection::Fix] {
             for explicit in [false, true] {

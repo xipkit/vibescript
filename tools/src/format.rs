@@ -16,7 +16,7 @@
 /// ```
 pub fn format(source: &str) -> String {
     String::from_utf8(format_bytes(source.as_bytes()))
-        .expect("formatting only removes ASCII bytes at line ends")
+        .unwrap_or_else(|error| String::from_utf8_lossy(error.as_bytes()).into_owned())
 }
 
 /// Returns the canonical form of source bytes, keeping invalid UTF-8 as is.
@@ -31,14 +31,14 @@ pub fn format_bytes(source: &[u8]) -> Vec<u8> {
     let mut pending_blank_lines = 0;
     let mut wrote = false;
     let mut index = 0;
-    while index < source.len() {
-        if source[index] != b'\n' && source[index] != b'\r' {
+    while let Some(&byte) = source.get(index) {
+        if byte != b'\n' && byte != b'\r' {
             index += 1;
             continue;
         }
-        let line = trim_end(&source[line_start..index]);
+        let line = trim_end(source.get(line_start..index).unwrap_or_default());
         wrote |= append_line(&mut out, line, &mut pending_blank_lines);
-        if source[index] == b'\r' && source.get(index + 1) == Some(&b'\n') {
+        if byte == b'\r' && source.get(index + 1) == Some(&b'\n') {
             index += 2;
         } else {
             index += 1;
@@ -46,7 +46,7 @@ pub fn format_bytes(source: &[u8]) -> Vec<u8> {
         line_start = index;
     }
     if line_start < source.len() {
-        let line = trim_end(&source[line_start..]);
+        let line = trim_end(source.get(line_start..).unwrap_or_default());
         wrote |= append_line(&mut out, line, &mut pending_blank_lines);
     }
     if !wrote {
@@ -84,7 +84,7 @@ fn trim_end(line: &[u8]) -> &[u8] {
         .iter()
         .rposition(|&byte| byte != b' ' && byte != b'\t')
         .map_or(0, |index| index + 1);
-    &line[..end]
+    line.get(..end).unwrap_or_default()
 }
 
 #[cfg(test)]

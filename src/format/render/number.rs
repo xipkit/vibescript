@@ -75,7 +75,9 @@ pub(super) fn integer(
 ) -> Result<()> {
     if verb == 'c' {
         let Kind::Int(value) = value.0 else {
-            unreachable!()
+            return Err(crate::checked::internal(
+                "integer format requires an integer",
+            ));
         };
         let rune = u32::try_from(value)
             .ok()
@@ -86,7 +88,9 @@ pub(super) fn integer(
     }
     if verb == 'U' {
         let Kind::Int(value) = value.0 else {
-            unreachable!()
+            return Err(crate::checked::internal(
+                "integer format requires an integer",
+            ));
         };
         return unicode(ctx, output, value as u64, field);
     }
@@ -117,7 +121,11 @@ pub(super) fn integer(
             }
             (&large.data[usize::from(n.negative)..], n.negative)
         }
-        _ => unreachable!(),
+        _ => {
+            return Err(crate::checked::internal(
+                "integer format requires an integer",
+            ));
+        }
     };
     integral(ctx, output, digits, negative, big, verb, field)
 }
@@ -208,7 +216,7 @@ pub(super) fn debug_big(
     mut field: Field,
 ) -> Result<()> {
     let Kind::Big(big) = &value.0 else {
-        unreachable!()
+        return Err(crate::checked::internal("big integer expected"));
     };
     let sharp = field.flag(SHARP);
     let names = sharp || field.flag(PLUS);
@@ -317,7 +325,9 @@ pub(super) fn float(
             'g' | 'G' | 'v' => general(value.abs(), verb == 'G', field),
             'x' | 'X' => hexadecimal(value.abs(), verb == 'X', field),
             'b' => binary(value.abs()),
-            _ => unreachable!(),
+            _ => {
+                return Err(crate::checked::internal("unsupported float format verb"));
+            }
         }
     };
     if digits.zeros == 0 {
@@ -402,7 +412,7 @@ fn general(value: f64, uppercase: bool, field: Field) -> Digits {
         significand.length -= 1;
     }
     let precision = field.precision.map_or(6, |n| n.max(1));
-    let scientific = exponent < -4 || exponent >= precision.min(i32::MAX as usize) as i32;
+    let scientific = exponent < -4 || exponent >= i32::try_from(precision).unwrap_or(i32::MAX);
     let mut digits = Digits::new();
     let significant = if scientific {
         digits.push(&significand.bytes[..1]);
@@ -451,7 +461,7 @@ fn hexadecimal(value: f64, uppercase: bool, field: Field) -> Digits {
     } else if mantissa != 0 {
         let shift = mantissa.leading_zeros() - 11;
         mantissa <<= shift;
-        exponent = -1022 - shift as i32;
+        exponent = (-1022i32).saturating_sub_unsigned(shift);
     } else {
         exponent = 0;
     }

@@ -3,6 +3,7 @@ use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, Charge},
     hash::Hash,
+    numeric::to_i64,
     ops,
     value::{Bytes, Heap, Kind},
 };
@@ -153,9 +154,9 @@ pub(super) fn data(
                 .push(super::window(ctx, subject, pair[0], pair[1])?);
             starts
                 .data
-                .push(Value::int(ops::runes(ctx, &text[..pair[0]])?.0 as i64));
+                .push(Value::int(to_i64(ops::runes(ctx, &text[..pair[0]])?.0)));
             ends.data
-                .push(Value::int(ops::runes(ctx, &text[..pair[1]])?.0 as i64));
+                .push(Value::int(to_i64(ops::runes(ctx, &text[..pair[1]])?.0)));
         }
     }
     let mut named = Hash::empty();
@@ -227,7 +228,7 @@ pub(super) fn fetch(
     if let Some(key) = group.as_bytes() {
         let named = hash.find(ctx, b"named_captures")?.unwrap();
         let Kind::Hash(named) = &hash.buffer.data[named].1.0 else {
-            unreachable!()
+            return Err(crate::checked::internal("named captures must be a hash"));
         };
         if let Some(found) = named.find(ctx, key)? {
             let value = &named.buffer.data[found].1;
@@ -364,7 +365,7 @@ mod tests {
         drop(original);
         assert_eq!(first.stats().retained_memory_bytes, 0);
         let Kind::Offset(offset) = &imported.0 else {
-            unreachable!()
+            panic!("unexpected test fixture")
         };
         assert_eq!(
             offset

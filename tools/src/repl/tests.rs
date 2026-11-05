@@ -933,6 +933,10 @@ fn cancelled_compile_recovers_only_the_per_input_interrupter() {
 
 #[cfg(not(target_os = "wasi"))]
 #[test]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the evaluation runs on a worker so the test can cancel it from outside, and is joined; the pause lets compilation start, since nothing inside it can signal the test"
+)]
 fn cancellation_during_compilation_stops_before_execution() {
     let s = session();
     let token = s.interrupter();

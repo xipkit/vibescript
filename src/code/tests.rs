@@ -34,17 +34,17 @@ fn compilation_keeps_host_registry_storage_in_the_checkers_budget() {
         capability::Registered,
         compilation::{Budget, Meter, Work},
     };
-    use std::cell::{Cell, RefCell};
     use std::collections::BTreeMap;
+    use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
     struct CheckingWork<'a> {
         inner: Meter<'a>,
-        held: Cell<usize>,
+        held: AtomicUsize,
     }
     impl Work for CheckingWork<'_> {
         fn budget(&self) -> Budget {
             self.held
-                .set(self.inner.0.borrow().stats().retained_memory_bytes);
+                .store(self.inner.0.borrow().stats().retained_memory_bytes, Relaxed);
             self.inner.budget()
         }
         fn charge(&self, steps: usize) -> crate::Result<()> {
@@ -77,11 +77,11 @@ fn compilation_keeps_host_registry_storage_in_the_checkers_budget() {
             ..CallOptions::default()
         });
         let work = CheckingWork {
-            inner: Meter(RefCell::new(&mut context)),
-            held: Cell::new(0),
+            inner: Meter::new(&mut context),
+            held: AtomicUsize::new(0),
         };
         let code = super::Code::compile_mode("1", registered.iter(), false, None, &work).unwrap();
-        let held = work.held.get();
+        let held = work.held.load(Relaxed);
         assert_eq!(context.stats().retained_memory_bytes, 0);
         drop(code);
         held
@@ -106,7 +106,7 @@ fn compiler_diagnostics_preserve_latched_control_errors() {
         registered.iter(),
         true,
         None,
-        &crate::compilation::Meter(std::cell::RefCell::new(&mut context)),
+        &crate::compilation::Meter::new(&mut context),
     )
     .unwrap_err();
     assert_eq!(error.kind, ErrorKind::Syntax);
@@ -121,7 +121,7 @@ fn compiler_diagnostics_preserve_latched_control_errors() {
             registered.iter(),
             true,
             None,
-            &crate::compilation::Meter(std::cell::RefCell::new(&mut context)),
+            &crate::compilation::Meter::new(&mut context),
         )
         .unwrap_err();
         assert_eq!(error.kind, ErrorKind::Steps);
@@ -134,8 +134,8 @@ fn compiler_diagnostics_preserve_latched_control_errors() {
 fn compilation_preserves_borrowed_host_order_identity_and_partial_failure_cleanup() {
     use crate::{capability::Registered, compilation::Meter};
     use std::{
-        cell::{Cell, RefCell},
         collections::BTreeMap,
+        sync::atomic::{AtomicUsize, Ordering::Relaxed},
         time::Instant,
     };
 
@@ -160,11 +160,11 @@ fn compilation_preserves_borrowed_host_order_identity_and_partial_failure_cleanu
             registered.iter().rev(),
             true,
             None,
-            &Meter(RefCell::new(context)),
+            &Meter::new(context),
         )
     };
     let mut context = CallContext::new(CallOptions::default());
-    let budget = Arc::downgrade(&context.identity());
+    let budget = context.identity();
     let code = run(&mut context).unwrap();
     assert_eq!(called.load(Ordering::SeqCst), 0);
     assert_eq!(
@@ -180,13 +180,13 @@ fn compilation_preserves_borrowed_host_order_identity_and_partial_failure_cleanu
         assert!(Arc::ptr_eq(original, callback));
         assert_eq!(
             callback(&mut context, &[], &[]).unwrap().as_int(),
-            Some(31 - index as i64)
+            Some(31 - crate::numeric::to_i64(index))
         );
     }
     let stats = context.stats();
     assert_eq!(stats.retained_memory_bytes, 0);
     drop(context);
-    assert!(budget.upgrade().is_none());
+    assert_eq!(Arc::strong_count(&budget), 1);
     drop(code);
     for memory in [false, true] {
         for short in [0, 1] {
@@ -215,10 +215,10 @@ fn compilation_preserves_borrowed_host_order_identity_and_partial_failure_cleanu
     for deadline in [false, true] {
         for at in [0, 15, 31, 32, 47, 63] {
             let mut context = CallContext::new(CallOptions::default());
-            let visited = Cell::new(0);
-            let work = Meter(RefCell::new(&mut context));
+            let visited = AtomicUsize::new(0);
+            let work = Meter::new(&mut context);
             let input = registered.iter().rev().inspect(|_| {
-                if visited.get() == at {
+                if visited.load(Relaxed) == at {
                     let context = &mut *work.0.borrow_mut();
                     if deadline {
                         context.options.deadline = Some(Instant::now());
@@ -226,7 +226,7 @@ fn compilation_preserves_borrowed_host_order_identity_and_partial_failure_cleanu
                         context.cancellation().cancel();
                     }
                 }
-                visited.set(visited.get() + 1);
+                visited.fetch_add(1, Relaxed);
             });
             let error = super::Code::compile_mode(source, input, true, None, &work).unwrap_err();
             let kind = if deadline {
@@ -239,7 +239,7 @@ fn compilation_preserves_borrowed_host_order_identity_and_partial_failure_cleanu
             assert_eq!(context.stats().retained_memory_bytes, 0);
             for callback in registered.values() {
                 let Registered::Callback(callback) = callback else {
-                    unreachable!()
+                    panic!("unexpected test fixture")
                 };
                 assert_eq!(Arc::strong_count(callback), 1);
             }
@@ -273,22 +273,16 @@ fn engine(retired: &Arc<AtomicUsize>) -> Engine {
 fn unused_namespace_templates_do_not_retain_code_or_hosts() {
     let retired = Arc::new(AtomicUsize::new(0));
     let script = engine(&retired).compile(SOURCE).unwrap();
-    let code = Arc::downgrade(&script.inner.code);
-    let definitions = script
-        .inner
-        .code
-        .program
-        .namespaces
-        .iter()
-        .map(Arc::downgrade)
-        .collect::<Vec<_>>();
+    let code = script.inner.code.clone();
+    let definitions = script.inner.code.program.namespaces.clone();
     assert_eq!(definitions.len(), 3);
     drop(script);
-    assert!(code.upgrade().is_none());
+    assert_eq!(Arc::strong_count(&code), 1);
+    drop(code);
     assert!(
         definitions
             .iter()
-            .all(|definition| definition.upgrade().is_none())
+            .all(|definition| Arc::strong_count(definition) == 1)
     );
     assert_eq!(retired.load(Ordering::SeqCst), 1);
 }
@@ -299,8 +293,8 @@ fn escaping_namespaces_classes_and_cycles_retain_original_code_until_released() 
         let retired = Arc::new(AtomicUsize::new(0));
         let mut engine = engine(&retired);
         let script = engine.compile(SOURCE).unwrap();
-        let code = Arc::downgrade(&script.inner.code);
-        let configuration = Arc::downgrade(&script.inner);
+        let code = script.inner.code.clone();
+        let configuration = script.inner.clone();
         engine.register("host", |_, _| Ok(Value::int(22)));
         assert_eq!(
             script
@@ -325,11 +319,13 @@ fn escaping_namespaces_classes_and_cycles_retain_original_code_until_released() 
         ));
         drop(script);
         drop(engine);
-        assert!(configuration.upgrade().is_none(), "{function}");
-        assert!(code.upgrade().is_some(), "{function}");
+        assert_eq!(Arc::strong_count(&configuration), 1, "{function}");
+        drop(configuration);
+        assert!(Arc::strong_count(&code) > 1, "{function}");
         assert_eq!(retired.load(Ordering::SeqCst), 0, "{function}");
         drop(value);
-        assert!(code.upgrade().is_none(), "{function}");
+        assert_eq!(Arc::strong_count(&code), 1, "{function}");
+        drop(code);
         assert_eq!(retired.load(Ordering::SeqCst), 1, "{function}");
     }
 }
@@ -338,8 +334,11 @@ fn escaping_namespaces_classes_and_cycles_retain_original_code_until_released() 
 fn imported_namespace_releases_the_source_budget_and_retains_code() {
     let retired = Arc::new(AtomicUsize::new(0));
     let script = engine(&retired).compile(SOURCE).unwrap();
-    let code = Arc::downgrade(&script.inner.code);
-    let template = Namespace::untracked(script.inner.code.program.namespaces[0].clone());
+    let code = script.inner.code.clone();
+    let template = Namespace::declared(
+        script.inner.code.program.namespaces[0].clone(),
+        &script.inner.code,
+    );
     let mut source = CallContext::new(CallOptions::default());
     let original = Value(Kind::Namespace(
         Namespace::import(&mut source, &template).unwrap(),
@@ -353,10 +352,11 @@ fn imported_namespace_releases_the_source_budget_and_retains_code() {
     drop(template);
     drop(script);
     assert_eq!(source.stats().retained_memory_bytes, 0);
-    assert!(code.upgrade().is_some());
+    assert!(Arc::strong_count(&code) > 1);
     drop(copied);
     assert_eq!(receiver.stats().retained_memory_bytes, 0);
-    assert!(code.upgrade().is_none());
+    assert_eq!(Arc::strong_count(&code), 1);
+    drop(code);
     assert_eq!(retired.load(Ordering::SeqCst), 1);
 }
 
@@ -369,8 +369,11 @@ fn imported_instance_cycle_releases_original_heap_and_code() {
             "property link: Node?\n  property namespace: any",
         ))
         .unwrap();
-    let code = Arc::downgrade(&script.inner.code);
-    let namespace = Namespace::untracked(script.inner.code.program.namespaces[2].clone());
+    let code = script.inner.code.clone();
+    let namespace = Namespace::declared(
+        script.inner.code.program.namespaces[2].clone(),
+        &script.inner.code,
+    );
     let mut source = CallContext::new(CallOptions::default());
     let root = crate::objects::new(&mut source, &namespace).unwrap();
     let original = Value(Kind::Instance(root.clone()));
@@ -399,10 +402,11 @@ fn imported_instance_cycle_releases_original_heap_and_code() {
     assert!(matches!(&link.0, Kind::Instance(link) if instance.same(link)));
     drop(link);
     crate::objects::finish(&mut receiver).unwrap();
-    assert!(code.upgrade().is_some());
+    assert!(Arc::strong_count(&code) > 1);
     drop(copied);
     assert_eq!(receiver.stats().retained_memory_bytes, 0);
-    assert!(code.upgrade().is_none());
+    assert_eq!(Arc::strong_count(&code), 1);
+    drop(code);
     assert_eq!(retired.load(Ordering::SeqCst), 1);
 }
 
@@ -410,7 +414,7 @@ fn imported_instance_cycle_releases_original_heap_and_code() {
 fn failed_namespace_imports_release_partial_accounting_and_code_references() {
     let retired = Arc::new(AtomicUsize::new(0));
     let script = engine(&retired).compile(SOURCE).unwrap();
-    let code = Arc::downgrade(&script.inner.code);
+    let code = script.inner.code.clone();
     let value = script
         .call("namespace", &[], CallOptions::default())
         .unwrap()
@@ -447,7 +451,8 @@ fn failed_namespace_imports_release_partial_accounting_and_code_references() {
     }
     drop(value);
     drop(script);
-    assert!(code.upgrade().is_none());
+    assert_eq!(Arc::strong_count(&code), 1);
+    drop(code);
     assert_eq!(retired.load(Ordering::SeqCst), 1);
 }
 

@@ -4,7 +4,7 @@ use crate::{CallOptions, CancellationToken, Limits, Script, Value};
 use std::{
     fs,
     sync::{
-        Barrier, Weak,
+        Barrier,
         atomic::{AtomicUsize, Ordering},
     },
     time::SystemTime,
@@ -190,40 +190,33 @@ fn concurrent_compilations_publish_one_shared_entry() {
     let (_directory, resolver) = fixture();
     let cache = Cache::new(1);
     let ready = Barrier::new(8);
-    let entries = std::thread::scope(|scope| {
-        let jobs = (0..8)
-            .map(|_| {
-                scope.spawn(|| {
-                    let mut ctx = CallContext::new(CallOptions::default());
-                    let candidate = resolver
-                        .candidates(&mut ctx, b"one", None)
-                        .unwrap()
-                        .next(&mut ctx)
-                        .unwrap()
-                        .unwrap();
-                    let (epoch, absent) = cache
-                        .lookup(
-                            &mut ctx,
-                            &candidate.root,
-                            candidate.relative.as_bytes().unwrap(),
-                        )
-                        .unwrap();
-                    assert!(absent.is_none());
-                    let source = resolver.read(&mut ctx, &candidate).unwrap().unwrap();
-                    let code = crate::Engine::new()
-                        .compile(std::str::from_utf8(source.contents.as_bytes().unwrap()).unwrap())
-                        .unwrap();
-                    ready.wait();
-                    cache
-                        .insert(&mut ctx, &epoch, candidate.origin(), source.stamp, code)
-                        .unwrap()
-                })
-            })
-            .collect::<Vec<_>>();
-        jobs.into_iter()
-            .map(|job| job.join().unwrap())
-            .collect::<Vec<_>>()
-    });
+    let entries = crate::threads::parallel((0..8).map(|_| {
+        || {
+            let mut ctx = CallContext::new(CallOptions::default());
+            let candidate = resolver
+                .candidates(&mut ctx, b"one", None)
+                .unwrap()
+                .next(&mut ctx)
+                .unwrap()
+                .unwrap();
+            let (epoch, absent) = cache
+                .lookup(
+                    &mut ctx,
+                    &candidate.root,
+                    candidate.relative.as_bytes().unwrap(),
+                )
+                .unwrap();
+            assert!(absent.is_none());
+            let source = resolver.read(&mut ctx, &candidate).unwrap().unwrap();
+            let code = crate::Engine::new()
+                .compile(std::str::from_utf8(source.contents.as_bytes().unwrap()).unwrap())
+                .unwrap();
+            ready.wait();
+            cache
+                .insert(&mut ctx, &epoch, candidate.origin(), source.stamp, code)
+                .unwrap()
+        }
+    }));
     for entry in &entries {
         assert!(Arc::ptr_eq(&entries[0], entry));
         assert_eq!(value(entry), 1);
@@ -231,26 +224,24 @@ fn concurrent_compilations_publish_one_shared_entry() {
 }
 
 struct RetiredHost {
-    cache: Weak<Cache<Script>>,
+    cache: Arc<Cache<Script>>,
     observed: Arc<AtomicUsize>,
 }
 
 impl Drop for RetiredHost {
     fn drop(&mut self) {
-        if let Some(cache) = self.cache.upgrade() {
-            let unlocked = cache.state.try_lock().is_ok();
-            self.observed
-                .store(if unlocked { 2 } else { 1 }, Ordering::SeqCst);
-            if unlocked {
-                cache.clear();
-            }
+        let unlocked = self.cache.state.idle();
+        self.observed
+            .store(if unlocked { 2 } else { 1 }, Ordering::SeqCst);
+        if unlocked {
+            self.cache.clear();
         }
     }
 }
 
 fn retained_host(cache: &Arc<Cache<Script>>, observed: &Arc<AtomicUsize>) -> Script {
     let retired = RetiredHost {
-        cache: Arc::downgrade(cache),
+        cache: cache.clone(),
         observed: observed.clone(),
     };
     let mut engine = crate::Engine::new();

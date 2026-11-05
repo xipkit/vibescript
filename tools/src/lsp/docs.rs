@@ -42,8 +42,7 @@ pub(crate) fn parse_builtin_docs(markdown: &str) -> HashMap<String, BuiltinDoc> 
     let lines: Vec<&str> = markdown.split('\n').collect();
     let mut fence = false;
     let mut index = 0;
-    while index < lines.len() {
-        let line = lines[index];
+    while let Some(&line) = lines.get(index) {
         let trimmed = line.trim();
         if trimmed.starts_with("```") {
             fence = !fence;
@@ -87,13 +86,13 @@ fn description(lines: &[&str], start: usize) -> String {
     };
     let mut fence = false;
     let mut index = start;
-    while index < lines.len() {
-        let trimmed = lines[index].trim();
+    while let Some(&line) = lines.get(index) {
+        let trimmed = line.trim();
         if trimmed.starts_with("```") {
             fence = !fence;
             flush(&mut current, &mut paragraphs);
         } else if !fence {
-            if lines[index].starts_with('#') {
+            if line.starts_with('#') {
                 break;
             }
             if trimmed.is_empty() {
@@ -111,7 +110,10 @@ fn description(lines: &[&str], start: usize) -> String {
 }
 
 fn joined_bullet(lines: &[&str], mut index: usize) -> (String, usize) {
-    let mut parts = vec![lines[index].trim()];
+    let Some(line) = lines.get(index) else {
+        return (String::new(), index);
+    };
+    let mut parts = vec![line.trim()];
     while let Some(next) = lines.get(index + 1) {
         let trimmed = next.trim();
         if trimmed.is_empty() || !next.starts_with("  ") || trimmed.starts_with("- ") {
@@ -392,8 +394,7 @@ impl MemberDocs {
         let mut receiver = fixed.unwrap_or("").to_owned();
         let mut fence = false;
         let mut index = 0;
-        while index < lines.len() {
-            let line = lines[index];
+        while let Some(&line) = lines.get(index) {
             if line.trim().starts_with("```") {
                 fence = !fence;
             } else if !fence {
@@ -467,7 +468,9 @@ impl MemberDocs {
             if universal {
                 continue;
             }
-            let entry = self.universal.remove(&name).expect("the name was listed");
+            let Some(entry) = self.universal.remove(&name) else {
+                continue;
+            };
             for receiver in dispatching.into_iter().flatten() {
                 if !receivers.contains_key(receiver) {
                     continue;
@@ -614,9 +617,9 @@ pub(crate) fn member_doc_markdown(word: &str) -> String {
         Some(entries) if !entries.is_empty() => entries.clone(),
         _ => bang_variant_entries(word),
     };
-    match entries.len() {
-        0 => return String::new(),
-        1 => return entries[0].markdown.clone(),
+    match entries.as_slice() {
+        [] => return String::new(),
+        [entry] => return entry.markdown.clone(),
         _ => (),
     }
     let mut groups: Vec<(String, Vec<String>)> = Vec::new();

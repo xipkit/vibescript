@@ -6,7 +6,7 @@
 //! no longer contains is dropped rather than pointing into unrelated text.
 
 use super::document::{Position, Range, Symbol, SymbolKind};
-use super::text::{utf16_character, word_char};
+use super::text::{to_i64, utf16_character, word_char};
 use vibescript::tooling::{Item, ItemKind, Outline};
 
 /// The location of the top-level declaration named `word`: a function, class
@@ -87,7 +87,7 @@ fn anchored_location<S: AsRef<str>>(lines: &[S], item: &Item, shift: i64) -> Opt
 
 /// The one-based line where an item was declared, moved by `shift`.
 fn expected_line(item: &Item, shift: i64) -> usize {
-    usize::try_from(item.position.line as i64 + shift).unwrap_or(0)
+    usize::try_from(to_i64(item.position.line) + shift).unwrap_or(0)
 }
 
 /// Anchors an item whose recorded line has moved by `shift` lines.
@@ -102,7 +102,7 @@ fn anchor<S: AsRef<str>>(lines: &[S], item: &Item, shift: i64) -> Option<usize> 
 /// shift is zero.
 fn child_shift<S: AsRef<str>>(lines: &[S], item: &Item, shift: i64) -> i64 {
     match anchor(lines, item, shift) {
-        Some(line) => line as i64 + 1 - item.position.line as i64,
+        Some(line) => to_i64(line) + 1 - to_i64(item.position.line),
         None => shift,
     }
 }
@@ -197,8 +197,8 @@ pub(crate) fn find_word(text: &str, name: &str, from: usize) -> Option<usize> {
     let mut index = from;
     while index + needle.len() <= chars.len() {
         let end = index + needle.len();
-        if chars[index..end] == needle[..]
-            && (index == 0 || !word_char(chars[index - 1]))
+        if chars.get(index..end) == Some(needle.as_slice())
+            && (index == 0 || !chars.get(index - 1).is_some_and(|c| word_char(*c)))
             && chars.get(end).is_none_or(|c| !word_char(*c))
         {
             return Some(index);

@@ -158,17 +158,8 @@ pub(super) mod support {
 
     /// Runs `body` on a thread whose stack is far too small for a recursive walk
     /// over ten thousand containers, so any leftover recursion aborts loudly.
-    pub fn on_small_stack<T: Send + 'static>(body: impl FnOnce() -> T + Send + 'static) -> T {
-        // WASI has no threads, so this runs within the default wasm stack.
-        if cfg!(target_os = "wasi") {
-            return body();
-        }
-        std::thread::Builder::new()
-            .stack_size(192 << 10)
-            .spawn(body)
-            .unwrap()
-            .join()
-            .unwrap()
+    pub fn on_small_stack<T: Send>(body: impl FnOnce() -> T + Send) -> T {
+        crate::threads::on_stack(192 << 10, body).unwrap()
     }
 }
 

@@ -55,7 +55,12 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
     let mut diff = String::new();
     let (mut fixes, mut changed_files, mut errors) = (0, 0, 0);
     for index in 0..inputs.files.len() {
-        let label = inputs.files[index].label.clone();
+        let label = inputs
+            .files
+            .get(index)
+            .ok_or("invalid file index")?
+            .label
+            .clone();
         let (data, info) = inputs
             .read(index)
             .map_err(|error| format!("read {label}: {error}"))?;
@@ -132,7 +137,7 @@ fn flags_first(args: &[OsString]) -> Vec<OsString> {
     out.push(OsString::from("--"));
     out.extend(paths);
     if let Some(split) = args.iter().position(|arg| arg == "--") {
-        out.extend(args[split + 1..].iter().cloned());
+        out.extend(args.iter().skip(split + 1).cloned());
     }
     out
 }

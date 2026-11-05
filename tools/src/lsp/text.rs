@@ -7,8 +7,8 @@ pub(crate) fn split_lines(text: &str) -> Vec<String> {
     let bytes = text.as_bytes();
     let mut start = 0;
     let mut index = 0;
-    while index < bytes.len() {
-        match bytes[index] {
+    while let Some(byte) = bytes.get(index) {
+        match byte {
             b'\n' => {
                 lines.push(text[start..index].to_owned());
                 start = index + 1;
@@ -53,12 +53,12 @@ pub(crate) fn position_at(text: &str, offset: usize) -> super::Position {
     while !text.is_char_boundary(offset) {
         offset -= 1;
     }
-    let before = &text.as_bytes()[..offset];
+    let before = text.as_bytes().get(..offset).unwrap_or_default();
     let mut line = 0u32;
     let mut start = 0;
     let mut index = 0;
-    while index < before.len() {
-        match before[index] {
+    while let Some(byte) = before.get(index) {
+        match byte {
             b'\n' => {
                 line += 1;
                 start = index + 1;
@@ -79,6 +79,12 @@ pub(crate) fn position_at(text: &str, offset: usize) -> super::Position {
         line,
         character: u32::try_from(character).unwrap_or(u32::MAX),
     }
+}
+
+/// Converts a line count or position to LSP's signed arithmetic. No buffer has
+/// `i64::MAX` lines or characters, and past that the result saturates.
+pub(crate) fn to_i64(value: usize) -> i64 {
+    i64::try_from(value).unwrap_or(i64::MAX)
 }
 
 /// The line at `index`, or an empty line past either end.
@@ -117,7 +123,7 @@ pub(crate) fn character_index(line: &str, offset: i64) -> usize {
         if consumed >= offset {
             break;
         }
-        consumed += c.len_utf16() as i64;
+        consumed += to_i64(c.len_utf16());
         index += 1;
     }
     index
@@ -146,18 +152,18 @@ pub(crate) fn word_span<S: AsRef<str>>(
     if cursor == chars.len() {
         cursor -= 1;
     }
-    if !word_char(chars[cursor]) {
-        if cursor == 0 || !word_char(chars[cursor - 1]) {
+    if !chars.get(cursor).is_some_and(|c| word_char(*c)) {
+        if cursor == 0 || !chars.get(cursor - 1).is_some_and(|c| word_char(*c)) {
             return None;
         }
         cursor -= 1;
     }
     let mut start = cursor;
-    while start > 0 && word_char(chars[start - 1]) {
+    while start > 0 && chars.get(start - 1).is_some_and(|c| word_char(*c)) {
         start -= 1;
     }
     let mut end = cursor;
-    while end < chars.len() && word_char(chars[end]) {
+    while end < chars.len() && chars.get(end).is_some_and(|c| word_char(*c)) {
         end += 1;
     }
     Some((chars, start, end))
@@ -166,7 +172,7 @@ pub(crate) fn word_span<S: AsRef<str>>(
 /// The word under a position, or an empty string.
 pub(crate) fn word_at<S: AsRef<str>>(lines: &[S], line: i64, character: i64) -> String {
     word_span(lines, line, character)
-        .map(|(chars, start, end)| chars[start..end].iter().collect())
+        .map(|(chars, start, end)| chars.get(start..end).unwrap_or_default().iter().collect())
         .unwrap_or_default()
 }
 
@@ -177,8 +183,7 @@ pub(crate) fn mask_strings(chars: &[char]) -> Vec<char> {
     let mut masked = Vec::with_capacity(chars.len());
     let mut quote = None;
     let mut index = 0;
-    while index < chars.len() {
-        let c = chars[index];
+    while let Some(&c) = chars.get(index) {
         match quote {
             Some(open) => {
                 masked.push(' ');
@@ -203,7 +208,9 @@ pub(crate) fn mask_strings(chars: &[char]) -> Vec<char> {
 pub(crate) fn mask_code(chars: &[char]) -> Vec<char> {
     let mut masked = mask_strings(chars);
     if let Some(comment) = masked.iter().position(|c| *c == '#') {
-        masked[comment..].fill(' ');
+        for c in masked.iter_mut().skip(comment) {
+            *c = ' ';
+        }
     }
     masked
 }

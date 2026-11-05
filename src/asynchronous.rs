@@ -40,6 +40,8 @@ impl Runner {
     /// Dropping the future requests cancellation. A synchronous host callback keeps
     /// its worker reservation until it returns, including during nested async block
     /// calls. Cancellation, deadlines and latched quotas interrupt async host waits.
+    /// A cancelled call may return before queued cleanup completes; cleanup uses
+    /// the same worker limit.
     /// Trusted callbacks must keep individual future polls bounded and cooperate
     /// with cancellation while doing synchronous work.
     pub async fn call(
@@ -119,6 +121,23 @@ pub(crate) async fn acquire(
             _ = tokio::time::sleep(Duration::from_millis(5)) => (),
         }
     }
+}
+
+/// Runs `work` on Tokio's blocking pool and waits for it. A panic in the
+/// work resumes here; a worker that is cancelled or shut down is a host error.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the crate's one blocking spawn, with the panic propagation of adamantium::blocking, which vibescript cannot depend on while Tokio stays optional"
+)]
+pub(crate) async fn blocking<T: Send + 'static>(
+    work: impl FnOnce() -> T + Send + 'static,
+) -> Result<T> {
+    tokio::task::spawn_blocking(work).await.map_err(|error| {
+        if error.is_panic() {
+            std::panic::resume_unwind(error.into_panic());
+        }
+        Error::new(ErrorKind::Host, format!("script worker failed: {error}"))
+    })
 }
 
 struct CancelOnDrop(CancellationToken);

@@ -101,13 +101,7 @@ impl Output {
         if length > self.buffer.data.capacity() || self.limit.is_some_and(|limit| length > limit) {
             self.grow(ctx, length, pending)?;
         }
-        let len = self.buffer.data.len();
-        // Faster than extend_from_slice for short escapes; see commit 6170b8669.
-        let spare = &mut self.buffer.data.spare_capacity_mut()[..2];
-        spare[0].write(b'\\');
-        spare[1].write(code);
-        // SAFETY: The checked spare slice covers both newly initialized bytes.
-        unsafe { self.buffer.data.set_len(len + 2) };
+        self.buffer.data.extend_from_slice(&[b'\\', code]);
         *pending = pending.wrapping_add(1);
         Ok(())
     }

@@ -5,7 +5,13 @@ fn graph(ctx: &mut CallContext, count: usize) -> Value {
     let mut nodes = Vec::new();
     for index in 0..count {
         let node = environment(ctx).unwrap();
-        set(ctx, &node, "value", &Value::int(index as i64)).unwrap();
+        set(
+            ctx,
+            &node,
+            "value",
+            &Value::int(crate::numeric::to_i64(index)),
+        )
+        .unwrap();
         nodes.push(node);
     }
     for index in 0..count {
@@ -84,7 +90,10 @@ fn snapshots_preserve_shared_class_namespace_and_function_environments() {
     let script = crate::Engine::new().compile("class Box; end; nil").unwrap();
     let unbound = Namespace::import(
         &mut ctx,
-        &Namespace::untracked(script.inner.code.program.namespaces[0].clone()),
+        &Namespace::declared(
+            script.inner.code.program.namespaces[0].clone(),
+            &script.inner.code,
+        ),
     )
     .unwrap();
     let namespace = Namespace::with_environment(&mut ctx, &unbound, environment.clone()).unwrap();

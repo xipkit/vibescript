@@ -106,10 +106,9 @@ pub(crate) type Modules<'a> = dyn Fn(
 
 /// Sources longer than this are checked on a thread with [`STACK`] bytes of
 /// stack: the checker recurses once per level of syntax, which the parser
-/// bounds, and a short source cannot nest deeply.
-#[cfg(not(target_os = "wasi"))]
+/// bounds, and a short source cannot nest deeply. WASI has no threads, so
+/// there the check runs on the host's stack, within [`HEIGHT`].
 const SHALLOW: usize = 1024;
-#[cfg(not(target_os = "wasi"))]
 const STACK: usize = 64 << 20;
 
 /// The tallest syntax the checker descends into on WASI. WASI has no
@@ -528,19 +527,9 @@ fn listed<T>(
 
 /// Checks one parsed source.
 pub(crate) fn check(input: &Input<'_>) -> Checked {
-    #[cfg(not(target_os = "wasi"))]
     if input.source.len() > SHALLOW {
-        return std::thread::scope(|scope| {
-            let checking = std::thread::Builder::new()
-                .stack_size(STACK)
-                .spawn_scoped(scope, || check_nested(input, 0));
-            match checking {
-                Ok(handle) => handle
-                    .join()
-                    .unwrap_or_else(|panic| std::panic::resume_unwind(panic)),
-                Err(_) => check_nested(input, 0),
-            }
-        });
+        return crate::threads::on_stack(STACK, || check_nested(input, 0))
+            .unwrap_or_else(|_| check_nested(input, 0));
     }
     check_nested(input, 0)
 }
@@ -607,7 +596,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     };
     for (name, host) in input.hosts {
         let function = crate::signatures::host::function(name, host);
-        let sig = std::rc::Rc::new(
+        let sig = std::sync::Arc::new(
             checker
                 .converter
                 .convert_owned(&mut checker.types, &function, None)
@@ -787,7 +776,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
                     });
                     let error = crate::syntax::canonical_error(
                         source,
-                        &crate::compilation::Meter(std::cell::RefCell::new(&mut context)),
+                        &crate::compilation::Meter::new(&mut context),
                     );
                     if context.exhausted() {
                         meter.stop();
@@ -1084,7 +1073,7 @@ fn symbol_text(value: &crate::Value) -> Option<String> {
 #[cfg(test)]
 mod budget_review_tests {
     use super::*;
-    use std::cell::Cell;
+    use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
     #[test]
     fn diagnostic_list_stays_charged_while_its_message_is_rendered() {
@@ -1142,14 +1131,20 @@ mod budget_review_tests {
             },
             None,
         );
-        let visited = Cell::new(0);
+        let visited = AtomicUsize::new(0);
         listed(
             &meter,
-            (0..100_000).inspect(|_| visited.set(visited.get() + 1)),
+            (0..100_000).inspect(|_| {
+                visited.fetch_add(1, Relaxed);
+            }),
             |_, _| {},
         );
         assert!(meter.stopped());
-        assert!(visited.get() <= 34, "visited {} items", visited.get());
+        assert!(
+            visited.load(Relaxed) <= 34,
+            "visited {} items",
+            visited.load(Relaxed)
+        );
     }
 
     #[test]
@@ -1161,15 +1156,17 @@ mod budget_review_tests {
             },
             None,
         );
-        let visited = Cell::new(0);
+        let visited = AtomicUsize::new(0);
         listed(
             &meter,
-            (0..100_000).inspect(|_| visited.set(visited.get() + 1)),
+            (0..100_000).inspect(|_| {
+                visited.fetch_add(1, Relaxed);
+            }),
             |out, _| {
                 out.push_str("this name exceeds the entire memory budget");
             },
         );
         assert!(meter.stopped());
-        assert_eq!(visited.get(), 1);
+        assert_eq!(visited.load(Relaxed), 1);
     }
 }

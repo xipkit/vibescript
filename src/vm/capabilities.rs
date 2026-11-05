@@ -19,7 +19,9 @@ impl Call {
             Self::Value(value) => match return_to {
                 ReturnTo::Stack => stack.push(ctx, value),
                 ReturnTo::Address => storage.addresses.push(ctx, Address::new(None, value)),
-                _ => unreachable!(),
+                _ => Err(crate::checked::internal(
+                    "value requires a stack or address target",
+                )),
             },
             Self::Block(args) => {
                 ctx.charge(1)?;
@@ -60,7 +62,8 @@ pub(super) fn bind(
                 // declares nothing pays for no check.
                 if !declared.is_empty() {
                     ctx.charge((capabilities.len() - index) as u64)?;
-                    let replaced = capabilities[index + 1..]
+                    let replaced = capabilities
+                        .tail(index + 1)?
                         .iter()
                         .any(|later| later.name == capability.name);
                     if !replaced {
@@ -167,7 +170,9 @@ pub(super) fn registered(
         }
         crate::capability::Registered::Method(method) => {
             let Value(Kind::Host(method)) = ctx.import(&method.value())? else {
-                unreachable!()
+                return Err(crate::checked::internal(
+                    "imported method descriptor expected",
+                ));
             };
             call(ctx, storage, &method, args, keywords, block, false)
         }

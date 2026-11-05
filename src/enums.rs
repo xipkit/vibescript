@@ -152,8 +152,9 @@ impl Enumeration {
     }
 
     pub(crate) fn instantiate(ctx: &mut CallContext, value: &Arc<Self>) -> Result<Arc<Self>> {
-        let identity = Rebind::resolve(ctx, &value.definition, true)?
-            .expect("compiled enum belongs to the invocation");
+        let identity = Rebind::resolve(ctx, &value.definition, true)?.ok_or_else(|| {
+            Error::new(ErrorKind::Host, "compiled enum has no invocation identity")
+        })?;
         Self::view(ctx, value, identity)
     }
 
@@ -407,7 +408,9 @@ pub(crate) fn append(ctx: &mut CallContext, value: &Value, output: &mut Buffer<u
             b"::",
             m.definition().name.as_bytes(),
         ],
-        _ => unreachable!(),
+        _ => {
+            return Err(crate::checked::internal("enum or enum member expected"));
+        }
     };
     let Some(len) = parts
         .iter()
@@ -458,7 +461,7 @@ mod tests {
         let name = "A".repeat(16384);
         let original = compile(name.clone(), vec![name.clone()], &()).unwrap();
         let Kind::Enum(enumeration) = &original.0 else {
-            unreachable!()
+            panic!("unexpected test fixture")
         };
         let mut ctx = CallContext::new(CallOptions {
             limits: Limits {

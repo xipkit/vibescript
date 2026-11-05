@@ -1,4 +1,5 @@
 use super::{Call, Compiler, Compiling, Op, Program, narrow, syntax, typing::Typing};
+use crate::checked::violation;
 use crate::{Result, Value, compilation::Name, namespace, syntax::modules::Module, value::Kind};
 
 struct Frame {
@@ -314,9 +315,9 @@ impl<'x> Compiling<'_, 'x> {
             self.assignment_rhs(binding, &[rhs]).await?;
             let mut c = self.c();
             c.check_local(name)?;
-            c.store_namespace_name(name);
+            c.store_namespace_name(name)?;
             let end = c.code.len();
-            c.patch(skip, end);
+            c.patch(skip, end)?;
             return Ok(());
         }
         let binary = match op {
@@ -339,7 +340,7 @@ impl<'x> Compiling<'_, 'x> {
         }
         // A typed constant checks every value it is given.
         c.check_local(name)?;
-        c.store_namespace_name(name);
+        c.store_namespace_name(name)?;
         Ok(())
     }
 }
@@ -362,17 +363,20 @@ impl Compiler<'_> {
             .program
             .declaration_names
             .get(name)
-            .is_some_and(|&index| matches!(self.program.declarations[index].0, Kind::Namespace(_))))
+            .and_then(|&index| self.program.declarations.get(index))
+            .is_some_and(|declaration| matches!(declaration.0, Kind::Namespace(_))))
     }
 
-    pub(super) fn store_namespace_name(&mut self, name: &str) {
+    pub(super) fn store_namespace_name(&mut self, name: &str) -> Result<()> {
         if name.starts_with('@') || (self.namespace.is_some() && !self.instance) {
             let name = self.call_site(name, false).name;
             self.emit(Op::NamespaceStore(name));
         } else {
-            self.emit(Op::StoreDeclaration(narrow(
-                self.program.declaration_names[name],
-            )));
+            let Some(&index) = self.program.declaration_names.get(name) else {
+                return Err(violation("a namespace binding without a declaration").into());
+            };
+            self.emit(Op::StoreDeclaration(narrow(index)));
         }
+        Ok(())
     }
 }

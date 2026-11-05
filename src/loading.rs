@@ -62,7 +62,13 @@ pub(crate) struct Pin {
 
 impl Default for Loader {
     fn default() -> Self {
-        Self::new(ModuleConfig::default()).expect("empty module configuration is valid")
+        Self {
+            keep_type_checks: false,
+            resolver: Arc::new(resolver::Resolver::default()),
+            cache: cache::Cache::new(DEFAULT_CACHE_LIMIT),
+            cache_limit: DEFAULT_CACHE_LIMIT,
+            development: false,
+        }
     }
 }
 
@@ -213,7 +219,7 @@ impl Loader {
                 let source_text = std::str::from_utf8(source.contents.as_bytes().unwrap())
                     .map_err(|_| {
                         crate::compilation::error(
-                            &crate::compilation::Meter(std::cell::RefCell::new(&mut *ctx)),
+                            &crate::compilation::Meter::new(&mut *ctx),
                             None,
                             format_args!("required source must be UTF-8"),
                         )
@@ -432,7 +438,7 @@ mod tests {
         .unwrap();
         let receiving = crate::code::Code::compile("nil", &Default::default()).unwrap();
         let mut context = CallContext::new(CallOptions::default());
-        let memory = Arc::downgrade(&context.identity());
+        let memory = context.identity();
         let mut pins = Buffer::empty();
         let code = loader
             .load(&mut context, &mut pins, b"answer", None, &receiving)
@@ -442,7 +448,7 @@ mod tests {
         drop(pins);
         assert_eq!(context.stats().retained_memory_bytes, 0);
         drop(context);
-        assert!(memory.upgrade().is_none());
+        assert_eq!(Arc::strong_count(&memory), 1);
 
         std::fs::remove_file(path).unwrap();
         let mut context = CallContext::new(CallOptions::default());

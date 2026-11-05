@@ -208,24 +208,16 @@ const RETAINED_ENTRY_BYTES: usize = size_of::<(String, Vec<u8>)>() + 10 * size_o
 fn retained_source(value: &Value, work: &dyn crate::compilation::Work) -> Result<RetainedSource> {
     use crate::budget::Charge;
     let Kind::Namespace(namespace) = &value.0 else {
-        unreachable!()
+        return Err(crate::checked::internal(
+            "retained source requires a namespace",
+        ));
     };
-    let owner = namespace
-        .owner
-        .clone()
-        .or_else(|| {
-            namespace
-                .definition
-                .owner
-                .get()
-                .and_then(std::sync::Weak::upgrade)
-        })
-        .ok_or_else(|| {
-            Error::new(
-                ErrorKind::Argument,
-                "retained namespace has no source owner",
-            )
-        })?;
+    let owner = namespace.owner.clone().ok_or_else(|| {
+        Error::new(
+            ErrorKind::Argument,
+            "retained namespace has no source owner",
+        )
+    })?;
     let mut found = false;
     for declaration in &owner.program.outline {
         work.bytes(declaration.name.len())?;
@@ -466,7 +458,7 @@ pub(crate) fn check_globals(ctx: &mut CallContext, declared: &Declarations) -> R
     let result = (|| {
         for (name, value) in &globals {
             crate::capability::binding_name(
-                &crate::compilation::Meter(std::cell::RefCell::new(ctx)),
+                &crate::compilation::Meter::new(ctx),
                 HostName::GLOBAL,
                 name,
                 value,
@@ -538,7 +530,6 @@ pub(crate) fn check_capability(
 mod tests {
     use super::*;
     use crate::{CallOptions, CancellationToken, Limits, compilation::Meter};
-    use std::cell::RefCell;
 
     #[test]
     fn short_dependency_sources_still_spend_work_and_check_cancellation() {
@@ -555,7 +546,7 @@ mod tests {
         let result: Result<()> = references.iter().try_for_each(|source| {
             visited += 1;
             assert!(!contains_name(
-                &Meter(RefCell::new(&mut context)),
+                &Meter::new(&mut context),
                 *source,
                 candidate
             )?);
@@ -575,7 +566,7 @@ mod tests {
                 token.cancel();
             }
             assert!(!contains_name(
-                &Meter(RefCell::new(&mut context)),
+                &Meter::new(&mut context),
                 *source,
                 candidate
             )?);

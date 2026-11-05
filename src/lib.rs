@@ -13,6 +13,7 @@ compile_error!(
     "the Tokio runner requires OS threads; build the WASI core without the tokio feature"
 );
 
+mod actor;
 mod address;
 mod arguments;
 #[cfg(feature = "tokio")]
@@ -23,6 +24,7 @@ mod bytecode;
 mod bytes;
 mod capability;
 mod casing;
+mod checked;
 mod code;
 mod collections;
 mod combinatorics;
@@ -72,6 +74,7 @@ mod source;
 mod surface;
 mod syntax;
 mod text;
+mod threads;
 mod time;
 pub mod tooling;
 mod types;

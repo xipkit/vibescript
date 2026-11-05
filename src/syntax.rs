@@ -1,8 +1,10 @@
 use crate::{
     Error, Result, Value,
-    compilation::{Boxed, Buffer, Bytes, Frame, Name, Table, Tasks, Text, Work, framed, task},
+    compilation::{
+        Boxed, Buffer, Bytes, Frame, Name, Shared, Table, Tasks, Text, Work, framed, task,
+    },
 };
-use std::cell::{RefCell, RefMut};
+use std::cell::RefMut;
 
 mod ast;
 mod blocks;
@@ -53,18 +55,45 @@ pub(crate) const MAX_SOURCE: usize = 8 << 20;
 pub(crate) const TOO_DEEP: &str = "syntax nesting too deep";
 const ADJACENT_EXPRESSIONS: &str = "adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements";
 
+/// How a parse reads the source. The entry points choose one, and every
+/// step of the parse, the lexer included, reads it from the parser.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Mode {
+    /// Only the canonical surface of ADR-008, as [`canonical_error`] asks:
+    /// `do` opens no block, `unless` and `until` start nothing, `%` never
+    /// starts a percent literal, and a keyword parameter follows a bare `*`
+    /// or a rest parameter.
+    pub canonical: bool,
+    /// The replay of a failed host parse for its diagnostics, where a
+    /// lexing error ends the line instead of the source.
+    pub lexical: bool,
+    /// A parse that accepts suffixed bindings and records their uses.
+    pub lenient: bool,
+}
+
 fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result<Parser<'a>> {
-    parser_from_tokens(source, work, Tokens::new(lex(source, work)?, work)?)
+    parser_in(source, work, Mode::default())
+}
+
+fn parser_in<'a>(source: &'a str, work: &'a dyn Work, mode: Mode) -> Result<Parser<'a>> {
+    let input = lexer::Input {
+        mode,
+        ..lexer::Input::new(source, work)
+    };
+    let tokens = Tokens::new(lex(input)?, work)?;
+    parser_from_tokens(source, work, tokens, mode)
 }
 
 fn parser_from_tokens<'a>(
     source: &'a str,
     work: &'a dyn Work,
     tokens: Tokens<'a>,
+    mode: Mode,
 ) -> Result<Parser<'a>> {
     Parser::with_type_names(Parser {
         work,
         source,
+        mode,
         lex_depth: 0,
         tokens,
         pos: 0,
@@ -82,7 +111,7 @@ fn parser_from_tokens<'a>(
         type_argument: false,
         type_structural_error: false,
         interpolations: Buffer::new(),
-        suffixed: RefCell::default(),
+        suffixed: Shared::default(),
         target_start: None,
         namespace: None,
         namespace_body: false,
@@ -110,20 +139,6 @@ pub(crate) fn parse_type(source: &str) -> Result<crate::types::Type> {
 
 pub(crate) use record::parse_with_tokens;
 
-thread_local! {
-    /// Whether the parse in progress reads only the canonical surface of
-    /// ADR-008, as [`canonical_error`] asks.
-    static CANONICAL: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-}
-
-/// Whether the parse in progress reads only the canonical surface: `do`
-/// opens no block, `unless` and `until` start nothing, `%` never starts a
-/// percent literal, and a keyword parameter follows a bare `*` or a rest
-/// parameter.
-fn canonical() -> bool {
-    CANONICAL.with(std::cell::Cell::get)
-}
-
 /// The syntax error `source` has in the canonical surface of ADR-008. The
 /// full grammar still reads the removed syntax, only so that a well-formed
 /// use of it reaches the checker, which reports it with a fix; a source that
@@ -136,17 +151,14 @@ pub(crate) fn canonical_error(source: &str, work: &dyn crate::compilation::Work)
 }
 
 fn canonical_error_mode(source: &str, work: &dyn Work, recover: bool) -> Option<Error> {
-    struct Restore(bool);
-    impl Drop for Restore {
-        fn drop(&mut self) {
-            CANONICAL.with(|canonical| canonical.set(self.0));
-        }
-    }
-    let _restore = Restore(CANONICAL.with(|canonical| canonical.replace(true)));
+    let mode = Mode {
+        canonical: true,
+        ..Mode::default()
+    };
     if !recover {
-        return parse(source, work).err();
+        return parse_in(source, work, mode).err();
     }
-    let parser = match parser(source, work) {
+    let parser = match parser_in(source, work, mode) {
         Ok(parser) => parser,
         Err(error) => return Some(error),
     };
@@ -154,7 +166,7 @@ fn canonical_error_mode(source: &str, work: &dyn Work, recover: bool) -> Option<
     let error = parsing.run(Call::Program).err()?;
     let tokens = parsing.parser.into_inner().tokens.original();
     Some(recovery::diagnostics_with_tokens(
-        source, error, work, tokens,
+        source, error, work, tokens, mode,
     ))
 }
 
@@ -180,7 +192,7 @@ fn canonical_syntax_mode(source: &str, work: &dyn Work, error: Error, recover: b
     }
     let error = canonical_error_mode(source, work, recover).unwrap_or_else(|| {
         if recover {
-            recovery::diagnostics(source, error, work)
+            recovery::diagnostics(source, error, work, Mode::default())
         } else {
             error
         }
@@ -189,16 +201,21 @@ fn canonical_syntax_mode(source: &str, work: &dyn Work, error: Error, recover: b
 }
 
 pub(crate) fn parse(source: &str, work: &dyn crate::compilation::Work) -> Result<Declarations> {
-    let parsing = Parsing::<recovery::FailFast>::new(parser(source, work)?);
+    parse_in(source, work, Mode::default())
+}
+
+fn parse_in(source: &str, work: &dyn Work, mode: Mode) -> Result<Declarations> {
+    let parsing = Parsing::<recovery::FailFast>::new(parser_in(source, work, mode)?);
     match parsing.run(Call::Program)? {
         Parsed::Program(declarations) => Ok(declarations),
-        _ => unreachable!(),
+        _ => Err(crate::checked::internal("parser task expected a program")),
     }
 }
 
 struct Parser<'a> {
     work: &'a dyn crate::compilation::Work,
     source: &'a str,
+    mode: Mode,
     lex_depth: usize,
     tokens: Tokens<'a>,
     pos: usize,
@@ -224,7 +241,7 @@ struct Parser<'a> {
     type_structural_error: bool,
     interpolations: Buffer<(u32, u32)>,
     /// The uses of suffixed bindings a lenient parse records.
-    suffixed: RefCell<suffixes::Uses>,
+    suffixed: Shared<suffixes::Uses>,
     /// The token that starts the destructuring target being read, whose
     /// name, if that is all the target is, binds.
     target_start: Option<usize>,
@@ -283,9 +300,9 @@ enum Parsed {
 /// Runs the recursive grammar over shared parser state, so source nesting
 /// grows a heap task stack instead of the native one.
 struct Parsing<'a, M: recovery::Mode = recovery::FailFast> {
-    parser: RefCell<Parser<'a>>,
+    parser: Shared<Parser<'a>>,
     tasks: Tasks<Call, Parsed>,
-    recovery: RefCell<M::State>,
+    recovery: Shared<M::State>,
     /// The parser's work, which the boxed steps of its tasks charge.
     work: &'a dyn Work,
 }
@@ -294,15 +311,19 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
     fn new(parser: Parser<'a>) -> Self {
         let work = parser.work;
         Self {
-            parser: RefCell::new(parser),
+            parser: Shared::new(parser),
             tasks: Tasks::new(),
-            recovery: RefCell::new(M::State::default()),
+            recovery: Shared::new(M::State::default()),
             work,
         }
     }
 
     fn p(&self) -> RefMut<'_, Parser<'a>> {
         self.parser.borrow_mut()
+    }
+
+    fn mode(&self) -> Mode {
+        self.p().mode
     }
 
     fn run(&self, call: Call) -> Result<Parsed> {
@@ -348,35 +369,37 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
         };
         match self.tasks.call(call).await? {
             Parsed::Expr(expr) => Ok(expr),
-            _ => unreachable!(),
+            _ => Err(crate::checked::internal(
+                "parser task expected an expression",
+            )),
         }
     }
 
     async fn block(&self, stop: &'static [&'static str]) -> Result<Buffer<Stmt>> {
         match self.tasks.call(Call::Block(stop)).await? {
             Parsed::Body(body) => Ok(body),
-            _ => unreachable!(),
+            _ => Err(crate::checked::internal("parser task expected a body")),
         }
     }
 
     async fn nested_target(&self, typed: bool) -> Result<(Target, bool)> {
         match self.tasks.call(Call::Target(typed)).await? {
             Parsed::Target(target, tuple) => Ok((target, tuple)),
-            _ => unreachable!(),
+            _ => Err(crate::checked::internal("parser task expected a target")),
         }
     }
 
     async fn nested_class(&self) -> Result<modules::Module> {
         match self.tasks.call(Call::Class).await? {
             Parsed::Module(class) => Ok(class),
-            _ => unreachable!(),
+            _ => Err(crate::checked::internal("parser task expected a class")),
         }
     }
 
     async fn nested_module(&self) -> Result<modules::Module> {
         match self.tasks.call(Call::Module).await? {
             Parsed::Module(module) => Ok(module),
-            _ => unreachable!(),
+            _ => Err(crate::checked::internal("parser task expected a module")),
         }
     }
 }

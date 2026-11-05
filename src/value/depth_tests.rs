@@ -1,22 +1,13 @@
 use super::*;
 use crate::{CallOptions, ErrorClass, hash::Tag};
-use std::{thread, time::Instant};
+use std::time::Instant;
 
 /// Native stack for the deep cases: far below what depth-proportional glue would need.
 const STACK: usize = 256 << 10;
 const DEEP: usize = 10_001;
 
-fn on_small_stack<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
-    // WASI has no threads, so this runs within the default wasm stack.
-    if cfg!(target_os = "wasi") {
-        return work();
-    }
-    thread::Builder::new()
-        .stack_size(STACK)
-        .spawn(work)
-        .unwrap()
-        .join()
-        .unwrap()
+fn on_small_stack<T: Send>(work: impl FnOnce() -> T + Send) -> T {
+    crate::threads::on_stack(STACK, work).unwrap()
 }
 
 fn context() -> CallContext {
@@ -110,36 +101,36 @@ fn concurrent_last_owners_release_deep_subtrees() {
             node = match &node.0 {
                 Kind::Array(array) => &array.buffer.data[0],
                 Kind::Hash(hash) => &hash.buffer.data[0].1,
-                _ => unreachable!(),
+                _ => panic!("unexpected test fixture"),
             };
         }
         drop(value);
-        let barrier = Arc::new(std::sync::Barrier::new(4));
-        let workers: Vec<_> = owners
-            .into_iter()
-            .map(|values| {
-                let barrier = barrier.clone();
-                thread::Builder::new()
-                    .stack_size(STACK)
-                    .spawn(move || {
-                        barrier.wait();
-                        drop(values);
-                    })
-                    .unwrap()
-            })
-            .collect();
-        for worker in workers {
-            worker.join().unwrap();
-        }
+        let barrier = std::sync::Barrier::new(4);
+        crate::threads::parallel(owners.into_iter().map(|values| {
+            || {
+                on_small_stack(|| {
+                    barrier.wait();
+                    drop(values);
+                });
+            }
+        }));
     }
 }
 
+/// Destroying a deep container beside a weak observer takes the walk's
+/// replacement branch in `destroy::unique`, which otherwise only a race with
+/// another owner's drop reaches; see `concurrent_last_owners_release_deep_subtrees`.
 #[test]
+#[allow(
+    clippy::disallowed_types,
+    clippy::disallowed_methods,
+    reason = "a test observer that reaches the replacement branch on purpose; the crate itself makes no weak reference to a container"
+)]
 fn host_container_cleanup_tolerates_internal_weak_observers() {
     on_small_stack(|| {
         let child = array_chain(DEEP);
         let Kind::Array(array) = &child.0 else {
-            unreachable!()
+            panic!("unexpected test fixture")
         };
         let weak = Arc::downgrade(array);
         drop(Value::array(vec![child]));
@@ -147,7 +138,7 @@ fn host_container_cleanup_tolerates_internal_weak_observers() {
 
         let child = hash_chain(DEEP);
         let Kind::Hash(hash) = &child.0 else {
-            unreachable!()
+            panic!("unexpected test fixture")
         };
         let weak = Arc::downgrade(hash);
         drop(Value::hash(vec![(b"k".to_vec(), child)]));
@@ -249,7 +240,7 @@ fn rendering_keeps_existing_display_shapes_and_leaf_debug_forms() {
     let mut other = context();
     let imported = other.import(&protected).unwrap();
     let Kind::Hash(hash) = &imported.0 else {
-        unreachable!()
+        panic!("unexpected test fixture")
     };
     assert_eq!(hash.tag, Tag::Match);
     assert_eq!(imported.to_string(), "shown");
@@ -512,7 +503,7 @@ mod at_max_tests {
                     slots[index] = depth;
                 }
                 let Kind::Array(heap) = &value.0 else {
-                    unreachable!()
+                    panic!("unexpected test fixture")
                 };
                 let expected = true_depth(&slots);
                 assert_eq!(heap.depth, expected, "trial {trial} depth");
@@ -560,7 +551,7 @@ mod at_max_tests {
                     slots[pick].1 = depth;
                 }
                 let Kind::Hash(hash) = &value.0 else {
-                    unreachable!()
+                    panic!("unexpected test fixture")
                 };
                 let depths: Vec<usize> = slots.iter().map(|(_, d)| *d).collect();
                 let expected = true_depth(&depths);

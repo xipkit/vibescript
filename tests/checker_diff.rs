@@ -44,8 +44,8 @@ fn generated_programs_agree_with_their_checks_kept() {
     let mut accepted = 0;
     let mut failures = Vec::new();
     for seed in 0..SMOKE_SEEDS {
-        let case = generate::program(seed);
-        match harness::judge(&case, &mut scratch) {
+        let case = generate::program(seed).unwrap();
+        match harness::judge(&case, &mut scratch).unwrap() {
             Verdict::Finding(finding) => failures.push(format!(
                 "seed {seed}: {}\n{}\n{}",
                 finding.kind.name(),
@@ -91,7 +91,7 @@ fn reduced_findings_stay_fixed() {
             .and_then(|line| line.strip_prefix("# expect: "))
             .unwrap_or_else(|| panic!("{} has no `# expect:` line", path.display()))
             .to_owned();
-        let verdict = harness::judge(&Case::parse(&text), &mut scratch);
+        let verdict = harness::judge(&Case::parse(&text), &mut scratch).unwrap();
         let fits = match &verdict {
             Verdict::Rejected(reason) => expected
                 .strip_prefix("rejected ")

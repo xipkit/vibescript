@@ -9,7 +9,7 @@
 use super::catalog::Catalog;
 use super::docs::{builtin_docs, keyword_doc, member_doc_markdown, namespace_doc};
 use super::navigation::{anchor_line, children};
-use super::text::{line_at, word_char, word_span};
+use super::text::{line_at, to_i64, word_char, word_span};
 use vibescript::tooling::{Function, Item, ItemKind, Outline, Parameter, ParameterKind};
 
 pub(crate) fn markdown<S: AsRef<str>>(
@@ -61,15 +61,16 @@ pub(crate) fn classify(catalog: &Catalog, word: &str) -> &'static str {
 /// The receiver word and the character range of the word before it, when the
 /// word directly follows `Receiver.` or `Receiver::`.
 fn receiver_before(chars: &[char], start: usize) -> Option<(usize, usize)> {
-    let receiver_end = if start > 0 && chars[start - 1] == '.' {
+    let receiver_end = if start > 0 && chars.get(start - 1) == Some(&'.') {
         start - 1
-    } else if start >= 2 && chars[start - 1] == ':' && chars[start - 2] == ':' {
+    } else if start >= 2 && chars.get(start - 1) == Some(&':') && chars.get(start - 2) == Some(&':')
+    {
         start - 2
     } else {
         return None;
     };
     let mut receiver_start = receiver_end;
-    while receiver_start > 0 && word_char(chars[receiver_start - 1]) {
+    while receiver_start > 0 && chars.get(receiver_start - 1).is_some_and(|c| word_char(*c)) {
         receiver_start -= 1;
     }
     Some((receiver_start, receiver_end))
@@ -85,12 +86,16 @@ pub(crate) fn qualified_word<S: AsRef<str>>(lines: &[S], line: i64, character: i
         return String::new();
     };
     if receiver_start == receiver_end
-        || (receiver_start > 0 && matches!(chars[receiver_start - 1], '.' | ':'))
+        || (receiver_start > 0 && matches!(chars.get(receiver_start - 1), Some('.' | ':')))
     {
         return String::new();
     }
-    let receiver: String = chars[receiver_start..receiver_end].iter().collect();
-    let word: String = chars[start..end].iter().collect();
+    let receiver: String = chars
+        .get(receiver_start..receiver_end)
+        .unwrap_or_default()
+        .iter()
+        .collect();
+    let word: String = chars.get(start..end).unwrap_or_default().iter().collect();
     format!("{receiver}.{word}")
 }
 
@@ -106,15 +111,22 @@ pub(crate) fn value_member_access<S: AsRef<str>>(
     let Some((chars, start, _)) = word_span(lines, line, character) else {
         return false;
     };
-    if start == 0 || chars[start - 1] != '.' || (start >= 2 && chars[start - 2] == '.') {
+    if start == 0
+        || chars.get(start - 1) != Some(&'.')
+        || (start >= 2 && chars.get(start - 2) == Some(&'.'))
+    {
         return false;
     }
     let receiver_end = start - 1;
     let mut receiver_start = receiver_end;
-    while receiver_start > 0 && word_char(chars[receiver_start - 1]) {
+    while receiver_start > 0 && chars.get(receiver_start - 1).is_some_and(|c| word_char(*c)) {
         receiver_start -= 1;
     }
-    let receiver: String = chars[receiver_start..receiver_end].iter().collect();
+    let receiver: String = chars
+        .get(receiver_start..receiver_end)
+        .unwrap_or_default()
+        .iter()
+        .collect();
     !catalog.is_namespace(&receiver)
 }
 
@@ -160,7 +172,11 @@ fn receiver_word<S: AsRef<str>>(lines: &[S], line: i64, character: i64) -> Strin
     let Some((receiver_start, receiver_end)) = receiver_before(&chars, start) else {
         return String::new();
     };
-    let receiver: String = chars[receiver_start..receiver_end].iter().collect();
+    let receiver: String = chars
+        .get(receiver_start..receiver_end)
+        .unwrap_or_default()
+        .iter()
+        .collect();
     if receiver == "self" {
         return String::new();
     }
@@ -169,7 +185,7 @@ fn receiver_word<S: AsRef<str>>(lines: &[S], line: i64, character: i64) -> Strin
 
 fn dot_precedes<S: AsRef<str>>(lines: &[S], line: i64, character: i64) -> bool {
     word_span(lines, line, character)
-        .is_some_and(|(chars, start, _)| start > 0 && chars[start - 1] == '.')
+        .is_some_and(|(chars, start, _)| start > 0 && chars.get(start - 1) == Some(&'.'))
 }
 
 fn def_precedes<S: AsRef<str>>(lines: &[S], line: i64, character: i64) -> bool {
@@ -177,15 +193,15 @@ fn def_precedes<S: AsRef<str>>(lines: &[S], line: i64, character: i64) -> bool {
         return false;
     };
     let mut index = start;
-    if index >= 5 && chars[index - 5..index] == ['s', 'e', 'l', 'f', '.'] {
+    if index >= 5 && chars.get(index - 5..index) == Some(['s', 'e', 'l', 'f', '.'].as_slice()) {
         index -= 5;
     }
-    while index > 0 && matches!(chars[index - 1], ' ' | '\t') {
+    while index > 0 && matches!(chars.get(index - 1), Some(' ' | '\t')) {
         index -= 1;
     }
     index >= 3
-        && chars[index - 3..index] == ['d', 'e', 'f']
-        && (index == 3 || !word_char(chars[index - 4]))
+        && chars.get(index - 3..index) == Some(['d', 'e', 'f'].as_slice())
+        && (index == 3 || !chars.get(index - 4).is_some_and(|c| word_char(*c)))
 }
 
 /// Whether a bare `=` follows the word, the shape of a setter call; `==` and
@@ -195,7 +211,7 @@ fn assignment_follows<S: AsRef<str>>(lines: &[S], line: i64, character: i64) -> 
         return false;
     };
     let mut index = end;
-    while index < chars.len() && matches!(chars[index], ' ' | '\t') {
+    while index < chars.len() && matches!(chars.get(index), Some(' ' | '\t')) {
         index += 1;
     }
     if chars.get(index) != Some(&'=') {
@@ -256,14 +272,14 @@ fn symbol_doc<S: AsRef<str>>(
     }
     if let Some(candidate) = candidates
         .iter()
-        .find(|candidate| candidate.line as i64 == hover_line)
+        .find(|candidate| to_i64(candidate.line) == hover_line)
     {
         return Some(candidate.markdown.clone());
     }
     let mut best: Option<&Candidate> = None;
     for candidate in &candidates {
         let (start, end) = candidate.container;
-        if !candidate.scoped || hover_line < start as i64 || hover_line > end as i64 {
+        if !candidate.scoped || hover_line < to_i64(start) || hover_line > to_i64(end) {
             continue;
         }
         if best.is_none_or(|best| start > best.container.0) {
@@ -287,8 +303,8 @@ fn symbol_doc<S: AsRef<str>>(
     let chosen = pool
         .iter()
         .rev()
-        .find(|candidate| candidate.line as i64 <= hover_line)
-        .unwrap_or(&pool[0]);
+        .find(|candidate| to_i64(candidate.line) <= hover_line)
+        .or_else(|| pool.first())?;
     Some(chosen.markdown.clone())
 }
 
@@ -468,8 +484,9 @@ pub(crate) fn params_text(function: Option<&Function>) -> String {
         .position(|param| param.kind == ParameterKind::Keyword);
     let mut labels = Vec::with_capacity(params.len() + 1);
     for (index, param) in params.iter().enumerate() {
-        let rest = params[..index]
+        let rest = params
             .iter()
+            .take(index)
             .any(|param| param.kind == ParameterKind::Rest);
         if first == Some(index) && !rest {
             labels.push("*".to_owned());
@@ -504,7 +521,7 @@ fn user_markdown<S: AsRef<str>>(lines: &[S], signature: &str, item: &Item) -> St
 fn comment_above<S: AsRef<str>>(lines: &[S], line: usize) -> String {
     let mut block = Vec::new();
     for index in (0..line).rev() {
-        let Some(rest) = line_at(lines, index as i64).trim().strip_prefix('#') else {
+        let Some(rest) = line_at(lines, to_i64(index)).trim().strip_prefix('#') else {
             break;
         };
         block.push(rest.strip_prefix(' ').unwrap_or(rest));

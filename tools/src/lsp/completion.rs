@@ -8,7 +8,7 @@ use super::docs::{
     unambiguous_member_doc,
 };
 use super::document::{CompletionItem, CompletionKind};
-use super::text::{character_index, word_char};
+use super::text::{character_index, to_i64, word_char};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::{Arc, OnceLock};
 use vibescript::tooling::{self, Item, ItemKind, Outline};
@@ -127,15 +127,15 @@ pub(crate) fn member_context<S: AsRef<str>>(lines: &[S], line: i64, character: i
     let chars: Vec<char> = text.chars().collect();
     let end = character_index(text, character).min(chars.len());
     let mut start = end;
-    while start > 0 && word_char(chars[start - 1]) {
+    while start > 0 && chars.get(start - 1).is_some_and(|c| word_char(*c)) {
         start -= 1;
     }
-    if start == 0 || chars[start - 1] != '.' {
+    if start == 0 || chars.get(start - 1) != Some(&'.') {
         return false;
     }
-    if start >= 2 && digit(chars[start - 2]) {
+    if start >= 2 && chars.get(start - 2).is_some_and(|c| digit(*c)) {
         if start < end {
-            if fraction_suffix(&chars[start..end]) {
+            if chars.get(start..end).is_some_and(fraction_suffix) {
                 return false;
             }
         } else if chars.get(start).is_some_and(|c| digit(*c)) {
@@ -160,26 +160,26 @@ fn fraction_suffix(suffix: &[char]) -> bool {
     if index == suffix.len() {
         return true;
     }
-    if !matches!(suffix[index], 'e' | 'E') {
+    if !matches!(suffix.get(index), Some('e' | 'E')) {
         return false;
     }
     index += 1;
     if index == suffix.len() {
         return true;
     }
-    if !digit(suffix[index]) {
+    if !suffix.get(index).is_some_and(|c| digit(*c)) {
         return false;
     }
     digits(suffix, index) == suffix.len()
 }
 
 fn digits(chars: &[char], mut index: usize) -> usize {
-    while index < chars.len() {
-        let separator = chars[index] == '_'
+    while let Some(&c) = chars.get(index) {
+        let separator = c == '_'
             && index > 0
-            && digit(chars[index - 1])
+            && chars.get(index - 1).is_some_and(|c| digit(*c))
             && chars.get(index + 1).is_some_and(|c| digit(*c));
-        if !digit(chars[index]) && !separator {
+        if !digit(c) && !separator {
             break;
         }
         index += 1;
@@ -215,22 +215,23 @@ fn splice_probe<S: AsRef<str>>(
     let chars: Vec<char> = text.chars().collect();
     let end = character_index(text, character).min(chars.len());
     let mut start = end;
-    while start > 0 && word_char(chars[start - 1]) {
+    while start > 0 && chars.get(start - 1).is_some_and(|c| word_char(*c)) {
         start -= 1;
     }
-    if start == 0 || chars[start - 1] != '.' {
+    if start == 0 || chars.get(start - 1) != Some(&'.') {
         return None;
     }
     let mut source_lines: Vec<&str> = source.split('\n').collect();
     if index >= source_lines.len() {
         return None;
     }
-    let spliced: String = chars[..start]
+    let spliced: String = chars
+        .get(..start)?
         .iter()
         .chain(PROBE.chars().collect::<Vec<_>>().iter())
-        .chain(chars[end..].iter())
+        .chain(chars.get(end..)?.iter())
         .collect();
-    source_lines[index] = &spliced;
+    *source_lines.get_mut(index)? = &spliced;
     Some(source_lines.join("\n"))
 }
 
@@ -261,7 +262,7 @@ struct Block {
 /// sits on the first line, as the reference measures a body.
 fn last_statement_line(last: Option<vibescript::Position>) -> i64 {
     match last {
-        Some(position) if position.line > 1 => position.line as i64,
+        Some(position) if position.line > 1 => to_i64(position.line),
         _ => 0,
     }
 }
@@ -300,10 +301,10 @@ impl Index {
         let mut scopes = Vec::with_capacity(functions.len());
         for (name, declaration) in &functions {
             items.push(Arc::new(item(name, CompletionKind::Function, "function")));
-            let compiled_start = declaration.position.line as i64 - 1;
+            let compiled_start = to_i64(declaration.position.line) - 1;
             let start = def_lines
                 .get(*name)
-                .map_or(compiled_start, |line| *line as i64);
+                .map_or(compiled_start, |line| to_i64(*line));
             let function = declaration.function.as_ref();
             let extent =
                 last_statement_line(function.and_then(|f| f.last_statement)) - compiled_start;
@@ -322,7 +323,7 @@ impl Index {
                     add_local(&mut scope.items, &mut seen, local, "local");
                 }
                 for rescue in &function.rescues {
-                    let block_start = start + (rescue.position.line as i64 - 1 - compiled_start);
+                    let block_start = start + (to_i64(rescue.position.line) - 1 - compiled_start);
                     let rescue_end = last_statement_line(rescue.last_statement);
                     let block_end = if rescue_end > 0 {
                         start + (rescue_end - compiled_start)
@@ -412,14 +413,14 @@ fn def_lines<S: AsRef<str>>(lines: &[S]) -> HashMap<String, usize> {
 /// the first unindented `end` and the line after the body's last statement.
 /// A buffer with neither signal leaves the function open to the end.
 fn function_end<S: AsRef<str>>(lines: &[S], start: i64, extent: i64) -> i64 {
-    let count = lines.len() as i64;
+    let count = to_i64(lines.len());
     let first = usize::try_from(start + 1).unwrap_or(0);
     let textual = lines
         .iter()
         .enumerate()
         .skip(first)
         .find(|(_, line)| line.as_ref().trim_end_matches([' ', '\t']) == "end")
-        .map_or(count, |(index, _)| index as i64);
+        .map_or(count, |(index, _)| to_i64(index));
     if extent > 0 && textual < count {
         return textual.max(start + extent);
     }

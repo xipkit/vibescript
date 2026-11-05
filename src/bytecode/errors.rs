@@ -112,7 +112,7 @@ impl<'x> Compiling<'_, 'x> {
         }
         let mut c = self.c();
         spec.end = c.code.len();
-        c.program.handlers[index] = spec;
+        *c.program.handlers.at_mut(index)? = spec;
         Ok(())
     }
 
@@ -126,7 +126,9 @@ impl<'x> Compiling<'_, 'x> {
                 },
             ] = body
             else {
-                unreachable!()
+                return Err(crate::checked::internal(
+                    "tail call requires one expression",
+                ));
             };
             self.call_target(expr, arguments).await?;
             self.c().emit(Op::Nil);
@@ -171,7 +173,7 @@ impl<'x> Compiling<'_, 'x> {
                 let mut c = self.c();
                 c.emit(Op::RaiseValue);
                 let end = c.code.len();
-                c.patch(start, end);
+                c.patch(start, end)?;
             }
             self.expr(message).await?;
             self.c().emit(Op::Raise(2));

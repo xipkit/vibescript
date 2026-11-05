@@ -19,7 +19,7 @@
 use super::{SessionLimits, format};
 use std::{
     collections::BTreeMap,
-    sync::{Arc, Mutex},
+    sync::{Arc, mpsc},
 };
 use vibescript::{
     CallOptions, CancellationToken, CompileBudget, DeclarationKind, Diagnostic, Engine, Error,
@@ -35,6 +35,7 @@ const SESSION: &str = "__session__";
 
 pub struct Session {
     engine: Engine,
+    initialization_error: Option<Error>,
     limits: Limits,
     compile_limits: SessionLimits,
     compile_steps: u64,
@@ -52,8 +53,10 @@ pub struct Session {
     pub prelude: Vec<Carried>,
     /// The rendered text of the most recent failure, or empty.
     pub last_error: String,
-    stdout: Arc<Mutex<Vec<u8>>>,
-    stderr: Arc<Mutex<Vec<u8>>>,
+    /// What the inputs' `puts`, `print` and `p` wrote, as the writer sent it.
+    stdout: mpsc::Receiver<Vec<u8>>,
+    /// What the inputs' `warn` wrote.
+    stderr: mpsc::Receiver<Vec<u8>>,
 }
 
 /// A top-level declaration kept for later inputs, with where it was typed.
@@ -75,24 +78,26 @@ impl Session {
         cancellation: CancellationToken,
         compile_limits: SessionLimits,
     ) -> Self {
-        let stdout = Arc::new(Mutex::new(Vec::new()));
-        let stderr = Arc::new(Mutex::new(Vec::new()));
+        let (out, stdout) = mpsc::channel();
+        let (err, stderr) = mpsc::channel();
         let mut engine = Engine::new();
-        engine
-            .declare_global(SESSION, "hash<string, any>")
-            .expect("the session global's type is valid");
-        let out = stdout.clone();
+        let initialization_error = engine.declare_global(SESSION, "hash<string, any>").err();
         engine.set_output_writer(move |_, bytes| {
-            out.lock().unwrap().extend_from_slice(bytes);
+            // The session outlives its engine, so the receiver is there.
+            if !bytes.is_empty() {
+                let _ = out.send(bytes.to_vec());
+            }
             Ok(())
         });
-        let err = stderr.clone();
         engine.set_error_writer(move |_, bytes| {
-            err.lock().unwrap().extend_from_slice(bytes);
+            if !bytes.is_empty() {
+                let _ = err.send(bytes.to_vec());
+            }
             Ok(())
         });
         Self {
             engine,
+            initialization_error,
             limits,
             compile_limits,
             compile_steps: 0,
@@ -155,8 +160,8 @@ impl Session {
     /// result unless it is nil. A failure is also kept as the last error, and
     /// leaves the variables and declarations unchanged.
     pub fn evaluate(&mut self, input: &str) -> Evaluated {
-        self.stdout.lock().unwrap().clear();
-        self.stderr.lock().unwrap().clear();
+        self.stdout.try_iter().for_each(drop);
+        self.stderr.try_iter().for_each(drop);
         let compiled = match self.compile(input) {
             Ok(compiled) => compiled,
             Err(error) => {
@@ -259,8 +264,10 @@ impl Session {
     }
 
     fn output(&self, result: &Value) -> String {
-        let mut captured = String::from_utf8_lossy(&self.stdout.lock().unwrap()).into_owned();
-        captured.push_str(&String::from_utf8_lossy(&self.stderr.lock().unwrap()));
+        let written: Vec<u8> = self.stdout.try_iter().flatten().collect();
+        let mut captured = String::from_utf8_lossy(&written).into_owned();
+        let written: Vec<u8> = self.stderr.try_iter().flatten().collect();
+        captured.push_str(&String::from_utf8_lossy(&written));
         let nil = result.type_name() == "nil";
         if captured.is_empty() {
             return if nil {
@@ -286,7 +293,11 @@ impl Session {
         &mut self,
         pass: impl FnOnce(&Self, &mut CompileBudget) -> Result<T, Error>,
     ) -> Result<T, Error> {
-        if let Some(error) = &self.compile_exhausted {
+        if let Some(error) = self
+            .initialization_error
+            .as_ref()
+            .or(self.compile_exhausted.as_ref())
+        {
             return Err(error.clone());
         }
         let mut budget = CompileBudget::new(&CallOptions {
@@ -507,6 +518,7 @@ impl SourceMap {
         let mut line = 1;
         if let Some(bindings) = bindings {
             let text: Arc<str> = Arc::from(bindings.as_str());
+            combined.push_str(&bindings);
             regions.push((
                 line,
                 Carried {
@@ -518,7 +530,6 @@ impl SourceMap {
                     source: text,
                 },
             ));
-            combined.push_str(&regions[0].1.text);
             combined.push('\n');
             line += 1;
         }
@@ -543,12 +554,15 @@ impl SourceMap {
             let line = position.line - self.lines;
             return (&self.input, Position { line, ..position });
         }
-        let (start, carried) = self
+        let Some((start, carried)) = self
             .regions
             .iter()
             .rev()
             .find(|(start, _)| *start <= position.line)
-            .unwrap_or(&self.regions[0]);
+            .or_else(|| self.regions.first())
+        else {
+            return (&self.input, position);
+        };
         let line = carried.line + position.line.saturating_sub(*start);
         (&carried.source, Position { line, ..position })
     }
@@ -629,7 +643,11 @@ fn code_frame(text: &str, position: Position) -> String {
         "  --> line {line}, column {}\n {line} | {}{}{}\n ",
         position.column,
         if prefix { "..." } else { "" },
-        chars[start..end].iter().collect::<String>(),
+        chars
+            .get(start..end)
+            .unwrap_or_default()
+            .iter()
+            .collect::<String>(),
         if suffix { "..." } else { "" },
     );
     frame.extend(std::iter::repeat_n(' ', line.to_string().len()));
@@ -637,7 +655,7 @@ fn code_frame(text: &str, position: Position) -> String {
     if prefix {
         frame.push_str("   ");
     }
-    for &ch in &chars[start..caret] {
+    for &ch in chars.get(start..caret).unwrap_or_default() {
         frame.push(if ch == '\t' { '\t' } else { ' ' });
     }
     frame.push('^');

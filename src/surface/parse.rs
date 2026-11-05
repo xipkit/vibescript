@@ -9,7 +9,10 @@
 
 use super::syntax::*;
 use crate::tooling::{self, TokenKind};
-use std::collections::HashSet;
+use std::{
+    collections::HashSet,
+    sync::atomic::{AtomicBool, AtomicU32, Ordering::Relaxed},
+};
 
 /// Why a source could not be parsed, which a test's failure shows.
 #[derive(Debug)]
@@ -65,12 +68,12 @@ pub fn parse_tokens<'s>(
     let mut parser = Parser::new(source, tokens, starts, stop);
     parser.declare_types();
     parser.limit = limit;
-    let body = if parser.stopped.get() {
+    let body = if parser.stopped.load(Relaxed) {
         Err(stopped())
     } else {
         parser.program()
     };
-    if parser.stopped.get() {
+    if parser.stopped.load(Relaxed) {
         return Err(stopped());
     }
     // A speculative parse that failed at the limit may have been retried
@@ -357,7 +360,7 @@ struct Parser<'s> {
     then_stop: Option<usize>,
     locals: HashSet<String>,
     /// The closing bracket of each opening one [`Self::closer`] looked for.
-    closers: std::cell::RefCell<std::collections::HashMap<usize, Option<usize>>>,
+    closers: crate::compilation::Shared<std::collections::HashMap<usize, Option<usize>>>,
     /// Each change to [`Self::locals`] a block or a speculative parse may
     /// undo: a name added, `true`, or removed, `false`. Undoing them keeps
     /// the work of restoring the locals proportional to what changed.
@@ -380,14 +383,14 @@ struct Parser<'s> {
     /// Where the nesting limit was first exceeded.
     too_deep: Option<usize>,
     /// The type aliases, classes and enums the source declares anywhere.
-    type_names: std::rc::Rc<HashSet<String>>,
+    type_names: std::sync::Arc<HashSet<String>>,
     /// Whether the compilation has stopped, which the parser asks every
     /// [`POLL`] levels of nesting and before it lexes an interpolation.
     stop: Stop<'s>,
     /// The levels entered since the parser last asked [`Self::stop`].
-    unpolled: std::cell::Cell<u32>,
+    unpolled: AtomicU32,
     /// Whether the parser gave up because the compilation stopped.
-    stopped: std::cell::Cell<bool>,
+    stopped: AtomicBool,
 }
 
 /// Whether the compilation a parse is part of has stopped.
@@ -440,10 +443,10 @@ impl<'s> Parser<'s> {
             depth: 0,
             limit: usize::MAX,
             too_deep: None,
-            type_names: std::rc::Rc::default(),
+            type_names: std::sync::Arc::default(),
             stop,
-            unpolled: std::cell::Cell::new(0),
-            stopped: std::cell::Cell::new(false),
+            unpolled: AtomicU32::new(0),
+            stopped: AtomicBool::new(false),
         }
     }
 
@@ -455,7 +458,7 @@ impl<'s> Parser<'s> {
         let mut names = HashSet::new();
         for index in 0..self.tokens.len().saturating_sub(2) {
             if index % POLL as usize == 0 && (self.stop)() {
-                self.stopped.set(true);
+                self.stopped.store(true, Relaxed);
                 return;
             }
             let Some(word) = self.word_at(index) else {
@@ -469,7 +472,7 @@ impl<'s> Parser<'s> {
             }
             names.insert(self.text(index + 1).to_owned());
         }
-        self.type_names = std::rc::Rc::new(names);
+        self.type_names = std::sync::Arc::new(names);
     }
 
     fn save(&self) -> Saved {
@@ -945,7 +948,7 @@ impl<'s> Parser<'s> {
                     None => open_groups.push(i),
                 },
                 TokenKind::Punct(')' | ']' | '}') => {
-                    let opened = open_groups.pop().expect("an open group");
+                    let opened = open_groups.pop()?;
                     closers.insert(opened, Some(i));
                     if open_groups.is_empty() {
                         found = Some(i);
@@ -1271,15 +1274,15 @@ impl<'s> Parser<'s> {
     /// Counts a construct read, asking every [`POLL`] of them whether the
     /// compilation has stopped, and fails once it has.
     fn poll(&self) -> Result<()> {
-        if !self.stopped.get() {
-            let unpolled = self.unpolled.get() + 1;
-            self.unpolled.set(unpolled);
+        if !self.stopped.load(Relaxed) {
+            let unpolled = self.unpolled.load(Relaxed) + 1;
+            self.unpolled.store(unpolled, Relaxed);
             if unpolled >= POLL {
-                self.unpolled.set(0);
-                self.stopped.set((self.stop)());
+                self.unpolled.store(0, Relaxed);
+                self.stopped.store((self.stop)(), Relaxed);
             }
         }
-        if self.stopped.get() {
+        if self.stopped.load(Relaxed) {
             return self.fail("stopped");
         }
         Ok(())
@@ -3050,11 +3053,11 @@ impl<'s> Parser<'s> {
                 for index in 0..count {
                     self.poll()?;
                     let TokenKind::Template(spans) = &self.tokens[tok].kind else {
-                        unreachable!()
+                        return self.fail("template token changed during interpolation");
                     };
                     let span = spans[index].clone();
                     let part = self.interpolation(span);
-                    if self.stopped.get() {
+                    if self.stopped.load(Relaxed) {
                         return self.fail("stopped");
                     }
                     parts.push(part);
@@ -3077,21 +3080,21 @@ impl<'s> Parser<'s> {
     fn interpolation(&mut self, span: std::ops::Range<usize>) -> Option<Expr> {
         // Lexing an interpolation parses it in full, so the parser asks
         // before each one whether the compilation has stopped.
-        if !self.stopped.get() {
-            self.stopped.set((self.stop)());
+        if !self.stopped.load(Relaxed) {
+            self.stopped.store((self.stop)(), Relaxed);
         }
-        if self.stopped.get() {
+        if self.stopped.load(Relaxed) {
             return None;
         }
         let text = &self.source[span.clone()];
         let Ok(tokens) = lex_until(text, span.start, self.stop) else {
-            self.stopped.set((self.stop)());
+            self.stopped.store((self.stop)(), Relaxed);
             return None;
         };
         let base = self.tokens.len();
         self.tokens.extend(tokens);
         if self.starts.extend(&self.tokens, base, self.stop).is_none() {
-            self.stopped.set(true);
+            self.stopped.store(true, Relaxed);
             return None;
         }
         let mut parser = Parser::new(
@@ -3112,7 +3115,10 @@ impl<'s> Parser<'s> {
         parser.lines();
         let complete = parser.eof(parser.pos);
         self.too_deep = self.too_deep.or(parser.too_deep);
-        self.stopped.set(self.stopped.get() || parser.stopped.get());
+        self.stopped.store(
+            self.stopped.load(Relaxed) || parser.stopped.load(Relaxed),
+            Relaxed,
+        );
         // What the interpolation declared stays in it.
         parser.undo_locals(0);
         self.locals = parser.locals;
@@ -3584,7 +3590,7 @@ impl<'s> Parser<'s> {
                 call.args = Some(args);
                 *call
             }
-            _ => unreachable!(),
+            _ => return self.fail("command call requires a name or call"),
         };
         Ok(Expr {
             span,
@@ -4391,7 +4397,7 @@ mod tests {
         let starts = Starts::new(&tokens, &|| false).unwrap();
         let mut parser = Parser::new(&source, tokens, starts, &|| true);
         assert!(parser.leaf(0).is_err());
-        assert!(parser.stopped.get());
+        assert!(parser.stopped.load(Relaxed));
     }
 
     #[test]
@@ -4427,7 +4433,7 @@ mod tests {
         let stop = || polls.fetch_add(1, Relaxed) >= 5;
         let mut parser = Parser::new(&source, tokens, starts, &stop);
         assert!(parser.program().is_err());
-        assert!(parser.stopped.get());
+        assert!(parser.stopped.load(Relaxed));
         assert!(polls.load(Relaxed) <= 6);
     }
 

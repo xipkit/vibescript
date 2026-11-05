@@ -1,14 +1,15 @@
 //! Regex constants share code without retaining an invocation's memory budget.
 
-use crate::{CallContext, Result, Value, regex::value::Regex};
-use std::sync::{Mutex, OnceLock};
+use crate::{CallContext, Result, Value, actor::Actor, regex::value::Regex};
+use std::sync::OnceLock;
 
 #[derive(Debug)]
 pub(crate) struct Literal {
     source: Value,
     flags: u8,
     compiled: OnceLock<Result<Value>>,
-    compiling: Mutex<()>,
+    /// Cold calls compile one at a time, so a pattern compiles once.
+    compiling: Actor<()>,
 }
 
 impl Literal {
@@ -27,7 +28,7 @@ impl Literal {
             source,
             flags,
             compiled,
-            compiling: Mutex::new(()),
+            compiling: Actor::new(()),
         }
     }
 
@@ -38,20 +39,21 @@ impl Literal {
         if let Some(value) = self.compiled.get() {
             return ctx.import(value.as_ref().map_err(Clone::clone)?);
         }
-        let _compiling = self.compiling.lock().unwrap();
-        ctx.checkpoint()?;
-        if let Some(value) = self.compiled.get() {
-            return ctx.import(value.as_ref().map_err(Clone::clone)?);
-        }
-        let value = Regex::compile(ctx, self.source.clone(), self.flags, "regex literal");
-        if !ctx.exhausted() {
-            let cached = match &value {
-                Ok(value) => crate::integer::unlimited_context().import(value),
-                Err(error) => Err(error.clone()),
-            };
-            self.compiled.set(cached).unwrap();
-        }
-        value
+        self.compiling.with(|()| {
+            ctx.checkpoint()?;
+            if let Some(value) = self.compiled.get() {
+                return ctx.import(value.as_ref().map_err(Clone::clone)?);
+            }
+            let value = Regex::compile(ctx, self.source.clone(), self.flags, "regex literal");
+            if !ctx.exhausted() {
+                let cached = match &value {
+                    Ok(value) => crate::integer::unlimited_context().import(value),
+                    Err(error) => Err(error.clone()),
+                };
+                self.compiled.set(cached).unwrap();
+            }
+            value
+        })
     }
 }
 
@@ -75,15 +77,15 @@ mod tests {
             let retained = reference.stats().retained_memory_bytes - savings;
             for _ in 0..3 {
                 let mut ctx = CallContext::new(CallOptions::default());
-                let memory = Arc::downgrade(&ctx.identity());
+                let memory = ctx.identity();
                 let imported = literal.value(&mut ctx).unwrap();
                 assert_eq!(imported.as_regex(), compiled.as_regex());
                 assert_eq!(ctx.stats().retained_memory_bytes, retained);
                 assert!(ctx.stats().steps < reference.stats().steps);
                 drop(ctx);
-                assert!(memory.upgrade().is_some());
+                assert!(Arc::strong_count(&memory) > 1);
                 drop(imported);
-                assert!(memory.upgrade().is_none());
+                assert_eq!(Arc::strong_count(&memory), 1);
             }
         }
     }
@@ -117,7 +119,7 @@ mod tests {
         );
         assert!(literal.compiled.get().is_none());
         let mut first = CallContext::new(CallOptions::default());
-        let memory = Arc::downgrade(&first.identity());
+        let memory = first.identity();
         let value = literal.value(&mut first).unwrap();
         let mut reference = CallContext::new(CallOptions::default());
         let expected = Regex::compile(&mut reference, source, 0, "regex literal").unwrap();
@@ -129,7 +131,7 @@ mod tests {
         assert_eq!(value.as_regex(), expected.as_regex());
         drop(value);
         drop(first);
-        assert!(memory.upgrade().is_none());
+        assert_eq!(Arc::strong_count(&memory), 1);
         let mut next = CallContext::new(CallOptions::default());
         let value = literal.value(&mut next).unwrap();
         assert_eq!(value.as_regex(), expected.as_regex());
@@ -198,27 +200,19 @@ mod tests {
     fn concurrent_cold_calls_compile_once_without_sharing_budgets() {
         let literal = Literal::new(Value::bytes(br"(a?){1000}"), 0, false);
         let start = std::sync::Barrier::new(8);
-        let calls = std::thread::scope(|scope| {
-            let calls: Vec<_> = (0..8)
-                .map(|_| {
-                    scope.spawn(|| {
-                        let mut ctx = CallContext::new(CallOptions::default());
-                        let memory = Arc::downgrade(&ctx.identity());
-                        start.wait();
-                        let value = literal.value(&mut ctx).unwrap();
-                        let stats = ctx.stats();
-                        drop(value);
-                        drop(ctx);
-                        assert!(memory.upgrade().is_none());
-                        stats
-                    })
-                })
-                .collect();
-            calls
-                .into_iter()
-                .map(|call| call.join().unwrap())
-                .collect::<Vec<_>>()
-        });
+        let calls = crate::threads::parallel((0..8).map(|_| {
+            || {
+                let mut ctx = CallContext::new(CallOptions::default());
+                let memory = ctx.identity();
+                start.wait();
+                let value = literal.value(&mut ctx).unwrap();
+                let stats = ctx.stats();
+                drop(value);
+                drop(ctx);
+                assert_eq!(Arc::strong_count(&memory), 1);
+                stats
+            }
+        }));
         assert_eq!(calls.iter().filter(|stats| stats.steps > 2).count(), 1);
         assert!(
             calls

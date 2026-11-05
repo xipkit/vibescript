@@ -1,8 +1,8 @@
-use crate::{CallOptions, Capability, Engine, ErrorKind, HostMethod, Stats, Value, budget::Memory};
-use std::{
-    sync::{Arc, Mutex, Weak},
-    time::Instant,
+use crate::{
+    CallOptions, Capability, Engine, ErrorKind, HostMethod, Stats, Value, actor::Actor,
+    budget::Memory,
 };
+use std::{sync::Arc, time::Instant};
 
 #[derive(Clone, Copy, Debug)]
 enum Limit {
@@ -18,17 +18,17 @@ struct Observation {
     before: Stats,
     after: Stats,
     error: Option<ErrorKind>,
-    memory: Weak<Memory>,
+    memory: Option<Arc<Memory>>,
     called: bool,
 }
 
 fn probe(limit: Limit) -> (crate::Result<crate::Outcome>, Observation) {
-    let observed = Arc::new(Mutex::new(Observation::default()));
+    let observed = Arc::new(Actor::new(Observation::default()));
     let record = observed.clone();
     let method = HostMethod::new_with_block("cap.capture", move |call, _, _| {
         let ctx = call.context();
         let before = ctx.stats();
-        let memory = Arc::downgrade(&ctx.identity());
+        let memory = Some(ctx.identity());
         let previous = ctx.options.limits.clone();
         match limit {
             Limit::Measure => (),
@@ -51,13 +51,19 @@ fn probe(limit: Limit) -> (crate::Result<crate::Outcome>, Observation) {
             assert_eq!(ctx.checkpoint().unwrap_err().kind, kind);
         }
         ctx.options.limits = previous;
-        *record.lock().unwrap() = Observation {
-            before,
-            after,
-            error,
-            memory,
-            called: true,
-        };
+        let previous = record.with(|record| {
+            std::mem::replace(
+                record,
+                Observation {
+                    before,
+                    after,
+                    error,
+                    memory,
+                    called: true,
+                },
+            )
+        });
+        drop(previous);
         // The callback deliberately ignores failures; the invocation must still
         // surface a latched error after the temporary snapshot state is cleared.
         Ok(Value::nil())
@@ -89,9 +95,13 @@ fn probe(limit: Limit) -> (crate::Result<crate::Outcome>, Observation) {
             capabilities: vec![capability],
             ..CallOptions::default()
         });
-    let observation = std::mem::take(&mut *observed.lock().unwrap());
+    let observation = observed.with(std::mem::take);
     assert!(observation.called, "{limit:?}");
-    assert_eq!(observation.memory.strong_count(), 0, "{limit:?}");
+    assert_eq!(
+        observation.memory.as_ref().map(Arc::strong_count),
+        Some(1),
+        "{limit:?}"
+    );
     (result, observation)
 }
 

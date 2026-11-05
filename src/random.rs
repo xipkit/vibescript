@@ -1,6 +1,7 @@
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::Buffer,
+    numeric::{to_i64, wrapped},
     value::{Bytes, Kind},
 };
 use std::{
@@ -170,7 +171,9 @@ fn rand(ctx: &mut CallContext, argument: Option<&Value>) -> Result<Value> {
                 ))
             }
         }
-        Some(Kind::Int(bound)) if *bound > 0 => Ok(Value::int(bounded(ctx, *bound as u64)? as i64)),
+        Some(Kind::Int(bound)) if *bound > 0 => {
+            Ok(Value::int(to_i64(bounded(ctx, *bound as u64)?)))
+        }
         Some(Kind::Int(_)) => Err(Error::new(
             ErrorKind::Argument,
             "rand integer bound must be positive",
@@ -206,7 +209,7 @@ fn rand(ctx: &mut CallContext, argument: Option<&Value>) -> Result<Value> {
             } else {
                 bounded(ctx, size)?
             };
-            Ok(Value::int((low as u64).wrapping_add(offset) as i64))
+            Ok(Value::int(low.wrapping_add_unsigned(offset)))
         }
         _ => Err(Error::new(
             ErrorKind::Argument,
@@ -237,7 +240,7 @@ fn seed(ctx: &mut CallContext, argument: Option<&Value>) -> Result<Value> {
     }
     let seed = match explicit {
         Some(seed) => seed,
-        None => entropy(ctx)? as i64,
+        None => wrapped(entropy(ctx)?),
     };
     let previous = ctx.random.take();
     let result = previous
@@ -407,7 +410,7 @@ mod tests {
                 Method::Uuid => Bytes::header_bytes() + 36,
                 Method::Id => Bytes::header_bytes() + 16,
                 Method::Seed => Seeded::storage(),
-                _ => unreachable!(),
+                _ => panic!("unexpected test fixture"),
             };
             ctx.options.limits.memory_bytes = Some(storage - 1);
             assert_eq!(

@@ -15,7 +15,7 @@ use crate::{
     diagnostic::{Code, Diagnostic},
     syntax::{Declarations, Expr, Node, Statement, Stmt, modules::Visibility},
 };
-use std::{collections::HashMap, fmt, rc::Rc, sync::Arc};
+use std::{collections::HashMap, fmt, sync::Arc};
 
 /// Files `require` may nest before the checker stops following them.
 const DEPTH: usize = 16;
@@ -26,7 +26,7 @@ const CIRCULAR: &str = "circular require";
 /// The functions and enums a required file exports.
 pub(crate) struct Exports {
     pub path: String,
-    pub functions: CountedMap<String, Rc<Sig>>,
+    pub functions: CountedMap<String, Arc<Sig>>,
     pub enums: CountedMap<String, u32>,
 }
 
@@ -156,7 +156,7 @@ pub(crate) struct Required<'a> {
     /// Aliases `require(..., as:)` binds, to the exports they name.
     pub aliases: CountedMap<String, u32>,
     /// Exported functions, which `require` also publishes by name.
-    pub published: CountedMap<String, Rc<Sig>>,
+    pub published: CountedMap<String, Arc<Sig>>,
     /// The sources and file names that the diagnostics of required files
     /// keep, by address, so each is counted once however many keep it.
     retained: CountedSet<usize>,
@@ -492,7 +492,7 @@ impl<'a> Checker<'a> {
         let mut context = self.context(held);
         let parse = crate::syntax::parse_with_tokens(
             &source,
-            &crate::compilation::Meter(std::cell::RefCell::new(&mut context)),
+            &crate::compilation::Meter::new(&mut context),
         );
         let parsing = context.stats();
         let charged = self.meter.charge(parsing.steps);
@@ -521,7 +521,7 @@ impl<'a> Checker<'a> {
                 // left of the budget, in the parse's context, as a host's
                 // syntax error is, and its steps are this check's too.
                 let error = {
-                    let work = crate::compilation::Meter(std::cell::RefCell::new(&mut context));
+                    let work = crate::compilation::Meter::new(&mut context);
                     let error = crate::syntax::host_syntax(&source, &work, error);
                     crate::source::parse_error(&source, Some(&filename), error, &work)
                 };
@@ -701,7 +701,7 @@ impl<'a> Checker<'a> {
             if self
                 .modules
                 .published
-                .insert_made(declarations, name.len(), || name.clone(), Rc::clone(sig))
+                .insert_made(declarations, name.len(), || name.clone(), Arc::clone(sig))
                 .is_err()
             {
                 self.release(found + tree);
@@ -894,7 +894,7 @@ impl<'a> Checker<'a> {
     fn import(
         &mut self,
         exported: &Exported,
-    ) -> (CountedMap<String, Rc<Sig>>, CountedMap<String, u32>) {
+    ) -> (CountedMap<String, Arc<Sig>>, CountedMap<String, u32>) {
         // Held by the caller, at the lengths they take.
         let mut imports = Imports {
             enums: Vec::with_capacity(exported.enums.len()),
@@ -1015,7 +1015,7 @@ impl<'a> Checker<'a> {
                 let Some(sig) = self.import_sig(&exported.types, sig, &imports) else {
                     break;
                 };
-                let sig = Rc::new(sig);
+                let sig = Arc::new(sig);
                 let id = self.program.fns.len();
                 self.program.fns.push_within(FnDecl {
                     def: None,
@@ -1055,7 +1055,7 @@ impl<'a> Checker<'a> {
             let Some(sig) = self.import_sig(&exported.types, sig, &imports) else {
                 break;
             };
-            functions.insert_kept(&mut kept, name.clone(), Rc::new(sig));
+            functions.insert_kept(&mut kept, name.clone(), Arc::new(sig));
         }
         (functions, enums)
     }
@@ -1222,7 +1222,7 @@ impl<'a> Checker<'a> {
     }
 
     /// `receiver.name(...)` on the object `require` returned.
-    pub(super) fn exported(&self, id: u32, name: &str) -> Option<Rc<Sig>> {
+    pub(super) fn exported(&self, id: u32, name: &str) -> Option<Arc<Sig>> {
         self.modules.loaded[id as usize]
             .functions
             .get(name)

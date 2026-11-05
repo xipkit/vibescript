@@ -109,7 +109,10 @@ fn vector_ascii_mismatch(bytes: &[u8; 16], needle: u8) -> usize {
     // SAFETY: the load reads exactly the sixteen bytes of `bytes`; SSE2 is baseline.
     unsafe {
         let input = _mm_loadu_si128(bytes.as_ptr().cast());
-        let mask = _mm_or_si128(_mm_cmpeq_epi8(input, _mm_set1_epi8(needle as i8)), input);
+        let mask = _mm_or_si128(
+            _mm_cmpeq_epi8(input, _mm_set1_epi8(i8::from_ne_bytes([needle]))),
+            input,
+        );
         (_mm_movemask_epi8(mask) as u32 | 1 << 16).trailing_zeros() as usize
     }
 }
@@ -396,11 +399,17 @@ fn vector_clean(s: &[u8; 16], class: Class) -> bool {
         }
         let mut bad = _mm_cmplt_epi8(v, _mm_set1_epi8(32));
         for b in *b"\"\\" {
-            bad = _mm_or_si128(bad, _mm_cmpeq_epi8(v, _mm_set1_epi8(b as i8)));
+            bad = _mm_or_si128(
+                bad,
+                _mm_cmpeq_epi8(v, _mm_set1_epi8(i8::from_ne_bytes([b]))),
+            );
         }
         if matches!(class, Class::JsonStringify) {
             for b in *b"<>&" {
-                bad = _mm_or_si128(bad, _mm_cmpeq_epi8(v, _mm_set1_epi8(b as i8)));
+                bad = _mm_or_si128(
+                    bad,
+                    _mm_cmpeq_epi8(v, _mm_set1_epi8(i8::from_ne_bytes([b]))),
+                );
             }
         }
         _mm_movemask_epi8(bad) == 0
@@ -415,11 +424,11 @@ fn vector_unicode(s: &[u8]) -> (usize, usize) {
         let at_least = |v, b: u8| {
             _mm_cmpgt_epi8(
                 _mm_xor_si128(v, _mm_set1_epi8(-128)),
-                _mm_set1_epi8((b ^ 128).wrapping_sub(1) as i8),
+                _mm_set1_epi8(i8::from_ne_bytes([(b ^ 128).wrapping_sub(1)])),
             )
         };
         let below = |v, b| _mm_andnot_si128(at_least(v, b), _mm_set1_epi8(-1));
-        let equal = |v, b: u8| _mm_cmpeq_epi8(v, _mm_set1_epi8(b as i8));
+        let equal = |v, b: u8| _mm_cmpeq_epi8(v, _mm_set1_epi8(i8::from_ne_bytes([b])));
         let mut previous = _mm_setzero_si128();
         let (mut start, mut leads, mut boundary) = (0, 0, 0);
         while s.len() - start >= 16 {
@@ -549,8 +558,8 @@ fn vector_case(s: &mut [u8; 16], upper: bool) {
         let v = _mm_loadu_si128(s.as_ptr().cast());
         let lo = if upper { b'a' } else { b'A' };
         let mask = _mm_and_si128(
-            _mm_cmpgt_epi8(v, _mm_set1_epi8((lo - 1) as i8)),
-            _mm_cmplt_epi8(v, _mm_set1_epi8((lo + 26) as i8)),
+            _mm_cmpgt_epi8(v, _mm_set1_epi8(i8::from_ne_bytes([lo - 1]))),
+            _mm_cmplt_epi8(v, _mm_set1_epi8(i8::from_ne_bytes([lo + 26]))),
         );
         _mm_storeu_si128(
             s.as_mut_ptr().cast(),

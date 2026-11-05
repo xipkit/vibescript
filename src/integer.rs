@@ -1,6 +1,7 @@
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, Charge},
+    numeric::to_i64,
     value::Kind,
 };
 use std::{cmp::Ordering, mem::size_of, sync::Arc};
@@ -81,7 +82,7 @@ impl Big {
         let value = if bits > 1024 {
             f64::INFINITY
         } else {
-            (significand as f64) * 2.0f64.powi(shift as i32)
+            (significand as f64) * 2.0f64.powi(i32::try_from(shift).unwrap_or(i32::MAX))
         };
         if self.negative { -value } else { value }
     }
@@ -154,11 +155,13 @@ impl<'a> Magnitude<'a> {
     }
 }
 
-fn parts(value: &Value) -> (bool, Magnitude<'_>) {
+fn parts(value: &Value) -> crate::checked::Access<(bool, Magnitude<'_>)> {
     match &value.0 {
-        Kind::Int(n) => (*n < 0, Magnitude::Small(n.unsigned_abs())),
-        Kind::Big(n) => (n.negative, Magnitude::Words(&n.words)),
-        _ => unreachable!(),
+        Kind::Int(n) => Ok((*n < 0, Magnitude::Small(n.unsigned_abs()))),
+        Kind::Big(n) => Ok((n.negative, Magnitude::Words(&n.words))),
+        _ => Err(crate::checked::violation(
+            "integer magnitude requires an integer",
+        )),
     }
 }
 
@@ -204,8 +207,7 @@ fn finish(ctx: &mut CallContext, negative: bool, mut words: Buffer<u32>) -> Resu
     trim(ctx, &mut words.data)?;
     if words.data.len() <= 2 {
         let magnitude = Magnitude::Words(&words.data).window(0);
-        if magnitude <= i64::MAX as u64 {
-            let n = magnitude as i64;
+        if let Ok(n) = i64::try_from(magnitude) {
             return Ok(Value::int(if negative { -n } else { n }));
         }
         if negative && magnitude == 1u64 << 63 {
@@ -253,8 +255,8 @@ fn compare_magnitude(
 }
 
 pub(crate) fn compare(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Ordering> {
-    let (an, a) = parts(a);
-    let (bn, b) = parts(b);
+    let (an, a) = parts(a)?;
+    let (bn, b) = parts(b)?;
     if an != bn {
         return Ok(bn.cmp(&an));
     }
@@ -277,7 +279,7 @@ pub(crate) fn compare_float(
             Ordering::Less
         }));
     }
-    let (negative, magnitude) = parts(integer);
+    let (negative, magnitude) = parts(integer)?;
     let bits = float.abs().to_bits();
     let exponent = ((bits >> 52) & 0x7ff) as i32;
     let mantissa = bits & ((1u64 << 52) - 1) | if exponent == 0 { 0 } else { 1u64 << 52 };
@@ -555,9 +557,9 @@ fn long_divide(ctx: &mut CallContext, a: &[u32], b: &[u32]) -> Result<(Buffer<u3
         for i in 0..n {
             work(ctx, i, n)?;
             let product = estimate * v[i] as u64;
-            let difference = u[i + j] as i64 - borrow - (product & u32::MAX as u64) as i64;
+            let difference = u[i + j] as i64 - borrow - to_i64(product & u32::MAX as u64);
             u[i + j] = difference as u32;
-            borrow = (product >> 32) as i64 - (difference >> 32);
+            borrow = to_i64(product >> 32) - (difference >> 32);
         }
         let difference = u[j + n] as i64 - borrow;
         u[j + n] = difference as u32;
@@ -586,7 +588,7 @@ fn long_divide(ctx: &mut CallContext, a: &[u32], b: &[u32]) -> Result<(Buffer<u3
 }
 
 pub(crate) fn negate(ctx: &mut CallContext, value: &Value, absolute: bool) -> Result<Value> {
-    let (negative, magnitude) = parts(value);
+    let (negative, magnitude) = parts(value)?;
     let words = copy(ctx, magnitude)?;
     finish(ctx, !absolute && !negative, words)
 }
@@ -595,8 +597,8 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: &Value, b: &Value) -> R
     if op == "**" {
         return power(ctx, a, b);
     }
-    let (an, am) = parts(a);
-    let (mut bn, bm) = parts(b);
+    let (an, am) = parts(a)?;
+    let (mut bn, bm) = parts(b)?;
     match op {
         "+" | "-" => {
             bn ^= op == "-" && bm.len() != 0;
@@ -646,14 +648,14 @@ pub(crate) fn true_divide(ctx: &mut CallContext, a: &Value, b: &Value) -> Result
     const MIN_EXP: i64 = -1021;
     const MAX_EXP: i64 = 1024;
     const DIGITS: i64 = 53;
-    let (an, am) = parts(a);
-    let (bn, bm) = parts(b);
+    let (an, am) = parts(a)?;
+    let (bn, bm) = parts(b)?;
     if bm.len() == 0 {
         return Err(Error::new(ErrorKind::Arithmetic, "division by zero")
             .with_class(crate::ErrorClass::ZeroDivision));
     }
     let signed = |value: f64| Value::float(if an != bn { -value } else { value });
-    let (a_bits, b_bits) = (am.bits() as i64, bm.bits() as i64);
+    let (a_bits, b_bits) = (to_i64(am.bits()), to_i64(bm.bits()));
     // Both operands are exact floats, so one float division rounds correctly.
     if a_bits <= DIGITS && b_bits <= DIGITS {
         return Ok(signed(am.window(0) as f64 / bm.window(0) as f64));
@@ -683,7 +685,7 @@ pub(crate) fn true_divide(ctx: &mut CallContext, a: &Value, b: &Value) -> Result
     let (quotient, remainder) = divide(ctx, Magnitude::Words(&scaled.data), bm)?;
     inexact |= remainder.data.iter().any(|&word| word != 0);
     let quotient = Magnitude::Words(&quotient.data);
-    let quotient_bits = quotient.bits() as i64;
+    let quotient_bits = to_i64(quotient.bits());
     let extra = quotient_bits.max(MIN_EXP - shift) - DIGITS;
     let mask = 1u64 << (extra - 1);
     let mut low = quotient.window(0) | u64::from(inexact);
@@ -748,7 +750,7 @@ fn shift_right(
 }
 
 fn power(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Value> {
-    let (negative, exponent) = parts(b);
+    let (negative, exponent) = parts(b)?;
     if negative {
         return Err(crate::ops::negative_integer_exponent());
     }
@@ -768,14 +770,14 @@ fn power(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Value> {
             "integer exponentiation exponent is too large",
         );
     };
-    let bits = parts(a).1.bits() as u128;
+    let bits = parts(a)?.1.bits() as u128;
     let projected = (bits - 1) * exponent as u128 + 1;
     let bytes = usize::try_from(projected.div_ceil(32) * 4)
         .map_err(|_| Error::new(ErrorKind::Memory, "integer size overflow"))?;
     // Reject impossible growth before starting repeated squaring.
     drop(ctx.reserve(bytes)?);
     ctx.charge(u64::try_from(projected.div_ceil(256)).unwrap_or(u64::MAX))?;
-    let (negative, magnitude) = parts(a);
+    let (negative, magnitude) = parts(a)?;
     let low_zero_bits = match &a.0 {
         Kind::Big(big) => big.zeros,
         _ => magnitude.word(0).trailing_zeros() as usize,
@@ -802,17 +804,17 @@ fn power(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Value> {
     Ok(result)
 }
 
-pub(crate) fn odd(value: &Value) -> bool {
-    parts(value).1.word(0) & 1 != 0
+pub(crate) fn odd(value: &Value) -> crate::checked::Access<bool> {
+    Ok(parts(value)?.1.word(0) & 1 != 0)
 }
 
-pub(crate) fn bits(value: &Value) -> usize {
-    parts(value).1.bits()
+pub(crate) fn bits(value: &Value) -> crate::checked::Access<usize> {
+    Ok(parts(value)?.1.bits())
 }
 
 pub(crate) fn divmod(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<(Value, Value)> {
-    let (an, am) = parts(a);
-    let (bn, bm) = parts(b);
+    let (an, am) = parts(a)?;
+    let (bn, bm) = parts(b)?;
     let (mut quotient, mut remainder) = divide(ctx, am, bm)?;
     if !remainder.data.is_empty() && an != bn {
         quotient = add(ctx, Magnitude::Words(&quotient.data), Magnitude::Small(1))?;
@@ -891,12 +893,8 @@ pub(crate) fn parse_digits(ctx: &mut CallContext, text: &[u8], radix: u32) -> Re
         let words = radix::parse(ctx, text, radix)?;
         return finish(ctx, negative, words);
     };
-    if value <= i64::MAX as u64 {
-        return Ok(Value::int(if negative {
-            -(value as i64)
-        } else {
-            value as i64
-        }));
+    if let Ok(n) = i64::try_from(value) {
+        return Ok(Value::int(if negative { -n } else { n }));
     }
     if negative && value == 1u64 << 63 {
         return Ok(Value::int(i64::MIN));
@@ -912,7 +910,7 @@ pub(crate) fn format(ctx: &mut CallContext, value: &Value, radix: u32) -> Result
             "integer base must be between 2 and 36",
         ));
     }
-    let (negative, magnitude) = parts(value);
+    let (negative, magnitude) = parts(value)?;
     let capacity = magnitude.bits() / radix.ilog2() as usize + 2;
     let mut out = Buffer::with_capacity(ctx, capacity)?;
     if radix.is_power_of_two() && magnitude.len() > radix::DIRECT {
@@ -1267,7 +1265,7 @@ mod tests {
                         expected.push(carry as u32);
                     }
                 }
-                let (_, magnitude) = parts(&value);
+                let (_, magnitude) = parts(&value).unwrap();
                 let actual = (0..magnitude.len())
                     .map(|i| magnitude.word(i))
                     .collect::<Vec<_>>();
@@ -1350,7 +1348,7 @@ mod tests {
     }
 
     fn words_of(value: &Value) -> Vec<u32> {
-        parts(value).1.slice(&mut [0; 2]).to_vec()
+        parts(value).unwrap().1.slice(&mut [0; 2]).to_vec()
     }
 
     #[test]
