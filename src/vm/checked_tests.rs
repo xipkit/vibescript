@@ -92,10 +92,9 @@ fn a_corrupted_parameter_index_cannot_be_hidden_by_handlers() {
             .iter_mut()
             .find(|op| matches!(op, Op::Bind(..)))
             .unwrap();
-        let Op::Bind(_, next) = *bind else {
-            unreachable!()
-        };
-        *bind = Op::Bind(u32::MAX, next);
+        if let Op::Bind(param, _) = bind {
+            *param = u32::MAX;
+        }
     });
     let error = script.call("run", &[], CallOptions::default()).unwrap_err();
     assert!(is_internal(&error), "{error}");
