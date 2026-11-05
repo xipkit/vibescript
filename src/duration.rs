@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value, bytecode::CallSite, bytes, hash::Hash, ops,
     value::Kind,
@@ -47,10 +48,14 @@ pub(crate) fn build(
         ));
     }
     let mut values = [None; 5];
-    for (index, (key, _)) in keywords.iter().enumerate() {
+    for (key, value) in keywords {
         ctx.charge(1)?;
         let bytes = key.as_bytes().unwrap_or_default();
-        let Some(part) = PARTS.iter().position(|part| part.as_bytes() == bytes) else {
+        let Some((part, _)) = values
+            .iter_mut()
+            .zip(PARTS)
+            .find(|(_, name)| name.as_bytes() == bytes)
+        else {
             let mut message = b"Duration.build unknown part ".to_vec();
             crate::shapes::quote(bytes, &mut message);
             return Err(Error::new(
@@ -58,15 +63,15 @@ pub(crate) fn build(
                 String::from_utf8_lossy(&message).into_owned(),
             ));
         };
-        values[part] = Some(index);
+        *part = Some(value);
     }
     let mut parts = [0; 5];
-    for (part, index) in values.into_iter().enumerate() {
-        if let Some(index) = index {
-            parts[part] = numeric(&keywords[index].1).map_err(|error| {
+    for ((part, value), name) in parts.iter_mut().zip(values).zip(PARTS) {
+        if let Some(value) = value {
+            *part = numeric(value).map_err(|error| {
                 Error::new(
                     error.kind,
-                    format!("Duration.build {}: {}", PARTS[part], error.message),
+                    format!("Duration.build {name}: {}", error.message),
                 )
             })?;
         }
@@ -376,11 +381,11 @@ pub(crate) fn member(
         }
         "between?" => {
             crate::arguments::between("duration.between?", args, keywords, block)?;
-            let lower = ops::compare(ctx, receiver, &args[0])?;
+            let lower = ops::compare(ctx, receiver, args.at(0)?)?;
             Value::boolean(
                 matches!(lower, Some(Ordering::Equal | Ordering::Greater))
                     && matches!(
-                        ops::compare(ctx, receiver, &args[1])?,
+                        ops::compare(ctx, receiver, args.at(1)?)?,
                         Some(Ordering::Equal | Ordering::Less)
                     ),
             )
