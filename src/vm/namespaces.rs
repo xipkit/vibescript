@@ -56,7 +56,9 @@ pub(super) fn call_constant(
     }
     let value = constant(program, ctx, storage, module, name)?;
     if value.is_some() {
-        let definition = program.namespaces.at(module.unwrap())?;
+        let definition = program
+            .namespaces
+            .at(module.ok_or(violation("constant must have a namespace"))?)?;
         let methods = if instance {
             &definition.instance_methods
         } else {

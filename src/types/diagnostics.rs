@@ -32,6 +32,7 @@ struct Writer<'a> {
 }
 
 impl TypeWriter for Writer<'_> {
+    type Error = crate::Error;
     fn write(&mut self, bytes: &[u8]) -> Result<()> {
         self.bytes.extend(self.ctx, bytes)
     }

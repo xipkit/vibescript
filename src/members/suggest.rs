@@ -213,7 +213,7 @@ fn distance(a: &[u8], a_len: usize, b: &[u8], b_len: usize, limit: usize) -> Opt
                 j
             } else {
                 while read < i {
-                    window[read % BAND] = pending.next().unwrap();
+                    window[read % BAND] = pending.next()?;
                     read += 1;
                 }
                 let cost = usize::from(window[(i - 1) % BAND] != long_rune);

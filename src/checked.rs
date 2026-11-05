@@ -13,6 +13,10 @@
 //! that a host callback can reach by another way must latch at that boundary
 //! too, or the callback could swallow the error and the script run on.
 //!
+//! The type checker's walk returns types rather than results, so its tables
+//! report a violation through its meter instead, which stops the check as a
+//! budget does; `typing::check` returns the violation for its caller to raise.
+//!
 //! A helper on a hot path returns [`Access`] rather than [`crate::Result`]:
 //! [`Violation`] is small and `Copy`, so after inlining `?` decides on a
 //! register-held value and the [`Error`] is built only on the failing path,
@@ -90,6 +94,10 @@ pub(crate) type Access<T> = Result<T, Violation>;
 /// Indexing that reports an [`ErrorKind::Internal`] error instead of
 /// panicking when the position is out of range.
 pub(crate) trait Checked<T> {
+    /// The last element of a nonempty stack.
+    fn top(&self) -> Access<&T>;
+    /// The last element of a nonempty stack, mutably.
+    fn top_mut(&mut self) -> Access<&mut T>;
     /// The element at `index`.
     fn at(&self, index: usize) -> Access<&T>;
     /// The element at `index`, mutably.
@@ -103,6 +111,18 @@ pub(crate) trait Checked<T> {
 }
 
 impl<T> Checked<T> for [T] {
+    #[inline]
+    #[track_caller]
+    fn top(&self) -> Access<&T> {
+        self.last().ok_or(violation("stack must not be empty"))
+    }
+
+    #[inline]
+    #[track_caller]
+    fn top_mut(&mut self) -> Access<&mut T> {
+        self.last_mut().ok_or(violation("stack must not be empty"))
+    }
+
     #[inline]
     #[track_caller]
     fn at(&self, index: usize) -> Access<&T> {
@@ -180,6 +200,18 @@ impl<T> Checked<T> for [T] {
 impl<T> Checked<T> for Buffer<T> {
     #[inline]
     #[track_caller]
+    fn top(&self) -> Access<&T> {
+        self.data.top()
+    }
+
+    #[inline]
+    #[track_caller]
+    fn top_mut(&mut self) -> Access<&mut T> {
+        self.data.top_mut()
+    }
+
+    #[inline]
+    #[track_caller]
     fn at(&self, index: usize) -> Access<&T> {
         self.data.at(index)
     }
@@ -206,6 +238,15 @@ impl<T> Checked<T> for Buffer<T> {
     #[track_caller]
     fn span_mut(&mut self, start: usize, end: usize) -> Access<&mut [T]> {
         self.data.span_mut(start, end)
+    }
+}
+
+impl<T> Buffer<T> {
+    /// Removes the last element of a nonempty stack.
+    #[inline]
+    #[track_caller]
+    pub(crate) fn pop(&mut self) -> Access<T> {
+        self.data.pop().ok_or(violation("stack must not be empty"))
     }
 }
 
@@ -284,5 +325,24 @@ mod tests {
         }
         assert_eq!(read(&[4, 5], 1).unwrap(), 5);
         assert_eq!(read(&[4, 5], 2).unwrap_err().kind, ErrorKind::Internal);
+    }
+
+    #[test]
+    fn stack_access_preserves_elements_and_reports_empty_stacks() {
+        let mut stack = Buffer::untracked(vec![1, 2]);
+        assert_eq!(*stack.top().unwrap(), 2);
+        *stack.top_mut().unwrap() = 3;
+        assert_eq!(stack.pop().unwrap(), 3);
+        assert_eq!(stack.pop().unwrap(), 1);
+        for violation in [
+            stack.top().unwrap_err(),
+            stack.top_mut().unwrap_err(),
+            stack.pop().unwrap_err(),
+        ] {
+            let error = Error::from(violation);
+            assert_eq!(error.kind, ErrorKind::Internal);
+            assert!(error.message.ends_with("stack must not be empty"));
+            assert!(error.message.contains("src/checked.rs:"));
+        }
     }
 }

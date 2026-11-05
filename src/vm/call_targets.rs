@@ -27,7 +27,13 @@ pub(super) fn identifier(
         return Ok(value_invocation(&value));
     }
     if let Some(slot) = namespaces::ambient_slot(ctx, frames, storage, current, name)? {
-        return Ok(value_invocation(storage.locals.at(slot)?.as_ref().unwrap()));
+        return Ok(value_invocation(
+            storage
+                .locals
+                .at(slot)?
+                .as_ref()
+                .ok_or(violation("local call target must be bound"))?,
+        ));
     }
     if let Some(value) = file_bindings::get(program, ctx, name)? {
         return Ok(value_invocation(&value));

@@ -14,8 +14,9 @@ pub(crate) fn int64(value: &Value) -> Result<i64> {
                 return Ok(n);
             }
             let mut text = bytes::Number::new();
-            ops::format_float(&mut text, n);
-            let text = std::str::from_utf8(text.bytes()).unwrap();
+            ops::format_float(&mut text, n)?;
+            let text = std::str::from_utf8(text.bytes())
+                .map_err(|_| crate::checked::violation("formatted number must be UTF-8"))?;
             if n.is_finite() {
                 format!("float {text} is out of integer range")
             } else {
@@ -226,7 +227,11 @@ fn hex_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
             continue;
         }
         fractional += usize::from(fraction);
-        let digit = (byte as char).to_digit(16).unwrap() as u64;
+        let digit = (byte as char)
+            .to_digit(16)
+            .ok_or(crate::checked::violation(
+                "hexadecimal float digit expected",
+            ))? as u64;
         if significant != 0 || digit != 0 {
             if significant < 16 {
                 mantissa = mantissa << 4 | digit;

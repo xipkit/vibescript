@@ -236,7 +236,7 @@ fn write_value_with<const BATCH: bool>(
         ErrorKind::Json => match current.0 {
             Kind::Float(n) => {
                 let mut text = Number::new();
-                crate::ops::format_float(&mut text, n);
+                crate::ops::format_float(&mut text, n)?;
                 let text = std::str::from_utf8(text.bytes()).unwrap();
                 format!("JSON.stringify failed: json: unsupported value: {text}")
             }

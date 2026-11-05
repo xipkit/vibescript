@@ -47,15 +47,27 @@ pub(super) fn diagnostics_with_tokens(
         Some(tokens) => parser_from_tokens(source, &work, tokens, mode),
         None => parser_in(source, &work, mode),
     };
-    let Ok(parser) = parser else {
-        return caller.checkpoint().err().unwrap_or(first);
+    let parser = match parser {
+        Ok(parser) => parser,
+        Err(error) => {
+            let error = if error.kind == ErrorKind::Internal {
+                error
+            } else {
+                first
+            };
+            return caller.checkpoint().err().unwrap_or(error);
+        }
     };
     let parsing = Parsing::<Recover>::new(parser);
-    if let Err(error) = parsing.run(Call::Program) {
-        parsing.recovery.borrow_mut().record(error);
-    }
+    let error = parsing.run(Call::Program).err();
     if let Err(error) = caller.checkpoint() {
         return error;
+    }
+    if let Some(error) = error {
+        if error.kind == ErrorKind::Internal {
+            return error;
+        }
+        parsing.recovery.borrow_mut().record(error);
     }
     let mut diagnostics = vec![diagnostic(source, &first)];
     for error in parsing.recovery.into_inner().errors {
@@ -404,3 +416,6 @@ impl Parser<'_> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -22,9 +22,9 @@ pub(super) fn member(
     call: Call<'_>,
 ) -> Result<()> {
     let receiver = if call.mutating {
-        &storage.addresses.data.last().unwrap().value
+        &storage.addresses.top()?.value
     } else {
-        stack.data.last().unwrap()
+        stack.top()?
     };
     let selected = if matches!(receiver.0, Kind::Namespace(_) | Kind::Instance(_)) {
         let receiver = receiver.clone();
@@ -64,20 +64,20 @@ fn invoke(
         && !mutating
         && args.target.is_none()
         && matches!(selected, namespaces::Member::Missing)
-        && !members::introspection::field_named(ctx, name, stack.data.last().unwrap())?
+        && !members::introspection::field_named(ctx, name, stack.top()?)?
     {
-        let receiver = stack.data.pop().unwrap();
+        let receiver = stack.pop()?;
         let value = cast(program, ctx, frames, storage, receiver, &args)?;
         stack.push(ctx, value)?;
         return Ok(());
     }
     let receiver = if mutating {
-        &storage.addresses.data.last().unwrap().value
+        &storage.addresses.top()?.value
     } else {
-        stack.data.last().unwrap()
+        stack.top()?
     };
     let method = if mutating {
-        storage.addresses.data.last().unwrap().capability.clone()
+        storage.addresses.top()?.capability.clone()
     } else {
         None
     };
@@ -110,7 +110,7 @@ fn invoke(
         return Ok(());
     }
     let retained = if mutating {
-        storage.addresses.data.last().unwrap().exported.clone()
+        storage.addresses.top()?.exported.clone()
     } else {
         None
     };
@@ -188,16 +188,14 @@ fn invoke(
         }
         namespaces::Member::Missing => {}
     }
-    if name == "is_type?"
-        && members::introspection::applicable(ctx, site, name, stack.data.last().unwrap())?
-    {
-        let receiver = stack.data.pop().unwrap();
+    if name == "is_type?" && members::introspection::applicable(ctx, site, name, stack.top()?)? {
+        let receiver = stack.pop()?;
         let value = type_predicate(program, ctx, frames, storage, &receiver, &args)?;
         stack.push(ctx, value)?;
         return Ok(());
     }
     if !mutating
-        && is_parse_as(ctx, site, name, stack.data.last().unwrap())?
+        && is_parse_as(ctx, site, name, stack.top()?)?
         && args.keywords.buffer.data.is_empty()
         && args.block.is_none()
     {
@@ -207,12 +205,12 @@ fn invoke(
         return Ok(());
     }
     let receiver = if mutating {
-        &storage.addresses.data.last().unwrap().value
+        &storage.addresses.top()?.value
     } else {
-        stack.data.last().unwrap()
+        stack.top()?
     };
     if mutating {
-        storage.addresses.data.last().unwrap().check_writable()?;
+        storage.addresses.top()?.check_writable()?;
     }
     let arity = match args.block {
         Some(block) => Some(
@@ -251,11 +249,11 @@ fn invoke(
             args,
             iteration,
         )?;
-        let frame = frames.data.last_mut().unwrap();
+        let frame = frames.top_mut()?;
         frame.plain_yields = plain_yields;
         frame.plain_result = plain_result;
         if mutating {
-            let frame = frames.data.last_mut().unwrap();
+            let frame = frames.top_mut()?;
             frame.mutating = true;
             // The native frame owns this address, including on nonlocal exits.
             frame.address_base -= 1;
@@ -263,7 +261,7 @@ fn invoke(
         return Ok(());
     }
     let value = if mutating {
-        let address = storage.addresses.data.pop().unwrap();
+        let address = storage.addresses.pop()?;
         let guard_program = programs::address(ctx, storage, &address)?;
         let guard = address_guard(guard_program.as_deref(), ctx, frames, storage, &address)?;
         address.apply(
@@ -279,7 +277,7 @@ fn invoke(
             |ctx, receiver| members::call_keywords(ctx, site, name, receiver, &args),
         )?
     } else {
-        let receiver = stack.data.pop().unwrap();
+        let receiver = stack.pop()?;
         members::call_keywords(ctx, site, name, receiver, &args)?.1
     };
     stack.push(ctx, value)?;

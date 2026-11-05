@@ -40,6 +40,7 @@ pub(crate) fn missing_key(ctx: &mut CallContext, member: &str, key: &Value) -> R
         bytes: Buffer<u8>,
     }
     impl TypeWriter for Message<'_> {
+        type Error = crate::Error;
         fn write(&mut self, bytes: &[u8]) -> Result<()> {
             for chunk in bytes.chunks(crate::budget::CHUNK) {
                 self.ctx.work_bytes(chunk.len())?;
@@ -277,7 +278,10 @@ pub(crate) fn method(
                 .transpose()?
                 .unwrap_or(1);
             let mut out = Buffer::empty();
-            for (key, value) in value.as_hash().unwrap() {
+            for (key, value) in value
+                .as_hash()
+                .ok_or(crate::checked::violation("collection value must be a hash"))?
+            {
                 ctx.charge(1)?;
                 if depth == 0 {
                     let pair = ctx.array(&[key.clone(), value.clone()])?;
@@ -320,7 +324,10 @@ pub(crate) fn method(
                 return Err(argument("hash.compact does not take arguments"));
             }
             let mut out = Hash::empty();
-            for (key, v) in value.as_hash().unwrap() {
+            for (key, v) in value
+                .as_hash()
+                .ok_or(crate::checked::violation("collection value must be a hash"))?
+            {
                 ctx.charge(1)?;
                 if !matches!(v.0, Kind::Nil) {
                     out.insert(ctx, key.clone(), v.clone())?;
@@ -521,8 +528,15 @@ fn array_method(
                 row.data.push(v.clone());
                 for arg in args {
                     ctx.charge(1)?;
-                    row.data
-                        .push(arg.as_array().unwrap().get(i).cloned().unwrap_or_default());
+                    row.data.push(
+                        arg.as_array()
+                            .ok_or(crate::checked::violation(
+                                "collection argument must be an array",
+                            ))?
+                            .get(i)
+                            .cloned()
+                            .unwrap_or_default(),
+                    );
                 }
                 let row = Value::from_array(ctx, row)?;
                 out.push(ctx, row)?;
@@ -560,7 +574,11 @@ fn array_method(
                 let mut col = Buffer::with_capacity(ctx, array.len())?;
                 for row in array {
                     ctx.charge(1)?;
-                    col.data.push(row.as_array().unwrap()[i].clone());
+                    col.data.push(
+                        row.as_array()
+                            .ok_or(crate::checked::violation("transpose row must be an array"))?[i]
+                            .clone(),
+                    );
                 }
                 let col = Value::from_array(ctx, col)?;
                 out.push(ctx, col)?;

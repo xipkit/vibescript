@@ -10,12 +10,13 @@
 //! elements' payloads instead of being walked at each poll. Each poll
 //! compares both totals with the budget and records the peak.
 
+use crate::checked::{Access, Violation};
 use crate::compilation::Budget;
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
     mem::size_of,
     sync::{
-        Arc,
+        Arc, OnceLock,
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering::Relaxed},
     },
 };
@@ -48,6 +49,9 @@ pub(crate) struct Meter {
     last: AtomicUsize,
     peak: AtomicUsize,
     stopped: AtomicBool,
+    /// The first invariant the check found broken, which fails it with an
+    /// internal error.
+    violation: OnceLock<Violation>,
     polls: AtomicU64,
     /// The steps charged when a poll or a charge last checked the deadline
     /// and the cancellation token.
@@ -126,6 +130,39 @@ impl Meter {
         }
     }
 
+    /// What a checked access found. The checker's walk returns types rather
+    /// than results, so a violation stops the check as a budget does: its
+    /// polls unwind the walk and what it found is dropped, which leaves the
+    /// caller's value for `None` unread. The check's caller reports the
+    /// violation ([`Self::violation`]) as an internal error.
+    #[inline]
+    pub fn found<T>(&self, access: Access<T>) -> Option<T> {
+        if let Some(violation) = injected() {
+            self.violated(violation);
+            return None;
+        }
+        match access {
+            Ok(found) => Some(found),
+            Err(violation) => {
+                self.violated(violation);
+                None
+            }
+        }
+    }
+
+    /// Stops the check for a broken invariant, keeping the first.
+    #[cold]
+    #[inline(never)]
+    pub fn violated(&self, violation: Violation) {
+        self.violation.get_or_init(|| violation);
+        self.stopped.store(true, Relaxed);
+    }
+
+    /// The first invariant the check found broken, if any.
+    pub fn violation(&self) -> Option<Violation> {
+        self.violation.get().copied()
+    }
+
     /// What the check may spend.
     pub fn budget(&self) -> &Budget {
         &self.budget
@@ -141,7 +178,18 @@ impl Meter {
     /// Notes that the tables `side` counts were measured again, whose
     /// growth the measure then counts.
     pub fn measured(&self, side: Side) {
-        self.grown[side as usize].store(0, Relaxed);
+        self.grown(side).store(0, Relaxed);
+    }
+
+    /// What the tables `side` counts grew by since it last measured them.
+    fn grown(&self, side: Side) -> &AtomicUsize {
+        let [types, tables, declarations, scratch] = &self.grown;
+        match side {
+            Side::Types => types,
+            Side::Tables => tables,
+            Side::Declarations => declarations,
+            Side::Scratch => scratch,
+        }
     }
 
     /// What the tables grew by since they were last measured.
@@ -151,13 +199,13 @@ impl Meter {
 
     /// Records that the tables `side` counts grew by `bytes`.
     pub fn record(&self, side: Side, bytes: usize) {
-        self.grown[side as usize].fetch_add(bytes, Relaxed);
+        self.grown(side).fetch_add(bytes, Relaxed);
     }
 
     /// Takes back `bytes` a list [`Side::Scratch`] counts held, once it is
     /// dropped.
     pub fn dropped(&self, bytes: usize) {
-        self.grown[Side::Scratch as usize].fetch_sub(bytes, Relaxed);
+        self.grown(Side::Scratch).fetch_sub(bytes, Relaxed);
     }
 
     /// Whether the check can hold `moment` bytes more, which a table holds
@@ -301,6 +349,13 @@ impl Meter {
         }
         self.stopped()
     }
+}
+
+/// The violation a test injects into this access; none outside the tests.
+#[cfg(not(test))]
+#[inline(always)]
+const fn injected() -> Option<Violation> {
+    None
 }
 
 /// What a value owns on the heap, beyond its own size.
@@ -814,6 +869,9 @@ impl<'a> super::Checker<'a> {
 }
 
 #[cfg(test)]
+use super::fault_tests::injected;
+
+#[cfg(test)]
 mod tests {
     #[test]
     fn a_tables_estimate_is_the_room_it_takes_for_as_many() {
@@ -1218,6 +1276,7 @@ mod budget_tests {
             observe: None,
             annotate: false,
         })
+        .unwrap()
     }
 
     /// Nested `begin`s around assignments of distinct locals, each narrowed
@@ -1570,6 +1629,7 @@ mod budget_tests {
                 observe: None,
                 annotate,
             })
+            .unwrap()
             .steps
         };
         let (plain, annotated) = (steps(false), steps(true));

@@ -11,6 +11,7 @@ use super::{
     ty::{Kind, Ty},
 };
 use crate::{
+    checked::{Checked as _, violation},
     diagnostic::{Code, Diagnostic, Fix, Span},
     syntax::{Argument, ArgumentKind, Block, Expr, Node, Target, modules::Visibility},
 };
@@ -143,7 +144,9 @@ impl<'a> Checker<'a> {
             _ => (),
         }
         if let Some(ns) = self.frame.owner {
-            let namespace = &self.program.namespaces[ns as usize];
+            let Some(namespace) = self.program.namespace(ns) else {
+                return Ty::ERROR;
+            };
             let methods = if self.frame.instance {
                 &namespace.methods
             } else {
@@ -177,19 +180,25 @@ impl<'a> Checker<'a> {
             return Ty::ERROR;
         }
         if self.program.declared_calls.contains(name) {
-            let sig = self.program.hosts[name].clone();
+            let sig = self.program.hosts.get(name);
+            let sig = sig.ok_or(violation("a declared call has no signature"));
+            let Some(sig) = self.meter.found(sig).cloned() else {
+                return Ty::ERROR;
+            };
             return self.call_sigs(&call, &[(sig, Vec::new())]);
         }
         if let Some(ns) = self.frame.owner {
             if name == "new"
                 && !self.frame.instance
-                && self.program.namespaces[ns as usize].is_class
+                && self.program.namespace(ns).is_some_and(|ns| ns.is_class)
             {
                 // `new` inside a class method constructs the class.
                 let ty = self.types.intern(Kind::Namespace(ns));
                 return self.namespace_member(&call, ns, ty);
             }
-            let namespace = &self.program.namespaces[ns as usize];
+            let Some(namespace) = self.program.namespace(ns) else {
+                return Ty::ERROR;
+            };
             let found = if self.frame.instance {
                 namespace.methods.get(name).copied()
             } else {
@@ -199,12 +208,16 @@ impl<'a> Checker<'a> {
                 if self.frame.instance {
                     self.call_on_self(id, call.name_span);
                 }
-                let sig = self.program.fns[id].sig.clone();
+                let Some(sig) = self.program.signature(id) else {
+                    return Ty::ERROR;
+                };
                 return self.call_sigs(&call, &[(sig, Vec::new())]);
             }
         }
         if let Some(&id) = self.program.functions.get(name) {
-            let sig = self.program.fns[id].sig.clone();
+            let Some(sig) = self.program.signature(id) else {
+                return Ty::ERROR;
+            };
             return self.call_sigs(&call, &[(sig, Vec::new())]);
         }
         if let Some(sig) = self.program.hosts.get(name).cloned() {
@@ -508,13 +521,12 @@ impl<'a> Checker<'a> {
             let base = self.types.direct_base(called);
             self.facts.record_base(self.meter.tables(), expr, base);
             let class = match self.types.kind(called) {
-                Kind::Instance(ns) => {
-                    let namespace = &self.program.namespaces[*ns as usize];
+                Kind::Instance(ns) => self.program.namespace(*ns).and_then(|namespace| {
                     (namespace.module.is_some()
                         && !matches!(name, "initialize" | "class")
                         && namespace.methods.contains_key(name))
                     .then_some(namespace.name.as_str())
-                }
+                }),
                 _ => None,
             };
             self.facts.record_class(self.meter.tables(), expr, class);
@@ -537,16 +549,19 @@ impl<'a> Checker<'a> {
                 {
                     Kind::Instance(ns) => {
                         name != "initialize"
-                            && self.program.namespaces[*ns as usize]
-                                .methods
-                                .contains_key(name)
+                            && self
+                                .program
+                                .namespace(*ns)
+                                .is_some_and(|ns| ns.methods.contains_key(name))
                     }
-                    Kind::Namespace(ns) => self.program.namespaces[*ns as usize]
-                        .statics
-                        .contains_key(name),
-                    Kind::Exports(id) => self.modules.loaded[*id as usize]
-                        .functions
-                        .contains_key(name),
+                    Kind::Namespace(ns) => self
+                        .program
+                        .namespace(*ns)
+                        .is_some_and(|ns| ns.statics.contains_key(name)),
+                    Kind::Exports(id) => self
+                        .meter
+                        .found(self.modules.loaded.at(*id as usize))
+                        .is_some_and(|exports| exports.functions.contains_key(name)),
                     _ => false,
                 });
                 // A check that counting it stops keeps no more receivers;
@@ -644,7 +659,7 @@ impl<'a> Checker<'a> {
             .filter(|value| matches!(value.node, Node::Hash(_)))
             .map(|value| {
                 self.mute += 1;
-                let ty = self.expr(value, Some(shapes[0]));
+                let ty = self.expr(value, shapes.first().copied());
                 self.mute -= 1;
                 ty
             });
@@ -799,14 +814,17 @@ impl<'a> Checker<'a> {
                 Ty::ERROR
             }
             Kind::Instance(ns) => {
-                let method = self.program.namespaces[*ns as usize]
-                    .methods
-                    .get(call.name)
+                let method = self
+                    .program
+                    .namespace(*ns)
+                    .and_then(|ns| ns.methods.get(call.name))
                     .copied();
                 match method {
                     Some(id) if call.name != "initialize" => {
                         self.visibility(call.name, call.name_span, id, *ns, true);
-                        let sig = self.program.fns[id].sig.clone();
+                        let Some(sig) = self.program.signature(id) else {
+                            return Ty::ERROR;
+                        };
                         self.call_sigs(call, &[(sig, Vec::new())])
                     }
                     _ if matches!(call.name, "to_s" | "inspect") => {
@@ -942,7 +960,9 @@ impl<'a> Checker<'a> {
         );
         if let Node::Var(name) = &receiver.node {
             if let Some(id) = self.local(name) {
-                let local = &self.frame.locals[id as usize];
+                let Some(local) = self.frame.local(id) else {
+                    return;
+                };
                 if let (Some(value), false) = (local.dictionary, local.annotated) {
                     let value_text = self.types.display(value);
                     let name_span = self.spans.token(local.offset);
@@ -976,7 +996,10 @@ impl<'a> Checker<'a> {
 
     /// A member of a capability the host declares, such as `SMS.send`.
     fn host_member(&mut self, call: &Call<'a, '_>, index: u32, ty: Ty) -> Ty {
-        let module = self.program.host_modules[index as usize];
+        let module = self.program.host_modules.at(index as usize);
+        let Some(&module) = self.meter.found(module) else {
+            return Ty::ERROR;
+        };
         let mut candidates = Vec::new();
         for member in module
             .members
@@ -1061,24 +1084,32 @@ impl<'a> Checker<'a> {
 
     /// `Class.new`, `Class.method` and `Module.function`.
     fn namespace_member(&mut self, call: &Call<'a, '_>, ns: NsId, ty: Ty) -> Ty {
-        let namespace = &self.program.namespaces[ns as usize];
+        let Some(namespace) = self.program.namespace(ns) else {
+            return Ty::ERROR;
+        };
         if call.name == "new" && namespace.is_class {
             let initialize = namespace.methods.get("initialize").copied();
             let instance = self.types.intern(Kind::Instance(ns));
             // The copy of the initializer's signature `new` takes, with its
             // parameters' names, and its own name, are held, before they
             // are made, while the call is checked: calls of `new` nest.
-            let named = self.program.namespaces[ns as usize].name.len() + ".new".len();
-            let copied =
-                initialize.map_or(0, |id| super::meter::Heap::heap(&*self.program.fns[id].sig));
+            let named = namespace.name.len() + ".new".len();
+            let copied = initialize
+                .and_then(|id| self.program.function(id))
+                .map_or(0, |function| super::meter::Heap::heap(&*function.sig));
             let Some(held) = self.hold(copied + named) else {
+                return Ty::ERROR;
+            };
+            let Some(class) = self.program.namespace(ns).map(|ns| ns.name.as_str()) else {
                 return Ty::ERROR;
             };
             let sig = match initialize {
                 Some(id) => {
-                    let sig = self.program.fns[id].sig.clone();
+                    let Some(sig) = self.program.signature(id) else {
+                        return Ty::ERROR;
+                    };
                     let mut sig = (*sig).clone();
-                    sig.name = text!(self, "{}.new", self.program.namespaces[ns as usize].name);
+                    sig.name = text!(self, "{class}.new");
                     // A break out of the block is the value of `new`,
                     // unchecked by the initializer's result.
                     if sig.breaks == sigs::Breaks::Result {
@@ -1087,7 +1118,7 @@ impl<'a> Checker<'a> {
                     sig
                 }
                 None => Sig {
-                    name: text!(self, "{}.new", self.program.namespaces[ns as usize].name),
+                    name: text!(self, "{class}.new"),
                     params: Vec::new(),
                     result: None,
                     block: None,
@@ -1103,7 +1134,9 @@ impl<'a> Checker<'a> {
         }
         if let Some(&id) = namespace.statics.get(call.name) {
             self.visibility(call.name, call.name_span, id, ns, false);
-            let sig = self.program.fns[id].sig.clone();
+            let Some(sig) = self.program.signature(id) else {
+                return Ty::ERROR;
+            };
             return self.call_sigs(call, &[(sig, Vec::new())]);
         }
         if call.args.is_empty() && call.block.is_none() {
@@ -1122,7 +1155,10 @@ impl<'a> Checker<'a> {
 
     /// A member of a builtin namespace, such as `Math.sqrt` or `Math::PI`.
     fn builtin_member(&mut self, call: &Call<'a, '_>, index: u32, ty: Ty) -> Ty {
-        let module: &'static crate::signatures::Module = sigs::index().modules[index as usize].1;
+        let module = sigs::index().modules.at(index as usize);
+        let Some(&(_, module)) = self.meter.found(module) else {
+            return Ty::ERROR;
+        };
         let mut candidates = Vec::new();
         for member in module
             .members
@@ -1360,7 +1396,7 @@ impl<'a> Checker<'a> {
                 let member = self.types.intern(Kind::EnumValue(id));
                 self.types.type_lit(member)
             }
-            Kind::Namespace(ns) if self.program.namespaces[ns as usize].is_class => {
+            Kind::Namespace(ns) if self.program.namespace(ns).is_some_and(|ns| ns.is_class) => {
                 let instance = self.types.intern(Kind::Instance(ns));
                 self.types.type_lit(instance)
             }
@@ -1410,7 +1446,9 @@ impl<'a> Checker<'a> {
                 self.dispatch(&call, receiver, ty)
             }
             Kind::EnumType(id) if args.is_none() => {
-                let decl = std::sync::Arc::clone(&self.program.enums[id as usize]);
+                let Some(decl) = self.program.enumeration(id).cloned() else {
+                    return Ty::ERROR;
+                };
                 if decl.member(name).is_some() {
                     return self.types.intern(Kind::EnumValue(id));
                 }
@@ -1426,13 +1464,14 @@ impl<'a> Checker<'a> {
                 if let Some(&ty) = self.constants.get(&(Some(ns), self.copy(name))) {
                     return ty;
                 }
-                if let Some(&child) = self.program.namespaces[ns as usize].children.get(name) {
+                let Some(namespace) = self.program.namespace(ns) else {
+                    return Ty::ERROR;
+                };
+                if let Some(&child) = namespace.children.get(name) {
                     return self.types.intern(Kind::Namespace(child));
                 }
                 if name.chars().next().is_some_and(char::is_uppercase)
-                    && self.program.namespaces[ns as usize]
-                        .statics
-                        .contains_key(name)
+                    && namespace.statics.contains_key(name)
                 {
                     let span = self.spans.member_operator(receiver, name).unwrap();
                     self.report(
@@ -1501,7 +1540,10 @@ impl<'a> Checker<'a> {
             self.grown += bytes;
         }
         if let Kind::Host(index) = *self.types.kind(ty) {
-            let module = self.program.host_modules[index as usize];
+            let module = self.program.host_modules.at(index as usize);
+            let Some(&module) = self.meter.found(module) else {
+                return Ty::ERROR;
+            };
             if let Some(crate::signatures::Member::Constant(constant)) =
                 module.members.iter().find(|member| member.name() == name)
             {
@@ -1551,13 +1593,15 @@ impl<'a> Checker<'a> {
                     continue;
                 }
                 let method = match *self.types.kind(alternative) {
-                    Kind::Instance(ns) => self.program.namespaces[ns as usize]
-                        .methods
-                        .get(setter)
+                    Kind::Instance(ns) => self
+                        .program
+                        .namespace(ns)
+                        .and_then(|namespace| namespace.methods.get(setter))
                         .map(|&id| (ns, id, true)),
-                    Kind::Namespace(ns) => self.program.namespaces[ns as usize]
-                        .statics
-                        .get(setter)
+                    Kind::Namespace(ns) => self
+                        .program
+                        .namespace(ns)
+                        .and_then(|namespace| namespace.statics.get(setter))
                         .map(|&id| (ns, id, false)),
                     Kind::Error | Kind::Any | Kind::Never => continue,
                     _ => None,
@@ -1573,7 +1617,9 @@ impl<'a> Checker<'a> {
                 };
                 let span = name_span.unwrap_or_else(|| self.spans.expr(expr));
                 self.visibility(setter, span, id, ns, instance);
-                let sig = self.program.fns[id].sig.clone();
+                let Some(sig) = self.program.signature(id) else {
+                    return Ty::ERROR;
+                };
                 if let Some(param) = sig.params.first() {
                     if !self.types.assignable(value_ty, param.ty) {
                         let span = self.spans.expr(value);
@@ -1612,7 +1658,10 @@ impl<'a> Checker<'a> {
         ns: NsId,
         instance: bool,
     ) {
-        let visibility = self.program.fns[id].visibility;
+        let Some(function) = self.program.function(id) else {
+            return;
+        };
+        let visibility = function.visibility;
         let allowed = match visibility {
             Visibility::Public => true,
             Visibility::Private => false,
@@ -1623,7 +1672,9 @@ impl<'a> Checker<'a> {
         if allowed {
             return;
         }
-        let namespace = &self.program.namespaces[ns as usize];
+        let Some(namespace) = self.program.namespace(ns) else {
+            return;
+        };
         let class = namespace.name.clone();
         let (word, rule) = match visibility {
             Visibility::Private => (
@@ -1654,7 +1705,7 @@ impl<'a> Checker<'a> {
             span,
             text!(self, "`{name}` is {word} in `{class}`: {rule}"),
         );
-        if let Some(def) = self.program.fns[id].def {
+        if let Some(def) = self.program.function(id).and_then(|function| function.def) {
             let declared = self.spans.token(def.offset as usize);
             diagnostic = diagnostic.with_label(declared, text!(self, "declared {word} here"));
         }
@@ -1742,7 +1793,9 @@ impl<'a> Checker<'a> {
             self.loose_args(call);
             return (Ty::ERROR, Vec::new());
         };
-        let (sig, bindings) = &candidates[chosen];
+        let Some((sig, bindings)) = self.meter.found(candidates.at(chosen)) else {
+            return (Ty::ERROR, Vec::new());
+        };
         self.check_call(call, sig, bindings.clone())
     }
 
@@ -1863,10 +1916,9 @@ impl<'a> Checker<'a> {
                 if relaxed && declared.is_some() {
                     // Prefer the fewest block parameters that cover the block's.
                     let best = fitting.iter().copied().min_by_key(|&index| {
-                        let params = candidates[index]
-                            .0
-                            .block
-                            .as_ref()
+                        let params = candidates
+                            .get(index)
+                            .and_then(|(sig, _)| sig.block.as_ref())
                             .map_or(0, |b| b.params.len());
                         (params < declared.unwrap_or(0), params)
                     });
@@ -2160,8 +2212,11 @@ impl<'a> Checker<'a> {
         let meter = std::sync::Arc::clone(&self.meter);
         let keyword = |name: &str| {
             if indexed {
-                super::counted::find_name(&meter, &by_name, name, |&(name, _)| name)
-                    .map(|at| at.map(|at| sig.params[by_name[at].1].ty))
+                super::counted::find_name(&meter, &by_name, name, |&(name, _)| name).map(|at| {
+                    at.and_then(|at| by_name.get(at))
+                        .and_then(|&(_, param)| sig.params.get(param))
+                        .map(|param| param.ty)
+                })
             } else {
                 sig.keyword(&meter, name)
                     .map(|param| param.map(|param| param.ty))
@@ -2484,7 +2539,7 @@ impl<'a> Checker<'a> {
             (Kind::Union(arms), _) => {
                 let (vars, concrete): (Vec<Ty>, Vec<Ty>) =
                     arms.iter().partition(|&&arm| self.types.has_var(arm));
-                if vars.len() == 1 {
+                if let [var] = *vars {
                     let covered = self.types.union(&concrete);
                     let rest = if concrete.is_empty() {
                         actual
@@ -2497,7 +2552,7 @@ impl<'a> Checker<'a> {
                             .collect();
                         self.types.union(&kept)
                     };
-                    self.unify(vars[0], rest, bindings);
+                    self.unify(var, rest, bindings);
                 } else if let Some(&arm) = vars
                     .iter()
                     .find(|&&arm| {
@@ -2672,7 +2727,9 @@ impl<'a> Checker<'a> {
         }
         if let Some((index, expected)) = widen {
             if result != Ty::ERROR && self.types.assignable(expected, result) {
-                bindings[index] = Some(result);
+                if let Some(binding) = self.meter.found(bindings.at_mut(index)) {
+                    *binding = Some(result);
+                }
             } else if !self.types.assignable(result, expected) {
                 let span = self.spans.token(block.offset as usize);
                 self.mismatch(span, expected, result, &Purpose::BlockResult);
@@ -2732,7 +2789,9 @@ impl<'a> Checker<'a> {
                 if self.frame.ambient.binary_search(&id).is_ok()
                     && !name.chars().next().is_some_and(char::is_uppercase)
                 {
-                    let ty = self.frame.locals[id as usize].declared;
+                    let Some(ty) = self.frame.local(id).map(|local| local.declared) else {
+                        break;
+                    };
                     if self
                         .declare(name, ty, block.offset as usize, false)
                         .is_none()
@@ -2788,13 +2847,10 @@ impl<'a> Checker<'a> {
                 };
                 self.assign_local(id, ty);
             }
-        } else if targets.len() > 1
-            && params.len() == 1
-            && rest.is_none()
-            && self.types.element(params[0]).is_some()
+        } else if let (true, &[whole], None) = (targets.len() > 1, params, rest)
+            && self.types.element(whole).is_some()
         {
             // Several parameters destructure a single argument.
-            let whole = params[0];
             for (index, target) in targets.iter().enumerate() {
                 let element = self.element_of(whole, index);
                 self.bind_target(target, element, false);

@@ -9,7 +9,7 @@ use crate::{
     scan::{self, Class},
     value::Kind,
 };
-use std::{cmp::Ordering, fmt::Write, sync::Arc};
+use std::{cmp::Ordering, sync::Arc};
 
 fn type_error() -> Error {
     Error::new(ErrorKind::Type, "unsupported operand types")
@@ -318,8 +318,12 @@ fn integers(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Result<Value
             Kind::Int(_) | Kind::Big(_) | Kind::Float(_),
             Kind::Int(_) | Kind::Big(_) | Kind::Float(_),
         ) => {
-            let a = a.as_float().unwrap();
-            let b = b.as_float().unwrap();
+            let a = a
+                .as_float()
+                .ok_or(crate::checked::violation("numeric operand expected"))?;
+            let b = b
+                .as_float()
+                .ok_or(crate::checked::violation("numeric operand expected"))?;
             if op == "**" {
                 return float_power(a, b);
             }
@@ -375,7 +379,11 @@ fn floor_division(ctx: &mut CallContext, a: Value, b: Value) -> Result<Value> {
             Kind::Int(_) | Kind::Big(_) | Kind::Float(_),
             Kind::Int(_) | Kind::Big(_) | Kind::Float(_),
         ) => Ok(Value::float(
-            (a.as_float().unwrap() / b.as_float().unwrap()).floor(),
+            (a.as_float()
+                .ok_or(crate::checked::violation("numeric operand expected"))?
+                / b.as_float()
+                    .ok_or(crate::checked::violation("numeric operand expected"))?)
+            .floor(),
         )),
         _ => Err(unsupported("//")),
     }
@@ -472,8 +480,11 @@ pub(crate) fn compare(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Opt
         (Kind::Duration(a), Kind::Duration(b)) => Ok(Some(crate::duration::order(*a, *b))),
         (Kind::Time(_) | Kind::Zoned(_), Kind::Time(_) | Kind::Zoned(_)) => Ok(Some(
             crate::time::stamp(a)
-                .unwrap()
-                .order(crate::time::stamp(b).unwrap()),
+                .ok_or(crate::checked::violation("time operand expected"))?
+                .order(
+                    crate::time::stamp(b)
+                        .ok_or(crate::checked::violation("time operand expected"))?,
+                ),
         )),
         (Kind::Int(a), Kind::Int(b)) => Ok(Some(a.cmp(b))),
         (Kind::Int(_) | Kind::Big(_), Kind::Int(_) | Kind::Big(_)) => {
@@ -483,9 +494,13 @@ pub(crate) fn compare(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Opt
         (Kind::Float(f), Kind::Big(_)) => {
             crate::integer::compare_float(ctx, b, *f).map(|order| order.map(Ordering::reverse))
         }
-        (Kind::Int(_) | Kind::Float(_), Kind::Int(_) | Kind::Float(_)) => {
-            Ok(a.as_float().unwrap().partial_cmp(&b.as_float().unwrap()))
-        }
+        (Kind::Int(_) | Kind::Float(_), Kind::Int(_) | Kind::Float(_)) => Ok(a
+            .as_float()
+            .ok_or(crate::checked::violation("numeric operand expected"))?
+            .partial_cmp(
+                &b.as_float()
+                    .ok_or(crate::checked::violation("numeric operand expected"))?,
+            )),
         (Kind::Bytes(a), Kind::Bytes(b)) | (Kind::Symbol(a), Kind::Symbol(b)) => {
             for (a, b) in a.data().chunks(CHUNK).zip(b.data().chunks(CHUNK)) {
                 ctx.work_bytes(a.len().min(b.len()))?;
@@ -1339,33 +1354,39 @@ pub(crate) fn to_string(ctx: &mut CallContext, value: &Value) -> Result<Value> {
         Kind::Symbol(h) => return ctx.bytes(h.data()),
         Kind::Nil => return ctx.bytes(b""),
         Kind::Bool(v) => return ctx.bytes(if *v { b"true" } else { b"false" }),
-        Kind::Int(n) => write!(text, "{n}").unwrap(),
-        Kind::Float(n) => format_float(&mut text, *n),
+        Kind::Int(n) => text.format(format_args!("{n}"))?,
+        Kind::Float(n) => format_float(&mut text, *n)?,
         _ => return crate::text::display(ctx, value),
     }
     ctx.bytes(text.bytes())
 }
 
-pub(crate) fn format_float(out: &mut bytes::Number, value: f64) {
+/// Formats a float, reporting a violation if its fixed buffer cannot hold it.
+pub(crate) fn format_float(out: &mut bytes::Number, value: f64) -> crate::checked::Access<()> {
     if value.is_nan() {
-        out.write_str("NaN").unwrap();
+        out.append("NaN")?;
     } else if value.is_infinite() {
-        out.write_str(if value.is_sign_negative() {
+        out.append(if value.is_sign_negative() {
             "-Infinity"
         } else {
             "Infinity"
-        })
-        .unwrap();
+        })?;
     } else if value != 0.0 && !(1e-4..1e6).contains(&value.abs()) {
         let mut scientific = bytes::Number::new();
-        write!(scientific, "{value:e}").unwrap();
-        let text = std::str::from_utf8(scientific.bytes()).unwrap();
-        let (mantissa, exponent) = text.split_once('e').unwrap();
-        let exponent: i32 = exponent.parse().unwrap();
-        write!(out, "{mantissa}e{exponent:+03}").unwrap();
+        scientific.format(format_args!("{value:e}"))?;
+        let text = std::str::from_utf8(scientific.bytes())
+            .map_err(|_| crate::checked::violation("scientific number must be UTF-8"))?;
+        let (mantissa, exponent) = text
+            .split_once('e')
+            .ok_or(crate::checked::violation("scientific exponent expected"))?;
+        let exponent: i32 = exponent
+            .parse()
+            .map_err(|_| crate::checked::violation("scientific exponent must be an integer"))?;
+        out.format(format_args!("{mantissa}e{exponent:+03}"))?;
     } else {
-        write!(out, "{value}").unwrap();
+        out.format(format_args!("{value}"))?;
     }
+    Ok(())
 }
 
 /// Helpers for deep-value tests in the collection walkers. Host values are
@@ -1812,5 +1833,18 @@ mod tests {
         assert_eq!(error.class(), Some(ErrorClass::Limit));
         assert_eq!(error.message, "join nesting too deep");
         assert_eq!(stats.retained_memory_bytes, 0);
+    }
+}
+
+#[cfg(test)]
+mod formatting_invariant_tests {
+    use super::*;
+
+    #[test]
+    fn a_full_numeric_buffer_returns_an_internal_error() {
+        let mut text = bytes::Number::new();
+        text.append(&"x".repeat(512)).unwrap();
+        let error = crate::Error::from(format_float(&mut text, 1.5).unwrap_err());
+        assert_eq!(error.kind, ErrorKind::Internal);
     }
 }

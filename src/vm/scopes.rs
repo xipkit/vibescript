@@ -30,8 +30,9 @@ impl Key {
         key
     }
 
-    fn text(&self) -> &str {
-        std::str::from_utf8(self.bytes.get(self.start..).unwrap_or_default()).unwrap()
+    fn text(&self) -> Access<&str> {
+        std::str::from_utf8(self.bytes.tail(self.start)?)
+            .map_err(|_| violation("scope key must be UTF-8"))
     }
 }
 
@@ -47,21 +48,21 @@ pub(super) fn namespace(
     index: usize,
 ) -> Result<NamespaceState> {
     let key = Key::new(b'n', index);
-    let (fields, fresh) = match crate::objects::field(ctx, environment, key.text())? {
+    let (fields, fresh) = match crate::objects::field(ctx, environment, key.text()?)? {
         Some(Value(Kind::Instance(fields))) => (fields, false),
         None => {
             let fields = crate::objects::environment(ctx)?;
             crate::objects::set(
                 ctx,
                 environment,
-                key.text(),
+                key.text()?,
                 &Value(Kind::Instance(fields.clone())),
             )?;
             (fields, true)
         }
         _ => return Err(Error::new(ErrorKind::Type, "invalid namespace environment")),
     };
-    let initialized = crate::objects::field(ctx, environment, Key::new(b'i', index).text())?
+    let initialized = crate::objects::field(ctx, environment, Key::new(b'i', index).text()?)?
         .is_some_and(|value| matches!(value.0, Kind::Bool(true)));
     Ok(NamespaceState {
         fields,
@@ -78,7 +79,7 @@ pub(super) fn initialized(
     crate::objects::set(
         ctx,
         environment,
-        Key::new(b'i', index).text(),
+        Key::new(b'i', index).text()?,
         &Value::boolean(true),
     )
 }
