@@ -387,7 +387,8 @@ pub(super) fn state(
             return Ok(index);
         }
     }
-    let mut namespace = Namespace::import(ctx, &Namespace::untracked(definition.clone()))?;
+    let mut namespace =
+        Namespace::import(ctx, &Namespace::declared(definition.clone(), &program.code))?;
     let captured = if let Some(environment) = &program.environment {
         namespace = Namespace::with_environment(ctx, &namespace, environment.clone())?;
         Some(scopes::namespace(ctx, environment, module)?)

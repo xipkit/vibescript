@@ -4,7 +4,7 @@
 //! without copying it at each.
 
 use super::counted::{CountedSet, Ledger};
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// The indices a leaf holds.
 const BITS: usize = 64;
@@ -16,13 +16,13 @@ enum Node {
     Leaf(u64),
     /// Children, each covering an equal part of the span, and how many
     /// indices they hold together.
-    Inner(Vec<Rc<Node>>, usize),
+    Inner(Vec<Arc<Node>>, usize),
 }
 
 /// A set of indices below the count it was made with.
 #[derive(Clone)]
 pub(crate) struct Marks {
-    root: Rc<Node>,
+    root: Arc<Node>,
     /// The indices the root covers.
     span: usize,
     /// The indices the set may hold.
@@ -89,7 +89,7 @@ impl Marks {
         let (mut node, mut index, mut span) = (&self.root, index, self.span);
         let (mut shared, mut copied) = (false, 0);
         loop {
-            shared = shared || Rc::strong_count(node) > 1;
+            shared = shared || Arc::strong_count(node) > 1;
             if shared {
                 copied += node_bytes(node);
             }
@@ -128,10 +128,10 @@ impl Marks {
         let (mut node, mut index, mut span) = (&mut self.root, index, self.span);
         let mut copied = 0;
         loop {
-            if Rc::strong_count(node) > 1 {
+            if Arc::strong_count(node) > 1 {
                 copied += node_bytes(node);
             }
-            match Rc::make_mut(node) {
+            match Arc::make_mut(node) {
                 Node::Leaf(bits) => {
                     if present {
                         *bits |= 1u64 << index;
@@ -169,7 +169,7 @@ impl Marks {
         let mut pending = vec![&self.root];
         while let Some(node) = pending.pop() {
             visited += 1;
-            if !seen.insert(ledger, Rc::as_ptr(node) as usize).ok()? {
+            if !seen.insert(ledger, Arc::as_ptr(node) as usize).ok()? {
                 continue;
             }
             bytes += node_bytes(node);
@@ -191,7 +191,7 @@ impl Marks {
 /// A node covering `span` indices from 0, holding those below `count`,
 /// and the bytes of the nodes it made. Nodes wholly full or wholly empty
 /// are shared.
-fn full(span: usize, count: usize) -> (Rc<Node>, usize) {
+fn full(span: usize, count: usize) -> (Arc<Node>, usize) {
     if span == BITS {
         let bits = if count >= BITS {
             u64::MAX
@@ -200,7 +200,7 @@ fn full(span: usize, count: usize) -> (Rc<Node>, usize) {
         };
         let node = Node::Leaf(bits);
         let bytes = node_bytes(&node);
-        return (Rc::new(node), bytes);
+        return (Arc::new(node), bytes);
     }
     let child = span / FAN;
     let (whole, mut bytes) = full(child, child);
@@ -210,9 +210,9 @@ fn full(span: usize, count: usize) -> (Rc<Node>, usize) {
         .map(|index| {
             let start = index * child;
             if start + child <= count {
-                Rc::clone(&whole)
+                Arc::clone(&whole)
             } else if start >= count {
-                Rc::clone(&empty)
+                Arc::clone(&empty)
             } else {
                 let (node, more) = full(child, count - start);
                 bytes += more;
@@ -222,7 +222,7 @@ fn full(span: usize, count: usize) -> (Rc<Node>, usize) {
         .collect();
     let node = Node::Inner(children, count.min(span));
     bytes += node_bytes(&node);
-    (Rc::new(node), bytes)
+    (Arc::new(node), bytes)
 }
 
 /// The bytes [`full`] of `span` and `count` allocates.
@@ -265,7 +265,7 @@ fn node_bytes(node: &Node) -> usize {
         + 16
         + match node {
             Node::Leaf(_) => 0,
-            Node::Inner(..) => FAN * std::mem::size_of::<Rc<Node>>(),
+            Node::Inner(..) => FAN * std::mem::size_of::<Arc<Node>>(),
         }
 }
 

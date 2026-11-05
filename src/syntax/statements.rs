@@ -62,9 +62,10 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         ) {
             stmt = framed(self.work, self.continued_statement(stmt, offset))?.await?;
         }
+        let canonical = self.mode().canonical;
         let modifier = match self.p().token() {
             Token::Word(w) if matches!(w.as_str(), "if" | "while") => *w,
-            Token::Word(w) if matches!(w.as_str(), "unless" | "until") && !canonical() => *w,
+            Token::Word(w) if matches!(w.as_str(), "unless" | "until") && !canonical => *w,
             _ => return Ok(stmt),
         };
         let bare_begin = starts_begin
@@ -170,7 +171,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             ]
             .into_iter()
             .find(|keyword| matches!(p.token(), Token::Word(w) if w == keyword))
-            .filter(|keyword| !matches!(*keyword, "unless" | "until") || !canonical());
+            .filter(|keyword| !matches!(*keyword, "unless" | "until") || !p.mode.canonical);
             if keyword.is_some() {
                 p.pos += 1;
             }

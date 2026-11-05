@@ -283,7 +283,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 && next.token == Token::Op("!=")
                 && next.offset == p.tokens[p.pos - 1].end
             {
-                if !super::suffixes::lenient() {
+                if !p.mode.lenient {
                     return Err(p.name_suffix_error(next.offset));
                 }
                 // A lenient parse reads the setter as it was spelled.
@@ -450,7 +450,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             let next = p.significant(p.pos);
             if !module && p.tokens[next].token == Token::Op("<") {
                 p.pos = next;
-                if !super::suffixes::lenient() {
+                if !p.mode.lenient {
                     return p.err(format_args!(
                         "class inheritance is not supported; modules are namespaces: {NAMESPACES}"
                     ));
@@ -913,7 +913,6 @@ pub(super) fn directive_collisions(
 #[cfg(test)]
 mod tests {
     use crate::{CallContext, CallOptions, compilation::Meter};
-    use std::cell::RefCell;
 
     #[test]
     fn the_directive_walk_reserves_its_levels() {
@@ -927,7 +926,7 @@ mod tests {
         super::directive_collisions(
             &parsed.modules[0],
             &super::Table::new(),
-            &Meter(RefCell::new(&mut context)),
+            &Meter::new(&mut context),
         )
         .unwrap();
         let level = std::mem::size_of::<std::slice::Iter<'static, super::Module>>();

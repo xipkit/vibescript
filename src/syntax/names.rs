@@ -388,7 +388,7 @@ impl Parser<'_> {
         self.work.checkpoint()?;
         self.work.bytes(name.len())?;
         if let Err(error) = method_spelling(&name, false)
-            && !suffixes::lenient()
+            && !self.mode.lenient
         {
             let token = &self.tokens[self.pos];
             if matches!(token.token, Token::QuotedSymbol(_)) {
@@ -445,7 +445,7 @@ impl Parser<'_> {
         }
     }
     pub(super) fn binding_name(&self, name: &str, offset: usize) -> Result<()> {
-        if suffixes::lenient() {
+        if self.mode.lenient {
             return Ok(());
         }
         if let Some(suffix) = name_suffix_position(name) {
@@ -456,7 +456,7 @@ impl Parser<'_> {
     pub(super) fn method_spelling(&self, name: &str, offset: usize) -> Result<()> {
         self.work.checkpoint()?;
         self.work.bytes(name.len())?;
-        if suffixes::lenient() {
+        if self.mode.lenient {
             return Ok(());
         }
         method_spelling(name, true)
@@ -495,7 +495,7 @@ impl Parser<'_> {
     pub(super) fn read_spelling(&self, name: &str, offset: usize) -> Result<()> {
         self.work.checkpoint()?;
         self.work.bytes(name.len())?;
-        if suffixes::lenient() {
+        if self.mode.lenient {
             return Ok(());
         }
         // A name that is a whole destructuring target, even in a nested
@@ -519,7 +519,7 @@ impl Parser<'_> {
         name_suffix_error(self.work, self.source, offset, false)
     }
     pub(super) fn assignment_member(&self, expr: &Expr) -> Result<()> {
-        if !suffixes::lenient()
+        if !self.mode.lenient
             && matches!(&expr.node, Node::Member(_, name) | Node::SafeMember(_, name)
             if name.ends_with(['?', '!']))
         {

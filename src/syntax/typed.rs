@@ -521,7 +521,6 @@ pub(crate) fn declared_local(target: &Target) -> Option<(&Name, &Type)> {
 #[cfg(test)]
 mod tests {
     use crate::{CallContext, CallOptions, ErrorKind, compilation::Meter};
-    use std::cell::RefCell;
 
     #[test]
     fn type_name_setup_charges_tokens_without_declarations() {
@@ -529,7 +528,7 @@ mod tests {
         let mut parser = crate::syntax::parser(&source, &()).unwrap();
         let mut context = CallContext::new(CallOptions::default());
         context.options.limits.steps = Some(0);
-        let work = Meter(RefCell::new(&mut context));
+        let work = Meter::new(&mut context);
         parser.work = &work;
         let result = parser.with_type_names().map(|_| ());
         assert_eq!(result.unwrap_err().kind, ErrorKind::Steps);

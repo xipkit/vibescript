@@ -14,7 +14,7 @@ use crate::{
     diagnostic::{Code, Diagnostic, Fix, Span},
     syntax::{Argument, ArgumentKind, Block, Expr, Node, Target, modules::Visibility},
 };
-use std::rc::Rc;
+use std::sync::Arc;
 
 pub(super) use super::check::BreakTo;
 
@@ -38,7 +38,7 @@ pub(super) struct Call<'a, 'n> {
 }
 
 /// A candidate signature with the bindings its receiver gave.
-type Candidate = (Rc<Sig>, Vec<Option<Ty>>);
+type Candidate = (Arc<Sig>, Vec<Option<Ty>>);
 
 impl<'a> Call<'a, '_> {
     fn empty(&self) -> bool {
@@ -989,7 +989,7 @@ impl<'a> Checker<'a> {
                         .converter
                         .convert_owned(&mut self.types, function, None)
                         .host();
-                    candidates.push((Rc::new(sig), Vec::new()));
+                    candidates.push((Arc::new(sig), Vec::new()));
                 }
                 crate::signatures::Member::Module(module) => {
                     self.non_callable_member(call);
@@ -1097,7 +1097,7 @@ impl<'a> Checker<'a> {
                     id: None,
                 },
             };
-            let (_, breaks) = self.call_sigs_parts(call, &[(Rc::new(sig), Vec::new())]);
+            let (_, breaks) = self.call_sigs_parts(call, &[(Arc::new(sig), Vec::new())]);
             self.release(held);
             return self.with_breaks(instance, &breaks);
         }

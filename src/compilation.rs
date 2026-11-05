@@ -1,5 +1,4 @@
 use crate::{CallContext, Error, ErrorKind, Result, budget::Charge};
-use std::cell::RefCell;
 
 mod buffer;
 mod diagnostics;
@@ -13,7 +12,7 @@ pub(crate) use diagnostics::{error, formatted};
 pub(crate) use name::Name;
 pub(crate) use storage::{Boxed, Bytes, Text};
 pub(crate) use table::Table;
-pub(crate) use tasks::{Frame, Tasks, framed, task};
+pub(crate) use tasks::{Frame, Shared, Tasks, framed, task};
 pub(crate) use types::{Field, Type, TypeKind};
 
 /// What compilation may still spend, as a copy another thread can check
@@ -122,7 +121,15 @@ impl Work for () {
     }
 }
 
-pub(crate) struct Meter<'a>(pub RefCell<&'a mut CallContext>);
+/// The [`Work`] of one invocation's context, which the shared steps of a
+/// compilation charge.
+pub(crate) struct Meter<'a>(pub Shared<&'a mut CallContext>);
+
+impl<'a> Meter<'a> {
+    pub fn new(context: &'a mut CallContext) -> Self {
+        Self(Shared::new(context))
+    }
+}
 
 impl Work for Meter<'_> {
     fn budget(&self) -> Budget {

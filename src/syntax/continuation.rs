@@ -32,7 +32,7 @@ impl Parser<'_> {
             Token::P('.' | '(' | '[' | '?') | Token::Op("&." | "::") => true,
             Token::Op(op) => binding_power(op).is_some(),
             Token::Words(words) => words.ambiguous,
-            Token::Word(w) => w == "rescue" || (w == "do" && !canonical()),
+            Token::Word(w) => w == "rescue" || (w == "do" && !self.mode.canonical),
             _ => false,
         };
         Ok(continues && next.line == self.previous()?.end_line)
@@ -88,7 +88,7 @@ impl Parser<'_> {
         {
             return Ok(Some(Suffix::Block(true)));
         }
-        if matches!(self.token(), Token::Word(w) if w == "do" && !canonical())
+        if matches!(self.token(), Token::Word(w) if w == "do" && !self.mode.canonical)
             && (self.can_attach_do()
                 || (self.pos != self.call_end && self.significant(self.call_end) == self.pos))
         {
@@ -201,7 +201,7 @@ impl Parser<'_> {
         let continues = match lexeme.token {
             // Go continues a line-limited expression onto a `do` only right
             // after a parenthesized call with arguments.
-            Token::Word(ref word) if word == "do" && !canonical() => {
+            Token::Word(ref word) if word == "do" && !self.mode.canonical => {
                 (self.line_exprs == 0 && self.can_attach_do()) || self.pos == self.call_end
             }
             Token::P('.') | Token::Op("::" | "&.") => true,

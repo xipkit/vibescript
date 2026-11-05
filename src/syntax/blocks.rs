@@ -9,7 +9,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             let mut p = self.p();
             let next = p.significant(p.pos);
             let brace = match &p.tokens[next].token {
-                Token::Word(w) if w == "do" && !canonical() => {
+                Token::Word(w) if w == "do" && !p.mode.canonical => {
                     (next != p.pos || p.can_attach_do()).then_some(false)
                 }
                 Token::P('{') => (next == p.pos && p.block_follows(&expr)?).then_some(true),

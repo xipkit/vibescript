@@ -606,7 +606,6 @@ pub(super) fn advance(
 mod compilation_tests {
     use super::*;
     use crate::{CallOptions, ErrorClass, compilation::Meter, vm::handlers::SavedError};
-    use std::cell::RefCell;
 
     #[test]
     fn compilation_errors_transfer_to_rescue_without_duplicate_storage_charges() {
@@ -620,7 +619,7 @@ mod compilation_tests {
         };
         let message = "failure ".repeat(4096);
         let run = |ctx: &mut CallContext| {
-            let work = Meter(RefCell::new(&mut *ctx));
+            let work = Meter::new(&mut *ctx);
             let error = Error::syntax(&work, 0, &message).in_required_file();
             let mut error = crate::source::parse_error("$", None, error, &work);
             for _ in 0..3 {

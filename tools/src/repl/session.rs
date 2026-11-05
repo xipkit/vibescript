@@ -19,7 +19,7 @@
 use super::{SessionLimits, format};
 use std::{
     collections::BTreeMap,
-    sync::{Arc, Mutex},
+    sync::{Arc, mpsc},
 };
 use vibescript::{
     CallOptions, CancellationToken, CompileBudget, DeclarationKind, Diagnostic, Engine, Error,
@@ -53,8 +53,10 @@ pub struct Session {
     pub prelude: Vec<Carried>,
     /// The rendered text of the most recent failure, or empty.
     pub last_error: String,
-    stdout: Arc<Mutex<Vec<u8>>>,
-    stderr: Arc<Mutex<Vec<u8>>>,
+    /// What the inputs' `puts`, `print` and `p` wrote, as the writer sent it.
+    stdout: mpsc::Receiver<Vec<u8>>,
+    /// What the inputs' `warn` wrote.
+    stderr: mpsc::Receiver<Vec<u8>>,
 }
 
 /// A top-level declaration kept for later inputs, with where it was typed.
@@ -76,18 +78,21 @@ impl Session {
         cancellation: CancellationToken,
         compile_limits: SessionLimits,
     ) -> Self {
-        let stdout = Arc::new(Mutex::new(Vec::new()));
-        let stderr = Arc::new(Mutex::new(Vec::new()));
+        let (out, stdout) = mpsc::channel();
+        let (err, stderr) = mpsc::channel();
         let mut engine = Engine::new();
         let initialization_error = engine.declare_global(SESSION, "hash<string, any>").err();
-        let out = stdout.clone();
         engine.set_output_writer(move |_, bytes| {
-            out.lock().unwrap().extend_from_slice(bytes);
+            // The session outlives its engine, so the receiver is there.
+            if !bytes.is_empty() {
+                let _ = out.send(bytes.to_vec());
+            }
             Ok(())
         });
-        let err = stderr.clone();
         engine.set_error_writer(move |_, bytes| {
-            err.lock().unwrap().extend_from_slice(bytes);
+            if !bytes.is_empty() {
+                let _ = err.send(bytes.to_vec());
+            }
             Ok(())
         });
         Self {
@@ -155,8 +160,8 @@ impl Session {
     /// result unless it is nil. A failure is also kept as the last error, and
     /// leaves the variables and declarations unchanged.
     pub fn evaluate(&mut self, input: &str) -> Evaluated {
-        self.stdout.lock().unwrap().clear();
-        self.stderr.lock().unwrap().clear();
+        self.stdout.try_iter().for_each(drop);
+        self.stderr.try_iter().for_each(drop);
         let compiled = match self.compile(input) {
             Ok(compiled) => compiled,
             Err(error) => {
@@ -259,8 +264,10 @@ impl Session {
     }
 
     fn output(&self, result: &Value) -> String {
-        let mut captured = String::from_utf8_lossy(&self.stdout.lock().unwrap()).into_owned();
-        captured.push_str(&String::from_utf8_lossy(&self.stderr.lock().unwrap()));
+        let written: Vec<u8> = self.stdout.try_iter().flatten().collect();
+        let mut captured = String::from_utf8_lossy(&written).into_owned();
+        let written: Vec<u8> = self.stderr.try_iter().flatten().collect();
+        captured.push_str(&String::from_utf8_lossy(&written));
         let nil = result.type_name() == "nil";
         if captured.is_empty() {
             return if nil {

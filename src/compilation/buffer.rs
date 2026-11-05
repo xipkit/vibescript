@@ -256,7 +256,7 @@ impl<T> IntoIterator for Buffer<T> {
 mod tests {
     use super::*;
     use crate::{CallContext, CallOptions, Error, ErrorKind, compilation::Meter};
-    use std::{cell::RefCell, time::Instant};
+    use std::time::Instant;
 
     #[test]
     fn growth_reserves_old_and_new_storage_before_mutating() {
@@ -264,7 +264,7 @@ mod tests {
             let mut options = CallOptions::default();
             options.limits.memory_bytes = Some(size_of::<[usize; 24]>() - usize::from(short));
             let mut context = CallContext::new(options);
-            let work = Meter(RefCell::new(&mut context));
+            let work = Meter::new(&mut context);
             let mut buffer = Buffer::new();
             for value in 0..8usize {
                 buffer.push(&work, value).unwrap();
@@ -300,7 +300,7 @@ mod tests {
     #[test]
     fn owned_iteration_keeps_the_allocation_charged_until_drop() {
         let mut context = CallContext::new(CallOptions::default());
-        let work = Meter(RefCell::new(&mut context));
+        let work = Meter::new(&mut context);
         let mut buffer = Buffer::new();
         buffer.push(&work, 1usize).unwrap();
         buffer.push(&work, 2).unwrap();
@@ -316,7 +316,7 @@ mod tests {
     #[test]
     fn failed_nested_copies_release_only_new_allocations() {
         let mut context = CallContext::new(CallOptions::default());
-        let work = Meter(RefCell::new(&mut context));
+        let work = Meter::new(&mut context);
         let mut source = Buffer::new();
         for value in 1..=2u8 {
             let mut row = Buffer::new();
@@ -343,7 +343,7 @@ mod tests {
     #[test]
     fn repeated_small_extensions_keep_copy_work_and_capacity_bounded() {
         let mut context = CallContext::new(CallOptions::default());
-        let work = Meter(RefCell::new(&mut context));
+        let work = Meter::new(&mut context);
         let mut bytes = Buffer::new();
         for _ in 0..1024 {
             bytes.extend_from_slice(&work, "日".as_bytes()).unwrap();
@@ -366,7 +366,7 @@ mod tests {
             if kind == ErrorKind::Cancelled {
                 context.cancellation().cancel();
             }
-            let work = Meter(RefCell::new(&mut context));
+            let work = Meter::new(&mut context);
             let mut buffer = Buffer::<usize>::new();
             assert_eq!(buffer.ensure(&work, usize::MAX).unwrap_err().kind, kind);
             assert_eq!(work.checkpoint().unwrap_err().kind, kind);
@@ -375,7 +375,7 @@ mod tests {
         let mut options = CallOptions::default();
         options.limits.memory_bytes = None;
         let mut context = CallContext::new(options);
-        let work = Meter(RefCell::new(&mut context));
+        let work = Meter::new(&mut context);
         let mut buffer = Buffer::new();
         for value in 0..32usize {
             buffer.push(&work, value).unwrap();
