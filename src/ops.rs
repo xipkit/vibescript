@@ -1146,33 +1146,46 @@ pub(crate) fn method(
     }
 }
 
+/// Counts the characters of `bytes` and reports whether all are valid UTF-8.
 pub(crate) fn runes(ctx: &mut CallContext, bytes: &[u8]) -> Result<(usize, bool)> {
-    let mut i = 0;
-    let mut count = 0;
+    let mut rest = bytes;
+    let mut count = 0usize;
     let mut valid = true;
-    while i < bytes.len() {
-        let end = bytes.len().min(i + CHUNK);
-        let chunk = &bytes[i..end];
-        let ascii = scan::ascii_prefix(chunk);
-        if ascii > 0 {
-            ctx.work_bytes(ascii)?;
-            i += ascii;
-            count += ascii;
-            continue;
+    // An ASCII run costs a step per 64 bytes and every other character one.
+    // The steps are summed here and charged, with a checkpoint, once a chunk
+    // of input has been counted: in text that mixes scripts a run is a few
+    // bytes, and a charge for each would cost more than the scan. A character
+    // takes at least a byte and costs at most a step, so neither sum can wrap.
+    let mut pending = 0u64;
+    while !rest.is_empty() {
+        let settle = rest.len().saturating_sub(CHUNK);
+        while rest.len() > settle {
+            // An ASCII run and the other characters after it, within a chunk.
+            let window = &rest[..rest.len().min(CHUNK)];
+            let ascii = scan::ascii_prefix(window);
+            pending = pending.wrapping_add((ascii as u64).div_ceil(64));
+            count = count.wrapping_add(ascii);
+            rest = &rest[ascii..];
+            let others = &window[ascii..];
+            if others.is_empty() {
+                continue;
+            }
+            let span = scan::unicode_span(others);
+            if span.len > 0 {
+                pending = pending.wrapping_add(span.steps);
+                count = count.wrapping_add(span.runes);
+                rest = &rest[span.len..];
+            } else {
+                // Invalid, or cut by the end of the chunk.
+                let (_, n, ok) = scan::rune(rest);
+                pending = pending.wrapping_add(1);
+                count = count.wrapping_add(1);
+                valid &= ok;
+                rest = &rest[n..];
+            }
         }
-        let span = scan::unicode_span(chunk);
-        if span.len > 0 {
-            ctx.charge(span.steps)?;
-            ctx.checkpoint()?;
-            i += span.len;
-            count += span.runes;
-        } else {
-            ctx.charge(1)?;
-            let (_, n, ok) = scan::rune(&bytes[i..]);
-            i += n;
-            count += 1;
-            valid &= ok;
-        }
+        ctx.charge_pending(&mut pending)?;
+        ctx.checkpoint()?;
     }
     Ok((count, valid))
 }
@@ -1391,7 +1404,7 @@ pub(crate) fn format_float(out: &mut bytes::Number, value: f64) -> crate::checke
 /// built untracked, so heights beyond the construction cap are reachable.
 #[cfg(test)]
 pub(crate) mod testing {
-    use crate::{CallContext, CallOptions, Limits, Value};
+    use crate::{CallContext, CallOptions, Limits, Value, budget::CHUNK};
 
     /// Wraps `leaf` in `height` single-element arrays.
     pub(crate) fn nested(height: usize, leaf: Value) -> Value {
@@ -1426,6 +1439,60 @@ pub(crate) mod testing {
         crate::threads::on_stack(256 << 10, work).unwrap()
     }
 
+    /// Texts whose runs end at, before and after every boundary the count
+    /// has: a block of the scan, 64 bytes of a step, and a chunk.
+    pub(crate) fn mixed_texts() -> Vec<Vec<u8>> {
+        let breaks: [&[u8]; 8] = [
+            "é".as_bytes(),
+            "界".as_bytes(),
+            "🙂".as_bytes(),
+            "éé界🙂".as_bytes(),
+            b"\xff",
+            b"\xe7\x95",
+            b"\x80\xc3",
+            b"",
+        ];
+        let mut texts = vec![Vec::new()];
+        for length in (0..=130).chain([4031, 4032, 4095, 4096, 4097, 8191, 8192, 8193]) {
+            for other in breaks {
+                let mut text = vec![b'a'; length];
+                text.extend_from_slice(other);
+                text.extend_from_slice(b"bc");
+                text.extend_from_slice(other);
+                texts.push(text);
+            }
+        }
+        // Other characters across the end of a chunk, at every offset.
+        for lead in 0..8 {
+            for other in ["é", "界", "🙂", "é界🙂"] {
+                let mut text = vec![b'a'; lead];
+                text.extend_from_slice(other.repeat(2 * CHUNK / other.len() + 3).as_bytes());
+                texts.push(text.clone());
+                text.truncate(CHUNK + 2);
+                texts.push(text);
+            }
+        }
+        // Runs of random length and kind, over several chunks.
+        let mut state = 185u64;
+        let mut next = |below: u64| {
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+            (state >> 33) % below
+        };
+        for longest in [3, 20, 200, 6000] {
+            let mut text = Vec::new();
+            while text.len() < 5 * CHUNK {
+                for _ in 0..next(longest) {
+                    text.push(b' ' + next(90) as u8);
+                }
+                for _ in 0..1 + next(longest.min(40)) / 8 {
+                    text.extend_from_slice(breaks[next(7) as usize]);
+                }
+            }
+            texts.push(text);
+        }
+        texts
+    }
+
     pub(crate) fn context(steps: Option<u64>, memory_bytes: Option<usize>) -> CallContext {
         CallContext::new(CallOptions {
             limits: Limits {
@@ -1440,7 +1507,7 @@ pub(crate) mod testing {
 
 #[cfg(test)]
 mod tests {
-    use super::testing::{context, nested, nested_hash, on_small_stack, shared};
+    use super::testing::{context, mixed_texts, nested, nested_hash, on_small_stack, shared};
     use super::*;
     use crate::{CallOptions, ErrorClass};
 
@@ -1831,6 +1898,80 @@ mod tests {
         assert_eq!(error.class(), Some(ErrorClass::Limit));
         assert_eq!(error.message, "join nesting too deep");
         assert_eq!(stats.retained_memory_bytes, 0);
+    }
+
+    /// What `runes` reports and charges, a character at a time: a step per
+    /// 64 bytes of each ASCII run and one for every other character.
+    fn counted(bytes: &[u8]) -> (usize, bool, u64) {
+        let (mut count, mut valid, mut steps, mut run) = (0, true, 0, 0u64);
+        let mut rest = bytes;
+        while let Some(&first) = rest.first() {
+            let (_, n, ok) = scan::rune(rest);
+            if first < 128 {
+                run += 1;
+            } else {
+                steps += run.div_ceil(64) + 1;
+                run = 0;
+            }
+            count += 1;
+            valid &= ok;
+            rest = &rest[n..];
+        }
+        (count, valid, steps + run.div_ceil(64))
+    }
+
+    #[test]
+    fn runes_charge_each_run_as_if_counted_a_character_at_a_time() {
+        for text in mixed_texts() {
+            let (count, valid, steps) = counted(&text);
+            let mut ctx = context(None, None);
+            ctx.charge(1).unwrap();
+            assert_eq!(runes(&mut ctx, &text).unwrap(), (count, valid));
+            assert_eq!(ctx.stats().steps, 1 + steps);
+
+            let mut ctx = context(Some(1 + steps), None);
+            ctx.charge(1).unwrap();
+            assert_eq!(runes(&mut ctx, &text).unwrap(), (count, valid));
+            for short in [1, 2, 17, steps / 2, steps] {
+                if short == 0 || short > steps {
+                    continue;
+                }
+                let limit = 1 + steps - short;
+                let mut ctx = context(Some(limit), None);
+                ctx.charge(1).unwrap();
+                let error = runes(&mut ctx, &text).unwrap_err();
+                assert_eq!(error.kind, ErrorKind::Steps);
+                assert_eq!(ctx.charge(0).unwrap_err(), error);
+            }
+        }
+    }
+
+    #[test]
+    fn runes_notice_a_limit_cancellation_and_a_deadline_within_two_chunks() {
+        let text = "aé".repeat(100 * CHUNK);
+        // A limit reached at the start, and one reached part of the way.
+        for limit in [10, 40 * CHUNK as u64] {
+            let mut ctx = context(Some(limit), None);
+            let error = runes(&mut ctx, text.as_bytes()).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Steps);
+            // What was counted before it was noticed, at most a step a byte.
+            assert!(ctx.stats().steps <= limit + 2 * CHUNK as u64);
+        }
+
+        for text in ["a", "é", "\u{ff}", text.as_str()] {
+            for kind in [ErrorKind::Cancelled, ErrorKind::Deadline] {
+                let mut ctx = context(None, None);
+                ctx.charge(1).unwrap();
+                if kind == ErrorKind::Cancelled {
+                    ctx.cancellation().cancel();
+                } else {
+                    ctx.options.deadline = Some(std::time::Instant::now());
+                }
+                let error = runes(&mut ctx, text.as_bytes()).unwrap_err();
+                assert_eq!(error.kind, kind);
+                assert!(ctx.stats().steps <= 1 + 2 * CHUNK as u64);
+            }
+        }
     }
 }
 
