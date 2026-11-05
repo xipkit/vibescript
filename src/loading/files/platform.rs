@@ -129,21 +129,21 @@ pub(super) fn stored_name(
     let total = u32::from_ne_bytes(output[..4].try_into().unwrap()) as usize;
     let offset = i32::from_ne_bytes(output[4..8].try_into().unwrap()) as i64 + 4;
     let length = u32::from_ne_bytes(output[8..12].try_into().unwrap()) as usize;
-    if !(12..=output.len()).contains(&total)
-        || offset < 12
-        || offset as usize > total
-        || length == 0
-        || length > total - offset as usize
-        || output[offset as usize + length - 1] != 0
-    {
-        return Err(Error::new(
+    let invalid_response = || {
+        Error::new(
             ErrorKind::Runtime,
             "require: invalid stored filename response",
-        ));
+        )
+    };
+    if !(12..=output.len()).contains(&total) || offset < 12 {
+        return Err(invalid_response());
     }
-    Ok(Some(
-        &output[offset as usize..offset as usize + length - 1] == expected.as_bytes(),
-    ))
+    let name = output
+        .get(offset as usize..total)
+        .and_then(|tail| tail.get(..length))
+        .and_then(|name| name.strip_suffix(&[0]))
+        .ok_or_else(invalid_response)?;
+    Ok(Some(name == expected.as_bytes()))
 }
 
 #[cfg(not(target_vendor = "apple"))]

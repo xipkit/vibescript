@@ -130,11 +130,7 @@ impl Resolver {
             None
         };
         self.policy.check(ctx, name.as_bytes().unwrap())?;
-        let roots = if request.relative {
-            &self.roots[..0]
-        } else {
-            &self.roots
-        };
+        let roots: &[files::Root] = if request.relative { &[] } else { &self.roots };
         Ok(Candidates {
             roots: roots.iter(),
             relative_root,
@@ -275,10 +271,7 @@ impl Candidate {
 }
 
 fn relative_name(ctx: &mut CallContext, caller: &[u8], request: &[u8]) -> Result<Value> {
-    let directory = caller
-        .iter()
-        .rposition(|&b| b == b'/')
-        .map_or(&caller[..0], |at| &caller[..at]);
+    let directory = caller.rsplitn(2, |&b| b == b'/').nth(1).unwrap_or_default();
     let Some(capacity) = directory
         .len()
         .checked_add(request.len())
