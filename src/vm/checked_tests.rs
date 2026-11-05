@@ -250,6 +250,76 @@ fn a_callback_cannot_swallow_an_internal_import_error() {
     }
 }
 
+#[test]
+fn an_import_with_a_slot_past_the_class_layout_is_terminal() {
+    let script = corrupt(
+        Engine::new()
+            .compile(
+                "class Box\n@value: int\ndef initialize(value: int)\n@value = value\nend\nend\nBox.new(7)",
+            )
+            .unwrap(),
+        "Box#initialize",
+        |code| {
+            let store = code
+                .iter_mut()
+                .find(|op| matches!(op, Op::InstanceStore(_)))
+                .unwrap();
+            assert!(matches!(store, Op::InstanceStore(0)));
+            *store = Op::InstanceStore(5);
+        },
+    );
+    // The bad write completes; importing its result must fail at the name lookup.
+    let value = script.run(CallOptions::default()).unwrap().value;
+    let Kind::Instance(instance) = &value.0 else {
+        panic!("expected an instance");
+    };
+    assert_eq!(instance.class().field_layout().unwrap(), &["value"]);
+
+    for reaction in [Reaction::Ignore, Reaction::Replace] {
+        let observed = Arc::new(Observed::default());
+        let mut engine = marking(&observed);
+        let seen = observed.clone();
+        let value = value.clone();
+        engine.register("visit", move |ctx, _| {
+            let error = ctx.import(&value).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Internal);
+            assert!(error.class().is_none());
+            assert!(
+                error
+                    .message
+                    .starts_with("internal error at src/objects/fields.rs:"),
+                "{error}"
+            );
+            assert!(
+                error
+                    .message
+                    .contains("index 5 is out of range for length 1"),
+                "{error}"
+            );
+            seen.block.store(true, Ordering::Relaxed);
+            assert_eq!(ctx.checkpoint().unwrap_err(), error);
+            seen.later.store(true, Ordering::Relaxed);
+            reaction.result()
+        });
+        let script = engine
+            .compile(
+                "def run -> any\nbegin\nvisit()\nrescue\nmark()\nensure\nmark()\nend\nmark()\nend",
+            )
+            .unwrap();
+        let error = script.call("run", &[], CallOptions::default()).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Internal, "{reaction:?}: {error}");
+        assert!(
+            error
+                .message
+                .contains("index 5 is out of range for length 1"),
+            "{reaction:?}: {error}"
+        );
+        assert!(observed.block.load(Ordering::Relaxed));
+        assert!(observed.later.load(Ordering::Relaxed));
+        assert_eq!(observed.handlers.load(Ordering::Relaxed), 0);
+    }
+}
+
 #[cfg(feature = "tokio")]
 mod asynchronous {
     use super::*;
