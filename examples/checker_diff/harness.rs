@@ -340,9 +340,8 @@ fn finding(kind: FindingKind, detail: String) -> Verdict {
 /// The program with each top-level local's first assignment declaring the
 /// type the checker inferred for it, as `vibes repl` declares a session's
 /// variables, so that the build keeping every check verifies each inferred
-/// type; `None` when no local can be declared. Crashes while checking are
-/// errors, so the campaign cannot silently skip an engine bug.
-pub fn annotate(case: &Case, scratch: &mut Scratch) -> std::io::Result<Option<Case>> {
+/// type, or a finding if checking crashed; `None` when no local can be declared.
+pub fn annotate(case: &Case, scratch: &mut Scratch) -> std::io::Result<Option<Annotation>> {
     let directory = if case.modules.is_empty() {
         None
     } else {
@@ -361,9 +360,15 @@ pub fn annotate(case: &Case, scratch: &mut Scratch) -> std::io::Result<Option<Ca
     case.host
         .declare(&mut engine)
         .map_err(std::io::Error::other)?;
-    let checked = match capture(|| engine.type_check(&case.main)).map_err(std::io::Error::other)? {
-        Ok(checked) => checked,
-        Err(_) => return Ok(None),
+    let checked = match capture(|| engine.type_check(&case.main)) {
+        Ok(Ok(checked)) => checked,
+        Ok(Err(_)) => return Ok(None),
+        Err(crash) => {
+            return Ok(Some(Annotation::Finding(Finding {
+                kind: FindingKind::Panic,
+                detail: format!("annotation: {crash}"),
+            })));
+        }
     };
     let mut declared = std::collections::HashSet::new();
     let mut changed = false;
@@ -390,11 +395,21 @@ pub fn annotate(case: &Case, scratch: &mut Scratch) -> std::io::Result<Option<Ca
             }
         }
     }
-    Ok(changed.then(|| Case {
-        main,
-        modules: case.modules.clone(),
-        host: case.host.clone(),
+    Ok(changed.then(|| {
+        Annotation::Case(Case {
+            main,
+            modules: case.modules.clone(),
+            host: case.host.clone(),
+        })
     }))
+}
+
+/// The annotated program, or the failure encountered while inferring its locals.
+pub enum Annotation {
+    /// A program with its inferred local types declared.
+    Case(Case),
+    /// Inferring the types crashed; the original program reproduces it.
+    Finding(Finding),
 }
 
 /// One output stream of a compiled case, as the writers sent it.
