@@ -229,11 +229,13 @@ pub(super) fn table(source: &str) -> Result<Table> {
 
 impl<'a> Parser<'a> {
     fn peek(&self) -> &Token<'a> {
-        &self.tokens[self.pos].token
+        self.tokens
+            .get(self.pos)
+            .map_or(&Token::End, |token| &token.token)
     }
 
     fn next(&mut self) -> Token<'a> {
-        let token = self.tokens[self.pos].token;
+        let token = *self.peek();
         if token != Token::End {
             self.pos += 1;
         }
@@ -241,10 +243,11 @@ impl<'a> Parser<'a> {
     }
 
     fn fail<T>(&self, message: impl Into<String>) -> Result<T> {
-        let token = &self.tokens[self.pos];
-        let (line, column) = if token.token == Token::End {
-            (self.source.lines().count() + 1, 1)
-        } else {
+        let (line, column) = if let Some(token) = self
+            .tokens
+            .get(self.pos)
+            .filter(|token| token.token != Token::End)
+        {
             let before = &self.source[..token.offset];
             (
                 before.bytes().filter(|byte| *byte == b'\n').count() + 1,
@@ -252,6 +255,8 @@ impl<'a> Parser<'a> {
                     .rfind('\n')
                     .map_or(token.offset + 1, |at| token.offset - at),
             )
+        } else {
+            (self.source.lines().count() + 1, 1)
         };
         Err(ParseError {
             line,
@@ -319,7 +324,10 @@ impl<'a> Parser<'a> {
         matches!(
             self.peek(),
             Token::Word(_) | Token::Literal("nil" | "true" | "false")
-        ) && self.tokens[(self.pos + 1).min(self.tokens.len() - 1)].token == Token::Punct(":")
+        ) && self
+            .tokens
+            .get(self.pos + 1)
+            .is_some_and(|token| token.token == Token::Punct(":"))
     }
 
     /// Requires the end of a declaration's line; comments go on their own line.
@@ -603,7 +611,12 @@ impl<'a> Parser<'a> {
                     self.expect(")")?;
                     break;
                 }
-                if self.at("*") && matches!(&self.tokens[self.pos + 1].token, Token::Punct(",")) {
+                if self.at("*")
+                    && self
+                        .tokens
+                        .get(self.pos + 1)
+                        .is_some_and(|token| token.token == Token::Punct(","))
+                {
                     if keywords
                         || function
                             .params
@@ -876,7 +889,7 @@ impl<'a> Parser<'a> {
 /// Whether a name introduces or refers to a type variable: an uppercase ASCII
 /// letter followed by nothing else.
 fn variable(name: &str) -> bool {
-    name.len() == 1 && name.as_bytes()[0].is_ascii_uppercase()
+    matches!(name.as_bytes(), [letter] if letter.is_ascii_uppercase())
 }
 
 fn optional(ty: Type) -> Type {

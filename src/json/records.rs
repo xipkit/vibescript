@@ -220,7 +220,7 @@ impl<'a> Records<'a> {
             .at_mut(slot.0)?
             .as_mut()
             .ok_or(violation("record sharing slot must be initialized"))?;
-        record.fields.remember(slot.1, key);
+        record.fields.remember(slot.1, key)?;
         let ty = record.ty;
         let complete = self.complete(ty);
         *self.ready.at_mut(depth)? = complete;

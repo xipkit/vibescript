@@ -54,7 +54,7 @@ impl Money {
         let mut buffer = bytes::Number::new();
         self.currency()?;
         buffer.format(format_args!("{self}"))?;
-        ctx.bytes(buffer.bytes())
+        ctx.bytes(buffer.bytes()?)
     }
 }
 

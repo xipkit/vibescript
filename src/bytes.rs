@@ -4,7 +4,7 @@
 use crate::{
     CallContext, Result,
     budget::CHUNK,
-    checked::{Access, violation},
+    checked::{Access, Checked, violation},
 };
 use std::fmt::{self, Write};
 
@@ -44,18 +44,34 @@ impl Number {
             .map_err(|_| violation("numeric text exceeds fixed buffer"))
     }
 
-    pub fn bytes(&self) -> &[u8] {
-        &self.buf[..self.len]
+    /// Returns the initialized text, reporting an invalid buffer length.
+    pub fn bytes(&self) -> Access<&[u8]> {
+        self.buf.span(0, self.len)
     }
 }
 impl Write for Number {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        let end = self.len + s.len();
-        if end > self.buf.len() {
-            return Err(fmt::Error);
-        }
-        self.buf[self.len..end].copy_from_slice(s.as_bytes());
+        let end = self.len.checked_add(s.len()).ok_or(fmt::Error)?;
+        self.buf
+            .get_mut(self.len..end)
+            .ok_or(fmt::Error)?
+            .copy_from_slice(s.as_bytes());
         self.len = end;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn numeric_text_rejects_overflow_without_losing_the_prefix() {
+        let mut number = Number::new();
+        number.append(&"1".repeat(512)).unwrap();
+        assert!(number.append("2").is_err());
+        assert_eq!(number.bytes().unwrap(), "1".repeat(512).as_bytes());
+        number.len = 513;
+        assert!(number.bytes().is_err());
     }
 }

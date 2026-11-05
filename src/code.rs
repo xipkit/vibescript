@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{CallContext, Error, Result, bytecode::Program, capability::Registered};
 use std::{collections::BTreeMap, fmt, sync::Arc};
 
@@ -227,13 +228,16 @@ impl Code {
         if file {
             for (name, &index) in &program.names {
                 work.bytes(name.len())?;
-                if index != 0 && !program.functions[index].private {
+                if index != 0 && !program.functions.at(index)?.private {
                     exports.push((name.clone(), Export::Function(index)));
                 }
             }
             for (name, &index) in &program.declaration_names {
                 work.bytes(name.len())?;
-                if matches!(program.declarations[index].0, crate::value::Kind::Enum(_)) {
+                if matches!(
+                    program.declarations.at(index)?.0,
+                    crate::value::Kind::Enum(_)
+                ) {
                     exports.push((name.clone(), Export::Enum(index)));
                 }
             }
