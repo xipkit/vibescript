@@ -140,24 +140,28 @@ impl Literal {
         let mut position = from;
         let mut matched = 0;
         let mut work = 0;
+        // Every byte of a miss runs this loop, so only the ASCII step is
+        // inline. The decoder and the failure links are calls: inlined, they
+        // competed for the registers the loop's counters live in, and overflow
+        // checks tipped one of the counters onto the stack.
         while position < text.len() {
             if work >= CHUNK {
                 ctx.work_bytes(work)?;
                 work = 0;
             }
-            let (rune, width, _) = scan::rune(&text[position..]);
-            let rune = canonical(rune as u32, self.fold);
+            let byte = text[position];
+            let (rune, width) = if byte < 128 {
+                (canonical(u32::from(byte), self.fold), 1)
+            } else {
+                self.decode(&text[position..])
+            };
             work += width;
-            while matched > 0 && rune != runes[matched] {
-                let next = self.table.data[matched - 1] as usize;
-                // The partial match loses its first `matched - next` runes.
-                for _ in next..matched {
-                    start += scan::rune(&text[start..]).1;
-                }
-                work += 2 * (matched - next);
-                matched = next;
-            }
             position += width;
+            if matched > 0 && rune != runes[matched] {
+                let partial = matched;
+                (matched, start) = self.fall_back(text, rune, partial, start);
+                work += 2 * (partial - matched);
+            }
             if rune == runes[matched] {
                 matched += 1;
                 if matched == runes.len() {
@@ -170,6 +174,35 @@ impl Literal {
         }
         ctx.work_bytes(work)?;
         Ok(None)
+    }
+
+    /// Decodes the rune `text` starts with into its canonical form and width.
+    #[inline(never)]
+    fn decode(&self, text: &[u8]) -> (u32, usize) {
+        let (rune, width, _) = scan::rune(text);
+        (canonical(rune as u32, self.fold), width)
+    }
+
+    /// Follows the failure links from a partial match of `matched` runes that
+    /// `rune` does not extend, until it extends what is left or nothing is.
+    /// Returns the runes still matched, and `start` moved past the runes the
+    /// partial match lost.
+    #[inline(never)]
+    fn fall_back(
+        &self,
+        text: &[u8],
+        rune: u32,
+        matched: usize,
+        mut start: usize,
+    ) -> (usize, usize) {
+        let mut kept = matched;
+        while kept > 0 && rune != self.runes.data[kept] {
+            kept = self.table.data[kept - 1] as usize;
+        }
+        for _ in kept..matched {
+            start += scan::rune(&text[start..]).1;
+        }
+        (kept, start)
     }
 }
 
@@ -562,6 +595,111 @@ mod tests {
             }
         }
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+
+    /// The rune-at-a-time scan `Literal::scan` must reproduce: what it finds,
+    /// and the steps its chunked charges come to.
+    fn reference_scan(
+        literal: &Literal,
+        text: &[u8],
+        from: usize,
+    ) -> (Option<(usize, usize)>, u64) {
+        let runes = &literal.runes.data;
+        let (mut start, mut position, mut matched) = (from, from, 0);
+        let (mut work, mut steps) = (0usize, 0);
+        while position < text.len() {
+            if work >= CHUNK {
+                steps += (work as u64).div_ceil(64);
+                work = 0;
+            }
+            let (rune, width, _) = scan::rune(&text[position..]);
+            let rune = canonical(rune as u32, literal.fold);
+            work += width;
+            while matched > 0 && rune != runes[matched] {
+                let next = literal.table.data[matched - 1] as usize;
+                for _ in next..matched {
+                    start += scan::rune(&text[start..]).1;
+                }
+                work += 2 * (matched - next);
+                matched = next;
+            }
+            position += width;
+            if rune == runes[matched] {
+                matched += 1;
+                if matched == runes.len() {
+                    return (Some((start, position)), steps + (work as u64).div_ceil(64));
+                }
+            } else {
+                start = position;
+            }
+        }
+        (None, steps + (work as u64).div_ceil(64))
+    }
+
+    #[test]
+    fn literal_scans_charge_like_rune_at_a_time_matching() {
+        // Mostly the literals' own runes, so partial matches and the failure
+        // links they fall back along are frequent.
+        let pieces: [&[u8]; 12] = [
+            b"a",
+            b"a",
+            b"a",
+            b"b",
+            b"b",
+            b"A",
+            b"k",
+            "\u{212a}".as_bytes(),
+            "\u{e9}".as_bytes(),
+            "\u{754c}".as_bytes(),
+            b"\xff",
+            b"\xe7\x95",
+        ];
+        let patterns = [
+            "c",
+            "ab",
+            "aabaaabab",
+            "abababababc",
+            "(?i)aabaak",
+            "(?i)\u{e9}aa\u{c9}ab",
+            "\u{754c}aab\u{754c}b",
+            "a\u{fffd}a\u{fffd}b",
+        ];
+        let mut state = 0x2545_f491_4f6c_dd1du64;
+        let mut next = move |bound: usize| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state % bound as u64) as usize
+        };
+        for pattern in patterns {
+            let mut ctx = context(None);
+            let program =
+                Program::compile(&mut ctx, Value::bytes(pattern.as_bytes()), "Regex.match")
+                    .unwrap();
+            let search = Search::new(&mut ctx, program.view(), false).unwrap();
+            let literal = search.literal.as_ref().unwrap();
+            for case in 0..200 {
+                // Some texts span several chunks, so charges fall mid-scan.
+                let target = if case % 20 == 0 {
+                    2 * CHUNK + next(2 * CHUNK)
+                } else {
+                    next(300)
+                };
+                let mut text = Vec::new();
+                while text.len() < target {
+                    text.extend_from_slice(pieces[next(pieces.len())]);
+                }
+                for from in [0, text.len() / 3, text.len()] {
+                    let before = ctx.stats().steps;
+                    let found = literal.scan(&mut ctx, &text, from).unwrap();
+                    assert_eq!(
+                        (found, ctx.stats().steps - before),
+                        reference_scan(literal, &text, from),
+                        "{pattern} from {from} in {text:?}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]
