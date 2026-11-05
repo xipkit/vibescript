@@ -55,7 +55,7 @@ impl Parser<'_> {
                 continue;
             }
             let Token::Word(name) = &self.tokens[index + 1].token else {
-                unreachable!()
+                return Err(crate::checked::internal("declared type name expected"));
             };
             let alias = *word == "type";
             if alias && self.tokens[index + 2].token != Token::Op("=") {
@@ -216,7 +216,7 @@ impl Parser<'_> {
         self.bump()?;
         let at = self.tokens[self.pos].offset;
         let Token::Word(word) = self.bump()? else {
-            unreachable!()
+            return Err(crate::checked::internal("block parameter name expected"));
         };
         let written = word.strip_suffix('?').unwrap_or(&word);
         self.binding_name(written, at)?;
@@ -409,7 +409,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             work.charge(1)?;
             let offset = p.tokens[p.pos].offset;
             let Token::Word(word) = p.bump()? else {
-                unreachable!()
+                return Err(crate::checked::internal("instance variable name expected"));
             };
             p.binding_name(&word, offset)?;
             let name = &word[1..];
@@ -459,7 +459,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             work.charge(1)?;
             let offset = p.tokens[p.pos].offset;
             let Token::Word(word) = p.bump()? else {
-                unreachable!()
+                return Err(crate::checked::internal("class variable name expected"));
             };
             p.binding_name(&word, offset)?;
             if word.len() == 2 {

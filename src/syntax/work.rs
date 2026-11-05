@@ -18,7 +18,7 @@ pub(super) fn definition(work: &dyn Work, value: &Definition) -> Result<Definiti
         .run(Call::Definition(value), |call| copying.start(call), work)?
     {
         Copied::Definition(definition) => Ok(definition),
-        _ => unreachable!(),
+        _ => Err(crate::checked::internal("copy task expected a definition")),
     }
 }
 
@@ -65,21 +65,21 @@ impl<'x> Copying<'_, 'x> {
     async fn expr(&self, value: &'x Expr) -> Result<Expr> {
         match self.tasks.call(Call::Expr(value)).await? {
             Copied::Expr(value) => Ok(value),
-            _ => unreachable!(),
+            _ => Err(crate::checked::internal("copy task expected an expression")),
         }
     }
 
     async fn stmt(&self, value: &'x Stmt) -> Result<Stmt> {
         match self.tasks.call(Call::Stmt(value)).await? {
             Copied::Stmt(value) => Ok(value),
-            _ => unreachable!(),
+            _ => Err(crate::checked::internal("copy task expected a statement")),
         }
     }
 
     async fn place(&self, value: &'x Target) -> Result<Target> {
         match self.tasks.call(Call::Target(value)).await? {
             Copied::Target(value) => Ok(value),
-            _ => unreachable!(),
+            _ => Err(crate::checked::internal("copy task expected a target")),
         }
     }
 

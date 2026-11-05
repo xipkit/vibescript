@@ -93,7 +93,11 @@ pub(crate) fn call(
                 "to_s" => receiver.clone(),
                 "to_i" => crate::conversion::integer(ctx, bytes.data(), "string.to_i")?,
                 "to_f" => Value::float(crate::conversion::float(ctx, bytes.data(), "string.to_f")?),
-                _ => unreachable!(),
+                _ => {
+                    return Err(crate::checked::internal(
+                        "string conversion was not dispatched",
+                    ));
+                }
             }
         }
     };

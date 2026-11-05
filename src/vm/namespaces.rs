@@ -531,7 +531,8 @@ pub(super) fn address(
         if !optional && crate::objects::field_slot(ctx, backing, name)?.is_none() {
             return Err(Error::new(ErrorKind::Name, "undefined class constant"));
         }
-        return crate::objects::address(ctx, backing, name).map(Address::in_environment);
+        return crate::objects::address(ctx, backing, name)
+            .and_then(|address| Ok(address.in_environment()?));
     }
     let field = if let Some(field) = storage
         .namespaces
@@ -597,7 +598,11 @@ pub(super) fn member(
     let (namespace, instance) = match &receiver.0 {
         Kind::Namespace(namespace) => (namespace, None),
         Kind::Instance(instance) => (instance.class(), Some(instance)),
-        _ => unreachable!(),
+        _ => {
+            return Err(crate::checked::internal(
+                "member receiver must be a class or instance",
+            ));
+        }
     };
     let definition = &namespace.definition;
     let owner = programs::namespace(ctx, storage, namespace)?;
@@ -745,7 +750,11 @@ pub(super) fn setter(
     let (namespace, instance) = match &receiver.0 {
         Kind::Namespace(namespace) => (namespace, false),
         Kind::Instance(instance) => (instance.class(), true),
-        _ => unreachable!(),
+        _ => {
+            return Err(crate::checked::internal(
+                "setter receiver must be a class or instance",
+            ));
+        }
     };
     let _owner = programs::namespace(ctx, storage, namespace)?;
     let methods = if instance {

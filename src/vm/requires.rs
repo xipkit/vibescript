@@ -148,7 +148,7 @@ pub(super) fn address(
     }
     let bindings = storage.bindings.as_ref().unwrap();
     crate::objects::address(ctx, bindings, name)
-        .map(Address::in_environment)
+        .and_then(|address| Ok(address.in_environment()?))
         .map(Some)
 }
 
@@ -401,7 +401,7 @@ pub(super) fn complete(
     let value = module.exports.clone();
     let alias = module.alias.take();
     let Kind::Hash(exports) = &value.0 else {
-        unreachable!()
+        return Err(crate::checked::internal("module exports must be a hash"));
     };
     for (key, value) in &exports.buffer.data {
         ctx.charge(1)?;

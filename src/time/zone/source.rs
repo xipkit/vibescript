@@ -367,7 +367,7 @@ mod tests {
                     data.extend_from_slice(&payload);
                     data
                 }
-                Format::File => unreachable!(),
+                Format::File => panic!("unexpected test fixture"),
             };
             let mut source = Source::new(Cursor::new(&data), data.len() as u64);
             for limit in [payload.len() - 1, payload.len()] {
@@ -381,7 +381,7 @@ mod tests {
                 let result = match format {
                     Format::Zip => source.zip(&mut ctx, b"zone"),
                     Format::Android => source.android(&mut ctx, b"zone"),
-                    Format::File => unreachable!(),
+                    Format::File => panic!("unexpected test fixture"),
                 };
                 if limit < payload.len() {
                     assert!(matches!(result, Err(e) if e.kind == ErrorKind::Memory));

@@ -244,7 +244,7 @@ fn abandoned_execution_keeps_objects_retained_by_the_host() {
     });
     engine.register_method(
         "pause",
-        HostMethod::new_with_block("pause", |_, _, _| unreachable!()),
+        HostMethod::new_with_block("pause", |_, _, _| panic!("unexpected test fixture")),
     );
     let script = engine.compile("class Box;property n: int?;property link: Box?;end;def run;b=Box.new;b.n=3;b.link=b;hold(b);pause();b.n=4;end\ndef read(b: Box) -> array<int | bool | nil>;[b.n,b.link==b];end").unwrap();
     let mut execution = Execution::new(&script, "run", &[], &[], CallOptions::default()).unwrap();

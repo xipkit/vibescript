@@ -239,7 +239,7 @@ fn compilation_preserves_borrowed_host_order_identity_and_partial_failure_cleanu
             assert_eq!(context.stats().retained_memory_bytes, 0);
             for callback in registered.values() {
                 let Registered::Callback(callback) = callback else {
-                    unreachable!()
+                    panic!("unexpected test fixture")
                 };
                 assert_eq!(Arc::strong_count(callback), 1);
             }

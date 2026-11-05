@@ -632,7 +632,7 @@ fn interrupted_name_table_updates_leave_the_original_scope_intact() {
                 .map(drop),
             "remove" => table.remove(work, &long_name).map(drop),
             "lookup" => table.get(work, &long_name).map(drop),
-            _ => unreachable!(),
+            _ => panic!("unexpected test fixture"),
         };
         let mut table = initial();
         let baseline = Interrupt::new(usize::MAX, false);

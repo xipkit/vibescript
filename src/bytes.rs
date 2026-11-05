@@ -1,7 +1,11 @@
 //! Byte helpers shared across the builtins: a fixed-size text buffer and a
 //! metered byte comparison.
 
-use crate::{CallContext, Result, budget::CHUNK};
+use crate::{
+    CallContext, Result,
+    budget::CHUNK,
+    checked::{Access, violation},
+};
 use std::fmt::{self, Write};
 
 pub(crate) fn bytes_equal(ctx: &mut CallContext, a: &[u8], b: &[u8]) -> Result<bool> {
@@ -28,6 +32,18 @@ impl Number {
             len: 0,
         }
     }
+    /// Appends text, reporting an internal error if the fixed buffer is full.
+    pub fn append(&mut self, text: &str) -> Access<()> {
+        self.write_str(text)
+            .map_err(|_| violation("numeric text exceeds fixed buffer"))
+    }
+
+    /// Formats text, reporting an internal error if the fixed buffer is full.
+    pub fn format(&mut self, args: fmt::Arguments<'_>) -> Access<()> {
+        self.write_fmt(args)
+            .map_err(|_| violation("numeric text exceeds fixed buffer"))
+    }
+
     pub fn bytes(&self) -> &[u8] {
         &self.buf[..self.len]
     }

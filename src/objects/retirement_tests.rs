@@ -78,7 +78,7 @@ fn imported_host_callbacks_retire_after_object_collection_unlocks() {
                     return Ok(value);
                 }
                 let Kind::Namespace(namespace) = &value.0 else {
-                    unreachable!();
+                    panic!("unexpected test fixture");
                 };
                 let namespace = Namespace::import(ctx, namespace)?;
                 let environment = new(ctx, &namespace)?;

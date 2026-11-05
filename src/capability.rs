@@ -412,12 +412,17 @@ impl HostMethod {
     /// returned from a script keeps its original grant and cannot authorize another
     /// call. Reuse this host-side method to make a fresh grant instead.
     pub fn value(&self) -> Value {
-        Value(Kind::Host(Arc::new(BoundMethod {
+        Value(Kind::Host(Arc::new(self.bound())))
+    }
+
+    /// Creates the ungranted method descriptor used by signatures and values.
+    pub(crate) fn bound(&self) -> BoundMethod {
+        BoundMethod {
             definition: self.definition.clone(),
             owner: None,
             header: None,
             metadata: None,
-        })))
+        }
     }
 }
 
@@ -516,7 +521,7 @@ impl BoundMethod {
         keywords: &[(Value, Value)],
     ) -> Result<Value> {
         let Callback::Plain(callback) = &self.definition.callback else {
-            unreachable!()
+            return ctx.latch_internal(Err(crate::checked::internal("plain callback expected")));
         };
         let result = callback(ctx, args, keywords);
         ctx.checkpoint()?;
@@ -567,7 +572,7 @@ impl BoundMethod {
         keywords: &'a [(Value, Value)],
     ) -> crate::asynchronous::HostFuture<'a> {
         let Callback::Async(callback) = &self.definition.callback else {
-            unreachable!()
+            return Box::pin(async { Err(crate::checked::internal("async callback expected")) });
         };
         callback(call, args, keywords)
     }

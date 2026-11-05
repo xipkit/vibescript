@@ -30,7 +30,9 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 Node::SafeMethod(receiver, name, args, CallForm::Bare)
             }
             Node::Scope(receiver, name, None) => Node::Scope(receiver, name, Some(args)),
-            _ => unreachable!(),
+            _ => {
+                return Err(crate::checked::internal("callable expression expected"));
+            }
         };
         p.make_at(node, depth, offset)
     }
@@ -238,7 +240,9 @@ impl Parser<'_> {
                 Node::SafeMethod(receiver, name, args, CallForm::Parenthesized)
             }
             Node::Scope(receiver, name, None) => Node::Scope(receiver, name, Some(args)),
-            _ => unreachable!(),
+            _ => {
+                return Err(crate::checked::internal("callable expression expected"));
+            }
         };
         self.make_at(node, d, origin)
     }
@@ -399,7 +403,7 @@ impl Parser<'_> {
             ArgumentKind::KeywordSplat
         } else if self.keyword_label(self.pos) {
             let Token::Word(name) = self.bump()? else {
-                unreachable!()
+                return Err(crate::checked::internal("keyword argument name expected"));
             };
             self.bump()?;
             ArgumentKind::Keyword(Name::new(self.work, &name)?)

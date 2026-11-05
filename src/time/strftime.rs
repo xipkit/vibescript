@@ -358,7 +358,9 @@ fn directive(
         b'D' | b'x' => (b"%m/%d/%y", 0, b' ', Kind::Compound),
         b'r' => (b"%I:%M:%S %p", 0, b' ', Kind::Compound),
         b'c' => (b"%a %b %e %T %Y", 0, b' ', Kind::Compound),
-        _ => unreachable!(),
+        _ => {
+            return Err(crate::checked::internal("unsupported strftime directive"));
+        }
     };
     let width = token.width.unwrap_or(default_width);
     match kind {

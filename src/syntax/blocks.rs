@@ -35,7 +35,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let block = self.attached_block(brace).await?;
         if matches!(lhs.node, Node::BlockCall(..)) {
             let Node::BlockCall(call, _) = lhs.into_node() else {
-                unreachable!()
+                return Err(crate::checked::internal("attached block call expected"));
             };
             lhs = call.into_inner();
         }

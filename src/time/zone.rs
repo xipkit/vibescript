@@ -274,7 +274,7 @@ impl Zone {
     /// so a resolution costs the same steps with or without a memory quota.
     fn share(ctx: &mut CallContext, zone: &Arc<Self>) -> Result<Arc<Self>> {
         let Kind::Bytes(data) = &zone.bytes.0 else {
-            unreachable!("zone data is stored as bytes");
+            return Err(crate::checked::internal("zone data is stored as bytes"));
         };
         let bytes = Value(Kind::Bytes(Bytes::import(ctx, data)?));
         Self::new(ctx, bytes, zone.info, zone.rules.clone(), zone.offset)

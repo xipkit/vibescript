@@ -3296,7 +3296,9 @@ impl Gen {
                 }
                 ParamKind::Rest => {
                     let Ty::Array(element) = &param.ty else {
-                        unreachable!()
+                        return Err(std::io::Error::other(
+                            "rest parameter requires an array type",
+                        ));
                     };
                     for _ in 0..self.rng.below(3) {
                         args.push(self.expr(env, element, d, true)?);

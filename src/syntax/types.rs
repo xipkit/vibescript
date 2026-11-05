@@ -371,7 +371,7 @@ impl Parser<'_> {
         }
         let mut index = self.pos;
         let Token::Word(written) = self.bump()? else {
-            unreachable!()
+            return Err(crate::checked::internal("type name expected"));
         };
         let written = written.as_str();
         let continues = |p: &Self| p.tokens[p.significant(p.pos)].token == Token::Op("::");
@@ -406,7 +406,7 @@ impl Parser<'_> {
             }
             index = self.pos;
             let Token::Word(member) = self.bump()? else {
-                unreachable!()
+                return Err(crate::checked::internal("type name expected"));
             };
             let member = member.as_str();
             path = self.type_read(path, member, self.tokens[index].offset, continues(self))?;
@@ -432,7 +432,7 @@ impl Parser<'_> {
             }
             index = self.pos;
             let Token::Word(member) = self.bump()? else {
-                unreachable!()
+                return Err(crate::checked::internal("type name expected"));
             };
             let member = member.as_str();
             ty.nullable = member.ends_with('?');
@@ -699,7 +699,7 @@ impl Parser<'_> {
     /// Go's `identAfterColonStartsExpression` for the identifier at `peek`.
     fn name_starts_default(&self, peek: usize, parenthesized: bool) -> Result<bool> {
         let Token::Word(name) = &self.tokens[peek].token else {
-            unreachable!()
+            return Err(crate::checked::internal("default argument name expected"));
         };
         let mut next = self.significant(peek + 1);
         // The lexer splits `int?=nil` so that `?=` never ends a name; the
@@ -749,7 +749,7 @@ impl Parser<'_> {
     /// qualified type annotation.
     fn dotted_type_follows(&self, peek: usize, dot: usize, parenthesized: bool) -> Result<bool> {
         let Token::Word(namespace) = &self.tokens[peek].token else {
-            unreachable!()
+            return Err(crate::checked::internal("qualified type name expected"));
         };
         if self.locals.contains(self.work, namespace.as_str())? {
             return Ok(false);
@@ -759,7 +759,7 @@ impl Parser<'_> {
             return Ok(false);
         }
         let Token::Word(written) = &self.tokens[member].token else {
-            unreachable!()
+            return Err(crate::checked::internal("qualified type name expected"));
         };
         let name = written.trim_end_matches('?');
         let looks_like_type = name.as_bytes().first().is_some_and(u8::is_ascii_uppercase)

@@ -60,6 +60,10 @@ impl Drop for Inside {
     }
 }
 
+/// A method of the actor panicked, so its state may be half changed.
+#[derive(Debug)]
+pub(crate) struct Poisoned;
+
 impl<S> Actor<S> {
     /// An actor holding `state`.
     #[allow(clippy::disallowed_types, reason = "see the state field")]
@@ -82,10 +86,28 @@ impl<S> Actor<S> {
 
     /// Runs `f` with shared access to the state and returns its result,
     /// under the same rules as [`with`](Self::with).
+    #[cfg(test)]
     pub fn read<R>(&self, f: impl FnOnce(&S) -> R) -> R {
         let _inside = Inside::enter();
         let guard = self.state.lock().unwrap_or_else(PoisonError::into_inner);
         f(&guard)
+    }
+
+    /// Runs `f` like [`with`](Self::with), unless a method of this actor
+    /// panicked: the state it left may be half changed, and a caller that
+    /// cannot use such a state asks here and is told.
+    pub fn try_with<R>(&self, f: impl FnOnce(&mut S) -> R) -> Result<R, Poisoned> {
+        let _inside = Inside::enter();
+        let mut guard = self.state.lock().map_err(|_| Poisoned)?;
+        Ok(f(&mut guard))
+    }
+
+    /// Runs `f` like [`read`](Self::read), under the rule of
+    /// [`try_with`](Self::try_with).
+    pub fn try_read<R>(&self, f: impl FnOnce(&S) -> R) -> Result<R, Poisoned> {
+        let _inside = Inside::enter();
+        let guard = self.state.lock().map_err(|_| Poisoned)?;
+        Ok(f(&guard))
     }
 
     /// Whether no method of this actor is running now.
@@ -161,5 +183,9 @@ mod tests {
         assert!(failed.is_err());
         assert_eq!(tally.read(|hits| *hits), 5);
         assert_eq!(format!("{tally:?}"), "Actor(5)");
+        // A caller that cannot use a half-changed state is told of it.
+        assert!(tally.try_with(|hits| *hits).is_err());
+        assert!(tally.try_read(|hits| *hits).is_err());
+        assert_eq!(Actor::new(3_u64).try_with(|hits| *hits).unwrap(), 3);
     }
 }
