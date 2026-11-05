@@ -2486,11 +2486,13 @@ mod tests {
         // A stopped walk's results, and a root without assignments.
         ("assigns.rs", [2, 0, 0]),
         // Bindings of signatures without type variables, and the members
-        // of a host or builtin namespace of one name, a few.
-        ("calls.rs", [22, 2, 0]),
+        // of a host or builtin namespace of one name, a few. Also a block
+        // check stopped by a missing context, whose result stays empty.
+        ("calls.rs", [23, 2, 0]),
         // A union's alternatives an `is_a?` keeps, and the defaults by
         // class, counted before they are indexed at the most they take.
-        ("check.rs", [8, 1, 2]),
+        // Missing default state stops the check with an empty result.
+        ("check.rs", [9, 1, 2]),
         // The cycle search's stack, cycles and their members, counted
         // before the search starts.
         ("construction.rs", [19, 0, 3]),

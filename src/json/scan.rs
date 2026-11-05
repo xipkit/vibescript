@@ -205,9 +205,10 @@ fn classify(input: &[u8], portable: bool) -> Masks {
         remaining
     };
     let _ = portable;
-    let mut chunks = remaining.chunks_exact(8);
-    for chunk in chunks.by_ref() {
-        let bytes = u64::from_le_bytes(chunk.try_into().unwrap());
+    let mut remaining = remaining;
+    while let Some((chunk, tail)) = remaining.split_first_chunk::<8>() {
+        remaining = tail;
+        let bytes = u64::from_le_bytes(*chunk);
         let equal = |byte| zero(bytes ^ (u64::from(byte) * 0x0101010101010101));
         let pack = |bits: u64| ((bits >> 7).wrapping_mul(0x0102040810204080) >> 56) << at;
         masks.punctuation |=
@@ -225,7 +226,7 @@ fn classify(input: &[u8], portable: bool) -> Masks {
         masks.digit |= pack(lower & !upper & !bytes & 0x8080808080808080);
         at += 8;
     }
-    for (offset, &byte) in chunks.remainder().iter().enumerate() {
+    for (offset, &byte) in remaining.iter().enumerate() {
         let bit = 1 << (at + offset);
         masks.punctuation |=
             u64::from(matches!(byte, b'{' | b'}' | b'[' | b']' | b':' | b',')) * bit;

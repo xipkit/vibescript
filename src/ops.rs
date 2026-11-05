@@ -474,7 +474,7 @@ pub(crate) fn float_order(a: f64, b: f64) -> Ordering {
 pub(crate) fn compare(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Option<Ordering>> {
     match (&a.0, &b.0) {
         (Kind::Money(a), Kind::Money(b)) => a
-            .order(*b)
+            .order(*b)?
             .map(Some)
             .ok_or_else(|| Error::new(ErrorKind::Type, "money currency mismatch for comparison")),
         (Kind::Duration(a), Kind::Duration(b)) => Ok(Some(crate::duration::order(*a, *b))),
@@ -1358,7 +1358,7 @@ pub(crate) fn to_string(ctx: &mut CallContext, value: &Value) -> Result<Value> {
         Kind::Float(n) => format_float(&mut text, *n)?,
         _ => return crate::text::display(ctx, value),
     }
-    ctx.bytes(text.bytes())
+    ctx.bytes(text.bytes()?)
 }
 
 /// Formats a float, reporting a violation if its fixed buffer cannot hold it.
@@ -1374,7 +1374,7 @@ pub(crate) fn format_float(out: &mut bytes::Number, value: f64) -> crate::checke
     } else if value != 0.0 && !(1e-4..1e6).contains(&value.abs()) {
         let mut scientific = bytes::Number::new();
         scientific.format(format_args!("{value:e}"))?;
-        let text = std::str::from_utf8(scientific.bytes())
+        let text = std::str::from_utf8(scientific.bytes()?)
             .map_err(|_| crate::checked::violation("scientific number must be UTF-8"))?;
         let (mantissa, exponent) = text
             .split_once('e')

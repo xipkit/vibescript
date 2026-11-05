@@ -2,7 +2,7 @@ use crate::{
     CallContext, Error, ErrorKind, Result, Value, bytecode::CallSite, bytes, hash::Hash, ops,
     value::Kind,
 };
-use std::{cmp::Ordering, fmt::Write};
+use std::cmp::Ordering;
 
 mod parse;
 
@@ -96,8 +96,8 @@ pub(crate) fn parse(ctx: &mut CallContext, args: &[Value]) -> Result<Value> {
 
 pub(crate) fn text(ctx: &mut CallContext, seconds: i64) -> Result<Value> {
     let mut out = bytes::Number::new();
-    write!(out, "{seconds}s").unwrap();
-    ctx.bytes(out.bytes())
+    out.format(format_args!("{seconds}s"))?;
+    ctx.bytes(out.bytes()?)
 }
 
 fn components(seconds: i64) -> [i64; 4] {
@@ -120,22 +120,22 @@ fn iso8601(ctx: &mut CallContext, seconds: i64) -> Result<Value> {
     }
     let mut out = bytes::Number::new();
     if seconds < 0 {
-        out.write_char('-').unwrap();
+        out.append("-")?;
     }
-    out.write_char('P').unwrap();
+    out.append("P")?;
     let [days, hours, minutes, seconds] = components(seconds);
     if days > 0 {
-        write!(out, "{days}D").unwrap();
+        out.format(format_args!("{days}D"))?;
     }
     if hours > 0 || minutes > 0 || seconds > 0 {
-        out.write_char('T').unwrap();
+        out.append("T")?;
         for (part, suffix) in [(hours, 'H'), (minutes, 'M'), (seconds, 'S')] {
             if part > 0 {
-                write!(out, "{part}{suffix}").unwrap();
+                out.format(format_args!("{part}{suffix}"))?;
             }
         }
     }
-    ctx.bytes(out.bytes())
+    ctx.bytes(out.bytes()?)
 }
 
 fn parts(ctx: &mut CallContext, seconds: i64) -> Result<Value> {

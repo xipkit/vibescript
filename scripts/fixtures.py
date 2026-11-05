@@ -160,6 +160,23 @@ def benchmark_cases():
     add("loop_float_order","x=0.0\nnan=0.0/0.0\ntotal=0\ni=0\nwhile i<input\n x+=0.25\n x=0.0 if x>=1.0\n total+=(x<=>nan)+(nan<=>x)+(nan<=>nan)+(x<=>-0.0)\n i+=1\nend\ntotal",1000,sum((i+1)%4 != 0 for i in range(1000)),returns="int",param="int")
     add("integer_power", "total=0\ninput.each { |n| total+=n ** 5 }\ntotal", list(range(32)), sum(n**5 for n in range(32)), returns="int", param="array<int>")
     add("big_integer_power", "input.map { |n| (n ** 80).to_s }", [2, 3, 5, 7], [str(n**80) for n in [2, 3, 5, 7]], returns="array<string>", param="array<int>")
+    bases=[3,5,7]
+    # Dispatch uses the shorter u32 operand during repeated squaring, not the
+    # final power's size. 3400 reaches 67/99/119 words: Karatsuba, below transform.
+    # 6000 mixes Karatsuba and transform; 16000 reaches transform for every base.
+    for name,exponent in [("schoolbook",1200),("karatsuba",3400),("power_6000",6000),("transform",16000)]:
+        add("big_integer_"+name,f"input.map {{ |n| (n ** {exponent}) % 1000003 }}",bases,
+            [pow(n,exponent,1000003) for n in bases],returns="array<int>",param="array<int>")
+    # Both divisor/quotient sizes stay below reciprocal division's 1024-word cutoff.
+    for exponent,divisor in [(1200,500),(6000,2500)]:
+        add(f"big_integer_long_division_{exponent}",f"input.map {{ |n| (n ** {exponent}) % (n ** {divisor} + 1) }}",bases,
+            [n**exponent % (n**divisor+1) for n in bases],returns="array<int>",param="array<int>")
+    add("big_integer_decimal","input.map { |n| (n ** 1200).to_s.length }",bases,
+        [len(str(n**1200)) for n in bases],returns="array<int>",param="array<int>")
+    # Each one-word multiplication scans at least 282 words, crossing a charge chunk.
+    # Repeat it so constructing the operand and reducing the result do not dominate.
+    add("big_integer_long_short","input.map { |n| value=2 ** 9000 - 1; 128.times { value*=n }; value % 1000003 }",bases,
+        [((2**9000-1)*n**128) % 1000003 for n in bases],returns="array<int>",param="array<int>")
     add("float_power", "input.map { |n| n ** -1 }", [float(2**n) for n in range(32)], [1]+[2.0**(-n) for n in range(1, 32)], returns="array<float>", param="array<float>")
     floats=[float((i*73)%257)-128.5 for i in range(256)]
     add("float_sort", "input.sort", floats, sorted(floats), returns="array<float>", param="array<float>")

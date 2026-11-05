@@ -256,9 +256,9 @@ pub(crate) fn quoted<W: TypeWriter>(
     out: &mut W,
 ) -> std::result::Result<(), W::Error> {
     out.byte(b'"')?;
-    let mut position = 0;
-    while position < bytes.len() {
-        let (rune, width, valid) = crate::scan::rune(&bytes[position..]);
+    let mut rest = bytes;
+    while let Some(&first) = rest.first() {
+        let (rune, width, valid) = crate::scan::rune(rest);
         let escape = match rune {
             '\u{7}' => Some(b'a'),
             '\u{8}' => Some(b'b'),
@@ -272,11 +272,11 @@ pub(crate) fn quoted<W: TypeWriter>(
             _ => None,
         };
         if !valid {
-            hex(bytes[position] as u32, 2, b'x', out)?;
+            hex(first as u32, 2, b'x', out)?;
         } else if let Some(escape) = escape {
             out.write(&[b'\\', escape])?;
         } else if crate::printable::is_print(rune) {
-            out.write(&bytes[position..position + width])?;
+            out.write(rune.encode_utf8(&mut [0; 4]).as_bytes())?;
         } else if rune < ' ' || rune == '\u{7f}' {
             hex(rune as u32, 2, b'x', out)?;
         } else if rune <= '\u{ffff}' {
@@ -284,7 +284,7 @@ pub(crate) fn quoted<W: TypeWriter>(
         } else {
             hex(rune as u32, 8, b'U', out)?;
         }
-        position += width;
+        rest = rest.get(width..).unwrap_or_default();
     }
     out.byte(b'"')
 }
@@ -297,7 +297,12 @@ fn hex<W: TypeWriter>(
 ) -> std::result::Result<(), W::Error> {
     out.write(&[b'\\', prefix])?;
     for index in (0..digits).rev() {
-        out.byte(b"0123456789abcdef"[((value >> (index * 4)) & 15) as usize])?;
+        let digit = ((value >> (index * 4)) & 15) as u8;
+        out.byte(if digit < 10 {
+            b'0' + digit
+        } else {
+            b'a' + digit - 10
+        })?;
     }
     Ok(())
 }

@@ -59,8 +59,10 @@ fn suffix_repair(source: &str, offset: usize, method: bool) -> Repair {
         return Repair::Internal;
     }
     let start = source[..run]
-        .rfind(|c: char| c != '_' && !unicode::letter_or_digit(c))
-        .map_or(0, |i| i + source[i..].chars().next().unwrap().len_utf8());
+        .char_indices()
+        .rev()
+        .find(|&(_, c)| c != '_' && !unicode::letter_or_digit(c))
+        .map_or(0, |(i, c)| i + c.len_utf8());
     let stem = &source[start..run];
     if !identifier(stem) {
         return Repair::None;

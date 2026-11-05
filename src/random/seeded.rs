@@ -2,6 +2,7 @@
 // Adapted from Go 1.27.1 math/rand; see licenses/Go-BSD-3-Clause.txt.
 
 use super::data::COOKED;
+use crate::checked::Checked;
 use crate::{CallContext, Result, budget::Buffer, numeric::unsigned_bits};
 
 pub(crate) struct Seeded {
@@ -47,12 +48,16 @@ impl Seeded {
         })
     }
 
-    pub fn next(&mut self) -> u64 {
+    /// Advances the seeded sequence, reporting an invalid state position.
+    pub fn next(&mut self) -> crate::checked::Access<u64> {
         self.tap = if self.tap == 0 { 606 } else { self.tap - 1 };
         self.feed = if self.feed == 0 { 606 } else { self.feed - 1 };
-        let value = self.state.data[self.feed].wrapping_add(self.state.data[self.tap]);
-        self.state.data[self.feed] = value;
-        value
+        let value = self
+            .state
+            .at(self.feed)?
+            .wrapping_add(*self.state.at(self.tap)?);
+        *self.state.at_mut(self.feed)? = value;
+        Ok(value)
     }
 }
 

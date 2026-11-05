@@ -3,7 +3,7 @@
 //! other radixes splits the digits in halves around a power of the radix.
 
 use super::{Magnitude, multiply, trim, work};
-use crate::checked::Checked;
+use crate::checked::{Access, Checked, violation};
 use crate::{
     CallContext, Result,
     budget::{Buffer, CHUNK},
@@ -23,8 +23,10 @@ fn chunk(radix: u32) -> (usize, u32) {
     (width, base)
 }
 
-fn digit(byte: u8, radix: u32) -> u32 {
-    (byte as char).to_digit(radix).unwrap()
+fn digit(byte: u8, radix: u32) -> Access<u32> {
+    (byte as char)
+        .to_digit(radix)
+        .ok_or(violation("validated integer digit expected"))
 }
 
 /// Charges `length` bytes of digit work in chunks as `index` reaches each one.
@@ -88,7 +90,9 @@ pub(super) fn parse(ctx: &mut CallContext, digits: &[u8], radix: u32) -> Result<
         let value = digits
             .span(start, end)?
             .iter()
-            .fold(0, |value, &byte| value * radix + digit(byte, radix));
+            .try_fold(0, |value, &byte| {
+                digit(byte, radix).map(|digit| value * radix + digit)
+            })?;
         chunks.data.push(value);
         end = start;
     }
@@ -135,7 +139,7 @@ fn parse_bits(ctx: &mut CallContext, digits: &[u8], bits: u32) -> Result<Buffer<
     for (index, &byte) in digits.iter().rev().enumerate() {
         digit_work(ctx, index, digits.len())?;
         let position = index * bits as usize;
-        let value = (digit(byte, 1 << bits) as u64) << (position % 32);
+        let value = (digit(byte, 1 << bits)? as u64) << (position % 32);
         *words.at_mut(position / 32)? |= value as u32;
         if value >> 32 != 0 {
             *words.at_mut(position / 32 + 1)? |= (value >> 32) as u32;
@@ -164,4 +168,19 @@ pub(super) fn format_bits(
             .push(*b"0123456789abcdefghijklmnopqrstuvwxyz".at(value)?);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn invalid_validated_digits_return_internal_errors_in_both_radix_paths() {
+        let mut ctx = CallContext::new(crate::CallOptions::default());
+        for radix in [2, 3, 10, 16, 36] {
+            let error = parse(&mut ctx, b"!", radix).unwrap_err();
+            assert_eq!(error.kind, crate::ErrorKind::Internal);
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        }
+    }
 }

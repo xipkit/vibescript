@@ -1,4 +1,5 @@
 use super::parse::{self, Assertion, Class, Kind, Part, UNBOUNDED};
+use crate::checked::{Access, violation};
 use crate::{CallContext, Error, ErrorKind, Result, Value, budget::Buffer};
 
 #[derive(Clone, Copy, Debug)]
@@ -63,15 +64,19 @@ enum Build {
 }
 
 impl Program {
-    pub fn view(&self) -> View<'_> {
-        View {
+    /// Borrows the compiled program, checking that its retained source is text.
+    pub fn view(&self) -> Access<View<'_>> {
+        Ok(View {
             instructions: &self.instructions.data,
             parts: &self.parts.data,
             names: &self.names.data,
-            source: self.source.as_bytes().unwrap(),
+            source: self
+                .source
+                .as_bytes()
+                .ok_or(violation("compiled regex source must be bytes"))?,
             start: self.start,
             minimum: self.minimum,
-        }
+        })
     }
 
     /// Compiles a pattern for `method`, the operation named in its errors.

@@ -1,5 +1,6 @@
 use super::{Buffer, Name, Work};
 use crate::Result;
+use crate::checked::Checked;
 use std::{collections::hash_map::DefaultHasher, hash::Hasher};
 
 #[derive(Debug)]
@@ -67,7 +68,7 @@ impl<V> Table<V> {
         let mut deleted = None;
         loop {
             work.charge(1)?;
-            match &self.buckets[slot] {
+            match self.buckets.at(slot)? {
                 Bucket::Empty => return Ok((deleted.unwrap_or(slot), false)),
                 Bucket::Deleted => {
                     deleted.get_or_insert(slot);
@@ -93,7 +94,7 @@ impl<V> Table<V> {
     pub fn get(&self, work: &dyn Work, name: &str) -> Result<Option<&V>> {
         let (slot, found) = self.find(work, name, Self::hash(work, name)?)?;
         Ok(if found {
-            let Bucket::Entry { value, .. } = &self.buckets[slot] else {
+            let Bucket::Entry { value, .. } = self.buckets.at(slot)? else {
                 return Err(crate::checked::internal("found binding has no table entry"));
             };
             Some(value)
@@ -119,7 +120,7 @@ impl<V> Table<V> {
             return Ok(None);
         }
         let Bucket::Entry { value, .. } =
-            std::mem::replace(&mut self.buckets[slot], Bucket::Deleted)
+            std::mem::replace(self.buckets.at_mut(slot)?, Bucket::Deleted)
         else {
             return Err(crate::checked::internal(
                 "removed binding has no table entry",
@@ -147,7 +148,7 @@ impl<V: Copy> Table<V> {
         let mut slot = hash as usize & mask;
         loop {
             work.charge(1)?;
-            if matches!(buckets[slot], Bucket::Empty) {
+            if matches!(buckets.at(slot)?, Bucket::Empty) {
                 return Ok(slot);
             }
             slot = (slot + 1) & mask;
@@ -164,7 +165,7 @@ impl<V: Copy> Table<V> {
             work.charge(1)?;
             if let Bucket::Entry { hash, name, value } = bucket {
                 let slot = Self::vacant(&buckets, work, *hash)?;
-                buckets[slot] = Bucket::Entry {
+                *buckets.at_mut(slot)? = Bucket::Entry {
                     hash: *hash,
                     name: name.clone(),
                     value: *value,
@@ -181,7 +182,7 @@ impl<V: Copy> Table<V> {
         if found {
             let Bucket::Entry {
                 value: previous, ..
-            } = &mut self.buckets[slot]
+            } = self.buckets.at_mut(slot)?
             else {
                 return Err(crate::checked::internal(
                     "replaced binding has no table entry",
@@ -189,7 +190,7 @@ impl<V: Copy> Table<V> {
             };
             return Ok(Some(std::mem::replace(previous, value)));
         }
-        let reuse = !self.buckets.is_empty() && matches!(self.buckets[slot], Bucket::Deleted);
+        let reuse = !self.buckets.is_empty() && matches!(self.buckets.at(slot)?, Bucket::Deleted);
         if !reuse && self.len + self.deleted + 1 > self.buckets.len() / 2 {
             let capacity = if self.buckets.is_empty() {
                 8
@@ -203,14 +204,14 @@ impl<V: Copy> Table<V> {
             };
             let mut buckets = self.rebuild(work, capacity)?;
             let slot = Self::vacant(&buckets, work, hash)?;
-            buckets[slot] = Bucket::Entry { hash, name, value };
+            *buckets.at_mut(slot)? = Bucket::Entry { hash, name, value };
             self.buckets = buckets;
             self.deleted = 0;
         } else {
             if reuse {
                 self.deleted -= 1;
             }
-            self.buckets[slot] = Bucket::Entry { hash, name, value };
+            *self.buckets.at_mut(slot)? = Bucket::Entry { hash, name, value };
         }
         self.len += 1;
         Ok(None)

@@ -178,7 +178,12 @@ fn scalar(value: &Value, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Kind::Function(function) => write!(
             f,
             "<function {}>",
-            function.code.program.functions[function.index].name
+            function
+                .code
+                .program
+                .functions
+                .get(function.index)
+                .map_or("", |function| function.name.as_str())
         ),
         Kind::Builtin(builtin) => write!(f, "<builtin {}>", builtin.name()),
         Kind::Offset(offset) => write!(f, "<builtin {}>", offset.name()),
@@ -187,7 +192,9 @@ fn scalar(value: &Value, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             f,
             "{}::{}",
             m.enumeration.definition.name,
-            m.definition().name
+            m.definition()
+                .ok()
+                .map_or("", |definition| definition.name.as_str())
         ),
         Kind::Bool(b) => write!(f, "{b}"),
         Kind::Int(n) => write!(f, "{n}"),

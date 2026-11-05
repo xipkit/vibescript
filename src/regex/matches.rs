@@ -1,4 +1,5 @@
 use super::{program::View, search::ABSENT};
+use crate::checked::violation;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, Charge},
@@ -82,7 +83,10 @@ impl Offset {
                 format!("{name} expects a capture index"),
             ));
         }
-        let values = self.values.as_array().unwrap();
+        let values = self
+            .values
+            .as_array()
+            .ok_or(violation("capture offsets must be an array"))?;
         let index = crate::sequence::integer(&args[0]).map_err(|mut error| {
             error.message = format!("{name} capture index must be integer");
             error
@@ -229,7 +233,9 @@ pub(super) fn fetch(
     }
     let group = &args[0];
     if let Some(key) = group.as_bytes() {
-        let named = hash.find(ctx, b"named_captures")?.unwrap();
+        let named = hash
+            .find(ctx, b"named_captures")?
+            .ok_or(violation("match data must contain named_captures"))?;
         let Kind::Hash(named) = &hash.buffer.data[named].1.0 else {
             return Err(crate::checked::internal("named captures must be a hash"));
         };
@@ -251,8 +257,15 @@ pub(super) fn fetch(
             return Ok(value);
         }
     }
-    let captures = hash.find(ctx, b"captures")?.unwrap();
-    let length = hash.buffer.data[captures].1.as_array().unwrap().len() as i128 + 1;
+    let captures = hash
+        .find(ctx, b"captures")?
+        .ok_or(violation("match data must contain captures"))?;
+    let length = hash.buffer.data[captures]
+        .1
+        .as_array()
+        .ok_or(violation("captures must be an array"))?
+        .len() as i128
+        + 1;
     let message = if i128::from(index) < -length || i128::from(index) >= length {
         format!(
             "match_data.fetch index {index} outside of capture bounds: {}...{length}",
@@ -334,15 +347,20 @@ mod tests {
         let source = format!("{}a+{}", "(".repeat(16), ")".repeat(16));
         let program =
             Program::compile(&mut ctx, Value::bytes(source.as_bytes()), "Regex.match").unwrap();
-        let mut search = Search::new(&mut ctx, program.view(), true).unwrap();
+        let mut search = Search::new(&mut ctx, program.view().unwrap(), true).unwrap();
         let indices = search
-            .find(&mut ctx, program.view(), subject.as_bytes().unwrap(), 0)
+            .find(
+                &mut ctx,
+                program.view().unwrap(),
+                subject.as_bytes().unwrap(),
+                0,
+            )
             .unwrap()
             .unwrap();
         let baseline = ctx.stats();
         ctx.options.limits.memory_bytes = Some(baseline.retained_memory_bytes + 65536);
         assert_eq!(
-            data(&mut ctx, program.view(), &subject, &indices.data)
+            data(&mut ctx, program.view().unwrap(), &subject, &indices.data)
                 .unwrap_err()
                 .kind,
             ErrorKind::Memory

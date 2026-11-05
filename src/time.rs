@@ -1,3 +1,4 @@
+use crate::checked::violation;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, Charge},
@@ -37,10 +38,12 @@ impl Stamp {
         Self(bytes)
     }
     pub fn seconds(self) -> i64 {
-        i64::from_le_bytes(self.0[..8].try_into().unwrap())
+        let [a, b, c, d, e, f, g, h, ..] = self.0;
+        i64::from_le_bytes([a, b, c, d, e, f, g, h])
     }
     pub fn nanos(self) -> u32 {
-        u32::from_le_bytes(self.0[8..].try_into().unwrap())
+        let [.., a, b, c, d] = self.0;
+        u32::from_le_bytes([a, b, c, d])
     }
     fn internal(self) -> i64 {
         self.seconds().wrapping_add(calendar::UNIX_TO_INTERNAL)
@@ -328,7 +331,13 @@ pub(crate) fn binary(
         Kind::Big(_) => return Err(overflow()),
         _ => return Err(ops::unsupported(op)),
     };
-    value(ctx, stamp(time).unwrap().add(delta), zone(time))
+    value(
+        ctx,
+        stamp(time)
+            .ok_or(violation("time operand expected"))?
+            .add(delta),
+        zone(time),
+    )
 }
 
 pub(crate) fn member(
