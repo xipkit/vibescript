@@ -683,6 +683,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg_attr(not(panic = "unwind"), ignore = "catching a panic requires unwinding")]
     fn internal_compile_errors_are_captured_as_crashes() {
         let crash = capture::<()>(|| Err(Error::new(ErrorKind::Internal, "forced compiler bug")))
             .unwrap_err();
@@ -692,6 +693,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(not(panic = "unwind"), ignore = "catching a panic requires unwinding")]
     fn internal_runtime_errors_are_crashes_in_main_and_host_calls() {
         for main in ["fault()", "def run\nfault()\nend"] {
             let mut engine = Engine::new();
