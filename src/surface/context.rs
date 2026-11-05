@@ -151,7 +151,7 @@ impl<'a> Surface<'a> {
                 return None;
             }
             if matches!(token.kind, TokenKind::Operator("&&" | "||")) {
-                let offset = surface.operator_offset(index);
+                let offset = surface.operator_offset(index)?;
                 surface.short_circuits.insert(offset);
             }
         }
@@ -170,17 +170,20 @@ impl<'a> Surface<'a> {
     }
 
     /// The span of token `tok`.
-    pub fn token_span(&self, tok: Tok) -> Span {
-        Span {
-            start: self.tokens[tok].start,
-            end: self.tokens[tok].end,
-        }
+    pub fn token_span(&self, tok: Tok) -> Option<Span> {
+        let token = self.tokens.get(tok)?;
+        Some(Span {
+            start: token.start,
+            end: token.end,
+        })
     }
 
     /// The source text of token `tok`.
     pub fn token_text(&self, tok: Tok) -> &'a str {
-        let token = &self.tokens[tok];
-        &self.source[token.start..token.end]
+        self.tokens
+            .get(tok)
+            .and_then(|token| self.source.get(token.start..token.end))
+            .unwrap_or_default()
     }
 
     /// The token that starts at `offset`.
@@ -227,7 +230,7 @@ impl<'a> Surface<'a> {
                 StmtKind::Def(def) => {
                     self.declared.methods.insert(def.name.clone());
                     self.def_ranges
-                        .push(self.tokens[def.keyword].start..self.tokens[def.end].end);
+                        .push(self.tokens.get(def.keyword)?.start..self.tokens.get(def.end)?.end);
                     if prefix.is_empty() {
                         self.declared.functions.insert(def.name.clone(), def);
                     }
@@ -265,7 +268,7 @@ impl<'a> Surface<'a> {
                 Member::Def(def) => {
                     self.declared.methods.insert(def.name.clone());
                     self.def_ranges
-                        .push(self.tokens[def.keyword].start..self.tokens[def.end].end);
+                        .push(self.tokens.get(def.keyword)?.start..self.tokens.get(def.end)?.end);
                     if private || def.name == "initialize" {
                         self.declared.private_methods.insert(def.name.clone());
                     }
@@ -366,12 +369,12 @@ impl<'a> Surface<'a> {
 
     /// Where the compiler reports an operator: its last character, except
     /// for `<=>` and `===`.
-    pub fn operator_offset(&self, op: Tok) -> usize {
-        let token = &self.tokens[op];
-        match self.token_text(op) {
+    pub fn operator_offset(&self, op: Tok) -> Option<usize> {
+        let token = self.tokens.get(op)?;
+        Some(match self.token_text(op) {
             "<=>" | "===" => token.start,
-            text => token.start + text.len() - 1,
-        }
+            text => token.start + text.len().checked_sub(1)?,
+        })
     }
 
     /// Whether an expression binds tighter than any binary operator after
