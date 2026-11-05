@@ -1,0 +1,92 @@
+name: Validate linker timezone
+
+on:
+  push:
+    branches: [mgomes/benchmark-linkers]
+    paths: [.github/workflows/validate-linker-timezone.yml]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RUSTUP_TOOLCHAIN: 1.98.1
+      CARGO_BUILD_JOBS: 3
+      TZ: America/Detroit
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          cache-key: benchmark-linkers
+      - name: Reuse the measured mold binary
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 42117069274 --repo "$GITHUB_REPOSITORY" --name linker-benchmark-linux --dir .cache/measured-linkers
+          chmod +x .cache/measured-linkers/linkers/ld.mold
+          .cache/measured-linkers/linkers/ld.mold --version
+      - name: Validate the failed fixture with the CI timezone
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import shlex
+          import shutil
+          import subprocess
+          import sys
+
+          root = Path.cwd()
+          out = root / '.cache/linker-timezone'
+          out.mkdir(parents=True)
+          sysroot = Path(subprocess.check_output(['rustc', '--print', 'sysroot'], text=True).strip())
+          lld = out / 'ld.lld'
+          lld.symlink_to(sysroot / 'lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld')
+          driver = out / 'driver'
+          driver.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(root / "scripts/benchmark-linkers.py"))} --link-driver "$@"\n')
+          driver.chmod(0o755)
+          env = dict(os.environ)
+          env.update({
+              'CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER': str(driver),
+              'VIBESCRIPT_BENCH_CC': shutil.which('clang'),
+              'VIBESCRIPT_BENCH_BASELINE': str(lld),
+              'VIBESCRIPT_BENCH_MOLD': str(root / '.cache/measured-linkers/linkers/ld.mold'),
+              'VIBESCRIPT_BENCH_EVENTS': str(out / 'link-events.jsonl'),
+          })
+          results = []
+          for profile in ('dev', 'gate'):
+              for variant in ('baseline', 'mold'):
+                  name = f'{profile}-{variant}'
+                  print(f'Building {name}', flush=True)
+                  env.update(VIBESCRIPT_BENCH_VARIANT=variant, VIBESCRIPT_BENCH_SAMPLE=name)
+                  (root / 'tests/all.rs').touch()
+                  command = ['./scripts/cargo', 'test', '--locked', '--offline', '-p', 'vibescript', '--test', 'all', '--all-features', '--profile', profile, '--no-run', '--message-format=json-render-diagnostics']
+                  build = subprocess.run(command, env=env, capture_output=True, text=True)
+                  (out / f'{name}-build.log').write_text(build.stdout + build.stderr)
+                  build.check_returncode()
+                  artifacts = [json.loads(line) for line in build.stdout.splitlines() if line.startswith('{')]
+                  executable = [item['executable'] for item in artifacts if item.get('reason') == 'compiler-artifact' and item.get('executable')][-1]
+                  test = subprocess.run([executable, '--exact', 'site::unchanged_site_examples_match_go_results', '--nocapture'], env=env, capture_output=True, text=True)
+                  (out / f'{name}-test.log').write_text(test.stdout + test.stderr)
+                  passed = test.returncode == 0 and '1 passed;' in test.stdout
+                  results.append({'profile': profile, 'variant': variant, 'timezone': env['TZ'], 'passed': passed, 'returncode': test.returncode, 'output': test.stdout + test.stderr})
+                  (out / 'results.json').write_text(json.dumps(results, indent=2) + '\n')
+                  print(name, test.stdout, test.stderr, flush=True)
+          assert len(results) == 4 and all(result['passed'] for result in results)
+          PY
+      - name: Upload validation evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: linker-timezone-validation
+          path: |
+            .cache/linker-timezone/*.json
+            .cache/linker-timezone/*.jsonl
+            .cache/linker-timezone/*.log
