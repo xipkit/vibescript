@@ -28,15 +28,22 @@ pub(super) struct Scanner {
 
 impl Scanner {
     /// Tests a structural delimiter outside string contents.
+    #[inline(always)]
     pub fn punctuation(&mut self, input: &[u8], pos: usize) -> Access<bool> {
         self.block(input, pos)?;
         Ok(self.structural & (1 << (pos - self.start)) != 0)
     }
 
+    #[inline(always)]
     fn block(&mut self, input: &[u8], pos: usize) -> Access<()> {
         if pos >= self.start && pos < self.end {
             return Ok(());
         }
+        self.refill(input, pos)
+    }
+
+    #[inline(never)]
+    fn refill(&mut self, input: &[u8], pos: usize) -> Access<()> {
         // Unicode escapes can rewind inside a surrogate pair. Rebuild from
         // that position; the raw masks used by string decoding are independent
         // of quote state. Normal forward traversal preserves the carry bits.

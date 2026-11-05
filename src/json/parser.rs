@@ -371,6 +371,7 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
         Ok(())
     }
 
+    #[inline(always)]
     fn take<const INDEX: bool>(&mut self, b: u8) -> Access<bool> {
         if self.input.get(self.pos) == Some(&b) {
             if INDEX
