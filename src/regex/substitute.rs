@@ -158,25 +158,21 @@ impl Matcher {
     fn next(&mut self, ctx: &mut CallContext, text: &[u8]) -> Result<Option<Location>> {
         ctx.checkpoint()?;
         if let Some(regex) = &self.regex {
-            return Ok(self
-                .cursor
-                .next(
-                    ctx,
-                    self.search
-                        .as_mut()
-                        .ok_or(violation("regex matcher must have a search"))?,
-                    regex.view()?,
-                    text,
-                )?
-                .and_then(|indices| {
-                    let &[start, end] = indices.data.get(..2)? else {
-                        return None;
-                    };
-                    Some(Location {
-                        whole: [start, end],
-                        captures: Some(indices),
-                    })
-                }));
+            let Some(indices) = self.cursor.next(
+                ctx,
+                self.search
+                    .as_mut()
+                    .ok_or(violation("regex matcher must have a search"))?,
+                regex.view()?,
+                text,
+            )?
+            else {
+                return Ok(None);
+            };
+            return Ok(Some(Location {
+                whole: [*indices.at(0)?, *indices.at(1)?],
+                captures: Some(indices),
+            }));
         }
         if self.done {
             return Ok(None);
