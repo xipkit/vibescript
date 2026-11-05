@@ -192,14 +192,7 @@ impl Loader {
                 .ok_or(crate::checked::violation("module name must be bytes"))?;
             let mut pinned = None;
             for pin in &pins.data {
-                ctx.charge(
-                    candidate
-                        .relative
-                        .as_bytes()
-                        .ok_or(crate::checked::violation("module bytes expected"))?
-                        .len() as u64
-                        + 1,
-                )?;
+                ctx.charge(relative.len() as u64 + 1)?;
                 if pin.code.origin.as_ref().is_some_and(|origin| {
                     origin.root == candidate.root && origin.relative.as_ref() == relative
                 }) {
