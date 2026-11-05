@@ -422,6 +422,7 @@ impl Search {
         let mut best = None;
         loop {
             ctx.checkpoint()?;
+            debug_assert!(!self.anchored || position == 0 || !self.next.data.is_empty());
             if best.is_none() && self.next.data.is_empty() {
                 // With no thread running, a match can only start where the literal does.
                 if let Some(literal) = &self.literal {
@@ -710,6 +711,27 @@ mod tests {
             }
             assert!(costs.iter().all(|&cost| cost == costs[0]), "{costs:?}");
             assert!(costs[0] < 10, "{costs:?}");
+        }
+    }
+
+    #[test]
+    fn anchored_searches_do_not_restart_threads() {
+        let text = vec![b'a'; 4096];
+        for captures in [false, true] {
+            let mut ctx = context(None);
+            let program =
+                Program::compile(&mut ctx, Value::bytes(br"\Aa+z"), "Regex.match").unwrap();
+            let view = program.view();
+            let mut fast = Search::new(&mut ctx, view, captures).unwrap();
+            let mut plain = Search::new(&mut ctx, view, captures).unwrap();
+            plain.anchored = false;
+            let before = ctx.stats().steps;
+            assert!(fast.find(&mut ctx, view, &text, 0).unwrap().is_none());
+            let fast_steps = ctx.stats().steps - before;
+            let before = ctx.stats().steps;
+            assert!(plain.find(&mut ctx, view, &text, 0).unwrap().is_none());
+            let plain_steps = ctx.stats().steps - before;
+            assert!(fast_steps < plain_steps, "{fast_steps} >= {plain_steps}");
         }
     }
 
