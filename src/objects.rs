@@ -1143,6 +1143,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(not(panic = "unwind"), ignore = "catching a panic requires unwinding")]
     fn a_poisoned_heap_import_is_terminal_even_when_the_host_ignores_it() {
         use std::sync::atomic::{AtomicUsize, Ordering};
         let mut source = CallContext::new(CallOptions::default());
