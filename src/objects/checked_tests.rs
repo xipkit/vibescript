@@ -139,3 +139,22 @@ fn a_slot_past_the_class_layout_is_an_internal_error_with_a_name_to_report() {
     .unwrap();
     assert_eq!(names, [b"a".to_vec()]);
 }
+
+#[test]
+fn a_host_callback_cannot_swallow_an_internal_error_from_an_import() {
+    let mut source = context();
+    let stale = new(&mut source, &class()).unwrap();
+    let slot = stale.identity.slot.swap(usize::MAX, Ordering::Relaxed);
+    let value = Value(Kind::Instance(stale.clone()));
+    let mut engine = Engine::new();
+    engine.register("probe", move |ctx, _| {
+        assert_internal(ctx.import(&value));
+        assert_internal(ctx.checkpoint());
+        Ok(Value::nil())
+    });
+    let script = engine
+        .compile("def run -> int\nbegin\nprobe()\n1\nrescue\n2\nend\nend")
+        .unwrap();
+    assert_internal(script.call("run", &[], CallOptions::default()));
+    stale.identity.slot.store(slot, Ordering::Relaxed);
+}
