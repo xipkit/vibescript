@@ -240,41 +240,45 @@ pub(crate) fn text_span(s: &[u8], class: Class) -> TextSpan {
 /// Counts a run of valid non-ASCII characters without constructing code points.
 pub(crate) fn unicode_span(s: &[u8]) -> TextSpan {
     #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
-    let (mut len, mut runes) = vector_unicode(s);
+    let (len, mut runes) = vector_unicode(s);
     #[cfg(not(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64"))))]
-    let (mut len, mut runes) = (0, 0);
+    let (len, mut runes) = (0, 0usize);
     // While a whole four-byte sequence fits, the width comes from the lead's
     // leading ones rather than a table load, which keeps the loop's carried
-    // dependency short; the table only validates, off that path.
-    while len + 4 <= s.len() {
-        let lead = s[len];
+    // dependency short; the table only validates, off that path. The loop
+    // carries the unscanned tail rather than an offset for the same reason:
+    // the lead is then loaded from the carried pointer itself, not from a
+    // sum that has to be formed first.
+    let mut rest = &s[len..];
+    while let Some(window) = rest.first_chunk::<4>() {
+        let lead = window[0];
         let n = lead.leading_ones() as usize;
         let tag = UTF8_LEAD[usize::from(lead)];
         if !(2..=4).contains(&n) || usize::from(tag & 7) != n {
             break;
         }
-        let range = usize::from(tag >> 4);
-        let low = [0x80u8, 0xa0, 0x80, 0x90, 0x80][range];
-        let high = [0xbfu8, 0xbf, 0x9f, 0xbf, 0x8f][range];
-        if s[len + 1].wrapping_sub(low) > high - low
-            || (n >= 3 && s[len + 2] & 0xc0 != 0x80)
-            || (n == 4 && s[len + 3] & 0xc0 != 0x80)
+        let (low, span) = UTF8_SECOND[usize::from(tag >> 4)];
+        if window[1].wrapping_sub(low) > span
+            || (n >= 3 && window[2] & 0xc0 != 0x80)
+            || (n == 4 && window[3] & 0xc0 != 0x80)
         {
             break;
         }
-        len += n;
-        runes += 1;
+        rest = &rest[n..];
+        // A rune takes at least a byte, so the count stays below `s.len()`
+        // and cannot wrap; a checked add here is a branch on every rune.
+        runes = runes.wrapping_add(1);
     }
-    while len < s.len() && s[len] >= 128 {
-        let (n, valid) = rune_width(&s[len..]);
+    while rest.first().is_some_and(|&lead| lead >= 128) {
+        let (n, valid) = rune_width(rest);
         if !valid {
             break;
         }
-        len += n;
+        rest = &rest[n..];
         runes += 1;
     }
     TextSpan {
-        len,
+        len: s.len() - rest.len(),
         runes,
         steps: runes as u64,
     }
@@ -552,6 +556,16 @@ const UTF8_LEAD: [u8; 256] = {
     table
 };
 
+/// The legal second bytes for each range `UTF8_LEAD` selects: the lowest, and
+/// how many more follow it.
+static UTF8_SECOND: [(u8, u8); 5] = [
+    (0x80, 0x3f),
+    (0xa0, 0x1f),
+    (0x80, 0x1f),
+    (0x90, 0x2f),
+    (0x80, 0x0f),
+];
+
 fn rune_width(s: &[u8]) -> (usize, bool) {
     let tag = UTF8_LEAD[usize::from(s[0])];
     let n = usize::from(tag & 7);
@@ -561,10 +575,8 @@ fn rune_width(s: &[u8]) -> (usize, bool) {
     if s.len() < n {
         return (1, false);
     }
-    let range = usize::from(tag >> 4);
-    let low = [0x80u8, 0xa0, 0x80, 0x90, 0x80][range];
-    let high = [0xbfu8, 0xbf, 0x9f, 0xbf, 0x8f][range];
-    if s[1].wrapping_sub(low) > high - low
+    let (low, span) = UTF8_SECOND[usize::from(tag >> 4)];
+    if s[1].wrapping_sub(low) > span
         || (n >= 3 && s[2] & 0xc0 != 0x80)
         || (n == 4 && s[3] & 0xc0 != 0x80)
     {
