@@ -956,7 +956,8 @@ impl Program {
                         if !raw.starts_with('@') || raw.starts_with("@@") {
                             continue;
                         }
-                        &raw[1..]
+                        raw.strip_prefix('@')
+                            .ok_or(violation("instance variable must start with @"))?
                     }
                     _ => continue,
                 };

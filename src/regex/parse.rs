@@ -309,17 +309,23 @@ impl Parser<'_> {
     fn syntax(&self, code: &str, expr: std::ops::Range<usize>) -> Error {
         Error::new(
             ErrorKind::Argument,
-            format!("error parsing regexp: {code}: `{}`", &self.text[expr]),
+            format!(
+                "error parsing regexp: {code}: `{}`",
+                match crate::checked::text(self.text, expr) {
+                    Ok(text) => text,
+                    Err(error) => return error.into(),
+                }
+            ),
         )
     }
 
     /// Returns the byte offset just past the rune at `position`, or `position` at the end.
-    fn after_rune(&self, position: usize) -> usize {
-        position
-            + self.text[position..]
+    fn after_rune(&self, position: usize) -> Access<usize> {
+        Ok(position
+            + crate::checked::text(self.text, position..)?
                 .chars()
                 .next()
-                .map_or(0, char::len_utf8)
+                .map_or(0, char::len_utf8))
     }
 
     fn remaining(&self) -> &[u8] {
@@ -335,7 +341,10 @@ impl Parser<'_> {
     /// Reads the next rune; `end` explains a pattern that stops here.
     fn next(&mut self, end: impl FnOnce(&Self) -> Error) -> Result<char> {
         self.ctx.charge(1)?;
-        let Some(rune) = self.text[self.position..].chars().next() else {
+        let Some(rune) = crate::checked::text(self.text, self.position..)?
+            .chars()
+            .next()
+        else {
             return Err(end(self));
         };
         self.position += rune.len_utf8();
@@ -891,7 +900,7 @@ impl Parser<'_> {
                         let Some(hex) = self.next(truncated)?.to_digit(16) else {
                             // Go reads both runes before rejecting either.
                             let end = if digit == 0 {
-                                self.after_rune(self.position)
+                                self.after_rune(self.position)?
                             } else {
                                 self.position
                             };

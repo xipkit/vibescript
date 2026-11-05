@@ -77,10 +77,20 @@ fn lex(source: &str) -> Result<Vec<Lexed<'_>>> {
         let column = |rest: &str| line.len() - rest.len() + 1;
         loop {
             rest = rest.trim_start_matches([' ', '\t']);
-            let (token, remaining) = match rest.chars().next() {
+            let mut chars = rest.chars();
+            let first = chars.next();
+            let tail = chars.as_str();
+            let split = |end| {
+                rest.split_at_checked(end).ok_or_else(|| ParseError {
+                    line: index + 1,
+                    column: column(rest),
+                    message: "invalid UTF-8 token boundary".to_owned(),
+                })
+            };
+            let (token, remaining) = match first {
                 None => break,
                 Some('#') => {
-                    let text = rest[1..].strip_prefix(' ').unwrap_or(&rest[1..]);
+                    let text = tail.strip_prefix(' ').unwrap_or(tail);
                     (Token::Comment(text.trim_end()), "")
                 }
                 Some('"') => {
@@ -89,30 +99,38 @@ fn lex(source: &str) -> Result<Vec<Lexed<'_>>> {
                         column: column(rest),
                         message: "unterminated string".to_owned(),
                     })?;
-                    (Token::Literal(&rest[..end]), &rest[end..])
+                    let (literal, remaining) = split(end)?;
+                    (Token::Literal(literal), remaining)
                 }
-                Some(':') if rest[1..].starts_with(name_start) => {
-                    let end = 1 + word_end(&rest[1..]);
-                    (Token::Symbol(&rest[1..end]), &rest[end..])
+                Some(':') if tail.starts_with(name_start) => {
+                    let end = word_end(tail);
+                    let (symbol, remaining) =
+                        tail.split_at_checked(end).ok_or_else(|| ParseError {
+                            line: index + 1,
+                            column: column(rest),
+                            message: "invalid UTF-8 symbol boundary".to_owned(),
+                        })?;
+                    (Token::Symbol(symbol), remaining)
                 }
                 Some(c)
                     if c.is_ascii_digit()
-                        || c == '-' && rest[1..].starts_with(|c: char| c.is_ascii_digit()) =>
+                        || c == '-' && tail.starts_with(|c: char| c.is_ascii_digit()) =>
                 {
-                    let end = 1 + rest[1..]
+                    let end = 1 + tail
                         .find(|c: char| !c.is_ascii_digit() && c != '.' && c != '_')
                         .unwrap_or(rest.len() - 1);
-                    (Token::Literal(&rest[..end]), &rest[end..])
+                    let (literal, remaining) = split(end)?;
+                    (Token::Literal(literal), remaining)
                 }
                 Some(c) if name_start(c) => {
                     let end = word_end(rest);
-                    let word = &rest[..end];
+                    let (word, remaining) = split(end)?;
                     let token = if matches!(word, "nil" | "true" | "false") {
                         Token::Literal(word)
                     } else {
                         Token::Word(word)
                     };
-                    (token, &rest[end..])
+                    (token, remaining)
                 }
                 Some(c) => {
                     let Some(punct) = PUNCTUATION.iter().find(|p| rest.starts_with(**p)) else {
@@ -122,7 +140,14 @@ fn lex(source: &str) -> Result<Vec<Lexed<'_>>> {
                             message: format!("unexpected character {:?}", c),
                         });
                     };
-                    (Token::Punct(punct), &rest[punct.len()..])
+                    (
+                        Token::Punct(punct),
+                        rest.strip_prefix(*punct).ok_or_else(|| ParseError {
+                            line: index + 1,
+                            column: column(rest),
+                            message: "invalid punctuation prefix".to_owned(),
+                        })?,
+                    )
                 }
             };
             tokens.push(Lexed {
@@ -155,7 +180,10 @@ fn word_end(text: &str) -> usize {
     let end = text
         .find(|c: char| c != '_' && !crate::syntax::unicode::letter_or_digit(c))
         .unwrap_or(text.len());
-    if text[end..].starts_with(['?', '!']) {
+    if text
+        .get(end..)
+        .is_some_and(|tail| tail.starts_with(['?', '!']))
+    {
         end + 1
     } else {
         end
@@ -245,7 +273,7 @@ impl<'a> Parser<'a> {
             .get(self.pos)
             .filter(|token| token.token != Token::End)
         {
-            let before = &self.source[..token.offset];
+            let before = self.source.get(..token.offset).unwrap_or(self.source);
             (
                 before.bytes().filter(|byte| *byte == b'\n').count() + 1,
                 before
@@ -854,7 +882,13 @@ impl<'a> Parser<'a> {
             let mut name = match self.next() {
                 Token::Word(word) => word.to_owned(),
                 Token::Literal(literal) if literal.starts_with('"') => {
-                    unescape(&literal[1..literal.len() - 1])
+                    match literal
+                        .strip_prefix('"')
+                        .and_then(|text| text.strip_suffix('"'))
+                    {
+                        Some(text) => unescape(text),
+                        None => return self.fail("expected a quoted field name"),
+                    }
                 }
                 _ => {
                     self.pos -= 1;
