@@ -1,6 +1,5 @@
 #[derive(Clone, Copy)]
 pub(crate) enum Class {
-    Ascii,
     JsonParse,
     JsonStringify,
 }
@@ -120,7 +119,6 @@ fn vector_ascii_mismatch(bytes: &[u8; 16], needle: u8) -> usize {
 
 pub(crate) fn ordinary(b: u8, class: Class) -> bool {
     match class {
-        Class::Ascii => b < 128,
         Class::JsonParse => (32..128).contains(&b) && b != b'"' && b != b'\\',
         Class::JsonStringify => {
             (32..128).contains(&b) && b != b'"' && b != b'\\' && b != b'<' && b != b'>' && b != b'&'
@@ -128,95 +126,165 @@ pub(crate) fn ordinary(b: u8, class: Class) -> bool {
     }
 }
 
-/// Bytes tested at once by [`block_clean`].
+/// Marks the non-ASCII bytes of sixteen with their high bits.
+#[inline(always)]
+fn non_ascii(block: &[u8; 16]) -> u128 {
+    u128::from_le_bytes(*block) & 0x8080_8080_8080_8080_8080_8080_8080_8080
+}
+
+/// The index of the first byte a [`non_ascii`] mask marks: sixteen when it
+/// marks none.
+#[inline(always)]
+fn first_non_ascii(others: u128) -> usize {
+    (others.trailing_zeros() / 8) as usize
+}
+
+/// Counts the leading ASCII bytes of `s`.
+pub(crate) fn ascii_prefix(s: &[u8]) -> usize {
+    // A run that ends within sixteen bytes, as most do in text that mixes
+    // scripts, is counted here, with no call or loop and no branch on where
+    // it ends. The bytes are read as two words on every build: the scan that
+    // follows waits on this count, and it comes sooner from general
+    // registers than from a vector mask moved into one.
+    if let Some(head) = s.first_chunk::<16>() {
+        let others = non_ascii(head);
+        if others != 0 {
+            return first_non_ascii(others);
+        }
+    }
+    ascii_run(s)
+}
+
+/// Counts the leading ASCII bytes of an `s` whose first sixteen, if it has
+/// that many, are ASCII.
+#[inline(never)]
+fn ascii_run(s: &[u8]) -> usize {
+    // A run that ends in the second sixteen bytes would fail the vector's
+    // test of sixty-four, so it is looked for first.
+    #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
+    if let Some(next) = s.get(16..).and_then(<[u8]>::first_chunk::<16>) {
+        let others = non_ascii(next);
+        if others != 0 {
+            return 16 + first_non_ascii(others);
+        }
+    }
+    let mut rest = s;
+    #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
+    while let Some((chunk, tail)) = rest.split_first_chunk::<64>() {
+        if !vector_ascii64(chunk) {
+            break;
+        }
+        rest = tail;
+    }
+    while let Some((chunk, tail)) = rest.split_first_chunk::<16>() {
+        let others = non_ascii(chunk);
+        if others != 0 {
+            return s.len() - rest.len() + first_non_ascii(others);
+        }
+        rest = tail;
+    }
+    // Fewer than sixteen bytes are left. The last sixteen of `s` cover them,
+    // and the bytes they repeat are known to be ASCII, so the first byte
+    // marked there is the first in what is left.
+    match s.last_chunk::<16>() {
+        Some(last) => s.len() - 16 + first_non_ascii(non_ascii(last)),
+        None => s
+            .iter()
+            .position(|byte| !byte.is_ascii())
+            .unwrap_or(s.len()),
+    }
+}
+
+/// Bytes examined at once by [`block_others`].
 #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
 const BLOCK: usize = 16;
 #[cfg(not(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64"))))]
 const BLOCK: usize = 8;
 
-/// Tests one block for `class` membership.
-#[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
-#[inline(always)]
-fn block_clean(chunk: &[u8; BLOCK], class: Class) -> bool {
-    vector_clean(chunk, class)
-}
-
-/// Tests one block for `class` membership with SWAR arithmetic.
+/// Mask bits [`block_others`] gives each byte.
+#[cfg(all(feature = "simd", target_arch = "aarch64"))]
+const MASK_BITS: u32 = 4;
+#[cfg(all(feature = "simd", target_arch = "x86_64"))]
+const MASK_BITS: u32 = 1;
 #[cfg(not(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64"))))]
-fn block_clean(chunk: &[u8; BLOCK], class: Class) -> bool {
+const MASK_BITS: u32 = 8;
+
+/// Marks the bytes of one block that are not `class` bytes with SWAR
+/// arithmetic: the high bit of each.
+#[cfg(not(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64"))))]
+#[inline(always)]
+fn block_others(chunk: &[u8; BLOCK], class: Class) -> u64 {
     let v = u64::from_le_bytes(*chunk);
     let equal = |byte: u8| {
         let x = v ^ (u64::from(byte) * 0x0101010101010101);
         !(((x & 0x7f7f7f7f7f7f7f7f) + 0x7f7f7f7f7f7f7f7f) | x | 0x7f7f7f7f7f7f7f7f)
     };
     let mut bad = v & 0x8080808080808080;
-    if !matches!(class, Class::Ascii) {
-        bad |= !(v | ((v & 0x7f7f7f7f7f7f7f7f) + 0x6060606060606060)) & 0x8080808080808080;
-        bad |= equal(b'"') | equal(b'\\');
-    }
+    bad |= !(v | ((v & 0x7f7f7f7f7f7f7f7f) + 0x6060606060606060)) & 0x8080808080808080;
+    bad |= equal(b'"') | equal(b'\\');
     if matches!(class, Class::JsonStringify) {
         bad |= equal(b'<') | equal(b'>') | equal(b'&');
     }
-    bad == 0
+    bad
+}
+
+/// The index of the first byte a nonzero [`block_others`] mask marks.
+#[inline(always)]
+fn first_other(others: u64) -> usize {
+    (others.trailing_zeros() / MASK_BITS) as usize
 }
 
 /// Counts the leading bytes of `s` that are `class` bytes.
 pub(crate) fn prefix(s: &[u8], class: Class) -> usize {
-    // The first block is tested here, so a short string or a short run never
-    // calls into the block loop, and a clean block skips the scalar peel. The
-    // loop retests it, which keeps its wide blocks aligned to the start.
-    let mut blocks = 0;
+    // The first block is examined here, so a run that ends in it, as most do
+    // between escapes, costs no call and no loop: its length is read from
+    // the block's mask.
     if let Some(block) = s.first_chunk::<BLOCK>() {
-        if block_clean(block, class) {
-            blocks = if s.len() >= 2 * BLOCK {
-                clean_blocks(s, class)
-            } else {
-                BLOCK
-            };
+        let others = block_others(block, class);
+        if others != 0 {
+            return first_other(others);
         }
     }
-    let tail = &s[blocks..];
-    blocks
-        + tail
-            .iter()
-            .position(|&byte| !ordinary(byte, class))
-            .unwrap_or(tail.len())
+    run_prefix(s, class)
 }
 
-/// Counts the bytes at the start of `s` that whole blocks of `class` bytes
-/// cover. A function of its own, so that the block loop's constants stay in
-/// registers whatever the register pressure of the scan around it; each class
-/// gets a copy of the loop with its tests resolved.
+/// Counts the leading `class` bytes of an `s` whose first block, if it has
+/// one, holds only `class` bytes. A function of its own, so that the loop's
+/// constants stay in registers whatever the register pressure of the scan
+/// around it; each class gets a copy with its tests resolved.
 #[inline(never)]
-fn clean_blocks(s: &[u8], class: Class) -> usize {
+fn run_prefix(s: &[u8], class: Class) -> usize {
     match class {
-        Class::Ascii => clean_blocks_of(s, Class::Ascii),
-        Class::JsonParse => clean_blocks_of(s, Class::JsonParse),
-        Class::JsonStringify => clean_blocks_of(s, Class::JsonStringify),
+        Class::JsonParse => run_prefix_of(s, Class::JsonParse),
+        Class::JsonStringify => run_prefix_of(s, Class::JsonStringify),
     }
 }
 
-// The loops carry the unscanned tail rather than a running offset, so no
+// The loop carries the unscanned tail rather than a running offset, so no
 // counter needs an overflow check on every block.
 #[inline(always)]
-fn clean_blocks_of(s: &[u8], class: Class) -> usize {
-    let mut rest = s;
-    #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
-    if matches!(class, Class::Ascii) {
-        while let Some((chunk, tail)) = rest.split_first_chunk::<64>() {
-            if !vector_ascii64(chunk) {
-                break;
-            }
-            rest = tail;
-        }
-    }
+fn run_prefix_of(s: &[u8], class: Class) -> usize {
+    let mut rest = s.split_first_chunk::<BLOCK>().map_or(s, |(_, tail)| tail);
     while let Some((chunk, tail)) = rest.split_first_chunk::<BLOCK>() {
-        if !block_clean(chunk, class) {
-            break;
+        let others = block_others(chunk, class);
+        if others != 0 {
+            return s.len() - rest.len() + first_other(others);
         }
         rest = tail;
     }
-    s.len() - rest.len()
+    // Less than a block is left. The last block of `s` covers it, and the
+    // bytes that block repeats are known to be `class` bytes, so the first
+    // byte marked there is the first in what is left.
+    match s.last_chunk::<BLOCK>() {
+        Some(last) => match block_others(last, class) {
+            0 => s.len(),
+            others => s.len() - BLOCK + first_other(others),
+        },
+        None => s
+            .iter()
+            .position(|&byte| !ordinary(byte, class))
+            .unwrap_or(s.len()),
+    }
 }
 
 #[derive(Default)]
@@ -391,39 +459,42 @@ fn vector_ascii64(s: &[u8; 64]) -> bool {
     }
 }
 
+/// Marks the bytes of one block that are not `class` bytes: four mask bits
+/// a byte, in the order of the bytes.
 #[cfg(all(feature = "simd", target_arch = "aarch64"))]
-fn vector_clean(s: &[u8; 16], class: Class) -> bool {
+#[inline(always)]
+fn block_others(s: &[u8; BLOCK], class: Class) -> u64 {
     use std::arch::aarch64::*;
     // SAFETY: the load reads exactly the sixteen bytes of `s`; NEON is baseline.
     unsafe {
         let v = vld1q_u8(s.as_ptr());
-        if matches!(class, Class::Ascii) {
-            return vmaxvq_u8(v) < 128;
-        }
         let mut bad = vcgeq_u8(v, vdupq_n_u8(128));
-        if !matches!(class, Class::Ascii) {
-            bad = vorrq_u8(bad, vcltq_u8(v, vdupq_n_u8(32)));
-            bad = vorrq_u8(bad, vceqq_u8(v, vdupq_n_u8(b'"')));
-            bad = vorrq_u8(bad, vceqq_u8(v, vdupq_n_u8(b'\\')));
-        }
+        bad = vorrq_u8(bad, vcltq_u8(v, vdupq_n_u8(32)));
+        bad = vorrq_u8(bad, vceqq_u8(v, vdupq_n_u8(b'"')));
+        bad = vorrq_u8(bad, vceqq_u8(v, vdupq_n_u8(b'\\')));
         if matches!(class, Class::JsonStringify) {
             for b in *b"<>&" {
                 bad = vorrq_u8(bad, vceqq_u8(v, vdupq_n_u8(b)));
             }
         }
-        vmaxvq_u8(bad) == 0
+        // Narrowing each pair of lanes by four bits keeps four bits of each
+        // lane, so lane i owns bits 4i..4i+3.
+        vget_lane_u64::<0>(vreinterpret_u64_u8(vshrn_n_u16::<4>(vreinterpretq_u16_u8(
+            bad,
+        ))))
     }
 }
 
+/// Marks the bytes of one block that are not `class` bytes: one mask bit a
+/// byte, in the order of the bytes.
 #[cfg(all(feature = "simd", target_arch = "x86_64"))]
-fn vector_clean(s: &[u8; 16], class: Class) -> bool {
+#[inline(always)]
+fn block_others(s: &[u8; BLOCK], class: Class) -> u64 {
     use std::arch::x86_64::*;
     // SAFETY: the load reads exactly the sixteen bytes of `s`; SSE2 is baseline.
     unsafe {
         let v = _mm_loadu_si128(s.as_ptr().cast());
-        if matches!(class, Class::Ascii) {
-            return _mm_movemask_epi8(v) == 0;
-        }
+        // The comparison is signed, so it finds the non-ASCII bytes too.
         let mut bad = _mm_cmplt_epi8(v, _mm_set1_epi8(32));
         for b in *b"\"\\" {
             bad = _mm_or_si128(
@@ -439,7 +510,7 @@ fn vector_clean(s: &[u8; 16], class: Class) -> bool {
                 );
             }
         }
-        _mm_movemask_epi8(bad) == 0
+        u64::from(u32::from_ne_bytes(_mm_movemask_epi8(bad).to_ne_bytes()))
     }
 }
 
@@ -913,25 +984,71 @@ mod tests {
         }
     }
 
+    /// Each prefix scan, the byte test it stands for, and bytes that fail it.
+    type Scan = (fn(&[u8]) -> usize, fn(u8) -> bool, &'static [u8]);
+    const SCANS: [Scan; 3] = [
+        (ascii_prefix, |b| b.is_ascii(), b"\x80\xff"),
+        (
+            |s| prefix(s, Class::JsonParse),
+            |b| ordinary(b, Class::JsonParse),
+            b"\"\\\x00\x1f\x80",
+        ),
+        (
+            |s| prefix(s, Class::JsonStringify),
+            |b| ordinary(b, Class::JsonStringify),
+            b"\"\\<>&\x1f\xc3",
+        ),
+    ];
+
     #[test]
     fn classifiers_match_scalar_at_every_lane() {
-        for class in [Class::Ascii, Class::JsonParse, Class::JsonStringify] {
-            for len in [0, 1, 15, 16, 17, 31, 32, 33, 63, 64, 65, 127] {
+        for (scan, ordinary, _) in SCANS {
+            for len in (0..=40).chain([63, 64, 65, 127, 128, 129]) {
                 for pos in 0..len {
                     for byte in 0..=255 {
                         let mut data = vec![b'a'; len];
                         data[pos] = byte;
                         assert_eq!(
-                            prefix(&data, class),
-                            data.iter()
-                                .position(|&b| !ordinary(b, class))
-                                .unwrap_or(len)
+                            scan(&data),
+                            data.iter().position(|&b| !ordinary(b)).unwrap_or(len),
+                            "{len} {pos} {byte}"
                         );
                     }
                 }
             }
         }
     }
+
+    #[test]
+    fn prefixes_stop_at_the_first_other_byte_of_several() {
+        // A run of every length in a slice of every length up to several
+        // blocks, so that it ends in the first block, in a later one and in
+        // the bytes left after the last, with a second byte the scan rejects
+        // at each distance behind the first.
+        for (scan, _, others) in SCANS {
+            for offset in 0..2 {
+                for len in 0..=100 {
+                    let mut data = vec![b'a'; offset + len];
+                    assert_eq!(scan(&data[offset..]), len);
+                    for run in 0..len {
+                        for (i, &other) in others.iter().enumerate() {
+                            data[offset + run] = other;
+                            assert_eq!(scan(&data[offset..]), run, "{len} {other}");
+                            for gap in [1, 7, 8, 9, 16, 17] {
+                                if run + gap < len {
+                                    data[offset + run + gap] = others[(i + 1) % others.len()];
+                                    assert_eq!(scan(&data[offset..]), run, "{len} {other} {gap}");
+                                    data[offset + run + gap] = b'a';
+                                }
+                            }
+                            data[offset + run] = b'a';
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     #[test]
     fn case_matches_scalar_including_unaligned_slices() {
         for upper in [false, true] {
