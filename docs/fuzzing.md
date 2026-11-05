@@ -16,6 +16,10 @@ outlining and unreachable-code analysis; the compiler exercises both modes
 of retaining proven type checks, under step and memory quotas. Neither
 coverage target executes the source.
 
+Every harness treats `ErrorKind::Internal` as a crash, preserving the panic
+signal for engine invariant failures. The checker reports these as `panic`
+findings and `panicked` verdicts, rather than ordinary source errors.
+
 ## Coverage-guided runs
 
 Install [rustup](https://rustup.rs/) and a C++ compiler. The fuzz toolchain

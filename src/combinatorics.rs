@@ -8,6 +8,7 @@
 //! recoverable limit errors; exhausted quotas latch like every other charge.
 
 use crate::checked::{Access, Checked};
+use crate::numeric::{float_to_u64, to_usize};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::Buffer,
@@ -137,10 +138,8 @@ fn sample_count(label: &str, value: &Value) -> Result<usize> {
             let truncated = n.trunc();
             if truncated < 0.0 {
                 Err(negative())
-            } else if truncated >= usize::MAX as f64 {
-                Ok(usize::MAX)
             } else {
-                Ok(truncated as usize)
+                Ok(to_usize(float_to_u64(truncated)))
             }
         }
         _ => Err(invalid()),

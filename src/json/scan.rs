@@ -275,7 +275,7 @@ unsafe fn vector(input: &[u8]) -> Masks {
     unsafe {
         let v = _mm_loadu_si128(input.as_ptr().cast());
         let eq = |b| _mm_cmpeq_epi8(v, _mm_set1_epi8(i8::from_ne_bytes([b])));
-        let bits = |v| _mm_movemask_epi8(v) as u64;
+        let bits = |v| u64::from(u32::from_ne_bytes(_mm_movemask_epi8(v).to_ne_bytes()));
         let high = bits(v);
         Masks {
             punctuation: bits(_mm_or_si128(

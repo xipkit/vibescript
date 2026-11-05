@@ -1,5 +1,5 @@
 use super::format::{self, MONTHS, OUTPUT_LIMIT, Output, View, WEEKDAYS};
-use crate::{CallContext, Error, ErrorKind, Result, Value, bytes, casing, scan};
+use crate::{CallContext, Error, ErrorKind, Result, Value, bytes, casing, numeric::to_usize, scan};
 use std::fmt::Write;
 
 #[derive(Clone, Copy, Default)]
@@ -311,16 +311,16 @@ fn directive(
             };
             (text, 0, b' ', Kind::Name)
         }
-        b'A' => (WEEKDAYS[view.date.weekday as usize], 0, b' ', Kind::Name),
+        b'A' => (WEEKDAYS[to_usize(view.date.weekday)], 0, b' ', Kind::Name),
         b'a' => (
-            &WEEKDAYS[view.date.weekday as usize][..3],
+            &WEEKDAYS[to_usize(view.date.weekday)][..3],
             0,
             b' ',
             Kind::Name,
         ),
-        b'B' => (MONTHS[view.date.month as usize - 1], 0, b' ', Kind::Name),
+        b'B' => (MONTHS[to_usize(view.date.month) - 1], 0, b' ', Kind::Name),
         b'b' | b'h' => (
-            &MONTHS[view.date.month as usize - 1][..3],
+            &MONTHS[to_usize(view.date.month) - 1][..3],
             0,
             b' ',
             Kind::Name,

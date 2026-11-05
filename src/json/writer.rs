@@ -71,7 +71,8 @@ impl Output {
     /// Appends `bytes` as [`Self::extend`] does, adding its work to `pending`
     /// instead of charging it. Pending steps are settled before the limit
     /// check can fail or the buffer grows, so both happen after the same
-    /// charges as with `extend`.
+    /// charges as with `extend`. The caller settles `pending` at least once
+    /// per chunk of input, so the counter stays far below overflowing.
     #[inline(always)]
     fn put(&mut self, ctx: &mut CallContext, bytes: &[u8], pending: &mut u64) -> Result<()> {
         let length = self.buffer.data.len().saturating_add(bytes.len());
@@ -83,7 +84,7 @@ impl Output {
         } else {
             self.buffer.data.extend_from_slice(bytes);
         }
-        *pending += (bytes.len() as u64).div_ceil(64);
+        *pending = pending.wrapping_add((bytes.len() as u64).div_ceil(64));
         Ok(())
     }
 
@@ -104,7 +105,7 @@ impl Output {
             self.grow(ctx, length, pending)?;
         }
         self.buffer.data.extend_from_slice(&[b'\\', code]);
-        *pending += 1;
+        *pending = pending.wrapping_add(1);
         Ok(())
     }
 
@@ -422,19 +423,21 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
     // Steps are charged as when every span and escape was appended with
     // `Output::extend`, but settled in batches: before anything that can fail
     // or grow the buffer, so failures and growth follow the same charges, and
-    // after each chunk of input, so cancellation stays responsive.
-    let mut pending = 0;
-    let mut settled = 0;
+    // after each chunk of input, so cancellation stays responsive. Settling
+    // that often, with at most two steps per input byte, keeps `pending` far
+    // from overflowing, so the loop adds to it without checks.
+    let mut pending: u64 = 0;
+    let mut settle_at = CHUNK;
     let mut i = 0;
     while let Some(&b) = input.get(i) {
-        if i - settled >= CHUNK {
+        if i >= settle_at {
             ctx.charge_pending(&mut pending)?;
             ctx.checkpoint()?;
-            settled = i;
+            settle_at = i + CHUNK;
         }
         let escape = ASCII_ESCAPES.get(usize::from(b)).copied().unwrap_or(0);
         if escape != 0 {
-            pending += 1;
+            pending = pending.wrapping_add(1);
             i += 1;
             // Go reserves room for the longest escape before any ASCII escape.
             let reserved = out.buffer.data.len().saturating_add(6);
@@ -482,7 +485,7 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
         let span = scan::text_span(window, Class::JsonStringify);
         if span.len > 0 {
             if span.runes != span.len {
-                pending += span.steps;
+                pending = pending.wrapping_add(span.steps);
             }
             out.put(ctx, window.span(0, span.len)?, &mut pending)?;
             i += span.len;
@@ -490,7 +493,7 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
         }
         // A rune the span stopped at: invalid, a line or paragraph separator,
         // or cut by the end of the chunk.
-        pending += 1;
+        pending = pending.wrapping_add(1);
         let (ch, n, valid) = scan::rune(input.tail(i)?);
         let replacement: &[u8] = if ch == '\u{2028}' {
             b"\\u2028"

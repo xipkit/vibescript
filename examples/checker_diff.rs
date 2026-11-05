@@ -532,6 +532,48 @@ fn describe(verdict: &Verdict) -> String {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn annotation_crashes_keep_the_seed_and_program_while_the_campaign_continues() {
+        use super::{Case, Judged, Progress, Verdict};
+        let root = super::scratch_root(usize::MAX - 10);
+        std::fs::create_dir_all(&root).unwrap();
+        let case = Case::new("x = 42\nx\n");
+        let (progress, events) = super::mpsc::channel();
+        progress
+            .send(Progress::Judged(Box::new(Judged {
+                seed: 87,
+                case: case.clone(),
+                verdict: Verdict::Agreed("ok int(42)".to_owned()),
+                annotated: Some((
+                    case.clone(),
+                    Verdict::Finding(super::harness::Finding {
+                        kind: super::harness::FindingKind::Panic,
+                        detail: "annotation: forced internal error".to_owned(),
+                    }),
+                )),
+            })))
+            .unwrap();
+        progress
+            .send(Progress::Judged(Box::new(Judged {
+                seed: 88,
+                case: case.clone(),
+                verdict: Verdict::Agreed("ok int(42)".to_owned()),
+                annotated: None,
+            })))
+            .unwrap();
+        drop(progress);
+        let mut watcher = super::Watcher::new(1, Some(&root));
+        assert_eq!(watcher.watch(&events).unwrap(), None);
+        assert_eq!(watcher.totals.generated, 2);
+        assert_eq!(watcher.totals.annotated, 1);
+        assert_eq!(watcher.totals.findings.get("panic"), Some(&1));
+        let reproducer = std::fs::read_to_string(root.join("annotated-panic-87.vibe")).unwrap();
+        assert!(reproducer.contains("seed 87"), "{reproducer}");
+        assert!(reproducer.contains("forced internal error"), "{reproducer}");
+        assert_eq!(Case::parse(&reproducer).render(), case.render());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn scratch_write_failures_are_errors_instead_of_checker_findings() {
         let root = super::scratch_root(usize::MAX - 3);
         std::fs::write(&root, "not a directory").unwrap();
@@ -540,6 +582,7 @@ mod tests {
         case.modules.push(("mod.vibe".into(), "1".into()));
         assert!(super::harness::judge(&case, &mut scratch).is_err());
         assert!(super::harness::outcome(&case, &mut scratch).is_err());
+        assert!(super::harness::annotate(&case, &mut scratch).is_err());
         std::fs::remove_file(root).unwrap();
     }
 
@@ -764,12 +807,19 @@ fn batch(args: &[String]) -> std::io::Result<u8> {
                 // The checker must accept its own inferences: a case it
                 // agreed on is judged again with its locals declared as the
                 // types it inferred.
-                let annotated = match (&verdict, harness::annotate(&case, &mut scratch)) {
-                    (Verdict::Agreed(_), Some(annotated)) => {
-                        let verdict = harness::judge(&annotated, &mut scratch)?;
-                        Some((annotated, verdict))
+                let annotated = if matches!(verdict, Verdict::Agreed(_)) {
+                    match harness::annotate(&case, &mut scratch)? {
+                        Some(harness::Annotation::Case(annotated)) => {
+                            let verdict = harness::judge(&annotated, &mut scratch)?;
+                            Some((annotated, verdict))
+                        }
+                        Some(harness::Annotation::Finding(finding)) => {
+                            Some((case.clone(), Verdict::Finding(finding)))
+                        }
+                        None => None,
                     }
-                    _ => None,
+                } else {
+                    None
                 };
                 progress
                     .send(Progress::Judged(Box::new(Judged {

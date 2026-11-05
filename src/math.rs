@@ -3,6 +3,7 @@
 // See licenses/Go-BSD-3-Clause.txt and licenses/math-NOTICE.txt.
 #![allow(clippy::excessive_precision)]
 
+use crate::numeric::{float_to_u64, to_usize, unsigned_bits};
 use std::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_2, FRAC_PI_4, LOG2_E, LOG10_E, PI};
 
 fn frexp(mut x: f64) -> (f64, i32) {
@@ -108,7 +109,8 @@ pub(crate) fn exp(x: f64) -> f64 {
         exponent += 52;
         multiplier = f64::from_bits(0x3cb0000000000000);
     }
-    f64::from_bits((bits & ((1 << 52) - 1)) | ((exponent as u64) << 52)) * multiplier
+    f64::from_bits((bits & ((1 << 52) - 1)) | (unsigned_bits(i64::from(exponent)) << 52))
+        * multiplier
 }
 
 pub(crate) fn hypot(mut p: f64, mut q: f64) -> f64 {
@@ -378,7 +380,7 @@ fn reduce(x: f64) -> (u64, f64) {
     const PI4_A: f64 = 7.85398125648498535156e-1;
     const PI4_B: f64 = 3.77489470793079817668e-8;
     const PI4_C: f64 = 2.69515142907905952645e-15;
-    let mut octant = (x * (2.0 * std::f64::consts::FRAC_2_PI)) as u64;
+    let mut octant = float_to_u64(x * (2.0 * std::f64::consts::FRAC_2_PI));
     if octant & 1 == 1 {
         octant += 1;
     }
@@ -416,8 +418,8 @@ fn reduce_large(x: f64) -> (u64, f64) {
     let bits = x.to_bits();
     let exponent = ((bits >> 52) & 0x7ff) as i32 - 1023 - 52;
     let mantissa = (bits & !(0x7ff << 52)) | (1 << 52);
-    let digit = ((exponent + 61) / 64) as usize;
-    let shift = ((exponent + 61) % 64) as u32;
+    let digit = to_usize((exponent + 61) / 64);
+    let shift = ((exponent + 61) % 64).unsigned_abs();
     let word = |i: usize| {
         (PI4_DIGITS.get(i).copied().unwrap_or(0) << shift)
             | PI4_DIGITS

@@ -32,8 +32,8 @@ pub fn current() -> Option<usize> {
         .read(&mut buffer)
         .ok()?;
     // SAFETY: sysconf takes a valid configuration name and no pointers.
-    let page = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
-    if length == 0 || page <= 0 {
+    let page = usize::try_from(unsafe { libc::sysconf(libc::_SC_PAGESIZE) }).ok()?;
+    if length == 0 || page == 0 {
         return None;
     }
     std::str::from_utf8(buffer.get(..length)?)
@@ -42,7 +42,7 @@ pub fn current() -> Option<usize> {
         .nth(1)?
         .parse::<usize>()
         .ok()?
-        .checked_mul(page as usize)
+        .checked_mul(page)
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "linux")))]

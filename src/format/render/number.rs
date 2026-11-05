@@ -1,5 +1,6 @@
 use super::*;
 use crate::checked::{Access, Checked};
+use crate::numeric::{to_usize, unsigned_bits};
 use std::fmt::{self, Write};
 
 struct Digits {
@@ -97,7 +98,7 @@ pub(super) fn integer(
                 "integer format requires an integer",
             ));
         };
-        return unicode(ctx, output, value as u64, field);
+        return unicode(ctx, output, unsigned_bits(value), field);
     }
     let big = matches!(value.0, Kind::Big(_));
     if verb == 'v' && !big {
@@ -436,7 +437,7 @@ fn general(value: f64, uppercase: bool, field: Field) -> Access<Digits> {
         digits.push(significand.bytes.span(0, significand.length)?)?;
         significand.length
     } else {
-        let integer = exponent as usize + 1;
+        let integer = to_usize(exponent) + 1;
         let used = integer.min(significand.length);
         digits.push(significand.bytes.span(0, used)?)?;
         for _ in used..integer {

@@ -97,7 +97,7 @@ impl<'a> MapFrame<'a> {
                         "object traversal container and output kinds disagree",
                     ));
                 };
-                buffer.data[index] = value;
+                *buffer.at_mut(index)? = value;
             }
             Kind::Hash(hash) => {
                 if self.mapped.is_none() {
@@ -110,7 +110,7 @@ impl<'a> MapFrame<'a> {
                         "object traversal container and output kinds disagree",
                     ));
                 };
-                buffer.data[index].1 = value;
+                buffer.at_mut(index)?.1 = value;
             }
             _ => {
                 return Err(crate::checked::internal(
@@ -433,6 +433,22 @@ fn new_scoped(
 }
 
 impl Data {
+    /// The fields of an instance in this heap, found by its slot.
+    #[inline]
+    #[track_caller]
+    fn fields(&self, instance: &Instance) -> Access<&Fields> {
+        let slot = instance.identity.slot.load(Ordering::Relaxed);
+        Ok(&self.entries.at(slot)?.fields)
+    }
+
+    /// The fields of an instance in this heap, mutably.
+    #[inline]
+    #[track_caller]
+    fn fields_mut(&mut self, instance: &Instance) -> Access<&mut Fields> {
+        let slot = instance.identity.slot.load(Ordering::Relaxed);
+        Ok(&mut self.entries.at_mut(slot)?.fields)
+    }
+
     fn root(
         &self,
         ctx: &mut CallContext,
@@ -593,10 +609,7 @@ pub(crate) fn field(
 ) -> Result<Option<Value>> {
     let heap = instance.heap()?;
     heap.with(|data| {
-        let fields = &data
-            .entries
-            .at(instance.identity.slot.load(Ordering::Relaxed))?
-            .fields;
+        let fields = data.fields(instance)?;
         let Some(index) = fields.find(ctx, instance.class(), name)? else {
             return Ok(None);
         };
@@ -616,13 +629,7 @@ pub(crate) fn get_slot(
 ) -> Result<Value> {
     let heap = instance.heap()?;
     heap.with(|data| {
-        let Some(value) = data
-            .entries
-            .at(instance.identity.slot.load(Ordering::Relaxed))?
-            .fields
-            .get(slot)
-            .cloned()
-        else {
+        let Some(value) = data.fields(instance)?.get(slot).cloned() else {
             return Ok(Value::nil());
         };
         Ok(data.map(ctx, &heap, &value, false)?.unwrap_or(value))
@@ -640,10 +647,7 @@ pub(crate) fn address_slot(
         let instance = data
             .instance(ctx, &heap, instance, false)?
             .unwrap_or_else(|| instance.clone());
-        let fields = &mut data
-            .entries
-            .at_mut(instance.identity.slot.load(Ordering::Relaxed))?
-            .fields;
+        let fields = data.fields_mut(&instance)?;
         if fields.get(slot).is_none() {
             fields.set_slot(ctx, slot, Value::nil())?;
         }
@@ -663,10 +667,7 @@ pub(crate) fn with_field_names<R>(
 ) -> Result<R> {
     let heap = instance.heap()?;
     heap.read(|data| {
-        let fields = &data
-            .entries
-            .at(instance.identity.slot.load(Ordering::Relaxed))?
-            .fields;
+        let fields = data.fields(instance)?;
         Ok(render(&mut fields.names(instance.class())))
     })
 }
@@ -682,10 +683,7 @@ pub(crate) fn children(
             ctx.charge(1)?;
             values.push(ctx, Value(Kind::Instance(environment.clone())))?;
         }
-        let fields = &data
-            .entries
-            .at(instance.identity.slot.load(Ordering::Relaxed))?
-            .fields;
+        let fields = data.fields(instance)?;
         for (_, value) in fields.iter().rev() {
             ctx.charge(1)?;
             values.push(ctx, value.clone())?;
@@ -700,10 +698,7 @@ pub(crate) fn bindings(
 ) -> Result<Buffer<(Value, Value)>> {
     let heap = instance.heap()?;
     heap.with(|data| {
-        let fields = &data
-            .entries
-            .at(instance.identity.slot.load(Ordering::Relaxed))?
-            .fields;
+        let fields = data.fields(instance)?;
         let mut values = fields.bindings(ctx, instance.class())?;
         for (_, value) in &mut values.data {
             ctx.charge(1)?;
@@ -726,9 +721,7 @@ pub(crate) fn set(
     heap.with(|data| {
         let value = data.map(ctx, &heap, &value, true)?.unwrap_or(value);
         data.reserve_scratch(ctx, value.depth())?;
-        data.entries
-            .at_mut(instance.identity.slot.load(Ordering::Relaxed))?
-            .fields
+        data.fields_mut(instance)?
             .set(ctx, instance.class(), name, value)
     })
 }
@@ -743,8 +736,7 @@ pub(crate) fn address(
         let instance = data
             .instance(ctx, &heap, instance, false)?
             .unwrap_or_else(|| instance.clone());
-        let object = instance.identity.slot.load(Ordering::Relaxed);
-        let fields = &mut data.entries.at_mut(object)?.fields;
+        let fields = data.fields_mut(&instance)?;
         let field = if let Some(field) = fields.find(ctx, instance.class(), name)? {
             field
         } else {
@@ -781,21 +773,19 @@ impl FieldName {
 }
 
 pub(crate) fn field_name(instance: &Arc<Instance>, field: usize) -> Result<FieldName> {
-    if instance.class().field_layout().is_some() {
+    if let Some(layout) = instance.class().field_layout() {
+        layout.at(field)?;
         return Ok(FieldName::Declared(instance.class().clone(), field));
     }
     let heap = instance.heap()?;
     heap.read(|data| {
-        let fields = &data
-            .entries
-            .at(instance.identity.slot.load(Ordering::Relaxed))?
-            .fields;
+        let fields = data.fields(instance)?;
         let Fields::Named(named) = fields else {
             return Err(crate::checked::internal(
                 "dynamic field names require named storage",
             ));
         };
-        Ok(FieldName::Named(named.buffer.data[field].0.clone()))
+        Ok(FieldName::Named(named.buffer.at(field)?.0.clone()))
     })
 }
 
@@ -805,12 +795,7 @@ pub(crate) fn field_slot(
     name: &str,
 ) -> Result<Option<usize>> {
     let heap = instance.heap()?;
-    heap.read(|data| {
-        data.entries
-            .at(instance.identity.slot.load(Ordering::Relaxed))?
-            .fields
-            .find(ctx, instance.class(), name)
-    })
+    heap.read(|data| data.fields(instance)?.find(ctx, instance.class(), name))
 }
 
 pub(crate) fn set_slot(
@@ -824,10 +809,7 @@ pub(crate) fn set_slot(
     heap.with(|data| {
         let value = data.map(ctx, &heap, &value, true)?.unwrap_or(value);
         data.reserve_scratch(ctx, value.depth())?;
-        let fields = &mut data
-            .entries
-            .at_mut(instance.identity.slot.load(Ordering::Relaxed))?
-            .fields;
+        let fields = data.fields_mut(instance)?;
         fields.set_slot(ctx, field, value)
     })
 }
@@ -876,11 +858,11 @@ fn snapshot_root(ctx: &mut CallContext, instance: &Arc<Instance>) -> Result<Arc<
             .len()
     {
         ctx.charge(1)?;
-        let (source, target) = &ctx
+        let (source, target) = ctx
             .snapshot_objects
             .as_ref()
             .ok_or(violation("missing object snapshot memo"))?
-            .data[index];
+            .at(index)?;
         // Importing already copied fields and class environments must reuse the
         // new identities instead of making snapshots of the snapshot itself.
         if *source == instance.identity.id || target.same(instance) {
@@ -983,16 +965,12 @@ fn collect(ctx: &mut CallContext, heap: &Arc<Heap>, shrink: bool) -> Result<()> 
             data.scratch = Buffer::empty();
         }
         let mut slot = 0;
-        while slot < data.classes.data.len() {
+        while let Some(class) = data.classes.data.get(slot) {
             ctx.charge(1)?;
             let mut used = false;
             for entry in &data.entries.data {
                 ctx.charge(1)?;
-                if entry
-                    .internal
-                    .class()
-                    .same_binding(&data.classes.data[slot])
-                {
+                if entry.internal.class().same_binding(class) {
                     used = true;
                     break;
                 }
@@ -1020,13 +998,13 @@ fn collect(ctx: &mut CallContext, heap: &Arc<Heap>, shrink: bool) -> Result<()> 
 
 fn prune_classes(data: &mut Data) {
     let mut slot = 0;
-    while slot < data.classes.data.len() {
-        if data.entries.data.iter().any(|entry| {
-            entry
-                .internal
-                .class()
-                .same_binding(&data.classes.data[slot])
-        }) {
+    while let Some(class) = data.classes.data.get(slot) {
+        if data
+            .entries
+            .data
+            .iter()
+            .any(|entry| entry.internal.class().same_binding(class))
+        {
             slot += 1;
         } else {
             data.classes.data.swap_remove(slot);
@@ -1051,24 +1029,20 @@ fn reclaim(data: &mut Data, tick: &mut impl FnMut() -> Result<()>) -> Result<usi
         }
     }
     while let Some(slot) = data.pending.data.pop() {
-        if let Some(environment) = &data.entries.data[slot].internal.class().environment {
+        let entry = data.entries.at(slot)?;
+        if let Some(environment) = &entry.internal.class().environment {
             tick()?;
             mark_instance(environment, &mut data.pending.data);
         }
-        for (_, value) in data.entries.data[slot].fields.iter() {
+        for (_, value) in entry.fields.iter() {
             depth = depth.max(value.depth());
             mark_references(value, &mut data.pending.data, &mut data.scratch.data, tick)?;
         }
     }
     let mut slot = 0;
-    while slot < data.entries.data.len() {
+    while let Some(entry) = data.entries.data.get(slot) {
         tick()?;
-        if data.entries.data[slot]
-            .internal
-            .identity
-            .marked
-            .load(Ordering::Relaxed)
-        {
+        if entry.internal.identity.marked.load(Ordering::Relaxed) {
             slot += 1;
         } else {
             let removed = data.entries.data.swap_remove(slot);
@@ -1195,6 +1169,9 @@ fn push_scratch(scratch: &mut Vec<(Value, usize)>, value: Value) -> Result<()> {
 
 #[cfg(test)]
 mod retirement_tests;
+
+#[cfg(test)]
+mod checked_tests;
 
 #[cfg(test)]
 mod environments_tests;
