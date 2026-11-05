@@ -1090,6 +1090,292 @@ fn symbol_text(value: &crate::Value) -> Option<String> {
     }
 }
 
+/// No source reaches the checker's checked accesses with a bad id, so these
+/// tests fail each one in turn, as a broken invariant would, and check that
+/// whatever asked for the check gets an internal error and no panic.
+#[cfg(test)]
+mod fault_tests {
+    use crate::{CallOptions, Engine, Error, ErrorKind, Value};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// The message of a failure these tests inject.
+    const INJECTED: &str = "injected by a checker fault test";
+
+    /// How many more accesses succeed before one fails, when armed.
+    const OFF: usize = usize::MAX;
+
+    thread_local! {
+        static LEFT: AtomicUsize = const { AtomicUsize::new(OFF) };
+    }
+
+    /// The violation to report if this access is the one to fail. A check of a
+    /// source longer than [`super::SHALLOW`] runs on another thread, where none
+    /// is.
+    pub(super) fn injected() -> Option<crate::checked::Violation> {
+        LEFT.with(|left| match left.load(Ordering::Relaxed) {
+            OFF => None,
+            0 => {
+                left.store(OFF, Ordering::Relaxed);
+                Some(crate::checked::violation(INJECTED))
+            }
+            more => {
+                left.store(more - 1, Ordering::Relaxed);
+                None
+            }
+        })
+    }
+
+    /// Sets the access to fail, after `successes` others.
+    fn arm(successes: usize) {
+        LEFT.with(|left| left.store(successes, Ordering::Relaxed));
+    }
+
+    /// Whether the armed access has come, which disarms it. Disarms it if not.
+    fn fired() -> bool {
+        LEFT.with(|left| left.swap(OFF, Ordering::Relaxed)) == OFF
+    }
+
+    /// A file with what a requiring check imports: a function, an enum and a
+    /// class that the function returns.
+    const HELPER: &str = r#"
+    enum Shade
+      Light
+      Dark
+    end
+    class Point
+      @x: int
+      def initialize(x: int)
+        @x = x
+      end
+      def x -> int
+        @x
+      end
+    end
+    export def origin -> Point
+      Point.new(0)
+    end
+    export def count(items: array<int>) -> int
+      items.length
+    end
+    "#;
+
+    /// A little of what the checker keeps tables for: classes and their fields,
+    /// a union receiver, an enum, a shape, locals narrowed by flow, a block and
+    /// a required file.
+    const MAIN: &str = r#"
+    enum Color
+      Red
+      Blue
+    end
+    class Box
+      @size: int = 1
+      def size -> int
+        @size
+      end
+      def grow(by: int) -> int
+        @size = @size + by
+        size
+      end
+    end
+    class Bag
+      def size -> int
+        2
+      end
+    end
+    def pick(flag: bool) -> Box | Bag
+      flag ? Box.new : Bag.new
+    end
+    def name(color: Color) -> string
+      case color
+      when Color::Red then "r"
+      when Color::Blue then "b"
+      end
+    end
+    def run(flag: bool) -> int
+      helper = require("helper")
+      point: { x: int } = { x: helper.origin.x }
+      total: int? = nil
+      [1, 2].each { |item| total = item }
+      begin
+        pick(flag).size + point["x"] + helper.count([1]) + name(Color::Red).length
+      rescue
+        total == nil ? 0 : 1
+      end
+    end
+    "#;
+
+    /// A module directory, removed when dropped.
+    struct Files(std::path::PathBuf);
+
+    impl Files {
+        fn new(name: &str) -> Self {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join(".cache/tmp")
+                .join(format!(
+                    "checker-faults-{name}-{}",
+                    crate::loading::test_support::process_id(),
+                ));
+            std::fs::create_dir_all(&path).unwrap();
+            std::fs::write(path.join("helper.vibe"), HELPER).unwrap();
+            Self(path)
+        }
+
+        fn engine(&self) -> Engine {
+            let mut engine = Engine::new();
+            engine
+                .set_module_config(crate::ModuleConfig {
+                    paths: vec![self.0.clone()],
+                    ..crate::ModuleConfig::default()
+                })
+                .unwrap();
+            engine
+        }
+    }
+
+    impl Drop for Files {
+        fn drop(&mut self) {
+            let result = std::fs::remove_dir_all(&self.0);
+            if !std::thread::panicking() {
+                result.unwrap();
+            }
+        }
+    }
+
+    /// Fails each access `entry` makes in turn; each must fail `entry` with the
+    /// internal error. Returns how many there were.
+    fn sweep<T>(entry: impl Fn() -> crate::Result<T>) -> usize {
+        assert!(MAIN.len() <= super::SHALLOW && HELPER.len() <= super::SHALLOW);
+        let mut successes = 0;
+        loop {
+            arm(successes);
+            let result = entry();
+            if !fired() {
+                assert!(result.is_ok(), "the clean run must pass");
+                return successes;
+            }
+            let error: Error = result
+                .err()
+                .unwrap_or_else(|| panic!("access {successes} failed, and the call passed"));
+            assert_eq!(
+                error.kind,
+                ErrorKind::Internal,
+                "access {successes}: {error}"
+            );
+            assert!(
+                error.message.contains(INJECTED),
+                "access {successes}: {error}"
+            );
+            successes += 1;
+        }
+    }
+
+    fn requiring() -> CallOptions {
+        CallOptions {
+            allow_require: true,
+            ..CallOptions::default()
+        }
+    }
+
+    #[test]
+    fn a_broken_invariant_fails_a_compile() {
+        let files = Files::new("compile");
+        let engine = files.engine();
+        let accesses = sweep(|| engine.compile(MAIN));
+        assert!(accesses > 100, "reached only {accesses} accesses");
+    }
+
+    #[test]
+    fn a_broken_invariant_fails_a_type_check() {
+        let files = Files::new("type-check");
+        let engine = files.engine();
+        let accesses = sweep(|| engine.type_check(MAIN));
+        assert!(accesses > 100, "reached only {accesses} accesses");
+    }
+
+    #[test]
+    fn a_broken_invariant_fails_a_metered_type_check() {
+        let files = Files::new("metered");
+        let engine = files.engine();
+        let accesses =
+            sweep(|| crate::CompileBudget::new(&CallOptions::default()).type_check(&engine, MAIN));
+        assert!(accesses > 100, "reached only {accesses} accesses");
+    }
+
+    #[test]
+    fn a_broken_invariant_fails_an_entry_argument_check() {
+        let accesses = sweep(|| Engine::new().check_entry_arguments(MAIN, "run", 1));
+        assert!(accesses > 0, "reached only {accesses} accesses");
+    }
+
+    #[test]
+    fn a_script_cannot_rescue_a_broken_invariant_in_a_required_file() {
+        let files = Files::new("rescue");
+        let mut engine = files.engine();
+        let marks = std::sync::Arc::new(AtomicUsize::new(0));
+        let marked = std::sync::Arc::clone(&marks);
+        engine.register("mark", move |_, _| {
+            marked.fetch_add(1, Ordering::Relaxed);
+            Ok(Value::nil())
+        });
+        let script = engine
+            .compile(concat!(
+                "def run -> int\n",
+                "  begin\n",
+                "    require(\"helper\").count([1])\n",
+                "  rescue\n",
+                "    mark()\n",
+                "    0\n",
+                "  ensure\n",
+                "    mark()\n",
+                "  end\n",
+                "end\n",
+            ))
+            .unwrap();
+        let mut faulted = 0;
+        for successes in 0.. {
+            marks.store(0, Ordering::Relaxed);
+            arm(successes);
+            let result = script.call("run", &[], requiring());
+            if !fired() {
+                result.expect("the clean run must pass");
+                assert_eq!(marks.load(Ordering::Relaxed), 1, "only `ensure` runs");
+                break;
+            }
+            let error = result
+                .err()
+                .unwrap_or_else(|| panic!("access {successes} failed, and the call passed"));
+            assert_eq!(
+                error.kind,
+                ErrorKind::Internal,
+                "access {successes}: {error}"
+            );
+            assert_eq!(
+                marks.load(Ordering::Relaxed),
+                0,
+                "a handler ran after: {error}"
+            );
+            faulted += 1;
+        }
+        assert!(faulted > 10, "reached only {faulted} accesses");
+    }
+
+    #[test]
+    fn a_bad_id_stops_the_check_and_says_where() {
+        let meter = super::meter::Meter::new(Default::default(), None);
+        let program = super::program::Program::new(&meter);
+        let line = line!() + 1;
+        assert!(program.namespace(7).is_none());
+        assert!(meter.stopped());
+        assert!(program.function(9).is_none());
+
+        let error = Error::from(meter.violation().unwrap());
+        assert_eq!(error.kind, ErrorKind::Internal);
+        let site = format!("{}:{line}", file!());
+        assert!(error.message.contains(&site), "{}", error.message);
+        assert!(error.message.contains("index 7"), "{}", error.message);
+    }
+}
+
 #[cfg(test)]
 mod budget_review_tests {
     use super::*;

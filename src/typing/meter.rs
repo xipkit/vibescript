@@ -137,6 +137,10 @@ impl Meter {
     /// violation ([`Self::violation`]) as an internal error.
     #[inline]
     pub fn found<T>(&self, access: Access<T>) -> Option<T> {
+        if let Some(violation) = injected() {
+            self.violated(violation);
+            return None;
+        }
         match access {
             Ok(found) => Some(found),
             Err(violation) => {
@@ -345,6 +349,13 @@ impl Meter {
         }
         self.stopped()
     }
+}
+
+/// The violation a test injects into this access; none outside the tests.
+#[cfg(not(test))]
+#[inline(always)]
+const fn injected() -> Option<Violation> {
+    None
 }
 
 /// What a value owns on the heap, beyond its own size.
@@ -856,6 +867,9 @@ impl<'a> super::Checker<'a> {
         self.halted()
     }
 }
+
+#[cfg(test)]
+use super::fault_tests::injected;
 
 #[cfg(test)]
 mod tests {
