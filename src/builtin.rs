@@ -451,12 +451,7 @@ impl Builtin {
                     "money_cents expects integer cents",
                 ));
             }
-            let cents = crate::conversion::int64(&args[0]).map_err(|error| {
-                Error::new(
-                    ErrorKind::Type,
-                    format!("money_cents expects integer cents: {}", error.message),
-                )
-            })?;
+            let cents = crate::conversion::int64(&args[0]).map_err(money_cents_error)?;
             let Kind::Bytes(bytes) = &args[1].0 else {
                 return Err(Error::new(
                     ErrorKind::Type,
@@ -550,6 +545,17 @@ impl Builtin {
             | Self::Loop
             | Self::Require => Err(crate::checked::internal("builtin was not dispatched")),
         }
+    }
+}
+
+fn money_cents_error(error: Error) -> Error {
+    if error.kind == ErrorKind::Internal {
+        error
+    } else {
+        Error::new(
+            ErrorKind::Type,
+            format!("money_cents expects integer cents: {}", error.message),
+        )
     }
 }
 
@@ -687,6 +693,24 @@ fn call_math(
 #[cfg(test)]
 mod tests {
     use super::Global;
+
+    #[test]
+    fn money_cents_keeps_internal_conversion_errors_terminal() {
+        let error = super::money_cents_error(crate::checked::internal("formatting failed"));
+        assert_eq!(error.kind, crate::ErrorKind::Internal);
+        assert!(error.message.ends_with("formatting failed"));
+        assert!(error.class().is_none());
+
+        let error = super::money_cents_error(crate::Error::new(
+            crate::ErrorKind::Type,
+            "integer must fit in a 64-bit integer",
+        ));
+        assert_eq!(error.kind, crate::ErrorKind::Type);
+        assert_eq!(
+            error.message,
+            "money_cents expects integer cents: integer must fit in a 64-bit integer"
+        );
+    }
 
     #[test]
     fn every_global_is_listed_once_in_name_order() {
