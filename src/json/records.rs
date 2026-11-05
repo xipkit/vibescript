@@ -57,54 +57,73 @@ impl<'a> Records<'a> {
             return;
         }
         if depth == 0 {
-            self.path[depth] = root;
-            self.ready[depth] = true;
+            if let Some(path) = self.path.get_mut(depth) {
+                *path = root;
+            }
+            if let Some(ready) = self.ready.get_mut(depth) {
+                *ready = true;
+            }
             return;
         }
         let mut child = None;
-        let ty = self.path[depth - 1].and_then(|parent| match &parent.kind {
-            TypeKind::Array(element) if key.is_none() => element.as_deref(),
-            TypeKind::Tuple(elements) if key.is_none() => elements.get(index),
-            TypeKind::Hash(Some(pair)) if key.is_some() => Some(&pair.1),
-            TypeKind::Shape(fields, _) => {
-                let key = key?;
-                let slot = (usize::from(key.first().copied().unwrap_or_default()) ^ key.len()) & 3;
-                if let Some(cached) = self.children[slot]
-                    .filter(|cached| std::ptr::eq(cached.parent, parent) && cached.name == key)
-                {
-                    child = Some((slot, cached));
-                    return Some(cached.ty);
+        let ty = self
+            .path
+            .get(depth - 1)
+            .copied()
+            .flatten()
+            .and_then(|parent| match &parent.kind {
+                TypeKind::Array(element) if key.is_none() => element.as_deref(),
+                TypeKind::Tuple(elements) if key.is_none() => elements.get(index),
+                TypeKind::Hash(Some(pair)) if key.is_some() => Some(&pair.1),
+                TypeKind::Shape(fields, _) => {
+                    let key = key?;
+                    let slot =
+                        (usize::from(key.first().copied().unwrap_or_default()) ^ key.len()) & 3;
+                    if let Some(cached) =
+                        self.children.get(slot).copied().flatten().filter(|cached| {
+                            std::ptr::eq(cached.parent, parent) && cached.name == key
+                        })
+                    {
+                        child = Some((slot, cached));
+                        return Some(cached.ty);
+                    }
+                    let index = fields
+                        .binary_search_by(|field| field.name.as_slice().cmp(key))
+                        .ok()?;
+                    let field = fields.get(index)?;
+                    child = Some((
+                        slot,
+                        Child {
+                            parent,
+                            name: &field.name,
+                            ty: &field.ty,
+                            ready: false,
+                        },
+                    ));
+                    Some(&field.ty)
                 }
-                let index = fields
-                    .binary_search_by(|field| field.name.as_slice().cmp(key))
-                    .ok()?;
-                let field = &fields[index];
-                child = Some((
-                    slot,
-                    Child {
-                        parent,
-                        name: &field.name,
-                        ty: &field.ty,
-                        ready: false,
-                    },
-                ));
-                Some(&field.ty)
-            }
-            _ => None,
-        });
-        if match (self.path[depth], ty) {
+                _ => None,
+            });
+        if match (self.path.get(depth).copied().flatten(), ty) {
             (Some(old), Some(new)) => std::ptr::eq(old, new),
             (None, None) => true,
             _ => false,
         } {
             return;
         }
-        self.path[depth] = ty;
-        self.ready[depth] = child.is_some_and(|(_, cached)| cached.ready)
+        if let Some(path) = self.path.get_mut(depth) {
+            *path = ty;
+        }
+        let ready = child.is_some_and(|(_, cached)| cached.ready)
             || ty.is_none_or(|ty| !matches!(ty.kind, TypeKind::Shape(..)) || self.complete(ty));
+        if let Some(slot) = self.ready.get_mut(depth) {
+            *slot = ready;
+        }
         if let Some((slot, mut cached)) = child {
-            cached.ready = self.ready[depth];
-            self.children[slot] = Some(cached);
+            cached.ready = ready;
+            if let Some(child) = self.children.get_mut(slot) {
+                *child = Some(cached);
+            }
         }
     }
 
@@ -182,7 +201,7 @@ impl<'a> Records<'a> {
 
     /// Returns a previously imported name.
     pub fn get(&self, slot: (usize, usize)) -> Option<&Value> {
-        let record = self.records[slot.0].as_ref().unwrap();
+        let record = self.records.get(slot.0)?.as_ref()?;
         record.fields.get(slot.1)
     }
 
@@ -211,10 +230,15 @@ impl<'a> Records<'a> {
     /// Shares the builder's already charged key at its declared slot.
     pub fn remember(&mut self, depth: usize, slot: (usize, usize), key: &Value) {
         self.names |= name_bit(key.as_bytes().unwrap());
-        let record = self.records[slot.0].as_mut().unwrap();
+        let Some(record) = self.records.get_mut(slot.0).and_then(Option::as_mut) else {
+            return;
+        };
         record.fields.remember(slot.1, key);
         let ty = record.ty;
-        self.ready[depth] = self.complete(ty);
+        let complete = self.complete(ty);
+        if let Some(ready) = self.ready.get_mut(depth) {
+            *ready = complete;
+        }
     }
 
     /// Releases names from discarded subtrees while preserving surviving sharing.
@@ -246,7 +270,9 @@ impl<'a> Records<'a> {
                     .flatten()
                     .filter(|value| same(value))
                     .count();
-                discard[slot * FIELD_CHUNK + field] = name.strong_count() == fields + cached;
+                if let Some(discard) = discard.get_mut(slot * FIELD_CHUNK + field) {
+                    *discard = name.strong_count() == fields + cached;
+                }
             }
         }
         for (slot, record) in self
@@ -256,7 +282,11 @@ impl<'a> Records<'a> {
             .enumerate()
         {
             for field in 0..record.fields.len() {
-                if discard[slot * FIELD_CHUNK + field] {
+                if discard
+                    .get(slot * FIELD_CHUNK + field)
+                    .copied()
+                    .unwrap_or(false)
+                {
                     record.fields.forget(field);
                 }
             }

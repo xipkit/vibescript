@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK, MAX_VALUE_DEPTH},
@@ -566,7 +567,7 @@ pub(crate) fn equal<'a>(
                 } else {
                     let i = *index;
                     *index += 1;
-                    Some((&a[i], &b[i]))
+                    Some((a.at(i)?, b.at(i)?))
                 }
             }
             EqualFrame::Hash { a, b, index, .. } => {
@@ -574,12 +575,12 @@ pub(crate) fn equal<'a>(
                 if *index == a.buffer.data.len() {
                     None
                 } else {
-                    let (key, value) = &a.buffer.data[*index];
+                    let (key, value) = a.buffer.at(*index)?;
                     *index += 1;
                     let Some(i) = b.find(ctx, key.require_bytes()?)? else {
                         return Ok(false);
                     };
-                    Some((value, &b.buffer.data[i].1))
+                    Some((value, &b.buffer.at(i)?.1))
                 }
             }
         };
@@ -760,7 +761,8 @@ pub(crate) fn index(ctx: &mut CallContext, value: &Value, index: &Value) -> Resu
             }
             let key = index.hash_key()?;
             Ok(h.find(ctx, key)?
-                .map(|i| h.buffer.data[i].1.clone())
+                .and_then(|i| h.buffer.data.get(i))
+                .map(|entry| entry.1.clone())
                 .unwrap_or_default())
         }
         Kind::Bytes(h) => {
@@ -779,13 +781,13 @@ pub(crate) fn index(ctx: &mut CallContext, value: &Value, index: &Value) -> Resu
             let mut count = 0;
             while pos < bytes.len() {
                 ctx.charge(1)?;
-                let (ch, len, valid) = scan::rune(&bytes[pos..]);
+                let (ch, len, valid) = scan::rune(bytes.tail(pos)?);
                 if count == n {
                     if !valid {
                         let mut encoded = [0; 4];
                         return ctx.bytes(ch.encode_utf8(&mut encoded).as_bytes());
                     }
-                    return ctx.bytes(&bytes[pos..pos + len]);
+                    return ctx.bytes(bytes.span(pos, pos + len)?);
                 }
                 count += 1;
                 pos += len;
@@ -890,7 +892,7 @@ fn array_index(
     if reverse {
         let start = offset.unwrap_or(array.len() - 1).min(array.len() - 1);
         for i in (0..=start).rev() {
-            if equal(ctx, &array[i], needle, 0)? {
+            if equal(ctx, array.at(i)?, needle, 0)? {
                 return Ok(Some(i));
             }
         }
@@ -1008,7 +1010,7 @@ pub(crate) fn method(
                             "array.include? expects exactly one value",
                         ));
                     }
-                    array_index(ctx, array, &args[0], None, false)?
+                    array_index(ctx, array, args.at(0)?, None, false)?
                 } else {
                     if args.is_empty() || args.len() > 2 {
                         return Err(Error::new(
@@ -1022,7 +1024,7 @@ pub(crate) fn method(
                         Some(offset) => Some(index_offset(name, offset)?),
                         None => None,
                     };
-                    array_index(ctx, array, &args[0], offset, matches!(method, Rindex))?
+                    array_index(ctx, array, args.at(0)?, offset, matches!(method, Rindex))?
                 }
             } else {
                 let include = matches!((method, &value.0), (Include, Kind::Bytes(_)));
@@ -1034,7 +1036,7 @@ pub(crate) fn method(
                 }
                 arity(args, 1)?;
                 let bytes = value.require_bytes()?;
-                let needle = args[0].require_bytes().map_err(|mut error| {
+                let needle = args.at(0)?.require_bytes().map_err(|mut error| {
                     if include {
                         error.message = "string.include? substring must be string".into();
                     }
@@ -1042,7 +1044,7 @@ pub(crate) fn method(
                 })?;
                 let found = find(ctx, bytes, needle, matches!(method, Rindex))?;
                 if let Some(pos) = found {
-                    Some(runes(ctx, &bytes[..pos])?.0)
+                    Some(runes(ctx, bytes.span(0, pos)?)?.0)
                 } else {
                     None
                 }
@@ -1081,7 +1083,7 @@ pub(crate) fn method(
                     if run > 0 {
                         ctx.charge_each(run as u64)?;
                         sum = Value::int(total);
-                        rest = &rest[run..];
+                        rest = rest.tail(run)?;
                         continue;
                     }
                 }
@@ -1090,7 +1092,7 @@ pub(crate) fn method(
                     return Err(Error::new(ErrorKind::Type, SUM_INCOMPATIBLE));
                 }
                 sum = binary(ctx, "+", sum, item.clone()).map_err(sum_incompatible)?;
-                rest = &rest[1..];
+                rest = rest.tail(1)?;
             }
             Ok(sum)
         }
@@ -1137,7 +1139,7 @@ pub(crate) fn runes(ctx: &mut CallContext, bytes: &[u8]) -> Result<(usize, bool)
     let mut valid = true;
     while i < bytes.len() {
         let end = bytes.len().min(i + CHUNK);
-        let chunk = &bytes[i..end];
+        let chunk = bytes.span(i, end)?;
         let ascii = scan::prefix(chunk, Class::Ascii);
         if ascii > 0 {
             ctx.work_bytes(ascii)?;
@@ -1153,7 +1155,7 @@ pub(crate) fn runes(ctx: &mut CallContext, bytes: &[u8]) -> Result<(usize, bool)
             count += span.runes;
         } else {
             ctx.charge(1)?;
-            let (_, n, ok) = scan::rune(&bytes[i..]);
+            let (_, n, ok) = scan::rune(bytes.tail(i)?);
             i += n;
             count += 1;
             valid &= ok;
@@ -1166,7 +1168,7 @@ pub(crate) fn trim(ctx: &mut CallContext, bytes: &[u8]) -> Result<(usize, usize)
     let mut start = 0;
     while start < bytes.len() {
         ctx.charge(1)?;
-        let (ch, n, _) = scan::rune(&bytes[start..]);
+        let (ch, n, _) = scan::rune(bytes.tail(start)?);
         if !ch.is_whitespace() {
             break;
         }
@@ -1177,12 +1179,12 @@ pub(crate) fn trim(ctx: &mut CallContext, bytes: &[u8]) -> Result<(usize, usize)
         ctx.charge(1)?;
         let mut pos = end - 1;
         for _ in 0..3 {
-            if pos == start || bytes[pos] & 0xc0 != 0x80 {
+            if pos == start || bytes.at(pos)? & 0xc0 != 0x80 {
                 break;
             }
             pos -= 1;
         }
-        let (ch, n, valid) = scan::rune(&bytes[pos..end]);
+        let (ch, n, valid) = scan::rune(bytes.span(pos, end)?);
         if !valid || pos + n != end || !ch.is_whitespace() {
             break;
         }
@@ -1212,11 +1214,11 @@ pub(crate) fn find(
     let mut matched = 0;
     for i in 1..needle.len() {
         ctx.scan_bytes(&mut pending, 1)?;
-        while matched > 0 && needle[i] != needle[matched] {
+        while matched > 0 && needle.at(i)? != needle.at(matched)? {
             ctx.scan_bytes(&mut pending, 1)?;
-            matched = table.data[matched - 1];
+            matched = *table.at(matched - 1)?;
         }
-        if needle[i] == needle[matched] {
+        if needle.at(i)? == needle.at(matched)? {
             matched += 1;
         }
         table.data.push(matched);
@@ -1225,11 +1227,11 @@ pub(crate) fn find(
     let mut found = None;
     for (i, &b) in bytes.iter().enumerate() {
         ctx.scan_bytes(&mut pending, 1)?;
-        while matched > 0 && b != needle[matched] {
+        while matched > 0 && b != *needle.at(matched)? {
             ctx.scan_bytes(&mut pending, 1)?;
-            matched = table.data[matched - 1];
+            matched = *table.at(matched - 1)?;
         }
-        if b == needle[matched] {
+        if b == *needle.at(matched)? {
             matched += 1;
         }
         if matched == needle.len() {
@@ -1237,7 +1239,7 @@ pub(crate) fn find(
             if !last {
                 break;
             }
-            matched = table.data[matched - 1];
+            matched = *table.at(matched - 1)?;
         }
     }
     ctx.settle_bytes(&mut pending)?;
@@ -1296,7 +1298,7 @@ fn join_into<'a>(
             out.extend(ctx, sep)?;
         }
         let values: &'a [Value] = current.values;
-        let v = &values[i];
+        let v = values.at(i)?;
         if let Some(nested) = v.as_array() {
             // A nested level sits one below its parent; the root is level 0.
             if parents.data.len() + 1 > MAX_VALUE_DEPTH {

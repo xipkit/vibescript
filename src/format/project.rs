@@ -1,4 +1,5 @@
 use super::*;
+use crate::checked::Checked;
 
 pub(super) fn string_bytes(
     ctx: &mut CallContext,
@@ -154,7 +155,7 @@ fn fixed_float(value: &Value, field: Field) -> crate::checked::Access<usize> {
             write!(number, "{:e}", n.abs()).unwrap();
             let bytes = number.bytes();
             let exponent = bytes.iter().rposition(|b| *b == b'e').unwrap();
-            let exponent: i32 = std::str::from_utf8(&bytes[exponent + 1..])
+            let exponent: i32 = std::str::from_utf8(bytes.tail(exponent + 1)?)
                 .unwrap()
                 .parse()
                 .unwrap();

@@ -3,6 +3,7 @@
 //! other radixes splits the digits in halves around a power of the radix.
 
 use super::{Magnitude, multiply, trim, work};
+use crate::checked::Checked;
 use crate::{
     CallContext, Result,
     budget::{Buffer, CHUNK},
@@ -68,7 +69,7 @@ impl Powers {
             };
             self.table.push(ctx, next)?;
         }
-        Ok(&self.table.data[level].data)
+        Ok(&self.table.at(level)?.data)
     }
 }
 
@@ -84,7 +85,8 @@ pub(super) fn parse(ctx: &mut CallContext, digits: &[u8], radix: u32) -> Result<
     while end > 0 {
         let start = end.saturating_sub(width);
         work(ctx, chunks.data.len(), chunks.data.capacity())?;
-        let value = digits[start..end]
+        let value = digits
+            .span(start, end)?
             .iter()
             .fold(0, |value, &byte| value * radix + digit(byte, radix));
         chunks.data.push(value);
@@ -134,9 +136,9 @@ fn parse_bits(ctx: &mut CallContext, digits: &[u8], bits: u32) -> Result<Buffer<
         digit_work(ctx, index, digits.len())?;
         let position = index * bits as usize;
         let value = (digit(byte, 1 << bits) as u64) << (position % 32);
-        words.data[position / 32] |= value as u32;
+        *words.at_mut(position / 32)? |= value as u32;
         if value >> 32 != 0 {
-            words.data[position / 32 + 1] |= (value >> 32) as u32;
+            *words.at_mut(position / 32 + 1)? |= (value >> 32) as u32;
         }
     }
     trim(ctx, &mut words.data)?;
@@ -159,7 +161,7 @@ pub(super) fn format_bits(
         let position = index * bits as usize;
         let value = (magnitude.window(position) & ((1 << bits) - 1)) as usize;
         out.data
-            .push(b"0123456789abcdefghijklmnopqrstuvwxyz"[value]);
+            .push(*b"0123456789abcdefghijklmnopqrstuvwxyz".at(value)?);
     }
     Ok(())
 }

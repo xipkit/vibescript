@@ -7,6 +7,7 @@
 //! are preflighted before any row is allocated. Intrinsic size guards raise
 //! recoverable limit errors; exhausted quotas latch like every other charge.
 
+use crate::checked::{Access, Checked};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::Buffer,
@@ -151,7 +152,7 @@ fn length_argument(label: &str, args: &[Value]) -> Result<Option<u64>> {
     if args.len() != 1 {
         return Err(argument(format!("{label} expects exactly one length")));
     }
-    let length = sequence::integer(&args[0])
+    let length = sequence::integer(args.at(0)?)
         .map_err(|_| argument(format!("{label} length must be integer")))?;
     Ok(u64::try_from(length).ok())
 }
@@ -199,7 +200,7 @@ fn publish_row(ctx: &mut CallContext, array: &[Value], indices: &[usize]) -> Res
     let mut row = Buffer::with_capacity(ctx, indices.len())?;
     for &index in indices {
         ctx.charge(1)?;
-        row.data.push(array[index].clone());
+        row.data.push(array.at(index)?.clone());
     }
     Value::from_array(ctx, row)
 }
@@ -234,7 +235,7 @@ impl Swaps {
         let mut slot = hash.finish() as usize & mask;
         loop {
             ctx.charge(1)?;
-            let stored = self.0.data[slot].0;
+            let stored = self.0.at(slot)?.0;
             if stored == usize::MAX || stored == key {
                 return Ok(slot);
             }
@@ -242,9 +243,9 @@ impl Swaps {
         }
     }
 
-    fn value(&self, slot: usize, fallback: usize) -> usize {
-        let (key, value) = self.0.data[slot];
-        if key == usize::MAX { fallback } else { value }
+    fn value(&self, slot: usize, fallback: usize) -> Access<usize> {
+        let (key, value) = *self.0.at(slot)?;
+        Ok(if key == usize::MAX { fallback } else { value })
     }
 }
 
@@ -257,9 +258,9 @@ fn sample(ctx: &mut CallContext, label: &str, array: &[Value], args: &[Value]) -
             return Ok(Value::nil());
         }
         let index = crate::random::bounded(ctx, array.len() as u64)?;
-        return Ok(array[index as usize].clone());
+        return Ok(array.at(index as usize)?.clone());
     }
-    let count = sample_count(label, &args[0])?.min(array.len());
+    let count = sample_count(label, args.at(0)?)?.min(array.len());
     if count == 0 {
         return empty(ctx);
     }
@@ -288,11 +289,11 @@ fn sample(ctx: &mut CallContext, label: &str, array: &[Value], args: &[Value]) -
         let offset = crate::random::bounded(ctx, (array.len() - i) as u64)? as usize;
         let j = i + offset;
         let target = swaps.slot(ctx, j)?;
-        let selected = swaps.value(target, j);
+        let selected = swaps.value(target, j)?;
         let source = swaps.slot(ctx, i)?;
-        let displaced = swaps.value(source, i);
-        swaps.0.data[target] = (j, displaced);
-        out.data.push(array[selected].clone());
+        let displaced = swaps.value(source, i)?;
+        *swaps.0.at_mut(target)? = (j, displaced);
+        out.data.push(array.at(selected)?.clone());
     }
     Value::from_array(ctx, out)
 }
@@ -323,9 +324,10 @@ fn rotate(ctx: &mut CallContext, label: &str, array: &[Value], args: &[Value]) -
     let length = array.len();
     let shift = offset.rem_euclid(crate::numeric::to_i64(length)) as usize;
     let mut out = Buffer::with_capacity(ctx, length)?;
-    for i in 0..length {
+    let (head, tail) = array.split_at(shift);
+    for value in tail.iter().chain(head) {
         ctx.charge(1)?;
-        out.data.push(array[(shift + i) % length].clone());
+        out.data.push(value.clone());
     }
     Value::from_array(ctx, out)
 }
@@ -360,17 +362,17 @@ fn product(ctx: &mut CallContext, label: &str, array: &[Value], args: &[Value]) 
         let mut row = Buffer::with_capacity(ctx, width)?;
         for (dim, &index) in dims.data.iter().zip(&indices.data) {
             ctx.charge(1)?;
-            row.data.push(dim[index].clone());
+            row.data.push(dim.at(index)?.clone());
         }
         let row = Value::from_array(ctx, row)?;
         out.push(ctx, row)?;
-        for i in (0..width).rev() {
+        for (index, dim) in indices.data.iter_mut().zip(&dims.data).rev() {
             ctx.charge(1)?;
-            indices.data[i] += 1;
-            if indices.data[i] < dims.data[i].len() {
+            *index += 1;
+            if *index < dim.len() {
                 break;
             }
-            indices.data[i] = 0;
+            *index = 0;
         }
     }
     Value::from_array(ctx, out)
@@ -413,11 +415,11 @@ fn advance_combination(ctx: &mut CallContext, indices: &mut [usize], n: usize) -
     let k = indices.len();
     for i in (0..k).rev() {
         ctx.charge(1)?;
-        if indices[i] != i + n - k {
-            indices[i] += 1;
+        if *indices.at(i)? != i + n - k {
+            *indices.at_mut(i)? += 1;
             for j in i + 1..k {
                 ctx.charge(1)?;
-                indices[j] = indices[j - 1] + 1;
+                *indices.at_mut(j)? = indices.at(j - 1)? + 1;
             }
             return Ok(());
         }
@@ -432,9 +434,9 @@ fn advance_repeated_combination(
 ) -> Result<()> {
     for i in (0..indices.len()).rev() {
         ctx.charge(1)?;
-        if indices[i] < n - 1 {
-            let next = indices[i] + 1;
-            for index in &mut indices[i..] {
+        if *indices.at(i)? < n - 1 {
+            let next = indices.at(i)? + 1;
+            for index in indices.span_mut(i, indices.len())? {
                 ctx.charge(1)?;
                 *index = next;
             }
@@ -559,13 +561,13 @@ fn permutation(
             ctx.charge(1)?;
             let row = publish_row(ctx, array, &indices.data)?;
             out.push(ctx, row)?;
-            for i in (0..length).rev() {
+            for index in indices.data.iter_mut().rev() {
                 ctx.charge(1)?;
-                indices.data[i] += 1;
-                if indices.data[i] < array.len() {
+                *index += 1;
+                if *index < array.len() {
                     break;
                 }
-                indices.data[i] = 0;
+                *index = 0;
             }
         }
         return Value::from_array(ctx, out);
@@ -591,11 +593,11 @@ fn permutation(
                 break;
             }
             depth -= 1;
-            used.data[choice.data[depth]] = false;
+            *used.at_mut(*choice.at(depth)?)? = false;
             continue;
         }
-        let mut i = cursor.data[depth];
-        while i < n && used.data[i] {
+        let mut i = *cursor.at(depth)?;
+        while i < n && *used.at(i)? {
             ctx.charge(1)?;
             i += 1;
         }
@@ -604,15 +606,15 @@ fn permutation(
                 break;
             }
             depth -= 1;
-            used.data[choice.data[depth]] = false;
+            *used.at_mut(*choice.at(depth)?)? = false;
             continue;
         }
-        choice.data[depth] = i;
-        used.data[i] = true;
-        cursor.data[depth] = i + 1;
+        *choice.at_mut(depth)? = i;
+        *used.at_mut(i)? = true;
+        *cursor.at_mut(depth)? = i + 1;
         depth += 1;
         if depth < length {
-            cursor.data[depth] = 0;
+            *cursor.at_mut(depth)? = 0;
         }
     }
     Value::from_array(ctx, out)

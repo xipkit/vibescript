@@ -1,4 +1,5 @@
 use super::*;
+use crate::checked::Checked;
 
 pub(super) fn prepare(ctx: &mut CallContext, pattern: &[u8], values: &[Value]) -> Result<Prepared> {
     let mut prepared = Prepared {
@@ -9,18 +10,17 @@ pub(super) fn prepare(ctx: &mut CallContext, pattern: &[u8], values: &[Value]) -
     let mut next_argument = 0;
     let mut used = 0;
     let mut total = 0;
-    while offset < pattern.len() {
+    while let Some(&byte) = pattern.get(offset) {
         ctx.charge(1)?;
-        if pattern[offset] != b'%' {
+        if byte != b'%' {
             let start = offset;
-            while offset < pattern.len()
-                && pattern[offset] != b'%'
+            while pattern.get(offset).is_some_and(|&byte| byte != b'%')
                 && offset - start <= LIMIT - total
             {
                 offset += 1;
             }
             add(ctx, &mut total, offset - start)?;
-            prepared.pattern.extend(ctx, &pattern[start..offset])?;
+            prepared.pattern.extend(ctx, pattern.span(start, offset)?)?;
             continue;
         }
         let start = offset;
@@ -30,7 +30,7 @@ pub(super) fn prepare(ctx: &mut CallContext, pattern: &[u8], values: &[Value]) -
             prepared.pattern.push(ctx, b'%')?;
             break;
         }
-        if pattern[offset] == b'%' {
+        if pattern.get(offset) == Some(&b'%') {
             add(ctx, &mut total, 1)?;
             prepared.pattern.extend(ctx, b"%%")?;
             offset += 1;
@@ -39,7 +39,10 @@ pub(super) fn prepare(ctx: &mut CallContext, pattern: &[u8], values: &[Value]) -
         let mut explicit = index(pattern, &mut offset, true);
         let after_leading = offset;
         let mut field = Field::default();
-        while offset < pattern.len() && field.take_flag(pattern[offset]) {
+        while pattern
+            .get(offset)
+            .is_some_and(|&byte| field.take_flag(byte))
+        {
             offset += 1;
         }
         field.width = count(ctx, pattern, &mut offset, "width")?;
@@ -53,10 +56,10 @@ pub(super) fn prepare(ctx: &mut CallContext, pattern: &[u8], values: &[Value]) -
         }
         if offset == pattern.len() {
             add(ctx, &mut total, pattern.len())?;
-            prepared.pattern.extend(ctx, &pattern[start..])?;
+            prepared.pattern.extend(ctx, pattern.tail(start)?)?;
             break;
         }
-        let verb = pattern[offset];
+        let verb = *pattern.at(offset)?;
         offset += 1;
         let selected = explicit.unwrap_or(next_argument);
         next_argument = selected.saturating_add(1);
@@ -76,7 +79,7 @@ pub(super) fn prepare(ctx: &mut CallContext, pattern: &[u8], values: &[Value]) -
         prepared.pattern.push(ctx, b'%')?;
         prepared
             .pattern
-            .extend(ctx, &pattern[after_leading..before_trailing])?;
+            .extend(ctx, pattern.span(after_leading, before_trailing)?)?;
         prepared.pattern.push(ctx, verb)?;
         prepared.arguments.push(ctx, argument)?;
     }
@@ -107,10 +110,10 @@ pub(super) fn index(pattern: &[u8], offset: &mut usize, dollar: bool) -> Option<
     let digits = end;
     let mut value = 0usize;
     let mut valid = true;
-    while pattern.get(end).is_some_and(u8::is_ascii_digit) {
+    while let Some(&byte) = pattern.get(end).filter(|byte| byte.is_ascii_digit()) {
         if let Some(next) = value
             .checked_mul(10)
-            .and_then(|n| n.checked_add((pattern[end] - b'0') as usize))
+            .and_then(|n| n.checked_add((byte - b'0') as usize))
         {
             value = next;
         } else {
@@ -145,11 +148,11 @@ fn count(
     }
     let start = *offset;
     let mut value = 0usize;
-    while pattern.get(*offset).is_some_and(u8::is_ascii_digit) {
+    while let Some(&byte) = pattern.get(*offset).filter(|byte| byte.is_ascii_digit()) {
         ctx.charge(1)?;
         value = value
             .saturating_mul(10)
-            .saturating_add((pattern[*offset] - b'0') as usize);
+            .saturating_add((byte - b'0') as usize);
         *offset += 1;
     }
     if value > LIMIT {

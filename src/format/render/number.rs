@@ -1,4 +1,5 @@
 use super::*;
+use crate::checked::{Access, Checked};
 use std::fmt::{self, Write};
 
 struct Digits {
@@ -18,13 +19,16 @@ impl Digits {
         }
     }
 
-    fn push(&mut self, bytes: &[u8]) {
+    fn push(&mut self, bytes: &[u8]) -> Access<()> {
         let end = self.length + bytes.len();
-        self.bytes[self.length..end].copy_from_slice(bytes);
+        self.bytes
+            .span_mut(self.length, end)?
+            .copy_from_slice(bytes);
         self.length = end;
+        Ok(())
     }
 
-    fn radix(&mut self, mut value: u64, base: u64, uppercase: bool) {
+    fn radix(&mut self, mut value: u64, base: u64, uppercase: bool) -> Access<()> {
         let alphabet = if uppercase {
             b"0123456789ABCDEF"
         } else {
@@ -32,27 +36,28 @@ impl Digits {
         };
         let start = self.length;
         loop {
-            self.push(&[alphabet[(value % base) as usize]]);
+            self.push(&[*alphabet.at((value % base) as usize)?])?;
             value /= base;
             if value == 0 {
                 break;
             }
         }
-        self.bytes[start..self.length].reverse();
+        self.bytes.span_mut(start, self.length)?.reverse();
+        Ok(())
     }
 
-    fn exponent(&mut self, letter: u8, exponent: i32) {
-        self.push(&[letter, if exponent < 0 { b'-' } else { b'+' }]);
+    fn exponent(&mut self, letter: u8, exponent: i32) -> Access<()> {
+        self.push(&[letter, if exponent < 0 { b'-' } else { b'+' }])?;
         if exponent.unsigned_abs() < 10 {
-            self.push(b"0");
+            self.push(b"0")?;
         }
-        self.radix(exponent.unsigned_abs() as u64, 10, false);
+        self.radix(exponent.unsigned_abs() as u64, 10, false)
     }
 
     fn write(&self, ctx: &mut CallContext, output: &mut Output) -> Result<()> {
-        output.write(ctx, &self.bytes[..self.split])?;
+        output.write(ctx, self.bytes.span(0, self.split)?)?;
         output.repeat(ctx, b'0', self.zeros)?;
-        output.write(ctx, &self.bytes[self.split..self.length])
+        output.write(ctx, self.bytes.span(self.split, self.length)?)
     }
 }
 
@@ -61,7 +66,7 @@ impl Write for Digits {
         if text.len() > self.bytes.len() - self.length {
             return Err(fmt::Error);
         }
-        self.push(text.as_bytes());
+        self.push(text.as_bytes()).map_err(|_| fmt::Error)?;
         Ok(())
     }
 }
@@ -108,8 +113,8 @@ pub(super) fn integer(
     let mut large;
     let (digits, negative) = match &value.0 {
         Kind::Int(n) => {
-            small.radix(n.unsigned_abs(), base, verb == 'X');
-            (&small.bytes[..small.length], *n < 0)
+            small.radix(n.unsigned_abs(), base, verb == 'X')?;
+            (small.bytes.span(0, small.length)?, *n < 0)
         }
         Kind::Big(n) => {
             large = crate::integer::format(ctx, value, base as u32)?;
@@ -119,7 +124,7 @@ pub(super) fn integer(
                     bytes.make_ascii_uppercase();
                 }
             }
-            (&large.data[usize::from(n.negative)..], n.negative)
+            (large.tail(usize::from(n.negative))?, n.negative)
         }
         _ => {
             return Err(crate::checked::internal(
@@ -138,11 +143,11 @@ pub(super) fn unsigned(
     field: Field,
 ) -> Result<()> {
     let mut digits = Digits::new();
-    digits.radix(value, if verb == 'x' { 16 } else { 10 }, false);
+    digits.radix(value, if verb == 'x' { 16 } else { 10 }, false)?;
     integral(
         ctx,
         output,
-        &digits.bytes[..digits.length],
+        digits.bytes.span(0, digits.length)?,
         false,
         false,
         verb,
@@ -178,7 +183,7 @@ fn integral(
             .unwrap_or(0)
             .saturating_sub(sign.len() + digits.len());
     }
-    let sharp_octal = field.flag(SHARP) && (big || (zeros == 0 && digits[0] != b'0'));
+    let sharp_octal = field.flag(SHARP) && (big || (zeros == 0 && *digits.at(0)? != b'0'));
     let prefix: &[u8] = match verb {
         'b' if field.flag(SHARP) => b"0b",
         'x' if field.flag(SHARP) => b"0x",
@@ -237,7 +242,7 @@ pub(super) fn debug_big(
     }
     output.write(ctx, if sharp { b"big.nat{" } else { b"[" })?;
     let bytes = crate::integer::format(ctx, value, 16)?;
-    let bytes = &bytes.data[usize::from(big.negative)..];
+    let bytes = bytes.tail(usize::from(big.negative))?;
     if sharp {
         field.flags |= SHARP;
     }
@@ -260,7 +265,7 @@ pub(super) fn debug_big(
 
 fn unicode(ctx: &mut CallContext, output: &mut Output, value: u64, field: Field) -> Result<()> {
     let mut digits = Digits::new();
-    digits.radix(value, 16, true);
+    digits.radix(value, 16, true)?;
     let zeros = field
         .precision
         .unwrap_or(4)
@@ -277,7 +282,7 @@ fn unicode(ctx: &mut CallContext, output: &mut Output, value: u64, field: Field)
     }
     output.write(ctx, b"U+")?;
     output.repeat(ctx, b'0', zeros)?;
-    output.write(ctx, &digits.bytes[..digits.length])?;
+    output.write(ctx, digits.bytes.span(0, digits.length)?)?;
     if let Some(rune) = rune {
         let mut bytes = [0; 4];
         output.write(ctx, b" '")?;
@@ -315,16 +320,16 @@ pub(super) fn float(
     let mut digits = if !value.is_finite() {
         field.flags &= !ZERO;
         let mut digits = Digits::new();
-        digits.push(if value.is_nan() { b"NaN" } else { b"Inf" });
+        digits.push(if value.is_nan() { b"NaN" } else { b"Inf" })?;
         digits
     } else {
         ctx.charge(1)?;
         match verb {
-            'f' | 'F' => fixed(value.abs(), field),
-            'e' | 'E' => scientific(value.abs(), verb == 'E', field),
-            'g' | 'G' | 'v' => general(value.abs(), verb == 'G', field),
-            'x' | 'X' => hexadecimal(value.abs(), verb == 'X', field),
-            'b' => binary(value.abs()),
+            'f' | 'F' => fixed(value.abs(), field)?,
+            'e' | 'E' => scientific(value.abs(), verb == 'E', field)?,
+            'g' | 'G' | 'v' => general(value.abs(), verb == 'G', field)?,
+            'x' | 'X' => hexadecimal(value.abs(), verb == 'X', field)?,
+            'b' => binary(value.abs())?,
             _ => {
                 return Err(crate::checked::internal("unsupported float format verb"));
             }
@@ -351,49 +356,51 @@ pub(super) fn float(
     Ok(())
 }
 
-fn fixed(value: f64, field: Field) -> Digits {
+fn fixed(value: f64, field: Field) -> Access<Digits> {
     let precision = field.precision.unwrap_or(6);
     let bounded = precision.min(1074);
     let mut digits = Digits::new();
     write!(digits, "{value:.bounded$}").unwrap();
     if precision == 0 && field.flag(SHARP) {
-        digits.push(b".");
+        digits.push(b".")?;
     }
     digits.split = digits.length;
     digits.zeros = precision - bounded;
-    digits
+    Ok(digits)
 }
 
-fn scientific(value: f64, uppercase: bool, field: Field) -> Digits {
+fn scientific(value: f64, uppercase: bool, field: Field) -> Access<Digits> {
     let precision = field.precision.unwrap_or(6);
     let bounded = precision.min(1074);
     let mut raw = Digits::new();
     write!(raw, "{value:.bounded$e}").unwrap();
-    let (end, exponent) = exponent(&raw);
+    let (end, exponent) = exponent(&raw)?;
     let mut digits = Digits::new();
-    digits.push(&raw.bytes[..end]);
+    digits.push(raw.bytes.span(0, end)?)?;
     if precision == 0 && field.flag(SHARP) {
-        digits.push(b".");
+        digits.push(b".")?;
     }
     digits.split = digits.length;
     digits.zeros = precision - bounded;
-    digits.exponent(if uppercase { b'E' } else { b'e' }, exponent);
-    digits
+    digits.exponent(if uppercase { b'E' } else { b'e' }, exponent)?;
+    Ok(digits)
 }
 
-fn exponent(raw: &Digits) -> (usize, i32) {
-    let offset = raw.bytes[..raw.length]
+fn exponent(raw: &Digits) -> Access<(usize, i32)> {
+    let offset = raw
+        .bytes
+        .span(0, raw.length)?
         .iter()
         .position(|b| *b == b'e')
         .unwrap();
-    let exponent = std::str::from_utf8(&raw.bytes[offset + 1..raw.length])
+    let exponent = std::str::from_utf8(raw.bytes.span(offset + 1, raw.length)?)
         .unwrap()
         .parse()
         .unwrap();
-    (offset, exponent)
+    Ok((offset, exponent))
 }
 
-fn general(value: f64, uppercase: bool, field: Field) -> Digits {
+fn general(value: f64, uppercase: bool, field: Field) -> Access<Digits> {
     let mut raw = Digits::new();
     if let Some(precision) = field.precision {
         let bounded = precision.max(1).saturating_sub(1).min(1074);
@@ -401,44 +408,44 @@ fn general(value: f64, uppercase: bool, field: Field) -> Digits {
     } else {
         write!(raw, "{value:e}").unwrap();
     }
-    let (end, exponent) = exponent(&raw);
+    let (end, exponent) = exponent(&raw)?;
     let mut significand = Digits::new();
-    for byte in &raw.bytes[..end] {
+    for byte in raw.bytes.span(0, end)? {
         if *byte != b'.' {
-            significand.push(&[*byte]);
+            significand.push(&[*byte])?;
         }
     }
-    while significand.length > 1 && significand.bytes[significand.length - 1] == b'0' {
+    while significand.length > 1 && *significand.bytes.at(significand.length - 1)? == b'0' {
         significand.length -= 1;
     }
     let precision = field.precision.map_or(6, |n| n.max(1));
     let scientific = exponent < -4 || exponent >= i32::try_from(precision).unwrap_or(i32::MAX);
     let mut digits = Digits::new();
     let significant = if scientific {
-        digits.push(&significand.bytes[..1]);
+        digits.push(&significand.bytes[..1])?;
         if significand.length > 1 || field.flag(SHARP) {
-            digits.push(b".");
+            digits.push(b".")?;
         }
-        digits.push(&significand.bytes[1..significand.length]);
+        digits.push(significand.bytes.span(1, significand.length)?)?;
         significand.length
     } else if exponent < 0 {
-        digits.push(b"0.");
+        digits.push(b"0.")?;
         for _ in 0..-exponent - 1 {
-            digits.push(b"0");
+            digits.push(b"0")?;
         }
-        digits.push(&significand.bytes[..significand.length]);
+        digits.push(significand.bytes.span(0, significand.length)?)?;
         significand.length
     } else {
         let integer = exponent as usize + 1;
         let used = integer.min(significand.length);
-        digits.push(&significand.bytes[..used]);
+        digits.push(significand.bytes.span(0, used)?)?;
         for _ in used..integer {
-            digits.push(b"0");
+            digits.push(b"0")?;
         }
         if used < significand.length || field.flag(SHARP) {
-            digits.push(b".");
+            digits.push(b".")?;
         }
-        digits.push(&significand.bytes[used..significand.length]);
+        digits.push(significand.bytes.span(used, significand.length)?)?;
         integer.max(significand.length)
     };
     digits.split = digits.length;
@@ -447,12 +454,12 @@ fn general(value: f64, uppercase: bool, field: Field) -> Digits {
         digits.zeros = field.precision.unwrap_or(6).saturating_sub(significant);
     }
     if scientific {
-        digits.exponent(if uppercase { b'E' } else { b'e' }, exponent);
+        digits.exponent(if uppercase { b'E' } else { b'e' }, exponent)?;
     }
-    digits
+    Ok(digits)
 }
 
-fn hexadecimal(value: f64, uppercase: bool, field: Field) -> Digits {
+fn hexadecimal(value: f64, uppercase: bool, field: Field) -> Access<Digits> {
     let bits = value.to_bits();
     let mut mantissa = bits & ((1u64 << 52) - 1);
     let mut exponent = ((bits >> 52) & 2047) as i32 - 1023;
@@ -486,8 +493,8 @@ fn hexadecimal(value: f64, uppercase: bool, field: Field) -> Digits {
         b"0123456789abcdef"
     };
     let mut digits = Digits::new();
-    digits.push(if uppercase { b"0X" } else { b"0x" });
-    digits.push(&[alphabet[(mantissa >> 52) as usize]]);
+    digits.push(if uppercase { b"0X" } else { b"0x" })?;
+    digits.push(&[*alphabet.at((mantissa >> 52) as usize)?])?;
     let mut fraction = precision.min(13);
     if field.precision.is_none() {
         while fraction > 0 && (mantissa >> ((13 - fraction) * 4)) & 15 == 0 {
@@ -495,10 +502,10 @@ fn hexadecimal(value: f64, uppercase: bool, field: Field) -> Digits {
         }
     }
     if fraction > 0 || field.flag(SHARP) || precision > 13 {
-        digits.push(b".");
+        digits.push(b".")?;
     }
     for index in 0..fraction {
-        digits.push(&[alphabet[((mantissa >> (48 - index * 4)) & 15) as usize]]);
+        digits.push(&[*alphabet.at(((mantissa >> (48 - index * 4)) & 15) as usize)?])?;
     }
     digits.split = digits.length;
     digits.zeros = precision.saturating_sub(13);
@@ -507,11 +514,11 @@ fn hexadecimal(value: f64, uppercase: bool, field: Field) -> Digits {
         let desired = field.precision.unwrap_or(6);
         digits.zeros = digits.zeros.max(desired.saturating_sub(2 + fraction));
     }
-    digits.exponent(if uppercase { b'P' } else { b'p' }, exponent);
-    digits
+    digits.exponent(if uppercase { b'P' } else { b'p' }, exponent)?;
+    Ok(digits)
 }
 
-fn binary(value: f64) -> Digits {
+fn binary(value: f64) -> Access<Digits> {
     let bits = value.to_bits();
     let mut mantissa = bits & ((1u64 << 52) - 1);
     let mut exponent = ((bits >> 52) & 2047) as i32 - 1023;
@@ -522,8 +529,23 @@ fn binary(value: f64) -> Digits {
     }
     exponent -= 52;
     let mut digits = Digits::new();
-    digits.radix(mantissa, 10, false);
-    digits.push(&[b'p', if exponent < 0 { b'-' } else { b'+' }]);
-    digits.radix(exponent.unsigned_abs() as u64, 10, false);
-    digits
+    digits.radix(mantissa, 10, false)?;
+    digits.push(&[b'p', if exponent < 0 { b'-' } else { b'+' }])?;
+    digits.radix(exponent.unsigned_abs() as u64, 10, false)?;
+    Ok(digits)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn digit_buffer_overflow_reports_an_internal_error() {
+        let mut digits = Digits::new();
+        digits.push(&[b'0'; 2048]).unwrap();
+        let error = crate::Error::from(digits.push(b"1").unwrap_err());
+        assert_eq!(error.kind, crate::ErrorKind::Internal);
+        assert_eq!(digits.length, 2048);
+        assert!(digits.write_str("1").is_err());
+    }
 }

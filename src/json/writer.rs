@@ -1,4 +1,5 @@
 use crate::bytes::Number;
+use crate::checked::Checked;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK, MAX_VALUE_DEPTH},
@@ -11,20 +12,22 @@ use std::fmt::Write;
 const ASCII_ESCAPES: [u8; 128] = {
     let mut escapes = [0; 128];
     let mut byte = 0;
-    while byte < 32 {
-        escapes[byte] = 1;
+    let mut remaining: &mut [u8] = &mut escapes;
+    while let Some((value, tail)) = remaining.split_first_mut() {
+        *value = match byte {
+            8 => b'b',
+            12 => b'f',
+            b'"' => b'"',
+            b'\\' => b'\\',
+            b'\n' => b'n',
+            b'\r' => b'r',
+            b'\t' => b't',
+            0..=31 | b'<' | b'>' | b'&' => 1,
+            _ => 0,
+        };
         byte += 1;
+        remaining = tail;
     }
-    escapes[b'"' as usize] = b'"';
-    escapes[b'\\' as usize] = b'\\';
-    escapes[b'\n' as usize] = b'n';
-    escapes[b'\r' as usize] = b'r';
-    escapes[b'\t' as usize] = b't';
-    escapes[8] = b'b';
-    escapes[12] = b'f';
-    escapes[b'<' as usize] = 1;
-    escapes[b'>' as usize] = 1;
-    escapes[b'&' as usize] = 1;
     escapes
 };
 
@@ -281,7 +284,10 @@ impl std::fmt::Display for Path<'_, '_> {
                 Frame::Hash { entries, .. } => {
                     let mut quoted = Vec::new();
                     crate::shapes::quote(
-                        entries[index].0.as_bytes().unwrap_or_default(),
+                        entries
+                            .get(index)
+                            .and_then(|entry| entry.0.as_bytes())
+                            .unwrap_or_default(),
                         &mut quoted,
                     );
                     write!(
@@ -420,13 +426,12 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
     let mut pending = 0;
     let mut settled = 0;
     let mut i = 0;
-    while i < input.len() {
+    while let Some(&b) = input.get(i) {
         if i - settled >= CHUNK {
             ctx.charge_pending(&mut pending)?;
             ctx.checkpoint()?;
             settled = i;
         }
-        let b = input[i];
         let escape = ASCII_ESCAPES.get(usize::from(b)).copied().unwrap_or(0);
         if escape != 0 {
             pending += 1;
@@ -446,14 +451,14 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
                     b'u',
                     b'0',
                     b'0',
-                    hex[(b >> 4) as usize],
-                    hex[(b & 15) as usize],
+                    *hex.at((b >> 4) as usize)?,
+                    *hex.at((b & 15) as usize)?,
                 ];
                 out.put(ctx, &unicode, &mut pending)?;
             }
             continue;
         }
-        let window = &input[i..input.len().min(i + CHUNK)];
+        let window = input.span(i, input.len().min(i + CHUNK))?;
         if b < 128 {
             // A one-byte run between ASCII escapes needs no vector/SWAR mask.
             if window.get(1).is_some_and(|&next| {
@@ -461,7 +466,7 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
                     .get(usize::from(next))
                     .is_some_and(|&e| e != 0)
             }) {
-                out.put(ctx, &window[..1], &mut pending)?;
+                out.put(ctx, window.span(0, 1)?, &mut pending)?;
                 i += 1;
                 continue;
             }
@@ -469,7 +474,7 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
             // the span `text_span` would find, so it skips the rune scan.
             let n = scan::prefix(window, Class::JsonStringify);
             if window.get(n).is_none_or(|&next| next < 128) {
-                out.put(ctx, &window[..n], &mut pending)?;
+                out.put(ctx, window.span(0, n)?, &mut pending)?;
                 i += n;
                 continue;
             }
@@ -479,14 +484,14 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
             if span.runes != span.len {
                 pending += span.steps;
             }
-            out.put(ctx, &window[..span.len], &mut pending)?;
+            out.put(ctx, window.span(0, span.len)?, &mut pending)?;
             i += span.len;
             continue;
         }
         // A rune the span stopped at: invalid, a line or paragraph separator,
         // or cut by the end of the chunk.
         pending += 1;
-        let (ch, n, valid) = scan::rune(&input[i..]);
+        let (ch, n, valid) = scan::rune(input.tail(i)?);
         let replacement: &[u8] = if ch == '\u{2028}' {
             b"\\u2028"
         } else if ch == '\u{2029}' {
@@ -494,7 +499,7 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
         } else if !valid {
             b"\\ufffd"
         } else {
-            &input[i..i + n]
+            input.span(i, i + n)?
         };
         i += n;
         out.put(ctx, replacement, &mut pending)?;

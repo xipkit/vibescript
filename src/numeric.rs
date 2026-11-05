@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{CallContext, Error, ErrorKind, Result, Value, bytes, integer, ops, value::Kind};
 use std::{cmp::Ordering, fmt::Write};
 
@@ -76,21 +77,21 @@ pub(crate) fn call(
                     format!("{method} expects one numeric argument"),
                 ));
             }
-            if args[0].as_float().is_none() {
+            if args.at(0)?.as_float().is_none() {
                 return Err(Error::new(
                     ErrorKind::Type,
                     format!("{method} expects a numeric argument"),
                 ));
             }
-            division(ctx, &method, receiver, &args[0])?
+            division(ctx, &method, receiver, args.at(0)?)?
         }
         "clamp" => clamp(ctx, &format!("{kind}.clamp"), receiver, args)?,
         "between?" => {
             crate::arguments::between(&format!("{kind}.between?"), args, false, false)?;
-            let lower = ops::compare(ctx, &args[0], receiver)?;
+            let lower = ops::compare(ctx, args.at(0)?, receiver)?;
             let inside = matches!(lower, Some(Ordering::Less | Ordering::Equal))
                 && matches!(
-                    ops::compare(ctx, receiver, &args[1])?,
+                    ops::compare(ctx, receiver, args.at(1)?)?,
                     Some(Ordering::Less | Ordering::Equal)
                 );
             Value::boolean(inside)

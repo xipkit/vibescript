@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value, bytecode::CallSite, bytes, ops, scan, value::Kind,
 };
@@ -84,10 +85,10 @@ pub(crate) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<Money> {
             ctx.work_bytes((input.len() - at).min(1024))?;
             checkpoint = at + 1024;
         }
-        let (ch, width, _) = scan::rune(&input[at..]);
+        let (ch, width, _) = scan::rune(input.tail(at)?);
         if ch.is_whitespace() {
             if let Some(start) = start.take() {
-                fields[count] = (start, at);
+                *fields.at_mut(count)? = (start, at);
                 count += 1;
             }
         } else if start.is_none() {
@@ -99,17 +100,17 @@ pub(crate) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<Money> {
         at += width;
     }
     if let Some(start) = start {
-        fields[count] = (start, at);
+        *fields.at_mut(count)? = (start, at);
         count += 1;
     }
     if count != 2 {
         return Err(literal());
     }
-    let money = Money::new(0, &input[fields[1].0..fields[1].1])?;
-    let amount = &input[fields[0].0..fields[0].1];
+    let money = Money::new(0, input.span(fields[1].0, fields[1].1)?)?;
+    let amount = input.span(fields[0].0, fields[0].1)?;
     let negative = amount.first() == Some(&b'-');
     let sign = usize::from(matches!(amount.first(), Some(b'-' | b'+')));
-    let amount = &amount[sign..];
+    let amount = amount.tail(sign)?;
     let mut dot = None;
     for (index, chunk) in amount.chunks(1024).enumerate() {
         ctx.work_bytes(chunk.len())?;
@@ -118,8 +119,10 @@ pub(crate) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<Money> {
             break;
         }
     }
-    let whole = &amount[..dot.unwrap_or(amount.len())];
-    let fraction = dot.map_or(b"".as_slice(), |dot| &amount[dot + 1..]);
+    let whole = amount.span(0, dot.unwrap_or(amount.len()))?;
+    let fraction = dot
+        .and_then(|dot| amount.get(dot + 1..))
+        .unwrap_or_default();
     if whole.is_empty() && fraction.is_empty() {
         return Err(amount_error());
     }
@@ -235,10 +238,10 @@ pub(crate) fn member(
         }
         "between?" => {
             crate::arguments::between("money.between?", args, keywords, block)?;
-            let low = ops::compare(ctx, receiver, &args[0])?;
+            let low = ops::compare(ctx, receiver, args.at(0)?)?;
             let result = if matches!(low, Some(Ordering::Equal | Ordering::Greater)) {
                 matches!(
-                    ops::compare(ctx, receiver, &args[1])?,
+                    ops::compare(ctx, receiver, args.at(1)?)?,
                     Some(Ordering::Equal | Ordering::Less)
                 )
             } else {
