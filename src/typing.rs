@@ -20,7 +20,9 @@
 //! and checks the files a program requires, and `spans` turns the syntax
 //! tree's start offsets into exact spans from the parser's tokens.
 
-use crate::{capability::Registered, diagnostic::Diagnostic, syntax::Declarations};
+use crate::{
+    capability::Registered, checked::Access, diagnostic::Diagnostic, syntax::Declarations,
+};
 use counted::{CountedMap, CountedSet, CountedVec, Ledger};
 use std::{collections::HashMap, fmt};
 
@@ -402,7 +404,8 @@ impl CallTypes {
         self.entries
             .binary_search_by_key(&offset, |(key, _)| *key)
             .ok()
-            .map(|index| &self.entries[index].1)
+            .and_then(|index| self.entries.get(index))
+            .map(|(_, receiver)| receiver)
     }
 
     /// Whether every receiver alternative declares the called member as a user method.
@@ -525,8 +528,9 @@ fn listed<T>(
     (out.finish_held(meter), count)
 }
 
-/// Checks one parsed source.
-pub(crate) fn check(input: &Input<'_>) -> Checked {
+/// Checks one parsed source. A broken invariant fails the check, whatever
+/// it found, which the caller reports as an internal error.
+pub(crate) fn check(input: &Input<'_>) -> Access<Checked> {
     if input.source.len() > SHALLOW {
         return crate::threads::on_stack(STACK, || check_nested(input, 0))
             .unwrap_or_else(|_| check_nested(input, 0));
@@ -535,8 +539,17 @@ pub(crate) fn check(input: &Input<'_>) -> Checked {
 }
 
 /// Checks a source `depth` requires deep.
-fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
+fn check_nested(input: &Input<'_>, depth: usize) -> Access<Checked> {
     let meter = meter::Meter::new(input.budget.clone(), input.observe);
+    let checked = check_metered(input, depth, std::sync::Arc::clone(&meter));
+    match meter.violation() {
+        Some(violation) => Err(violation),
+        None => Ok(checked),
+    }
+}
+
+/// Checks a source `depth` requires deep, within `meter`.
+fn check_metered(input: &Input<'_>, depth: usize, meter: std::sync::Arc<meter::Meter>) -> Checked {
     // The spans may copy the tokens, before the type table first polls.
     let spans = spans::Spans::new(
         input.source,
@@ -563,7 +576,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         parsed: input.parsed,
         spans,
         types: ty::Types::metered(std::sync::Arc::clone(&meter)),
-        program: program::Program::default(),
+        program: program::Program::new(&meter),
         converter: sigs::Converter::default(),
         diagnostics: CountedVec::new(),
         calls: CountedVec::new(),
@@ -860,7 +873,11 @@ fn surface_setup(
 /// Checks that the command line can call `function` with `count` arguments,
 /// which it passes as strings: each positional parameter they bind must
 /// accept `string`, and a rest parameter `array<string>`.
-pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -> Vec<Diagnostic> {
+pub(crate) fn entry_arguments(
+    input: &Input<'_>,
+    function: &str,
+    count: usize,
+) -> Access<Vec<Diagnostic>> {
     let meter = meter::Meter::new(input.budget.clone(), input.observe);
     // The spans may copy the tokens, before the type table first polls.
     let spans = spans::Spans::new(
@@ -875,7 +892,7 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
         parsed: input.parsed,
         spans,
         types: ty::Types::metered(std::sync::Arc::clone(&meter)),
-        program: program::Program::default(),
+        program: program::Program::new(&meter),
         converter: sigs::Converter::default(),
         diagnostics: CountedVec::new(),
         calls: CountedVec::new(),
@@ -911,7 +928,10 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
     checker.check_retained_declarations(input.declared, input.parsed);
     checker.diagnostics.clear();
     checker.entry_arguments(function, count);
-    checker.diagnostics.into_vec()
+    match meter.violation() {
+        Some(violation) => Err(violation),
+        None => Ok(checker.diagnostics.into_vec()),
+    }
 }
 
 /// The session's locals with their annotations, and the annotation of its
@@ -941,7 +961,7 @@ fn annotated(
         + session
             .locals
             .iter()
-            .map(|(name, ty)| name.capacity() + written[ty].len())
+            .map(|(name, ty)| name.capacity() + written.get(ty).map_or(0, String::len))
             .sum::<usize>();
     if meter.scratch(copies) {
         return stopped;
@@ -952,7 +972,7 @@ fn annotated(
         session
             .locals
             .into_iter()
-            .map(|(name, ty)| (name, written[&ty].clone())),
+            .map(|(name, ty)| (name, written.get(&ty).cloned().unwrap_or_default())),
     );
     (locals, Some(result), false)
 }

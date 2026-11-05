@@ -12,6 +12,7 @@ use super::{
     ty::{Field, Kind, Ty},
 };
 use crate::{
+    checked::{Checked as _, violation},
     compilation::{self, TypeKind},
     diagnostic::{Code, Diagnostic, Fix},
     syntax::{
@@ -105,11 +106,11 @@ impl Enum {
             by_symbol.push(index as u32).ok()?;
         }
         super::counted::sort_unstable_by(meter, &mut by_member, |&a, &b| {
-            names[a as usize].cmp(&names[b as usize])
+            names.get(a as usize).cmp(&names.get(b as usize))
         })
         .ok()?;
         super::counted::sort_unstable_by(meter, &mut by_symbol, |&a, &b| {
-            symbols[a as usize].cmp(&symbols[b as usize])
+            symbols.get(a as usize).cmp(&symbols.get(b as usize))
         })
         .ok()?;
         if meter.pace(1 + (name.len() / 64) as u64, 0) {
@@ -180,9 +181,12 @@ fn enum_symbol(name: &str, meter: &super::meter::Meter) -> String {
 /// members are unique, and so are their symbols.
 fn find(names: &[String], order: &[u32], name: &str) -> Option<usize> {
     let at = order
-        .binary_search_by(|&index| names[index as usize].as_str().cmp(name))
+        .binary_search_by(|&index| {
+            let found = names.get(index as usize).map(String::as_str);
+            found.cmp(&Some(name))
+        })
         .ok()?;
-    Some(order[at] as usize)
+    order.get(at).map(|&index| index as usize)
 }
 
 impl Heap for Enum {
@@ -273,9 +277,53 @@ pub(crate) struct Program<'a> {
     pub declared: CountedMap<String, Ty>,
     /// Capabilities the host declares with members, by `Kind::Host` index.
     pub host_modules: CountedVec<&'a crate::signatures::Module>,
+    /// The check's account, which an id this program did not make stops.
+    meter: Arc<super::meter::Meter>,
 }
 
-impl Program<'_> {
+impl<'a> Program<'a> {
+    pub fn new(meter: &Arc<super::meter::Meter>) -> Self {
+        Self {
+            meter: Arc::clone(meter),
+            ..Self::default()
+        }
+    }
+
+    /// Namespace `ns`; an id this program did not make stops the check.
+    #[inline]
+    #[track_caller]
+    pub fn namespace(&self, ns: NsId) -> Option<&Namespace<'a>> {
+        self.meter.found(self.namespaces.at(ns as usize))
+    }
+
+    /// Namespace `ns`, to change.
+    #[inline]
+    #[track_caller]
+    pub fn namespace_mut(&mut self, ns: NsId) -> Option<&mut Namespace<'a>> {
+        self.meter.found(self.namespaces.at_mut(ns as usize))
+    }
+
+    /// Function `id`; an id this program did not make stops the check.
+    #[inline]
+    #[track_caller]
+    pub fn function(&self, id: FnId) -> Option<&FnDecl<'a>> {
+        self.meter.found(self.fns.at(id))
+    }
+
+    /// The signature of function `id`, shared.
+    #[inline]
+    #[track_caller]
+    pub fn signature(&self, id: FnId) -> Option<Arc<Sig>> {
+        self.function(id).map(|function| Arc::clone(&function.sig))
+    }
+
+    /// Enum `id`; an id this program did not make stops the check.
+    #[inline]
+    #[track_caller]
+    pub fn enumeration(&self, id: u32) -> Option<&Arc<Enum>> {
+        self.meter.found(self.enums.at(id as usize))
+    }
+
     /// What the declarations hold, but for the tables checking grows,
     /// which [`Self::grown`] counts.
     pub fn heap(&self) -> usize {
@@ -411,7 +459,9 @@ impl<'a> Checker<'a> {
                     .enum_names
                     .get(name.as_str())
                     .is_some_and(|&id| {
-                        let found = &self.program.enums[id as usize];
+                        let Some(found) = self.program.enumeration(id) else {
+                            return false;
+                        };
                         !self
                             .meter
                             .charge(enumeration.definition.members.len() as u64)
@@ -635,7 +685,10 @@ impl<'a> Checker<'a> {
             if self.halted() {
                 return;
             }
-            let Some(module) = self.program.namespaces[ns].module else {
+            let Some(namespace) = self.meter.found(self.program.namespaces.at(ns)) else {
+                return;
+            };
+            let Some(module) = namespace.module else {
                 continue;
             };
             for (def, visibility) in &module.instance_methods {
@@ -718,7 +771,10 @@ impl<'a> Checker<'a> {
             if self.halted() {
                 return;
             }
-            let Some(module) = self.program.namespaces[ns].module else {
+            let Some(namespace) = self.meter.found(self.program.namespaces.at(ns)) else {
+                return;
+            };
+            let Some(module) = namespace.module else {
                 continue;
             };
             for (def, _) in &module.instance_methods {
@@ -733,9 +789,10 @@ impl<'a> Checker<'a> {
                     false => def.return_type.is_some(),
                 };
                 if !typed
-                    && !self.program.namespaces[ns]
-                        .ivars
-                        .contains_key(name.as_str())
+                    && !self
+                        .meter
+                        .found(self.program.namespaces.at(ns))
+                        .is_some_and(|namespace| namespace.ivars.contains_key(name.as_str()))
                 {
                     let span = self.spans.word_after(def.offset as usize, name);
                     self.report(Diagnostic::error(
@@ -747,8 +804,17 @@ impl<'a> Checker<'a> {
                         ),
                     ));
                 }
-                let id = self.program.namespaces[ns].methods[def.name.as_str()];
-                let sig = self.program.fns[id].sig.clone();
+                let method = self.program.namespaces.at(ns).and_then(|namespace| {
+                    let method = namespace.methods.get(def.name.as_str());
+                    method.ok_or(violation("an accessor's method is not declared"))
+                });
+                let Some(&id) = self.meter.found(method) else {
+                    return;
+                };
+                let Some(function) = self.program.function(id) else {
+                    return;
+                };
+                let sig = function.sig.clone();
                 let ty = if *setter {
                     sig.params.first().map(|param| param.ty)
                 } else {
@@ -758,14 +824,17 @@ impl<'a> Checker<'a> {
                 // A getter's result must hold the variable's values, and a
                 // setter's parameter must be one of them, whichever
                 // declaration came first.
-                let existing = self.program.namespaces[ns]
-                    .ivars
-                    .get(name.as_str())
+                let existing = self
+                    .meter
+                    .found(self.program.namespaces.at(ns))
+                    .and_then(|namespace| namespace.ivars.get(name.as_str()))
                     .map(|ivar| ivar.ty);
                 // A method defined with the accessor's name replaces it,
                 // and its body's writes are checked as any method's are.
-                let replaced = !self.program.fns[id]
-                    .def
+                let replaced = !self
+                    .program
+                    .function(id)
+                    .and_then(|function| function.def)
                     .is_some_and(|method| std::ptr::eq(method, def));
                 if let (Some(declared), false) = (existing, replaced) {
                     let fits = if *setter {
@@ -829,9 +898,9 @@ impl<'a> Checker<'a> {
         setter_name.extend_from_slice(name.as_bytes()).ok()?;
         setter_name.push(b'=').ok()?;
         let setter_name = std::str::from_utf8(&setter_name).ok()?;
-        let methods = &self.program.namespaces[ns].methods;
+        let methods = &self.meter.found(self.program.namespaces.at(ns))?.methods;
         if let Some(&id) = methods.get(setter_name) {
-            let function = &self.program.fns[id];
+            let function = self.program.function(id)?;
             if function.def.is_some_and(|def| {
                 def.accessor
                     .as_ref()
@@ -851,7 +920,7 @@ impl<'a> Checker<'a> {
         Some(
             methods
                 .get(name)
-                .and_then(|&id| self.program.fns[id].sig.result)
+                .and_then(|&id| self.program.function(id)?.sig.result)
                 .unwrap_or(Ty::ANY),
         )
     }
@@ -862,7 +931,9 @@ impl<'a> Checker<'a> {
     /// Returns whether it did: a check the budget stops declares no more.
     fn declare_method(&mut self, ns: usize, name: &str, id: FnId, statics: bool) -> bool {
         let declarations = self.meter.declarations();
-        let namespace = &mut self.program.namespaces[ns];
+        let Some(namespace) = self.meter.found(self.program.namespaces.at_mut(ns)) else {
+            return false;
+        };
         let table = if statics {
             &mut namespace.statics
         } else {
@@ -884,7 +955,10 @@ impl<'a> Checker<'a> {
     /// a check the budget stops declares no more.
     fn declare_ivar(&mut self, ns: usize, name: &str, ivar: Ivar, replace: bool) -> bool {
         let declarations = self.meter.declarations();
-        let ivars = &mut self.program.namespaces[ns].ivars;
+        let Some(namespace) = self.meter.found(self.program.namespaces.at_mut(ns)) else {
+            return false;
+        };
+        let ivars = &mut namespace.ivars;
         if let Some(entry) = ivars.get_mut(name) {
             if replace {
                 *entry = ivar;
@@ -918,7 +992,10 @@ impl<'a> Checker<'a> {
             if self.halted() {
                 return;
             }
-            let Some(module) = self.program.namespaces[ns].module else {
+            let Some(namespace) = self.meter.found(self.program.namespaces.at(ns)) else {
+                return;
+            };
+            let Some(module) = namespace.module else {
                 continue;
             };
             // Only an alias can repeat an earlier method's name. The aliases
@@ -933,7 +1010,8 @@ impl<'a> Checker<'a> {
                     .aliases
                     .binary_search_by_key(&index, |&(alias, _)| alias)
                     .ok()
-                    .map(|at| module.aliases[at].1 as usize)
+                    .and_then(|at| module.aliases.get(at))
+                    .map(|&(_, method)| method as usize)
             };
             let mut earlier = ScratchSet::new(&self.meter);
             for (index, (def, _)) in module.instance_methods.iter().enumerate() {
@@ -1040,7 +1118,10 @@ impl<'a> Checker<'a> {
     fn declare_namespace(&mut self, module: &'a Module, parent: Option<NsId>) -> Option<NsId> {
         let declarations = self.meter.declarations();
         let program = &mut self.program;
-        let outer = parent.map(|parent| program.namespaces[parent as usize].name.as_str());
+        let outer = match parent {
+            Some(parent) => Some(program.namespace(parent)?.name.as_str()),
+            None => None,
+        };
         let length = outer.map_or(0, |outer| outer.len() + 2) + module.name.len();
         if self.meter.pace(1 + (2 * length / 64) as u64, 0) {
             return None;
@@ -1050,7 +1131,8 @@ impl<'a> Checker<'a> {
         self.types.names.namespaces.reserve(declarations, 1).ok()?;
         program.by_offset.reserve(declarations, 1).ok()?;
         match parent {
-            Some(parent) => program.namespaces[parent as usize]
+            Some(parent) => program
+                .namespace_mut(parent)?
                 .children
                 .reserve(declarations, 1)
                 .ok()?,
@@ -1058,7 +1140,7 @@ impl<'a> Checker<'a> {
         }
         let mut name = String::with_capacity(length);
         if let Some(parent) = parent {
-            name.push_str(&program.namespaces[parent as usize].name);
+            name.push_str(&program.namespace(parent)?.name);
             name.push_str("::");
         }
         name.push_str(&module.name);
@@ -1084,7 +1166,8 @@ impl<'a> Checker<'a> {
         program.by_offset.insert_within(module.offset, id);
         match parent {
             Some(parent) => {
-                program.namespaces[parent as usize]
+                program
+                    .namespace_mut(parent)?
                     .children
                     .insert_within(module.name.as_str(), id);
             }
@@ -1107,8 +1190,10 @@ impl<'a> Checker<'a> {
         // The parameters, each with a copy of its name, the block's, and
         // the function's qualified name, counted before they are listed; a
         // check that stops declares no more functions.
-        let qualified = owner.map_or(0, |ns| self.program.namespaces[ns as usize].name.len() + 1)
-            + def.name.len();
+        let qualified = match owner {
+            Some(ns) => self.program.namespace(ns)?.name.len() + 1,
+            None => 0,
+        } + def.name.len();
         let held = self.hold(
             def.params.len() * std::mem::size_of::<Param>()
                 + def
@@ -1221,7 +1306,7 @@ impl<'a> Checker<'a> {
         }
         let mut name = String::with_capacity(qualified);
         if let Some(ns) = owner {
-            name.push_str(&self.program.namespaces[ns as usize].name);
+            name.push_str(&self.program.namespace(ns)?.name);
             name.push(if instance { '#' } else { '.' });
         }
         name.push_str(&def.name);
@@ -1274,10 +1359,13 @@ impl<'a> Checker<'a> {
         let Some(&id) = self.program.functions.get(function) else {
             return;
         };
-        let Some(def) = self.program.fns[id].def else {
+        let Some(decl) = self.program.function(id) else {
             return;
         };
-        let sig = self.program.fns[id].sig.clone();
+        let Some(def) = decl.def else {
+            return;
+        };
+        let sig = decl.sig.clone();
         let strings = self.types.array(Ty::STRING);
         let mut index = 0;
         for param in &sig.params {
@@ -1540,10 +1628,11 @@ impl<'a> Checker<'a> {
             let Some(ns) = current else {
                 break;
             };
-            if let Some(&child) = self.program.namespaces[ns as usize].children.get(name) {
+            let namespace = self.program.namespace(ns)?;
+            if let Some(&child) = namespace.children.get(name) {
                 return self.namespace_type(child);
             }
-            current = self.program.namespaces[ns as usize].parent;
+            current = namespace.parent;
         }
         if let Some(&ns) = self.program.roots.get(name) {
             return self.namespace_type(ns);
@@ -1562,23 +1651,24 @@ impl<'a> Checker<'a> {
 
     fn lookup_in(&mut self, name: &str, ns: NsId, depth: usize) -> Option<Ty> {
         if let Some((head, rest)) = name.split_once("::") {
-            let child = *self.program.namespaces[ns as usize].children.get(head)?;
+            let child = *self.program.namespace(ns)?.children.get(head)?;
             return self.lookup_in(rest, child, depth);
         }
         if let Some(ty) = self.alias_type(name, Some(ns), depth) {
             return Some(ty);
         }
-        let child = *self.program.namespaces[ns as usize].children.get(name)?;
+        let child = *self.program.namespace(ns)?.children.get(name)?;
         self.namespace_type(child)
     }
 
     fn namespace_named(&self, name: &str, scope: Option<NsId>) -> Option<NsId> {
         let mut current = scope;
         while let Some(ns) = current {
-            if let Some(&child) = self.program.namespaces[ns as usize].children.get(name) {
+            let namespace = self.program.namespace(ns)?;
+            if let Some(&child) = namespace.children.get(name) {
                 return Some(child);
             }
-            current = self.program.namespaces[ns as usize].parent;
+            current = namespace.parent;
         }
         self.program.roots.get(name).copied()
     }
@@ -1586,7 +1676,7 @@ impl<'a> Checker<'a> {
     /// The type an annotation naming a class or module denotes: instances of
     /// a class. A module has no instances.
     fn namespace_type(&mut self, ns: NsId) -> Option<Ty> {
-        if self.program.namespaces[ns as usize].is_class {
+        if self.program.namespace(ns)?.is_class {
             Some(self.types.intern(Kind::Instance(ns)))
         } else {
             None

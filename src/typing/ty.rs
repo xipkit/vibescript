@@ -5,6 +5,7 @@ use super::{
     counted::{CountedMap, CountedVec, ScratchVec, Text},
     meter::{self, Heap, Meter},
 };
+use crate::checked::{Access, Checked as _};
 use std::sync::Arc;
 
 /// The most alternatives a union may have: a wider one is an error
@@ -465,6 +466,16 @@ impl Types {
         self.meter.stopped()
     }
 
+    /// What a checked access found ([`Meter::found`]).
+    pub fn found<T>(&self, access: Access<T>) -> Option<T> {
+        self.meter.found(access)
+    }
+
+    /// The first invariant this table's check found broken, if any.
+    pub fn violation(&self) -> Option<crate::checked::Violation> {
+        self.meter.violation()
+    }
+
     /// Checks the account against the budget, the whole check's work and
     /// memory, so one operation on large types cannot run past it. Returns
     /// whether the check has stopped.
@@ -592,14 +603,25 @@ impl Types {
         Some(ty)
     }
 
+    /// `ty`'s kind; an id this table did not make stops the check, and
+    /// reads as the error type.
+    #[inline]
+    #[track_caller]
     pub fn kind(&self, ty: Ty) -> &Kind {
-        &self.kinds[ty.0 as usize]
+        match self.meter.found(self.kinds.at(ty.0 as usize)) {
+            Some(kind) => kind,
+            None => &Kind::Error,
+        }
     }
 
     /// `ty`'s kind, shared rather than copied, which the table's own
     /// changes then leave alone.
+    #[track_caller]
     pub fn shared(&self, ty: Ty) -> Arc<Kind> {
-        Arc::clone(&self.kinds[ty.0 as usize])
+        match self.meter.found(self.kinds.at(ty.0 as usize)) {
+            Some(kind) => Arc::clone(kind),
+            None => Arc::new(Kind::Error),
+        }
     }
 
     pub fn array(&mut self, element: Ty) -> Ty {
@@ -819,7 +841,7 @@ impl Types {
         }
         match members.len() {
             0 => Ty::NEVER,
-            1 => members[0],
+            1 => members.first().copied().unwrap_or(Ty::NEVER),
             _ => self.intern(Kind::Union(members.into_vec().into())),
         }
     }
@@ -1135,7 +1157,8 @@ impl Types {
         }
         let (mut i, mut j) = (0, 0);
         while i < a.len() || j < b.len() {
-            let order = match (a.get(i), b.get(j)) {
+            let (x, y) = (a.get(i), b.get(j));
+            let order = match (x, y) {
                 (Some(x), Some(y)) => {
                     if self
                         .meter
@@ -1150,10 +1173,12 @@ impl Types {
             };
             match order {
                 std::cmp::Ordering::Equal => {
-                    if a[i].optional && !b[j].optional {
-                        return false;
+                    if let (Some(x), Some(y)) = (x, y) {
+                        if x.optional && !y.optional {
+                            return false;
+                        }
+                        pairs.add((x.ty, y.ty));
                     }
-                    pairs.add((a[i].ty, b[j].ty));
                     i += 1;
                     j += 1;
                 }
@@ -1166,7 +1191,7 @@ impl Types {
                 }
                 // A field `from` lacks.
                 std::cmp::Ordering::Greater => {
-                    if !(b[j].optional || from_open) {
+                    if !(y.is_some_and(|y| y.optional) || from_open) {
                         return false;
                     }
                     j += 1;
@@ -1192,14 +1217,20 @@ impl Types {
 
     fn tuple_item(&self, tuple: Ty, index: usize) -> Ty {
         match self.kind(tuple) {
-            Kind::Tuple(items) => items[index],
+            Kind::Tuple(items) => self
+                .meter
+                .found(items.at(index))
+                .map_or(Ty::ERROR, |&item| item),
             _ => Ty::ERROR,
         }
     }
 
     fn field_type(&self, shape: Ty, index: usize) -> Ty {
         match self.kind(shape) {
-            Kind::Shape(fields, _) => fields[index].ty,
+            Kind::Shape(fields, _) => self
+                .meter
+                .found(fields.at(index))
+                .map_or(Ty::ERROR, |field| field.ty),
             _ => Ty::ERROR,
         }
     }
@@ -1261,16 +1292,24 @@ impl Types {
     pub fn field<'f>(&self, fields: &'f [Field], name: &[u8]) -> Option<&'f Field> {
         super::counted::find_bytes(&self.meter, fields, name, |field| field.name.as_bytes())
             .ok()?
-            .map(|index| &fields[index])
+            .and_then(|index| fields.get(index))
     }
 
     /// Whether the type mentions a signature's type variable.
     pub fn has_var(&self, ty: Ty) -> bool {
-        !self.stopped() && self.properties[ty.0 as usize].0
+        !self.stopped() && self.properties_at(ty).0
+    }
+
+    /// `ty`'s properties; an id this table did not make stops the check.
+    #[track_caller]
+    fn properties_at(&self, ty: Ty) -> (bool, bool, u32) {
+        self.meter
+            .found(self.properties.at(ty.0 as usize))
+            .map_or((false, false, 0), |&properties| properties)
     }
 
     fn properties_of(&self, kind: &Kind) -> (bool, bool, u32) {
-        let child = |ty: Ty| self.properties[ty.0 as usize];
+        let child = |ty: Ty| self.properties_at(ty);
         let combine = |(vars, plain, depth): (bool, bool, u32), ty| {
             let (more_vars, more_plain, more_depth) = child(ty);
             (
@@ -1484,12 +1523,13 @@ impl Types {
         if held.push(out).is_err() {
             return (String::new(), true);
         }
-        let mut end = SPELLED.min(held[0].len());
-        while !held[0].is_char_boundary(end) {
+        let spelled = held.first().map_or("", String::as_str);
+        let mut end = SPELLED.min(spelled.len());
+        while !spelled.is_char_boundary(end) {
             end -= 1;
         }
         let mut cut = Text::new(&self.meter);
-        cut.push_str(&held[0][..end]);
+        cut.push_str(spelled.get(..end).unwrap_or_default());
         cut.push_str("...");
         (cut.finish(), true)
     }
@@ -1611,7 +1651,7 @@ impl Types {
                 if nil && parts.len() == 1 {
                     let single = others().nth(1).is_none() || number;
                     if single {
-                        out.push_str(&parts[0]);
+                        out.push_str(parts.first().map_or("", |part| part.as_str()));
                         put(out, "?", room);
                         return;
                     }
@@ -1663,7 +1703,7 @@ impl Types {
     /// exported function. Only `any`, capabilities and required modules can,
     /// and so can a type the checker could not determine.
     pub fn plain(&mut self, ty: Ty) -> bool {
-        self.stopped() || self.properties[ty.0 as usize].1
+        self.stopped() || self.properties_at(ty).1
     }
 
     /// The base type name of each alternative of `ty`, for
@@ -1807,6 +1847,17 @@ fn put(out: &mut Text<'_>, text: &str, room: &mut usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_bad_type_stops_the_check_and_reads_as_the_error_type() {
+        let meter = Meter::new(Default::default(), None);
+        let types = Types::metered(Arc::clone(&meter));
+        assert!(meter.violation().is_none());
+        assert!(matches!(types.kind(Ty(u32::MAX)), Kind::Error));
+        assert!(matches!(&*types.shared(Ty(u32::MAX)), Kind::Error));
+        assert!(meter.stopped());
+        assert!(meter.violation().is_some());
+    }
 
     #[test]
     fn a_union_index_stops_before_publishing_refused_keys() {
