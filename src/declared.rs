@@ -363,6 +363,7 @@ struct AliasWriter<'a> {
 }
 
 impl crate::shapes::TypeWriter for AliasWriter<'_> {
+    type Error = crate::Error;
     fn write(&mut self, bytes: &[u8]) -> Result<()> {
         self.work.bytes(bytes.len())?;
         self.bytes.extend_from_slice(self.work, bytes)

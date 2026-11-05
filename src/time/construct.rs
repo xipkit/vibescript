@@ -241,7 +241,7 @@ fn required_year(year: &Value) -> Result<i64> {
         ))),
         Kind::Float(n) => {
             let mut text = bytes::Number::new();
-            ops::format_float(&mut text, n);
+            ops::format_float(&mut text, n)?;
             Err(argument(format!(
                 "Time constructor year {} is out of range",
                 String::from_utf8_lossy(text.bytes())

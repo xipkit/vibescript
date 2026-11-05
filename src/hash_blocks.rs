@@ -106,8 +106,13 @@ pub(crate) struct Merge {
 impl Merge {
     fn advance(&mut self, ctx: &mut CallContext, returned: Option<Value>) -> Result<Progress> {
         if let Some(value) = returned {
-            self.output
-                .insert(ctx, self.pending.take().unwrap(), value)?;
+            self.output.insert(
+                ctx,
+                self.pending
+                    .take()
+                    .ok_or(crate::checked::violation("merge key expected"))?,
+                value,
+            )?;
         }
         loop {
             ctx.charge(1)?;
@@ -115,7 +120,11 @@ impl Merge {
                 let output = std::mem::replace(&mut self.output, Hash::empty());
                 return Ok(Progress::Done(Value::from_hash(ctx, output)?));
             };
-            let Some((key, value)) = source.as_hash().unwrap().get(self.position) else {
+            let Some((key, value)) = source
+                .as_hash()
+                .ok_or(crate::checked::violation("merge source must be a hash"))?
+                .get(self.position)
+            else {
                 self.source += 1;
                 self.position = 0;
                 continue;
@@ -163,7 +172,13 @@ impl WalkFrame {
     fn append(&mut self, ctx: &mut CallContext, value: Value) -> Result<()> {
         match &mut self.output {
             Output::Array(values) => values.push(ctx, value)?,
-            Output::Hash(hash) => hash.insert(ctx, self.key.take().unwrap(), value)?,
+            Output::Hash(hash) => hash.insert(
+                ctx,
+                self.key
+                    .take()
+                    .ok_or(crate::checked::violation("transformed hash key expected"))?,
+                value,
+            )?,
         }
         self.position += 1;
         Ok(())
@@ -188,11 +203,19 @@ impl Deep {
             self.waiting = false;
             let key = value.key_name_for("hash.deep_transform_keys block returned an")?;
             let key = ctx.bytes(key)?;
-            self.frames.data.last_mut().unwrap().key = Some(key);
+            self.frames
+                .data
+                .last_mut()
+                .ok_or(crate::checked::violation("deep transform frame expected"))?
+                .key = Some(key);
         }
         loop {
             ctx.charge(1)?;
-            let frame = self.frames.data.last_mut().unwrap();
+            let frame = self
+                .frames
+                .data
+                .last_mut()
+                .ok_or(crate::checked::violation("deep transform frame expected"))?;
             let child = if let Some(entries) = frame.input.as_hash() {
                 if let Some((key, value)) = entries.get(frame.position) {
                     if frame.key.is_none() {
@@ -207,7 +230,14 @@ impl Deep {
                     None
                 }
             } else {
-                frame.input.as_array().unwrap().get(frame.position).cloned()
+                frame
+                    .input
+                    .as_array()
+                    .ok_or(crate::checked::violation(
+                        "deep transform input must be a container",
+                    ))?
+                    .get(frame.position)
+                    .cloned()
             };
             if let Some(child) = child {
                 if child.as_hash().is_some() || child.as_array().is_some() {
@@ -219,7 +249,14 @@ impl Deep {
                     frame.append(ctx, child)?;
                 }
             } else {
-                let value = self.frames.data.pop().unwrap().finish(ctx)?;
+                let value = self
+                    .frames
+                    .data
+                    .pop()
+                    .ok_or(crate::checked::violation(
+                        "completed deep transform frame expected",
+                    ))?
+                    .finish(ctx)?;
                 if let Some(parent) = self.frames.data.last_mut() {
                     parent.append(ctx, value)?;
                 } else {
@@ -227,5 +264,37 @@ impl Deep {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CallOptions;
+
+    #[test]
+    fn a_merge_result_without_a_pending_key_reports_an_invariant() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let mut driver = Driver::new(&mut ctx, "merge", &Value::hash(vec![]), &[], false, true)
+            .unwrap()
+            .unwrap();
+        let error = driver.advance(&mut ctx, Some(Value::nil())).err().unwrap();
+        assert_eq!(error.kind, ErrorKind::Internal);
+        assert!(error.message.contains("merge key expected"), "{error}");
+    }
+
+    #[test]
+    fn a_deep_transform_without_a_frame_reports_an_invariant() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let mut state = Deep {
+            frames: Buffer::empty(),
+            waiting: false,
+        };
+        let error = state.advance(&mut ctx, None).err().unwrap();
+        assert_eq!(error.kind, ErrorKind::Internal);
+        assert!(
+            error.message.contains("deep transform frame expected"),
+            "{error}"
+        );
     }
 }

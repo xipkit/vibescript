@@ -145,8 +145,11 @@ impl Compare {
             (Kind::Duration(a), Kind::Duration(b)) => Some(crate::duration::order(*a, *b)),
             (Kind::Time(_) | Kind::Zoned(_), Kind::Time(_) | Kind::Zoned(_)) => Some(
                 crate::time::stamp(a)
-                    .unwrap()
-                    .order(crate::time::stamp(b).unwrap()),
+                    .ok_or(crate::checked::violation("time operand expected"))?
+                    .order(
+                        crate::time::stamp(b)
+                            .ok_or(crate::checked::violation("time operand expected"))?,
+                    ),
             ),
             (Kind::Bool(a), Kind::Bool(b)) => Some(a.cmp(b)),
             (Kind::Float(a), Kind::Float(b)) => Some(ops::float_order(*a, *b)),
@@ -307,7 +310,10 @@ impl Driver {
 
     pub fn advance(&mut self, ctx: &mut CallContext, returned: Option<Value>) -> Result<Progress> {
         self.waiting = false;
-        let array = self.receiver.as_array().unwrap();
+        let array = self
+            .receiver
+            .as_array()
+            .ok_or(crate::checked::violation("sort receiver must be an array"))?;
         let mut comparison = None;
         if let Some(value) = returned {
             ctx.charge(1)?;

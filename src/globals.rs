@@ -79,7 +79,10 @@ fn walk<'a>(
             }
         };
         let Some(child) = child else {
-            let finished = frames.data.pop().unwrap();
+            let finished = frames
+                .data
+                .pop()
+                .ok_or(crate::checked::violation("global frame expected"))?;
             seen.insert(ctx, finished.value)?;
             continue;
         };

@@ -29,6 +29,7 @@ impl TargetText<'_> {
 }
 
 impl crate::shapes::TypeWriter for TargetText<'_> {
+    type Error = crate::Error;
     fn node(&mut self) -> Result<()> {
         self.work.checkpoint()?;
         self.work.charge(1)?;

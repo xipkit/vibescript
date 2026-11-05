@@ -108,16 +108,17 @@ fn open<'a>(
             Ok(None)
         }
         Kind::Hash(hash) => {
-            let (prefix, close) = match mode {
-                Mode::Display if hash.tag.protected() => {
-                    let entry = hash
-                        .buffer
-                        .data
-                        .iter()
-                        .find(|(key, _)| key.as_bytes() == Some(b"to_s"))
-                        .unwrap();
-                    return Ok(Some(&entry.1));
+            if matches!(mode, Mode::Display) && hash.tag.protected() {
+                if let Some((_, value)) = hash
+                    .buffer
+                    .data
+                    .iter()
+                    .find(|(key, _)| key.as_bytes() == Some(b"to_s"))
+                {
+                    return Ok(Some(value));
                 }
+            }
+            let (prefix, close) = match mode {
                 Mode::Display if hash.object => return f.write_str("<object>").map(|()| None),
                 Mode::Display => ("{", "}"),
                 Mode::Debug if hash.object => ("Value(Object({", "}))"),
@@ -151,7 +152,9 @@ fn scalar(value: &Value, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             let text = regex
                 .text(&mut crate::integer::unlimited_context())
                 .map_err(|_| fmt::Error)?;
-            f.write_str(std::str::from_utf8(text.as_bytes().unwrap()).map_err(|_| fmt::Error)?)
+            f.write_str(
+                std::str::from_utf8(text.as_bytes().unwrap_or_default()).map_err(|_| fmt::Error)?,
+            )
         }
         Kind::Shape(shape) => write!(
             f,
@@ -164,7 +167,9 @@ fn scalar(value: &Value, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Kind::Time(_) | Kind::Zoned(_) => {
             let mut ctx = crate::integer::unlimited_context();
             let text = crate::time::text(&mut ctx, value, None).map_err(|_| fmt::Error)?;
-            f.write_str(std::str::from_utf8(text.as_bytes().unwrap()).map_err(|_| fmt::Error)?)
+            f.write_str(
+                std::str::from_utf8(text.as_bytes().unwrap_or_default()).map_err(|_| fmt::Error)?,
+            )
         }
         Kind::Instance(instance) => {
             write!(f, "<{} instance>", instance.class().definition.name)
@@ -197,5 +202,20 @@ fn scalar(value: &Value, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "{}", String::from_utf8_lossy(h.data()))
         }
         Kind::Array(_) | Kind::Hash(_) => Err(fmt::Error),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    #[test]
+    fn a_protected_record_without_display_text_still_renders() {
+        let mut hash = crate::hash::Hash::untracked(Vec::new(), 1);
+        hash.tag = Tag::Error;
+        let value = Value(Kind::Hash(Arc::new(hash)));
+        assert_eq!(value.to_string(), "{}");
+        assert_eq!(format!("{value:?}"), "Value(Hash(Error, {}))");
     }
 }

@@ -310,6 +310,7 @@ struct AliasText<'m> {
 }
 
 impl crate::shapes::TypeWriter for AliasText<'_> {
+    type Error = crate::Error;
     fn write(&mut self, bytes: &[u8]) -> crate::Result<()> {
         if self.meter.charge(bytes.len() as u64) || self.text.extend_from_slice(bytes).is_err() {
             return Err(crate::Error::new(

@@ -70,9 +70,9 @@ impl Root {
 
     pub fn open(&self, ctx: &mut CallContext, relative: &Path) -> Result<Opened> {
         ctx.checkpoint()?;
-        if self.0.handle.is_none() {
+        let Some(handle) = self.0.handle.as_ref() else {
             return Ok(Opened::Missing);
-        }
+        };
         ctx.charge(relative.as_os_str().as_encoded_bytes().len() as u64)?;
         if relative.as_os_str().is_empty() {
             return Ok(Opened::Missing);
@@ -88,6 +88,7 @@ impl Root {
         let _scratch = ctx.reserve(platform::PATH_WORKSPACE * 4 + 1024)?;
         let mut walk = Walk {
             root: self,
+            handle,
             directories: Buffer::empty(),
             file: None,
             leaf: false,
@@ -111,6 +112,7 @@ impl Root {
 
 struct Walk<'a> {
     root: &'a Root,
+    handle: &'a Dir,
     directories: Buffer<Dir>,
     file: Option<File>,
     leaf: bool,
@@ -121,10 +123,7 @@ struct Walk<'a> {
 
 impl Walk<'_> {
     fn parent(&self) -> &Dir {
-        self.directories
-            .data
-            .last()
-            .unwrap_or_else(|| self.root.0.handle.as_ref().unwrap())
+        self.directories.data.last().unwrap_or(self.handle)
     }
 
     fn resolve(&mut self, ctx: &mut CallContext, path: &Path, exact: bool) -> Result<bool> {
@@ -186,12 +185,8 @@ impl Walk<'_> {
                 }
                 let relative = if target.is_absolute() {
                     ctx.charge(self.root.path().as_os_str().as_encoded_bytes().len() as u64)?;
-                    let target = platform::absolute_target(
-                        ctx,
-                        self.root.0.handle.as_ref().unwrap(),
-                        self.root.path(),
-                        &target,
-                    )?;
+                    let target =
+                        platform::absolute_target(ctx, self.handle, self.root.path(), &target)?;
                     self.directories.data.clear();
                     target
                 } else {

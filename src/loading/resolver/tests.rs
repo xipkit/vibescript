@@ -12,7 +12,7 @@ fn resolve(
     let mut candidates = resolver.candidates(ctx, name, caller)?;
     while let Some(candidate) = candidates.next(ctx)? {
         if let Some(source) = resolver.read(ctx, &candidate)? {
-            return Ok(Some((candidate.origin(), source)));
+            return Ok(Some((candidate.origin().unwrap(), source)));
         }
     }
     Ok(None)
@@ -109,7 +109,9 @@ fn explicit_relative_requests_keep_their_origin_and_literal_filename_components(
     let receiver = Resolver::new(&[directory.0.join("other")], &[], &[], 100).unwrap();
     let rootless = Resolver::new(&[], &[], &[], 100).unwrap();
     let mut ctx = CallContext::new(CallOptions::default());
-    let origin = candidate(&producer, &mut ctx, b"pkg space/inner/start").origin();
+    let origin = candidate(&producer, &mut ctx, b"pkg space/inner/start")
+        .origin()
+        .unwrap();
     for resolver in [&producer, &receiver, &rootless] {
         for (request, expected_relative, expected) in [
             (
@@ -155,7 +157,9 @@ fn receiver_policy_is_applied_to_the_normalized_origin_relative_name_before_io()
     let allowed = Resolver::new(&[], &["shared".into()], &[], 100).unwrap();
     let denied = Resolver::new(&[], &["*".into()], &["shared".into()], 100).unwrap();
     let mut ctx = CallContext::new(CallOptions::default());
-    let origin = candidate(&producer, &mut ctx, b"pkg/start").origin();
+    let origin = candidate(&producer, &mut ctx, b"pkg/start")
+        .origin()
+        .unwrap();
     let (_, source) = resolve(&allowed, &mut ctx, b"../shared", Some(&origin))
         .unwrap()
         .unwrap();
@@ -244,7 +248,7 @@ fn candidate_creation_does_not_access_files_and_disappearing_sources_are_missing
     #[cfg(not(windows))]
     fs::rename(&root, directory.0.join("renamed")).unwrap();
     let later = candidate(&resolver, &mut ctx, b"dir/../tool");
-    assert_eq!(first.origin(), later.origin());
+    assert_eq!(first.origin().unwrap(), later.origin().unwrap());
     assert_eq!(first.path, later.path);
     drop(first);
     drop(later);
@@ -261,8 +265,14 @@ fn overlapping_roots_retain_distinct_relative_authority() {
     let first = candidate(&broad, &mut ctx, b"nested/tool");
     let second = candidate(&narrow, &mut ctx, b"tool");
     assert_eq!(first.path, second.path);
-    assert_ne!(first.origin(), second.origin());
-    let error = resolve(&narrow, &mut ctx, b"../outside", Some(&second.origin())).unwrap_err();
+    assert_ne!(first.origin().unwrap(), second.origin().unwrap());
+    let error = resolve(
+        &narrow,
+        &mut ctx,
+        b"../outside",
+        Some(&second.origin().unwrap()),
+    )
+    .unwrap_err();
     assert!(error.message.contains("escapes module root"), "{error}");
     drop(first);
     drop(second);
@@ -366,7 +376,7 @@ fn search_rejects_escaping_and_broken_symlinks_before_later_roots() {
     symlink("absent", first.join("broken.vibe")).unwrap();
     let resolver = Resolver::new(&[first, directory.0.join("second")], &[], &[], 100).unwrap();
     let mut ctx = CallContext::new(CallOptions::default());
-    let origin = candidate(&resolver, &mut ctx, b"start").origin();
+    let origin = candidate(&resolver, &mut ctx, b"start").origin().unwrap();
     for name in [b"escape".as_slice(), b"broken"] {
         let error = resolve(&resolver, &mut ctx, name, None).unwrap_err();
         assert!(error.message.contains("escapes module root"), "{error}");
@@ -531,7 +541,7 @@ fn renamed_roots_and_retained_origins_keep_the_original_directory_authority() {
     let producer = Resolver::new(std::slice::from_ref(&path), &[], &[], 100).unwrap();
     let mut ctx = CallContext::new(CallOptions::default());
     let first = candidate(&producer, &mut ctx, b"pkg/start");
-    let origin = first.origin();
+    let origin = first.origin().unwrap();
     let stamp = producer.read(&mut ctx, &first).unwrap().unwrap().stamp;
     fs::rename(&path, directory.0.join("moved")).unwrap();
     directory.write("root/pkg/start.vibe", b"replacement");
@@ -550,7 +560,7 @@ fn renamed_roots_and_retained_origins_keep_the_original_directory_authority() {
     let replacement = Resolver::new(&[path], &[], &[], 100).unwrap();
     let second = candidate(&replacement, &mut ctx, b"pkg/start");
     assert_eq!(first.path, second.path);
-    assert_ne!(origin, second.origin());
+    assert_ne!(origin, second.origin().unwrap());
     drop(first);
     drop(second);
     drop(producer);
@@ -602,4 +612,28 @@ fn absolute_in_root_links_preserve_lexical_policy_and_relative_callers() {
             .contains("denied by policy")
     );
     assert_eq!(ctx.stats().retained_memory_bytes, 0);
+}
+
+#[test]
+fn malformed_candidate_metadata_is_not_a_cache_miss() {
+    let directory = Directory::new();
+    directory.write("one.vibe", b"1");
+    let resolver = Resolver::new(std::slice::from_ref(&directory.0), &[], &[], 1000).unwrap();
+    let mut ctx = CallContext::new(CallOptions::default());
+    let mut candidate = resolver
+        .candidates(&mut ctx, b"one", None)
+        .unwrap()
+        .next(&mut ctx)
+        .unwrap()
+        .unwrap();
+    let source = resolver.read(&mut ctx, &candidate).unwrap().unwrap();
+    candidate.path = PathBuf::from("outside-the-module-root");
+    let error = resolver
+        .valid(&mut ctx, &candidate, source.stamp)
+        .unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Internal);
+    let error = resolver.read(&mut ctx, &candidate).err().unwrap();
+    assert_eq!(error.kind, ErrorKind::Internal);
+    candidate.relative = Value::int(7);
+    assert_eq!(candidate.origin().unwrap_err().kind, ErrorKind::Internal);
 }

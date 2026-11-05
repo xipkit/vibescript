@@ -677,14 +677,15 @@ pub(crate) struct Controls<'a>(pub &'a str);
 
 impl fmt::Display for Controls<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut rest = self.0;
-        while let Some(index) = rest.find(|ch: char| ch.is_control() && ch != '\t') {
-            f.write_str(&rest[..index])?;
-            let ch = rest[index..].chars().next().unwrap();
-            write!(f, "{}", ch.escape_default())?;
-            rest = &rest[index + ch.len_utf8()..];
+        let mut start = 0;
+        for (index, ch) in self.0.char_indices() {
+            if ch.is_control() && ch != '\t' {
+                f.write_str(&self.0[start..index])?;
+                write!(f, "{}", ch.escape_default())?;
+                start = index + ch.len_utf8();
+            }
         }
-        f.write_str(rest)
+        f.write_str(&self.0[start..])
     }
 }
 
@@ -713,14 +714,16 @@ pub(crate) struct Filename<'a>(pub &'a [u8]);
 impl fmt::Display for Filename<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for chunk in self.0.utf8_chunks() {
-            let mut rest = chunk.valid();
-            while let Some(index) = rest.find(|ch: char| ch.is_control() || ch == '\\') {
-                f.write_str(&rest[..index])?;
-                let ch = rest[index..].chars().next().unwrap();
-                write!(f, "{}", ch.escape_default())?;
-                rest = &rest[index + ch.len_utf8()..];
+            let text = chunk.valid();
+            let mut start = 0;
+            for (index, ch) in text.char_indices() {
+                if ch.is_control() || ch == '\\' {
+                    f.write_str(&text[start..index])?;
+                    write!(f, "{}", ch.escape_default())?;
+                    start = index + ch.len_utf8();
+                }
             }
-            f.write_str(rest)?;
+            f.write_str(&text[start..])?;
             for byte in chunk.invalid() {
                 write!(f, "\\x{byte:02x}")?;
             }

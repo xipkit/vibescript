@@ -200,7 +200,10 @@ impl CallContext {
                     }
                 }
                 None => {
-                    let frame = frames.data.pop().unwrap();
+                    let frame = frames
+                        .data
+                        .pop()
+                        .ok_or(crate::checked::violation("import frame expected"))?;
                     produced = Some(frame.finish(self)?);
                 }
             }

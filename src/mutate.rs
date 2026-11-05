@@ -173,7 +173,9 @@ fn remove_end(
     if args.len() > 1 {
         return Err(argument(&format!("{member} accepts at most one argument")));
     }
-    let source = receiver.as_array().unwrap();
+    let source = receiver.as_array().ok_or(crate::checked::violation(
+        "mutation receiver must be an array",
+    ))?;
     let count = if let Some(count) = args.first() {
         let invalid = || format!("{member} expects non-negative integer");
         let n = sequence::integer(count).map_err(|error| error.with_message(invalid()))?;
