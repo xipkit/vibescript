@@ -125,7 +125,7 @@ def main() -> int:
     driver.chmod(0o755)
     environment = dict(os.environ)
     environment.update({
-        "CARGO_BUILD_JOBS": "3", "CARGO_TERM_COLOR": "never",
+        "CARGO_BUILD_JOBS": "3", "CARGO_TERM_COLOR": "never", "TZ": "America/Detroit",
         "CARGO_TARGET_" + host.upper().replace("-", "_") + "_LINKER": str(driver),
         "VIBESCRIPT_BENCH_CC": shutil.which("clang") or "clang",
         "VIBESCRIPT_BENCH_BASELINE": baseline,
@@ -137,10 +137,10 @@ def main() -> int:
         "cpu": capture(["sysctl", "-n", "machdep.cpu.brand_string"]) if sys.platform == "darwin" else capture(["lscpu"]),
         "rustc": capture(["rustc", "-vV"]), "clang": capture([environment["VIBESCRIPT_BENCH_CC"], "--version"]),
         "baseline": capture(["ld", "-v"]) if sys.platform == "darwin" else capture([baseline, "--version"]),
-        "mold_version": capture([str(mold), "--version"]), "mold_revision": args.mold_revision,
+        "mold_version": capture([str(mold), "-v" if sys.platform == "darwin" else "--version"]), "mold_revision": args.mold_revision,
         "source_revision": capture(["git", "-C", str(ROOT), "rev-parse", "HEAD"]),
         "cargo_lock_sha256": hashlib.sha256((ROOT / "Cargo.lock").read_bytes()).hexdigest(),
-        "python": sys.version, "rounds": args.rounds, "cargo_jobs": 3,
+        "python": sys.version, "rounds": args.rounds, "cargo_jobs": 3, "timezone": environment["TZ"],
         "rustflags": environment.get("RUSTFLAGS", ""),
     }
     samples: list[dict[str, object]] = []
