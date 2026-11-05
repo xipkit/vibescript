@@ -250,6 +250,125 @@ fn a_callback_cannot_swallow_an_internal_import_error() {
     }
 }
 
+#[test]
+fn empty_stacks_in_vm_helpers_are_terminal() {
+    for op in [Op::Pop, Op::Dup, Op::LoopBody, Op::EnsureEnd] {
+        for reaction in [Reaction::Ignore, Reaction::Replace] {
+            let observed = Arc::new(Observed::default());
+            let mut engine = marking(&observed);
+            let seen = observed.clone();
+            engine.register_method(
+                "visit",
+                HostMethod::new_with_block("visit", move |call, _, _| {
+                    let error = call.call_block(&[]).unwrap_err();
+                    assert_eq!(error.kind, ErrorKind::Internal, "{op:?}: {error}");
+                    seen.block.store(true, Ordering::Relaxed);
+                    let later = call.context().checkpoint().unwrap_err();
+                    assert_eq!(later.kind, ErrorKind::Internal);
+                    assert_eq!(later.message, error.message);
+                    seen.later.store(true, Ordering::Relaxed);
+                    reaction.result()
+                }),
+            );
+            let script = corrupt(engine.compile(GUARDED_BLOCK).unwrap(), "<block>", |code| {
+                code[0] = op;
+            });
+            let error = script.call("run", &[], CallOptions::default()).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Internal, "{op:?}: {error}");
+            assert!(observed.block.load(Ordering::Relaxed));
+            assert!(observed.later.load(Ordering::Relaxed));
+            assert_eq!(observed.handlers.load(Ordering::Relaxed), 0);
+        }
+    }
+}
+
+#[test]
+fn a_native_frame_has_no_required_function() {
+    let script = Engine::new().compile("0").unwrap();
+    let mut execution =
+        Execution::new(&script, "__main__", &[], &[], CallOptions::default()).unwrap();
+    let run = execution.run.as_mut().unwrap();
+    let mut frame = Frame::new(run.root.clone(), &run.storage, Some(0), 0, 0);
+    assert_eq!(frame.required_function().unwrap(), 0);
+    frame.function = FrameCode::Iteration;
+    let error = Error::from(frame.required_function().unwrap_err());
+    assert_eq!(error.kind, ErrorKind::Internal);
+    assert!(error.message.ends_with("frame must have a function"));
+}
+
+#[test]
+fn a_callback_cannot_swallow_a_missing_code_roots_error() {
+    for reaction in [Reaction::Ignore, Reaction::Replace] {
+        let observed = Arc::new(Observed::default());
+        let mut engine = marking(&observed);
+        let seen = observed.clone();
+        let method = HostMethod::new_with_block("cap.store", move |call, _, _| {
+            call.context().code_roots = None;
+            let error = call
+                .set_receiver_field(b"value", &Value::int(1))
+                .unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Internal);
+            assert!(
+                error
+                    .message
+                    .ends_with("invocation must retain its code roots")
+            );
+            seen.block.store(true, Ordering::Relaxed);
+            let later = call.context().checkpoint().unwrap_err();
+            assert_eq!(later.message, error.message);
+            seen.later.store(true, Ordering::Relaxed);
+            reaction.result()
+        });
+        let capability = crate::Capability::from_value(
+            "cap",
+            Value::object(vec![(b"store".to_vec(), method.value())]),
+        );
+        engine.declare_capability(&capability).unwrap();
+        let script = engine
+            .compile("def run -> any;begin;cap.store();rescue;mark();ensure;mark();end;end")
+            .unwrap();
+        let error = script
+            .call(
+                "run",
+                &[],
+                CallOptions {
+                    capabilities: vec![capability],
+                    ..CallOptions::default()
+                },
+            )
+            .unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Internal);
+        assert!(observed.block.load(Ordering::Relaxed));
+        assert!(observed.later.load(Ordering::Relaxed));
+        assert_eq!(observed.handlers.load(Ordering::Relaxed), 0);
+    }
+}
+
+#[test]
+fn non_utf8_namespace_fields_keep_their_type_error() {
+    let script = Engine::new().compile("module Box;end").unwrap();
+    let mut execution =
+        Execution::new(&script, "__main__", &[], &[], CallOptions::default()).unwrap();
+    let run = execution.run.as_mut().unwrap();
+    let ctx = &mut execution.context;
+    let program = run.root.clone();
+    let state = namespaces::state(&program, ctx, &mut run.storage, 0).unwrap();
+    let key = ctx.bytes(&[0xff]).unwrap();
+    run.storage
+        .namespaces
+        .at_mut(state)
+        .unwrap()
+        .fields
+        .insert_field(ctx, key, Value::int(1))
+        .unwrap();
+    let value = Value(Kind::Namespace(
+        run.storage.namespaces.at(state).unwrap().namespace.clone(),
+    ));
+    let error = programs::snapshot(ctx, &run.storage, &value).unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Type);
+    assert_eq!(error.message, "namespace field name is not UTF-8");
+}
+
 #[cfg(feature = "tokio")]
 mod asynchronous {
     use super::*;

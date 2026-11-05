@@ -35,11 +35,11 @@ pub(super) fn run(
             }
             Op::Pop => {
                 step(ctx, frame)?;
-                discard(stack.data.pop().unwrap());
+                discard(stack.pop()?);
             }
             Op::Dup => {
                 step(ctx, frame)?;
-                let value = copy(stack.data.last().unwrap());
+                let value = copy(stack.top()?);
                 push(ctx, stack, value)?;
             }
             Op::Constant(n) => {
@@ -87,7 +87,11 @@ pub(super) fn run(
                         None => return Ok(()),
                     }
                 };
-                let value = storage.locals.at(slot)?.as_ref().unwrap();
+                let value = storage
+                    .locals
+                    .at(slot)?
+                    .as_ref()
+                    .ok_or(violation("local must be bound"))?;
                 let value = if matches!(value.0, Kind::Offset(_) | Kind::Builtin(_)) {
                     special_value(ctx, value)?
                 } else {
@@ -117,7 +121,7 @@ pub(super) fn run(
                 else {
                     return Ok(());
                 };
-                let value = stack.data.last().unwrap();
+                let value = stack.top()?;
                 address::refresh(ctx, slot, value, &mut storage.addresses.data, &[])?;
                 store(storage, slot, copy(value))?;
             }
@@ -129,8 +133,8 @@ pub(super) fn run(
                 else {
                     return Ok(());
                 };
-                let b = stack.data.pop().unwrap();
-                let a = stack.data.pop().unwrap();
+                let b = stack.pop()?;
+                let a = stack.pop()?;
                 let value = match ops::immediate(ctx, Operator::Add, &a, &b)? {
                     Some(value) => {
                         discard(a);
@@ -153,8 +157,8 @@ pub(super) fn run(
                     return Ok(());
                 }
                 step(ctx, frame)?;
-                let b = stack.data.pop().unwrap();
-                let a = stack.data.pop().unwrap();
+                let b = stack.pop()?;
+                let a = stack.pop()?;
                 let value = match ops::immediate(ctx, op, &a, &b)? {
                     Some(value) => {
                         discard(a);
@@ -212,7 +216,7 @@ pub(super) fn run(
                         Op::LoopTest => {
                             step(ctx, frame)?;
                             if !value {
-                                frame.ip = storage.loops.data.last().unwrap().end;
+                                frame.ip = storage.loops.top()?.end;
                             }
                             continue;
                         }
@@ -264,7 +268,12 @@ pub(super) fn run(
                         None => return Ok(()),
                     }
                 };
-                let value = storage.locals.at(slot)?.as_ref().unwrap().clone();
+                let value = storage
+                    .locals
+                    .at(slot)?
+                    .as_ref()
+                    .ok_or(violation("local must be bound"))?
+                    .clone();
                 storage
                     .addresses
                     .push(ctx, Address::new(Some(slot), value))?;
@@ -277,12 +286,17 @@ pub(super) fn run(
                 } else {
                     stack.data.last()
                 };
-                if matches!(receiver.unwrap().0, Kind::Hash(_)) {
+                if matches!(
+                    receiver
+                        .ok_or(violation("member receiver must be present"))?
+                        .0,
+                    Kind::Hash(_)
+                ) {
                     return Ok(());
                 }
                 step(ctx, frame)?;
                 if mutating {
-                    storage.addresses.data.last().unwrap().check_present(ctx)?;
+                    storage.addresses.top()?.check_present(ctx)?;
                 }
             }
             Op::Shadow(slot) => {
@@ -324,35 +338,32 @@ pub(super) fn run(
             }
             Op::JumpFalse(target) => {
                 step(ctx, frame)?;
-                if !truthy(stack.data.pop().unwrap()) {
+                if !truthy(stack.pop()?) {
                     frame.ip = target as usize;
                 }
             }
             Op::JumpTrue(target) => {
                 step(ctx, frame)?;
-                if truthy(stack.data.pop().unwrap()) {
+                if truthy(stack.pop()?) {
                     frame.ip = target as usize;
                 }
             }
             Op::JumpNil(target) => {
                 step(ctx, frame)?;
-                if matches!(stack.data.last().unwrap().0, Kind::Nil) {
+                if matches!(stack.top()?.0, Kind::Nil) {
                     frame.ip = target as usize;
                 }
             }
             Op::LoopTest => {
                 step(ctx, frame)?;
-                if !truthy(stack.data.pop().unwrap()) {
-                    frame.ip = storage.loops.data.last().unwrap().end;
+                if !truthy(stack.pop()?) {
+                    frame.ip = storage.loops.top()?.end;
                 }
             }
             Op::LoopBody => {
                 step(ctx, frame)?;
-                let state = storage.loops.data.last_mut().unwrap();
-                discard(std::mem::replace(
-                    &mut state.last,
-                    stack.data.pop().unwrap(),
-                ));
+                let state = storage.loops.top_mut()?;
+                discard(std::mem::replace(&mut state.last, stack.pop()?));
                 frame.ip = state.next;
                 if stack.data.len() > state.base
                     || storage.addresses.data.len() > state.address_base
@@ -360,7 +371,7 @@ pub(super) fn run(
                     || storage.texts.data.len() > state.text_base
                     || storage.arguments.data.len() > state.argument_base
                 {
-                    clean_loop(storage, stack);
+                    clean_loop(storage, stack)?;
                 }
             }
             Op::RootCall(_, expanded) => {
@@ -445,12 +456,12 @@ fn mutate(
     // Only direct array updates, which need no scan of their
     // result, run here.
     let direct = !(ctx.has_exports && !function.plain_values.contains(frame.ip))
-        && updatable(storage.addresses.data.last().unwrap(), site, false);
+        && updatable(storage.addresses.top()?, site, false);
     if !direct {
         return Ok(false);
     }
     step(ctx, frame)?;
-    let address = storage.addresses.data.pop().unwrap();
+    let address = storage.addresses.pop()?;
     let base = stack.data.len() - n as usize;
     let name = program.members.at(site.name as usize)?;
     let value = update(ctx, storage, address, site, name, stack.tail(base)?)?;
@@ -474,12 +485,12 @@ fn shovel(
             "outlined opcode and handler agree",
         ));
     };
-    if !updatable(storage.addresses.data.last().unwrap(), site, true) {
+    if !updatable(storage.addresses.top()?, site, true) {
         return Ok(false);
     }
     step(ctx, frame)?;
-    let value = stack.data.pop().unwrap();
-    let address = storage.addresses.data.pop().unwrap();
+    let value = stack.pop()?;
+    let address = storage.addresses.pop()?;
     let args = std::slice::from_ref(&value);
     let result = if last {
         append_loop_tail(ctx, storage, address, site, args)?
@@ -501,7 +512,7 @@ fn address_target(
     read: bool,
 ) -> Result<bool> {
     // An instance reads its element through its own `[]`.
-    let address = storage.addresses.data.last_mut().unwrap();
+    let address = storage.addresses.top_mut()?;
     if read && matches!(address.value.0, Kind::Instance(_)) {
         return Ok(false);
     }
@@ -530,7 +541,7 @@ fn address_store(
 ) -> Result<bool> {
     // Members, instances and typed instance variables are stored
     // through setters and guards.
-    let address = storage.addresses.data.last().unwrap();
+    let address = storage.addresses.top()?;
     if address.member_target
         || matches!(address.value.0, Kind::Instance(_))
         || address.object_binding().is_some()
@@ -538,8 +549,8 @@ fn address_store(
         return Ok(false);
     }
     step(ctx, frame)?;
-    let address = storage.addresses.data.pop().unwrap();
-    let value = stack.data.pop().unwrap();
+    let address = storage.addresses.pop()?;
+    let value = stack.pop()?;
     let value = assign(ctx, storage, address, value)?;
     push(ctx, stack, value)?;
     Ok(true)
@@ -549,13 +560,14 @@ fn address_store(
 // builders and addresses must not inflate every iteration's stack frame.
 #[cold]
 #[inline(never)]
-fn clean_loop(storage: &mut Storage, stack: &mut Buffer<Value>) {
-    let state = storage.loops.data.last().unwrap();
+fn clean_loop(storage: &mut Storage, stack: &mut Buffer<Value>) -> Access<()> {
+    let state = storage.loops.top()?;
     stack.data.truncate(state.base);
     storage.addresses.data.truncate(state.address_base);
     storage.bypasses.data.truncate(state.bypass_base);
     storage.texts.data.truncate(state.text_base);
     storage.arguments.data.truncate(state.argument_base);
+    Ok(())
 }
 
 /// Borrows a compiled literal for a plain hash, leaving other receivers to
@@ -583,12 +595,12 @@ fn index_literal(
         .constants
         .at(*program.shared.at(slot)?)?
         .as_bytes()
-        .unwrap();
+        .ok_or(violation("literal key must be bytes"))?;
     let value = match hash.find(ctx, key)? {
         Some(index) => hash.buffer.at(index)?.1.clone(),
         None => Value::default(),
     };
-    *stack.data.last_mut().unwrap() = value;
+    *stack.top_mut()? = value;
     Ok(true)
 }
 
@@ -617,7 +629,7 @@ fn index(
         // `receiver[:name](...)` keeps its root for the host method.
         let receiver = root.clone();
         if storage.arguments.data.len() > frame.argument_base() {
-            storage.arguments.data.last_mut().unwrap().receiver = Some(receiver);
+            storage.arguments.top_mut()?.receiver = Some(receiver);
         }
     }
     stack.data.truncate(base);
@@ -637,14 +649,16 @@ fn direct(
     count: usize,
 ) -> Result<bool> {
     let base = stack.data.len() - count - 1;
-    let method = site.method.unwrap();
+    let method = site
+        .method
+        .ok_or(violation("direct call must have a method"))?;
     if !members::direct::accepts(method, stack.at(base)?, count) {
         return Ok(false);
     }
     step(ctx, frame)?;
     let name = program.members.at(site.name as usize)?;
-    let value =
-        members::direct::call(ctx, method, name, stack.at(base)?, stack.tail(base + 1)?)?.unwrap();
+    let value = members::direct::call(ctx, method, name, stack.at(base)?, stack.tail(base + 1)?)?
+        .ok_or(violation("accepted direct call must produce a value"))?;
     stack.data.truncate(base);
     stack.push(ctx, value)?;
     Ok(true)
@@ -772,7 +786,7 @@ fn iterate(
     stack: &mut Buffer<Value>,
     plain: bool,
 ) -> Result<()> {
-    let state = storage.loops.data.last_mut().unwrap();
+    let state = storage.loops.top_mut()?;
     if let Some(value) = state.next_value(ctx)? {
         if !plain {
             crate::exports::check(ctx, &value)?;
@@ -911,13 +925,15 @@ fn captured(
     loop {
         for _ in 0..=capture.depth {
             hops += 1;
-            current = outer.at(current.parent().unwrap())?;
+            current = outer.at(current
+                .parent()
+                .ok_or(violation("capture must have a parent frame"))?)?;
         }
         let slot = current.local_base() + capture.slot;
         if storage.locals.at(slot)?.is_some() {
             return Ok((slot, hops));
         }
-        let function = current.program.functions.at(current.function().unwrap())?;
+        let function = current.program.functions.at(current.required_function()?)?;
         match function.captures.get(capture.slot).copied().flatten() {
             Some(next) => capture = next,
             None => return Ok((own, hops)),

@@ -134,7 +134,7 @@ impl Run {
 
     pub(super) fn prepare_host(&mut self, ctx: &mut CallContext) -> Result<HostRequest> {
         let current = self.frames.data.len() - 1;
-        let mut args = self.storage.arguments.data.pop().unwrap();
+        let mut args = self.storage.arguments.pop()?;
         let Some(crate::arguments::Target::Capability(method)) = args.target.take() else {
             return Err(crate::checked::internal(
                 "host request has no capability target",

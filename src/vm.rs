@@ -4860,6 +4860,13 @@ impl Frame {
         }
     }
 
+    #[inline]
+    #[track_caller]
+    fn required_function(&self) -> Access<usize> {
+        self.function()
+            .ok_or(violation("frame must have a function"))
+    }
+
     fn parent(&self) -> Option<usize> {
         self.parent.map(|index| index as usize)
     }
