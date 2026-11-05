@@ -42,7 +42,12 @@ impl Fields {
         match self {
             Self::Named(named) => named.find(ctx, name.as_bytes()),
             Self::Slots { values, .. } => {
-                for (slot, field) in class.field_layout().unwrap().iter().enumerate() {
+                for (slot, field) in class
+                    .field_layout()
+                    .ok_or(violation("missing declared field layout"))?
+                    .iter()
+                    .enumerate()
+                {
                     ctx.charge(1)?;
                     if field == name {
                         return Ok(values
@@ -80,7 +85,7 @@ impl Fields {
             Self::Slots { .. } => {
                 let slot = class
                     .field_layout()
-                    .unwrap()
+                    .ok_or(violation("missing declared field layout"))?
                     .iter()
                     .position(|field| field == name)
                     .ok_or_else(|| Error::new(ErrorKind::Name, "undeclared instance variable"))?;
@@ -139,10 +144,19 @@ impl Fields {
     }
 
     pub fn name<'a>(&'a self, class: &'a Namespace, slot: usize) -> Access<&'a [u8]> {
-        Ok(match self {
-            Self::Named(named) => named.buffer.at(slot)?.0.as_bytes().unwrap(),
-            Self::Slots { .. } => class.field_layout().unwrap().at(slot)?.as_bytes(),
-        })
+        match self {
+            Self::Named(named) => named
+                .buffer
+                .at(slot)?
+                .0
+                .as_bytes()
+                .ok_or(violation("instance field name is not bytes")),
+            Self::Slots { .. } => Ok(class
+                .field_layout()
+                .ok_or(violation("missing declared field layout"))?
+                .at(slot)?
+                .as_bytes()),
+        }
     }
 
     pub fn names<'a>(&'a self, class: &'a Namespace) -> impl Iterator<Item = &'a [u8]> {
