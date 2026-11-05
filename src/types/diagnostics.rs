@@ -86,7 +86,11 @@ pub(crate) fn host_resolution(
         }
         Context::Cast => writer.write(b"cast type check failed: ")?,
         Context::Json => writer.write(b"JSON.parse_as type check failed: ")?,
-        _ => unreachable!(),
+        Context::Value => {
+            return Err(crate::checked::internal(
+                "host resolution requires a named context",
+            ));
+        }
     }
     if error.message == "unknown named type" {
         writer.write(b"unknown type ")?;
@@ -338,7 +342,7 @@ mod tests {
 
     fn error(ctx: &mut CallContext, value: &Value) -> Error {
         let ty = Type::named("int".into());
-        types::prepare(ctx, &ty, |_, _| unreachable!())
+        types::prepare(ctx, &ty, |_, _| panic!("unexpected test fixture"))
             .and_then(|prepared| {
                 prepared.normalize_with(ctx, value.clone(), Context::Argument(b"payload"))
             })

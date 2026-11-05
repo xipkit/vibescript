@@ -4,10 +4,13 @@
 
 use super::{Stamp, calendar, offset, stamp, zone};
 use crate::{
-    CallContext, Error, ErrorKind, Result, Value, budget::Buffer, bytes, numeric::to_usize,
+    CallContext, Error, ErrorKind, Result, Value,
+    budget::Buffer,
+    bytes,
+    checked::{Access, violation},
+    numeric::to_usize,
     value::Kind,
 };
-use std::fmt::Write;
 
 pub(super) const OUTPUT_LIMIT: usize = 1 << 20;
 pub(super) const MONTHS: [&[u8]; 12] = [
@@ -125,7 +128,7 @@ impl<'a> Output<'a> {
     }
     pub fn finish(self, ctx: &mut CallContext) -> Result<Value> {
         let Destination::Buffer(buffer) = self.destination else {
-            unreachable!()
+            return Err(crate::checked::internal("time output buffer expected"));
         };
         Value::from_bytes(ctx, buffer)
     }
@@ -139,7 +142,7 @@ pub(super) struct View<'a> {
 
 impl<'a> View<'a> {
     pub fn new(ctx: &mut CallContext, value: &'a Value) -> Result<Self> {
-        let stamp = stamp(value).unwrap();
+        let stamp = stamp(value).ok_or(violation("time formatter requires a time value"))?;
         let zone = offset(ctx, value)?;
         Ok(Self {
             stamp,
@@ -288,35 +291,36 @@ pub(super) fn next(ctx: &mut CallContext, input: &[u8]) -> Result<(usize, Option
     Ok((input.len(), None, input.len()))
 }
 
-fn integer(out: &mut bytes::Number, value: i64, width: usize, pad: u8) {
+fn integer(out: &mut bytes::Number, value: i64, width: usize, pad: u8) -> Access<()> {
     if pad == b' ' {
-        write!(out, "{value:width$}").unwrap();
+        out.format(format_args!("{value:width$}"))?;
     } else {
         if value < 0 {
-            out.write_char('-').unwrap();
+            out.append("-")?;
         }
-        write!(out, "{:0width$}", value.unsigned_abs()).unwrap();
+        out.format(format_args!("{:0width$}", value.unsigned_abs()))?;
     }
+    Ok(())
 }
 
-fn numeric_zone(out: &mut bytes::Number, offset: i32, token: NumericZone) {
+fn numeric_zone(out: &mut bytes::Number, offset: i32, token: NumericZone) -> Access<()> {
     if token.iso && offset == 0 {
-        out.write_char('Z').unwrap();
-        return;
+        out.append("Z")?;
+        return Ok(());
     }
     let minutes = i64::from(offset) / 60;
     let negative = minutes < 0;
-    out.write_char(if negative { '-' } else { '+' }).unwrap();
-    integer(out, minutes.abs() / 60, 2, b'0');
+    out.append(if negative { "-" } else { "+" })?;
+    integer(out, minutes.abs() / 60, 2, b'0')?;
     if token.colon {
-        out.write_char(':').unwrap();
+        out.append(":")?;
     }
     if !token.short {
-        integer(out, minutes.abs() % 60, 2, b'0');
+        integer(out, minutes.abs() % 60, 2, b'0')?;
     }
     if token.seconds {
         if token.colon {
-            out.write_char(':').unwrap();
+            out.append(":")?;
         }
         integer(
             out,
@@ -327,8 +331,9 @@ fn numeric_zone(out: &mut bytes::Number, offset: i32, token: NumericZone) {
             },
             2,
             b'0',
-        );
+        )?;
     }
+    Ok(())
 }
 
 pub(super) fn render(
@@ -346,12 +351,14 @@ pub(super) fn render(
         };
         let mut number = bytes::Number::new();
         match token {
-            Token::Number(part, width, pad) => integer(&mut number, view.part(part), width, pad),
+            Token::Number(part, width, pad) => integer(&mut number, view.part(part), width, pad)?,
             Token::Name(part, full) => {
                 let name = match part {
                     Part::Month => MONTHS[to_usize(view.date.month) - 1],
                     Part::Weekday => WEEKDAYS[to_usize(view.date.weekday)],
-                    _ => unreachable!(),
+                    _ => {
+                        return Err(crate::checked::internal("month or weekday name expected"));
+                    }
                 };
                 out.append(ctx, if full { name } else { &name[..3] })?;
             }
@@ -364,7 +371,7 @@ pub(super) fn render(
                 };
                 out.append(ctx, text)?;
             }
-            Token::Zone(token) => numeric_zone(&mut number, view.zone.seconds, token),
+            Token::Zone(token) => numeric_zone(&mut number, view.zone.seconds, token)?,
             Token::ZoneName if !view.zone.name.is_empty() => out.append(ctx, view.zone.name)?,
             Token::ZoneName => numeric_zone(
                 &mut number,
@@ -375,12 +382,12 @@ pub(super) fn render(
                     seconds: false,
                     short: false,
                 },
-            ),
+            )?,
             Token::Fraction(separator, digits, trim) => {
                 if trim && (digits == 0 || view.stamp.nanos() == 0) {
                     continue;
                 }
-                write!(number, "{:09}", view.stamp.nanos()).unwrap();
+                number.format(format_args!("{:09}", view.stamp.nanos()))?;
                 let mut end = digits.min(9);
                 if trim {
                     while end > 0 && number.bytes()[end - 1] == b'0' {
@@ -416,25 +423,23 @@ pub(super) fn format(ctx: &mut CallContext, value: &Value, layout: &[u8]) -> Res
     out.finish(ctx)
 }
 
-fn year(out: &mut bytes::Number, year: i64) {
+fn year(out: &mut bytes::Number, year: i64) -> Access<()> {
     if year < 0 {
-        out.write_char('-').unwrap();
+        out.append("-")?;
     }
-    write!(out, "{:04}", year.unsigned_abs()).unwrap();
+    out.format(format_args!("{:04}", year.unsigned_abs()))
 }
 
-fn numeric_offset(out: &mut bytes::Number, seconds: i32, colon: bool) {
+fn numeric_offset(out: &mut bytes::Number, seconds: i32, colon: bool) -> Access<()> {
     let minutes = seconds / 60;
     let sign = if minutes < 0 { '-' } else { '+' };
     let magnitude = minutes.unsigned_abs();
-    write!(
-        out,
+    out.format(format_args!(
         "{sign}{:02}{}{:02}",
         magnitude / 60,
         if colon { ":" } else { "" },
         magnitude % 60
-    )
-    .unwrap();
+    ))
 }
 
 pub(crate) fn text(
@@ -442,17 +447,15 @@ pub(crate) fn text(
     value: &Value,
     precision: Option<usize>,
 ) -> Result<Value> {
-    let stamp = stamp(value).unwrap();
+    let stamp = stamp(value).ok_or(violation("time formatter requires a time value"))?;
     let offset = offset(ctx, value)?;
     let date = calendar::civil(stamp.seconds(), offset.seconds);
     let mut out = bytes::Number::new();
-    year(&mut out, date.year);
-    write!(
-        out,
+    year(&mut out, date.year)?;
+    out.format(format_args!(
         "-{:02}-{:02}T{:02}:{:02}:{:02}",
         date.month, date.day, date.hour, date.minute, date.second
-    )
-    .unwrap();
+    ))?;
     let mut digits = precision.unwrap_or(9);
     let mut fraction = stamp.nanos();
     if precision.is_none() {
@@ -464,21 +467,21 @@ pub(crate) fn text(
         fraction /= 10u32.pow((9 - digits) as u32);
     }
     if digits > 0 {
-        write!(out, ".{:0width$}", fraction, width = digits.min(9)).unwrap();
+        out.format(format_args!(".{:0width$}", fraction, width = digits.min(9)))?;
         for _ in 9..digits {
-            out.write_char('0').unwrap();
+            out.append("0")?;
         }
     }
     if offset.seconds == 0 {
-        out.write_char('Z').unwrap();
+        out.append("Z")?;
     } else {
-        numeric_offset(&mut out, offset.seconds, true);
+        numeric_offset(&mut out, offset.seconds, true)?;
     }
     ctx.bytes(out.bytes())
 }
 
 pub(super) fn mail_date(ctx: &mut CallContext, receiver: &Value, http: bool) -> Result<Value> {
-    let stamp = stamp(receiver).unwrap();
+    let stamp = stamp(receiver).ok_or(violation("mail date formatter requires a time value"))?;
     let offset = if http {
         zone::Offset::utc()
     } else {
@@ -490,22 +493,63 @@ pub(super) fn mail_date(ctx: &mut CallContext, receiver: &Value, http: bool) -> 
         "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
     ][to_usize(date.month) - 1];
     let mut out = bytes::Number::new();
-    write!(out, "{weekday}, {:02} {month} ", date.day).unwrap();
-    year(&mut out, date.year);
-    write!(
-        out,
+    out.format(format_args!("{weekday}, {:02} {month} ", date.day))?;
+    year(&mut out, date.year)?;
+    out.format(format_args!(
         " {:02}:{:02}:{:02} ",
         date.hour, date.minute, date.second
-    )
-    .unwrap();
+    ))?;
     if http {
-        out.write_str("GMT").unwrap();
+        out.append("GMT")?;
     } else if matches!(receiver.0, Kind::Time(_))
         || (offset.seconds == 0 && offset.name.starts_with(b"-"))
     {
-        out.write_str("-0000").unwrap();
+        out.append("-0000")?;
     } else {
-        numeric_offset(&mut out, offset.seconds, false);
+        numeric_offset(&mut out, offset.seconds, false)?;
     }
     ctx.bytes(out.bytes())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CallOptions;
+
+    #[test]
+    fn invalid_time_values_return_internal_errors() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let value = Value::nil();
+        assert_eq!(
+            View::new(&mut ctx, &value).err().unwrap().kind,
+            ErrorKind::Internal
+        );
+        assert_eq!(
+            text(&mut ctx, &value, None).unwrap_err().kind,
+            ErrorKind::Internal
+        );
+        for http in [false, true] {
+            assert_eq!(
+                mail_date(&mut ctx, &value, http).unwrap_err().kind,
+                ErrorKind::Internal
+            );
+        }
+    }
+
+    #[test]
+    fn fixed_numeric_buffer_exhaustion_returns_internal_errors() {
+        let mut out = bytes::Number::new();
+        out.append(&"x".repeat(512)).unwrap();
+        assert_eq!(
+            Error::from(out.append("Z").unwrap_err()).kind,
+            ErrorKind::Internal
+        );
+        let mut out = bytes::Number::new();
+        let error = Error::from(integer(&mut out, i64::MIN, 513, b' ').unwrap_err());
+        assert_eq!(error.kind, ErrorKind::Internal);
+        let mut ctx = CallContext::new(CallOptions::default());
+        let value = Value(Kind::Time(Stamp::new(0, 0)));
+        let error = text(&mut ctx, &value, Some(513)).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Internal);
+    }
 }

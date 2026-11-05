@@ -76,7 +76,9 @@ pub(super) fn integer(
 ) -> Result<()> {
     if verb == 'c' {
         let Kind::Int(value) = value.0 else {
-            unreachable!()
+            return Err(crate::checked::internal(
+                "integer format requires an integer",
+            ));
         };
         let rune = u32::try_from(value)
             .ok()
@@ -87,7 +89,9 @@ pub(super) fn integer(
     }
     if verb == 'U' {
         let Kind::Int(value) = value.0 else {
-            unreachable!()
+            return Err(crate::checked::internal(
+                "integer format requires an integer",
+            ));
         };
         return unicode(ctx, output, unsigned_bits(value), field);
     }
@@ -118,7 +122,11 @@ pub(super) fn integer(
             }
             (&large.data[usize::from(n.negative)..], n.negative)
         }
-        _ => unreachable!(),
+        _ => {
+            return Err(crate::checked::internal(
+                "integer format requires an integer",
+            ));
+        }
     };
     integral(ctx, output, digits, negative, big, verb, field)
 }
@@ -209,7 +217,7 @@ pub(super) fn debug_big(
     mut field: Field,
 ) -> Result<()> {
     let Kind::Big(big) = &value.0 else {
-        unreachable!()
+        return Err(crate::checked::internal("big integer expected"));
     };
     let sharp = field.flag(SHARP);
     let names = sharp || field.flag(PLUS);
@@ -318,7 +326,9 @@ pub(super) fn float(
             'g' | 'G' | 'v' => general(value.abs(), verb == 'G', field),
             'x' | 'X' => hexadecimal(value.abs(), verb == 'X', field),
             'b' => binary(value.abs()),
-            _ => unreachable!(),
+            _ => {
+                return Err(crate::checked::internal("unsupported float format verb"));
+            }
         }
     };
     if digits.zeros == 0 {

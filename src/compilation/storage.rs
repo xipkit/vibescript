@@ -200,7 +200,7 @@ mod tests {
                 ErrorKind::Deadline => {
                     work.0.borrow_mut().options.deadline = Some(Instant::now());
                 }
-                _ => unreachable!(),
+                _ => panic!("unexpected test fixture"),
             }
             assert_eq!(Bytes::new(&work, bytes).unwrap_err().kind, kind);
             assert_eq!(work.checkpoint().unwrap_err().kind, kind);

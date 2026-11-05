@@ -416,7 +416,9 @@ pub(crate) fn call(
             let same = bytes::bytes_equal(ctx, bytes, result.require_bytes()?)?;
             return Ok(Some(if same { Value::nil() } else { result }));
         }
-        _ => unreachable!(),
+        _ => {
+            return Err(crate::checked::internal("unsupported string transform"));
+        }
     };
     window(ctx, receiver, start, end, bang).map(Some)
 }

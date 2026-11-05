@@ -784,9 +784,9 @@ impl Types {
             return Ty::ERROR;
         }
         for &ty in &distinct {
-            let count = match self.kind(ty) {
+            let inner = match self.kind(ty) {
                 Kind::Never => continue,
-                Kind::Union(inner) => inner.len(),
+                Kind::Union(inner) => inner,
                 _ => {
                     if members.push(ty).is_err() {
                         return Ty::ERROR;
@@ -795,12 +795,9 @@ impl Types {
                 }
             };
             // Each member a union adds is work, which the budget bounds.
-            if self.work(count) {
+            if self.work(inner.len()) {
                 return Ty::ERROR;
             }
-            let Kind::Union(inner) = self.kind(ty) else {
-                unreachable!("a union stays one");
-            };
             if members.extend_from_slice(inner).is_err() {
                 return Ty::ERROR;
             }
@@ -903,22 +900,20 @@ impl Types {
         if self.charge(1) || self.poll() {
             return true;
         }
-        if let Kind::Union(members) = self.kind(from) {
-            let count = members.len();
-            for index in 0..count {
-                let Kind::Union(members) = self.kind(from) else {
-                    unreachable!("a union stays one");
-                };
-                let member = members[index];
-                let fits = self.fits(member, to);
-                if self.stopped() {
-                    return true;
+        if matches!(self.kind(from), Kind::Union(_)) {
+            let kind = self.shared(from);
+            if let Kind::Union(members) = &*kind {
+                for &member in members {
+                    let fits = self.fits(member, to);
+                    if self.stopped() {
+                        return true;
+                    }
+                    if !fits {
+                        return false;
+                    }
                 }
-                if !fits {
-                    return false;
-                }
+                return true;
             }
-            return true;
         }
         if matches!(self.kind(to), Kind::Union(_)) {
             // A collection of a union may be split across alternatives
@@ -1188,7 +1183,7 @@ impl Types {
     /// every 64, so small types cost nothing more. Returns whether the
     /// check has stopped.
     #[must_use = "the budget may have stopped the check, which must then do no more work"]
-    pub fn work(&mut self, units: usize) -> bool {
+    pub fn work(&self, units: usize) -> bool {
         if units >= 64 {
             return self.charge((units / 64) as u64) || self.poll();
         }

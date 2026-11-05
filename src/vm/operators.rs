@@ -91,7 +91,9 @@ pub(super) fn string(ctx: &mut CallContext, receiver: &Value) -> Result<Option<C
         return Ok(None);
     };
     let Kind::Instance(instance) = &receiver.0 else {
-        unreachable!()
+        return Err(crate::checked::internal(
+            "to_s receiver must be an instance",
+        ));
     };
     let owner = instance
         .class()

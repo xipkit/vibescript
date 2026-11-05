@@ -160,7 +160,9 @@ impl Set {
             }
             index -= span.length();
         }
-        unreachable!()
+        Err(crate::checked::internal(
+            "character set index is out of range",
+        ))
     }
 }
 

@@ -1,12 +1,13 @@
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, Charge, MAX_VALUE_DEPTH, Memory},
+    checked::{Access, Checked, violation},
     hash::Hash,
     namespace::Namespace,
     value::Kind,
 };
 use std::sync::{
-    Arc, Mutex, Weak,
+    Arc, Mutex, MutexGuard, Weak,
     atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
 };
 
@@ -19,6 +20,14 @@ pub(crate) struct Heap {
     owner: Arc<Memory>,
     data: Mutex<Data>,
     _header: Option<Charge>,
+}
+
+impl Heap {
+    fn lock(&self) -> Access<MutexGuard<'_, Data>> {
+        self.data
+            .lock()
+            .map_err(|_| violation("instance heap lock is poisoned"))
+    }
 }
 
 struct Data {
@@ -59,7 +68,7 @@ impl<'a> MapFrame<'a> {
         match &source.0 {
             Kind::Array(array) => array.buffer.data.get(self.position),
             Kind::Hash(hash) => hash.buffer.data.get(self.position).map(|(_, value)| value),
-            _ => unreachable!(),
+            _ => None,
         }
     }
 
@@ -73,7 +82,9 @@ impl<'a> MapFrame<'a> {
                     self.mapped = Some(Mapped::Array(buffer));
                 }
                 let Some(Mapped::Array(buffer)) = &mut self.mapped else {
-                    unreachable!()
+                    return Err(crate::checked::internal(
+                        "object traversal container and output kinds disagree",
+                    ));
                 };
                 buffer.data[index] = value;
             }
@@ -84,11 +95,17 @@ impl<'a> MapFrame<'a> {
                     self.mapped = Some(Mapped::Hash(buffer));
                 }
                 let Some(Mapped::Hash(buffer)) = &mut self.mapped else {
-                    unreachable!()
+                    return Err(crate::checked::internal(
+                        "object traversal container and output kinds disagree",
+                    ));
                 };
                 buffer.data[index].1 = value;
             }
-            _ => unreachable!(),
+            _ => {
+                return Err(crate::checked::internal(
+                    "object traversal container and output kinds disagree",
+                ));
+            }
         }
         Ok(())
     }
@@ -105,7 +122,9 @@ impl<'a> MapFrame<'a> {
                 mapped.tag = hash.tag;
                 Value::from_hash(ctx, mapped).map(Some)
             }
-            _ => unreachable!(),
+            _ => Err(crate::checked::internal(
+                "object traversal container and output kinds disagree",
+            )),
         }
     }
 }
@@ -220,7 +239,7 @@ impl Instance {
 
 pub(crate) fn unroot(instance: &Arc<Instance>) -> Result<Arc<Instance>> {
     let heap = instance.heap()?;
-    let data = heap.data.lock().unwrap();
+    let data = heap.lock()?;
     data.entries
         .data
         .get(instance.identity.slot.load(Ordering::Relaxed))
@@ -292,7 +311,7 @@ fn new_scoped(
     nominal_scope: Option<u64>,
 ) -> Result<Arc<Instance>> {
     let heap = local(ctx)?;
-    if heap.data.lock().unwrap().allocations >= 32 {
+    if heap.lock()?.allocations >= 32 {
         collect(ctx, &heap, false)?;
     }
     let imported = (class.environment.is_some() || ctx.snapshot_namespaces.is_some())
@@ -300,7 +319,7 @@ fn new_scoped(
         .transpose()?;
     let class = imported.as_ref().unwrap_or(class);
     let known = {
-        let data = heap.data.lock().unwrap();
+        let data = heap.lock()?;
         let mut known = None;
         for candidate in &data.classes.data {
             ctx.charge(1)?;
@@ -316,7 +335,7 @@ fn new_scoped(
     } else {
         // Importing a captured environment can allocate objects in this heap.
         let class = Namespace::import(ctx, class)?;
-        let mut data = heap.data.lock().unwrap();
+        let mut data = heap.lock()?;
         let class = data.namespace(ctx, &heap, &class, true)?.unwrap_or(class);
         data.classes.push(ctx, class.clone())?;
         class
@@ -324,7 +343,7 @@ fn new_scoped(
     let identity_header = ctx.reserve(size_of::<Identity>() + 2 * size_of::<usize>())?;
     let internal_header = ctx.reserve(size_of::<Instance>() + 2 * size_of::<usize>())?;
     let external_header = ctx.reserve(size_of::<Instance>() + 2 * size_of::<usize>())?;
-    let mut data = heap.data.lock().unwrap();
+    let mut data = heap.lock()?;
     let Ok(id) = NEXT_ID.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
     else {
         return ctx.fail(ErrorKind::Memory, "instance identity space exhausted");
@@ -397,7 +416,7 @@ impl Data {
             (Owner::Internal(_), true) | (Owner::External(_), false) => Ok(None),
             (_, true) => {
                 let slot = instance.identity.slot.load(Ordering::Relaxed);
-                Ok(Some(self.entries.data[slot].internal.clone()))
+                Ok(Some(self.entries.at(slot)?.internal.clone()))
             }
             (_, false) => self.root(ctx, heap, &instance.identity).map(Some),
         }
@@ -438,9 +457,15 @@ impl Data {
         let mut frames = Buffer::with_capacity(ctx, value.depth().min(MAX_VALUE_DEPTH))?;
         frames.push(ctx, MapFrame::new(value))?;
         loop {
-            let frame = frames.data.last_mut().unwrap();
+            let frame = frames
+                .data
+                .last_mut()
+                .ok_or(violation("missing object mapping frame"))?;
             let Some(child) = frame.child() else {
-                let finished = frames.data.pop().unwrap();
+                let finished = frames
+                    .data
+                    .pop()
+                    .ok_or(violation("missing finished object mapping frame"))?;
                 let mapped = finished.finish(ctx)?;
                 let Some(parent) = frames.data.last_mut() else {
                     return Ok(mapped);
@@ -457,7 +482,11 @@ impl Data {
             if matches!(child.0, Kind::Array(_) | Kind::Hash(_)) {
                 frames.push(ctx, MapFrame::new(child))?;
             } else if let Some(mapped) = self.leaf(ctx, heap, child, internal)? {
-                frames.data.last_mut().unwrap().assign(ctx, index, mapped)?;
+                frames
+                    .data
+                    .last_mut()
+                    .ok_or(violation("missing object mapping frame"))?
+                    .assign(ctx, index, mapped)?;
             }
         }
     }
@@ -509,12 +538,18 @@ pub(crate) fn field(
     name: &str,
 ) -> Result<Option<Value>> {
     let heap = instance.heap()?;
-    let mut data = heap.data.lock().unwrap();
-    let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+    let mut data = heap.lock()?;
+    let fields = &data
+        .entries
+        .at(instance.identity.slot.load(Ordering::Relaxed))?
+        .fields;
     let Some(index) = fields.find(ctx, instance.class(), name)? else {
         return Ok(None);
     };
-    let value = fields.get(index).unwrap().clone();
+    let value = fields
+        .get(index)
+        .ok_or(violation("missing resolved instance field"))?
+        .clone();
     Ok(Some(data.map(ctx, &heap, &value, false)?.unwrap_or(value)))
 }
 
@@ -525,8 +560,10 @@ pub(crate) fn get_slot(
     slot: usize,
 ) -> Result<Value> {
     let heap = instance.heap()?;
-    let mut data = heap.data.lock().unwrap();
-    let Some(value) = data.entries.data[instance.identity.slot.load(Ordering::Relaxed)]
+    let mut data = heap.lock()?;
+    let Some(value) = data
+        .entries
+        .at(instance.identity.slot.load(Ordering::Relaxed))?
         .fields
         .get(slot)
         .cloned()
@@ -543,15 +580,21 @@ pub(crate) fn address_slot(
     slot: usize,
 ) -> Result<crate::address::Address> {
     let heap = instance.writable_heap(ctx)?;
-    let mut data = heap.data.lock().unwrap();
+    let mut data = heap.lock()?;
     let instance = data
         .instance(ctx, &heap, instance, false)?
         .unwrap_or_else(|| instance.clone());
-    let fields = &mut data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+    let fields = &mut data
+        .entries
+        .at_mut(instance.identity.slot.load(Ordering::Relaxed))?
+        .fields;
     if fields.get(slot).is_none() {
         fields.set_slot(ctx, slot, Value::nil())?;
     }
-    let value = fields.get(slot).unwrap().clone();
+    let value = fields
+        .get(slot)
+        .ok_or(violation("missing addressed instance slot"))?
+        .clone();
     let value = data.map(ctx, &heap, &value, false)?.unwrap_or(value);
     Ok(crate::address::Address::object(instance, slot, value))
 }
@@ -562,8 +605,11 @@ pub(crate) fn with_field_names<R>(
     render: impl FnOnce(&mut dyn Iterator<Item = &[u8]>) -> R,
 ) -> Result<R> {
     let heap = instance.heap()?;
-    let data = heap.data.lock().unwrap();
-    let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+    let data = heap.lock()?;
+    let fields = &data
+        .entries
+        .at(instance.identity.slot.load(Ordering::Relaxed))?
+        .fields;
     Ok(render(&mut fields.names(instance.class())))
 }
 
@@ -573,12 +619,15 @@ pub(crate) fn children(
     values: &mut Buffer<Value>,
 ) -> Result<()> {
     let heap = instance.heap()?;
-    let data = heap.data.lock().unwrap();
+    let data = heap.lock()?;
     if let Some(environment) = &instance.class().environment {
         ctx.charge(1)?;
         values.push(ctx, Value(Kind::Instance(environment.clone())))?;
     }
-    let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+    let fields = &data
+        .entries
+        .at(instance.identity.slot.load(Ordering::Relaxed))?
+        .fields;
     for (_, value) in fields.iter().rev() {
         ctx.charge(1)?;
         values.push(ctx, value.clone())?;
@@ -591,8 +640,11 @@ pub(crate) fn bindings(
     instance: &Arc<Instance>,
 ) -> Result<Buffer<(Value, Value)>> {
     let heap = instance.heap()?;
-    let mut data = heap.data.lock().unwrap();
-    let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+    let mut data = heap.lock()?;
+    let fields = &data
+        .entries
+        .at(instance.identity.slot.load(Ordering::Relaxed))?
+        .fields;
     let mut values = fields.bindings(ctx, instance.class())?;
     for (_, value) in &mut values.data {
         ctx.charge(1)?;
@@ -611,10 +663,11 @@ pub(crate) fn set(
 ) -> Result<()> {
     let heap = instance.writable_heap(ctx)?;
     let value = ctx.import(value)?;
-    let mut data = heap.data.lock().unwrap();
+    let mut data = heap.lock()?;
     let value = data.map(ctx, &heap, &value, true)?.unwrap_or(value);
     data.reserve_scratch(ctx, value.depth())?;
-    data.entries.data[instance.identity.slot.load(Ordering::Relaxed)]
+    data.entries
+        .at_mut(instance.identity.slot.load(Ordering::Relaxed))?
         .fields
         .set(ctx, instance.class(), name, value)
 }
@@ -625,19 +678,24 @@ pub(crate) fn address(
     name: &str,
 ) -> Result<crate::address::Address> {
     let heap = instance.writable_heap(ctx)?;
-    let mut data = heap.data.lock().unwrap();
+    let mut data = heap.lock()?;
     let instance = data
         .instance(ctx, &heap, instance, false)?
         .unwrap_or_else(|| instance.clone());
     let object = instance.identity.slot.load(Ordering::Relaxed);
-    let fields = &mut data.entries.data[object].fields;
+    let fields = &mut data.entries.at_mut(object)?.fields;
     let field = if let Some(field) = fields.find(ctx, instance.class(), name)? {
         field
     } else {
         fields.set(ctx, instance.class(), name, Value::nil())?;
-        fields.find(ctx, instance.class(), name)?.unwrap()
+        fields
+            .find(ctx, instance.class(), name)?
+            .ok_or(violation("missing inserted instance field"))?
     };
-    let value = fields.get(field).unwrap().clone();
+    let value = fields
+        .get(field)
+        .ok_or(violation("missing addressed instance field"))?
+        .clone();
     let value = data.map(ctx, &heap, &value, false)?.unwrap_or(value);
     Ok(crate::address::Address::object(
         instance.clone(),
@@ -653,10 +711,10 @@ pub(crate) enum FieldName {
 
 impl FieldName {
     pub fn as_bytes(&self) -> Option<&[u8]> {
-        Some(match self {
-            Self::Declared(class, slot) => class.field_layout().unwrap()[*slot].as_bytes(),
-            Self::Named(value) => value.as_bytes().unwrap(),
-        })
+        match self {
+            Self::Declared(class, slot) => Some(class.field_layout()?.get(*slot)?.as_bytes()),
+            Self::Named(value) => value.as_bytes(),
+        }
     }
 }
 
@@ -665,10 +723,15 @@ pub(crate) fn field_name(instance: &Arc<Instance>, field: usize) -> Result<Field
         return Ok(FieldName::Declared(instance.class().clone(), field));
     }
     let heap = instance.heap()?;
-    let data = heap.data.lock().unwrap();
-    let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+    let data = heap.lock()?;
+    let fields = &data
+        .entries
+        .at(instance.identity.slot.load(Ordering::Relaxed))?
+        .fields;
     let Fields::Named(named) = fields else {
-        unreachable!()
+        return Err(crate::checked::internal(
+            "dynamic field names require named storage",
+        ));
     };
     Ok(FieldName::Named(named.buffer.data[field].0.clone()))
 }
@@ -679,8 +742,9 @@ pub(crate) fn field_slot(
     name: &str,
 ) -> Result<Option<usize>> {
     let heap = instance.heap()?;
-    let data = heap.data.lock().unwrap();
-    data.entries.data[instance.identity.slot.load(Ordering::Relaxed)]
+    let data = heap.lock()?;
+    data.entries
+        .at(instance.identity.slot.load(Ordering::Relaxed))?
         .fields
         .find(ctx, instance.class(), name)
 }
@@ -693,10 +757,13 @@ pub(crate) fn set_slot(
 ) -> Result<()> {
     let heap = instance.writable_heap(ctx)?;
     let value = ctx.import(&value)?;
-    let mut data = heap.data.lock().unwrap();
+    let mut data = heap.lock()?;
     let value = data.map(ctx, &heap, &value, true)?.unwrap_or(value);
     data.reserve_scratch(ctx, value.depth())?;
-    let fields = &mut data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+    let fields = &mut data
+        .entries
+        .at_mut(instance.identity.slot.load(Ordering::Relaxed))?
+        .fields;
     fields.set_slot(ctx, field, value)
 }
 
@@ -709,16 +776,12 @@ fn import_root(ctx: &mut CallContext, instance: &Arc<Instance>) -> Result<Arc<In
         return if matches!(instance.owner, Owner::External(_)) {
             Ok(instance.clone())
         } else {
-            source
-                .data
-                .lock()
-                .unwrap()
-                .root(ctx, &source, &instance.identity)
+            source.lock()?.root(ctx, &source, &instance.identity)
         };
     }
     let target = local(ctx)?;
     {
-        let data = target.data.lock().unwrap();
+        let data = target.lock()?;
         let mut found = None;
         for (from, to) in &data.imports.data {
             ctx.charge(1)?;
@@ -733,9 +796,7 @@ fn import_root(ctx: &mut CallContext, instance: &Arc<Instance>) -> Result<Arc<In
     }
     let result = new_scoped(ctx, instance.class(), Some(instance.nominal_scope()))?;
     target
-        .data
-        .lock()
-        .unwrap()
+        .lock()?
         .imports
         .push(ctx, (instance.identity.id, result.identity.clone()))?;
     queue_import(ctx, instance, result)
@@ -743,9 +804,20 @@ fn import_root(ctx: &mut CallContext, instance: &Arc<Instance>) -> Result<Arc<In
 
 fn snapshot_root(ctx: &mut CallContext, instance: &Arc<Instance>) -> Result<Arc<Instance>> {
     let mut index = 0;
-    while index < ctx.snapshot_objects.as_ref().unwrap().data.len() {
+    while index
+        < ctx
+            .snapshot_objects
+            .as_ref()
+            .ok_or(violation("missing object snapshot memo"))?
+            .data
+            .len()
+    {
         ctx.charge(1)?;
-        let (source, target) = &ctx.snapshot_objects.as_ref().unwrap().data[index];
+        let (source, target) = &ctx
+            .snapshot_objects
+            .as_ref()
+            .ok_or(violation("missing object snapshot memo"))?
+            .data[index];
         // Importing already copied fields and class environments must reuse the
         // new identities instead of making snapshots of the snapshot itself.
         if *source == instance.identity.id || target.same(instance) {
@@ -754,7 +826,10 @@ fn snapshot_root(ctx: &mut CallContext, instance: &Arc<Instance>) -> Result<Arc<
         index += 1;
     }
     let result = new_scoped(ctx, instance.class(), Some(instance.nominal_scope()))?;
-    let mut copies = ctx.snapshot_objects.take().unwrap();
+    let mut copies = ctx
+        .snapshot_objects
+        .take()
+        .ok_or(violation("missing object snapshot memo"))?;
     let saved = copies.push(ctx, (instance.identity.id, result.clone()));
     ctx.snapshot_objects = Some(copies);
     saved?;
@@ -785,8 +860,11 @@ pub(crate) fn import(ctx: &mut CallContext, instance: &Arc<Instance>) -> Result<
             let fields = bindings(ctx, &instance)?;
             for (name, value) in fields.data {
                 let value = ctx.import_rooted(&value)?;
-                let name = std::str::from_utf8(name.as_bytes().unwrap())
-                    .map_err(|_| Error::new(ErrorKind::Type, "instance field name is not UTF-8"))?;
+                let name = std::str::from_utf8(
+                    name.as_bytes()
+                        .ok_or(violation("instance field name is not bytes"))?,
+                )
+                .map_err(|_| Error::new(ErrorKind::Type, "instance field name is not UTF-8"))?;
                 set(ctx, &target, name, &value)?;
             }
         }
@@ -813,7 +891,13 @@ pub(crate) fn cleanup(ctx: &mut CallContext) {
     ctx.pending_objects = Buffer::empty();
     if let Some(heap) = ctx.objects.take() {
         if Arc::strong_count(&heap) != 1 {
-            let mut data = heap.data.lock().unwrap();
+            let mut data = match heap.lock() {
+                Ok(data) => data,
+                Err(error) => {
+                    let _ = ctx.latch_internal::<()>(Err(error.into()));
+                    return;
+                }
+            };
             let depth = reclaim(&mut data, &mut || Ok(())).ok();
             data.imports = Buffer::empty();
             data.pending = Buffer::empty();
@@ -830,7 +914,7 @@ pub(crate) fn cleanup(ctx: &mut CallContext) {
 }
 
 fn collect(ctx: &mut CallContext, heap: &Arc<Heap>, shrink: bool) -> Result<()> {
-    let mut data = heap.data.lock().unwrap();
+    let mut data = heap.lock()?;
     let depth = reclaim(&mut data, &mut || ctx.charge(1))?;
     if depth == 0 {
         data.scratch = Buffer::empty();
@@ -981,7 +1065,11 @@ fn mark_walk(
         let child = match &container.0 {
             Kind::Array(array) => array.buffer.data.get(*position),
             Kind::Hash(hash) => hash.buffer.data.get(*position).map(|(_, value)| value),
-            _ => unreachable!(),
+            _ => {
+                return Err(crate::checked::internal(
+                    "object traversal container and output kinds disagree",
+                ));
+            }
         };
         let Some(child) = child else {
             scratch.pop();
@@ -1068,6 +1156,59 @@ mod tests {
             Vec::new(),
             None,
         ))
+    }
+
+    #[test]
+    #[cfg_attr(not(panic = "unwind"), ignore = "catching a panic requires unwinding")]
+    fn a_poisoned_heap_import_is_terminal_even_when_the_host_ignores_it() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let mut source = CallContext::new(CallOptions::default());
+        let root = new(&mut source, &class()).unwrap();
+        let heap = root.heap().unwrap();
+        let poisoned = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _guard = heap.data.lock().unwrap();
+            panic!("poison the instance heap");
+        }));
+        assert!(poisoned.is_err());
+        let value = Value(Kind::Instance(root));
+        let calls = Arc::new(AtomicUsize::new(0));
+        let mut engine = crate::Engine::new();
+        engine.register("try_import", move |ctx, _| {
+            let error = ctx.import(&value).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Internal);
+            assert!(error.message.contains("instance heap lock is poisoned"));
+            assert_eq!(ctx.checkpoint().unwrap_err().message, error.message);
+            Ok(Value::nil())
+        });
+        let seen = calls.clone();
+        engine.register("mark", move |_, _| {
+            seen.fetch_add(1, Ordering::Relaxed);
+            Ok(Value::nil())
+        });
+        let script = engine
+            .compile("begin\ntry_import()\nrescue\nmark()\nensure\nmark()\nend\nmark()")
+            .unwrap();
+        let error = script.run(CallOptions::default()).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Internal);
+        assert_eq!(calls.load(Ordering::Relaxed), 0);
+        // Failure cleanup must not try to reclaim an inconsistent poisoned heap.
+        cleanup(&mut source);
+        assert_eq!(source.checkpoint().unwrap_err().kind, ErrorKind::Internal);
+    }
+
+    #[test]
+    fn invalid_object_metadata_returns_an_error_or_an_absent_diagnostic_name() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let root = new(&mut ctx, &class()).unwrap();
+        root.identity.slot.store(usize::MAX, Ordering::Relaxed);
+        let error = get_slot(&mut ctx, &root, 0).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Internal);
+        assert!(error.message.contains("out of range"));
+        assert!(FieldName::Named(Value::int(1)).as_bytes().is_none());
+        assert!(FieldName::Declared(class(), 0).as_bytes().is_none());
+        let error = snapshot_root(&mut ctx, &root).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Internal);
+        assert!(error.message.contains("missing object snapshot memo"));
     }
 
     #[test]

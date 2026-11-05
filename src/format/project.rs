@@ -49,11 +49,15 @@ pub(super) fn field(ctx: &mut CallContext, value: &Value, verb: u8, field: Field
             }
             Kind::Int(_) | Kind::Big(_) => integer_bytes(ctx, value, verb, field)?,
             Kind::Float(_) => precision.map_or(64, |n| n.saturating_add(32)),
-            _ => unreachable!(),
+            _ => {
+                return Err(crate::checked::internal(
+                    "hex format requires text or a number",
+                ));
+            }
         },
         b'd' | b'b' | b'o' | b'O' | b'U' => integer_bytes(ctx, value, verb, field)?,
         b'c' => 64,
-        b'f' | b'F' => fixed_float(value, field),
+        b'f' | b'F' => fixed_float(value, field)?,
         b'e' | b'E' | b'g' | b'G' => precision.map_or(64, |n| n.saturating_add(16)),
         b't' => 5,
         b'v' if field.flag(SHARP) => quoted(string_bytes(ctx, value, None)?),
@@ -90,18 +94,18 @@ fn integer_bytes(ctx: &mut CallContext, value: &Value, verb: u8, field: Field) -
         _ => 0,
     };
     let (mut digits, negative) = if matches!(value.0, Kind::Big(_)) {
-        let bits = crate::integer::bits(value);
+        let bits = crate::integer::bits(value)?;
         let digits = match base {
             2 => bits,
             8 => bits / 3 + 1,
             16 => bits / 4 + 1,
             _ => {
-                ((bits as u128 * 30103) / 100000 + 1 + u128::from(float(value).is_sign_negative()))
+                ((bits as u128 * 30103) / 100000 + 1 + u128::from(float(value)?.is_sign_negative()))
                     .min(usize::MAX as u128) as usize
             }
         };
         ctx.charge(1 + (digits / 16) as u64)?;
-        (digits, float(value).is_sign_negative())
+        (digits, float(value)?.is_sign_negative())
     } else {
         let n = integer(value).unwrap();
         let magnitude = if verb == b'U' {
@@ -132,15 +136,15 @@ fn digits(mut n: u64, base: u64) -> usize {
     digits
 }
 
-fn fixed_float(value: &Value, field: Field) -> usize {
-    let n = float(value);
+fn fixed_float(value: &Value, field: Field) -> crate::checked::Access<usize> {
+    let n = float(value)?;
     let sign = usize::from(n.is_sign_negative() || field.flag(PLUS) || field.flag(SPACE));
     if matches!(value.0, Kind::Float(_)) && !n.is_finite() {
-        return sign + 3;
+        return Ok(sign + 3);
     }
     let digits = match &value.0 {
         Kind::Big(big) => {
-            ((crate::integer::bits(value) as u128 * 30103) / 100000 + 1 + u128::from(big.negative))
+            ((crate::integer::bits(value)? as u128 * 30103) / 100000 + 1 + u128::from(big.negative))
                 .min(usize::MAX as u128) as usize
         }
         Kind::Int(n) => digits(n.unsigned_abs(), 10),
@@ -159,7 +163,8 @@ fn fixed_float(value: &Value, field: Field) -> usize {
         }
     };
     let fraction = field.precision.unwrap_or(6);
-    sign.saturating_add(digits)
+    Ok(sign
+        .saturating_add(digits)
         .saturating_add(fraction)
-        .saturating_add(usize::from(fraction > 0 || field.flag(SHARP)))
+        .saturating_add(usize::from(fraction > 0 || field.flag(SHARP))))
 }

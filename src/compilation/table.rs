@@ -94,7 +94,7 @@ impl<V> Table<V> {
         let (slot, found) = self.find(work, name, Self::hash(work, name)?)?;
         Ok(if found {
             let Bucket::Entry { value, .. } = &self.buckets[slot] else {
-                unreachable!()
+                return Err(crate::checked::internal("found binding has no table entry"));
             };
             Some(value)
         } else {
@@ -121,7 +121,9 @@ impl<V> Table<V> {
         let Bucket::Entry { value, .. } =
             std::mem::replace(&mut self.buckets[slot], Bucket::Deleted)
         else {
-            unreachable!()
+            return Err(crate::checked::internal(
+                "removed binding has no table entry",
+            ));
         };
         self.len -= 1;
         self.deleted += 1;
@@ -181,7 +183,9 @@ impl<V: Copy> Table<V> {
                 value: previous, ..
             } = &mut self.buckets[slot]
             else {
-                unreachable!()
+                return Err(crate::checked::internal(
+                    "replaced binding has no table entry",
+                ));
             };
             return Ok(Some(std::mem::replace(previous, value)));
         }
@@ -464,7 +468,7 @@ mod tests {
                         "insert" => table.insert(&work, Name::default(), 99).map(drop),
                         "iterate" => table.iter(&work).map(drop),
                         "copy" => table.copy(&work).map(drop),
-                        _ => unreachable!(),
+                        _ => panic!("unexpected test fixture"),
                     };
                     assert_eq!(result.unwrap_err().kind, kind);
                     assert_eq!(work.checkpoint().unwrap_err().kind, kind);

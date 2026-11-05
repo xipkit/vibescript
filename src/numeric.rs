@@ -161,7 +161,11 @@ fn division(ctx: &mut CallContext, method: &str, a: &Value, b: &Value) -> Result
                 };
                 ctx.array(&[q, r])
             }
-            _ => unreachable!(),
+            _ => {
+                return Err(crate::checked::internal(
+                    "unsupported numeric division method",
+                ));
+            }
         };
     }
     let a = a.as_float().unwrap();
@@ -351,14 +355,18 @@ fn integer_round(
     let negative = match &value.0 {
         Kind::Int(n) => *n < 0,
         Kind::Big(n) => n.negative,
-        _ => unreachable!(),
+        _ => {
+            return Err(crate::checked::internal(
+                "integer rounding requires an integer",
+            ));
+        }
     };
     let away =
         matches!(mode, Rounding::Floor) && negative || matches!(mode, Rounding::Ceil) && !negative;
     let digits = digits.unsigned_abs();
     // This conservative bit bound proves the bucket exceeds twice the magnitude.
     // Extreme precisions that return zero never need to construct that bucket.
-    if digits as usize > integer::bits(value) / 3 + 1 && !away {
+    if digits as usize > integer::bits(value)? / 3 + 1 && !away {
         return Ok(Value::int(0));
     }
     let bucket = pow10(ctx, digits)?;

@@ -204,7 +204,7 @@ impl<'a> RecordProof<'a> {
 #[derive(Default)]
 pub(super) struct Stream<'a> {
     pub ty: Option<&'a Type>,
-    array: Option<(&'a Type, usize)>,
+    array: Option<(&'a Type, &'a Type, usize)>,
     steps: Option<u64>,
     saved: Option<(&'a Type, u64)>,
     record: Option<RecordProof<'a>>,
@@ -230,21 +230,18 @@ impl<'a> Stream<'a> {
         if self.saved.is_some_and(|(old, _)| std::ptr::eq(old, ty)) {
             self.saved = None;
         }
-        if array && matches!(ty.kind, TypeKind::Array(Some(_))) {
-            self.array = Some((ty, depth + 1));
+        if array && let TypeKind::Array(Some(element)) = &ty.kind {
+            self.array = Some((ty, element, depth + 1));
             self.steps = Some(1);
         }
     }
 
     /// Checks each completed array item while its record is still hot.
     pub fn complete(&mut self, depth: usize, value: &Value) {
-        let Some((ty, array_depth)) = self.array else {
+        let Some((ty, element, array_depth)) = self.array else {
             return;
         };
         if depth == array_depth {
-            let TypeKind::Array(Some(element)) = &ty.kind else {
-                unreachable!();
-            };
             self.steps = self.steps.and_then(|steps| {
                 let cached = self
                     .record
@@ -399,7 +396,8 @@ mod tests {
                         "JSON.parse_as",
                         streaming.then_some(&ty),
                     )?;
-                    let prepared = types::prepare(&mut ctx, &ty, |_, _| unreachable!())?;
+                    let prepared =
+                        types::prepare(&mut ctx, &ty, |_, _| panic!("unexpected test fixture"))?;
                     if let Some(steps) = proof {
                         ctx.charge_each(steps)?;
                         Ok(value)

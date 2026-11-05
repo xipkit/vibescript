@@ -3050,7 +3050,7 @@ impl<'s> Parser<'s> {
                 for index in 0..count {
                     self.poll()?;
                     let TokenKind::Template(spans) = &self.tokens[tok].kind else {
-                        unreachable!()
+                        return self.fail("template token changed during interpolation");
                     };
                     let span = spans[index].clone();
                     let part = self.interpolation(span);
@@ -3584,7 +3584,7 @@ impl<'s> Parser<'s> {
                 call.args = Some(args);
                 *call
             }
-            _ => unreachable!(),
+            _ => return self.fail("command call requires a name or call"),
         };
         Ok(Expr {
             span,

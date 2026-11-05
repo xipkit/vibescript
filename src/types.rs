@@ -618,7 +618,9 @@ fn finish_hash(
         return Ok(Some((original, false)));
     };
     let Kind::Hash(source) = &original.0 else {
-        unreachable!()
+        return Err(crate::checked::internal(
+            "shape normalization requires a hash",
+        ));
     };
     let mut hash = Hash::from_entries(ctx, output)?;
     hash.object = source.object;
@@ -694,7 +696,10 @@ mod tests {
             (hash_type, &hash),
             (shape, &hash),
         ] {
-            let output = normalize(&mut ctx, &ty, value.clone(), |_, _| unreachable!()).unwrap();
+            let output = normalize(&mut ctx, &ty, value.clone(), |_, _| {
+                panic!("unexpected test fixture")
+            })
+            .unwrap();
             assert!(same_storage(value, &output));
             assert_eq!(ctx.stats().peak_memory_bytes, before.peak_memory_bytes);
             assert_eq!(
@@ -776,7 +781,7 @@ mod tests {
         )
         .unwrap();
         let (Kind::Hash(original), Kind::Hash(changed)) = (&source.0, &output.0) else {
-            unreachable!()
+            panic!("unexpected test fixture")
         };
         assert!(!Arc::ptr_eq(original, changed));
         for index in [0, 2] {
@@ -848,16 +853,18 @@ mod tests {
                 ErrorKind::Steps => ctx.options.limits.steps = Some(before.steps + 40),
                 ErrorKind::Cancelled => ctx.options.cancellation.cancel(),
                 ErrorKind::Deadline => ctx.options.deadline = Some(std::time::Instant::now()),
-                _ => unreachable!(),
+                _ => panic!("unexpected test fixture"),
             }
             let ty = union(vec![
                 array(Type::named("int".into())),
                 Type::named("any".into()),
             ]);
             assert_eq!(
-                normalize(&mut ctx, &ty, value.clone(), |_, _| unreachable!())
-                    .unwrap_err()
-                    .kind,
+                normalize(&mut ctx, &ty, value.clone(), |_, _| panic!(
+                    "unexpected test fixture"
+                ))
+                .unwrap_err()
+                .kind,
                 kind
             );
             assert!(ctx.stats().steps - before.steps <= 41);
@@ -876,9 +883,11 @@ mod tests {
         });
         let ty = union(vec![Type::named("int".into()); 1000]);
         assert_eq!(
-            normalize(&mut ctx, &ty, Value::int(1), |_, _| unreachable!())
-                .unwrap_err()
-                .kind,
+            normalize(&mut ctx, &ty, Value::int(1), |_, _| panic!(
+                "unexpected test fixture"
+            ))
+            .unwrap_err()
+            .kind,
             ErrorKind::Steps
         );
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
@@ -904,12 +913,17 @@ mod tests {
             value = Value::array(vec![value]);
         }
         let mut ctx = CallContext::new(CallOptions::default());
-        let empty = normalize(&mut ctx, &ty, Value::array(vec![]), |_, _| unreachable!()).unwrap();
+        let empty = normalize(&mut ctx, &ty, Value::array(vec![]), |_, _| {
+            panic!("unexpected test fixture")
+        })
+        .unwrap();
         assert!(empty.as_array().unwrap().is_empty());
         assert_eq!(
-            normalize(&mut ctx, &ty, value, |_, _| unreachable!())
-                .unwrap_err()
-                .kind,
+            normalize(&mut ctx, &ty, value, |_, _| panic!(
+                "unexpected test fixture"
+            ))
+            .unwrap_err()
+            .kind,
             ErrorKind::Recursion
         );
         ctx.charge(1).unwrap();
@@ -941,9 +955,11 @@ mod tests {
             nullable: false,
         };
         assert_eq!(
-            normalize(&mut ctx, &ty, value, |_, _| unreachable!())
-                .unwrap_err()
-                .kind,
+            normalize(&mut ctx, &ty, value, |_, _| panic!(
+                "unexpected test fixture"
+            ))
+            .unwrap_err()
+            .kind,
             ErrorKind::Steps
         );
         assert_eq!(ctx.stats().retained_memory_bytes, 0);

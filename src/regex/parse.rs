@@ -196,7 +196,7 @@ pub(super) fn parse(ctx: &mut CallContext, pattern: &[u8]) -> Result<Parsed> {
         parser.ctx.charge(1)?;
         let flags = parser.group().flags;
         let start = parser.position;
-        match parser.next(|_| unreachable!())? {
+        match parser.next(|_| crate::checked::internal("regex cursor ended before the pattern"))? {
             '(' => parser.open()?,
             ')' => {
                 if parser.groups.data.len() == 1 {
@@ -259,7 +259,9 @@ pub(super) fn parse(ctx: &mut CallContext, pattern: &[u8]) -> Result<Parsed> {
                 if parser.peek() == Some(b'Q') {
                     parser.position += 1;
                     while parser.position < text.len() && !parser.remaining().starts_with(b"\\E") {
-                        let rune = parser.next(|_| unreachable!())?;
+                        let rune = parser.next(|_| {
+                            crate::checked::internal("regex cursor ended before the pattern")
+                        })?;
                         parser.literal(rune as u32)?;
                     }
                     if parser.remaining().starts_with(b"\\E") {

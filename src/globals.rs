@@ -72,7 +72,11 @@ fn walk<'a>(
                 .data
                 .get(position / 2)
                 .map(|(key, value)| if position % 2 == 0 { key } else { value }),
-            _ => unreachable!(),
+            _ => {
+                return Err(crate::checked::internal(
+                    "global frame requires a container",
+                ));
+            }
         };
         let Some(child) = child else {
             let finished = frames.data.pop().unwrap();

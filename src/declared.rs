@@ -208,7 +208,9 @@ const RETAINED_ENTRY_BYTES: usize = size_of::<(String, Vec<u8>)>() + 10 * size_o
 fn retained_source(value: &Value, work: &dyn crate::compilation::Work) -> Result<RetainedSource> {
     use crate::budget::Charge;
     let Kind::Namespace(namespace) = &value.0 else {
-        unreachable!()
+        return Err(crate::checked::internal(
+            "retained source requires a namespace",
+        ));
     };
     let owner = namespace
         .owner

@@ -267,9 +267,11 @@ impl Owned {
         } = self;
         let execution = *execution;
         drop(charge);
-        execution.finish(result.map(|exit| match exit {
-            Exit::Value(value) => value,
-            Exit::Control(_) => unreachable!(),
+        execution.finish(result.and_then(|exit| match exit {
+            Exit::Value(value) => Ok(value),
+            Exit::Control(_) => Err(crate::checked::internal(
+                "top-level call returned block control",
+            )),
         }))
     }
 }
@@ -321,6 +323,7 @@ impl Work {
                 )
             }
         };
+        let result = execution.execution.context.latch_internal(result);
         Completed { execution, result }
     }
 
@@ -817,7 +820,11 @@ fn segment(mut work: Box<Work>) -> Progress {
     loop {
         let boundary = match work.scope {
             Scope::Call => None,
-            Scope::PendingBlock => unreachable!(),
+            Scope::PendingBlock => {
+                return Progress::Complete(work.complete(Err(crate::checked::internal(
+                    "pending block was not prepared",
+                ))));
+            }
             Scope::Block { boundary, .. } => Some(boundary.floor),
         };
         let execution = &mut *work.execution.execution;
@@ -931,6 +938,28 @@ mod tests {
             next: Next::Resume,
             charge,
         })
+    }
+
+    #[test]
+    fn an_unprepared_pending_block_latches_its_internal_error() {
+        let script = crate::Engine::new()
+            .compile("def run -> int; 1; end")
+            .unwrap();
+        let mut pending = work(&script, Arc::new(|| {}));
+        pending.scope = Scope::PendingBlock;
+        let Progress::Complete(mut completed) = segment(pending) else {
+            panic!("an unprepared block must fail before asking the host")
+        };
+        let error = completed.result.err().expect("pending block must fail");
+        assert_eq!(error.kind, ErrorKind::Internal);
+        assert!(error.message.ends_with("pending block was not prepared"));
+        let later = completed
+            .execution
+            .execution
+            .context
+            .checkpoint()
+            .unwrap_err();
+        assert_eq!(later.message, error.message);
     }
 
     #[test]

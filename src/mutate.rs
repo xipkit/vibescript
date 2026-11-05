@@ -23,7 +23,7 @@ pub(crate) fn call(
     use Method::*;
     if matches!(&receiver.0, Kind::Hash(hash) if hash.tag.protected()) {
         let Kind::Hash(hash) = &receiver.0 else {
-            unreachable!()
+            return Err(crate::checked::internal("protected receiver is not a hash"));
         };
         return Err(hash.tag.mutation_error(name));
     }
