@@ -481,7 +481,6 @@ fn token_list(
 mod tests {
     use super::*;
     use crate::{CallContext, CallOptions, compilation::Meter, typing::Heap};
-    use std::cell::RefCell;
 
     #[test]
     fn recorded_payload_reserves_only_the_storage_it_builds() {
@@ -494,8 +493,7 @@ mod tests {
             parsing.run(Call::Program).unwrap();
             let parser = parsing.parser.into_inner();
             let mut context = CallContext::new(CallOptions::default());
-            let (tokens, held) =
-                token_list(&source, &parser, &Meter(RefCell::new(&mut context))).unwrap();
+            let (tokens, held) = token_list(&source, &parser, &Meter::new(&mut context)).unwrap();
             let actual = tokens.capacity() * size_of::<crate::tooling::Token>()
                 + tokens.iter().map(Heap::heap).sum::<usize>();
             assert_eq!(context.stats().retained_memory_bytes, actual);

@@ -130,7 +130,7 @@ impl Meter {
 /// What an element of a counted table owns on the heap beyond its slot:
 /// a copy of a name, a list. A table counts it when it takes the element,
 /// with the slot, and the measure of the table's side counts it after. A
-/// value an `Rc` or an `Arc` shares owns nothing here, and neither does a
+/// value an `Arc` shares owns nothing here, and neither does a
 /// counted table, whose storage is counted as it grows: whoever makes
 /// them counts them.
 pub(crate) trait Owned {
@@ -189,12 +189,6 @@ impl<T: ?Sized> Owned for &T {
 /// A cursor into a list another owns, such as what is left of a level of
 /// a walk.
 impl<T> Owned for std::slice::Iter<'_, T> {
-    fn owned(&self) -> usize {
-        0
-    }
-}
-
-impl<T: ?Sized> Owned for std::rc::Rc<T> {
     fn owned(&self) -> usize {
         0
     }
@@ -2753,7 +2747,7 @@ mod tests {
             copied("map.insert_made(ledger, n, || name.to_owned(), id)"),
             0
         );
-        assert_eq!(copied("list.push(ledger, Rc::clone(&sig))"), 0);
+        assert_eq!(copied("list.push(ledger, Arc::clone(&sig))"), 0);
     }
 
     /// The sorts each file of the checker makes itself rather than through

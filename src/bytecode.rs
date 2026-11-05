@@ -2,7 +2,7 @@ use crate::{
     Result, Value,
     builtin::{Builtin, Global},
     checked::{Checked, violation},
-    compilation::{Buffer, Frame, Name, Table, Tasks, framed},
+    compilation::{Buffer, Frame, Name, Shared, Table, Tasks, framed},
     syntax::{
         self, Argument, ArgumentKind, Block, CallForm, Expr, Node, ParamKind, Statement, Stmt,
         Target,
@@ -599,7 +599,6 @@ pub(crate) struct Capture {
 #[derive(Debug)]
 pub(crate) struct Program {
     pub file: bool,
-    pub owner: std::sync::Weak<crate::code::Code>,
     pub handlers: Vec<errors::TrySpec>,
     pub source: crate::source::Source,
     pub namespaces: Vec<std::sync::Arc<crate::namespace::Definition>>,
@@ -741,7 +740,6 @@ pub(crate) fn compile_parsed(
     let _source = work.reserve(source.len())?;
     let mut program = Program {
         file,
-        owner: std::sync::Weak::new(),
         handlers: Vec::new(),
         source: crate::source::Source::compile(source, work)?,
         namespaces: Vec::new(),
@@ -1939,21 +1937,21 @@ enum Call<'x> {
 struct Compiling<'a, 'x> {
     /// The compiler's work, which the boxed steps of its tasks charge.
     work: &'a dyn crate::compilation::Work,
-    compiler: std::cell::RefCell<Compiler<'a>>,
+    compiler: Shared<Compiler<'a>>,
     tasks: Tasks<Call<'x>, ()>,
-    params: std::cell::RefCell<Vec<Parameter>>,
+    params: Shared<Vec<Parameter>>,
     /// The function's [`Function::proven`] start, once its prologue is generated.
-    proven: std::cell::Cell<Option<usize>>,
+    proven: Shared<Option<usize>>,
 }
 
 impl<'a, 'x> Compiling<'a, 'x> {
     fn new(compiler: Compiler<'a>) -> Self {
         Self {
             work: compiler.work,
-            compiler: std::cell::RefCell::new(compiler),
+            compiler: Shared::new(compiler),
             tasks: Tasks::new(),
-            params: std::cell::RefCell::new(Vec::new()),
-            proven: std::cell::Cell::new(None),
+            params: Shared::new(Vec::new()),
+            proven: Shared::new(None),
         }
     }
 
@@ -2118,7 +2116,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     && !(c.instance && param.ivar.is_some())
                     && proven_type;
             }
-            self.proven.set(direct.then_some(c.code.len()));
+            self.proven.replace(direct.then_some(c.code.len()));
             if c.facts.keep_type_checks {
                 for param in &params {
                     if let Some(ty) = param.ty {
@@ -3969,7 +3967,6 @@ pub(crate) fn mutating_member(name: &str) -> bool {
 mod budget_tests {
     use super::*;
     use crate::{CallContext, CallOptions, ErrorKind, compilation::Meter};
-    use std::cell::RefCell;
 
     #[test]
     fn field_type_search_charges_each_candidate() {
@@ -3981,8 +3978,7 @@ mod budget_tests {
         let program = compile(&source, Vec::new(), &()).unwrap();
         let mut context = CallContext::new(CallOptions::default());
         context.options.limits.steps = Some(8);
-        let result =
-            program.instance_variable_type(0, "field255", &Meter(RefCell::new(&mut context)));
+        let result = program.instance_variable_type(0, "field255", &Meter::new(&mut context));
         assert_eq!(result.unwrap_err().kind, ErrorKind::Steps);
     }
 }

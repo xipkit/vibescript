@@ -416,16 +416,16 @@ mod tests {
             cancellation: token.clone(),
             ..Default::default()
         });
-        let pulled = std::cell::Cell::new(0);
+        let pulled = std::sync::atomic::AtomicUsize::new(0);
         let candidates = std::iter::repeat_n(&b"length"[..], MAX_CANDIDATES).inspect(|_| {
-            pulled.set(pulled.get() + 1);
-            if pulled.get() == 10 {
+            pulled.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            if pulled.load(std::sync::atomic::Ordering::Relaxed) == 10 {
                 token.cancel();
             }
         });
         let error = did_you_mean(&mut ctx, "lengt", candidates).err().unwrap();
         assert_eq!(error.kind, crate::ErrorKind::Cancelled);
-        assert_eq!(pulled.get(), 10);
+        assert_eq!(pulled.load(std::sync::atomic::Ordering::Relaxed), 10);
     }
 
     #[test]

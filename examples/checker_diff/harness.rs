@@ -6,7 +6,7 @@ use super::host::{self, Host};
 use std::{
     panic::{AssertUnwindSafe, catch_unwind},
     path::Path,
-    sync::{Arc, Mutex},
+    sync::mpsc,
     time::{Duration, Instant},
 };
 use vibescript::{CallOptions, Engine, Error, ErrorKind, Limits, ModuleConfig, Value};
@@ -387,7 +387,8 @@ pub fn annotate(case: &Case, scratch: &mut Scratch) -> Option<Case> {
     })
 }
 
-type Captured = Arc<Mutex<Vec<u8>>>;
+/// One output stream of a compiled case, as the writers sent it.
+type Captured = mpsc::Receiver<Vec<u8>>;
 
 struct Compiled {
     script: vibescript::Script,
@@ -400,8 +401,8 @@ fn compile(
     directory: Option<&Path>,
     keep: bool,
 ) -> Result<Result<Compiled, Error>, String> {
-    let stdout = Captured::default();
-    let stderr = Captured::default();
+    let (out, stdout) = mpsc::channel();
+    let (err, stderr) = mpsc::channel();
     let mut engine = Engine::new();
     engine.set_keep_type_checks(keep);
     if let Some(directory) = directory {
@@ -424,14 +425,16 @@ fn compile(
         }
         Ok(output.len())
     });
-    let out = stdout.clone();
     engine.set_output_writer(move |_, bytes| {
-        out.lock().unwrap().extend_from_slice(bytes);
+        if !bytes.is_empty() {
+            let _ = out.send(bytes.to_vec());
+        }
         Ok(())
     });
-    let err = stderr.clone();
     engine.set_error_writer(move |_, bytes| {
-        err.lock().unwrap().extend_from_slice(bytes);
+        if !bytes.is_empty() {
+            let _ = err.send(bytes.to_vec());
+        }
         Ok(())
     });
     if let Err(error) = case.host.declare(&mut engine) {
@@ -493,8 +496,8 @@ fn observe(compiled: &Compiled, host: &Host) -> Result<Observation, String> {
             .push_str(&format!("; {}: ", call.function));
         observation.record(outcome, true);
     }
-    observation.stdout = std::mem::take(&mut *compiled.stdout.lock().unwrap());
-    observation.stderr = std::mem::take(&mut *compiled.stderr.lock().unwrap());
+    observation.stdout = compiled.stdout.try_iter().flatten().collect();
+    observation.stderr = compiled.stderr.try_iter().flatten().collect();
     Ok(observation)
 }
 

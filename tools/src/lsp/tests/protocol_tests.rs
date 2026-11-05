@@ -95,6 +95,76 @@ mod blocking {
         drop(release);
         server.join().expect("the server thread finished");
     }
+
+    #[test]
+    fn a_change_cancels_its_own_document_across_interleaved_documents() {
+        let (a, b) = ("file:///tmp/a.vibe", "file:///tmp/b.vibe");
+        let mut source = String::new();
+        for index in 0..3000 {
+            source.push_str(&format!(
+                "def f{index}(x: int) -> int\n  x + {index}\nend\n"
+            ));
+        }
+        let messages = [
+            json!({"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": a, "text": source}}}),
+            json!({"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": b, "text": "y = 1\n"}}}),
+            json!({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {"textDocument": {"uri": a}, "contentChanges": [{"text": "x = 1\n"}]}}),
+            json!({"jsonrpc": "2.0", "id": 1, "method": "shutdown"}),
+        ];
+        let replies = decode(&run(framed(&messages)).unwrap());
+        // The change to A cancels the analysis of its slow first version even
+        // though B's open was read between them, so that version's diagnostics
+        // are never published: B's are, then current A's.
+        let published: Vec<&str> = replies
+            .iter()
+            .filter(|reply| reply["method"] == "textDocument/publishDiagnostics")
+            .map(|reply| reply["params"]["uri"].as_str().unwrap())
+            .collect();
+        assert_eq!(published, [b, a], "{replies:?}");
+        assert_eq!(replies.last().unwrap()["id"], 1);
+    }
+
+    #[test]
+    fn a_document_admitted_after_a_rejected_one_keeps_its_cancellation() {
+        let (a, b) = ("file:///tmp/a.vibe", "file:///tmp/b.vibe");
+        let mut slow = String::new();
+        for index in 0..3000 {
+            slow.push_str(&format!(
+                "def f{index}(x: int) -> int\n  x + {index}\nend\n"
+            ));
+        }
+        // A is too large to keep and B is slow to analyze; both are read
+        // ahead before the server settles either, so a reader that tracked
+        // only as many documents as the server keeps would give B no token.
+        let messages = [
+            json!({"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": a, "text": "x = 1\n".repeat(400_000)}}}),
+            json!({"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": b, "text": slow}}}),
+            json!({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {"textDocument": {"uri": b}, "contentChanges": [{"text": "x = 1\n"}]}}),
+            json!({"jsonrpc": "2.0", "id": 1, "method": "shutdown"}),
+        ];
+        let mut server = Server::with_options(Options {
+            max_documents: Some(1),
+            max_document_bytes: Some(1 << 20),
+            ..Options::default()
+        });
+        let mut output = Vec::new();
+        serve(
+            &mut server,
+            Cursor::new(framed(&messages)),
+            &mut output,
+            &CancellationToken::new(),
+        )
+        .unwrap();
+        let replies = decode(&output);
+        let published: Vec<&str> = replies
+            .iter()
+            .filter(|reply| reply["method"] == "textDocument/publishDiagnostics")
+            .map(|reply| reply["params"]["uri"].as_str().unwrap())
+            .collect();
+        // A's rejection is published, then only B's current version.
+        assert_eq!(published, [a, b], "{replies:?}");
+        assert_eq!(replies.last().unwrap()["id"], 1);
+    }
 }
 
 #[test]

@@ -423,14 +423,16 @@ end
             expected.push(b"missing".to_vec());
             assert_eq!(names(&mut ctx), expected);
             let heap = instance.heap().unwrap();
-            let data = heap.data.lock().unwrap();
-            let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
-            let mut iter = fields.iter();
-            assert_eq!(iter.next_back().unwrap().0, missing);
-            assert!(iter.next().is_some());
-            assert!(iter.next_back().is_some());
-            assert!(iter.next().is_none());
-            assert!(iter.next_back().is_none());
+            heap.data.read(|data| {
+                let fields =
+                    &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+                let mut iter = fields.iter();
+                assert_eq!(iter.next_back().unwrap().0, missing);
+                assert!(iter.next().is_some());
+                assert!(iter.next_back().is_some());
+                assert!(iter.next().is_none());
+                assert!(iter.next_back().is_none());
+            });
         }
     }
 }

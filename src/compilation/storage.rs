@@ -161,14 +161,14 @@ impl<T: fmt::Debug> fmt::Debug for Boxed<T> {
 mod tests {
     use super::*;
     use crate::{CallContext, CallOptions, ErrorKind, compilation::Meter};
-    use std::{cell::RefCell, sync::Arc, time::Instant};
+    use std::{sync::Arc, time::Instant};
 
     #[test]
     fn shared_payloads_stay_charged_until_syntax_releases_them() {
         for symbol in [false, true] {
             let mut context = CallContext::new(CallOptions::default());
             let memory = context.identity();
-            let work = Meter(RefCell::new(&mut context));
+            let work = Meter::new(&mut context);
             let bytes = Bytes::from_slice(&work, b"shared payload").unwrap();
             let retained = work.0.borrow().stats().retained_memory_bytes;
             assert!(retained >= bytes.len() + crate::value::Bytes::shared_header_bytes());
@@ -192,7 +192,7 @@ mod tests {
     fn header_failures_release_bytes_and_preserve_termination() {
         for kind in [ErrorKind::Memory, ErrorKind::Cancelled, ErrorKind::Deadline] {
             let mut context = CallContext::new(CallOptions::default());
-            let work = Meter(RefCell::new(&mut context));
+            let work = Meter::new(&mut context);
             let bytes = Buffer::from_slice(&work, b"payload").unwrap();
             match kind {
                 ErrorKind::Memory => work.0.borrow_mut().options.limits.memory_bytes = Some(7),
@@ -211,7 +211,7 @@ mod tests {
     #[test]
     fn boxed_storage_is_reserved_before_ownership_changes() {
         let mut context = CallContext::new(CallOptions::default());
-        let work = Meter(RefCell::new(&mut context));
+        let work = Meter::new(&mut context);
         let bytes = Bytes::from_slice(&work, b"payload").unwrap();
         let retained = work.0.borrow().stats().retained_memory_bytes;
         work.0.borrow_mut().options.limits.memory_bytes = Some(retained);

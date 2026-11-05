@@ -3,7 +3,10 @@
 
 use super::ty::{Field, Kind, Ty, Types};
 use crate::signatures::{self, Class, Function, Item, Member};
-use std::{collections::HashMap, rc::Rc, sync::OnceLock};
+use std::{
+    collections::HashMap,
+    sync::{Arc, OnceLock},
+};
 
 /// How a parameter receives its argument.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -252,7 +255,7 @@ impl Index {
 /// Converts table signatures into checker signatures, once per function.
 #[derive(Default)]
 pub(crate) struct Converter {
-    cache: HashMap<(usize, usize), Rc<Sig>>,
+    cache: HashMap<(usize, usize), Arc<Sig>>,
     /// What the cached signatures hold.
     cached: usize,
 }
@@ -270,7 +273,7 @@ impl Converter {
         types: &mut Types,
         function: &'static Function,
         class: Option<&'static Class>,
-    ) -> Rc<Sig> {
+    ) -> Arc<Sig> {
         let key = (
             std::ptr::from_ref(function) as usize,
             class.map_or(0, |c| std::ptr::from_ref(c) as usize),
@@ -278,7 +281,7 @@ impl Converter {
         if let Some(sig) = self.cache.get(&key) {
             return sig.clone();
         }
-        let sig = Rc::new(self.convert_owned(types, function, class));
+        let sig = Arc::new(self.convert_owned(types, function, class));
         self.cached += super::meter::Heap::heap(&sig);
         self.cache.insert(key, sig.clone());
         sig

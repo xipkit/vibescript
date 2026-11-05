@@ -10,13 +10,7 @@ struct Source {
 
 impl Source {
     fn namespace(namespace: &Namespace) -> Option<Self> {
-        let code = namespace.owner.clone().or_else(|| {
-            namespace
-                .definition
-                .owner
-                .get()
-                .and_then(|owner| owner.upgrade())
-        })?;
+        let code = namespace.owner.clone()?;
         Some(Self {
             code,
             environment: namespace.environment.clone(),

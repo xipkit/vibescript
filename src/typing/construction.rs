@@ -28,12 +28,12 @@ use crate::{
 };
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
-    rc::Rc,
+    sync::Arc,
 };
 
 /// A class's required instance variables, in name order, which the sets of
 /// those not assigned yet index.
-pub(crate) type Roster = Rc<[String]>;
+pub(crate) type Roster = Arc<[String]>;
 
 /// What a roster holds.
 pub(crate) fn roster_bytes(roster: &Roster) -> usize {
@@ -220,7 +220,7 @@ impl<'a> Checker<'a> {
             None => {
                 let (roster, _) = self.frame.initialize.as_ref()?;
                 Unassigned {
-                    roster: Rc::clone(roster),
+                    roster: Arc::clone(roster),
                     marks: self.frame.flow.unassigned()?.clone(),
                 }
             }
@@ -250,7 +250,7 @@ impl<'a> Checker<'a> {
     fn record_site(&mut self, site: Site) {
         let tables = self.meter.tables();
         let construction = &mut self.construction;
-        let roster = Rc::as_ptr(&site.unassigned.roster).cast::<u8>() as usize;
+        let roster = Arc::as_ptr(&site.unassigned.roster).cast::<u8>() as usize;
         match construction.retained.insert(tables, roster) {
             Ok(true) => construction.held += roster_bytes(&site.unassigned.roster),
             Ok(false) => (),
@@ -568,10 +568,10 @@ impl<'a> Checker<'a> {
         // search's scratch, and at most a cycle for each method, each with
         // its list of methods and its shared reads, and the reads by method.
         // A cycle's reads themselves are counted as they are kept.
-        let reads = std::mem::size_of::<Rc<Option<BTreeSet<String>>>>() + RC_COUNTS;
+        let reads = std::mem::size_of::<Arc<Option<BTreeSet<String>>>>() + ARC_COUNTS;
         let Some(held) = self.hold(
             methods * (SEARCH_SCRATCH + CYCLE + reads)
-                + super::meter::table::<(FnId, Rc<Option<BTreeSet<String>>>)>(methods),
+                + super::meter::table::<(FnId, Arc<Option<BTreeSet<String>>>)>(methods),
         ) else {
             return (HashMap::new(), 0);
         };
@@ -579,7 +579,7 @@ impl<'a> Checker<'a> {
             self.release(held);
             return (HashMap::new(), 0);
         };
-        let mut found: Vec<Rc<Option<BTreeSet<String>>>> = Vec::with_capacity(cycles.len());
+        let mut found: Vec<Arc<Option<BTreeSet<String>>>> = Vec::with_capacity(cycles.len());
         for (cycle, members) in cycles.iter().enumerate() {
             // The reads it gathers are counted as each cycle's are kept.
             if self.over_budget() {
@@ -623,12 +623,12 @@ impl<'a> Checker<'a> {
             }
             let read = (!escapes).then(|| read.into_set());
             self.construction.held += read.heap() + std::mem::size_of::<Option<BTreeSet<String>>>();
-            found.push(Rc::new(read));
+            found.push(Arc::new(read));
         }
         let reads: Reads = ids
             .iter()
             .enumerate()
-            .map(|(at, &id)| (id, Rc::clone(&found[cycle_of[at]])))
+            .map(|(at, &id)| (id, Arc::clone(&found[cycle_of[at]])))
             .collect();
         // The graph, the search's scratch and the cycles go here; only the
         // reads by method stay, held while the sites are read.
@@ -673,7 +673,7 @@ fn uses<'c>(
 
 /// What each instance method reads of `self`, shared by the methods of a
 /// cycle; `None` for those that let it escape.
-type Reads = HashMap<FnId, Rc<Option<BTreeSet<String>>>>;
+type Reads = HashMap<FnId, Arc<Option<BTreeSet<String>>>>;
 
 /// What finding the cycles of a graph holds for each of its nodes at most:
 /// the search's order, low link, stack flag and cycle, its stack of nodes
@@ -688,8 +688,8 @@ const SEARCH_SCRATCH: usize = 3 * std::mem::size_of::<usize>()
 /// starts with room for four.
 const CYCLE: usize = 2 * std::mem::size_of::<Vec<usize>>() + 4 * std::mem::size_of::<usize>();
 
-/// The counts beside an [`Rc`]'s value.
-const RC_COUNTS: usize = 2 * std::mem::size_of::<usize>();
+/// The counts beside an [`Arc`]'s value.
+const ARC_COUNTS: usize = 2 * std::mem::size_of::<usize>();
 
 /// The cycles of the directed graph whose node `n` leads to each node in
 /// `edges[n]`, each a list of its nodes, in an order where every cycle

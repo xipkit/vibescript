@@ -1,10 +1,63 @@
 use crate::{Result, budget::Charge};
 use std::{
-    cell::{Cell, RefCell},
+    cell::{Ref, RefMut},
     future::{Future, poll_fn},
     pin::Pin,
     task::{Context, Poll, Waker},
 };
+
+/// State the steps of one single-threaded pass share through `&self`: the
+/// suspended frames of a heap-stack recursion, or the memo tables of a walk.
+///
+/// Only the innermost step runs, and a borrow lives inside one synchronous
+/// step: `await_holding_refcell_ref` keeps the [`Ref`] and [`RefMut`] this
+/// hands out from crossing an await. So the runtime check never fails, and
+/// the state needs no lock: a `Shared` lives on one thread for one pass.
+#[allow(
+    clippy::disallowed_types,
+    reason = "the one runtime borrow check in the crate, for the frames of a heap-stack recursion; see the type's documentation"
+)]
+pub(crate) struct Shared<T>(std::cell::RefCell<T>);
+
+impl<T> Shared<T> {
+    #[allow(clippy::disallowed_types, reason = "see the type")]
+    pub const fn new(value: T) -> Self {
+        Self(std::cell::RefCell::new(value))
+    }
+
+    /// Reads the state for one synchronous step.
+    pub fn borrow(&self) -> Ref<'_, T> {
+        self.0.borrow()
+    }
+
+    /// Changes the state for one synchronous step.
+    pub fn borrow_mut(&self) -> RefMut<'_, T> {
+        self.0.borrow_mut()
+    }
+
+    /// Replaces the state, returning what it was.
+    pub fn replace(&self, value: T) -> T {
+        self.0.replace(value)
+    }
+
+    /// Takes the state, leaving its default.
+    pub fn take(&self) -> T
+    where
+        T: Default,
+    {
+        self.0.take()
+    }
+
+    pub fn into_inner(self) -> T {
+        self.0.into_inner()
+    }
+}
+
+impl<T: Default> Default for Shared<T> {
+    fn default() -> Self {
+        Self::new(T::default())
+    }
+}
 
 /// A suspended piece of nested compiler work.
 pub(crate) type Task<'a, T> = Pin<Box<dyn Future<Output = Result<T>> + 'a>>;
@@ -35,15 +88,15 @@ pub(crate) fn task<'a, T, F: Future<Output = Result<T>> + 'a>(
 /// megabytes of them: each frame is charged to the compilation's memory
 /// before its task starts, for as long as it runs.
 pub(crate) struct Tasks<C, T> {
-    call: Cell<Option<C>>,
-    result: RefCell<Option<Result<T>>>,
+    call: Shared<Option<C>>,
+    result: Shared<Option<Result<T>>>,
 }
 
 impl<C, T> Tasks<C, T> {
     pub fn new() -> Self {
         Self {
-            call: Cell::new(None),
-            result: RefCell::new(None),
+            call: Shared::new(None),
+            result: Shared::new(None),
         }
     }
 
@@ -102,7 +155,7 @@ impl<C, T> Tasks<C, T> {
 
     /// Suspends the calling task until the nested `call` finishes.
     pub async fn call(&self, call: C) -> Result<T> {
-        self.call.set(Some(call));
+        self.call.replace(Some(call));
         let mut suspended = false;
         poll_fn(|_| {
             if std::mem::replace(&mut suspended, true) {
@@ -112,7 +165,7 @@ impl<C, T> Tasks<C, T> {
             }
         })
         .await;
-        self.result.borrow_mut().take().ok_or_else(|| {
+        self.result.take().ok_or_else(|| {
             crate::Error::new(
                 crate::ErrorKind::Host,
                 "nested compiler work did not finish",
@@ -185,7 +238,7 @@ mod tests {
         let depth = 2_000;
         let mut context = CallContext::new(CallOptions::default());
         let (frame, entry) = {
-            let work = Meter(RefCell::new(&mut context));
+            let work = Meter::new(&mut context);
             let tasks: Tasks<usize, usize> = Tasks::new();
             let start = |n: usize| -> Result<Frame<'_, usize>> {
                 let tasks = &tasks;
