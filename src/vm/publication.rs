@@ -206,7 +206,7 @@ fn text(name: &Value) -> &str {
 fn open(ctx: &mut CallContext, storage: &Storage, location: &Location) -> Result<Address> {
     let bindings = storage.bindings.as_ref().unwrap();
     let mut address =
-        crate::objects::address(ctx, bindings, text(&location.name))?.in_environment();
+        crate::objects::address(ctx, bindings, text(&location.name))?.in_environment()?;
     for key in &location.path.data {
         address.index(ctx, std::slice::from_ref(key))?;
     }

@@ -221,7 +221,7 @@ fn argument(ctx: &mut CallContext, value: &Value, verb: u8, field: Field) -> Res
     {
         Value::int(integer(value).unwrap())
     } else if matches!(verb, b'f' | b'F' | b'e' | b'E' | b'g' | b'G') {
-        Value::float(float(value))
+        Value::float(float(value)?)
     } else {
         value.clone()
     };

@@ -207,7 +207,9 @@ impl CallContext {
         }
         match produced {
             Some(value) => Ok(value),
-            None => unreachable!("import loop ends with the root value"),
+            None => Err(crate::checked::internal(
+                "import ended without a root value",
+            )),
         }
     }
 
@@ -295,7 +297,9 @@ impl CallContext {
                     Kind::Bytes(bytes)
                 }))
             }
-            Kind::Array(_) | Kind::Hash(_) => unreachable!("containers open import frames"),
+            Kind::Array(_) | Kind::Hash(_) => Err(crate::checked::internal(
+                "scalar import received a container",
+            )),
             _ => Ok(value.clone()),
         }
     }
@@ -312,7 +316,7 @@ mod tests {
             (vec![0xff], Value::int(4)),
         ]);
         let Kind::Hash(hash) = &mut value.0 else {
-            unreachable!()
+            panic!("unexpected test fixture")
         };
         // Indexing now rejects integer keys before they reach import, but importing
         // an existing object must preserve its data independently of name validation.

@@ -192,7 +192,11 @@ impl LoopState {
                 let direction = if start <= r.end.unwrap() { 1 } else { -1 };
                 Value::int((i128::from(start) + self.position * direction) as i64)
             }
-            _ => unreachable!(),
+            _ => {
+                return Err(crate::checked::internal(
+                    "loop source is not an array, hash or range",
+                ));
+            }
         };
         self.position += 1;
         Ok(Some(value))
@@ -350,10 +354,13 @@ impl Run {
         })
     }
     fn run(&mut self, ctx: &mut CallContext) -> Result<Value> {
-        match self.until(ctx, None)? {
+        let result = self.until(ctx, None).and_then(|exit| match exit {
             Exit::Value(value) => Ok(value),
-            Exit::Control(_) => unreachable!(),
-        }
+            Exit::Control(_) => Err(crate::checked::internal(
+                "top-level call returned block control",
+            )),
+        });
+        ctx.latch_internal(result)
     }
 
     fn until(&mut self, ctx: &mut CallContext, boundary: Option<usize>) -> Result<Exit> {
@@ -406,7 +413,9 @@ impl Run {
             let stack = &mut self.stack;
             let outcome = (|| -> Result<Option<Exit>> {
                 match event? {
-                    Event::Host => unreachable!(),
+                    Event::Host => Err(crate::checked::internal(
+                        "pending event is still a host request",
+                    )),
                     Event::Error(error) => {
                         handlers::error(ctx, frames, storage, stack, error, floor)?;
                         Ok(None)
@@ -529,7 +538,7 @@ impl Run {
                     let waiting = if pooled {
                         storage.iteration_pool.last().unwrap().waiting
                     } else {
-                        storage.iterations.at(iteration_base)?.waiting()
+                        storage.iterations.at(iteration_base)?.waiting()?
                     };
                     let returned = if waiting {
                         Some(stack.data.pop().unwrap())
@@ -849,7 +858,9 @@ impl Run {
                     }
                     let target = storage.arguments.data.pop().unwrap().target.unwrap();
                     let crate::arguments::Target::Raise(class, value) = target else {
-                        unreachable!()
+                        return Err(crate::checked::internal(
+                            "raise arguments have no raise target",
+                        ));
                     };
                     let class = class.or_else(|| handlers::class(&value));
                     return Err(handlers::raise(ctx, class, message, true)?);
@@ -1346,7 +1357,9 @@ impl Run {
                     let mut value = Value::from_bytes(ctx, text)?;
                     if symbol {
                         let Kind::Bytes(bytes) = value.0 else {
-                            unreachable!()
+                            return Err(crate::checked::internal(
+                                "symbol conversion requires bytes",
+                            ));
                         };
                         value = Value(Kind::Symbol(bytes));
                     }
@@ -2240,7 +2253,9 @@ impl Run {
                     if let Some(index) = data {
                         if !address.has_binding() {
                             let Kind::Hash(hash) = &address.value.0 else {
-                                unreachable!()
+                                return Err(crate::checked::internal(
+                                    "member lookup requires a hash",
+                                ));
                             };
                             let value = &hash.buffer.at(index)?.1;
                             if members::callable(value) {
@@ -2432,7 +2447,11 @@ impl Run {
                                     value.clone(),
                                 )?;
                             }
-                            _ => unreachable!(),
+                            _ => {
+                                return Err(crate::checked::internal(
+                                    "assignment receiver must be a class or instance",
+                                ));
+                            }
                         }
                         stack.push(ctx, value)?;
                         continue;
@@ -3037,7 +3056,11 @@ impl Run {
                         }
                         crate::arguments::Target::Raise(..)
                         | crate::arguments::Target::Output(..)
-                        | crate::arguments::Target::Format(..) => unreachable!(),
+                        | crate::arguments::Target::Format(..) => {
+                            return Err(crate::checked::internal(
+                                "special call target used as a plain call",
+                            ));
+                        }
                         crate::arguments::Target::Unbound(kind, name) => {
                             let required = if kind == "hash" {
                                 "hash or object"
@@ -3225,7 +3248,7 @@ impl Run {
                             ));
                         }
                         Invocation::Resolved | Invocation::ImplicitMember(..) => {
-                            unreachable!()
+                            return Err(crate::checked::internal("resolved call has no target"));
                         }
                     }
                 }
@@ -3358,8 +3381,14 @@ impl Run {
                         frame.ip = target as usize;
                     }
                 }
-                Op::Return | Op::Finish => unreachable!("returns skip the prologue"),
-                Op::Extended(_) => unreachable!("outlined instructions are expanded above"),
+                Op::Return | Op::Finish => {
+                    return Err(crate::checked::internal("returns skip the prologue"));
+                }
+                Op::Extended(_) => {
+                    return Err(crate::checked::internal(
+                        "outlined instructions are expanded above",
+                    ));
+                }
             }
             if ctx.has_exports
                 && matches!(
@@ -4685,7 +4714,9 @@ fn callee(
         .flatten();
     if call.constructor {
         let Some(Value(Kind::Namespace(class))) = &call.receiver else {
-            unreachable!()
+            return Err(crate::checked::internal(
+                "constructor receiver must be a class",
+            ));
         };
         call.receiver = Some(Value(Kind::Instance(crate::objects::new(ctx, class)?)));
     }

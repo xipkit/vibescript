@@ -574,7 +574,7 @@ impl Parser<'_> {
             }
             let at = self.tokens[self.pos].offset;
             let Token::Word(word) = self.bump()? else {
-                unreachable!()
+                return Err(crate::checked::internal("inherited member name expected"));
             };
             let mut uses = self.suffixed.borrow_mut();
             if let Some(suffix) = suffix_at(self.source, &word, at) {
@@ -740,7 +740,11 @@ fn spell<'t, 's: 't>(
                 let name = match token {
                     Token::Symbol(name) => name.as_bytes(),
                     Token::QuotedSymbol(name) => name.as_ref(),
-                    _ => unreachable!(),
+                    _ => {
+                        return Err(crate::checked::internal(
+                            "symbol or template token expected",
+                        ));
+                    }
                 };
                 if let Ok(name) = std::str::from_utf8(name) {
                     if name.ends_with(['?', '!']) {
@@ -754,7 +758,11 @@ fn spell<'t, 's: 't>(
                 let (entries, symbol): (&[Buffer<Part<'_>>], bool) = match token {
                     Token::Template(parts) => (std::slice::from_ref(parts), false),
                     Token::Words(words) => (&words.entries, words.symbol),
-                    _ => unreachable!(),
+                    _ => {
+                        return Err(crate::checked::internal(
+                            "symbol or template token expected",
+                        ));
+                    }
                 };
                 for entry in entries {
                     for part in entry.iter() {

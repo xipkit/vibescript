@@ -97,7 +97,7 @@ impl<'a> Atom<'a> {
             "duration" => kind == Receiver::Duration,
             "time" => matches!(kind, Receiver::Time | Receiver::Zoned),
             "money" => kind == Receiver::Money,
-            _ => unreachable!(),
+            _ => return None,
         })
     }
 
@@ -169,7 +169,11 @@ impl<'a> Atom<'a> {
             let name = match &resolved.0 {
                 Kind::Namespace(class) => &class.definition.name,
                 Kind::Enum(enumeration) => &enumeration.definition.name,
-                _ => unreachable!(),
+                _ => {
+                    return Err(crate::checked::internal(
+                        "nominal type requires a class or enum",
+                    ));
+                }
             };
             ctx.work_bytes(name.len())?;
             let last = name

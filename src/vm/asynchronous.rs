@@ -267,9 +267,11 @@ impl Owned {
         } = self;
         let execution = *execution;
         drop(charge);
-        execution.finish(result.map(|exit| match exit {
-            Exit::Value(value) => value,
-            Exit::Control(_) => unreachable!(),
+        execution.finish(result.and_then(|exit| match exit {
+            Exit::Value(value) => Ok(value),
+            Exit::Control(_) => Err(crate::checked::internal(
+                "top-level call returned block control",
+            )),
         }))
     }
 }
@@ -817,7 +819,11 @@ fn segment(mut work: Box<Work>) -> Progress {
     loop {
         let boundary = match work.scope {
             Scope::Call => None,
-            Scope::PendingBlock => unreachable!(),
+            Scope::PendingBlock => {
+                return Progress::Complete(work.complete(Err(crate::checked::internal(
+                    "pending block was not prepared",
+                ))));
+            }
             Scope::Block { boundary, .. } => Some(boundary.floor),
         };
         let execution = &mut *work.execution.execution;

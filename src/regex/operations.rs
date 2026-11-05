@@ -26,7 +26,7 @@ pub(super) fn pattern(ctx: &mut CallContext, value: &Value, method: &str) -> Res
         }
     };
     let Kind::Regex(regex) = value.0 else {
-        unreachable!()
+        return Err(crate::checked::internal("compiled pattern must be a regex"));
     };
     Ok(regex)
 }

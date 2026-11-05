@@ -59,7 +59,7 @@ impl<'a> MapFrame<'a> {
         match &source.0 {
             Kind::Array(array) => array.buffer.data.get(self.position),
             Kind::Hash(hash) => hash.buffer.data.get(self.position).map(|(_, value)| value),
-            _ => unreachable!(),
+            _ => None,
         }
     }
 
@@ -73,7 +73,9 @@ impl<'a> MapFrame<'a> {
                     self.mapped = Some(Mapped::Array(buffer));
                 }
                 let Some(Mapped::Array(buffer)) = &mut self.mapped else {
-                    unreachable!()
+                    return Err(crate::checked::internal(
+                        "object traversal container and output kinds disagree",
+                    ));
                 };
                 buffer.data[index] = value;
             }
@@ -84,11 +86,17 @@ impl<'a> MapFrame<'a> {
                     self.mapped = Some(Mapped::Hash(buffer));
                 }
                 let Some(Mapped::Hash(buffer)) = &mut self.mapped else {
-                    unreachable!()
+                    return Err(crate::checked::internal(
+                        "object traversal container and output kinds disagree",
+                    ));
                 };
                 buffer.data[index].1 = value;
             }
-            _ => unreachable!(),
+            _ => {
+                return Err(crate::checked::internal(
+                    "object traversal container and output kinds disagree",
+                ));
+            }
         }
         Ok(())
     }
@@ -105,7 +113,9 @@ impl<'a> MapFrame<'a> {
                 mapped.tag = hash.tag;
                 Value::from_hash(ctx, mapped).map(Some)
             }
-            _ => unreachable!(),
+            _ => Err(crate::checked::internal(
+                "object traversal container and output kinds disagree",
+            )),
         }
     }
 }
@@ -668,7 +678,9 @@ pub(crate) fn field_name(instance: &Arc<Instance>, field: usize) -> Result<Field
     let data = heap.data.lock().unwrap();
     let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
     let Fields::Named(named) = fields else {
-        unreachable!()
+        return Err(crate::checked::internal(
+            "dynamic field names require named storage",
+        ));
     };
     Ok(FieldName::Named(named.buffer.data[field].0.clone()))
 }
@@ -981,7 +993,11 @@ fn mark_walk(
         let child = match &container.0 {
             Kind::Array(array) => array.buffer.data.get(*position),
             Kind::Hash(hash) => hash.buffer.data.get(*position).map(|(_, value)| value),
-            _ => unreachable!(),
+            _ => {
+                return Err(crate::checked::internal(
+                    "object traversal container and output kinds disagree",
+                ));
+            }
         };
         let Some(child) = child else {
             scratch.pop();

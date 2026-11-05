@@ -248,7 +248,7 @@ fn leaf(ctx: &mut CallContext, value: &Value, output: &mut Output) -> Result<()>
         }
         _ => {
             if !output.prefix && matches!(value.0, Kind::Big(_)) {
-                let bits = crate::integer::bits(value);
+                let bits = crate::integer::bits(value)?;
                 let minimum = (bits.saturating_sub(1) as u128 * 301029 / 1_000_000) + 1;
                 if minimum > (output.limit - output.length) as u128 {
                     return ctx.guard(ErrorKind::OutputLimit, "output exceeds limit 1048576 bytes");

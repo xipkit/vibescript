@@ -176,7 +176,11 @@ pub(super) fn run(
                                 let (target, taken) = match *branch {
                                     Op::JumpFalse(target) => (target, !value),
                                     Op::JumpTrue(target) => (target, value),
-                                    _ => unreachable!(),
+                                    _ => {
+                                        return Err(crate::checked::internal(
+                                            "fused boolean branch requires JumpFalse or JumpTrue",
+                                        ));
+                                    }
                                 };
                                 // Binary already freed two operand slots, so neither
                                 // temporary boolean push could reserve storage.
@@ -390,7 +394,9 @@ fn special_value(ctx: &mut CallContext, value: &Value) -> Result<Value> {
     match &value.0 {
         Kind::Offset(offset) => Err(offset.value_error()),
         Kind::Builtin(builtin) => builtin.read(ctx),
-        _ => unreachable!("ordinary values are copied inline"),
+        _ => Err(crate::checked::internal(
+            "ordinary values are copied inline",
+        )),
     }
 }
 
@@ -432,7 +438,9 @@ fn mutate(
     stack: &mut Buffer<Value>,
 ) -> Result<bool> {
     let Extended::Mutate(site, n) = instruction(program, function, frame)? else {
-        unreachable!("outlined opcode and handler agree");
+        return Err(crate::checked::internal(
+            "outlined opcode and handler agree",
+        ));
     };
     // Only direct array updates, which need no scan of their
     // result, run here.
@@ -462,7 +470,9 @@ fn shovel(
     stack: &mut Buffer<Value>,
 ) -> Result<bool> {
     let Extended::Shovel(site, last) = instruction(program, function, frame)? else {
-        unreachable!("outlined opcode and handler agree");
+        return Err(crate::checked::internal(
+            "outlined opcode and handler agree",
+        ));
     };
     if !updatable(storage.addresses.data.last().unwrap(), site, true) {
         return Ok(false);
@@ -680,7 +690,9 @@ fn update(
         &mut storage.addresses.data,
         |ctx, receiver| match members::direct::update(ctx, site.method, name, receiver, args) {
             Ok(result) => result,
-            Err(_) => unreachable!("the simple loop updates only arrays it serves"),
+            Err(_) => Err(crate::checked::internal(
+                "the simple loop updates only arrays it serves",
+            )),
         },
     )
 }

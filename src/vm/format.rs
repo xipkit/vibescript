@@ -31,7 +31,9 @@ pub(super) fn resume(
     loop {
         let args = storage.arguments.data.last_mut().unwrap();
         let Some(Target::Format(index)) = args.target else {
-            unreachable!()
+            return Err(crate::checked::internal(
+                "format arguments have no format target",
+            ));
         };
         if index == args.positional.data.len() {
             let args = storage.arguments.data.pop().unwrap();

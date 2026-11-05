@@ -638,7 +638,11 @@ pub(super) fn intercept(
         )? {
             None => return Ok(None),
             Some(Pending::Control(pending)) => control = pending,
-            _ => unreachable!(),
+            _ => {
+                return Err(crate::checked::internal(
+                    "control interception returned an error",
+                ));
+            }
         }
     }
     if cross_call_retry {
