@@ -812,7 +812,7 @@ fn annotated(
     case: &Case,
     scratch: &mut Scratch,
 ) -> std::io::Result<()> {
-    let Some(annotated) = harness::annotate(case, scratch) else {
+    let Some(annotated) = harness::annotate(case, scratch)? else {
         return Ok(());
     };
     let verdict = harness::judge(&annotated, scratch)?;
