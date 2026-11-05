@@ -103,16 +103,15 @@ impl Parser<'_> {
         }
         let (start, structural) = (self.pos, self.type_structural_error);
         self.pos += 2;
-        let parsed = self.type_expr(1, false);
-        self.work.checkpoint()?;
+        let parsed = self.speculative_type(|p| p.type_expr(1, false))?;
         let next = self.significant(self.pos);
         let result = match parsed {
-            Ok(_) if self.tokens[next].token == Token::Op("=") => true,
-            Ok(ty) => {
+            Some(_) if self.tokens[next].token == Token::Op("=") => true,
+            Some(ty) => {
                 matches!(self.token(), Token::EndLine | Token::Eof) && self.declared_leaves(&ty)?
             }
             // A malformed type still declares when `=` follows on its line.
-            Err(_) => {
+            None => {
                 let mut assigned = false;
                 for lexeme in self.tokens.from(start + 2) {
                     self.work.checkpoint()?;
@@ -152,14 +151,13 @@ impl Parser<'_> {
         }
         let (start, structural) = (self.pos, self.type_structural_error);
         self.pos += 2;
-        let parsed = self.type_expr(1, false);
-        self.work.checkpoint()?;
+        let parsed = self.speculative_type(|p| p.type_expr(1, false))?;
         let result = match parsed {
-            Ok(_) if self.token() == &Token::Op("=") => true,
-            Ok(ty) => {
+            Some(_) if self.token() == &Token::Op("=") => true,
+            Some(ty) => {
                 matches!(self.token(), Token::EndLine | Token::Eof) && self.declared_leaves(&ty)?
             }
-            Err(_) => false,
+            None => false,
         };
         self.pos = start;
         self.type_structural_error = structural;
