@@ -1,0 +1,45 @@
+name: Benchmark linkers
+
+on:
+  push:
+    branches: [mgomes/benchmark-linkers]
+    paths:
+      - scripts/benchmark-linkers.py
+      - .github/workflows/benchmark-linkers.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      RUSTUP_TOOLCHAIN: 1.98.1
+      CARGO_BUILD_JOBS: 3
+      MOLD_REVISION: 331ac663668dc0b1f4949403854613b9b1913025
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          cache-key: benchmark-linkers
+      - name: Install linker build dependencies
+        run: sudo apt-get update && sudo apt-get install -y clang pkg-config libzstd-dev zlib1g-dev
+      - name: Build pinned mold
+        run: |
+          git clone https://github.com/rui314/mold.git .cache/mold
+          git -C .cache/mold checkout "$MOLD_REVISION"
+          cd .cache/mold
+          CARGO_HOME="$GITHUB_WORKSPACE/.cache/cargo" cargo build --release --locked -p mold --no-default-features --features x86_64
+      - name: Benchmark warm CLI and integration-test rebuilds
+        run: python3 scripts/benchmark-linkers.py --mold .cache/mold/target/release/mold --mold-revision "$MOLD_REVISION" --out .cache/linker-benchmark/linux
+      - name: Upload raw measurements and validation logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: linker-benchmark-linux
+          path: .cache/linker-benchmark/linux
+          if-no-files-found: warn
