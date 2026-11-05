@@ -219,7 +219,7 @@ impl Loader {
                 let source_text = std::str::from_utf8(source.contents.as_bytes().unwrap())
                     .map_err(|_| {
                         crate::compilation::error(
-                            &crate::compilation::Meter(std::cell::RefCell::new(&mut *ctx)),
+                            &crate::compilation::Meter::new(&mut *ctx),
                             None,
                             format_args!("required source must be UTF-8"),
                         )

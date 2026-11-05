@@ -553,7 +553,7 @@ impl Builtin {
             | Self::Regexp(_)
             | Self::Assert
             | Self::Loop
-            | Self::Require => unreachable!(),
+            | Self::Require => Err(crate::checked::internal("builtin was not dispatched")),
         }
     }
 }

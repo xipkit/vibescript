@@ -2,7 +2,7 @@ use crate::{
     Result, Value,
     builtin::{Builtin, Global},
     checked::{Checked, violation},
-    compilation::{Buffer, Frame, Name, Table, Tasks, framed},
+    compilation::{Buffer, Frame, Name, Shared, Table, Tasks, framed},
     syntax::{
         self, Argument, ArgumentKind, Block, CallForm, Expr, Node, ParamKind, Statement, Stmt,
         Target,
@@ -599,7 +599,6 @@ pub(crate) struct Capture {
 #[derive(Debug)]
 pub(crate) struct Program {
     pub file: bool,
-    pub owner: std::sync::Weak<crate::code::Code>,
     pub handlers: Vec<errors::TrySpec>,
     pub source: crate::source::Source,
     pub namespaces: Vec<std::sync::Arc<crate::namespace::Definition>>,
@@ -741,7 +740,6 @@ pub(crate) fn compile_parsed(
     let _source = work.reserve(source.len())?;
     let mut program = Program {
         file,
-        owner: std::sync::Weak::new(),
         handlers: Vec::new(),
         source: crate::source::Source::compile(source, work)?,
         namespaces: Vec::new(),
@@ -972,7 +970,11 @@ impl Program {
                     Op::NamespaceVariable(..) => Op::InstanceField(slot),
                     Op::NamespaceStore(..) => Op::InstanceStore(slot),
                     Op::NamespaceAddress(..) => Op::InstanceAddress(slot),
-                    _ => unreachable!(),
+                    _ => {
+                        return Err(crate::checked::internal(
+                            "instance field instruction expected",
+                        ));
+                    }
                 };
             }
         }
@@ -1467,7 +1469,7 @@ impl Compiler<'_> {
             .ok_or_else(|| syntax::unsupported(self.work, "unsupported operator"))?;
         Ok(self.emit(Op::Binary(operator, false)))
     }
-    fn patch(&mut self, pos: usize, target: usize) {
+    fn patch(&mut self, pos: usize, target: usize) -> crate::checked::Access<()> {
         match self.code.get_mut(pos) {
             Some(
                 Op::RaiseStart(_, n)
@@ -1489,8 +1491,13 @@ impl Compiler<'_> {
                 | Op::AddressBound(_, n)
                 | Op::ReceiverBound(_, n),
             ) => *n = narrow(target),
-            _ => unreachable!(),
+            _ => {
+                return Err(crate::checked::violation(
+                    "patch expected a branch instruction",
+                ));
+            }
         }
+        Ok(())
     }
     fn constant(&mut self, v: Value) {
         let n = self.program.constants.len();
@@ -1628,13 +1635,13 @@ impl Compiler<'_> {
             self.emit(Op::Unbound(site.name, receiving));
         }
         if let Some(constant) = constant {
-            self.patch(constant, self.code.len());
+            self.patch(constant, self.code.len())?;
         }
         if let Some(ambient) = ambient {
-            self.patch(ambient, self.code.len());
+            self.patch(ambient, self.code.len())?;
         }
         if let Some(file) = file {
-            self.patch(file, self.code.len());
+            self.patch(file, self.code.len())?;
         }
         Ok(())
     }
@@ -1671,7 +1678,9 @@ impl Compiler<'_> {
                 self.emit(Op::BlockGiven(false, false));
             }
             Node::Var(name) => return self.variable_expression(name, receiving),
-            _ => unreachable!(),
+            _ => {
+                return Err(crate::checked::internal("primitive expression expected"));
+            }
         }
         Ok(())
     }
@@ -1928,21 +1937,21 @@ enum Call<'x> {
 struct Compiling<'a, 'x> {
     /// The compiler's work, which the boxed steps of its tasks charge.
     work: &'a dyn crate::compilation::Work,
-    compiler: std::cell::RefCell<Compiler<'a>>,
+    compiler: Shared<Compiler<'a>>,
     tasks: Tasks<Call<'x>, ()>,
-    params: std::cell::RefCell<Vec<Parameter>>,
+    params: Shared<Vec<Parameter>>,
     /// The function's [`Function::proven`] start, once its prologue is generated.
-    proven: std::cell::Cell<Option<usize>>,
+    proven: Shared<Option<usize>>,
 }
 
 impl<'a, 'x> Compiling<'a, 'x> {
     fn new(compiler: Compiler<'a>) -> Self {
         Self {
             work: compiler.work,
-            compiler: std::cell::RefCell::new(compiler),
+            compiler: Shared::new(compiler),
             tasks: Tasks::new(),
-            params: std::cell::RefCell::new(Vec::new()),
-            proven: std::cell::Cell::new(None),
+            params: Shared::new(Vec::new()),
+            proven: Shared::new(None),
         }
     }
 
@@ -2072,7 +2081,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             }
             if let Some(bind) = bind {
                 let end = c.code.len();
-                c.patch(bind, end);
+                c.patch(bind, end)?;
             }
             if c.instance {
                 if let Some(name) = &param.ivar {
@@ -2107,7 +2116,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     && !(c.instance && param.ivar.is_some())
                     && proven_type;
             }
-            self.proven.set(direct.then_some(c.code.len()));
+            self.proven.replace(direct.then_some(c.code.len()));
             if c.facts.keep_type_checks {
                 for param in &params {
                     if let Some(ty) = param.ty {
@@ -2279,14 +2288,14 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     let work = c.work;
                     done.push(work, c.emit(Op::Jump(0)))?;
                     let end = c.code.len();
-                    c.patch(branch, end);
+                    c.patch(branch, end)?;
                     c.declare_bindings(body)?;
                 }
                 self.block(alternate).await?;
                 let mut c = self.c();
                 let end = c.code.len();
                 for done in done {
-                    c.patch(done, end);
+                    c.patch(done, end)?;
                 }
             }
             Statement::While(cond, body, modifier) => {
@@ -2448,7 +2457,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                         let mut c = self.c();
                         c.emit(Op::StoreGlobal(narrow(global)));
                         let end = c.code.len();
-                        c.patch(skip, end);
+                        c.patch(skip, end)?;
                         return Ok(());
                     }
                     if binary.is_some() {
@@ -2481,7 +2490,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     c.check_local(name)?;
                     c.emit(Op::Store(narrow(slot)));
                     let end = c.code.len();
-                    c.patch(skip, end);
+                    c.patch(skip, end)?;
                     return Ok(());
                 }
                 let typed = self.c().local_type(name)?.is_some();
@@ -2542,10 +2551,10 @@ impl<'a, 'x> Compiling<'a, 'x> {
                         *c.locations.at_mut(store)? = target.offset;
                         let end = c.emit(Op::Jump(0));
                         let drop = c.code.len();
-                        c.patch(skip, drop);
+                        c.patch(skip, drop)?;
                         c.emit(Op::AddressDrop);
                         let done = c.code.len();
-                        c.patch(end, done);
+                        c.patch(end, done)?;
                     } else {
                         self.assignment_rhs(binding_target, &[rhs]).await?;
                         let mut c = self.c();
@@ -2587,7 +2596,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             (ty, subject)
         };
         let Target::Typed(inner, _) = target else {
-            unreachable!()
+            return Err(crate::checked::internal("typed assignment target expected"));
         };
         self.assign_value(inner).await?;
         let mut c = self.c();
@@ -2776,13 +2785,13 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     let work = c.work;
                     done.push(work, c.emit(Op::Jump(0)))?;
                     let end = c.code.len();
-                    c.patch(branch, end);
+                    c.patch(branch, end)?;
                 }
                 self.expr(alternate).await?;
                 let mut c = self.c();
                 let end = c.code.len();
                 for done in done {
-                    c.patch(done, end);
+                    c.patch(done, end)?;
                 }
             }
             Node::Compound(stmt) => framed(self.work, self.stmt(stmt, true))?.await?,
@@ -2817,7 +2826,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     self.expr(b).await?;
                     let mut c = self.c();
                     let end = c.code.len();
-                    c.patch(jump, end);
+                    c.patch(jump, end)?;
                 } else {
                     self.expr(b).await?;
                     self.c().number_binary(op, a, b)?;
@@ -2905,7 +2914,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     c.literal(key.clone());
                     let ip = c.code.len() - 1;
                     let Op::Shared(slot) = *c.code.at(ip)? else {
-                        unreachable!()
+                        return Err(crate::checked::internal("compound expression expected"));
                     };
                     *c.code.at_mut(ip)? = Op::IndexLiteral(slot);
                     let plain = c.facts.plain(e);
@@ -2924,7 +2933,9 @@ impl<'a, 'x> Compiling<'a, 'x> {
             | Node::Integer(_)
             | Node::BigInteger(..)
             | Node::Literal(_)
-            | Node::Var(_) => unreachable!(),
+            | Node::Var(_) => {
+                return Err(crate::checked::internal("compound expression expected"));
+            }
         }
         Ok(())
     }
@@ -2963,13 +2974,13 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 let mut c = self.c();
                 let done = c.emit(Op::Jump(0));
                 let end = c.code.len();
-                c.patch(guard.unwrap(), end);
+                c.patch(guard.unwrap(), end)?;
                 done
             };
             self.expr(fallback).await?;
             let mut c = self.c();
             let end = c.code.len();
-            c.patch(done, end);
+            c.patch(done, end)?;
         }
         Ok(())
     }
@@ -3001,7 +3012,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 let next = c.emit(Op::Jump(0));
                 for matched in matches {
                     let end = c.code.len();
-                    c.patch(matched, end);
+                    c.patch(matched, end)?;
                 }
                 if target.is_some() {
                     c.emit(Op::Pop);
@@ -3012,7 +3023,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             let mut c = self.c();
             completed.push(work, c.emit(Op::Jump(0)))?;
             let end = c.code.len();
-            c.patch(next, end);
+            c.patch(next, end)?;
         }
         if target.is_some() {
             self.c().emit(Op::Pop);
@@ -3025,7 +3036,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
         let mut c = self.c();
         for completed in completed {
             let end = c.code.len();
-            c.patch(completed, end);
+            c.patch(completed, end)?;
         }
         Ok(())
     }
@@ -3103,7 +3114,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             }
             if let Some(skip) = skip {
                 let end = c.code.len();
-                c.patch(skip, end);
+                c.patch(skip, end)?;
             }
             return Ok(());
         }
@@ -3121,7 +3132,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             c.emit(Op::Invoke(Invocation::Resolved));
             if let Some(skip) = skip {
                 let end = c.code.len();
-                c.patch(skip, end);
+                c.patch(skip, end)?;
             }
             return Ok(());
         }
@@ -3165,7 +3176,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
         if let Some(skip) = skip {
             let mut c = self.c();
             let end = c.code.len();
-            c.patch(skip, end);
+            c.patch(skip, end)?;
         }
         Ok(())
     }
@@ -3206,7 +3217,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 self.receiver_expr(receiver, receiving).await?;
                 let mut c = self.c();
                 let end = c.code.len();
-                c.patch(bound, end);
+                c.patch(bound, end)?;
                 return Ok(());
             }
             let mut c = self.c();
@@ -3648,9 +3659,9 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     }
                     let mut c = self.c();
                     let end = c.code.len();
-                    c.patch(bound, end);
+                    c.patch(bound, end)?;
                     for jump in constant.into_iter().chain(ambient).chain(implicit) {
-                        c.patch(jump, end);
+                        c.patch(jump, end)?;
                     }
                 }
             }
@@ -3677,7 +3688,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 let mut c = self.c();
                 let end = c.code.len();
                 for jump in std::iter::once(ambient).chain(implicit) {
-                    c.patch(jump, end);
+                    c.patch(jump, end)?;
                 }
             }
             Node::Var(name) if self.c().global_fallback(name)?.is_some() => {
@@ -3694,7 +3705,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 c.emit(Op::AddressMember(site));
                 if let Some(skip) = skip {
                     let end = c.code.len();
-                    c.patch(skip, end);
+                    c.patch(skip, end)?;
                 }
             }
             Node::Index(root, indices) => {
@@ -3712,7 +3723,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
         let mut c = self.c();
         let end = c.code.len();
         for jump in [early, root, file].into_iter().flatten() {
-            c.patch(jump, end);
+            c.patch(jump, end)?;
         }
         Ok(())
     }
@@ -3956,7 +3967,6 @@ pub(crate) fn mutating_member(name: &str) -> bool {
 mod budget_tests {
     use super::*;
     use crate::{CallContext, CallOptions, ErrorKind, compilation::Meter};
-    use std::cell::RefCell;
 
     #[test]
     fn field_type_search_charges_each_candidate() {
@@ -3968,8 +3978,7 @@ mod budget_tests {
         let program = compile(&source, Vec::new(), &()).unwrap();
         let mut context = CallContext::new(CallOptions::default());
         context.options.limits.steps = Some(8);
-        let result =
-            program.instance_variable_type(0, "field255", &Meter(RefCell::new(&mut context)));
+        let result = program.instance_variable_type(0, "field255", &Meter::new(&mut context));
         assert_eq!(result.unwrap_err().kind, ErrorKind::Steps);
     }
 }

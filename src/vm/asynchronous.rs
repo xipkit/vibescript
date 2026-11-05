@@ -6,7 +6,7 @@ use crate::{CallOptions, CancellationToken, Outcome, Script, budget::Charge};
 use std::{
     future::Future,
     pin::Pin,
-    sync::{Condvar, Mutex, atomic::Ordering},
+    sync::atomic::{AtomicBool, Ordering},
     task::{Context, Poll, Wake, Waker},
     time::{Duration, Instant},
 };
@@ -267,9 +267,11 @@ impl Owned {
         } = self;
         let execution = *execution;
         drop(charge);
-        execution.finish(result.map(|exit| match exit {
-            Exit::Value(value) => value,
-            Exit::Control(_) => unreachable!(),
+        execution.finish(result.and_then(|exit| match exit {
+            Exit::Value(value) => Ok(value),
+            Exit::Control(_) => Err(crate::checked::internal(
+                "top-level call returned block control",
+            )),
         }))
     }
 }
@@ -321,6 +323,7 @@ impl Work {
                 )
             }
         };
+        let result = execution.execution.context.latch_internal(result);
         Completed { execution, result }
     }
 
@@ -668,9 +671,15 @@ struct Synchronous {
     driver: Driver<Inline>,
 }
 
+/// Wakes the synchronous worker thread that waits in [`wait_on_worker`]:
+/// the thread that made the parker, which parks between polls.
 struct Parker {
-    ready: Mutex<bool>,
-    changed: Condvar,
+    thread: std::thread::Thread,
+    /// Whether a wake has arrived since the wait last looked. The park
+    /// token alone can't say: a host future that blocks the thread during
+    /// its poll, on a channel receive for one, parks it too and takes a
+    /// token meant for this wait.
+    ready: AtomicBool,
     _charge: Option<Charge>,
 }
 
@@ -680,8 +689,8 @@ impl Wake for Parker {
     }
 
     fn wake_by_ref(self: &Arc<Self>) {
-        *self.ready.lock().unwrap() = true;
-        self.changed.notify_one();
+        self.ready.store(true, Ordering::Release);
+        self.thread.unpark();
     }
 }
 
@@ -696,13 +705,14 @@ fn wait_on_worker<T, E>(
     let waker = Waker::from(parker.clone());
     let mut context = Context::from_waker(&waker);
     loop {
-        *parker.ready.lock().unwrap() = false;
         if let Poll::Ready(result) = Pin::new(&mut future).poll(&mut context) {
             return result;
         }
-        let mut ready = parker.ready.lock().unwrap();
-        while !*ready {
-            ready = parker.changed.wait(ready).unwrap();
+        // The flag remembers a wake from during the poll or before the
+        // park; a park that returns without one, spuriously or on a token
+        // another wait left, only looks again.
+        while !parker.ready.swap(false, Ordering::Acquire) {
+            std::thread::park();
         }
     }
 }
@@ -758,8 +768,8 @@ impl crate::host_call::Backend for Synchronous {
             }
         };
         let parker = Arc::new(Parker {
-            ready: Mutex::new(false),
-            changed: Condvar::new(),
+            thread: std::thread::current(),
+            ready: AtomicBool::new(false),
             _charge: charge,
         });
         let charge = match execution.context.reserve(size_of::<Work>()) {
@@ -817,7 +827,11 @@ fn segment(mut work: Box<Work>) -> Progress {
     loop {
         let boundary = match work.scope {
             Scope::Call => None,
-            Scope::PendingBlock => unreachable!(),
+            Scope::PendingBlock => {
+                return Progress::Complete(work.complete(Err(crate::checked::internal(
+                    "pending block was not prepared",
+                ))));
+            }
             Scope::Block { boundary, .. } => Some(boundary.floor),
         };
         let execution = &mut *work.execution.execution;
@@ -912,7 +926,6 @@ pub(crate) async fn call(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::AtomicBool;
     use tokio::sync::Notify;
 
     fn work(script: &Script, on_finish: Arc<dyn Fn() + Send + Sync>) -> Box<Work> {
@@ -934,6 +947,28 @@ mod tests {
     }
 
     #[test]
+    fn an_unprepared_pending_block_latches_its_internal_error() {
+        let script = crate::Engine::new()
+            .compile("def run -> int; 1; end")
+            .unwrap();
+        let mut pending = work(&script, Arc::new(|| {}));
+        pending.scope = Scope::PendingBlock;
+        let Progress::Complete(mut completed) = segment(pending) else {
+            panic!("an unprepared block must fail before asking the host")
+        };
+        let error = completed.result.err().expect("pending block must fail");
+        assert_eq!(error.kind, ErrorKind::Internal);
+        assert!(error.message.ends_with("pending block was not prepared"));
+        let later = completed
+            .execution
+            .execution
+            .context
+            .checkpoint()
+            .unwrap_err();
+        assert_eq!(later.message, error.message);
+    }
+
+    #[test]
     fn top_level_finalization_keeps_its_worker_and_leaves_the_executor_responsive() {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .max_blocking_threads(1)
@@ -947,16 +982,15 @@ mod tests {
                 let script = crate::Engine::new().compile(&source).unwrap();
                 let slots = Arc::new(Semaphore::new(1));
                 let entered = Arc::new(Notify::new());
-                let gate = Arc::new((Mutex::new(false), Condvar::new()));
-                let (pool, ready, release) = (slots.clone(), entered.clone(), gate.clone());
+                let (release, released) = std::sync::mpsc::channel::<()>();
+                let released = crate::actor::Actor::new(released);
+                let (pool, ready) = (slots.clone(), entered.clone());
                 let executor = std::thread::current().id();
                 let work = work(&script, Arc::new(move || {
                     assert_ne!(std::thread::current().id(), executor, "finalization ran on the executor");
                     assert_eq!(pool.available_permits(), 0, "finalization lost its worker permit");
                     ready.notify_one();
-                    let (lock, changed) = &*release;
-                    let (released, _) = changed.wait_timeout_while(lock.lock().unwrap(), Duration::from_secs(3), |released| !*released).unwrap();
-                    assert!(*released, "executor could not resume during finalization");
+                    assert!(released.with(|released| released.recv_timeout(Duration::from_secs(3))).is_ok(), "executor could not resume during finalization");
                 }));
                 if end == "cancelled" { work.execution.execution.context.cancellation().cancel(); }
                 let driver = Driver { slots: slots.clone(), handle: Handle::current(), _lane: Worker };
@@ -969,9 +1003,7 @@ mod tests {
                 }
                 tokio::time::sleep(Duration::from_millis(5)).await;
                 assert_eq!(slots.available_permits(), 0);
-                let (lock, changed) = &*gate;
-                *lock.lock().unwrap() = true;
-                changed.notify_one();
+                release.send(()).unwrap();
                 let result = call.await.unwrap();
                 match end {
                     "7" => {

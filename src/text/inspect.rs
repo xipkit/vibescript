@@ -60,12 +60,12 @@ fn inspect(ctx: &mut CallContext, value: &Value) -> Result<Value> {
     let mut projection = Output::Size(0);
     render(ctx, value, &mut projection)?;
     let Output::Size(length) = projection else {
-        unreachable!()
+        return Err(crate::checked::internal("inspect output mode changed"));
     };
     let mut output = Output::Bytes(Buffer::with_capacity(ctx, length)?);
     render(ctx, value, &mut output)?;
     let Output::Bytes(buffer) = output else {
-        unreachable!()
+        return Err(crate::checked::internal("inspect output mode changed"));
     };
     Value::from_bytes(ctx, buffer)
 }
@@ -87,7 +87,7 @@ impl Output {
 
     fn add_size(&mut self, ctx: &mut CallContext, bytes: usize) -> Result<()> {
         let Self::Size(size) = self else {
-            unreachable!()
+            return Err(crate::checked::internal("inspect sizing pass expected"));
         };
         let Some(next) = size.checked_add(bytes) else {
             return ctx.fail(ErrorKind::Memory, "inspect output size overflow");
@@ -129,7 +129,7 @@ pub(crate) fn output(ctx: &mut CallContext, value: &Value, limit: usize) -> Resu
     };
     render(ctx, value, &mut output)?;
     let Output::Bounded { length, .. } = output else {
-        unreachable!()
+        return Err(crate::checked::internal("bounded inspect output expected"));
     };
     output = Output::Bounded {
         bytes: Some(Buffer::with_capacity(ctx, length + 1)?),
@@ -142,7 +142,7 @@ pub(crate) fn output(ctx: &mut CallContext, value: &Value, limit: usize) -> Resu
         ..
     } = output
     else {
-        unreachable!()
+        return Err(crate::checked::internal("bounded inspect output expected"));
     };
     bytes.push(ctx, b'\n')?;
     Ok(bytes)
@@ -228,7 +228,11 @@ fn leaf(ctx: &mut CallContext, value: &Value, out: &mut Output) -> Result<()> {
         Kind::Nil => return out.append(ctx, b"nil"),
         Kind::Function(function) => return Err(function.value_error()),
         Kind::Host(_) | Kind::Builtin(_) | Kind::Offset(_) => return out.append(ctx, b"<builtin>"),
-        Kind::Array(_) | Kind::Hash(_) => unreachable!("containers are walked by frame"),
+        Kind::Array(_) | Kind::Hash(_) => {
+            return Err(crate::checked::internal(
+                "inspect leaf received a container",
+            ));
+        }
         Kind::Shape(shape) => {
             out.append(ctx, b"<Shape ")?;
             out.append(ctx, &shape.definition.text)?;
@@ -264,7 +268,7 @@ fn leaf(ctx: &mut CallContext, value: &Value, out: &mut Output) -> Result<()> {
             if matches!(out, Output::Size(_)) {
                 // Reserve an upper bound without allocating or converting a big integer twice.
                 let bytes = if matches!(value.0, Kind::Big(_)) {
-                    crate::integer::bits(value) / 3 + 2
+                    crate::integer::bits(value)? / 3 + 2
                 } else {
                     64
                 };
@@ -272,7 +276,7 @@ fn leaf(ctx: &mut CallContext, value: &Value, out: &mut Output) -> Result<()> {
             }
             if let Output::Bounded { length, limit, .. } = out {
                 if matches!(value.0, Kind::Big(_)) {
-                    let bits = crate::integer::bits(value);
+                    let bits = crate::integer::bits(value)?;
                     let minimum = (bits.saturating_sub(1) as u128 * 301029 / 1_000_000) + 1;
                     if minimum > (*limit - *length) as u128 {
                         return ctx.guard(ErrorKind::OutputLimit, "inspect output exceeds limit");
@@ -464,7 +468,7 @@ mod tests {
         let mut projection = Output::Size(0);
         walk(ctx, value, &mut projection, limit)?;
         let Output::Size(length) = projection else {
-            unreachable!()
+            panic!("unexpected test fixture")
         };
         Ok(length)
     }
@@ -474,7 +478,7 @@ mod tests {
         let mut output = Output::Bytes(Buffer::with_capacity(ctx, length)?);
         walk(ctx, value, &mut output, limit)?;
         let Output::Bytes(buffer) = output else {
-            unreachable!()
+            panic!("unexpected test fixture")
         };
         Ok(buffer.data)
     }

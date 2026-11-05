@@ -55,7 +55,7 @@ impl Parser<'_> {
                 continue;
             }
             let Token::Word(name) = &self.tokens[index + 1].token else {
-                unreachable!()
+                return Err(crate::checked::internal("declared type name expected"));
             };
             let alias = *word == "type";
             if alias && self.tokens[index + 2].token != Token::Op("=") {
@@ -216,7 +216,7 @@ impl Parser<'_> {
         self.bump()?;
         let at = self.tokens[self.pos].offset;
         let Token::Word(word) = self.bump()? else {
-            unreachable!()
+            return Err(crate::checked::internal("block parameter name expected"));
         };
         let written = word.strip_suffix('?').unwrap_or(&word);
         self.binding_name(written, at)?;
@@ -409,7 +409,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             work.charge(1)?;
             let offset = p.tokens[p.pos].offset;
             let Token::Word(word) = p.bump()? else {
-                unreachable!()
+                return Err(crate::checked::internal("instance variable name expected"));
             };
             p.binding_name(&word, offset)?;
             let name = &word[1..];
@@ -459,7 +459,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             work.charge(1)?;
             let offset = p.tokens[p.pos].offset;
             let Token::Word(word) = p.bump()? else {
-                unreachable!()
+                return Err(crate::checked::internal("class variable name expected"));
             };
             p.binding_name(&word, offset)?;
             if word.len() == 2 {
@@ -521,7 +521,6 @@ pub(crate) fn declared_local(target: &Target) -> Option<(&Name, &Type)> {
 #[cfg(test)]
 mod tests {
     use crate::{CallContext, CallOptions, ErrorKind, compilation::Meter};
-    use std::cell::RefCell;
 
     #[test]
     fn type_name_setup_charges_tokens_without_declarations() {
@@ -529,7 +528,7 @@ mod tests {
         let mut parser = crate::syntax::parser(&source, &()).unwrap();
         let mut context = CallContext::new(CallOptions::default());
         context.options.limits.steps = Some(0);
-        let work = Meter(RefCell::new(&mut context));
+        let work = Meter::new(&mut context);
         parser.work = &work;
         let result = parser.with_type_names().map(|_| ());
         assert_eq!(result.unwrap_err().kind, ErrorKind::Steps);

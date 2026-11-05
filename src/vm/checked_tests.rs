@@ -28,10 +28,7 @@ fn corrupt(script: Script, function: &str, edit: impl FnOnce(&mut [Op])) -> Scri
         .find(|candidate| candidate.name == function)
         .unwrap();
     edit(function.code.as_mut_slice());
-    let code = Arc::new_cyclic(|owner| {
-        code.program.owner = owner.clone();
-        code
-    });
+    let code = Arc::new(code);
     Script {
         inner: Arc::new(crate::ScriptInner {
             code,
@@ -182,6 +179,74 @@ fn a_callback_cannot_ignore_or_replace_an_internal_block_error() {
         let (script, observed) = guarded_block(reaction);
         let result = script.call("run", &[], CallOptions::default());
         observed.check(result.map(drop), reaction);
+    }
+}
+
+#[test]
+fn an_unresolved_invocation_is_terminal_even_in_a_handler() {
+    for body in [
+        "target(*[1])",
+        "begin\ntarget(*[1])\nrescue\n2\nend",
+        "begin\ntarget(*[1])\nensure\nreturn 2\nend",
+    ] {
+        let source = format!("def target(n: int) -> int\nn\nend\ndef run -> int\n{body}\nend");
+        let script = corrupt(Engine::new().compile(&source).unwrap(), "run", |code| {
+            let root = code
+                .iter_mut()
+                .find(|op| matches!(op, Op::RootCall(..)))
+                .unwrap();
+            *root = Op::Arguments;
+            let invoke = code
+                .iter_mut()
+                .find(|op| matches!(op, Op::InvokeRoot(_)))
+                .unwrap();
+            *invoke = Op::Invoke(Invocation::Resolved);
+        });
+        let error = script.call("run", &[], CallOptions::default()).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Internal, "{body}: {error}");
+        assert!(error.class().is_none());
+        assert!(
+            error.message.starts_with("internal error at src/vm.rs:"),
+            "{error}"
+        );
+    }
+}
+
+#[test]
+fn a_callback_cannot_swallow_an_internal_import_error() {
+    for reaction in [Reaction::Ignore, Reaction::Replace] {
+        let observed = Arc::new(Observed::default());
+        let mut engine = marking(&observed);
+        let seen = observed.clone();
+        engine.register("visit", move |ctx, _| {
+            // The second record enters the shared-key path with a malformed
+            // container key, which scalar import must reject as an invariant error.
+            let record = || Value::hash(vec![(b"key".to_vec(), Value::nil())]);
+            let mut malformed = record();
+            if let Kind::Hash(hash) = &mut malformed.0 {
+                Arc::get_mut(hash).unwrap().buffer.data[0].0 = Value::array(vec![]);
+            }
+            let imported = ctx.import(&Value::array(vec![record(), malformed]));
+            seen.block.store(
+                imported.is_err_and(|e| e.kind == ErrorKind::Internal),
+                Ordering::Relaxed,
+            );
+            seen.later.store(
+                ctx.checkpoint()
+                    .is_err_and(|e| e.kind == ErrorKind::Internal),
+                Ordering::Relaxed,
+            );
+            reaction.result()
+        });
+        let script = engine
+            .compile("def run -> any\nbegin\nvisit()\nrescue\nmark()\nensure\nmark()\nend\nend")
+            .unwrap();
+        let result = script.call("run", &[], CallOptions::default());
+        let error = result.unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Internal, "{reaction:?}: {error}");
+        assert!(observed.block.load(Ordering::Relaxed));
+        assert!(observed.later.load(Ordering::Relaxed));
+        assert_eq!(observed.handlers.load(Ordering::Relaxed), 0);
     }
 }
 

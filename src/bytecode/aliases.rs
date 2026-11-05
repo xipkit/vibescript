@@ -334,7 +334,6 @@ pub(super) fn scope(
 mod tests {
     use super::*;
     use crate::{CallContext, CallOptions, ErrorKind, Limits, compilation::Meter};
-    use std::cell::RefCell;
 
     #[test]
     fn alias_copies_charge_field_and_type_name_bytes() {
@@ -359,7 +358,7 @@ mod tests {
                 },
                 ..CallOptions::default()
             });
-            let error = copy_type(&ty, &Meter(RefCell::new(&mut context))).unwrap_err();
+            let error = copy_type(&ty, &Meter::new(&mut context)).unwrap_err();
             assert_eq!(error.kind, ErrorKind::Steps);
         }
     }

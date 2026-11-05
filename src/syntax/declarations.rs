@@ -173,7 +173,9 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             Declared::Class(class) => {
                 Statement::UnboundClass(class.name).at(self.work, class.offset)?
             }
-            Declared::Enum(..) | Declared::Alias(..) | Declared::TypeAlias(..) => unreachable!(),
+            Declared::Enum(..) | Declared::Alias(..) | Declared::TypeAlias(..) => {
+                return Err(crate::checked::internal("nested statement expected"));
+            }
         })
     }
 
@@ -195,7 +197,9 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 },
                 None,
             ),
-            Declared::Enum(..) | Declared::Alias(..) | Declared::TypeAlias(..) => unreachable!(),
+            Declared::Enum(..) | Declared::Alias(..) | Declared::TypeAlias(..) => {
+                return Err(crate::checked::internal("class body statement expected"));
+            }
         })
     }
 
@@ -333,7 +337,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         }
         // A lenient parse finds uses only, and one class declared twice
         // is two sites of its name.
-        if !super::suffixes::lenient() {
+        if !self.mode().lenient {
             compile_checks(&order, &modules, &enums, work)?;
         }
         defs.insert(
@@ -523,7 +527,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             }
             let offset = p.tokens[p.pos].offset;
             let Token::Word(word) = p.bump()? else {
-                unreachable!()
+                return Err(crate::checked::internal("parameter name expected"));
             };
             p.binding_name(&word, offset)?;
             let name = Name::new(work, word.strip_prefix('@').unwrap_or(&word))?;
@@ -538,7 +542,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         if let Some(colon) = colon {
             // The canonical surface declares keywords only after `*`.
             let plain =
-                kind == ParamKind::Positional && !instance && !strict && !super::canonical();
+                kind == ParamKind::Positional && !instance && !strict && !self.mode().canonical;
             let keyword = {
                 let mut p = self.p();
                 p.pos = colon + 1;
@@ -710,7 +714,7 @@ impl Parser<'_> {
                 member_offsets.push(member_offset as u32);
             }
             let Token::Word(member) = self.bump()? else {
-                unreachable!()
+                return Err(crate::checked::internal("enum member name expected"));
             };
             self.binding_name(&member, member_offset)?;
             self.member_binding(&member, member_offset, namespace)?;

@@ -76,7 +76,7 @@ impl<'a> Parser<'a> {
     pub(super) fn diagnostic(&self, index: usize) -> Option<Error> {
         let token = &self.tokens[index];
         if token.token == Token::P('?')
-            && !suffixes::lenient()
+            && !self.mode.lenient
             && self.source.as_bytes().get(token.end) == Some(&b'=')
             && index.checked_sub(1).is_some_and(|previous| {
                 let name = &self.tokens[previous];

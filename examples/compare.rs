@@ -1,11 +1,5 @@
 use serde_json::{Value as Json, json};
-use std::{
-    collections::BTreeMap,
-    fs,
-    hint::black_box,
-    sync::{Arc, Mutex},
-    time::Instant,
-};
+use std::{collections::BTreeMap, fs, hint::black_box, sync::mpsc, time::Instant};
 use vibescript::{CallOptions, Engine, Limits, ModuleConfig, parse_json};
 
 #[path = "support/blocks.rs"]
@@ -122,31 +116,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(output.len())
             });
         }
+        // A writer sends each write whole; validation collects them after.
         let stdout = case
             .get("stdout")
             .and_then(Json::as_bool)
             .unwrap_or(false)
-            .then(|| Arc::new(Mutex::new(Vec::new())));
+            .then(mpsc::channel::<Vec<u8>>);
         let stderr = case
             .get("stderr")
             .and_then(Json::as_bool)
             .unwrap_or(false)
-            .then(|| Arc::new(Mutex::new(Vec::new())));
+            .then(mpsc::channel::<Vec<u8>>);
         let capture = mode == "validate";
-        if let Some(buffer) = &stdout {
+        if let Some((buffer, _)) = &stdout {
             let buffer = buffer.clone();
             engine.set_output_writer(move |_, bytes| {
-                if capture {
-                    buffer.lock().unwrap().extend_from_slice(bytes);
+                if capture && !bytes.is_empty() {
+                    let _ = buffer.send(bytes.to_vec());
                 }
                 Ok(())
             });
         }
-        if let Some(buffer) = &stderr {
+        if let Some((buffer, _)) = &stderr {
             let buffer = buffer.clone();
             engine.set_error_writer(move |_, bytes| {
-                if capture {
-                    buffer.lock().unwrap().extend_from_slice(bytes);
+                if capture && !bytes.is_empty() {
+                    let _ = buffer.send(bytes.to_vec());
                 }
                 Ok(())
             });
@@ -253,8 +248,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Json::String(String::from_utf8(output.to_vec())?),
             );
             for (name, buffer) in [("stdout_hex", &stdout), ("stderr_hex", &stderr)] {
-                if let Some(buffer) = buffer {
-                    record.insert(name.into(), Json::String(hex(&buffer.lock().unwrap())));
+                if let Some((_, written)) = buffer {
+                    let bytes: Vec<u8> = written.try_iter().flatten().collect();
+                    record.insert(name.into(), Json::String(hex(&bytes)));
                 }
             }
         } else {

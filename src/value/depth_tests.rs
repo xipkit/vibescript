@@ -101,7 +101,7 @@ fn concurrent_last_owners_release_deep_subtrees() {
             node = match &node.0 {
                 Kind::Array(array) => &array.buffer.data[0],
                 Kind::Hash(hash) => &hash.buffer.data[0].1,
-                _ => unreachable!(),
+                _ => panic!("unexpected test fixture"),
             };
         }
         drop(value);
@@ -115,6 +115,35 @@ fn concurrent_last_owners_release_deep_subtrees() {
             }
         }));
     }
+}
+
+/// Destroying a deep container beside a weak observer takes the walk's
+/// replacement branch in `destroy::unique`, which otherwise only a race with
+/// another owner's drop reaches; see `concurrent_last_owners_release_deep_subtrees`.
+#[test]
+#[allow(
+    clippy::disallowed_types,
+    clippy::disallowed_methods,
+    reason = "a test observer that reaches the replacement branch on purpose; the crate itself makes no weak reference to a container"
+)]
+fn host_container_cleanup_tolerates_internal_weak_observers() {
+    on_small_stack(|| {
+        let child = array_chain(DEEP);
+        let Kind::Array(array) = &child.0 else {
+            panic!("unexpected test fixture")
+        };
+        let weak = Arc::downgrade(array);
+        drop(Value::array(vec![child]));
+        assert!(weak.upgrade().is_none());
+
+        let child = hash_chain(DEEP);
+        let Kind::Hash(hash) = &child.0 else {
+            panic!("unexpected test fixture")
+        };
+        let weak = Arc::downgrade(hash);
+        drop(Value::hash(vec![(b"k".to_vec(), child)]));
+        assert!(weak.upgrade().is_none());
+    });
 }
 
 #[test]
@@ -211,7 +240,7 @@ fn rendering_keeps_existing_display_shapes_and_leaf_debug_forms() {
     let mut other = context();
     let imported = other.import(&protected).unwrap();
     let Kind::Hash(hash) = &imported.0 else {
-        unreachable!()
+        panic!("unexpected test fixture")
     };
     assert_eq!(hash.tag, Tag::Match);
     assert_eq!(imported.to_string(), "shown");
@@ -474,7 +503,7 @@ mod at_max_tests {
                     slots[index] = depth;
                 }
                 let Kind::Array(heap) = &value.0 else {
-                    unreachable!()
+                    panic!("unexpected test fixture")
                 };
                 let expected = true_depth(&slots);
                 assert_eq!(heap.depth, expected, "trial {trial} depth");
@@ -522,7 +551,7 @@ mod at_max_tests {
                     slots[pick].1 = depth;
                 }
                 let Kind::Hash(hash) = &value.0 else {
-                    unreachable!()
+                    panic!("unexpected test fixture")
                 };
                 let depths: Vec<usize> = slots.iter().map(|(_, d)| *d).collect();
                 let expected = true_depth(&depths);

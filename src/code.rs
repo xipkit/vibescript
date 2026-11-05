@@ -91,7 +91,7 @@ impl Code {
             &receiving.declared,
             true,
             Some(origin),
-            &crate::compilation::Meter(std::cell::RefCell::new(ctx)),
+            &crate::compilation::Meter::new(ctx),
             Some(loader),
         )
     }
@@ -246,18 +246,12 @@ impl Code {
         }
         work.charge(program.namespaces.len())?;
         work.checkpoint()?;
-        Ok(Arc::new_cyclic(|owner| {
-            program.owner = owner.clone();
-            for definition in &program.namespaces {
-                assert!(definition.owner.set(owner.clone()).is_ok());
-            }
-            Self {
-                program,
-                hosts,
-                declared: declared.clone(),
-                origin,
-                exports,
-            }
+        Ok(Arc::new(Self {
+            program,
+            hosts,
+            declared: declared.clone(),
+            origin,
+            exports,
         }))
     }
 }

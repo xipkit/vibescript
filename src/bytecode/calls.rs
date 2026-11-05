@@ -62,7 +62,9 @@ impl<'x> Compiling<'_, 'x> {
                 Invocation::Function(fun) => Op::Call(fun, narrow(args.len())),
                 Invocation::Host(host) => Op::Host(host, narrow(args.len())),
                 Invocation::NonCallable => Op::NonCallable(narrow(args.len())),
-                _ => unreachable!(),
+                _ => {
+                    return Err(crate::checked::internal("static call target expected"));
+                }
             })
         };
         let mut c = self.c();
@@ -134,10 +136,10 @@ impl<'x> Compiling<'_, 'x> {
                 if let Some(skip) = skip {
                     let done = c.emit(Op::Jump(0));
                     let end = c.code.len();
-                    c.patch(skip, end);
+                    c.patch(skip, end)?;
                     c.emit(Op::CallValue);
                     let end = c.code.len();
-                    c.patch(done, end);
+                    c.patch(done, end)?;
                 }
             }
             Node::Scope(receiver, name, None) => {
@@ -161,14 +163,14 @@ impl<'x> Compiling<'_, 'x> {
                     c.emit(Op::CallValue);
                     let done = c.emit(Op::Jump(0));
                     let end = c.code.len();
-                    c.patch(guard, end);
+                    c.patch(guard, end)?;
                     done
                 };
                 // A shape's fallback is a bare name, so this recursion stays shallow.
                 framed(self.work, self.call_target(fallback, arguments))?.await?;
                 let mut c = self.c();
                 let end = c.code.len();
-                c.patch(done, end);
+                c.patch(done, end)?;
             }
             _ => {
                 self.expr(expr).await?;

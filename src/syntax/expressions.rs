@@ -118,12 +118,12 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             "true" => self.p().make(Node::Literal(Value::boolean(true)), 1),
             "false" => self.p().make(Node::Literal(Value::boolean(false)), 1),
             "if" => self.if_expr(false).await,
-            "unless" if !canonical() => self.if_expr(true).await,
+            "unless" if !self.mode().canonical => self.if_expr(true).await,
             "case" => self.case_expr().await,
             "yield" => self.yield_expr().await,
             "begin" => self.begin_expression(offset).await,
             "while" | "for" => self.loop_expression(w, offset).await,
-            "until" if !canonical() => self.loop_expression(w, offset).await,
+            "until" if !self.mode().canonical => self.loop_expression(w, offset).await,
             // Like Go, only `self` and `then` among the remaining keywords
             // start an expression.
             _ if keyword(w) && !matches!(w, "self" | "then") => Err(Error::syntax(
@@ -307,7 +307,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             }
             let at = p.tokens[p.pos].offset;
             let Token::Word(name) = p.bump()? else {
-                unreachable!()
+                return Err(crate::checked::internal("scope member name expected"));
             };
             // A name after `::` is spelled as one after `.` is; only one with
             // a `?` or `!` can be spelled wrong.

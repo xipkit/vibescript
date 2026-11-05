@@ -5,7 +5,7 @@ use crate::{
     syntax::HostName,
     value::Kind,
 };
-use std::{cell::RefCell, fmt, sync::Arc};
+use std::{fmt, sync::Arc};
 
 type Binder = Arc<dyn Fn(&mut CallContext) -> Result<Value> + Send + Sync>;
 type ArgumentContract =
@@ -149,12 +149,7 @@ impl Capability {
         };
         ctx.checkpoint()?;
         let value = value?;
-        binding_name(
-            &Meter(RefCell::new(ctx)),
-            HostName::CAPABILITY,
-            &self.name,
-            &value,
-        )?;
+        binding_name(&Meter::new(ctx), HostName::CAPABILITY, &self.name, &value)?;
         ctx.import(&value)
     }
 }
@@ -417,12 +412,17 @@ impl HostMethod {
     /// returned from a script keeps its original grant and cannot authorize another
     /// call. Reuse this host-side method to make a fresh grant instead.
     pub fn value(&self) -> Value {
-        Value(Kind::Host(Arc::new(BoundMethod {
+        Value(Kind::Host(Arc::new(self.bound())))
+    }
+
+    /// Creates the ungranted method descriptor used by signatures and values.
+    pub(crate) fn bound(&self) -> BoundMethod {
+        BoundMethod {
             definition: self.definition.clone(),
             owner: None,
             header: None,
             metadata: None,
-        })))
+        }
     }
 }
 
@@ -521,7 +521,7 @@ impl BoundMethod {
         keywords: &[(Value, Value)],
     ) -> Result<Value> {
         let Callback::Plain(callback) = &self.definition.callback else {
-            unreachable!()
+            return ctx.latch_internal(Err(crate::checked::internal("plain callback expected")));
         };
         let result = callback(ctx, args, keywords);
         ctx.checkpoint()?;
@@ -572,7 +572,7 @@ impl BoundMethod {
         keywords: &'a [(Value, Value)],
     ) -> crate::asynchronous::HostFuture<'a> {
         let Callback::Async(callback) = &self.definition.callback else {
-            unreachable!()
+            return Box::pin(async { Err(crate::checked::internal("async callback expected")) });
         };
         callback(call, args, keywords)
     }
@@ -689,13 +689,8 @@ mod name_work_tests {
                     options.cancellation.cancel();
                 }
                 let mut ctx = CallContext::new(options);
-                let error = member_name(
-                    &Meter(RefCell::new(&mut ctx)),
-                    HostName::METHOD,
-                    &key,
-                    &method,
-                )
-                .unwrap_err();
+                let error = member_name(&Meter::new(&mut ctx), HostName::METHOD, &key, &method)
+                    .unwrap_err();
                 assert_eq!(
                     error.kind,
                     if cancelled {
@@ -709,7 +704,7 @@ mod name_work_tests {
             options.limits.steps = Some(0);
             let mut ctx = CallContext::new(options);
             member_name(
-                &Meter(RefCell::new(&mut ctx)),
+                &Meter::new(&mut ctx),
                 HostName::METHOD,
                 &key,
                 &Value::int(1),

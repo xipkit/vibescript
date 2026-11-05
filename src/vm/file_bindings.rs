@@ -35,7 +35,8 @@ pub(super) fn set(
 }
 
 pub(super) fn address(program: &Program, ctx: &mut CallContext, name: &str) -> Result<Address> {
-    crate::objects::address(ctx, environment(program).unwrap(), name).map(Address::in_environment)
+    crate::objects::address(ctx, environment(program).unwrap(), name)
+        .and_then(|address| Ok(address.in_environment()?))
 }
 
 pub(super) fn declare(
@@ -190,7 +191,7 @@ pub(super) fn global_address(
     }
     if requires::get(ctx, storage, name)?.is_some() {
         return crate::objects::address(ctx, storage.bindings.as_ref().unwrap(), name)
-            .map(Address::in_environment);
+            .and_then(|address| Ok(address.in_environment()?));
     }
     let mut value = global_value(program, ctx, storage, index)?;
     if read {

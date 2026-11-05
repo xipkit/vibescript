@@ -42,7 +42,12 @@ impl Fields {
         match self {
             Self::Named(named) => named.find(ctx, name.as_bytes()),
             Self::Slots { values, .. } => {
-                for (slot, field) in class.field_layout().unwrap().iter().enumerate() {
+                for (slot, field) in class
+                    .field_layout()
+                    .ok_or(violation("missing declared field layout"))?
+                    .iter()
+                    .enumerate()
+                {
                     ctx.charge(1)?;
                     if field == name {
                         return Ok(values
@@ -80,7 +85,7 @@ impl Fields {
             Self::Slots { .. } => {
                 let slot = class
                     .field_layout()
-                    .unwrap()
+                    .ok_or(violation("missing declared field layout"))?
                     .iter()
                     .position(|field| field == name)
                     .ok_or_else(|| Error::new(ErrorKind::Name, "undeclared instance variable"))?;
@@ -137,15 +142,25 @@ impl Fields {
         }
     }
 
-    pub fn name<'a>(&'a self, class: &'a Namespace, slot: usize) -> &'a [u8] {
+    pub fn name<'a>(&'a self, class: &'a Namespace, slot: usize) -> Access<&'a [u8]> {
         match self {
-            Self::Named(named) => named.buffer.data[slot].0.as_bytes().unwrap(),
-            Self::Slots { .. } => class.field_layout().unwrap()[slot].as_bytes(),
+            Self::Named(named) => named
+                .buffer
+                .at(slot)?
+                .0
+                .as_bytes()
+                .ok_or(violation("instance field name is not bytes")),
+            Self::Slots { .. } => Ok(class
+                .field_layout()
+                .ok_or(violation("missing declared field layout"))?
+                .at(slot)?
+                .as_bytes()),
         }
     }
 
     pub fn names<'a>(&'a self, class: &'a Namespace) -> impl Iterator<Item = &'a [u8]> {
-        self.iter().map(move |(slot, _)| self.name(class, slot))
+        self.iter()
+            .filter_map(move |(slot, _)| self.name(class, slot).ok())
     }
 
     pub fn iter(&self) -> Iter<'_> {
@@ -177,7 +192,7 @@ impl Fields {
             Self::Slots { .. } => {
                 let mut values = Buffer::with_capacity(ctx, self.iter().count())?;
                 for (slot, value) in self.iter() {
-                    let name = ctx.bytes(self.name(class, slot))?;
+                    let name = ctx.bytes(self.name(class, slot)?)?;
                     values.data.push((name, value.clone()));
                 }
                 Ok(values)
@@ -333,14 +348,16 @@ end
             expected.push(b"missing".to_vec());
             assert_eq!(names(&mut ctx), expected);
             let heap = instance.heap().unwrap();
-            let data = heap.data.lock().unwrap();
-            let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
-            let mut iter = fields.iter();
-            assert_eq!(iter.next_back().unwrap().0, missing);
-            assert!(iter.next().is_some());
-            assert!(iter.next_back().is_some());
-            assert!(iter.next().is_none());
-            assert!(iter.next_back().is_none());
+            heap.data.read(|data| {
+                let fields =
+                    &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+                let mut iter = fields.iter();
+                assert_eq!(iter.next_back().unwrap().0, missing);
+                assert!(iter.next().is_some());
+                assert!(iter.next_back().is_some());
+                assert!(iter.next().is_none());
+                assert!(iter.next_back().is_none());
+            });
         }
     }
 }

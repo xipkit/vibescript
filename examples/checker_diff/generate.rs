@@ -289,7 +289,7 @@ struct Gen {
     util: Vec<FnDef>,
     /// How many more risky constructs may take their unsound form.
     unsound: u32,
-    fresh: std::cell::Cell<usize>,
+    fresh: std::sync::atomic::AtomicUsize,
     lines: Vec<String>,
     indent: usize,
     /// The host's globals, with the generator's model of their types, and
@@ -313,7 +313,7 @@ impl Gen {
             library_state: false,
             util: Vec::new(),
             unsound: 0,
-            fresh: std::cell::Cell::new(0),
+            fresh: std::sync::atomic::AtomicUsize::new(0),
             lines: Vec::new(),
             indent: 0,
             globals: Vec::new(),
@@ -335,8 +335,11 @@ impl Gen {
     }
 
     fn name(&self, prefix: &str) -> String {
-        self.fresh.set(self.fresh.get() + 1);
-        format!("{prefix}{}", self.fresh.get())
+        let fresh = self
+            .fresh
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1;
+        format!("{prefix}{fresh}")
     }
 
     fn line(&mut self, text: impl AsRef<str>) {
@@ -3293,7 +3296,9 @@ impl Gen {
                 }
                 ParamKind::Rest => {
                     let Ty::Array(element) = &param.ty else {
-                        unreachable!()
+                        return Err(std::io::Error::other(
+                            "rest parameter requires an array type",
+                        ));
                     };
                     for _ in 0..self.rng.below(3) {
                         args.push(self.expr(env, element, d, true)?);

@@ -1,14 +1,15 @@
 //! Regex constants share code without retaining an invocation's memory budget.
 
-use crate::{CallContext, Result, Value, regex::value::Regex};
-use std::sync::{Mutex, OnceLock};
+use crate::{CallContext, Result, Value, actor::Actor, regex::value::Regex};
+use std::sync::OnceLock;
 
 #[derive(Debug)]
 pub(crate) struct Literal {
     source: Value,
     flags: u8,
     compiled: OnceLock<Result<Value>>,
-    compiling: Mutex<()>,
+    /// Cold calls compile one at a time, so a pattern compiles once.
+    compiling: Actor<()>,
 }
 
 impl Literal {
@@ -27,7 +28,7 @@ impl Literal {
             source,
             flags,
             compiled,
-            compiling: Mutex::new(()),
+            compiling: Actor::new(()),
         }
     }
 
@@ -38,20 +39,21 @@ impl Literal {
         if let Some(value) = self.compiled.get() {
             return ctx.import(value.as_ref().map_err(Clone::clone)?);
         }
-        let _compiling = self.compiling.lock().unwrap();
-        ctx.checkpoint()?;
-        if let Some(value) = self.compiled.get() {
-            return ctx.import(value.as_ref().map_err(Clone::clone)?);
-        }
-        let value = Regex::compile(ctx, self.source.clone(), self.flags, "regex literal");
-        if !ctx.exhausted() {
-            let cached = match &value {
-                Ok(value) => crate::integer::unlimited_context().import(value),
-                Err(error) => Err(error.clone()),
-            };
-            self.compiled.set(cached).unwrap();
-        }
-        value
+        self.compiling.with(|()| {
+            ctx.checkpoint()?;
+            if let Some(value) = self.compiled.get() {
+                return ctx.import(value.as_ref().map_err(Clone::clone)?);
+            }
+            let value = Regex::compile(ctx, self.source.clone(), self.flags, "regex literal");
+            if !ctx.exhausted() {
+                let cached = match &value {
+                    Ok(value) => crate::integer::unlimited_context().import(value),
+                    Err(error) => Err(error.clone()),
+                };
+                self.compiled.set(cached).unwrap();
+            }
+            value
+        })
     }
 }
 

@@ -1,12 +1,15 @@
 use super::*;
 use crate::{CallOptions, ErrorKind};
-use std::{cell::Cell, time::Instant};
+use std::{
+    sync::atomic::{AtomicUsize, Ordering::Relaxed},
+    time::Instant,
+};
 
 struct Interrupt {
-    context: RefCell<CallContext>,
-    visits: Cell<usize>,
-    largest_bytes: Cell<usize>,
-    byte_visits: Cell<usize>,
+    context: Shared<CallContext>,
+    visits: AtomicUsize,
+    largest_bytes: AtomicUsize,
+    byte_visits: AtomicUsize,
     at: usize,
     deadline: bool,
 }
@@ -16,10 +19,10 @@ impl Interrupt {
         let mut options = CallOptions::default();
         options.limits.steps = None;
         Self {
-            context: RefCell::new(CallContext::new(options)),
-            visits: Cell::new(0),
-            largest_bytes: Cell::new(0),
-            byte_visits: Cell::new(0),
+            context: Shared::new(CallContext::new(options)),
+            visits: AtomicUsize::new(0),
+            largest_bytes: AtomicUsize::new(0),
+            byte_visits: AtomicUsize::new(0),
             at,
             deadline,
         }
@@ -27,8 +30,8 @@ impl Interrupt {
 
     fn visit(&self) -> Result<()> {
         let mut context = self.context.borrow_mut();
-        let visits = self.visits.get();
-        self.visits.set(visits + 1);
+        let visits = self.visits.load(Relaxed);
+        self.visits.store(visits + 1, Relaxed);
         if visits >= self.at {
             if self.deadline {
                 context.options.deadline = Some(Instant::now());
@@ -47,8 +50,10 @@ impl Work for Interrupt {
     }
 
     fn bytes(&self, bytes: usize) -> Result<()> {
-        self.largest_bytes.set(self.largest_bytes.get().max(bytes));
-        self.byte_visits.set(self.byte_visits.get() + 1);
+        self.largest_bytes
+            .store(self.largest_bytes.load(Relaxed).max(bytes), Relaxed);
+        self.byte_visits
+            .store(self.byte_visits.load(Relaxed) + 1, Relaxed);
         self.visit()?;
         self.context.borrow_mut().work_bytes(bytes)
     }
@@ -147,11 +152,11 @@ fn compilation_limits_cover_parsing_and_code_generation() {
             let mut options = CallOptions::default();
             options.limits.steps = Some(steps);
             let mut exact = CallContext::new(options.clone());
-            run(&Meter(RefCell::new(&mut exact))).unwrap();
+            run(&Meter::new(&mut exact)).unwrap();
             for limit in [0, 1, steps / 4, steps / 2, steps - 1] {
                 options.limits.steps = Some(limit);
                 let mut context = CallContext::new(options.clone());
-                let error = run(&Meter(RefCell::new(&mut context))).unwrap_err();
+                let error = run(&Meter::new(&mut context)).unwrap_err();
                 assert_eq!(
                     error.kind,
                     ErrorKind::Steps,
@@ -160,7 +165,7 @@ fn compilation_limits_cover_parsing_and_code_generation() {
                 assert_eq!(context.checkpoint().unwrap_err().kind, ErrorKind::Steps);
                 assert_eq!(context.stats().retained_memory_bytes, 0);
             }
-            let visits = baseline.visits.get();
+            let visits = baseline.visits.load(Relaxed);
             for at in [0, 1, visits / 4, visits / 2, visits - 1] {
                 for deadline in [false, true] {
                     let interrupted = Interrupt::new(at, deadline);
@@ -172,7 +177,7 @@ fn compilation_limits_cover_parsing_and_code_generation() {
                     };
                     assert_eq!(error.kind, kind, "bytecode={bytecode}, at={at}: {source}");
                     assert_eq!(interrupted.checkpoint().unwrap_err().kind, kind);
-                    assert_eq!(interrupted.visits.get(), at + 1);
+                    assert_eq!(interrupted.visits.load(Relaxed), at + 1);
                     assert_eq!(
                         interrupted.context.borrow().stats().retained_memory_bytes,
                         0
@@ -196,10 +201,14 @@ fn malformed_speculation_preserves_termination() {
         let baseline = Interrupt::new(usize::MAX, false);
         assert_eq!(run(&baseline).unwrap_err().kind, ErrorKind::Syntax);
         assert_eq!(baseline.context.borrow().stats().retained_memory_bytes, 0);
-        for at in [1, baseline.visits.get() / 2, baseline.visits.get() - 1] {
+        for at in [
+            1,
+            baseline.visits.load(Relaxed) / 2,
+            baseline.visits.load(Relaxed) - 1,
+        ] {
             let interrupted = Interrupt::new(at, false);
             assert_eq!(run(&interrupted).unwrap_err().kind, ErrorKind::Cancelled);
-            assert_eq!(interrupted.visits.get(), at + 1);
+            assert_eq!(interrupted.visits.load(Relaxed), at + 1);
             assert_eq!(
                 interrupted.context.borrow().stats().retained_memory_bytes,
                 0
@@ -220,7 +229,7 @@ fn compiler_diagnostic_messages_reserve_before_formatting_and_release_on_failure
     let stats = baseline.context.borrow().stats();
     assert!(stats.retained_memory_bytes >= error.message.capacity());
     assert!(stats.peak_memory_bytes < message.len() * 2);
-    assert!(baseline.largest_bytes.get() <= 4096);
+    assert!(baseline.largest_bytes.load(Relaxed) <= 4096);
     drop(error);
     assert_eq!(baseline.context.borrow().stats().retained_memory_bytes, 0);
     for memory in [false, true] {
@@ -232,7 +241,7 @@ fn compiler_diagnostic_messages_reserve_before_formatting_and_release_on_failure
                 options.limits.steps = Some(stats.steps - short as u64);
             }
             let mut context = CallContext::new(options);
-            let error = run(&Meter(RefCell::new(&mut context)));
+            let error = run(&Meter::new(&mut context));
             if short == 0 {
                 assert_eq!(error.kind, ErrorKind::Syntax);
             } else {
@@ -249,7 +258,7 @@ fn compiler_diagnostic_messages_reserve_before_formatting_and_release_on_failure
         }
     }
     for deadline in [false, true] {
-        for at in 0..baseline.visits.get() {
+        for at in 0..baseline.visits.load(Relaxed) {
             let work = Interrupt::new(at, deadline);
             let error = run(&work);
             let kind = if deadline {
@@ -286,7 +295,7 @@ fn compiler_source_diagnostics_keep_exact_text_and_account_for_partial_construct
         &filename
     ));
     let stats = baseline.context.borrow().stats();
-    let visits = baseline.visits.get();
+    let visits = baseline.visits.load(Relaxed);
     assert!(
         stats.retained_memory_bytes > error.message.capacity() + diagnostic.code_frame.capacity()
     );
@@ -305,7 +314,7 @@ fn compiler_source_diagnostics_keep_exact_text_and_account_for_partial_construct
                 options.limits.steps = Some(stats.steps - short as u64);
             }
             let mut context = CallContext::new(options);
-            let error = run(&Meter(RefCell::new(&mut context)));
+            let error = run(&Meter::new(&mut context));
             if short == 0 {
                 assert_eq!(error.diagnostic.as_ref().unwrap().code_frame, expected);
             } else {
@@ -368,7 +377,7 @@ fn compiler_rejection_routes_retain_accounted_messages() {
             baseline.context.borrow().stats().retained_memory_bytes >= error.message.capacity()
         );
         assert!(error.retained_charge.is_some(), "{source}");
-        let at = baseline.visits.get() - 1;
+        let at = baseline.visits.load(Relaxed) - 1;
         drop(error);
         assert_eq!(baseline.context.borrow().stats().retained_memory_bytes, 0);
         let cancelled = Interrupt::new(at, false);
@@ -386,7 +395,7 @@ fn compiler_rejection_routes_retain_accounted_messages() {
 fn compiler_diagnostics_can_account_shared_and_untracked_input_errors() {
     for shared in [false, true] {
         let mut context = CallContext::new(CallOptions::default());
-        let work = Meter(RefCell::new(&mut context));
+        let work = Meter::new(&mut context);
         let mut input = if shared {
             Error::syntax(&work, 0, "expected expression")
         } else {
@@ -415,7 +424,7 @@ fn compiled_builtin_namespaces_retain_sorted_unique_members_without_the_budget()
     let program = crate::bytecode::compile(
         "[Regex, Time, Duration, JSON, Math]",
         Vec::new(),
-        &Meter(RefCell::new(&mut context)),
+        &Meter::new(&mut context),
     )
     .unwrap();
     assert_eq!(context.stats().retained_memory_bytes, 0);
@@ -488,7 +497,7 @@ fn alias_work_includes_copied_method_bodies_before_code_generation() {
     let mut options = CallOptions::default();
     options.limits.steps = Some(base + declarations + 32 * 512);
     let mut context = CallContext::new(options);
-    let result = crate::syntax::parse(&aliased, &Meter(RefCell::new(&mut context)));
+    let result = crate::syntax::parse(&aliased, &Meter::new(&mut context));
     assert_eq!(result.err().unwrap().kind, ErrorKind::Steps);
 }
 
@@ -496,7 +505,7 @@ fn alias_work_includes_copied_method_bodies_before_code_generation() {
 fn parser_storage_is_bounded_and_released_with_its_output() {
     for source in sources() {
         let mut context = CallContext::new(CallOptions::default());
-        let parsed = crate::syntax::parse(&source, &Meter(RefCell::new(&mut context)))
+        let parsed = crate::syntax::parse(&source, &Meter::new(&mut context))
             .unwrap_or_else(|error| panic!("{source}: {error}"));
         let peak = context.stats().peak_memory_bytes;
         assert!(peak > 0, "{source}");
@@ -506,7 +515,7 @@ fn parser_storage_is_bounded_and_released_with_its_output() {
             let mut options = CallOptions::default();
             options.limits.memory_bytes = Some(limit);
             let mut context = CallContext::new(options);
-            let result = crate::syntax::parse(&source, &Meter(RefCell::new(&mut context)));
+            let result = crate::syntax::parse(&source, &Meter::new(&mut context));
             if limit == peak {
                 assert!(result.is_ok(), "limit={limit}: {source}");
                 drop(result);
@@ -541,7 +550,7 @@ fn owned_literal_payloads_obey_limits_and_outlive_the_token_stream() {
     ] {
         let mut context = CallContext::new(CallOptions::default());
         let memory = context.identity();
-        let parsed = crate::syntax::parse(&source, &Meter(RefCell::new(&mut context))).unwrap();
+        let parsed = crate::syntax::parse(&source, &Meter::new(&mut context)).unwrap();
         let peak = context.stats().peak_memory_bytes;
         assert!(context.stats().retained_memory_bytes >= length, "{source}");
         drop(context);
@@ -552,7 +561,7 @@ fn owned_literal_payloads_obey_limits_and_outlive_the_token_stream() {
             let mut options = CallOptions::default();
             options.limits.memory_bytes = Some(limit);
             let mut context = CallContext::new(options);
-            let result = crate::syntax::parse(&source, &Meter(RefCell::new(&mut context)));
+            let result = crate::syntax::parse(&source, &Meter::new(&mut context));
             if limit == peak {
                 assert!(result.is_ok(), "limit={limit}: {source}");
                 drop(result);
@@ -571,7 +580,7 @@ fn owned_syntax_containers_outlive_the_parser() {
     let memory = context.identity();
     let mut parsed = crate::syntax::parse(
         "def first(n=1);[n+2,n*3][0];end;def second;[4,5];end",
-        &Meter(RefCell::new(&mut context)),
+        &Meter::new(&mut context),
     )
     .unwrap();
     let before = context.stats().retained_memory_bytes;
@@ -595,8 +604,7 @@ fn alias_compilation_preserves_supported_tree_depth() {
         );
         let mut context = CallContext::new(CallOptions::default());
         let code =
-            crate::bytecode::compile(&source, Vec::new(), &Meter(RefCell::new(&mut context)))
-                .unwrap();
+            crate::bytecode::compile(&source, Vec::new(), &Meter::new(&mut context)).unwrap();
         assert_eq!(context.stats().retained_memory_bytes, 0);
         drop(code);
     }
@@ -624,16 +632,16 @@ fn interrupted_name_table_updates_leave_the_original_scope_intact() {
                 .map(drop),
             "remove" => table.remove(work, &long_name).map(drop),
             "lookup" => table.get(work, &long_name).map(drop),
-            _ => unreachable!(),
+            _ => panic!("unexpected test fixture"),
         };
         let mut table = initial();
         let baseline = Interrupt::new(usize::MAX, false);
         run(&mut table, &baseline).unwrap();
         drop(table);
         assert_eq!(baseline.context.borrow().stats().retained_memory_bytes, 0);
-        assert!(baseline.largest_bytes.get() <= 4096);
+        assert!(baseline.largest_bytes.load(Relaxed) <= 4096);
         if matches!(operation, "replace" | "remove" | "lookup") {
-            assert!(baseline.byte_visits.get() >= 2 * long_name.len().div_ceil(4096));
+            assert!(baseline.byte_visits.load(Relaxed) >= 2 * long_name.len().div_ceil(4096));
         }
         let check_original = |table: &Table<usize>| {
             assert_eq!(table.get(&(), "added").unwrap(), None);
@@ -657,7 +665,7 @@ fn interrupted_name_table_updates_leave_the_original_scope_intact() {
             drop(table);
             assert_eq!(work.context.borrow().stats().retained_memory_bytes, 0);
         }
-        let visits = baseline.visits.get();
+        let visits = baseline.visits.load(Relaxed);
         for at in [0, visits / 4, visits / 2, visits - 1] {
             for deadline in [false, true] {
                 let interrupted = Interrupt::new(at, deadline);
@@ -732,13 +740,13 @@ fn generation_storage_and_work_limits_cover_the_phase_after_parsing() {
         drop(crate::syntax::parse(&source, &parsed).unwrap());
         let parse_steps = parsed.context.borrow().stats().steps;
         let parse_peak = parsed.context.borrow().stats().peak_memory_bytes;
-        let parse_visits = parsed.visits.get();
+        let parse_visits = parsed.visits.load(Relaxed);
         let run = |work: &dyn Work| crate::bytecode::compile_file(&source, Vec::new(), work);
         let baseline = Interrupt::new(usize::MAX, false);
         let budget = baseline.context.borrow().identity();
         let program = run(&baseline).unwrap();
         let stats = baseline.context.borrow().stats();
-        let visits = baseline.visits.get();
+        let visits = baseline.visits.load(Relaxed);
         assert_eq!(stats.retained_memory_bytes, 0);
         assert!(stats.steps > parse_steps && visits > parse_visits);
         drop(baseline);
@@ -756,7 +764,7 @@ fn generation_storage_and_work_limits_cover_the_phase_after_parsing() {
             options.limits.steps = None;
             options.limits.memory_bytes = Some(limit);
             let mut context = CallContext::new(options);
-            let result = run(&Meter(RefCell::new(&mut context)));
+            let result = run(&Meter::new(&mut context));
             if limit == peak {
                 drop(result.unwrap());
             } else {
@@ -769,7 +777,7 @@ fn generation_storage_and_work_limits_cover_the_phase_after_parsing() {
             let mut options = CallOptions::default();
             options.limits.steps = Some(limit);
             let mut context = CallContext::new(options);
-            let result = run(&Meter(RefCell::new(&mut context)));
+            let result = run(&Meter::new(&mut context));
             if limit == stats.steps {
                 drop(result.unwrap());
             } else {
@@ -792,7 +800,7 @@ fn generation_storage_and_work_limits_cover_the_phase_after_parsing() {
                 };
                 assert_eq!(run(&work).unwrap_err().kind, kind);
                 assert_eq!(work.checkpoint().unwrap_err().kind, kind);
-                assert_eq!(work.visits.get(), at + 1);
+                assert_eq!(work.visits.load(Relaxed), at + 1);
                 assert_eq!(work.context.borrow().stats().retained_memory_bytes, 0);
             }
         }
@@ -863,14 +871,14 @@ fn compiler_type_label_writes_reserve_storage_and_preserve_partial_failure() {
     crate::shapes::format(&ty, &mut (&baseline as &dyn Work, &mut text)).unwrap();
     assert_eq!(&*text, name.as_bytes());
     let peak = baseline.context.borrow().stats().peak_memory_bytes;
-    let visits = baseline.visits.get();
+    let visits = baseline.visits.load(Relaxed);
     drop(text);
     assert_eq!(baseline.context.borrow().stats().retained_memory_bytes, 0);
     for limit in [0, peak - 1, peak] {
         let mut options = CallOptions::default();
         options.limits.memory_bytes = Some(limit);
         let mut context = CallContext::new(options);
-        let work = Meter(RefCell::new(&mut context));
+        let work = Meter::new(&mut context);
         let mut text = Buffer::new();
         let result = crate::shapes::format(&ty, &mut (&work as &dyn Work, &mut text));
         if limit == peak {
