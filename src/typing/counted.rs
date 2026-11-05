@@ -13,6 +13,7 @@
 //! to grow keeps what it had and stores nothing, and its caller stops.
 
 use super::meter::{Heap, Meter, Side, btree_storage, map, set, table};
+use crate::checked::Checked as _;
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
     hash::Hash,
@@ -386,6 +387,10 @@ pub(crate) fn try_sort_unstable_by<T>(
     list: &mut [T],
     mut compare: impl FnMut(&T, &T) -> Result<std::cmp::Ordering, Refused>,
 ) -> Result<(), Refused> {
+    #[track_caller]
+    fn entry<'l, T>(meter: &Meter, list: &'l [T], index: usize) -> Result<&'l T, Refused> {
+        meter.found(list.at(index)).ok_or(Refused)
+    }
     fn sift<T>(
         meter: &Meter,
         list: &mut [T],
@@ -398,11 +403,14 @@ pub(crate) fn try_sort_unstable_by<T>(
             }
             let mut child = root * 2 + 1;
             if child + 1 < list.len()
-                && compare(&list[child], &list[child + 1])? == std::cmp::Ordering::Less
+                && compare(entry(meter, list, child)?, entry(meter, list, child + 1)?)?
+                    == std::cmp::Ordering::Less
             {
                 child += 1;
             }
-            if compare(&list[root], &list[child])? != std::cmp::Ordering::Less {
+            if compare(entry(meter, list, root)?, entry(meter, list, child)?)?
+                != std::cmp::Ordering::Less
+            {
                 break;
             }
             list.swap(root, child);
@@ -421,7 +429,8 @@ pub(crate) fn try_sort_unstable_by<T>(
             return Err(Refused);
         }
         list.swap(0, end);
-        sift(meter, &mut list[..end], 0, &mut compare)?;
+        let heap = meter.found(list.span_mut(0, end)).ok_or(Refused)?;
+        sift(meter, heap, 0, &mut compare)?;
     }
     Ok(())
 }
@@ -451,18 +460,18 @@ pub(crate) fn find_bytes<T>(
     let (mut left, mut right) = (0, list.len());
     while left < right {
         let middle = left + (right - left) / 2;
-        if compare_bytes(meter, name(&list[middle]), wanted)? == std::cmp::Ordering::Less {
+        let item = meter.found(list.at(middle)).ok_or(Refused)?;
+        if compare_bytes(meter, name(item), wanted)? == std::cmp::Ordering::Less {
             left = middle + 1;
         } else {
             right = middle;
         }
     }
-    if left < list.len()
-        && compare_bytes(meter, name(&list[left]), wanted)? == std::cmp::Ordering::Equal
-    {
-        Ok(Some(left))
-    } else {
-        Ok(None)
+    match list.get(left) {
+        Some(item) if compare_bytes(meter, name(item), wanted)? == std::cmp::Ordering::Equal => {
+            Ok(Some(left))
+        }
+        _ => Ok(None),
     }
 }
 
@@ -2092,6 +2101,9 @@ mod tests {
         // The assignment index walk's stack, whose growth is checked
         // against the budget as it grows.
         ("Pending", "stack"),
+        // The cycle search's cycles, counted before the search starts at the
+        // most they take.
+        ("Cycles", "0"),
     ];
 
     #[test]
@@ -2475,13 +2487,13 @@ mod tests {
         ("assigns.rs", [2, 0, 0]),
         // Bindings of signatures without type variables, and the members
         // of a host or builtin namespace of one name, a few.
-        ("calls.rs", [21, 2, 0]),
+        ("calls.rs", [22, 2, 0]),
         // A union's alternatives an `is_a?` keeps, and the defaults by
         // class, counted before they are indexed at the most they take.
         ("check.rs", [8, 1, 2]),
         // The cycle search's stack, cycles and their members, counted
         // before the search starts.
-        ("construction.rs", [14, 0, 3]),
+        ("construction.rs", [19, 0, 3]),
         // A branch with no flow changes.
         ("expr.rs", [1, 0, 0]),
         // A stopped check's branches.

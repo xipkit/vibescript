@@ -12,6 +12,7 @@ use super::{
     ty::{Field, Kind, Ty},
 };
 use crate::{
+    checked::Checked as _,
     diagnostic::{Code, Diagnostic, Edit, Fix, Span},
     syntax::{Expr, Node, Stmt, Try, When},
     value::Kind as ValueKind,
@@ -118,7 +119,7 @@ impl<'a> Checker<'a> {
             Kind::Array(element) | Kind::Hash(element) => *element,
             Kind::MatchData => Ty::STRING,
             Kind::Shape(fields, _) => {
-                let Node::Literal(key) = &selectors[0].node else {
+                let Node::Literal(key) = &selectors.first()?.node else {
                     return None;
                 };
                 let key = key.as_bytes()?;
@@ -135,7 +136,7 @@ impl<'a> Checker<'a> {
             return None;
         }
         let brackets = self.spans.index_brackets(receiver, expr)?;
-        let selector = self.spans.expr(&selectors[0]);
+        let selector = self.spans.expr(selectors.first()?);
         let text = self.source.get(selector.start..selector.end)?;
         // Each text spells the key; the message, once written, is held
         // while the replacement is.
@@ -310,7 +311,11 @@ impl<'a> Checker<'a> {
                     if self.meter.charge(1) {
                         return Ty::ERROR;
                     }
-                    if self.program.enums[*id as usize].symbol(name).is_some() {
+                    if self
+                        .program
+                        .enumeration(*id)
+                        .is_some_and(|decl| decl.symbol(name).is_some())
+                    {
                         if let Some(why) = self.symbols_stay {
                             self.enum_symbol(expr, *id, name, why);
                         }
@@ -323,7 +328,9 @@ impl<'a> Checker<'a> {
             }
         }
         if let (1, Some(id)) = (enum_count, enum_hint) {
-            let decl = std::sync::Arc::clone(&self.program.enums[id as usize]);
+            let Some(decl) = self.program.enumeration(id).cloned() else {
+                return Ty::ERROR;
+            };
             if self.types.work(decl.symbols.len()) || self.over_budget() {
                 return Ty::ERROR;
             }
@@ -386,7 +393,7 @@ impl<'a> Checker<'a> {
             self.shared_read(id, name);
             if !state.assigned && self.frame.flow.live {
                 let span = self.spans.expr(expr);
-                let declared = self.frame.locals[id as usize].offset;
+                let declared = self.frame.local(id).map_or(0, |local| local.offset);
                 self.report(
                     Diagnostic::error(
                         Code::UNASSIGNED_LOCAL,
@@ -417,7 +424,8 @@ impl<'a> Checker<'a> {
                 if let Some(&ty) = self.constants.get(&(Some(ns), self.copy(name))) {
                     return ty;
                 }
-                if let Some(&child) = self.program.namespaces[ns as usize].children.get(name) {
+                let namespace = self.program.namespace(ns);
+                if let Some(&child) = namespace.and_then(|ns| ns.children.get(name)) {
                     return self.types.intern(Kind::Namespace(child));
                 }
             }
@@ -465,10 +473,11 @@ impl<'a> Checker<'a> {
             if let Some(&ty) = self.constants.get(&(Some(ns), self.copy(name))) {
                 return Some(ty);
             }
-            if let Some(&child) = self.program.namespaces[ns as usize].children.get(name) {
+            let namespace = self.program.namespace(ns)?;
+            if let Some(&child) = namespace.children.get(name) {
                 return Some(self.types.intern(Kind::Namespace(child)));
             }
-            current = self.program.namespaces[ns as usize].parent;
+            current = namespace.parent;
         }
         if let Some(&ns) = self.program.roots.get(name) {
             return Some(self.types.intern(Kind::Namespace(ns)));
@@ -689,7 +698,7 @@ impl<'a> Checker<'a> {
             })
             .ok()?
             {
-                Some(at) => given[at] = true,
+                Some(at) => *self.meter.found(given.at_mut(at))? = true,
                 None if open => (),
                 None => return None,
             }
@@ -806,13 +815,19 @@ impl<'a> Checker<'a> {
                         field.name.as_bytes()
                     }) {
                         Ok(Some(index)) => {
-                            let expected = fields[index].ty;
+                            let Some(expected) =
+                                self.meter.found(fields.at(index)).map(|field| field.ty)
+                            else {
+                                break;
+                            };
                             types.push(self.expr_against_held(
                                 entry,
                                 expected,
                                 &Purpose::Field(key),
                             ));
-                            present[index] = true;
+                            if let Some(present) = present.get_mut(index) {
+                                *present = true;
+                            }
                         }
                         Ok(None) => {
                             types.push(self.expr(entry, None));
@@ -941,8 +956,10 @@ impl<'a> Checker<'a> {
             return true;
         }
         if let Some(ns) = self.frame.owner {
-            let namespace = &self.program.namespaces[ns as usize];
-            if namespace.methods.contains_key(name) || namespace.statics.contains_key(name) {
+            let namespace = self.program.namespace(ns);
+            if namespace.is_some_and(|namespace| {
+                namespace.methods.contains_key(name) || namespace.statics.contains_key(name)
+            }) {
                 return true;
             }
         }
@@ -1080,9 +1097,16 @@ impl<'a> Checker<'a> {
                         }
                         continue;
                     };
-                    let methods = &self.program.namespaces[ns as usize].methods;
+                    let Some(namespace) = self.program.namespace(ns) else {
+                        return Ty::ERROR;
+                    };
+                    let methods = &namespace.methods;
                     let (id, result) = match (methods.get(op), methods.get("==")) {
-                        (Some(&id), _) => (id, self.program.fns[id].sig.result.unwrap_or(Ty::NIL)),
+                        (Some(&id), _) => {
+                            let function = self.program.function(id);
+                            let result = function.and_then(|function| function.sig.result);
+                            (id, result.unwrap_or(Ty::NIL))
+                        }
                         // The runtime answers `!=` by negating the class's
                         // `==`, which takes the right operand.
                         (None, Some(&id)) if op == "!=" => (id, Ty::BOOL),
@@ -1135,7 +1159,10 @@ impl<'a> Checker<'a> {
             let Kind::Instance(ns) = *self.types.kind(alternative) else {
                 continue;
             };
-            let methods = &self.program.namespaces[ns as usize].methods;
+            let Some(namespace) = self.program.namespace(ns) else {
+                return;
+            };
+            let methods = &namespace.methods;
             let (name, method) = match methods.get(op) {
                 None if op == "!=" => ("==", methods.get("==")),
                 method => (op, method),
@@ -1219,9 +1246,10 @@ impl<'a> Checker<'a> {
 
     /// An operator a script class defines as a method, such as `def +(other)`.
     fn operator_method(&mut self, ns: NsId, op: &str, left: Ty, right: Ty, span: Span) -> Ty {
-        let method = self.program.namespaces[ns as usize]
-            .methods
-            .get(op)
+        let method = self
+            .program
+            .namespace(ns)
+            .and_then(|namespace| namespace.methods.get(op))
             .copied();
         let Some(id) = method else {
             if matches!(op, "==" | "!=") {
@@ -1238,13 +1266,17 @@ impl<'a> Checker<'a> {
         };
         self.visibility(op, self.spans.containing(span.start), id, ns, true);
         self.operator_operand(id, right, span);
-        self.program.fns[id].sig.result.unwrap_or(Ty::NIL)
+        let function = self.program.function(id);
+        let result = function.and_then(|function| function.sig.result);
+        result.unwrap_or(Ty::NIL)
     }
 
     /// Checks the right operand of an operator against the first parameter
     /// of the method `id` that implements it.
     fn operator_operand(&mut self, id: FnId, right: Ty, span: Span) {
-        let sig = self.program.fns[id].sig.clone();
+        let Some(sig) = self.program.signature(id) else {
+            return;
+        };
         if let Some(param) = sig.params.first() {
             // A rest parameter collects the operand into its array.
             let expected = match param.kind {
@@ -1630,8 +1662,11 @@ impl<'a> Checker<'a> {
             }
             (Kind::Union(_), _) => {
                 let alternatives = self.types.members(ty);
+                let Some((&first, others)) = alternatives.split_first() else {
+                    return Ty::ERROR;
+                };
                 let outer = self.set_memo(Some(super::Memo::default()));
-                let result = self.index_type(expr, receiver, alternatives[0], selectors);
+                let result = self.index_type(expr, receiver, first, selectors);
                 // A check past its budget indexes no other alternative.
                 if self.halted() {
                     self.restore_memo(outer);
@@ -1640,7 +1675,7 @@ impl<'a> Checker<'a> {
                 let mut results = vec![result];
                 // The other alternatives reuse the selectors' types.
                 self.memo.get_mut().unwrap().replay = true;
-                for &alternative in &alternatives[1..] {
+                for &alternative in others {
                     let mark = self.frame.flow.mark();
                     results.push(self.index_type(expr, receiver, alternative, selectors));
                     self.frame.flow.rollback(mark);
@@ -1695,7 +1730,9 @@ impl<'a> Checker<'a> {
         );
         if let Node::Var(name) = &receiver.node {
             if let Some(id) = self.local(name) {
-                let local = &self.frame.locals[id as usize];
+                let Some(local) = self.frame.local(id) else {
+                    return;
+                };
                 if let (Some(value), false) = (local.dictionary, local.annotated) {
                     let value_text = self.types.display(value);
                     let name_span = self.spans.token(local.offset);
@@ -1723,8 +1760,9 @@ impl<'a> Checker<'a> {
         value: &'a Expr,
     ) {
         let span = self.spans.expr(expr);
-        let Some(&id) = self.program.namespaces[ns as usize].methods.get("[]=") else {
-            let found = self.program.namespaces[ns as usize].name.clone();
+        let namespace = self.program.namespace(ns);
+        let Some(&id) = namespace.and_then(|namespace| namespace.methods.get("[]=")) else {
+            let found = namespace.map_or_else(String::new, |namespace| namespace.name.clone());
             self.report(Diagnostic::error(
                 Code::UNKNOWN_MEMBER,
                 span,
@@ -1733,7 +1771,9 @@ impl<'a> Checker<'a> {
             return;
         };
         self.visibility("[]=", span, id, ns, true);
-        let sig = self.program.fns[id].sig.clone();
+        let Some(sig) = self.program.signature(id) else {
+            return;
+        };
         let Some(held) = self.hold((selectors.len() + 1) * std::mem::size_of::<(Ty, Span)>())
         else {
             return;
@@ -2058,7 +2098,9 @@ impl<'a> Checker<'a> {
                         "a `when` over it never matches a symbol",
                     );
                     // The fix makes it the member, so it counts as covered.
-                    return self.program.enums[id as usize]
+                    return self
+                        .program
+                        .enumeration(id)?
                         .symbol(&symbol)
                         .map(|place| place as u32);
                 }
@@ -2069,7 +2111,7 @@ impl<'a> Checker<'a> {
                     }
                     return None;
                 }
-                let decl = &self.program.enums[id as usize];
+                let decl = self.program.enumeration(id)?;
                 let place = match &value.node {
                     Node::Literal(v) => decl.symbol(&super::symbol_text(v)?)?,
                     Node::Scope(_, name, None) => decl.member(name)?,
@@ -2088,9 +2130,13 @@ impl<'a> Checker<'a> {
     /// Reports a symbol compared with a member of enum `id`, which the
     /// runtime never finds equal, offering the member it names.
     fn enum_symbol(&mut self, value: &Expr, id: u32, symbol: &str, why: &str) {
-        let decl = std::sync::Arc::clone(&self.program.enums[id as usize]);
+        let Some(decl) = self.program.enumeration(id).cloned() else {
+            return;
+        };
         let enum_name = &decl.name;
-        let member = decl.symbol(symbol).map(|index| &decl.members[index]);
+        let member = decl
+            .symbol(symbol)
+            .and_then(|index| decl.members.get(index));
         let span = self.spans.expr(value);
         let mut diagnostic = Diagnostic::error(
             Code::TYPE_MISMATCH,
@@ -2138,7 +2184,12 @@ impl<'a> Checker<'a> {
     /// values its `when`s name, as [`Self::covered_value`] finds them.
     fn exhaustive(&mut self, expr: &Expr, subject: Ty, covered: &[u32], alternate: bool) -> bool {
         let decl = match *self.types.kind(subject) {
-            Kind::EnumValue(id) => Some(std::sync::Arc::clone(&self.program.enums[id as usize])),
+            Kind::EnumValue(id) => {
+                let Some(decl) = self.program.enumeration(id).cloned() else {
+                    return false;
+                };
+                Some(decl)
+            }
             Kind::Bool => None,
             _ => return false,
         };
@@ -2155,7 +2206,10 @@ impl<'a> Checker<'a> {
             seen.add(0_u64);
         }
         for &place in covered {
-            seen[place as usize / 64] |= 1 << (place % 64);
+            let Some(word) = self.meter.found(seen.at_mut(place as usize / 64)) else {
+                return false;
+            };
+            *word |= 1 << (place % 64);
         }
         let known: usize = seen.iter().map(|word| word.count_ones() as usize).sum();
         if known == count {
@@ -2164,7 +2218,10 @@ impl<'a> Checker<'a> {
         if alternate {
             return false;
         }
-        let missed = |place: usize| seen[place / 64] & (1 << (place % 64)) == 0;
+        let missed = |place: usize| {
+            seen.get(place / 64)
+                .is_some_and(|word| word & (1 << (place % 64)) == 0)
+        };
         // The values the `case` misses, as their `when`s name them.
         let (missing, name): (super::counted::HeldText, &str) = match &decl {
             Some(decl) => {
@@ -2310,7 +2367,10 @@ impl<'a> Checker<'a> {
             };
             // Never contributes no incoming value: this fact contains
             // only values written while the ensure runs.
-            self.frame.locals[flag as usize].declared = Ty::NEVER;
+            let Some(local) = self.frame.local_mut(flag) else {
+                break;
+            };
+            local.declared = Ty::NEVER;
             self.frame.flow.set(
                 flag,
                 VarState {
@@ -2357,7 +2417,9 @@ impl<'a> Checker<'a> {
             return;
         }
         for (id, state) in branch.changes {
-            let local = &self.frame.locals[id as usize];
+            let Some(local) = self.frame.local(id) else {
+                break;
+            };
             if !finals.contains_key(&id) && !(local.name.is_empty() && local.declared == Ty::NEVER)
             {
                 // What the ensure does not assign by name keeps what the

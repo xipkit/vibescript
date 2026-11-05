@@ -13,6 +13,10 @@
 //! that a host callback can reach by another way must latch at that boundary
 //! too, or the callback could swallow the error and the script run on.
 //!
+//! The type checker's walk returns types rather than results, so its tables
+//! report a violation through its meter instead, which stops the check as a
+//! budget does; `typing::check` returns the violation for its caller to raise.
+//!
 //! A helper on a hot path returns [`Access`] rather than [`crate::Result`]:
 //! [`Violation`] is small and `Copy`, so after inlining `?` decides on a
 //! register-held value and the [`Error`] is built only on the failing path,
