@@ -104,6 +104,7 @@ pub(super) fn call(
         length
     };
     let found = if valid && length == text.len() && end - start >= 16 && pattern.at(0)?.is_ascii() {
+        // Preserve the offset scan's charge even though ASCII byte and rune offsets agree.
         sequence::rune_offset(ctx, text, start)?;
         search_ascii(
             ctx,
