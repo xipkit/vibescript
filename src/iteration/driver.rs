@@ -278,7 +278,7 @@ pub(crate) fn start_pooled(
         return Err(argument(&format!("{name} requires an argument")));
     }
     if matches!(method, EachSlice | EachCons) {
-        let width = args[0].require_int()?;
+        let width = args.at(0)?.require_int()?;
         if width <= 0 {
             return Err(argument("slice or window size must be positive"));
         }
@@ -319,7 +319,7 @@ pub(crate) fn start_pooled(
             state.stride = if range.start > range.end { -1 } else { 1 };
             let length = range.length()?;
             if method == Step {
-                let stride = args[0].require_int()?;
+                let stride = args.at(0)?.require_int()?;
                 state.stride *= stride;
                 (length + i128::from(stride) - 1) / i128::from(stride)
             } else {
@@ -330,11 +330,11 @@ pub(crate) fn start_pooled(
             if method == Times {
                 i128::from((*n).max(0))
             } else {
-                let limit = i128::from(args[0].require_int()?);
+                let limit = i128::from(args.at(0)?.require_int()?);
                 state.start = *n;
                 state.stride = if method == Downto { -1 } else { 1 };
-                if method == Step && args.len() == 2 {
-                    state.stride = args[1].require_int()?;
+                if let (Step, Some(stride)) = (method, args.get(1)) {
+                    state.stride = stride.require_int()?;
                 }
                 let distance =
                     (limit - i128::from(state.start)) * i128::from(state.stride).signum();
@@ -359,15 +359,15 @@ pub(crate) fn start_pooled(
         state.length = 0;
     }
     if method == Fetch {
-        ops::arity(&args[..args.len().min(1)], 1)?;
+        let first = args.at(0)?;
         let key = if matches!(receiver.0, Kind::Array(_)) {
-            let n = crate::sequence::integer(&args[0])?;
-            if matches!(args[0].0, Kind::Float(n) if n.trunc() != n) {
+            let n = crate::sequence::integer(first)?;
+            if matches!(first.0, Kind::Float(n) if n.trunc() != n) {
                 return Err(argument("fetch index must be integer"));
             }
             Value::int(n)
         } else {
-            args[0].clone()
+            first.clone()
         };
         if let Some(value) = collections::lookup(
             ctx,
@@ -418,7 +418,7 @@ pub(crate) fn start_pooled(
             state.accumulator = Some(removed);
             state.length = 0;
         } else {
-            state.inputs.push(ctx, args[0].clone())?;
+            state.inputs.push(ctx, args.at(0)?.clone())?;
             state.length = 1;
         }
     }
@@ -549,20 +549,33 @@ impl Loop {
         self.pending_index = index as u64;
         if matches!(self.method, SliceWhen | ChunkWhile) {
             let array = self.receiver.as_array().unwrap();
+            let previous = (index as usize).checked_sub(1).ok_or_else(|| {
+                crate::checked::violation("adjacent iteration has no previous element")
+            })?;
             args = [
-                array[index as usize - 1].clone(),
-                array[index as usize].clone(),
+                array.at(previous)?.clone(),
+                array.at(index as usize)?.clone(),
             ];
             count = 2;
         } else if self.method == Fill {
             args[0] = Value::int(index as i64);
         } else if matches!(self.method, Fetch | FetchValues | Delete) {
-            args[0] = self.inputs.data[index as usize].clone();
+            args[0] = self.inputs.at(index as usize)?.clone();
         } else {
             match &self.receiver.0 {
                 Kind::Array(array) => {
                     let index = if matches!(self.method, ReverseEach | Rindex) {
-                        array.buffer.data.len() - 1 - index as usize
+                        array
+                            .buffer
+                            .data
+                            .len()
+                            .checked_sub(index as usize)
+                            .and_then(|length| length.checked_sub(1))
+                            .ok_or_else(|| {
+                                crate::checked::violation(
+                                    "reverse iteration position is out of range",
+                                )
+                            })?
                     } else {
                         index as usize
                     };
@@ -573,9 +586,9 @@ impl Loop {
                             .data
                             .len()
                             .min(index.saturating_add(self.width));
-                        array_copy(ctx, &array.buffer.data[index..end])?
+                        array_copy(ctx, array.buffer.span(index, end)?)?
                     } else {
-                        array.buffer.data[index].clone()
+                        array.buffer.at(index)?.clone()
                     };
                     if matches!(self.method, EachIndex | MapIndex) {
                         args[1] = Value::int(to_i64(index));
@@ -583,7 +596,7 @@ impl Loop {
                     }
                 }
                 Kind::Hash(hash) => {
-                    let (key, value) = &hash.buffer.data[index as usize];
+                    let (key, value) = hash.buffer.at(index as usize)?;
                     match self.method {
                         EachKey | TransformKeys => args[0] = key.clone(),
                         EachValue | TransformValues => args[0] = value.clone(),
@@ -717,15 +730,18 @@ impl Loop {
                 let pair = value
                     .as_array()
                     .ok_or_else(|| argument("array.to_h expects an array of two-element pairs"))?;
-                if pair.len() != 2 {
+                let [key, value] = pair else {
                     return Err(argument("array.to_h pair must have exactly two elements"));
-                }
-                let key = ctx.bytes(pair[0].key_name_for("array.to_h pair key is an")?)?;
-                self.hash.insert(ctx, key, pair[1].clone())?;
+                };
+                let key = ctx.bytes(key.key_name_for("array.to_h pair key is an")?)?;
+                self.hash.insert(ctx, key, value.clone())?;
             }
             TransformKeys | TransformValues => {
-                let (key, original) =
-                    &self.receiver.as_hash().unwrap()[self.pending_index as usize];
+                let (key, original) = self
+                    .receiver
+                    .as_hash()
+                    .unwrap()
+                    .at(self.pending_index as usize)?;
                 let (key, value) = if self.method == TransformKeys {
                     let key = value.key_name_for("hash.transform_keys block returned an")?;
                     (ctx.bytes(key)?, original.clone())
@@ -742,7 +758,7 @@ impl Loop {
                 };
                 let existing = self.hash.find(ctx, value.key_name_for(site)?)?;
                 let (key, group) = if let Some(index) = existing {
-                    let (key, group) = &mut self.hash.buffer.data[index];
+                    let (key, group) = self.hash.buffer.at_mut(index)?;
                     (key.clone(), std::mem::take(group))
                 } else {
                     if self.method == GroupStable {
@@ -891,7 +907,7 @@ impl Loop {
 
     fn flush_adjacent(&mut self, ctx: &mut CallContext, end: usize) -> Result<()> {
         let array = self.receiver.as_array().unwrap();
-        let part = array_copy(ctx, &array[self.start as usize..end])?;
+        let part = array_copy(ctx, array.span(self.start as usize, end)?)?;
         if part.depth() + 1 > MAX_VALUE_DEPTH {
             return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
         }
@@ -952,7 +968,7 @@ impl Loop {
             GroupStable => {
                 for (index, (_, group)) in self.hash.buffer.data.iter().enumerate() {
                     ctx.charge(1)?;
-                    let pair = array_copy(ctx, &[self.other.data[index].clone(), group.clone()])?;
+                    let pair = array_copy(ctx, &[self.other.at(index)?.clone(), group.clone()])?;
                     self.output.push(ctx, pair)?;
                 }
                 Value::from_array(ctx, std::mem::replace(&mut self.output, Buffer::empty()))
@@ -973,4 +989,43 @@ fn array_copy(ctx: &mut CallContext, values: &[Value]) -> Result<Value> {
     let mut output = Buffer::empty();
     output.extend(ctx, values)?;
     Value::from_array(ctx, output)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CallOptions;
+
+    #[test]
+    fn invalid_array_positions_and_windows_return_internal_errors() {
+        for (name, position) in [
+            ("cycle", 5),
+            ("each_slice", 5),
+            ("each_cons", 5),
+            ("slice_when", 5),
+            ("slice_when", 0),
+            ("reverse_each", 5),
+        ] {
+            let mut ctx = CallContext::new(CallOptions::default());
+            let receiver = ctx.array(&[Value::int(1), Value::int(2)]).unwrap();
+            let args = if matches!(name, "each_slice" | "each_cons") {
+                vec![Value::int(2)]
+            } else {
+                vec![]
+            };
+            let Iteration::Loop(mut state) = start(&mut ctx, name, &receiver, &args, &[], Some(1))
+                .unwrap()
+                .unwrap()
+            else {
+                panic!("expected general array driver");
+            };
+            state.position = position;
+            state.length = 6;
+            let Err(error) = state.advance(&mut ctx, None) else {
+                panic!("invalid position accepted by {name}");
+            };
+            assert_eq!(error.kind, ErrorKind::Internal, "{name}: {error}");
+            assert!(error.message.contains("src/iteration/driver.rs:"));
+        }
+    }
 }

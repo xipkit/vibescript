@@ -37,7 +37,7 @@ impl Pool {
             // Reuse keeps the checkpoint the old per-driver reservation made.
             ctx.checkpoint()?;
             let index = slots.length;
-            slots.drivers[index] = Some(driver);
+            *slots.drivers.at_mut(index)? = Some(driver);
             slots.length += 1;
         } else {
             self.0 = Some(boxed(
@@ -57,7 +57,9 @@ impl Pool {
             while slots.length > length {
                 slots.length -= 1;
                 let index = slots.length;
-                slots.drivers[index] = None;
+                if let Some(driver) = slots.drivers.get_mut(index) {
+                    *driver = None;
+                }
             }
         }
     }
@@ -158,7 +160,7 @@ impl Driver {
             let index = self.position;
             self.position += 1;
             let value = match &self.receiver.0 {
-                Kind::Array(array) => array.buffer.data[index as usize].clone(),
+                Kind::Array(array) => array.buffer.at(index as usize)?.clone(),
                 _ => Value::int((i128::from(self.start) + index * i128::from(self.stride)) as i64),
             };
             if matches!(self.method, Select | Reject) {
@@ -185,6 +187,49 @@ impl Driver {
 mod tests {
     use super::*;
     use crate::CallOptions;
+
+    #[test]
+    fn invalid_array_position_returns_an_internal_error() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let receiver = ctx.array(&[Value::int(1)]).unwrap();
+        let Iteration::Common(mut state) = start(&mut ctx, "each", &receiver, &[], &[], Some(1))
+            .unwrap()
+            .unwrap()
+        else {
+            panic!("expected common array driver");
+        };
+        state.length = 2;
+        state.advance(&mut ctx, None).unwrap();
+        let Err(error) = state.advance(&mut ctx, Some(Value::nil())) else {
+            panic!("invalid position accepted");
+        };
+        assert_eq!(error.kind, ErrorKind::Internal);
+        assert!(error.message.contains("src/iteration/common.rs:"));
+    }
+
+    #[test]
+    fn overflowing_the_pool_returns_an_internal_error() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let mut pool = Pool::empty();
+        for index in 0..3 {
+            let Iteration::Common(state) =
+                start(&mut ctx, "times", &Value::int(1), &[], &[], Some(1))
+                    .unwrap()
+                    .unwrap()
+            else {
+                panic!("expected common numeric driver");
+            };
+            let result = pool.push(&mut ctx, state.value);
+            if index < 2 {
+                result.unwrap();
+            } else {
+                assert_eq!(result.unwrap_err().kind, ErrorKind::Internal);
+                assert_eq!(pool.len(), 2);
+            }
+        }
+        pool.truncate(0);
+        assert!(pool.last().is_none());
+    }
 
     #[test]
     fn pooled_driver_reuses_charged_storage_and_releases_its_values() {
