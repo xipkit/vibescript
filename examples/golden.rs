@@ -25,7 +25,7 @@ use std::{
     },
     time::{Duration, Instant},
 };
-use vibescript::{CallOptions, Engine, Error, Limits, ModuleConfig, Value, parse_json};
+use vibescript::{CallOptions, Engine, Error, ErrorKind, Limits, ModuleConfig, Value, parse_json};
 
 #[path = "support/blocks.rs"]
 mod blocks;
@@ -224,9 +224,13 @@ fn execute(case: &Json, stdout: &Capture, stderr: &Capture) -> Json {
     match script.call_with_keywords(function, &args, &keywords, options) {
         Ok(outcome) => {
             let stats = outcome.stats;
+            let value = match typed(&outcome.value, 0) {
+                Ok(value) => value,
+                Err(error) => return failure("encode", &error),
+            };
             let mut record = json!({
                 "phase": "ok",
-                "value": typed(&outcome.value, 0),
+                "value": value,
                 "steps": stats.steps,
                 "peak": stats.peak_memory_bytes,
                 "retained": stats.retained_memory_bytes,
@@ -487,26 +491,27 @@ fn decode(node: &Json) -> Result<Value, String> {
 
 /// Encodes a result as a typed-v1 node, which keeps value kinds, exact float
 /// bits, raw bytes and hash order. Values without a data form are rendered.
-fn typed(value: &Value, depth: usize) -> Json {
+fn typed(value: &Value, depth: usize) -> vibescript::Result<Json> {
     if depth > 256 {
-        return json!(["too_deep"]);
+        return Ok(json!(["too_deep"]));
     }
     let kind = value.type_name();
-    match kind {
+    let invalid = || Error::new(ErrorKind::Internal, format!("invalid {kind} value"));
+    Ok(match kind {
         "nil" => json!([kind]),
         "bool" => json!([kind, value.truthy()]),
         "int" => json!([kind, value.to_string()]),
         // Scripts cannot observe a NaN's sign or payload, and CPUs produce different ones.
-        "float" => match value.as_float().unwrap() {
+        "float" => match value.as_float().ok_or_else(invalid)? {
             float if float.is_nan() => json!([kind, "nan"]),
             float => json!([kind, format!("{:016x}", float.to_bits())]),
         },
-        "string" | "symbol" => json!([kind, hex(value.as_bytes().unwrap())]),
+        "string" | "symbol" => json!([kind, hex(value.as_bytes().ok_or_else(invalid)?)]),
         "money" => {
-            let (cents, currency) = value.as_money().unwrap();
+            let (cents, currency) = value.as_money().ok_or_else(invalid)?;
             json!([kind, currency, cents.to_string()])
         }
-        "duration" => json!([kind, value.as_duration().unwrap().to_string()]),
+        "duration" => json!([kind, value.as_duration().ok_or_else(invalid)?.to_string()]),
         "time" => match value.as_time() {
             Some((seconds, nanos)) => json!([kind, seconds.to_string(), nanos.to_string()]),
             None => json!(["opaque", kind, value.to_string()]),
@@ -523,22 +528,68 @@ fn typed(value: &Value, depth: usize) -> Json {
         "array" => {
             let items: Vec<_> = value
                 .as_array()
-                .unwrap()
+                .ok_or_else(invalid)?
                 .iter()
                 .map(|item| typed(item, depth + 1))
-                .collect();
+                .collect::<vibescript::Result<_>>()?;
             json!([kind, items])
         }
         "hash" | "object" => {
             let entries: Vec<_> = value
                 .as_hash()
-                .unwrap()
+                .ok_or_else(invalid)?
                 .iter()
-                .map(|(key, item)| json!([hex(key.as_bytes().unwrap()), typed(item, depth + 1)]))
-                .collect();
+                .map(|(key, item)| {
+                    let bytes = key.as_bytes().ok_or_else(|| {
+                        Error::new(ErrorKind::Internal, "hash key must contain bytes")
+                    })?;
+                    Ok(json!([hex(bytes), typed(item, depth + 1)?]))
+                })
+                .collect::<vibescript::Result<_>>()?;
             json!([kind, entries])
         }
         _ => json!(["opaque", kind, value.to_string()]),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn typed_results_preserve_data_kinds_bits_bytes_and_entry_order() -> Result<(), String> {
+        for node in [
+            json!(["nil"]),
+            json!(["bool", false]),
+            json!(["int", "123456789012345678901234567890"]),
+            json!(["float", "8000000000000000"]),
+            json!(["string", "ff00"]),
+            json!(["symbol", "6162"]),
+            json!(["money", "USD", "-123"]),
+            json!(["duration", "-42"]),
+            json!(["time", "1700000000", "123456789"]),
+            json!(["range", null, "42", true]),
+            json!(["array", [["int", "1"], ["array", [["bool", true]]]]]),
+            json!(["hash", [["62", ["int", "2"]], ["61", ["int", "1"]]]]),
+            json!(["object", [["ff", ["string", "00"]]]]),
+        ] {
+            let value = decode(&node)?;
+            assert_eq!(typed(&value, 0).map_err(|e| e.to_string())?, node);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn typed_results_normalize_nan_and_bound_nesting() -> vibescript::Result<()> {
+        for bits in [0x7ff8_0000_0000_0001, 0xfff8_0000_0000_0042] {
+            assert_eq!(
+                typed(&Value::float(f64::from_bits(bits)), 0)?,
+                json!(["float", "nan"])
+            );
+        }
+        assert_eq!(typed(&Value::nil(), 256)?, json!(["nil"]));
+        assert_eq!(typed(&Value::nil(), 257)?, json!(["too_deep"]));
+        Ok(())
     }
 }
 

@@ -208,11 +208,12 @@ impl ReplSession {
             .pending_bytes
             .checked_add(line.len())
             .and_then(|bytes| bytes.checked_add(usize::from(!self.pending.is_empty())));
-        if bytes.is_none_or(|bytes| {
-            self.limits
+        let Some(bytes) = bytes.filter(|&bytes| {
+            !self
+                .limits
                 .pending_input_bytes
                 .is_some_and(|limit| bytes > limit)
-        }) {
+        }) else {
             self.discard_pending();
             let evaluated = self.session.reject(Error::new(
                 ErrorKind::Memory,
@@ -225,8 +226,8 @@ impl ReplSession {
             };
             self.record_evaluation(&evaluation);
             return Response::Evaluated(evaluation);
-        }
-        self.pending_bytes = bytes.unwrap();
+        };
+        self.pending_bytes = bytes;
         self.pending.push(line.to_owned());
         let source = self.pending.join("\n");
         match self.session.is_incomplete(source.trim()) {

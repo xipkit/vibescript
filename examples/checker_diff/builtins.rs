@@ -327,15 +327,15 @@ impl<'a> Parser<'a> {
     }
 
     fn union(&mut self) -> T {
-        let mut options = vec![self.postfix()];
+        let first = self.postfix();
+        if !self.eat("|") {
+            return first;
+        }
+        let mut options = vec![first, self.postfix()];
         while self.eat("|") {
             options.push(self.postfix());
         }
-        if options.len() == 1 {
-            options.pop().unwrap()
-        } else {
-            T::Union(options)
-        }
+        T::Union(options)
     }
 
     fn postfix(&mut self) -> T {
@@ -502,9 +502,9 @@ fn union(options: Vec<T>) -> T {
             }
         }
     }
-    let ty = match flat.len() {
-        0 => return T::Named("nil".into()),
-        1 => flat.pop().unwrap(),
+    let ty = match flat.as_slice() {
+        [] => return T::Named("nil".into()),
+        [only] => only.clone(),
         _ => T::Union(flat),
     };
     if nil { opt(ty) } else { ty }
