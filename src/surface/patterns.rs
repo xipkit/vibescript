@@ -183,7 +183,7 @@ fn template_pieces(template: &str) -> Vec<TemplatePiece> {
     let mut pieces = Vec::new();
     let mut text = String::new();
     let mut rest = template;
-    while !rest.is_empty() {
+    while let Some(c) = rest.chars().next() {
         if let Some(tail) = rest.strip_prefix("...") {
             flush(&mut pieces, &mut text);
             pieces.push(TemplatePiece::Rest);
@@ -200,7 +200,6 @@ fn template_pieces(template: &str) -> Vec<TemplatePiece> {
             });
             rest = &tail[end..];
         } else {
-            let c = rest.chars().next().unwrap();
             text.push(c);
             rest = &rest[c.len_utf8()..];
         }

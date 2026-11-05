@@ -139,6 +139,8 @@ impl Work for Meter<'_> {
         self.0.borrow_mut().charge(steps as u64)
     }
     fn bytes(&self, bytes: usize) -> Result<()> {
+        #[cfg(test)]
+        module_tests::injected(bytes)?;
         self.0.borrow_mut().work_bytes(bytes)
     }
     fn checkpoint(&self) -> Result<()> {
@@ -149,12 +151,18 @@ impl Work for Meter<'_> {
     }
     fn allocation_error(&self, message: &str) -> Error {
         let mut context = self.0.borrow_mut();
-        context
-            .checkpoint()
-            .err()
-            .unwrap_or_else(|| context.fail::<()>(ErrorKind::Memory, message).unwrap_err())
+        match context.checkpoint() {
+            Err(error) => error,
+            Ok(()) => match context.fail::<std::convert::Infallible>(ErrorKind::Memory, message) {
+                Err(error) => error,
+                Ok(never) => match never {},
+            },
+        }
     }
 }
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod module_tests;

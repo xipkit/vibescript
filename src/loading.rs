@@ -325,11 +325,11 @@ impl Name {
         if !relative && output.data.split(|&b| b == b'/').any(|part| part == b"..") {
             return Err(argument("module name escapes search paths"));
         }
-        let base = &output.data[output
+        let base = output
             .data
-            .iter()
-            .rposition(|&b| b == b'/')
-            .map_or(0, |i| i + 1)..];
+            .rsplit(|&b| b == b'/')
+            .next()
+            .unwrap_or_default();
         if base == b".." {
             return Err(argument("module name resolves to a directory"));
         }

@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{
     CallContext, Error, ErrorKind, Result,
     budget::{Buffer, Charge, MAX_VALUE_DEPTH},
@@ -268,8 +269,8 @@ impl Value {
         let mut values: Vec<(Value, Value)> = Vec::with_capacity(entries.len());
         let mut positions: HashMap<Arc<Vec<u8>>, usize> = HashMap::with_capacity(entries.len());
         for (key, value) in entries {
-            if let Some(&i) = positions.get(&key) {
-                values[i].1 = value;
+            if let Some(previous) = positions.get(&key).and_then(|&i| values.get_mut(i)) {
+                previous.1 = value;
             } else {
                 let bytes = Bytes::untracked(key);
                 positions.insert(bytes.shared(), values.len());
@@ -341,7 +342,7 @@ impl Value {
     /// Returns a money value's signed cents and uppercase currency code.
     pub fn as_money(&self) -> Option<(i64, &str)> {
         if let Kind::Money(money) = &self.0 {
-            Some((money.cents(), money.currency()))
+            Some((money.cents(), money.currency().ok()?))
         } else {
             None
         }
@@ -359,7 +360,7 @@ impl Value {
     /// Equal names from separately compiled scripts still represent distinct types.
     pub fn as_enum_member(&self) -> Option<(&str, &str, &str)> {
         if let Kind::EnumMember(value) = &self.0 {
-            let definition = value.definition();
+            let definition = value.definition().ok()?;
             Some((
                 &value.enumeration.definition.name,
                 &definition.name,
@@ -550,7 +551,7 @@ impl Value {
             || Arc::get_mut(&mut heap).is_none()
         {
             let mut buffer = Buffer::with_capacity(ctx, length)?;
-            buffer.extend(ctx, &heap.buffer.data[start..end])?;
+            buffer.extend(ctx, heap.buffer.span(start, end)?)?;
             return Self::from_array(ctx, buffer);
         }
         let writable = Arc::get_mut(&mut heap).ok_or(crate::checked::violation(
@@ -559,7 +560,7 @@ impl Value {
         if start != 0 {
             for i in 0..length {
                 ctx.charge(1)?;
-                writable.buffer.data[i] = std::mem::take(&mut writable.buffer.data[start + i]);
+                *writable.buffer.at_mut(i)? = std::mem::take(writable.buffer.at_mut(start + i)?);
             }
         }
         while writable.buffer.data.len() > length {
@@ -592,7 +593,7 @@ impl Value {
         let Kind::Array(mut heap) = self.0 else {
             return Err(Error::new(ErrorKind::Type, "expected array"));
         };
-        let old = heap.buffer.data[index].depth() + 1;
+        let old = heap.buffer.at(index)?.depth() + 1;
         let new = value.depth() + 1;
         let mut depth = heap.depth.max(new);
         let mut at_max = heap.at_max;
@@ -641,7 +642,7 @@ impl Value {
         }
         let len = heap.buffer.data.len();
         let writable = Heap::make_mut(ctx, &mut heap, len)?;
-        writable.buffer.data[index] = value;
+        *writable.buffer.at_mut(index)? = value;
         writable.depth = depth;
         writable.at_max = at_max;
         Ok(Self(Kind::Array(heap)))
@@ -699,7 +700,8 @@ impl Value {
 impl CallContext {
     /// Parses an integer in base 2 through 36, charging conversion work and retained storage.
     pub fn parse_integer(&mut self, text: &str, radix: u32) -> Result<Value> {
-        crate::integer::parse(self, text.as_bytes(), radix)
+        let result = crate::integer::parse(self, text.as_bytes(), radix);
+        self.latch_internal(result)
     }
 
     /// Imports a host value, sharing immutable bytes and charging retained storage to this call.

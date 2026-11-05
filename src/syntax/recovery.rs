@@ -168,7 +168,7 @@ pub(super) struct Checkpoint {
 
 pub(super) struct Scope<'p, 'a> {
     parser: &'p Shared<Parser<'a>>,
-    locals: Option<Table<u32>>,
+    locals: Table<u32>,
     declared_it: bool,
     block_name: Option<Name>,
     inside_class: bool,
@@ -178,7 +178,7 @@ pub(super) struct Scope<'p, 'a> {
 impl Drop for Scope<'_, '_> {
     fn drop(&mut self) {
         let mut p = self.parser.borrow_mut();
-        p.locals = self.locals.take().unwrap();
+        p.locals = std::mem::take(&mut self.locals);
         p.declared_it = self.declared_it;
         p.block_name = self.block_name.take();
         p.inside_class = self.inside_class;
@@ -250,7 +250,7 @@ impl Mode for Recover {
         let p = parser.borrow();
         Ok(Scope {
             parser,
-            locals: Some(p.locals.copy(p.work)?),
+            locals: p.locals.copy(p.work)?,
             declared_it: p.declared_it,
             block_name: p.block_name.clone(),
             inside_class: p.inside_class,

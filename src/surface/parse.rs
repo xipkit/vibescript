@@ -508,8 +508,8 @@ impl<'s> Parser<'s> {
 
     /// Undoes the changes to the locals since the journal was `length` long.
     fn undo_locals(&mut self, length: usize) {
-        while self.journal.len() > length {
-            let (name, added) = self.journal.pop().unwrap();
+        let length = length.min(self.journal.len());
+        for (name, added) in self.journal.drain(length..).rev() {
             if added {
                 self.locals.remove(&name);
             } else {
@@ -596,6 +596,13 @@ impl<'s> Parser<'s> {
             message: message.to_owned(),
             too_deep: false,
         })
+    }
+
+    fn required<T>(&self, value: Option<T>, message: &str) -> Result<T> {
+        match value {
+            Some(value) => Ok(value),
+            None => self.fail(message),
+        }
     }
 
     fn bump(&mut self) -> Tok {
@@ -1858,12 +1865,15 @@ impl<'s> Parser<'s> {
                 self.pos = colon + 1;
                 self.line_breaks();
                 let ty = self.type_expr(1, false)?;
-                value = Some(Target::Typed(Box::new(value.take().unwrap()), ty));
+                value = Some(Target::Typed(
+                    Box::new(self.required(value.take(), "expected typed target")?),
+                    ty,
+                ));
             }
             let part = if rest {
                 Target::Splat(star, value.map(Box::new))
             } else {
-                value.unwrap()
+                self.required(value, "expected assignment target")?
             };
             parts.push(part);
             let comma = self.significant(self.pos);
@@ -1883,7 +1893,7 @@ impl<'s> Parser<'s> {
                 parts,
             )
         } else {
-            parts.pop().unwrap()
+            self.required(parts.pop(), "expected assignment target")?
         };
         Ok((target, tuple))
     }
@@ -3802,8 +3812,11 @@ impl<'s> Parser<'s> {
                     && args.iter().all(|arg| self.builtin_leaves(arg))
             }
             TypeKind::Qualified(names) => {
-                let last = self.text(*names.last().unwrap()).trim_end_matches('?');
-                self.is_op(names[0] + 1, "::") && self.type_names.contains(last)
+                let (Some(&first), Some(&last)) = (names.first(), names.last()) else {
+                    return false;
+                };
+                let last = self.text(last).trim_end_matches('?');
+                self.is_op(first + 1, "::") && self.type_names.contains(last)
             }
             TypeKind::Shape(fields, _) => fields.iter().all(|(_, ty)| self.builtin_leaves(ty)),
             TypeKind::Union(options) | TypeKind::Tuple(options) => {
@@ -4140,11 +4153,14 @@ impl<'s> Parser<'s> {
             options.push(self.type_atom(depth)?);
         }
         if options.len() == 1 {
-            return Ok(options.pop().unwrap());
+            return self.required(options.pop(), "expected type alternative");
         }
         let span = Span {
             start: options[0].span.start,
-            end: options.last().unwrap().span.end,
+            end: self
+                .required(options.last(), "expected type alternative")?
+                .span
+                .end,
         };
         Ok(TypeExpr {
             span,
@@ -4231,7 +4247,11 @@ impl<'s> Parser<'s> {
             loop {
                 self.poll()?;
                 let scope = self.significant(self.pos);
-                if !self.is_op(scope, "::") || self.text(*names.last().unwrap()).ends_with('?') {
+                if !self.is_op(scope, "::")
+                    || self
+                        .text(*self.required(names.last(), "expected qualified type name")?)
+                        .ends_with('?')
+                {
                     break;
                 }
                 self.pos = self.significant(scope + 1);
@@ -4240,7 +4260,7 @@ impl<'s> Parser<'s> {
                 }
                 names.push(self.bump());
             }
-            let last = *names.last().unwrap();
+            let last = *self.required(names.last(), "expected qualified type name")?;
             return Ok(TypeExpr {
                 span: Span {
                     start,

@@ -13,6 +13,7 @@
 //!
 //! See `docs/vm.md` for the design.
 
+use crate::checked::Checked;
 use crate::{
     CallContext, Result, Value,
     budget::Buffer,
@@ -65,7 +66,9 @@ impl Fields {
     /// The number of fields.
     #[allow(dead_code)]
     pub(crate) fn len(&self) -> usize {
-        self.values().len()
+        self.inline
+            .as_ref()
+            .map_or(self.keys.data.len(), |(_, len)| *len)
     }
 
     /// Creates slots for lazily imported names. Importing at the original
@@ -89,25 +92,33 @@ impl Fields {
 
     /// Returns an already imported name by its position in the shape.
     pub(crate) fn get(&self, index: usize) -> Option<&Value> {
-        let key = &self.values()[index];
+        let key = match &self.inline {
+            Some((keys, len)) => keys.get(index).filter(|_| index < *len)?,
+            None => self.keys.data.get(index)?,
+        };
         key.as_bytes().map(|_| key)
     }
 
     /// Retains a name the builder imported with its own accounting.
-    pub(crate) fn remember(&mut self, index: usize, key: &Value) {
-        self.imported += usize::from(self.get(index).is_none());
-        match &mut self.inline {
-            Some((keys, _)) => keys[index] = key.clone(),
-            None => self.keys.data[index] = key.clone(),
-        }
+    pub(crate) fn remember(&mut self, index: usize, key: &Value) -> crate::checked::Access<()> {
+        let slot = match &mut self.inline {
+            Some((keys, len)) => keys.span_mut(0, *len)?.at_mut(index)?,
+            None => self.keys.at_mut(index)?,
+        };
+        self.imported += usize::from(slot.as_bytes().is_none());
+        *slot = key.clone();
+        Ok(())
     }
 
     /// Releases a cached name that no completed record still owns.
     pub(crate) fn forget(&mut self, index: usize) {
-        self.imported -= usize::from(self.get(index).is_some());
-        match &mut self.inline {
-            Some((keys, _)) => keys[index] = Value::nil(),
-            None => self.keys.data[index] = Value::nil(),
+        let slot = match &mut self.inline {
+            Some((keys, len)) => keys.get_mut(..*len).and_then(|keys| keys.get_mut(index)),
+            None => self.keys.data.get_mut(index),
+        };
+        if let Some(slot) = slot {
+            self.imported -= usize::from(slot.as_bytes().is_some());
+            *slot = Value::nil();
         }
     }
 
@@ -116,11 +127,12 @@ impl Fields {
         self.imported == self.len()
     }
 
-    fn values(&self) -> &[Value] {
-        match &self.inline {
-            Some((keys, len)) => &keys[..*len],
-            None => &self.keys.data,
-        }
+    fn values(&self) -> impl Iterator<Item = &Value> {
+        self.keys.data.iter().chain(
+            self.inline
+                .iter()
+                .flat_map(|(keys, len)| keys.iter().take(*len)),
+        )
     }
 }
 
@@ -128,6 +140,30 @@ impl Fields {
 mod tests {
     use super::*;
     use crate::{CallOptions, value::Kind};
+
+    #[test]
+    fn absent_fields_do_not_change_the_imported_count() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let key = Value::bytes(b"name");
+        for count in [0, 1, 8, 9, 20] {
+            let mut fields = Fields::lazy(&mut ctx, count).unwrap();
+            for index in [count, usize::MAX] {
+                assert!(fields.get(index).is_none());
+                let error = crate::Error::from(fields.remember(index, &key).unwrap_err());
+                assert_eq!(error.kind, crate::ErrorKind::Internal);
+                fields.forget(index);
+                assert_eq!(fields.imported, 0);
+            }
+            if count > 0 {
+                fields.remember(0, &key).unwrap();
+                fields.remember(0, &key).unwrap();
+                assert_eq!(fields.imported, 1);
+                fields.forget(0);
+                fields.forget(0);
+                assert_eq!(fields.imported, 0);
+            }
+        }
+    }
 
     fn shape(names: &[&str]) -> Type {
         Type {

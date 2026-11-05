@@ -30,7 +30,11 @@ def generate():
     out += '''pub(crate) fn is_print(rune: char) -> bool {
     let rune = rune as u32;
     let index = RANGES.partition_point(|&(start, _)| start <= rune);
-    index > 0 && rune <= RANGES[index - 1].1 && EXCEPTIONS.binary_search(&rune).is_err()
+    index
+        .checked_sub(1)
+        .and_then(|i| RANGES.get(i))
+        .is_some_and(|&(_, end)| rune <= end)
+        && EXCEPTIONS.binary_search(&rune).is_err()
 }
 
 const RANGES: &[(u32, u32)] = &[

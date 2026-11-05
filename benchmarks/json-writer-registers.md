@@ -99,3 +99,69 @@ A new differential test covers valid UTF-8, malformed sequences, Unicode
 line/paragraph separators and escaped tails at every offset from four bytes
 before through four bytes after a chunk boundary. It checks every step quota
 and nearby output limits against the per-append writer and verifies cleanup.
+
+## Refresh against master `04395536`
+
+After merging master on November 5, the only conflict was the compressed
+conformance counters. The resolution preserves all 1,115 master records and
+adds this branch's four benchmark records. No scanner code changed in the
+merge. The following measurements compare fresh builds of that master with
+the merged branch, using the same machine, compiler, profile and differential
+instruction-count method above. Every build again has 32 placements; all
+unrelated symbol addresses remain fixed within each sweep.
+
+| Build | Payload | Before | After | Change |
+|---|---|---:|---:|---:|
+| simd | `lines_4k` | 62,567 | 62,164 | -0.6% |
+| simd | `unicode_4k` | 120,922 | 111,227 | -8.0% |
+| simd | `lone_escapes_4k` | 307,107 | 307,004 | -0.0% |
+| portable | `lines_4k` | 72,295 | 71,638 | -0.9% |
+| portable | `unicode_4k` | 111,423 | 112,724 | +1.2% |
+| portable | `lone_escapes_4k` | 366,122 | 354,952 | -3.1% |
+
+The SIMD writer is now 1,140 → 811 instructions, still with a 368 → 288-byte
+frame. The ordinary scalar loop remains 13 instructions per byte with its
+masks outside the back edge. The Unicode span loop loses its one stack reload
+and mask reconstruction per rune. The escape-run loop remains 15 instructions
+per escape, with its cursors in registers. Portable still calls `prefix` out
+of line, and neither its old nor its extracted Unicode loop spills per rune.
+
+All 30 JSON benchmark outputs, digests and accounting match across the four
+fresh binaries, as do 22 additional escape/Unicode patterns. Every placement
+also has matching digests, steps, peak and retained memory. Short Unicode
+spans retain their cost: `é\n` increases SIMD instructions by 9.3%, and mixed
+`ab\né界🙂` by 2.0%.
+
+Fifteen randomized timing rounds at 6,000 calls per case ran alongside the
+local test gate; host load rose from 4.48 to 8.09. These remain diagnostic
+timings. Entries are the range of placement minima in microseconds, with
+their median in parentheses.
+
+| Build | Payload | Before | After |
+|---|---|---:|---:|
+| simd | `lines_4k` | 2.362–2.493 (2.423) | 2.294–2.582 (2.424) |
+| simd | `unicode_4k` | 5.504–5.599 (5.550) | 5.498–5.565 (5.530) |
+| simd | `lone_escapes_4k` | 9.349–9.767 (9.408) | 9.018–9.892 (9.447) |
+| portable | `lines_4k` | 2.619–2.730 (2.680) | 2.591–2.736 (2.657) |
+| portable | `unicode_4k` | 5.495–5.568 (5.522) | 5.454–5.569 (5.510) |
+| portable | `lone_escapes_4k` | 11.214–11.485 (11.323) | 10.945–11.566 (11.218) |
+
+Lone-escape sensitivity remains: the SIMD placement spread is 4.5% before
+and 9.7% after, with the median +0.4% and the worst placement +1.3%.
+VIBE-187 still owns that follow-up; the extraction does not fix it.
+
+Release engine golden runs pass all 233,902 cases on each feature set, and
+130,697 stable successful accounting records match across them. The four
+benchmark records pass strict counter checks on both. The full corpus still
+reports nonblocking drift against older counter records; those records were
+not changed by the conflict resolution.
+
+The full `scripts/check` gate passes: formatting, Clippy and Adamantium on
+both feature sets; 2,518 debug tests, 2,517 optimized all-feature tests,
+2,477 optimized portable tests and 61 documentation tests; all engine goldens,
+2,867 CLI cases and 216 LSP cases.
+
+Raw builds, disassembly and per-placement results for this refresh are under
+`/Volumes/AI/Build/tron-vibe-184/refresh/`; `harness/counts.json` contains the
+128-placement instruction results and `harness/quiet-timings.json` the timing
+samples (the filename is inherited from the original harness).

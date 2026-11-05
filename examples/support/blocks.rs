@@ -60,8 +60,13 @@ pub fn template() -> Value {
         let keywords = Value::object(
             keywords
                 .iter()
-                .map(|(key, value)| (key.as_bytes().unwrap().to_vec(), value.clone()))
-                .collect(),
+                .map(|(key, value)| {
+                    let key = key.as_bytes().ok_or_else(|| {
+                        Error::new(ErrorKind::Internal, "block keyword must have a bytes key")
+                    })?;
+                    Ok((key.to_vec(), value.clone()))
+                })
+                .collect::<vibescript::Result<_>>()?,
         );
         call.call_block(&[args, keywords])
     });

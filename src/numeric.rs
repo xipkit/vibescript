@@ -1,5 +1,6 @@
+use crate::checked::violation;
 use crate::{CallContext, Error, ErrorKind, Result, Value, bytes, integer, ops, value::Kind};
-use std::{cmp::Ordering, fmt::Write};
+use std::cmp::Ordering;
 
 /// Converts a count, a length or another unsigned value known to fit. Nothing
 /// in memory is larger than `isize::MAX`, so the limit stays out of reach; past
@@ -72,7 +73,9 @@ pub(crate) fn call(
     let value = match name {
         "zero?" | "positive?" | "negative?" | "nonzero?" => {
             nullary()?;
-            let number = receiver.as_float().unwrap();
+            let number = receiver
+                .as_float()
+                .ok_or(violation("numeric operand expected"))?;
             match name {
                 "zero?" => Value::boolean(number == 0.0),
                 "positive?" => Value::boolean(number > 0.0),
@@ -83,7 +86,9 @@ pub(crate) fn call(
         }
         "nan?" | "infinite?" | "finite?" if matches!(receiver.0, Kind::Float(_)) => {
             nullary()?;
-            let number = receiver.as_float().unwrap();
+            let number = receiver
+                .as_float()
+                .ok_or(violation("numeric operand expected"))?;
             match name {
                 "nan?" => Value::boolean(number.is_nan()),
                 "finite?" => Value::boolean(number.is_finite()),
@@ -141,7 +146,10 @@ fn calculate(ctx: &mut CallContext, op: &'static str, a: &Value, b: &Value) -> R
 fn division(ctx: &mut CallContext, method: &str, a: &Value, b: &Value) -> Result<Value> {
     let name = method.rsplit('.').next().unwrap_or(method);
     if name == "fdiv" {
-        return Ok(Value::float(a.as_float().unwrap() / b.as_float().unwrap()));
+        return Ok(Value::float(
+            a.as_float().ok_or(violation("numeric operand expected"))?
+                / b.as_float().ok_or(violation("numeric operand expected"))?,
+        ));
     }
     if b.as_float() == Some(0.0) {
         return Err(zero_division(method));
@@ -168,8 +176,8 @@ fn division(ctx: &mut CallContext, method: &str, a: &Value, b: &Value) -> Result
             }
         };
     }
-    let a = a.as_float().unwrap();
-    let b = b.as_float().unwrap();
+    let a = a.as_float().ok_or(violation("numeric operand expected"))?;
+    let b = b.as_float().ok_or(violation("numeric operand expected"))?;
     if name == "div" {
         return integer::from_float(ctx, (a / b).floor(), method);
     }
@@ -325,7 +333,9 @@ fn round(ctx: &mut CallContext, receiver: &Value, args: &[Value], method: &str) 
     if receiver.is_integer() {
         return integer_round(ctx, receiver, digits, mode);
     }
-    let number = receiver.as_float().unwrap();
+    let number = receiver
+        .as_float()
+        .ok_or(violation("numeric operand expected"))?;
     if digits > 0 {
         return float_digits(ctx, number, digits, mode).map(Value::float);
     }
@@ -429,7 +439,9 @@ fn float_digits(ctx: &mut CallContext, number: f64, digits: i32, mode: Rounding)
     if matches!(mode, Rounding::Nearest) && digits >= 15 {
         return rational_round(ctx, number, digits.unsigned_abs());
     }
-    let scale = pow10(ctx, digits.unsigned_abs())?.as_float().unwrap();
+    let scale = pow10(ctx, digits.unsigned_abs())?
+        .as_float()
+        .ok_or(violation("numeric operand expected"))?;
     Ok(match mode {
         Rounding::Floor => {
             let whole = (number * scale).floor();
@@ -484,11 +496,11 @@ fn rational_round(ctx: &mut CallContext, number: f64, digits: u32) -> Result<f64
     // The precision guards bound this token and all preceding scratch storage.
     let mut text = integer::format(ctx, &rounded, 10)?;
     let mut suffix = bytes::Number::new();
-    write!(suffix, "e-{digits}").unwrap();
-    text.extend(ctx, suffix.bytes())?;
+    suffix.format(format_args!("e-{digits}"))?;
+    text.extend(ctx, suffix.bytes()?)?;
     ctx.work_bytes(text.data.len())?;
     std::str::from_utf8(&text.data)
-        .unwrap()
+        .map_err(|_| violation("rounded decimal must be UTF-8"))?
         .parse()
         .map_err(|_| Error::new(ErrorKind::Arithmetic, "float rounding failed"))
 }

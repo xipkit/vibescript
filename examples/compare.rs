@@ -291,7 +291,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     json!((after.1 - before.1) as f64 / n as f64),
                 );
             }
-            let final_output = support::encode(&last.unwrap().value, encoding, codec_options())?;
+            let last = last.ok_or("timed calls must produce a result")?;
+            let final_output = support::encode(&last.value, encoding, codec_options())?;
             if final_output != output {
                 return Err(format!("{name}: timed output differs from validation").into());
             }

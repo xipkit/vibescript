@@ -156,7 +156,9 @@ impl Parser<'_> {
         if self.symbol_at(next) && self.tokens[next].line == line {
             self.pos = next;
             loop {
-                let name = self.symbol_name()?.unwrap();
+                let name = self.symbol_name()?.ok_or(crate::checked::violation(
+                    "visibility directive must name a method",
+                ))?;
                 self.work
                     .charge(class.instance_methods.len() + class.methods.len())?;
                 let instance = class
