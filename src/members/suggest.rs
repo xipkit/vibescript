@@ -1,7 +1,6 @@
 //! "Did you mean" suffixes for lookup failures, ranked like the reference:
 //! case-only mismatches first, then names within a small edit distance.
 
-use crate::checked::Checked;
 use crate::{CallContext, Result, scan};
 use std::fmt;
 
@@ -88,24 +87,19 @@ impl<'n> Suggestion<'n> {
             ctx.scan_bytes(&mut self.pending, read)?;
             self.read += read;
             self.offered += 1;
+            let kept = self.best.get(..self.len).unwrap_or_default();
             // A repeated candidate ranks the same as its first copy, so skipping
             // it among the kept results considers each name once.
             if candidate.is_empty()
                 || candidate == self.name.as_bytes()
-                || self
-                    .best
-                    .span(0, self.len)?
-                    .iter()
-                    .any(|(_, kept)| kept == candidate)
+                || kept.iter().any(|(_, kept)| kept == candidate)
             {
                 continue;
             }
             let Some(rank) = self.rank(candidate) else {
                 continue;
             };
-            let position = self
-                .best
-                .span(0, self.len)?
+            let position = kept
                 .partition_point(|(other, kept)| (*other, kept.as_slice()) <= (rank, candidate));
             if position == MAX_RESULTS {
                 continue;
@@ -113,8 +107,13 @@ impl<'n> Suggestion<'n> {
             if self.len < MAX_RESULTS {
                 self.len += 1;
             }
-            self.best.span_mut(position, self.len)?.rotate_right(1);
-            *self.best.at_mut(position)? = (rank, candidate.to_vec());
+            let Some(places) = self.best.get_mut(position..self.len) else {
+                continue;
+            };
+            places.rotate_right(1);
+            if let Some(first) = places.first_mut() {
+                *first = (rank, candidate.to_vec());
+            }
         }
         Ok(self)
     }
