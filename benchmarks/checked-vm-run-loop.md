@@ -1,6 +1,6 @@
 # Checked VM run-loop invariants
 
-VIBE-161 removes all 152 production unwraps from `src/vm.rs`. Invalid stack, frame, binding and literal state returns terminal internal errors through the existing run/block latches. Diagnostic lookup keeps absence optional. `take_loop_alias` returns `Access<bool>` and both dispatchers propagate it. The coordinated `unwrap_used` allowance remains unchanged.
+VIBE-161 clears all 152 active production unwrap findings from `src/vm.rs`. Invalid stack, frame, binding and literal state returns terminal internal errors through the existing run/block latches. Diagnostic lookup keeps absence optional. `take_loop_alias` returns `Access<bool>` and both dispatchers propagate it. The coordinated `unwrap_used` allowance remains unchanged.
 
 ## Method and limits
 
@@ -83,6 +83,7 @@ Assembly is emitted by `cargo rustc --release --lib -- --emit=asm`, repeated wit
 ## Correctness evidence
 
 - Production Adamantium audits with `unwrap_used` temporarily removed find zero findings in `src/vm.rs` with all features and without default features, and no findings from other rules. The allowance is restored, with no new exceptions. Normal Adamantium and workspace/all-target Clippy pass in both configurations.
+- Full workspace/all-target runs pass: 2,492 debug all-features tests, 2,491 optimized all-features tests, and 2,451 optimized no-default-features tests. All 61 doctests pass.
 - Fault regressions cover 17 malformed operations through real host blocks, callbacks ignoring/replacing the error, missing entry/result/pooled-driver state, malformed integer constants and open ranges in an active loop. The three new tests and expanded callback test fail on the original runtime with four unwrap panics; the candidate passes. Rescue and ensure cannot execute after the fault, and later host work sees the same latched error.
 - All eight golden corpora pass. A fresh baseline comparison covers 233,898 raw engine observations with no deterministic result, diagnostic, quota-outcome or counter differences. Four clock-dependent replay cases vary; one timestamp loses a trailing fractional digit and changes peak/retained accounting by one byte. Recorded-fixture drift also occurs on the baseline.
 - The actual optimized CLI returns the expected results for collection iteration, big integers, formatting, regex matching, required-file aliases/shared state, classes, loop control and rescue/ensure. An uncaught raise exits 1 with its source location.
