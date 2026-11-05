@@ -101,7 +101,7 @@ fn concurrent_last_owners_release_deep_subtrees() {
             node = match &node.0 {
                 Kind::Array(array) => &array.buffer.data[0],
                 Kind::Hash(hash) => &hash.buffer.data[0].1,
-                _ => unreachable!(),
+                _ => panic!("unexpected test fixture"),
             };
         }
         drop(value);
@@ -211,7 +211,7 @@ fn rendering_keeps_existing_display_shapes_and_leaf_debug_forms() {
     let mut other = context();
     let imported = other.import(&protected).unwrap();
     let Kind::Hash(hash) = &imported.0 else {
-        unreachable!()
+        panic!("unexpected test fixture")
     };
     assert_eq!(hash.tag, Tag::Match);
     assert_eq!(imported.to_string(), "shown");
@@ -474,7 +474,7 @@ mod at_max_tests {
                     slots[index] = depth;
                 }
                 let Kind::Array(heap) = &value.0 else {
-                    unreachable!()
+                    panic!("unexpected test fixture")
                 };
                 let expected = true_depth(&slots);
                 assert_eq!(heap.depth, expected, "trial {trial} depth");
@@ -522,7 +522,7 @@ mod at_max_tests {
                     slots[pick].1 = depth;
                 }
                 let Kind::Hash(hash) = &value.0 else {
-                    unreachable!()
+                    panic!("unexpected test fixture")
                 };
                 let depths: Vec<usize> = slots.iter().map(|(_, d)| *d).collect();
                 let expected = true_depth(&depths);

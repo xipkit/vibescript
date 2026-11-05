@@ -317,7 +317,7 @@ impl<'x> Compiling<'_, 'x> {
             c.check_local(name)?;
             c.store_namespace_name(name)?;
             let end = c.code.len();
-            c.patch(skip, end);
+            c.patch(skip, end)?;
             return Ok(());
         }
         let binary = match op {

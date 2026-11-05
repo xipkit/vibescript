@@ -35,7 +35,9 @@ pub(super) fn resume(
     loop {
         let args = storage.arguments.data.last_mut().unwrap();
         let Some(Target::Output(kind, index)) = args.target else {
-            unreachable!()
+            return Err(crate::checked::internal(
+                "output arguments have no output target",
+            ));
         };
         if index == args.positional.data.len() {
             let args = storage.arguments.data.pop().unwrap();

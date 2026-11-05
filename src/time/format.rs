@@ -127,7 +127,7 @@ impl<'a> Output<'a> {
     }
     pub fn finish(self, ctx: &mut CallContext) -> Result<Value> {
         let Destination::Buffer(buffer) = self.destination else {
-            unreachable!()
+            return Err(crate::checked::internal("time output buffer expected"));
         };
         Value::from_bytes(ctx, buffer)
     }
@@ -355,7 +355,9 @@ pub(super) fn render(
                 let name = match part {
                     Part::Month => MONTHS[view.date.month as usize - 1],
                     Part::Weekday => WEEKDAYS[view.date.weekday as usize],
-                    _ => unreachable!(),
+                    _ => {
+                        return Err(crate::checked::internal("month or weekday name expected"));
+                    }
                 };
                 out.append(ctx, if full { name } else { &name[..3] })?;
             }

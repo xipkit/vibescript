@@ -105,13 +105,10 @@ fn integer(value: &Value) -> Option<i64> {
     }
 }
 
-fn float(value: &Value) -> f64 {
-    match &value.0 {
-        Kind::Int(n) => *n as f64,
-        Kind::Big(n) => n.to_float(),
-        Kind::Float(n) => *n,
-        _ => unreachable!(),
-    }
+fn float(value: &Value) -> crate::checked::Access<f64> {
+    value.as_float().ok_or(crate::checked::violation(
+        "numeric format requires a number",
+    ))
 }
 
 fn string_like(value: &Value) -> bool {

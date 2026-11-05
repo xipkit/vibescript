@@ -20,11 +20,33 @@ struct Code {
     minimum: usize,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Flags {
+    None,
+    IgnoreCase,
+    Multiline,
+    Both,
+}
+
+impl Flags {
+    fn new(bits: u8) -> crate::checked::Access<Self> {
+        match bits {
+            0 => Ok(Self::None),
+            1 => Ok(Self::IgnoreCase),
+            2 => Ok(Self::Multiline),
+            3 => Ok(Self::Both),
+            _ => Err(crate::checked::violation(
+                "regex flags contain unsupported bits",
+            )),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct Regex {
     pub source: Value,
     pattern: Value,
-    flags: u8,
+    flags: Flags,
     code: Arc<Code>,
     header: Option<Charge>,
     _metadata: Option<Charge>,
@@ -34,6 +56,7 @@ pub(crate) struct Regex {
 impl Regex {
     /// Compiles a regex value for `method`, the operation named in its errors.
     pub fn compile(ctx: &mut CallContext, source: Value, flags: u8, method: &str) -> Result<Value> {
+        let canonical_flags = Flags::new(flags)?;
         if source.require_bytes()?.len() > super::MAX_PATTERN {
             return super::pattern_limit(ctx, method);
         }
@@ -60,7 +83,7 @@ impl Regex {
         Ok(Value(Kind::Regex(Arc::new(Self {
             source,
             pattern: program.source,
-            flags,
+            flags: canonical_flags,
             code: Arc::new(Code {
                 instructions,
                 parts,
@@ -79,7 +102,7 @@ impl Regex {
             return Ok(value.clone());
         }
         let source = ctx.import(&value.source)?;
-        let pattern = if value.flags == 0 {
+        let pattern = if value.flags == Flags::None {
             source.clone()
         } else {
             ctx.import(&value.pattern)?
@@ -104,11 +127,10 @@ impl Regex {
 
     pub fn flags(&self) -> &'static str {
         match self.flags {
-            0 => "",
-            1 => "i",
-            2 => "m",
-            3 => "im",
-            _ => unreachable!(),
+            Flags::None => "",
+            Flags::IgnoreCase => "i",
+            Flags::Multiline => "m",
+            Flags::Both => "im",
         }
     }
 
@@ -427,7 +449,7 @@ mod tests {
             let mut second = CallContext::new(CallOptions::default());
             let imported = second.import(&original).unwrap();
             let (Kind::Regex(a), Kind::Regex(b)) = (&original.0, &imported.0) else {
-                unreachable!()
+                panic!("unexpected test fixture")
             };
             assert!(Arc::ptr_eq(&a.code, &b.code));
             let savings = usize::from(flags != 0)
@@ -441,7 +463,7 @@ mod tests {
             assert_eq!(first.stats().retained_memory_bytes, 0);
             assert!(second.stats().retained_memory_bytes > 0);
             let Kind::Regex(regex) = &imported.0 else {
-                unreachable!()
+                panic!("unexpected test fixture")
             };
             assert!(
                 regex
@@ -460,7 +482,7 @@ mod tests {
             Regex::compile(&mut ctx, Value::bytes(b"(?<x>a+)(b)?"), 0, "Regexp.new").unwrap();
         let baseline = ctx.stats().retained_memory_bytes;
         let Kind::Regex(regex) = &value.0 else {
-            unreachable!()
+            panic!("unexpected test fixture")
         };
         for _ in 0..100 {
             assert!(

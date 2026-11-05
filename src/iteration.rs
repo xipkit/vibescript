@@ -171,7 +171,7 @@ impl Mutation {
                 // size. A key the block already removed resolves to none and
                 // is skipped, as `delete_hash` would skip it.
                 let Kind::Hash(mut hash) = receiver.0 else {
-                    unreachable!()
+                    return Err(crate::checked::internal("hash mutation requires a hash"));
                 };
                 // Reserve nothing up front: a block that removed many of its
                 // own keys leaves them unresolvable, and the eager worst-case
@@ -239,9 +239,13 @@ fn boxed<T>(ctx: &mut CallContext, value: T) -> Result<Box<State<T>>> {
 }
 
 impl Iteration {
-    pub fn waiting(&self) -> bool {
-        match self {
-            Self::Pooled => unreachable!(),
+    pub fn waiting(&self) -> crate::checked::Access<bool> {
+        Ok(match self {
+            Self::Pooled => {
+                return Err(crate::checked::violation(
+                    "pooled iteration has no active state",
+                ));
+            }
             Self::Common(state) => state.waiting,
             Self::Loop(state) => state.waiting,
             Self::Forever { waiting } => *waiting,
@@ -250,7 +254,7 @@ impl Iteration {
             Self::Text(state) => state.waiting,
             Self::Regex(state) => state.waiting,
             Self::Substitute(state) => state.waiting,
-        }
+        })
     }
 
     pub fn take_mutation(&mut self) -> Option<Mutation> {
@@ -269,7 +273,9 @@ impl Iteration {
 
     pub fn advance(&mut self, ctx: &mut CallContext, returned: Option<Value>) -> Result<Progress> {
         match self {
-            Self::Pooled => unreachable!(),
+            Self::Pooled => Err(crate::checked::internal(
+                "pooled iteration has no active state",
+            )),
             Self::Common(state) => state.advance(ctx, returned),
             Self::Loop(state) => state.advance(ctx, returned),
             Self::Forever { waiting } => {
@@ -334,7 +340,7 @@ pub(crate) fn without_block(
     };
     match state.advance(ctx, None)? {
         Progress::Done(value) => Ok(Some(value)),
-        Progress::Yield(..) => unreachable!(),
+        Progress::Yield(..) => Err(crate::checked::internal("blockless iteration yielded")),
     }
 }
 

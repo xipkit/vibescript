@@ -938,7 +938,7 @@ pub(crate) fn method(
         return crate::range::method(ctx, method, name, range, args);
     }
     match method {
-        Dup | ToString => unreachable!(),
+        Dup | ToString => Err(crate::checked::internal("member was not dispatched")),
         Prepend | Pop | Shift | Delete | Insert | Clear | Fill | Replace => {
             crate::mutate::call(ctx, method, name, value, args).map(|(_, result)| result)
         }
@@ -963,7 +963,7 @@ pub(crate) fn method(
         Even | Odd => {
             arity(args, 0)?;
             Ok(Value::boolean(if value.is_integer() {
-                crate::integer::odd(&value) == matches!(method, Odd)
+                crate::integer::odd(&value)? == matches!(method, Odd)
             } else {
                 return Err(type_error());
             }))

@@ -192,7 +192,7 @@ pub(crate) fn parse(source: &str, work: &dyn crate::compilation::Work) -> Result
     let parsing = Parsing::<recovery::FailFast>::new(parser(source, work)?);
     match parsing.run(Call::Program)? {
         Parsed::Program(declarations) => Ok(declarations),
-        _ => unreachable!(),
+        _ => Err(crate::checked::internal("parser task expected a program")),
     }
 }
 
@@ -348,35 +348,37 @@ impl<'a, M: recovery::Mode> Parsing<'a, M> {
         };
         match self.tasks.call(call).await? {
             Parsed::Expr(expr) => Ok(expr),
-            _ => unreachable!(),
+            _ => Err(crate::checked::internal(
+                "parser task expected an expression",
+            )),
         }
     }
 
     async fn block(&self, stop: &'static [&'static str]) -> Result<Buffer<Stmt>> {
         match self.tasks.call(Call::Block(stop)).await? {
             Parsed::Body(body) => Ok(body),
-            _ => unreachable!(),
+            _ => Err(crate::checked::internal("parser task expected a body")),
         }
     }
 
     async fn nested_target(&self, typed: bool) -> Result<(Target, bool)> {
         match self.tasks.call(Call::Target(typed)).await? {
             Parsed::Target(target, tuple) => Ok((target, tuple)),
-            _ => unreachable!(),
+            _ => Err(crate::checked::internal("parser task expected a target")),
         }
     }
 
     async fn nested_class(&self) -> Result<modules::Module> {
         match self.tasks.call(Call::Class).await? {
             Parsed::Module(class) => Ok(class),
-            _ => unreachable!(),
+            _ => Err(crate::checked::internal("parser task expected a class")),
         }
     }
 
     async fn nested_module(&self) -> Result<modules::Module> {
         match self.tasks.call(Call::Module).await? {
             Parsed::Module(module) => Ok(module),
-            _ => unreachable!(),
+            _ => Err(crate::checked::internal("parser task expected a module")),
         }
     }
 }

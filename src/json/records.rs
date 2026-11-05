@@ -196,7 +196,7 @@ impl<'a> Records<'a> {
                 return None;
             }
             let TypeKind::Shape(fields, _) = &record.ty.kind else {
-                unreachable!()
+                return None;
             };
             let index = fields
                 .binary_search_by(|field| field.name.as_slice().cmp(name))
@@ -318,7 +318,7 @@ mod tests {
             let names: Vec<_> = names.iter().map(String::as_str).collect();
             let mut ty = shape(&["padding", "rows"], false);
             let TypeKind::Shape(fields, _) = &mut ty.kind else {
-                unreachable!()
+                panic!("unexpected test fixture")
             };
             let row = shape(&names, false);
             fields[1].ty = if array {
@@ -517,7 +517,7 @@ mod tests {
     fn escaped_names_adopt_keys_cached_through_open_shape_extras() {
         let mut record = shape(&["id"], true);
         let TypeKind::Shape(fields, _) = &mut record.kind else {
-            unreachable!()
+            panic!("unexpected test fixture")
         };
         fields[0].optional = true;
         let ty = Type {

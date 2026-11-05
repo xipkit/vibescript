@@ -1657,7 +1657,9 @@ fn flush(parts: &mut Buffer<Part<'_>>, text: &mut Buffer<u8>, work: &dyn Work) -
 pub(super) fn plain(mut parts: Buffer<Part<'_>>, work: &dyn Work) -> Result<Bytes> {
     if parts.len() == 1 {
         let Part::Text(bytes) = parts.pop().unwrap() else {
-            unreachable!()
+            return Err(crate::checked::internal(
+                "plain literal contains interpolation",
+            ));
         };
         work.bytes(bytes.len())?;
         return Ok(bytes);
@@ -1665,7 +1667,9 @@ pub(super) fn plain(mut parts: Buffer<Part<'_>>, work: &dyn Work) -> Result<Byte
     let mut bytes = Buffer::new();
     for part in parts {
         let Part::Text(text) = part else {
-            unreachable!()
+            return Err(crate::checked::internal(
+                "plain literal contains interpolation",
+            ));
         };
         bytes.extend_from_slice(work, &text)?;
     }
@@ -1712,7 +1716,7 @@ mod tests {
         drop(tokens);
         assert!(context.stats().retained_memory_bytes > 0);
         let Token::Invalid(duplicate) = &copy else {
-            unreachable!()
+            panic!("unexpected test fixture")
         };
         assert_eq!(duplicate.message.as_str(), "unsupported character");
         drop(copy);

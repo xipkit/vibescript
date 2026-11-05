@@ -131,12 +131,14 @@ impl Address {
         address
     }
 
-    pub fn in_environment(mut self) -> Self {
+    pub fn in_environment(mut self) -> crate::checked::Access<Self> {
         let Some(Root::Object(instance, field)) = self.root.take() else {
-            unreachable!()
+            return Err(crate::checked::violation(
+                "environment address requires an object root",
+            ));
         };
         self.root = Some(Root::Environment(instance, field));
-        self
+        Ok(self)
     }
 
     pub fn index(&mut self, ctx: &mut CallContext, args: &[Value]) -> Result<()> {

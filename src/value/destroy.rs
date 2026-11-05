@@ -3,8 +3,9 @@
 //! This needs neither a growing worklist nor a live invocation budget, so it
 //! also works when the final owner drops a value after quota exhaustion.
 
-use super::{Kind, Value};
+use super::{Heap, Kind, Value};
 use crate::budget::Buffer;
+use crate::hash::Hash;
 use std::{mem, sync::Arc};
 
 pub(crate) const SHALLOW: usize = 8;
@@ -22,6 +23,20 @@ pub(crate) fn pairs(mut buffer: Buffer<(Value, Value)>) {
     }
 }
 
+enum Container {
+    Array(Arc<Heap<Value>>),
+    Hash(Arc<Hash>),
+}
+
+impl Container {
+    fn into_value(self) -> Value {
+        Value(match self {
+            Self::Array(array) => Kind::Array(array),
+            Self::Hash(hash) => Kind::Hash(hash),
+        })
+    }
+}
+
 fn discard(value: Value) {
     if value.depth() <= SHALLOW {
         return;
@@ -30,9 +45,9 @@ fn discard(value: Value) {
         return;
     };
     loop {
-        let child = match &mut current.0 {
-            Kind::Array(array) => Arc::get_mut(array).unwrap().buffer.data.pop(),
-            Kind::Hash(hash) => {
+        let child = match &mut current {
+            Container::Array(array) => Arc::get_mut(array).unwrap().buffer.data.pop(),
+            Container::Hash(hash) => {
                 let entries = &mut Arc::get_mut(hash).unwrap().buffer.data;
                 match entries.last_mut() {
                     // Leave a nil marker while visiting a value, then visit its
@@ -43,12 +58,11 @@ fn discard(value: Value) {
                     None => None,
                 }
             }
-            _ => unreachable!(),
         };
         if let Some(child) = child {
             if child.depth() > SHALLOW {
                 if let Some(mut child) = unique(child) {
-                    *parent(&mut child) = Some(current);
+                    *parent(&mut child) = Some(current.into_value());
                     current = child;
                 }
             }
@@ -58,22 +72,25 @@ fn discard(value: Value) {
             // releases its allocation and original charge without descending.
             drop(current);
             match previous {
-                Some(value) => current = value,
+                Some(value) => match value.0 {
+                    Kind::Array(array) => current = Container::Array(array),
+                    Kind::Hash(hash) => current = Container::Hash(hash),
+                    _ => return,
+                },
                 None => return,
             }
         }
     }
 }
 
-fn parent(value: &mut Value) -> &mut Option<Value> {
-    match &mut value.0 {
-        Kind::Array(array) => &mut Arc::get_mut(array).unwrap().drop_parent,
-        Kind::Hash(hash) => &mut Arc::get_mut(hash).unwrap().drop_parent,
-        _ => unreachable!(),
+fn parent(value: &mut Container) -> &mut Option<Value> {
+    match value {
+        Container::Array(array) => &mut Arc::get_mut(array).unwrap().drop_parent,
+        Container::Hash(hash) => &mut Arc::get_mut(hash).unwrap().drop_parent,
     }
 }
 
-fn unique(value: Value) -> Option<Value> {
+fn unique(value: Value) -> Option<Container> {
     match value.0 {
         Kind::Array(mut array) => {
             if Arc::get_mut(&mut array).is_none() {
@@ -85,15 +102,15 @@ fn unique(value: Value) -> Option<Value> {
                 array = Arc::new(Arc::into_inner(array)?);
             }
             debug_assert!(Arc::get_mut(&mut array).unwrap().drop_parent.is_none());
-            Some(Value(Kind::Array(array)))
+            Some(Container::Array(array))
         }
         Kind::Hash(mut hash) => {
             if Arc::get_mut(&mut hash).is_none() {
                 hash = Arc::new(Arc::into_inner(hash)?);
             }
             debug_assert!(Arc::get_mut(&mut hash).unwrap().drop_parent.is_none());
-            Some(Value(Kind::Hash(hash)))
+            Some(Container::Hash(hash))
         }
-        _ => unreachable!(),
+        _ => None,
     }
 }

@@ -262,6 +262,9 @@ impl Value {
     }
     /// Creates a caller-owned insertion-ordered hash with string keys, replacing duplicate values.
     pub fn hash(entries: Vec<(Vec<u8>, Value)>) -> Self {
+        Self(Kind::Hash(Self::hash_data(entries)))
+    }
+    fn hash_data(entries: Vec<(Vec<u8>, Value)>) -> Arc<Hash> {
         let mut values: Vec<(Value, Value)> = Vec::with_capacity(entries.len());
         let mut positions: HashMap<Arc<Vec<u8>>, usize> = HashMap::with_capacity(entries.len());
         for (key, value) in entries {
@@ -274,19 +277,16 @@ impl Value {
             }
         }
         let depth = 1 + values.iter().map(|(_, v)| v.depth()).max().unwrap_or(0);
-        Self(Kind::Hash(Hash::untracked(values, depth)))
+        Hash::untracked(values, depth)
     }
     /// Creates a host namespace whose fields take precedence over hash methods.
     ///
     /// Objects support scoped member access and may contain [`crate::HostMethod`]
     /// descriptors. Imports and script mutations follow ordinary value semantics.
     pub fn object(entries: Vec<(Vec<u8>, Value)>) -> Self {
-        let mut value = Self::hash(entries);
-        let Kind::Hash(hash) = &mut value.0 else {
-            unreachable!()
-        };
-        Arc::get_mut(hash).unwrap().object = true;
-        value
+        let mut hash = Self::hash_data(entries);
+        Arc::get_mut(&mut hash).unwrap().object = true;
+        Self(Kind::Hash(hash))
     }
     /// Returns an integer when this value fits the compact signed 64-bit representation.
     pub fn as_int(&self) -> Option<i64> {
@@ -539,7 +539,7 @@ impl Value {
         end: usize,
     ) -> Result<Self> {
         let Kind::Array(mut heap) = self.0 else {
-            unreachable!()
+            return Err(crate::checked::internal("array slicing requires an array"));
         };
         let length = end - start;
         if start == 0 && end == heap.buffer.data.len() {
@@ -573,7 +573,7 @@ impl Value {
     }
     pub(crate) fn delete_hash(self, ctx: &mut CallContext, key: &Value) -> Result<(Self, Self)> {
         let Kind::Hash(mut hash) = self.0 else {
-            unreachable!()
+            return Err(crate::checked::internal("hash deletion requires a hash"));
         };
         let Some(index) = hash.find(ctx, key.require_bytes()?)? else {
             return Ok((Self(Kind::Hash(hash)), Self::nil()));
