@@ -142,6 +142,22 @@ fn slash_rounds_signed_multiword_quotients_to_the_exact_float_bits() {
 }
 
 #[test]
+fn zero_divided_by_a_multiword_integer_preserves_the_divisors_sign() {
+    for b in ["2**54", "2**64", "2**64+1", "2**80+1", "2**1075"] {
+        for negative in [false, true] {
+            let sign = if negative { "-" } else { "" };
+            let expression = format!("0 / ({sign}({b}))");
+            let expected = if negative { -0.0f64 } else { 0.0f64 };
+            assert_eq!(
+                run(&expression).as_float().unwrap().to_bits(),
+                expected.to_bits(),
+                "{expression}"
+            );
+        }
+    }
+}
+
+#[test]
 fn slash_checks_the_float_range_after_rounding_multiword_quotients() {
     for a in ["(2**1024-2**970)*d", "(2**1024-2**970)*d+1", "2**1024*d"] {
         for an in ["", "-"] {
