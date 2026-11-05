@@ -104,6 +104,7 @@ pub(super) fn call(
         length
     };
     let found = if valid && length == text.len() && end - start >= 16 && pattern.at(0)?.is_ascii() {
+        sequence::rune_offset(ctx, text, start)?;
         search_ascii(
             ctx,
             text,
@@ -176,8 +177,8 @@ fn search_ascii(
     pending: &mut usize,
     reverse: bool,
 ) -> Result<Value> {
-    let mut index = sequence::rune_offset(ctx, text, range.start)?;
     let text = text.span(0, range.end)?;
+    let mut index = range.start;
     let mut matched = 0;
     let mut found = Value::nil();
     while index < text.len() {
