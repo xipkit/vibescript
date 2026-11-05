@@ -97,17 +97,17 @@ fn open<'a>(
     mode: Mode,
     frames: &mut Vec<Frame<'a>>,
 ) -> Result<Option<&'a Value>, fmt::Error> {
-    match &value.0 {
-        Kind::Array(heap) => {
+    match (&value.0, mode) {
+        (Kind::Array(heap), _) => {
             let (prefix, close) = match mode {
                 Mode::Display => ("[", "]"),
                 Mode::Debug => ("Value(Array([", "]))"),
             };
             f.write_str(prefix)?;
             frames.push(Frame::new(Items::Array(heap.buffer.data.iter()), close));
-            Ok(None)
+            Ok(())
         }
-        Kind::Hash(hash) => {
+        (Kind::Hash(hash), _) => {
             if matches!(mode, Mode::Display) && hash.tag.protected() {
                 if let Some((_, value)) = hash
                     .buffer
@@ -133,22 +133,11 @@ fn open<'a>(
             };
             f.write_str(prefix)?;
             frames.push(Frame::new(Items::Hash(hash.buffer.data.iter()), close));
-            Ok(None)
+            Ok(())
         }
-        _ => {
-            match mode {
-                Mode::Display => scalar(value, f)?,
-                Mode::Debug => write!(f, "Value({:?})", value.0)?,
-            }
-            Ok(None)
-        }
-    }
-}
-
-fn scalar(value: &Value, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    match &value.0 {
-        Kind::Host(method) => write!(f, "<builtin {}>", method.name()),
-        Kind::Regex(regex) => {
+        (kind, Mode::Debug) => write!(f, "Value({kind:?})"),
+        (Kind::Host(method), Mode::Display) => write!(f, "<builtin {}>", method.name()),
+        (Kind::Regex(regex), Mode::Display) => {
             let text = regex
                 .text(&mut crate::integer::unlimited_context())
                 .map_err(|_| fmt::Error)?;
@@ -156,53 +145,55 @@ fn scalar(value: &Value, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 std::str::from_utf8(text.as_bytes().unwrap_or_default()).map_err(|_| fmt::Error)?,
             )
         }
-        Kind::Shape(shape) => write!(
+        (Kind::Shape(shape), Mode::Display) => write!(
             f,
             "<Shape {}>",
             String::from_utf8_lossy(&shape.definition.text)
         ),
-        Kind::Nil => f.write_str("nil"),
-        Kind::Money(money) => write!(f, "{money}"),
-        Kind::Duration(seconds) => write!(f, "{seconds}s"),
-        Kind::Time(_) | Kind::Zoned(_) => {
+        (Kind::Nil, Mode::Display) => f.write_str("nil"),
+        (Kind::Money(money), Mode::Display) => write!(f, "{money}"),
+        (Kind::Duration(seconds), Mode::Display) => write!(f, "{seconds}s"),
+        (Kind::Time(_) | Kind::Zoned(_), Mode::Display) => {
             let mut ctx = crate::integer::unlimited_context();
             let text = crate::time::text(&mut ctx, value, None).map_err(|_| fmt::Error)?;
             f.write_str(
                 std::str::from_utf8(text.as_bytes().unwrap_or_default()).map_err(|_| fmt::Error)?,
             )
         }
-        Kind::Instance(instance) => {
+        (Kind::Instance(instance), Mode::Display) => {
             write!(f, "<{} instance>", instance.class().definition.name)
         }
-        Kind::Namespace(namespace) => write!(f, "<Class {}>", namespace.definition.name),
-        Kind::Function(function) => write!(
+        (Kind::Namespace(namespace), Mode::Display) => {
+            write!(f, "<Class {}>", namespace.definition.name)
+        }
+        (Kind::Function(function), Mode::Display) => write!(
             f,
             "<function {}>",
             function.code.program.functions[function.index].name
         ),
-        Kind::Builtin(builtin) => write!(f, "<builtin {}>", builtin.name()),
-        Kind::Offset(offset) => write!(f, "<builtin {}>", offset.name()),
-        Kind::Enum(e) => write!(f, "<Enum {}>", e.definition.name),
-        Kind::EnumMember(m) => write!(
+        (Kind::Builtin(builtin), Mode::Display) => write!(f, "<builtin {}>", builtin.name()),
+        (Kind::Offset(offset), Mode::Display) => write!(f, "<builtin {}>", offset.name()),
+        (Kind::Enum(e), Mode::Display) => write!(f, "<Enum {}>", e.definition.name),
+        (Kind::EnumMember(m), Mode::Display) => write!(
             f,
             "{}::{}",
             m.enumeration.definition.name,
             m.definition().name
         ),
-        Kind::Bool(b) => write!(f, "{b}"),
-        Kind::Int(n) => write!(f, "{n}"),
-        Kind::Big(_) => {
+        (Kind::Bool(b), Mode::Display) => write!(f, "{b}"),
+        (Kind::Int(n), Mode::Display) => write!(f, "{n}"),
+        (Kind::Big(_), Mode::Display) => {
             let mut ctx = crate::integer::unlimited_context();
             let text = crate::integer::format(&mut ctx, value, 10).map_err(|_| fmt::Error)?;
             f.write_str(std::str::from_utf8(&text.data).map_err(|_| fmt::Error)?)
         }
-        Kind::Float(n) => write!(f, "{n}"),
-        Kind::Range(r) => write!(f, "{r}"),
-        Kind::Bytes(h) | Kind::Symbol(h) => {
+        (Kind::Float(n), Mode::Display) => write!(f, "{n}"),
+        (Kind::Range(r), Mode::Display) => write!(f, "{r}"),
+        (Kind::Bytes(h) | Kind::Symbol(h), Mode::Display) => {
             write!(f, "{}", String::from_utf8_lossy(h.data()))
         }
-        Kind::Array(_) | Kind::Hash(_) => Err(fmt::Error),
-    }
+    }?;
+    Ok(None)
 }
 
 #[cfg(test)]
@@ -217,5 +208,31 @@ mod tests {
         let value = Value(Kind::Hash(Arc::new(hash)));
         assert_eq!(value.to_string(), "{}");
         assert_eq!(format!("{value:?}"), "Value(Hash(Error, {}))");
+    }
+
+    #[test]
+    fn leaves_render_in_both_modes_inside_containers() {
+        let value = Value::array(vec![
+            Value::nil(),
+            Value::boolean(true),
+            Value::int(-3),
+            Value::float(1.5),
+            Value::bytes("hi"),
+            Value::symbol("k"),
+            Value::range(Some(1), Some(4), true),
+            Value::hash(vec![(b"a".to_vec(), Value::array(Vec::new()))]),
+            Value::object(Vec::new()),
+        ]);
+        assert_eq!(
+            value.to_string(),
+            "[nil, true, -3, 1.5, hi, k, 1...4, {a: []}, <object>]"
+        );
+        assert_eq!(
+            format!("{value:?}"),
+            "Value(Array([Value(Nil), Value(Bool(true)), Value(Int(-3)), Value(Float(1.5)), \
+             Value(Bytes([104, 105])), Value(Symbol([107])), \
+             Value(Range(Range { start: Some(1), end: Some(4), exclusive: true, charge: None })), \
+             Value(Hash({Value(Bytes([97])): Value(Array([]))})), Value(Object({}))]))"
+        );
     }
 }
