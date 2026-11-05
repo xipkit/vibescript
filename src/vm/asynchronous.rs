@@ -38,19 +38,24 @@ use tokio::{runtime::Handle, sync::Semaphore};
 /// }));
 /// ```
 pub struct AsyncHostCall<'a> {
-    state: HostState<'a>,
+    backend: &'a mut dyn Backend,
 }
 
-enum HostState<'a> {
-    Worker(&'a mut Invocation<Worker>),
-    Inline(&'a mut Invocation<Inline>),
+trait Backend: Send {
+    fn context(&mut self) -> Result<&mut CallContext>;
+    fn block_given(&self) -> bool;
+    fn receiver(&mut self) -> Result<Option<Value>>;
+    fn set_receiver_field(&mut self, key: &[u8], value: &Value) -> Result<bool>;
+    fn start_block(&mut self, args: Vec<Value>) -> Result<CancellationToken>;
+    fn poll_block(&mut self, cx: &mut Context<'_>) -> Poll<Result<Value>>;
 }
 
-struct Invocation<L: Lane> {
-    execution: Option<Owned>,
-    control: Option<HostControl>,
+struct Invocation<'a, E: Holder, L: Lane<E>> {
+    retirement: RetireOnDrop,
+    execution: Option<E>,
+    control: &'a mut HostControl,
     driver: Driver<L>,
-    pending: Option<Driving<L>>,
+    pending: Option<Driving<'a, E, L>>,
     failure: Option<L::Lost>,
     cancellation: CancellationToken,
 }
@@ -62,18 +67,12 @@ impl AsyncHostCall<'_> {
     /// retiring worker. In that state access returns an error; no further script
     /// work can start. Previously latched quota errors keep their priority.
     pub fn context(&mut self) -> Result<&mut CallContext> {
-        match &mut self.state {
-            HostState::Worker(state) => state.context(),
-            HostState::Inline(state) => state.context(),
-        }
+        self.backend.context()
     }
 
     /// Reports whether the script attached a block to this method call.
     pub fn block_given(&self) -> bool {
-        match &self.state {
-            HostState::Worker(state) => state.block_given(),
-            HostState::Inline(state) => state.block_given(),
-        }
+        self.backend.block_given()
     }
 
     /// Returns an isolated, accounted snapshot of this call's member receiver.
@@ -84,10 +83,7 @@ impl AsyncHostCall<'_> {
     /// `None`. Reading follows the same retiring and latched-error rules as
     /// [`Self::context`]. See [`crate::HostCall::receiver`] for the value rules.
     pub fn receiver(&mut self) -> Result<Option<Value>> {
-        match &mut self.state {
-            HostState::Worker(state) => state.receiver(),
-            HostState::Inline(state) => state.receiver(),
-        }
+        self.backend.receiver()
     }
 
     /// Stores a field in this call's member receiver and publishes it to the script.
@@ -95,10 +91,7 @@ impl AsyncHostCall<'_> {
     /// Follows the same rules as [`crate::HostCall::set_receiver_field`], and
     /// the same retiring and latched-error rules as [`Self::context`].
     pub fn set_receiver_field(&mut self, key: &[u8], value: &Value) -> Result<bool> {
-        match &mut self.state {
-            HostState::Worker(state) => state.set_receiver_field(key, value),
-            HostState::Inline(state) => state.set_receiver_field(key, value),
-        }
+        self.backend.set_receiver_field(key, value)
     }
 
     /// Runs the attached block with owned arguments on the receiving runner.
@@ -109,116 +102,119 @@ impl AsyncHostCall<'_> {
     /// control-flow error. Cancellation, exhausted limits and internal errors
     /// cannot be swallowed.
     pub async fn call_block(&mut self, args: Vec<Value>) -> Result<Value> {
-        match &mut self.state {
-            HostState::Worker(state) => state.call_block(args).await,
-            HostState::Inline(state) => state.call_block(args).await,
-        }
+        let cancellation = self.backend.start_block(args)?;
+        let mut guard = RetireOnDrop(Some(cancellation));
+        let result = std::future::poll_fn(|cx| self.backend.poll_block(cx)).await;
+        guard.0 = None;
+        result
     }
 }
 
-impl<L: Lane> Invocation<L> {
+impl<'a, E: Holder + 'a, L: Lane<E>> Backend for Invocation<'a, E, L> {
     fn context(&mut self) -> Result<&mut CallContext> {
         if let Some(error) = &self.failure {
             return Err(L::error(error.clone()));
         }
         self.execution
             .as_mut()
-            .map(|execution| &mut execution.execution.context)
+            .map(|execution| &mut execution.owned().execution.context)
             .ok_or_else(retiring)
     }
 
     fn block_given(&self) -> bool {
-        self.control.as_ref().unwrap().block.is_some()
+        self.control.block.is_some()
     }
 
     fn receiver(&mut self) -> Result<Option<Value>> {
         if let Some(error) = &self.failure {
             return Err(L::error(error.clone()));
         }
-        let execution = self.execution.as_mut().ok_or_else(retiring)?;
-        let execution = &mut *execution.execution;
-        self.control.as_ref().unwrap().receiver(
-            &mut execution.context,
-            &execution.run.as_ref().unwrap().storage,
-        )
+        self.execution
+            .as_mut()
+            .ok_or_else(retiring)?
+            .owned()
+            .receiver(self.control)
     }
 
     fn set_receiver_field(&mut self, key: &[u8], value: &Value) -> Result<bool> {
         if let Some(error) = &self.failure {
             return Err(L::error(error.clone()));
         }
-        let execution = self.execution.as_mut().ok_or_else(retiring)?;
-        let execution = &mut *execution.execution;
-        self.control.as_mut().unwrap().set_receiver_field(
-            &mut execution.context,
-            &mut execution.run.as_mut().unwrap().storage,
-            key,
-            value,
-        )
+        self.execution
+            .as_mut()
+            .ok_or_else(retiring)?
+            .owned()
+            .set_receiver_field(self.control, key, value)
     }
 
-    async fn call_block(&mut self, args: Vec<Value>) -> Result<Value> {
+    fn start_block(&mut self, args: Vec<Value>) -> Result<CancellationToken> {
         if let Some(error) = &self.failure {
             return Err(L::error(error.clone()));
         }
         let execution = self.execution.as_mut().ok_or_else(retiring)?;
         let block = self
             .control
-            .as_ref()
-            .unwrap()
-            .block(&mut execution.execution.context)?;
-        let charge = execution.execution.context.reserve(size_of::<Work>())?;
-        let mut work = Some(Box::new(Work {
-            execution: self.execution.take().unwrap(),
+            .block(&mut execution.owned().execution.context)?;
+        let charge = execution
+            .owned()
+            .execution
+            .context
+            .reserve(size_of::<Work<E>>())?;
+        let mut execution = self.execution.take().ok_or_else(retiring)?;
+        execution.started();
+        let work = Box::new(Work {
+            execution,
             scope: Scope::PendingBlock,
             next: Next::StartBlock(block, args),
             charge,
-        }));
-        let future = match self.driver.clone().boxed(&mut work) {
-            Ok(future) => future,
-            Err(error) => {
-                self.execution = Some(work.unwrap().execution);
-                return Err(error);
+        });
+        match L::boxed(self.driver.clone(), work) {
+            Ok(future) => self.pending = Some(future),
+            Err((work, error)) => {
+                let Completed { execution, result } = work.complete(Err(error));
+                self.execution = Some(execution);
+                return self
+                    .control
+                    .completed(result)
+                    .map(|_| self.cancellation.clone());
             }
-        };
-        self.pending = Some(future);
-        let mut guard = RetireOnDrop(Some(self.cancellation.clone()));
-        let result = self.collect_block().await;
-        guard.0 = None;
-        result
+        }
+        Ok(self.cancellation.clone())
     }
 
-    async fn collect_block(&mut self) -> Result<Value> {
-        let result = self.pending.as_mut().unwrap().await;
+    fn poll_block(&mut self, cx: &mut Context<'_>) -> Poll<Result<Value>> {
+        let Some(pending) = &mut self.pending else {
+            let result = self.context().and_then(|context| {
+                context.latch_internal(Err(violation("block must have pending work").into()))
+            });
+            return Poll::Ready(result);
+        };
+        let Poll::Ready(result) = Pin::new(pending).poll(cx) else {
+            return Poll::Pending;
+        };
         self.pending = None;
-        match result {
+        Poll::Ready(match result {
             Ok(Completed { execution, result }) => {
                 self.execution = Some(execution);
-                self.control.as_mut().unwrap().completed(result)
+                self.control.completed(result)
             }
             Err(error) => {
                 self.cancellation.cancel();
                 self.failure = Some(error.clone());
                 Err(L::error(error))
             }
-        }
+        })
     }
+}
 
+impl<'a, E: Holder + 'a, L: Lane<E>> Invocation<'a, E, L> {
     async fn recover(&mut self) -> std::result::Result<(), L::Lost> {
         if self.pending.is_some() {
-            let _result = self.collect_block().await;
+            let _result = std::future::poll_fn(|cx| self.poll_block(cx)).await;
         }
         match &self.failure {
             Some(error) => Err(error.clone()),
             None => Ok(()),
-        }
-    }
-}
-
-impl<L: Lane> Drop for Invocation<L> {
-    fn drop(&mut self) {
-        if self.execution.is_some() || self.pending.is_some() {
-            self.cancellation.cancel();
         }
     }
 }
@@ -247,7 +243,12 @@ impl Owned {
     fn new(mut execution: Execution) -> Result<Self> {
         let charge = match execution.context.reserve(size_of::<Execution>()) {
             Ok(charge) => charge,
-            Err(error) => return Err(execution.finish(Err(error)).unwrap_err()),
+            Err(error) => {
+                execution.finish(Err(error))?;
+                return Err(Error::from(violation(
+                    "failed reservation must terminate execution",
+                )));
+            }
         };
         Ok(Self {
             execution: Box::new(execution),
@@ -255,6 +256,37 @@ impl Owned {
             #[cfg(test)]
             on_finish: None,
         })
+    }
+
+    fn receiver(&mut self, control: &HostControl) -> Result<Option<Value>> {
+        let execution = &mut *self.execution;
+        execution.context.checkpoint()?;
+        let result = (|| {
+            let run = execution
+                .run
+                .as_ref()
+                .ok_or(violation("execution must have a run"))?;
+            control.receiver(&mut execution.context, &run.storage)
+        })();
+        execution.context.latch_internal(result)
+    }
+
+    fn set_receiver_field(
+        &mut self,
+        control: &mut HostControl,
+        key: &[u8],
+        value: &Value,
+    ) -> Result<bool> {
+        let execution = &mut *self.execution;
+        execution.context.checkpoint()?;
+        let result = (|| {
+            let run = execution
+                .run
+                .as_mut()
+                .ok_or(violation("execution must have a run"))?;
+            control.set_receiver_field(&mut execution.context, &mut run.storage, key, value)
+        })();
+        execution.context.latch_internal(result)
     }
 
     fn finish(self, result: Result<Exit>) -> Result<Outcome> {
@@ -276,6 +308,61 @@ impl Owned {
     }
 }
 
+trait Holder: Send {
+    fn owned(&mut self) -> &mut Owned;
+    fn started(&mut self) {}
+    fn completed(&mut self) {}
+}
+
+impl Holder for Owned {
+    fn owned(&mut self) -> &mut Owned {
+        self
+    }
+}
+
+// A host may catch a nested panic. Keep the unfinished block terminal even
+// when its enclosing owner survives the unwind.
+struct Lent<'a> {
+    execution: &'a mut Owned,
+    active: bool,
+}
+
+impl<'a> Lent<'a> {
+    fn new(execution: &'a mut Owned) -> Self {
+        Self {
+            execution,
+            active: false,
+        }
+    }
+}
+
+impl Holder for Lent<'_> {
+    fn owned(&mut self) -> &mut Owned {
+        self.execution
+    }
+    fn started(&mut self) {
+        self.active = true;
+    }
+    fn completed(&mut self) {
+        self.active = false;
+    }
+}
+
+impl Drop for Lent<'_> {
+    fn drop(&mut self) {
+        if self.active {
+            let _result = self
+                .execution
+                .execution
+                .context
+                .latch_internal::<()>(Err(violation(
+                    "borrowed block work was abandoned before completion",
+                )
+                .into()));
+        }
+    }
+}
+
 enum Scope {
     Call,
     PendingBlock,
@@ -294,42 +381,46 @@ enum Next {
     Host(HostRequest, HostControl, Result<Value>),
 }
 
-struct Work {
-    execution: Owned,
+struct Work<E: Holder = Owned> {
+    execution: E,
     scope: Scope,
     next: Next,
     charge: Option<Charge>,
 }
 
-impl Work {
-    fn complete(self: Box<Self>, result: Result<Exit>) -> Completed {
+impl<E: Holder> Work<E> {
+    fn complete(self, result: Result<Exit>) -> Completed<E> {
         let Self {
             mut execution,
             scope,
             next,
             charge,
-        } = *self;
+        } = self;
         drop(next);
         drop(charge);
         let result = match scope {
             Scope::Call | Scope::PendingBlock => result,
             Scope::Block { boundary, args } => {
                 drop(args);
-                let invocation = &mut *execution.execution;
-                invocation.run.as_mut().unwrap().finish_block(
-                    &mut invocation.context,
-                    boundary,
-                    result,
-                )
+                let invocation = &mut *execution.owned().execution;
+                match invocation.run.as_mut() {
+                    Some(run) => run.finish_block(&mut invocation.context, boundary, result),
+                    None => invocation
+                        .context
+                        .checkpoint()
+                        .and(Err(violation("execution must have a run").into())),
+                }
             }
         };
-        let result = execution.execution.context.latch_internal(result);
+        let result = execution.owned().execution.context.latch_internal(result);
+        execution.completed();
         Completed { execution, result }
     }
 
-    fn interrupted(mut self: Box<Self>, error: Error) -> Completed {
+    fn interrupted(mut self, error: Error) -> Completed<E> {
         let error = self
             .execution
+            .owned()
             .execution
             .context
             .checkpoint()
@@ -339,16 +430,16 @@ impl Work {
     }
 }
 
-struct Completed {
-    execution: Owned,
+struct Completed<E: Holder = Owned> {
+    execution: E,
     result: Result<Exit>,
 }
 
 // A completion can be much smaller than a host request; keep the request inline
 // to avoid an extra allocation at every host boundary.
 #[allow(clippy::large_enum_variant)]
-enum Progress<C = Completed> {
-    Host(Box<Work>, HostRequest),
+enum Progress<C = Completed, E: Holder = Owned> {
+    Host(Box<Work<E>>, HostRequest),
     Complete(C),
 }
 
@@ -423,17 +514,13 @@ impl Completion for Result<Outcome> {
     }
 }
 
-// Only worker submission can lose an execution. Inline calls keep ownership
-// through host waits, cancellation and abandoned nested-block futures.
-trait Lane: Clone + Send + Sync + 'static {
+// Worker submission owns its execution. Inline work can borrow one, but cannot lose it.
+trait Lane<E: Holder>: Clone + Send + Sync + 'static {
     type Lost: Clone + Send;
-
     fn error(lost: Self::Lost) -> Error;
-    fn handle(state: &mut Invocation<Self>) -> AsyncHostCall<'_>;
-    fn submit<C: Completion>(
-        driver: &Driver<Self>,
-        work: Box<Work>,
-    ) -> impl Future<Output = std::result::Result<Progress<C>, Self::Lost>> + Send;
+    fn boxed<'a>(driver: Driver<Self>, work: Box<Work<E>>) -> Prepared<Driving<'a, E, Self>, E>
+    where
+        E: 'a;
 }
 
 #[derive(Clone)]
@@ -441,42 +528,26 @@ struct Worker;
 #[derive(Clone)]
 struct Inline;
 
-impl Lane for Worker {
+impl Lane<Owned> for Worker {
     type Lost = Error;
-
     fn error(lost: Error) -> Error {
         lost
     }
-
-    fn handle(state: &mut Invocation<Self>) -> AsyncHostCall<'_> {
-        AsyncHostCall {
-            state: HostState::Worker(state),
-        }
-    }
-
-    async fn submit<C: Completion>(driver: &Driver<Self>, work: Box<Work>) -> Result<Progress<C>> {
-        driver.submit(work).await
+    fn boxed<'a>(driver: Driver<Self>, work: Box<Work>) -> Prepared<Driving<'a, Owned, Self>> {
+        boxed_work(work, move |work| driver.drive::<Completed>(work))
     }
 }
 
-impl Lane for Inline {
+impl<E: Holder> Lane<E> for Inline {
     type Lost = std::convert::Infallible;
-
     fn error(lost: Self::Lost) -> Error {
         match lost {}
     }
-
-    fn handle(state: &mut Invocation<Self>) -> AsyncHostCall<'_> {
-        AsyncHostCall {
-            state: HostState::Inline(state),
-        }
-    }
-
-    async fn submit<C: Completion>(
-        driver: &Driver<Self>,
-        work: Box<Work>,
-    ) -> std::result::Result<Progress<C>, Self::Lost> {
-        Ok(worker(work, driver.clone()).complete())
+    fn boxed<'a>(driver: Driver<Self>, work: Box<Work<E>>) -> Prepared<Driving<'a, E, Self>, E>
+    where
+        E: 'a,
+    {
+        boxed_work(work, move |work| driver.drive(work))
     }
 }
 
@@ -487,112 +558,127 @@ struct Driver<L> {
     _lane: L,
 }
 
-type Driving<L> = ScopedFuture<Completed, <L as Lane>::Lost>;
+type Prepared<T, E = Owned> = std::result::Result<T, (Box<Work<E>>, Error)>;
 
-struct ScopedFuture<T, E> {
-    future: Pin<Box<dyn Future<Output = std::result::Result<T, E>> + Send>>,
+type Driving<'a, E, L> = ScopedFuture<'a, Completed<E>, <L as Lane<E>>::Lost>;
+
+struct ScopedFuture<'a, T, E> {
+    future: Pin<Box<dyn Future<Output = std::result::Result<T, E>> + Send + 'a>>,
     _charge: Option<Charge>,
 }
 
-impl<T, E> Future for ScopedFuture<T, E> {
+impl<T, E> Future for ScopedFuture<'_, T, E> {
     type Output = std::result::Result<T, E>;
-
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.future.as_mut().poll(cx)
     }
 }
 
-fn boxed_work<F, T, E>(
-    work: &mut Option<Box<Work>>,
-    create: impl FnOnce(Box<Work>) -> F,
-) -> Result<ScopedFuture<T, E>>
+fn boxed_work<'a, F, T, X, E: Holder>(
+    mut work: Box<Work<E>>,
+    create: impl FnOnce(Box<Work<E>>) -> F,
+) -> Prepared<ScopedFuture<'a, T, X>, E>
 where
-    F: Future<Output = std::result::Result<T, E>> + Send + 'static,
+    F: Future<Output = std::result::Result<T, X>> + Send + 'a,
 {
-    let charge = work
-        .as_mut()
-        .unwrap()
+    let charge = match work
         .execution
+        .owned()
         .execution
         .context
-        .reserve(size_of::<F>())?;
+        .reserve(size_of::<F>())
+    {
+        Ok(charge) => charge,
+        Err(error) => return Err((work, error)),
+    };
     Ok(ScopedFuture {
-        future: Box::pin(create(work.take().unwrap())),
+        future: Box::pin(create(work)),
         _charge: charge,
     })
 }
 
-impl<L: Lane> Driver<L> {
-    fn boxed(self, work: &mut Option<Box<Work>>) -> Result<Driving<L>> {
-        boxed_work(work, move |work| self.drive(work))
-    }
+async fn invoke<'a, E: Holder + 'a, L: Lane<E>>(
+    call: &mut Invocation<'a, E, L>,
+    request: &HostRequest,
+) -> std::result::Result<Result<Value>, L::Lost> {
+    let watch = match call.context() {
+        Ok(context) => {
+            if let Err(error) = context.checkpoint() {
+                return Ok(Err(error));
+            }
+            Watch::new(context)
+        }
+        Err(error) => return Ok(Err(error)),
+    };
+    let result = {
+        let mut handle = AsyncHostCall { backend: call };
+        let future = request.method.invoke_async(
+            &mut handle,
+            &request.args.positional.data,
+            &request.args.keywords.buffer.data,
+        );
+        tokio::pin!(future);
+        tokio::select! {
+            biased;
+            _ = watch.wait() => Err(retiring()),
+            result = &mut future => result,
+        }
+    };
+    call.recover().await?;
+    Ok(result)
+}
 
-    async fn drive<C: Completion>(self, mut work: Box<Work>) -> std::result::Result<C, L::Lost> {
+impl Driver<Inline> {
+    async fn drive<E: Holder>(
+        self,
+        mut work: Box<Work<E>>,
+    ) -> std::result::Result<Completed<E>, std::convert::Infallible> {
         loop {
-            let progress = L::submit(&self, work).await?;
-            match progress {
+            match worker(work, self.clone()) {
                 Progress::Complete(result) => return Ok(result),
-                Progress::Host(next, request) => {
-                    work = self.clone().host(next, request).await?;
-                }
+                Progress::Host(next, request) => work = self.clone().host(next, request).await?,
             }
         }
     }
 
-    async fn host(
+    async fn host<E: Holder>(
         self,
-        mut next: Box<Work>,
+        mut next: Box<Work<E>>,
         request: HostRequest,
-    ) -> std::result::Result<Box<Work>, L::Lost> {
-        let watch = Watch::new(&next.execution.execution.context);
-        let checkpoint = next.execution.execution.context.checkpoint();
+    ) -> std::result::Result<Box<Work<E>>, std::convert::Infallible> {
+        let execution = next.execution.owned();
+        let cancellation = execution.execution.context.cancellation().clone();
+        let mut control = HostControl::new(&request);
         let mut call = Invocation {
-            cancellation: watch.cancellation.clone(),
-            execution: Some(next.execution),
-            control: Some(HostControl::new(&request)),
+            retirement: RetireOnDrop(Some(cancellation.clone())),
+            cancellation,
+            execution: Some(Lent::new(execution)),
+            control: &mut control,
             driver: self,
             pending: None,
             failure: None,
         };
-        let result = if let Err(error) = checkpoint {
-            Err(error)
-        } else {
-            let mut handle = L::handle(&mut call);
-            let future = request.method.invoke_async(
-                &mut handle,
-                &request.args.positional.data,
-                &request.args.keywords.buffer.data,
-            );
-            tokio::pin!(future);
-            tokio::select! {
-                biased;
-                _ = watch.wait() => Err(retiring()),
-                result = &mut future => result,
-            }
-        };
-        call.recover().await?;
-        next.execution = call.execution.take().unwrap();
-        next.next = Next::Host(request, call.control.take().unwrap(), result);
+        let result = invoke(&mut call, &request).await?;
+        call.retirement.0 = None;
+        drop(call);
+        next.next = Next::Host(request, control, result);
         Ok(next)
     }
-}
 
-impl Driver<Inline> {
-    fn inline(&self, mut work: Box<Work>, parker: Arc<Parker>) -> Completed {
+    fn inline<E: Holder>(&self, mut work: Box<Work<E>>, parker: Arc<Parker>) -> Completed<E> {
         loop {
             match worker(work, self.clone()) {
                 Progress::Complete(result) => return result,
                 Progress::Host(next, request) => {
-                    let mut next = Some(next);
                     let driver = self.clone();
-                    match boxed_work(&mut next, move |next| driver.host(next, request)) {
+                    match boxed_work(next, move |next| driver.host(next, request)) {
                         Ok(future) => {
                             work = match wait_on_worker(&self.handle, future, parker.clone()) {
                                 Ok(work) => work,
                                 Err(impossible) => match impossible {},
                             }
                         }
-                        Err(error) => return next.unwrap().complete(Err(error)),
+                        Err((next, error)) => return next.complete(Err(error)),
                     }
                 }
             }
@@ -601,6 +687,38 @@ impl Driver<Inline> {
 }
 
 impl Driver<Worker> {
+    async fn drive<C: Completion>(self, mut work: Box<Work>) -> Result<C> {
+        loop {
+            match self.submit(work).await? {
+                Progress::Complete(result) => return Ok(result),
+                Progress::Host(next, request) => work = self.clone().host(next, request).await?,
+            }
+        }
+    }
+
+    async fn host(self, mut next: Box<Work>, request: HostRequest) -> Result<Box<Work>> {
+        let cancellation = next.execution.execution.context.cancellation().clone();
+        let mut control = HostControl::new(&request);
+        let mut call = Invocation {
+            retirement: RetireOnDrop(Some(cancellation.clone())),
+            cancellation,
+            execution: Some(next.execution),
+            control: &mut control,
+            driver: self,
+            pending: None,
+            failure: None,
+        };
+        let result = invoke(&mut call, &request).await?;
+        next.execution = call
+            .execution
+            .take()
+            .ok_or(violation("recovered worker must have an execution"))?;
+        call.retirement.0 = None;
+        drop(call);
+        next.next = Next::Host(request, control, result);
+        Ok(next)
+    }
+
     async fn submit<C: Completion>(&self, mut work: Box<Work>) -> Result<Progress<C>> {
         let context = &mut work.execution.execution.context;
         if let Err(error) = context.checkpoint() {
@@ -665,8 +783,8 @@ impl Watch {
     }
 }
 
-struct Synchronous {
-    execution: Option<Owned>,
+struct Synchronous<'a> {
+    execution: &'a mut Owned,
     control: HostControl,
     driver: Driver<Inline>,
 }
@@ -696,7 +814,7 @@ impl Wake for Parker {
 
 fn wait_on_worker<T, E>(
     handle: &Handle,
-    mut future: ScopedFuture<T, E>,
+    mut future: ScopedFuture<'_, T, E>,
     parker: Arc<Parker>,
 ) -> std::result::Result<T, E> {
     // Enter the runtime for timers and spawned host tasks without nesting its
@@ -717,9 +835,9 @@ fn wait_on_worker<T, E>(
     }
 }
 
-impl crate::host_call::Backend for Synchronous {
+impl crate::host_call::Backend for Synchronous<'_> {
     fn context(&mut self) -> &mut CallContext {
-        &mut self.execution.as_mut().unwrap().execution.context
+        &mut self.execution.execution.context
     }
 
     fn block_given(&self) -> bool {
@@ -727,27 +845,28 @@ impl crate::host_call::Backend for Synchronous {
     }
 
     fn receiver(&mut self) -> Result<Option<Value>> {
-        let execution = &mut *self.execution.as_mut().unwrap().execution;
-        self.control.receiver(
-            &mut execution.context,
-            &execution.run.as_ref().unwrap().storage,
-        )
+        self.execution.receiver(&self.control)
     }
 
     fn set_receiver_field(&mut self, key: &[u8], value: &Value) -> Result<bool> {
-        let execution = &mut *self.execution.as_mut().unwrap().execution;
-        self.control.set_receiver_field(
-            &mut execution.context,
-            &mut execution.run.as_mut().unwrap().storage,
-            key,
-            value,
-        )
+        self.execution
+            .set_receiver_field(&mut self.control, key, value)
     }
 
     fn call_block(&mut self, args: &[Value]) -> Result<Value> {
-        let execution = &mut *self.execution.as_mut().unwrap().execution;
+        let result = self.block(args);
+        self.execution.execution.context.latch_internal(result)
+    }
+}
+
+impl Synchronous<'_> {
+    fn block(&mut self, args: &[Value]) -> Result<Value> {
+        let execution = &mut *self.execution.execution;
         let block = self.control.block(&mut execution.context)?;
-        let run = execution.run.as_mut().unwrap();
+        let run = execution
+            .run
+            .as_mut()
+            .ok_or(violation("execution must have a run"))?;
         let boundary = run.block_boundary();
         let arguments = match run.start_block(&mut execution.context, block, args) {
             Ok(arguments) => arguments,
@@ -772,7 +891,7 @@ impl crate::host_call::Backend for Synchronous {
             ready: AtomicBool::new(false),
             _charge: charge,
         });
-        let charge = match execution.context.reserve(size_of::<Work>()) {
+        let charge = match execution.context.reserve(size_of::<Work<Lent<'_>>>()) {
             Ok(charge) => charge,
             Err(error) => {
                 drop(arguments);
@@ -780,8 +899,10 @@ impl crate::host_call::Backend for Synchronous {
                 return self.control.completed(result);
             }
         };
+        let mut lent = Lent::new(self.execution);
+        lent.started();
         let work = Box::new(Work {
-            execution: self.execution.take().unwrap(),
+            execution: lent,
             scope: Scope::Block {
                 boundary,
                 args: arguments,
@@ -790,20 +911,26 @@ impl crate::host_call::Backend for Synchronous {
             charge,
         });
         // Inline bridges retain ownership, including on cancellation and quota failure.
-        let Completed { execution, result } = self.driver.inline(work, parker);
-        self.execution = Some(execution);
+        let Completed {
+            execution: _,
+            result,
+        } = self.driver.inline(work, parker);
         self.control.completed(result)
     }
 }
 
 #[inline(never)]
-fn segment(mut work: Box<Work>) -> Progress {
+fn segment<E: Holder>(mut work: Box<Work<E>>) -> Progress<Completed<E>, E> {
     let mut pending = None;
     match std::mem::replace(&mut work.next, Next::Resume) {
         Next::Resume => (),
         Next::StartBlock(block, args) => {
-            let execution = &mut *work.execution.execution;
-            let run = execution.run.as_mut().unwrap();
+            let execution = &mut *work.execution.owned().execution;
+            let Some(run) = execution.run.as_mut() else {
+                return Progress::Complete(
+                    work.interrupted(violation("execution must have a run").into()),
+                );
+            };
             let boundary = run.block_boundary();
             work.scope = Scope::Block {
                 boundary,
@@ -815,13 +942,13 @@ fn segment(mut work: Box<Work>) -> Progress {
             }
         }
         Next::Host(request, control, result) => {
-            let execution = &mut *work.execution.execution;
-            pending = Some(execution.run.as_mut().unwrap().finish_host(
-                &mut execution.context,
-                request,
-                control,
-                result,
-            ));
+            let execution = &mut *work.execution.owned().execution;
+            let Some(run) = execution.run.as_mut() else {
+                return Progress::Complete(
+                    work.interrupted(violation("execution must have a run").into()),
+                );
+            };
+            pending = Some(run.finish_host(&mut execution.context, request, control, result));
         }
     }
     loop {
@@ -834,22 +961,18 @@ fn segment(mut work: Box<Work>) -> Progress {
             }
             Scope::Block { boundary, .. } => Some(boundary.floor),
         };
-        let execution = &mut *work.execution.execution;
-        match execution.run.as_mut().unwrap().resume(
-            &mut execution.context,
-            boundary,
-            pending.take(),
-        ) {
+        let execution = &mut *work.execution.owned().execution;
+        let Some(run) = execution.run.as_mut() else {
+            return Progress::Complete(
+                work.interrupted(violation("execution must have a run").into()),
+            );
+        };
+        match run.resume(&mut execution.context, boundary, pending.take()) {
             Ok(Step::Complete(exit)) => return Progress::Complete(work.complete(Ok(exit))),
             Err(error) => return Progress::Complete(work.complete(Err(error))),
             Ok(Step::Host) => (),
         }
-        let request = match execution
-            .run
-            .as_mut()
-            .unwrap()
-            .prepare_host(&mut execution.context)
-        {
+        let request = match run.prepare_host(&mut execution.context) {
             Ok(request) => request,
             Err(error) => {
                 pending = Some(Err(error));
@@ -861,7 +984,7 @@ fn segment(mut work: Box<Work>) -> Progress {
 }
 
 #[inline(never)]
-fn worker(mut work: Box<Work>, driver: Driver<Inline>) -> Progress {
+fn worker<E: Holder>(mut work: Box<Work<E>>, driver: Driver<Inline>) -> Progress<Completed<E>, E> {
     loop {
         match segment(work) {
             Progress::Host(next, request) if !request.method.is_async() => {
@@ -873,9 +996,13 @@ fn worker(mut work: Box<Work>, driver: Driver<Inline>) -> Progress {
 }
 
 #[inline(never)]
-fn synchronous(mut work: Box<Work>, request: HostRequest, driver: Driver<Inline>) -> Box<Work> {
+fn synchronous<E: Holder>(
+    mut work: Box<Work<E>>,
+    request: HostRequest,
+    driver: Driver<Inline>,
+) -> Box<Work<E>> {
     let mut backend = Synchronous {
-        execution: Some(work.execution),
+        execution: work.execution.owned(),
         control: HostControl::new(&request),
         driver,
     };
@@ -884,7 +1011,6 @@ fn synchronous(mut work: Box<Work>, request: HostRequest, driver: Driver<Inline>
         &request.args.positional.data,
         &request.args.keywords.buffer.data,
     );
-    work.execution = backend.execution.take().unwrap();
     work.next = Next::Host(request, backend.control, result);
     work
 }
@@ -905,7 +1031,12 @@ pub(crate) async fn call(
         let mut execution = Owned::new(Execution::new(&script, &name, &args, &keywords, options)?)?;
         let charge = match execution.execution.context.reserve(size_of::<Work>()) {
             Ok(charge) => charge,
-            Err(error) => return Err(execution.finish(Err(error)).unwrap_err()),
+            Err(error) => {
+                execution.finish(Err(error))?;
+                return Err(Error::from(violation(
+                    "failed reservation must terminate execution",
+                )));
+            }
         };
         Ok(Box::new(Work {
             execution,
@@ -1074,5 +1205,261 @@ mod tests {
             assert_eq!(slots.available_permits(), 1);
         });
         runtime.shutdown_timeout(Duration::from_secs(1));
+    }
+    #[tokio::test]
+    async fn borrowed_nested_work_keeps_context_and_finalizes_once() {
+        use std::{future::poll_fn, sync::atomic::AtomicUsize};
+        for mode in ["success", "abandon", "panic", "quota_panic"] {
+            let finished = Arc::new(AtomicUsize::new(0));
+            let inspected = Arc::new(AtomicBool::new(false));
+            let handlers = Arc::new(AtomicUsize::new(0));
+            let mut engine = crate::Engine::new();
+            let observed = inspected.clone();
+            engine.register_method(
+                "inspect",
+                crate::HostMethod::new_with_block("inspect", move |call, _, _| {
+                    let before = std::ptr::from_mut(call.context()).addr();
+                    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        call.call_block(&[])
+                    }));
+                    assert_eq!(std::ptr::from_mut(call.context()).addr(), before);
+                    match mode {
+                        "success" => {
+                            assert_eq!(result.unwrap()?.as_int(), Some(7));
+                            call.context().checkpoint()?;
+                        }
+                        "abandon" => {
+                            assert_eq!(result.unwrap().unwrap_err().kind, ErrorKind::Cancelled);
+                            assert_eq!(
+                                call.context().checkpoint().unwrap_err().kind,
+                                ErrorKind::Cancelled
+                            );
+                        }
+                        _ => {
+                            assert!(result.is_err(), "the host must observe the nested panic");
+                            let expected = if mode == "quota_panic" {
+                                ErrorKind::Memory
+                            } else {
+                                ErrorKind::Internal
+                            };
+                            assert_eq!(call.context().checkpoint().unwrap_err().kind, expected);
+                            assert_eq!(call.call_block(&[]).unwrap_err().kind, expected);
+                        }
+                    }
+                    observed.store(true, Ordering::SeqCst);
+                    Ok(Value::int(999))
+                }),
+            );
+            engine.register_method(
+                "nested",
+                crate::HostMethod::new_async("nested", move |call, _, _| {
+                    Box::pin(async move {
+                        let before = std::ptr::from_mut(call.context()?).addr();
+                        if mode == "abandon" {
+                            {
+                                let future = call.call_block(vec![]);
+                                tokio::pin!(future);
+                                poll_fn(|cx| {
+                                    assert!(future.as_mut().poll(cx).is_pending());
+                                    Poll::Ready(())
+                                })
+                                .await;
+                            }
+                            assert_eq!(call.context().err().unwrap().kind, ErrorKind::Cancelled);
+                            assert_eq!(
+                                call.call_block(vec![]).await.unwrap_err().kind,
+                                ErrorKind::Cancelled
+                            );
+                            Ok(Value::int(999))
+                        } else {
+                            let result = call.call_block(vec![]).await;
+                            assert_eq!(std::ptr::from_mut(call.context()?).addr(), before);
+                            result
+                        }
+                    })
+                }),
+            );
+            engine.register_method(
+                "leaf",
+                crate::HostMethod::new_async("leaf", move |call, _, _| {
+                    Box::pin(async move {
+                        match mode {
+                            "panic" => panic!("nested host panic"),
+                            "quota_panic" => {
+                                let _ignored = call.context()?.bytes(&vec![0; 65_536]);
+                                panic!("nested host panic after quota");
+                            }
+                            "abandon" => std::future::pending::<()>().await,
+                            _ => tokio::task::yield_now().await,
+                        }
+                        Ok(Value::int(7))
+                    })
+                }),
+            );
+            let marked = handlers.clone();
+            engine.register("mark", move |_, _| {
+                marked.fetch_add(1, Ordering::SeqCst);
+                Ok(Value::nil())
+            });
+            let script = engine.compile("def run -> any; begin; inspect { nested { leaf() } }; rescue; mark(); ensure; mark(); end; end").unwrap();
+            let done = finished.clone();
+            let work = work(
+                &script,
+                Arc::new(move || {
+                    done.fetch_add(1, Ordering::SeqCst);
+                }),
+            );
+            // Set after construction so initialization is identical in every mode.
+            let mut work = work;
+            work.execution.execution.context.options.limits.memory_bytes = Some(32_768);
+            let slots = Arc::new(Semaphore::new(1));
+            let driver = Driver {
+                slots: slots.clone(),
+                handle: Handle::current(),
+                _lane: Worker,
+            };
+            let result = tokio::time::timeout(
+                Duration::from_secs(3),
+                driver.drive::<Result<Outcome>>(work),
+            )
+            .await
+            .unwrap()
+            .unwrap();
+            match mode {
+                "success" => {
+                    let result = result.unwrap();
+                    assert_eq!(result.value.as_int(), Some(999));
+                    assert_eq!(result.stats.retained_memory_bytes, 0);
+                    assert_eq!(handlers.load(Ordering::SeqCst), 1);
+                }
+                _ => {
+                    let expected = match mode {
+                        "abandon" => ErrorKind::Cancelled,
+                        "quota_panic" => ErrorKind::Memory,
+                        _ => ErrorKind::Internal,
+                    };
+                    assert_eq!(result.unwrap_err().kind, expected, "{mode}");
+                    assert_eq!(handlers.load(Ordering::SeqCst), 0, "{mode}");
+                }
+            }
+            assert!(inspected.load(Ordering::SeqCst), "{mode}");
+            assert_eq!(finished.load(Ordering::SeqCst), 1, "{mode}");
+            assert_eq!(slots.available_permits(), 1, "{mode}");
+        }
+    }
+
+    #[tokio::test]
+    async fn missing_run_at_host_access_is_latched_before_the_host_can_ignore_it() {
+        for prior in [false, true] {
+            for lane in ["sync", "worker", "inline"] {
+                for access in ["receiver", "set_receiver_field", "block"] {
+                    let mut engine = crate::Engine::new();
+                    engine.register_method(
+                        "visit",
+                        crate::HostMethod::new_with_block("visit", |_, _, _| Ok(Value::nil())),
+                    );
+                    let script = engine.compile("def run -> any; visit { 7 }; end").unwrap();
+                    let Progress::Host(mut work, request) = segment(work(&script, Arc::new(|| {})))
+                    else {
+                        panic!("expected host request")
+                    };
+                    let run = work.execution.execution.run.take();
+                    if prior {
+                        work.execution.execution.context.options.limits.memory_bytes = Some(0);
+                        assert_eq!(
+                            work.execution
+                                .execution
+                                .context
+                                .reserve(1)
+                                .unwrap_err()
+                                .kind,
+                            ErrorKind::Memory
+                        );
+                    }
+                    let expected = if prior {
+                        ErrorKind::Memory
+                    } else {
+                        ErrorKind::Internal
+                    };
+                    let mut control = HostControl::new(&request);
+                    let driver = Driver {
+                        slots: Arc::new(Semaphore::new(1)),
+                        handle: Handle::current(),
+                        _lane: Inline,
+                    };
+                    let result = if lane == "sync" {
+                        use crate::host_call::Backend as _;
+                        let mut call = Synchronous {
+                            execution: &mut work.execution,
+                            control,
+                            driver,
+                        };
+                        match access {
+                            "receiver" => call.receiver().map(|_| ()),
+                            "set_receiver_field" => {
+                                call.set_receiver_field(b"x", &Value::int(1)).map(|_| ())
+                            }
+                            _ => call.call_block(&[]).map(|_| ()),
+                        }
+                    } else if lane == "inline" {
+                        let cancellation = work.execution.execution.context.cancellation().clone();
+                        let mut invocation = Invocation {
+                            retirement: RetireOnDrop(None),
+                            execution: Some(Lent::new(&mut work.execution)),
+                            control: &mut control,
+                            driver,
+                            pending: None,
+                            failure: None,
+                            cancellation,
+                        };
+                        let mut call = AsyncHostCall {
+                            backend: &mut invocation,
+                        };
+                        match access {
+                            "receiver" => call.receiver().map(|_| ()),
+                            "set_receiver_field" => {
+                                call.set_receiver_field(b"x", &Value::int(1)).map(|_| ())
+                            }
+                            _ => call.call_block(vec![]).await.map(|_| ()),
+                        }
+                    } else {
+                        let cancellation = work.execution.execution.context.cancellation().clone();
+                        let mut invocation = Invocation {
+                            retirement: RetireOnDrop(None),
+                            execution: Some(work.execution),
+                            control: &mut control,
+                            driver: Driver {
+                                slots: driver.slots,
+                                handle: driver.handle,
+                                _lane: Worker,
+                            },
+                            pending: None,
+                            failure: None,
+                            cancellation,
+                        };
+                        let mut call = AsyncHostCall {
+                            backend: &mut invocation,
+                        };
+                        let result = match access {
+                            "receiver" => call.receiver().map(|_| ()),
+                            "set_receiver_field" => {
+                                call.set_receiver_field(b"x", &Value::int(1)).map(|_| ())
+                            }
+                            _ => call.call_block(vec![]).await.map(|_| ()),
+                        };
+                        work.execution = invocation.execution.take().unwrap();
+                        result
+                    };
+                    let error = result.unwrap_err();
+                    assert_eq!(error.kind, expected, "{lane}/{access}/{prior}");
+                    // Repair the injected state, then emulate a host ignoring the error.
+                    work.execution.execution.run = run;
+                    let later = work.execution.execution.context.checkpoint().unwrap_err();
+                    assert_eq!(later.message, error.message, "{lane}/{access}");
+                    let outcome = work.execution.finish(Ok(Exit::Value(Value::int(999))));
+                    assert_eq!(outcome.unwrap_err().kind, expected, "{lane}/{access}");
+                }
+            }
+        }
     }
 }
