@@ -1,11 +1,11 @@
 use super::traversal::{Entries, Frame, Stack};
+use crate::checked::violation;
 use crate::{
     CallContext, ErrorKind, Result, Value,
     budget::{Buffer, MAX_VALUE_DEPTH},
     bytes, ops,
     value::{Bytes, Kind},
 };
-use std::fmt::Write;
 
 struct Output {
     bytes: Option<Buffer<u8>>,
@@ -78,7 +78,9 @@ pub(crate) fn measure_runes(ctx: &mut CallContext, value: &Value) -> Result<usiz
         runes: Some(0),
     };
     visit(ctx, value, &mut output)?;
-    Ok(output.runes.unwrap())
+    Ok(output
+        .runes
+        .ok_or(violation("rune measurement must track runes"))?)
 }
 
 pub(crate) fn prefix(ctx: &mut CallContext, value: &Value, limit: usize) -> Result<Value> {
@@ -92,7 +94,12 @@ pub(crate) fn prefix(ctx: &mut CallContext, value: &Value, limit: usize) -> Resu
         runes: None,
     };
     visit(ctx, value, &mut output)?;
-    Value::from_bytes(ctx, output.bytes.unwrap())
+    Value::from_bytes(
+        ctx,
+        output
+            .bytes
+            .ok_or(violation("text rendering must produce bytes"))?,
+    )
 }
 
 pub(crate) fn render(ctx: &mut CallContext, value: &Value, limit: usize) -> Result<Value> {
@@ -116,7 +123,12 @@ pub(crate) fn render(ctx: &mut CallContext, value: &Value, limit: usize) -> Resu
     output.bytes = Some(Buffer::with_capacity(ctx, length)?);
     output.length = 0;
     visit(ctx, value, &mut output)?;
-    Value::from_bytes(ctx, output.bytes.unwrap())
+    Value::from_bytes(
+        ctx,
+        output
+            .bytes
+            .ok_or(violation("text rendering must produce bytes"))?,
+    )
 }
 
 pub(crate) fn output(
@@ -140,7 +152,9 @@ pub(crate) fn output(
     )?);
     output.length = 0;
     visit(ctx, value, &mut output)?;
-    let mut bytes = output.bytes.unwrap();
+    let mut bytes = output
+        .bytes
+        .ok_or(violation("text rendering must produce bytes"))?;
     if newline {
         bytes.push(ctx, b'\n')?;
     }
@@ -174,7 +188,9 @@ fn walk(ctx: &mut CallContext, value: &Value, output: &mut Output, limit: usize)
                     stack.push(ctx, Frame::new(Entries::Array(&array.buffer.data), ()))?;
                 }
                 Kind::Hash(hash) if hash.tag.protected() => {
-                    let index = hash.find(ctx, b"to_s")?.unwrap();
+                    let index = hash
+                        .find(ctx, b"to_s")?
+                        .ok_or(violation("protected hash must contain to_s"))?;
                     output.append(ctx, hash.buffer.data[index].1.require_bytes()?)?;
                 }
                 Kind::Hash(hash) if hash.object => output.append(ctx, b"<object>")?,
@@ -240,11 +256,11 @@ fn leaf(ctx: &mut CallContext, value: &Value, output: &mut Output) -> Result<()>
         Kind::EnumMember(member) => {
             output.append(ctx, member.enumeration.definition.name.as_bytes())?;
             output.append(ctx, b"::")?;
-            output.append(ctx, member.definition().name.as_bytes())
+            output.append(ctx, member.definition()?.name.as_bytes())
         }
         Kind::Range(range) => {
-            write!(scalar, "{range}").unwrap();
-            output.append(ctx, scalar.bytes())
+            scalar.format(format_args!("{range}"))?;
+            output.append(ctx, scalar.bytes()?)
         }
         _ => {
             if !output.prefix && matches!(value.0, Kind::Big(_)) {

@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK},
@@ -201,7 +202,10 @@ fn sample<T>(items: &[T], count: usize) -> (&[T], &[T]) {
     if items.len() <= 2 * count {
         (items, &[])
     } else {
-        (&items[..count], &items[items.len() - count..])
+        (
+            items.split_at(count).0,
+            items.split_at(items.len() - count).1,
+        )
     }
 }
 
@@ -263,11 +267,12 @@ impl Index {
     }
 
     /// Records the key at `position` in a slot returned by [`Self::entry`].
-    pub fn fill(&mut self, slot: usize, hash: u64, position: usize) {
-        debug_assert_eq!(self.slots.data[slot].1, VACANT);
+    pub fn fill(&mut self, slot: usize, hash: u64, position: usize) -> crate::checked::Access<()> {
+        debug_assert_eq!(self.slots.at(slot)?.1, VACANT);
         // `reserve` bounds the number of entries, and so positions, below u32::MAX.
-        self.slots.data[slot] = (hash as u32, position as u32);
+        *self.slots.at_mut(slot)? = (hash as u32, position as u32);
         self.len += 1;
+        Ok(())
     }
 
     fn probe(
@@ -282,12 +287,12 @@ impl Index {
         let mut slot = hash as usize & mask;
         loop {
             ctx.charge(1)?;
-            let (stored, position) = self.slots.data[slot];
+            let (stored, position) = *self.slots.at(slot)?;
             if position == VACANT {
                 return Ok(Entry::Vacant(slot));
             }
             let position = position as usize;
-            if stored == hash && same_key(ctx, &members[position], value)? {
+            if stored == hash && same_key(ctx, members.at(position)?, value)? {
                 return Ok(Entry::Found(position));
             }
             slot = (slot + 1) & mask;
@@ -324,12 +329,12 @@ impl Index {
                 let mut slot = hash as usize & mask;
                 loop {
                     ctx.charge(1)?;
-                    if slots.data[slot].1 == VACANT {
+                    if slots.at(slot)?.1 == VACANT {
                         break;
                     }
                     slot = (slot + 1) & mask;
                 }
-                slots.data[slot] = (hash, position);
+                *slots.at_mut(slot)? = (hash, position);
             }
         }
         self.slots = slots;
@@ -349,7 +354,7 @@ fn append_unique(
         let hash = key_hash(ctx, value)?;
         if let Entry::Vacant(slot) = index.entry(ctx, &output.data, value, hash)? {
             output.push(ctx, value.clone())?;
-            index.fill(slot, hash, output.data.len() - 1);
+            index.fill(slot, hash, output.data.len() - 1)?;
         }
     }
     Ok(())
@@ -432,7 +437,7 @@ pub(crate) fn binary(
             ctx.charge(1)?;
             let hash = key_hash(ctx, value)?;
             if let Entry::Vacant(slot) = members.entry(ctx, other, value, hash)? {
-                members.fill(slot, hash, position);
+                members.fill(slot, hash, position)?;
             }
         }
         let mut emitted = Index::new();
@@ -444,7 +449,7 @@ pub(crate) fn binary(
             }
             if let Entry::Vacant(slot) = emitted.entry(ctx, &output.data, value, hash)? {
                 output.push(ctx, value.clone())?;
-                emitted.fill(slot, hash, output.data.len() - 1);
+                emitted.fill(slot, hash, output.data.len() - 1)?;
             }
         }
     }
@@ -469,7 +474,7 @@ fn difference(ctx: &mut CallContext, array: &[Value], others: &[Value]) -> Resul
                 let hash = key_hash(ctx, value)?;
                 if let Entry::Vacant(slot) = removal.entry(ctx, &members.data, value, hash)? {
                     members.push(ctx, value.clone())?;
-                    removal.fill(slot, hash, members.data.len() - 1);
+                    removal.fill(slot, hash, members.data.len() - 1)?;
                 }
             }
         }

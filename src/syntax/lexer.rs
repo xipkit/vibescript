@@ -1,4 +1,5 @@
 use super::Mode;
+use crate::checked::violation;
 use crate::{
     Error, Result,
     compilation::{Boxed, Buffer, Bytes, Shared, Text, Work},
@@ -43,7 +44,7 @@ pub(super) enum Token<'a> {
     /// A quoted symbol's decoded name.
     QuotedSymbol(Bytes),
     Int(u64),
-    BigInt(Text, u32),
+    BigInt(Bytes, u32),
     Float(f64),
     Bytes(Bytes),
     Template(Buffer<Part<'a>>),
@@ -526,7 +527,10 @@ impl<'a, 'w> Lexer<'a, 'w> {
             }
             let before = self.nesting.ternaries.len();
             let scanned = (|| -> Result<Token<'a>> {
-                let initial = source[i..self.limit].chars().next().unwrap();
+                let initial = source[i..self.limit]
+                    .chars()
+                    .next()
+                    .ok_or(violation("lexer must have a character to scan"))?;
                 if initial == '@' {
                     let token = self.variable(start);
                     i = self.pos;
@@ -878,7 +882,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
     fn number(&mut self, start: usize) -> Result<Token<'a>> {
         let source = &self.source[..self.limit];
         let at = |i: usize| source.get(i..).and_then(|rest| rest.chars().next());
-        let first = at(start).unwrap();
+        let first = at(start).ok_or(violation("numeric literal must have a first character"))?;
         if first == '0'
             && let Some(radix) = at(start + 1).and_then(|marker| match marker {
                 'x' | 'X' => Some(16),
@@ -913,15 +917,15 @@ impl<'a, 'w> Lexer<'a, 'w> {
                 }
             };
             if !valid {
-                while at(i).is_some_and(numeric_trail) {
+                while let Some(c) = at(i).filter(|&c| numeric_trail(c)) {
                     self.work.charge(1)?;
-                    i += at(i).unwrap().len_utf8();
+                    i += c.len_utf8();
                 }
                 if at(i) == Some('.') && at(i + 1).is_some_and(super::unicode::digit) {
                     i += 1;
-                    while at(i).is_some_and(numeric_trail) {
+                    while let Some(c) = at(i).filter(|&c| numeric_trail(c)) {
                         self.work.charge(1)?;
-                        i += at(i).unwrap().len_utf8();
+                        i += c.len_utf8();
                     }
                 }
                 self.pos = i;
@@ -971,9 +975,9 @@ impl<'a, 'w> Lexer<'a, 'w> {
                     last = sign;
                 }
                 if !at(i).is_some_and(super::unicode::digit) {
-                    while at(i).is_some_and(identifier) {
+                    while let Some(c) = at(i).filter(|&c| identifier(c)) {
                         self.work.charge(1)?;
-                        i += at(i).unwrap().len_utf8();
+                        i += c.len_utf8();
                     }
                     malformed = Some(if c == 'e' {
                         "malformed exponent in numeric literal: expected digits after 'e'"
@@ -994,9 +998,9 @@ impl<'a, 'w> Lexer<'a, 'w> {
                                 continue;
                             }
                             i += 1;
-                            while at(i).is_some_and(identifier) {
+                            while let Some(c) = at(i).filter(|&c| identifier(c)) {
                                 self.work.charge(1)?;
-                                i += at(i).unwrap().len_utf8();
+                                i += c.len_utf8();
                             }
                             malformed = Some(
                                 "malformed exponent in numeric literal: underscore must sit between exponent digits",
@@ -1044,7 +1048,8 @@ impl<'a, 'w> Lexer<'a, 'w> {
             return Err(Error::syntax(self.work, start, message));
         }
         let text_bytes = text;
-        let text = std::str::from_utf8(&text_bytes).unwrap();
+        let text = std::str::from_utf8(&text_bytes)
+            .map_err(|_| violation("numeric literal must be UTF-8"))?;
         if dot || exponent {
             return match text.parse() {
                 Ok(value) if text.is_ascii() => Ok(Token::Float(value)),
@@ -1073,7 +1078,10 @@ impl<'a, 'w> Lexer<'a, 'w> {
         offset: usize,
         prefix: usize,
     ) -> Result<Token<'a>> {
-        let parsed = u64::from_str_radix(std::str::from_utf8(&text).unwrap(), radix);
+        let parsed = u64::from_str_radix(
+            std::str::from_utf8(&text).map_err(|_| violation("integer literal must be UTF-8"))?,
+            radix,
+        );
         if text.len() + prefix > 100_000 && !parsed.as_ref().is_ok_and(|&n| n <= i64::MAX as u64) {
             return self.invalid(
                 offset,
@@ -1083,10 +1091,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
         }
         Ok(match parsed {
             Ok(n) => Token::Int(n),
-            Err(_) => Token::BigInt(
-                Text::from_bytes(Bytes::new(self.work, text)?).unwrap(),
-                radix,
-            ),
+            Err(_) => Token::BigInt(Bytes::new(self.work, text)?, radix),
         })
     }
 
@@ -1100,9 +1105,9 @@ impl<'a, 'w> Lexer<'a, 'w> {
         }
         let next = source[start + 1..].chars().next();
         let symbol = !closes && !self.colon_separates_value(start, line);
-        if symbol && matches!(next, Some('"' | '\'')) {
+        if symbol && let Some(quote @ ('"' | '\'')) = next {
             self.pos = start + 1;
-            let parts = match self.quoted(next.unwrap() as u8, line) {
+            let parts = match self.quoted(quote as u8, line) {
                 Ok(parts) => parts,
                 Err(error) if error.kind == crate::ErrorKind::Syntax => {
                     return Err(Error::syntax(self.work, start, &error.message));
@@ -1154,7 +1159,11 @@ impl<'a, 'w> Lexer<'a, 'w> {
         let label = self.nesting.last.is_some_and(|last| last.label)
             && (parenless || self.label_follows_callee() || self.label_follows_comma());
         if label && self.label_precedes_separator(start, line)? {
-            self.nesting.ternaries.last_mut().unwrap().1 = true;
+            self.nesting
+                .ternaries
+                .last_mut()
+                .ok_or(violation("label separator must have an open ternary"))?
+                .1 = true;
             return Ok(false);
         }
         Ok(self.nesting.last.is_some_and(|last| last.ends))
@@ -1359,7 +1368,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
                     self.pos += self.source[self.pos..self.limit]
                         .chars()
                         .next()
-                        .unwrap()
+                        .ok_or(violation("regex literal must have a character to scan"))?
                         .len_utf8();
                     members += 1;
                 }
@@ -1432,7 +1441,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
                     self.pos += self.source[self.pos..self.limit]
                         .chars()
                         .next()
-                        .unwrap()
+                        .ok_or(violation("regex literal must have a character to scan"))?
                         .len_utf8();
                     members += 1;
                 }
@@ -1489,7 +1498,9 @@ impl<'a, 'w> Lexer<'a, 'w> {
 
     fn words(&mut self, mut line: usize, ambiguous: bool) -> Result<Token<'a>> {
         let start = self.pos;
-        let (kind, open, close) = self.percent_kind().unwrap();
+        let (kind, open, close) = self
+            .percent_kind()
+            .ok_or(violation("word literal must have a percent delimiter"))?;
         self.pos += 2 + open.len_utf8();
         let mut nesting = 1;
         let mut words = Buffer::new();
@@ -1500,7 +1511,10 @@ impl<'a, 'w> Lexer<'a, 'w> {
         while self.pos < self.limit {
             self.work.charge(1)?;
             let before = self.pos;
-            let c = self.source[self.pos..self.limit].chars().next().unwrap();
+            let c = self.source[self.pos..self.limit]
+                .chars()
+                .next()
+                .ok_or(violation("word literal must have a character to scan"))?;
             if c == '\0' {
                 break;
             }
@@ -1636,7 +1650,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
                     out.extend_from_slice(
                         self.work,
                         char::from_u32(value)
-                            .unwrap()
+                            .ok_or(violation("validated Unicode escape must be a scalar value"))?
                             .encode_utf8(&mut [0; 4])
                             .as_bytes(),
                     )?;
@@ -1671,7 +1685,10 @@ fn flush(parts: &mut Buffer<Part<'_>>, text: &mut Buffer<u8>, work: &dyn Work) -
 
 pub(super) fn plain(mut parts: Buffer<Part<'_>>, work: &dyn Work) -> Result<Bytes> {
     if parts.len() == 1 {
-        let Part::Text(bytes) = parts.pop().unwrap() else {
+        let Part::Text(bytes) = parts
+            .pop()
+            .ok_or(violation("plain literal must have a text part"))?
+        else {
             return Err(crate::checked::internal(
                 "plain literal contains interpolation",
             ));
@@ -1715,6 +1732,16 @@ fn ends_expression(token: &Token<'_>) -> bool {
 mod tests {
     use super::*;
     use crate::{CallContext, CallOptions, compilation::Meter};
+
+    #[test]
+    fn corrupted_numeric_text_is_an_internal_error() {
+        let memo = Memo::new(0);
+        let lexer = Lexer::new(Input::new("", &()), 0, 0, 0, &memo);
+        let text = Buffer::from_array(&(), [0xff]).unwrap();
+        let error = lexer.integer(text, 10, 0, 0).unwrap_err();
+        assert_eq!(error.kind, crate::ErrorKind::Internal);
+        assert!(error.message.contains("integer literal must be UTF-8"));
+    }
 
     #[test]
     fn compilation_invalid_token_copies_share_the_accounted_message() {

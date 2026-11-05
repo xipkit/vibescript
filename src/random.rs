@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::Buffer,
@@ -109,7 +110,7 @@ fn read(ctx: &mut CallContext, mut output: &mut [u8]) -> Result<()> {
                 "entropy source returned an invalid byte count",
             ));
         }
-        output = &mut output[count..];
+        output = output.split_at_mut(count).1;
     }
     Ok(())
 }
@@ -123,7 +124,7 @@ fn entropy(ctx: &mut CallContext) -> Result<u64> {
 fn next(ctx: &mut CallContext) -> Result<u64> {
     ctx.charge(1)?;
     if let Some(random) = &mut ctx.random {
-        Ok(random.next())
+        Ok(random.next()?)
     } else {
         entropy(ctx)
     }
@@ -301,11 +302,11 @@ fn uuid(ctx: &mut CallContext) -> Result<Value> {
     const HEX: &[u8] = b"0123456789abcdef";
     for (i, byte) in raw.into_iter().enumerate() {
         if matches!(i, 4 | 6 | 8 | 10) {
-            text[position] = b'-';
+            *text.at_mut(position)? = b'-';
             position += 1;
         }
-        text[position] = HEX[(byte >> 4) as usize];
-        text[position + 1] = HEX[(byte & 15) as usize];
+        *text.at_mut(position)? = *HEX.at((byte >> 4) as usize)?;
+        *text.at_mut(position + 1)? = *HEX.at((byte & 15) as usize)?;
         position += 2;
     }
     ctx.bytes(&text)
@@ -348,14 +349,14 @@ fn identifier(ctx: &mut CallContext, argument: Option<&Value>) -> Result<Value> 
     const ALPHABET: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     while output.data.len() < length {
         let needed = length - output.data.len();
-        read(ctx, &mut scratch[..needed])?;
+        read(ctx, scratch.span_mut(0, needed)?)?;
         let before = output.data.len();
-        for &byte in &scratch[..needed] {
+        for &byte in scratch.span(0, needed)? {
             ctx.charge(1)?;
             if byte < 248 {
                 output
                     .data
-                    .push(ALPHABET[usize::from(byte) % ALPHABET.len()]);
+                    .push(*ALPHABET.at(usize::from(byte) % ALPHABET.len())?);
             }
         }
         if output.data.len() == before {

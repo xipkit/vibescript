@@ -1,4 +1,5 @@
 use super::*;
+use crate::checked::violation;
 use crate::{budget::CHUNK, scan};
 
 mod number;
@@ -49,7 +50,12 @@ pub(super) fn render(ctx: &mut CallContext, prepared: &Prepared) -> Result<Value
     output.bytes = Some(Buffer::with_capacity(ctx, output.length)?);
     output.length = 0;
     printf(ctx, prepared, &mut output)?;
-    Value::from_bytes(ctx, output.bytes.unwrap())
+    Value::from_bytes(
+        ctx,
+        output
+            .bytes
+            .ok_or(violation("format rendering must produce bytes"))?,
+    )
 }
 
 fn printf(ctx: &mut CallContext, prepared: &Prepared, output: &mut Output) -> Result<()> {

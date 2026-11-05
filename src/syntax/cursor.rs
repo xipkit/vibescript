@@ -314,7 +314,9 @@ impl<'a> Parser<'a> {
             .find((0..self.pos).rev(), self.work, |t| {
                 t.token != Token::EndLine
             })?
-            .unwrap())
+            .ok_or(crate::checked::violation(
+                "parser must have a previous significant token",
+            ))?)
     }
 }
 
@@ -370,5 +372,16 @@ impl std::fmt::Display for SourceText<'_> {
             end -= 1;
         }
         write!(f, "{}...", &self.0[..end])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a_missing_previous_token_is_an_internal_error() {
+        let parser = crate::syntax::parser("", &()).unwrap();
+        let error = parser.previous().unwrap_err();
+        assert_eq!(error.kind, crate::ErrorKind::Internal);
+        assert!(error.message.contains("previous significant token"));
     }
 }

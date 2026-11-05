@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{
     CallContext, ErrorKind, Result,
     budget::{Buffer, CHUNK},
@@ -38,13 +39,13 @@ impl<T: Copy + Default> Pairs<T> {
     }
 
     /// Returns the slot holding the pair, or the vacant slot it would occupy.
-    fn slot(&self, left: usize, right: usize) -> usize {
+    fn slot(&self, left: usize, right: usize) -> crate::checked::Access<usize> {
         let mask = self.slots.data.len() - 1;
         let mut slot = Self::hash(left, right) & mask;
         loop {
-            let (a, b, _) = self.slots.data[slot];
+            let (a, b, _) = *self.slots.at(slot)?;
             if a == 0 || (a == left && b == right) {
-                return slot;
+                return Ok(slot);
             }
             slot = (slot + 1) & mask;
         }
@@ -55,7 +56,7 @@ impl<T: Copy + Default> Pairs<T> {
         if self.len == 0 {
             return None;
         }
-        let (a, _, value) = self.slots.data[self.slot(left, right)];
+        let (a, _, value) = *self.slots.data.get(self.slot(left, right).ok()?)?;
         (a != 0).then_some(value)
     }
 
@@ -84,13 +85,13 @@ impl<T: Copy + Default> Pairs<T> {
             for &(a, b, value) in &old.data {
                 if a != 0 {
                     ctx.charge(1)?;
-                    let slot = self.slot(a, b);
-                    self.slots.data[slot] = (a, b, value);
+                    let slot = self.slot(a, b)?;
+                    *self.slots.at_mut(slot)? = (a, b, value);
                 }
             }
         }
-        let slot = self.slot(left, right);
-        self.slots.data[slot] = (left, right, value);
+        let slot = self.slot(left, right)?;
+        *self.slots.at_mut(slot)? = (left, right, value);
         self.len += 1;
         Ok(())
     }

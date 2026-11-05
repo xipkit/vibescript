@@ -83,6 +83,25 @@ fn a_corrupted_constant_index_is_an_internal_error() {
 }
 
 #[test]
+fn a_corrupted_parameter_index_cannot_be_hidden_by_handlers() {
+    let source = "def broken(n: int = 1) -> int\nn\nend\n\
+                  def run -> int\nbegin\nbroken()\nrescue\n42\n\
+                  ensure\nreturn 99\nend\nend";
+    let script = corrupt(Engine::new().compile(source).unwrap(), "broken", |code| {
+        let bind = code
+            .iter_mut()
+            .find(|op| matches!(op, Op::Bind(..)))
+            .unwrap();
+        if let Op::Bind(param, _) = bind {
+            *param = u32::MAX;
+        }
+    });
+    let error = script.call("run", &[], CallOptions::default()).unwrap_err();
+    assert!(is_internal(&error), "{error}");
+    assert!(error.message.contains("src/arguments.rs"), "{error}");
+}
+
+#[test]
 fn rescue_does_not_catch_an_internal_error() {
     internal_error("def run -> int\nbegin\n123456\nrescue\n42\nend\nend");
 }

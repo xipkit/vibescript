@@ -1,6 +1,6 @@
 use super::{Buffer, Work};
 use crate::{Result, Value, budget::Charge, value::Kind};
-use std::{fmt, ops::Deref};
+use std::{fmt, ops::Deref, sync::Arc};
 
 #[derive(Clone)]
 pub(crate) struct Bytes(crate::value::Bytes);
@@ -59,25 +59,50 @@ impl fmt::Debug for Bytes {
     }
 }
 
+/// Immutable UTF-8 text, charged while compiler data shares it.
 #[derive(Clone)]
-pub(crate) struct Text(Bytes);
+pub(crate) struct Text(Arc<Allocation<String>>);
 
 impl Text {
+    /// Copies text into storage owned by the compiler budget.
     pub fn new(work: &dyn Work, text: &str) -> Result<Self> {
-        Ok(Self(Bytes::from_slice(work, text.as_bytes())?))
+        Self::join(work, &[text])
     }
 
-    pub fn from_bytes(bytes: Bytes) -> Option<Self> {
-        std::str::from_utf8(&bytes).ok()?;
-        Some(Self(bytes))
+    /// Assembles text after reserving its complete backing storage.
+    pub fn join(work: &dyn Work, pieces: &[&str]) -> Result<Self> {
+        work.checkpoint()?;
+        let length = pieces.iter().try_fold(0usize, |length, piece| {
+            length
+                .checked_add(piece.len())
+                .ok_or_else(|| work.allocation_error("compiler text size overflow"))
+        })?;
+        let mut charge = work.reserve(size_of::<Allocation<String>>() + 2 * size_of::<usize>())?;
+        let mut bytes = Buffer::with_capacity(work, length)?;
+        for piece in pieces {
+            bytes.extend_from_slice(work, piece.as_bytes())?;
+        }
+        work.bytes(length)?;
+        let (bytes, storage) = bytes.into_parts();
+        Charge::merge(&mut charge, storage);
+        let value = String::from_utf8(bytes)
+            .map_err(|_| crate::checked::violation("compiler text must be UTF-8"))?;
+        Ok(Self(Arc::new(Allocation {
+            value,
+            _charge: charge,
+        })))
     }
 
     pub fn as_str(&self) -> &str {
-        std::str::from_utf8(&self.0).unwrap()
+        &self.0.value
     }
 
-    pub fn compiler_constant(&self) -> Value {
-        self.0.compiler_constant()
+    /// Transfers text to compiled metadata, which does not own invocation charges.
+    pub fn into_string(self) -> String {
+        match Arc::try_unwrap(self.0) {
+            Ok(text) => text.value,
+            Err(text) => text.value.clone(),
+        }
     }
 }
 

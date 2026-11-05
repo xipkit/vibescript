@@ -810,7 +810,7 @@ impl Loop {
                     self.keys.entry(ctx, &self.other.data, &value, hash)?
                 {
                     self.other.push(ctx, value)?;
-                    self.keys.fill(slot, hash, self.other.data.len() - 1);
+                    self.keys.fill(slot, hash, self.other.data.len() - 1)?;
                     self.output.push(ctx, self.pending[0].clone())?;
                 }
             }

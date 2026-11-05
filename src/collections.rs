@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, MAX_VALUE_DEPTH},
@@ -110,7 +111,9 @@ pub(crate) fn lookup(
                 Some(site) => key.hash_key_for(site)?,
                 None => key.hash_key()?,
             };
-            Ok(h.find(ctx, key)?.map(|i| h.buffer.data[i].1.clone()))
+            h.find(ctx, key)?
+                .map(|i| Ok(h.buffer.at(i)?.1.clone()))
+                .transpose()
         }
         _ => Err(wrong_type()),
     }
@@ -149,35 +152,36 @@ pub(crate) fn method(
             Value::from_array(ctx, out)
         }
         Fetch => {
-            if args.is_empty() || args.len() > 2 {
+            let Some((key, defaults)) = args.split_first().filter(|(_, rest)| rest.len() <= 1)
+            else {
                 return Err(argument(match value.0 {
                     Kind::Array(_) => "array.fetch expects index and optional default",
                     Kind::Hash(_) => "hash.fetch expects key and optional default",
                     _ => "fetch expects a key and optional default",
                 }));
-            }
+            };
             if let Some(found) = lookup(
                 ctx,
                 &value,
-                &args[0],
+                key,
                 Lookup::Fetch,
                 Some("hash.fetch key is an"),
             )? {
                 return Ok(found);
             }
-            if let Some(default) = args.get(1) {
+            if let Some(default) = defaults.first() {
                 return Ok(default.clone());
             }
             if let Kind::Array(array) = &value.0 {
                 // The lookup accepted the index, so it converts.
-                let index = integer(&args[0])?;
+                let index = integer(key)?;
                 let length = array.buffer.data.len() as i128;
                 return Err(argument(&format!(
                     "array.fetch index {index} outside of array bounds: {}...{length}",
                     -length
                 )));
             }
-            Err(missing_key(ctx, "hash.fetch", &args[0])?)
+            Err(missing_key(ctx, "hash.fetch", key)?)
         }
         Dig => {
             if args.is_empty() {
@@ -220,22 +224,22 @@ pub(crate) fn method(
             Ok(current)
         }
         Key => {
-            if args.len() != 1 {
+            let [selector] = args else {
                 return Err(argument(&format!("hash.{name} expects exactly one key")));
-            }
+            };
             let Kind::Hash(h) = &value.0 else {
                 return Err(wrong_type());
             };
-            let key = args[0].hash_key_for(format_args!("hash.{name} key is an"))?;
+            let key = selector.hash_key_for(format_args!("hash.{name} key is an"))?;
             Ok(Value::boolean(h.find(ctx, key)?.is_some()))
         }
         HasValue => {
-            if args.len() != 1 {
+            let [wanted] = args else {
                 return Err(argument(&format!("hash.{name} expects exactly one value")));
-            }
+            };
             let entries = value.as_hash().ok_or_else(wrong_type)?;
             for (_, v) in entries {
-                if ops::equal(ctx, v, &args[0], 0)? {
+                if ops::equal(ctx, v, wanted, 0)? {
                     return Ok(Value::boolean(true));
                 }
             }
@@ -299,18 +303,18 @@ pub(crate) fn method(
         }
         RemapKeys => {
             const EXPECTS: &str = "hash.remap_keys expects a key mapping hash";
-            if args.len() != 1 {
+            let [mapping] = args else {
                 return Err(argument(EXPECTS));
-            }
+            };
             let entries = value.as_hash().ok_or_else(wrong_type)?;
-            let Kind::Hash(mapping) = &args[0].0 else {
+            let Kind::Hash(mapping) = &mapping.0 else {
                 return Err(Error::new(ErrorKind::Type, EXPECTS));
             };
             let mut out = Hash::empty();
             for (key, value) in entries {
                 ctx.charge(1)?;
                 let key = if let Some(index) = mapping.find(ctx, key.require_bytes()?)? {
-                    let mapped = &mapping.buffer.data[index].1;
+                    let mapped = &mapping.buffer.at(index)?.1;
                     ctx.bytes(mapped.key_name_for("hash.remap_keys mapping value is an")?)?
                 } else {
                     key.clone()
@@ -432,12 +436,12 @@ fn array_method(
             Value::from_array(ctx, out)
         }
         Drop => {
-            if args.len() != 1 {
+            let [count] = args else {
                 return Err(argument("array.drop expects exactly one count"));
-            }
+            };
             let negative = "array.drop attempted with negative size";
-            let n = integer(&args[0]).map_err(|error| {
-                error.with_message(if matches!(&args[0].0, Kind::Big(n) if n.negative) {
+            let n = integer(count).map_err(|error| {
+                error.with_message(if matches!(&count.0, Kind::Big(n) if n.negative) {
                     negative.to_owned()
                 } else {
                     "array.drop count must be integer".to_owned()
@@ -447,7 +451,7 @@ fn array_method(
                 return Err(argument(negative));
             }
             let n = usize::try_from(n).unwrap_or(usize::MAX).min(array.len());
-            ctx.array(&array[n..])
+            ctx.array(array.tail(n)?)
         }
         Compact => {
             no_arguments("compact", args)?;
@@ -485,11 +489,11 @@ fn array_method(
             } else {
                 ("window", "a window size")
             };
-            if args.len() != 1 {
+            let [count] = args else {
                 return Err(argument(&format!("array.{member} expects {expects}")));
-            }
+            };
             let invalid = || format!("array.{member} size must be a positive integer");
-            let n = args[0]
+            let n = count
                 .require_int()
                 .map_err(|error| error.with_message(invalid()))?;
             if n <= 0 {
@@ -504,7 +508,7 @@ fn array_method(
                     break;
                 }
                 let end = start + n.min(array.len() - start);
-                let part = ctx.array(&array[start..end])?;
+                let part = ctx.array(array.span(start, end)?)?;
                 out.push(ctx, part)?;
                 start = if matches!(method, Window) {
                     start + 1
@@ -576,7 +580,8 @@ fn array_method(
                     ctx.charge(1)?;
                     col.data.push(
                         row.as_array()
-                            .ok_or(crate::checked::violation("transpose row must be an array"))?[i]
+                            .ok_or(crate::checked::violation("transpose row must be an array"))?
+                            .at(i)?
                             .clone(),
                     );
                 }
@@ -596,11 +601,11 @@ fn array_method(
                         "array.to_h expects an array of two-element pairs",
                     )
                 })?;
-                if pair.len() != 2 {
+                let [key, value] = pair else {
                     return Err(argument("array.to_h pair must have exactly two elements"));
-                }
-                let key = ctx.bytes(pair[0].key_name_for("array.to_h pair key is an")?)?;
-                out.insert(ctx, key, pair[1].clone())?;
+                };
+                let key = ctx.bytes(key.key_name_for("array.to_h pair key is an")?)?;
+                out.insert(ctx, key, value.clone())?;
             }
             Value::from_hash(ctx, out)
         }
@@ -643,7 +648,7 @@ fn flatten<'a>(
         current.index += 1;
         ctx.charge(1)?;
         let values: &'a [Value] = current.values;
-        let v = &values[i];
+        let v = values.at(i)?;
         if current.remaining != 0 {
             if let Some(nested) = v.as_array() {
                 // A nested level sits one below its parent; the root is `depth`.

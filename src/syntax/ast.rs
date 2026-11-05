@@ -17,7 +17,7 @@ pub(crate) enum Node {
         Buffer<Name>,
     ),
     Integer(u64),
-    BigInteger(Text, u32),
+    BigInteger(Bytes, u32),
     Literal(Value),
     Template(Buffer<Expr>, bool),
     Var(Name),
