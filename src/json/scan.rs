@@ -183,8 +183,8 @@ fn classify(input: &[u8], portable: bool) -> Masks {
         }
     }
     let _ = portable;
-    while input.len() - at >= 8 {
-        let bytes = u64::from_le_bytes(input[at..at + 8].try_into().unwrap());
+    while let Some((chunk, _)) = input[at..].split_first_chunk::<8>() {
+        let bytes = u64::from_le_bytes(*chunk);
         let equal = |byte| zero(bytes ^ (u64::from(byte) * 0x0101010101010101));
         let pack = |bits: u64| ((bits >> 7).wrapping_mul(0x0102040810204080) >> 56) << at;
         masks.punctuation |=

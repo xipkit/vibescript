@@ -3,6 +3,7 @@ use super::{
     parse::Part,
     program::{Instruction, View},
 };
+use crate::checked::{Access, violation};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, Charge},
@@ -29,15 +30,13 @@ enum Flags {
 }
 
 impl Flags {
-    fn new(bits: u8) -> crate::checked::Access<Self> {
+    fn new(bits: u8) -> Access<Self> {
         match bits {
             0 => Ok(Self::None),
             1 => Ok(Self::IgnoreCase),
             2 => Ok(Self::Multiline),
             3 => Ok(Self::Both),
-            _ => Err(crate::checked::violation(
-                "regex flags contain unsupported bits",
-            )),
+            _ => Err(violation("regex flags contain unsupported bits")),
         }
     }
 }
@@ -134,15 +133,19 @@ impl Regex {
         }
     }
 
-    pub(super) fn view(&self) -> View<'_> {
-        View {
+    /// Borrows the compiled regex, checking that its retained pattern is text.
+    pub(super) fn view(&self) -> Access<View<'_>> {
+        Ok(View {
             instructions: &self.code.instructions,
             parts: &self.code.parts,
             names: &self.code.names,
-            source: self.pattern.as_bytes().unwrap(),
+            source: self
+                .pattern
+                .as_bytes()
+                .ok_or(violation("compiled regex pattern must be bytes"))?,
             start: self.code.start,
             minimum: self.code.minimum,
-        }
+        })
     }
 
     pub fn equal(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
@@ -161,8 +164,8 @@ impl Regex {
         }
         let bytes = text.require_bytes()?;
         super::text_limit(ctx, bytes, method, "text")?;
-        let mut search = Search::new(ctx, self.view(), false)?;
-        Ok(search.find(ctx, self.view(), bytes, 0)?.is_some())
+        let mut search = Search::new(ctx, self.view()?, false)?;
+        Ok(search.find(ctx, self.view()?, bytes, 0)?.is_some())
     }
 
     pub fn render(
@@ -417,8 +420,8 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: &Value, b: &Value) -> R
     };
     let bytes = text.require_bytes()?;
     super::text_limit(ctx, bytes, op, "text")?;
-    let mut search = Search::new(ctx, regex.view(), false)?;
-    let found = search.find(ctx, regex.view(), bytes, 0)?;
+    let mut search = Search::new(ctx, regex.view()?, false)?;
+    let found = search.find(ctx, regex.view()?, bytes, 0)?;
     if op == "!~" {
         return Ok(Value::boolean(found.is_none()));
     }

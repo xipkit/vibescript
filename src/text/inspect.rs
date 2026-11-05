@@ -9,7 +9,6 @@ use crate::{
     syntax::unicode,
     value::Kind,
 };
-use std::fmt::Write;
 
 pub(crate) fn call(
     ctx: &mut CallContext,
@@ -259,11 +258,14 @@ fn leaf(ctx: &mut CallContext, value: &Value, out: &mut Output) -> Result<()> {
             return out.append(ctx, member.definition().name.as_bytes());
         }
         Kind::Bool(value) => return out.append(ctx, if *value { b"true" } else { b"false" }),
-        Kind::Int(value) => write!(scalar, "{value}").unwrap(),
+        Kind::Int(value) => scalar.format(format_args!("{value}"))?,
         Kind::Float(value) => ops::format_float(&mut scalar, *value)?,
-        Kind::Range(range) => write!(scalar, "{range}").unwrap(),
-        Kind::Money(money) => write!(scalar, "{money}").unwrap(),
-        Kind::Duration(seconds) => write!(scalar, "{seconds}s").unwrap(),
+        Kind::Range(range) => scalar.format(format_args!("{range}"))?,
+        Kind::Money(money) => {
+            money.currency()?;
+            scalar.format(format_args!("{money}"))?;
+        }
+        Kind::Duration(seconds) => scalar.format(format_args!("{seconds}s"))?,
         Kind::Big(_) | Kind::Time(_) | Kind::Zoned(_) => {
             if matches!(out, Output::Size(_)) {
                 // Reserve an upper bound without allocating or converting a big integer twice.

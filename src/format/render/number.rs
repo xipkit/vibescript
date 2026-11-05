@@ -1,4 +1,5 @@
 use super::*;
+use crate::checked::{Access, violation};
 use crate::numeric::{to_usize, unsigned_bits};
 use std::fmt::{self, Write};
 
@@ -253,7 +254,11 @@ pub(super) fn debug_big(
         if index > 0 {
             output.write(ctx, if sharp { b", " } else { b" " })?;
         }
-        let word = u64::from_str_radix(std::str::from_utf8(word).unwrap(), 16).unwrap();
+        let word = u64::from_str_radix(
+            std::str::from_utf8(word).map_err(|_| violation("integer digits must be UTF-8"))?,
+            16,
+        )
+        .map_err(|_| violation("hexadecimal word expected"))?;
         unsigned(ctx, output, word, if sharp { 'x' } else { 'd' }, field)?;
     }
     output.write(ctx, if sharp { b"}}" } else { b"]}" })
@@ -321,9 +326,9 @@ pub(super) fn float(
     } else {
         ctx.charge(1)?;
         match verb {
-            'f' | 'F' => fixed(value.abs(), field),
-            'e' | 'E' => scientific(value.abs(), verb == 'E', field),
-            'g' | 'G' | 'v' => general(value.abs(), verb == 'G', field),
+            'f' | 'F' => fixed(value.abs(), field)?,
+            'e' | 'E' => scientific(value.abs(), verb == 'E', field)?,
+            'g' | 'G' | 'v' => general(value.abs(), verb == 'G', field)?,
             'x' | 'X' => hexadecimal(value.abs(), verb == 'X', field),
             'b' => binary(value.abs()),
             _ => {
@@ -352,25 +357,27 @@ pub(super) fn float(
     Ok(())
 }
 
-fn fixed(value: f64, field: Field) -> Digits {
+fn fixed(value: f64, field: Field) -> Access<Digits> {
     let precision = field.precision.unwrap_or(6);
     let bounded = precision.min(1074);
     let mut digits = Digits::new();
-    write!(digits, "{value:.bounded$}").unwrap();
+    write!(digits, "{value:.bounded$}")
+        .map_err(|_| violation("fixed float exceeds digit buffer"))?;
     if precision == 0 && field.flag(SHARP) {
         digits.push(b".");
     }
     digits.split = digits.length;
     digits.zeros = precision - bounded;
-    digits
+    Ok(digits)
 }
 
-fn scientific(value: f64, uppercase: bool, field: Field) -> Digits {
+fn scientific(value: f64, uppercase: bool, field: Field) -> Access<Digits> {
     let precision = field.precision.unwrap_or(6);
     let bounded = precision.min(1074);
     let mut raw = Digits::new();
-    write!(raw, "{value:.bounded$e}").unwrap();
-    let (end, exponent) = exponent(&raw);
+    write!(raw, "{value:.bounded$e}")
+        .map_err(|_| violation("scientific float exceeds digit buffer"))?;
+    let (end, exponent) = exponent(&raw)?;
     let mut digits = Digits::new();
     digits.push(&raw.bytes[..end]);
     if precision == 0 && field.flag(SHARP) {
@@ -379,30 +386,31 @@ fn scientific(value: f64, uppercase: bool, field: Field) -> Digits {
     digits.split = digits.length;
     digits.zeros = precision - bounded;
     digits.exponent(if uppercase { b'E' } else { b'e' }, exponent);
-    digits
+    Ok(digits)
 }
 
-fn exponent(raw: &Digits) -> (usize, i32) {
+fn exponent(raw: &Digits) -> Access<(usize, i32)> {
     let offset = raw.bytes[..raw.length]
         .iter()
         .position(|b| *b == b'e')
-        .unwrap();
+        .ok_or(violation("scientific exponent expected"))?;
     let exponent = std::str::from_utf8(&raw.bytes[offset + 1..raw.length])
-        .unwrap()
+        .map_err(|_| violation("scientific exponent must be UTF-8"))?
         .parse()
-        .unwrap();
-    (offset, exponent)
+        .map_err(|_| violation("scientific exponent must be an integer"))?;
+    Ok((offset, exponent))
 }
 
-fn general(value: f64, uppercase: bool, field: Field) -> Digits {
+fn general(value: f64, uppercase: bool, field: Field) -> Access<Digits> {
     let mut raw = Digits::new();
     if let Some(precision) = field.precision {
         let bounded = precision.max(1).saturating_sub(1).min(1074);
-        write!(raw, "{value:.bounded$e}").unwrap();
+        write!(raw, "{value:.bounded$e}")
+            .map_err(|_| violation("general float exceeds digit buffer"))?;
     } else {
-        write!(raw, "{value:e}").unwrap();
+        write!(raw, "{value:e}").map_err(|_| violation("general float exceeds digit buffer"))?;
     }
-    let (end, exponent) = exponent(&raw);
+    let (end, exponent) = exponent(&raw)?;
     let mut significand = Digits::new();
     for byte in &raw.bytes[..end] {
         if *byte != b'.' {
@@ -450,7 +458,7 @@ fn general(value: f64, uppercase: bool, field: Field) -> Digits {
     if scientific {
         digits.exponent(if uppercase { b'E' } else { b'e' }, exponent);
     }
-    digits
+    Ok(digits)
 }
 
 fn hexadecimal(value: f64, uppercase: bool, field: Field) -> Digits {
@@ -527,4 +535,19 @@ fn binary(value: f64) -> Digits {
     digits.push(&[b'p', if exponent < 0 { b'-' } else { b'+' }]);
     digits.radix(exponent.unsigned_abs() as u64, 10, false);
     digits
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn malformed_generated_exponents_return_internal_errors() {
+        for bytes in [b"1".as_slice(), b"1e?", b"1e\xff"] {
+            let mut raw = Digits::new();
+            raw.push(bytes);
+            let error = crate::Error::from(exponent(&raw).unwrap_err());
+            assert_eq!(error.kind, crate::ErrorKind::Internal);
+        }
+    }
 }

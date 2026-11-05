@@ -1,11 +1,11 @@
 use crate::bytes::Number;
+use crate::checked::violation;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK, MAX_VALUE_DEPTH},
     scan::{self, Class},
     value::Kind,
 };
-use std::fmt::Write;
 
 /// The longest escape, `\u00XX`.
 const LONGEST: usize = 6;
@@ -312,7 +312,8 @@ fn write_value_with<const BATCH: bool>(
             Kind::Float(n) => {
                 let mut text = Number::new();
                 crate::ops::format_float(&mut text, n)?;
-                let text = std::str::from_utf8(text.bytes()).unwrap();
+                let text = std::str::from_utf8(text.bytes())
+                    .map_err(|_| violation("formatted float must be UTF-8"))?;
                 format!("JSON.stringify failed: json: unsupported value: {text}")
             }
             _ => format!(
@@ -406,7 +407,7 @@ fn start<'a>(
         Kind::Bool(v) => out.extend(ctx, if *v { b"true" } else { b"false" })?,
         Kind::Int(n) => {
             let mut text = Number::new();
-            write!(text, "{n}").unwrap();
+            text.format(format_args!("{n}"))?;
             out.extend(ctx, text.bytes())?;
         }
         Kind::Big(_) => {
@@ -423,13 +424,18 @@ fn start<'a>(
             let mut text = Number::new();
             if *n != 0.0 && !(1e-6..1e21).contains(&n.abs()) {
                 let mut scientific = Number::new();
-                write!(scientific, "{n:e}").unwrap();
-                let scientific = std::str::from_utf8(scientific.bytes()).unwrap();
-                let (mantissa, exponent) = scientific.split_once('e').unwrap();
-                let exponent: i32 = exponent.parse().unwrap();
-                write!(text, "{mantissa}e{exponent:+}").unwrap();
+                scientific.format(format_args!("{n:e}"))?;
+                let scientific = std::str::from_utf8(scientific.bytes())
+                    .map_err(|_| violation("scientific number must be UTF-8"))?;
+                let (mantissa, exponent) = scientific
+                    .split_once('e')
+                    .ok_or(violation("scientific exponent expected"))?;
+                let exponent: i32 = exponent
+                    .parse()
+                    .map_err(|_| violation("scientific exponent must be an integer"))?;
+                text.format(format_args!("{mantissa}e{exponent:+}"))?;
             } else {
-                write!(text, "{n}").unwrap();
+                text.format(format_args!("{n}"))?;
             }
             out.extend(ctx, text.bytes())?;
         }

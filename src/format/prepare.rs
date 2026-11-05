@@ -1,4 +1,5 @@
 use super::*;
+use crate::checked::violation;
 
 pub(super) fn prepare(ctx: &mut CallContext, pattern: &[u8], values: &[Value]) -> Result<Prepared> {
     let mut prepared = Prepared {
@@ -219,7 +220,7 @@ fn argument(ctx: &mut CallContext, value: &Value, verb: u8, field: Field) -> Res
     let value = if matches!(verb, b'd' | b'b' | b'o' | b'O' | b'U' | b'c')
         && !matches!(value.0, Kind::Big(_))
     {
-        Value::int(integer(value).unwrap())
+        Value::int(integer(value).ok_or(violation("integer format operand expected"))?)
     } else if matches!(verb, b'f' | b'F' | b'e' | b'E' | b'g' | b'G') {
         Value::float(float(value)?)
     } else {

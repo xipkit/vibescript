@@ -3,6 +3,7 @@ use super::{
     program::{Op, View},
     unicode,
 };
+use crate::checked::violation;
 use crate::{
     CallContext, Result,
     budget::{Buffer, CHUNK},
@@ -241,7 +242,12 @@ impl Search {
         text: &[u8],
         from: usize,
     ) -> Result<Option<Buffer<usize>>> {
-        let Some((start, end)) = self.literal.as_ref().unwrap().scan(ctx, text, from)? else {
+        let Some((start, end)) = self
+            .literal
+            .as_ref()
+            .ok_or(violation("literal search must have a literal"))?
+            .scan(ctx, text, from)?
+        else {
             return Ok(None);
         };
         let mut captures = self.captures(ctx)?;
@@ -249,7 +255,13 @@ impl Search {
         captures.data[1] = end;
         let mut position = start;
         let mut offset = 0;
-        for &(slot, runes) in &self.literal.as_ref().unwrap().saves.data {
+        for &(slot, runes) in &self
+            .literal
+            .as_ref()
+            .ok_or(violation("literal search must have a literal"))?
+            .saves
+            .data
+        {
             ctx.charge(1)?;
             while offset < runes {
                 ctx.charge(1)?;
@@ -583,7 +595,7 @@ mod tests {
             let program =
                 Program::compile(&mut ctx, Value::bytes(pattern.as_bytes()), "Regex.match")
                     .unwrap();
-            let view = program.view();
+            let view = program.view().unwrap();
             for captures in [false, true] {
                 for _ in 0..60 {
                     let mut text = Vec::new();
@@ -686,7 +698,7 @@ mod tests {
             let program =
                 Program::compile(&mut ctx, Value::bytes(pattern.as_bytes()), "Regex.match")
                     .unwrap();
-            let search = Search::new(&mut ctx, program.view(), false).unwrap();
+            let search = Search::new(&mut ctx, program.view().unwrap(), false).unwrap();
             let literal = search.literal.as_ref().unwrap();
             let mut texts = Vec::new();
             for case in 0..200 {
@@ -740,9 +752,9 @@ mod tests {
             let mut text = [vec![b'A'; length - 1], vec![b'b']].concat().repeat(2);
             text.extend(vec![b'A'; length]);
             let before = ctx.stats().steps;
-            let mut search = Search::new(&mut ctx, program.view(), false).unwrap();
+            let mut search = Search::new(&mut ctx, program.view().unwrap(), false).unwrap();
             let found = search
-                .find(&mut ctx, program.view(), &text, 0)
+                .find(&mut ctx, program.view().unwrap(), &text, 0)
                 .unwrap()
                 .unwrap();
             assert_eq!(found.data[..2], [2 * length, 3 * length]);
@@ -761,14 +773,16 @@ mod tests {
         for kind in [ErrorKind::Steps, ErrorKind::Cancelled] {
             let mut ctx = context(None);
             let program = Program::compile(&mut ctx, pattern.clone(), "Regex.match").unwrap();
-            let mut search = Search::new(&mut ctx, program.view(), false).unwrap();
+            let mut search = Search::new(&mut ctx, program.view().unwrap(), false).unwrap();
             let steps = ctx.stats().steps;
             if kind == ErrorKind::Steps {
                 ctx.options.limits.steps = Some(steps + 1000);
             } else {
                 ctx.cancellation().cancel();
             }
-            let error = search.find(&mut ctx, program.view(), &text, 0).unwrap_err();
+            let error = search
+                .find(&mut ctx, program.view().unwrap(), &text, 0)
+                .unwrap_err();
             assert_eq!(error.kind, kind);
             // A failing chunk charge can overshoot the quota by one chunk.
             assert!(ctx.stats().steps <= steps + 1000 + (CHUNK / 64) as u64);
@@ -777,9 +791,11 @@ mod tests {
         // A prefix skip stops the same way when no thread is running.
         let mut ctx = context(None);
         let program = Program::compile(&mut ctx, Value::bytes(b"ab\\d"), "Regex.match").unwrap();
-        let mut search = Search::new(&mut ctx, program.view(), false).unwrap();
+        let mut search = Search::new(&mut ctx, program.view().unwrap(), false).unwrap();
         ctx.cancellation().cancel();
-        let error = search.find(&mut ctx, program.view(), &text, 0).unwrap_err();
+        let error = search
+            .find(&mut ctx, program.view().unwrap(), &text, 0)
+            .unwrap_err();
         assert_eq!(error.kind, ErrorKind::Cancelled);
     }
 }

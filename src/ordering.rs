@@ -141,7 +141,7 @@ impl Compare {
                 }));
             }
             (Kind::Nil, Kind::Nil) => Some(Ordering::Equal),
-            (Kind::Money(a), Kind::Money(b)) => a.order(*b),
+            (Kind::Money(a), Kind::Money(b)) => a.order(*b)?,
             (Kind::Duration(a), Kind::Duration(b)) => Some(crate::duration::order(*a, *b)),
             (Kind::Time(_) | Kind::Zoned(_), Kind::Time(_) | Kind::Zoned(_)) => Some(
                 crate::time::stamp(a)

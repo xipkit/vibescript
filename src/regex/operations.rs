@@ -4,6 +4,7 @@ use super::{
     search::{ABSENT, Search},
     value::Regex,
 };
+use crate::checked::violation;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::Buffer,
@@ -117,9 +118,9 @@ pub(super) fn first(
     let Some(start) = offset(ctx, text, start)? else {
         return Ok(Value::nil());
     };
-    let mut search = Search::new(ctx, regex.view(), true)?;
-    match search.find(ctx, regex.view(), text, start)? {
-        Some(indices) => matches::data(ctx, regex.view(), subject, &indices.data),
+    let mut search = Search::new(ctx, regex.view()?, true)?;
+    match search.find(ctx, regex.view()?, text, start)? {
+        Some(indices) => matches::data(ctx, regex.view()?, subject, &indices.data),
         None => Ok(Value::nil()),
     }
 }
@@ -228,7 +229,7 @@ fn reference_element(indices: &[usize]) -> usize {
 }
 
 fn materialize(ctx: &mut CallContext, regex: &Regex, subject: &Value) -> Result<Value> {
-    let program = regex.view();
+    let program = regex.view()?;
     let text = subject.require_bytes()?;
     let runes = ops::runes(ctx, text)?.0;
     let maximum = runes.checked_div(program.minimum).unwrap_or(runes + 1);
@@ -295,7 +296,7 @@ impl Driver {
         } else {
             Some(0)
         };
-        let search = Search::new(ctx, regex.view(), true)?;
+        let search = Search::new(ctx, regex.view()?, true)?;
         Ok(Some(Self {
             regex,
             receiver: receiver.clone(),
@@ -313,7 +314,9 @@ impl Driver {
     pub fn advance(&mut self, ctx: &mut CallContext, returned: Option<Value>) -> Result<Progress> {
         if self.single && self.waiting {
             self.waiting = false;
-            return Ok(Progress::Done(returned.unwrap()));
+            return Ok(Progress::Done(
+                returned.ok_or(violation("match block must return a value"))?,
+            ));
         }
         drop(returned);
         self.waiting = false;
@@ -321,7 +324,7 @@ impl Driver {
         let Some(indices) = self.cursor.next(
             ctx,
             &mut self.search,
-            self.regex.view(),
+            self.regex.view()?,
             self.receiver.require_bytes()?,
         )?
         else {
@@ -337,7 +340,7 @@ impl Driver {
             element_bytes(self.receiver.require_bytes()?, &indices.data)
         })?;
         let value = if self.single {
-            matches::data(ctx, self.regex.view(), &self.receiver, &indices.data)?
+            matches::data(ctx, self.regex.view()?, &self.receiver, &indices.data)?
         } else {
             element(ctx, &self.receiver, &indices.data)?
         };

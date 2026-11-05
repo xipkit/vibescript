@@ -473,7 +473,7 @@ pub(crate) fn float_order(a: f64, b: f64) -> Ordering {
 pub(crate) fn compare(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Option<Ordering>> {
     match (&a.0, &b.0) {
         (Kind::Money(a), Kind::Money(b)) => a
-            .order(*b)
+            .order(*b)?
             .map(Some)
             .ok_or_else(|| Error::new(ErrorKind::Type, "money currency mismatch for comparison")),
         (Kind::Duration(a), Kind::Duration(b)) => Ok(Some(crate::duration::order(*a, *b))),
