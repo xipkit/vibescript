@@ -5,7 +5,11 @@ use crate::{
     numeric::{to_i64, to_usize, unsigned_bits},
     value::Kind,
 };
-use std::{cmp::Ordering, mem::size_of, sync::Arc};
+use std::{
+    cmp::Ordering,
+    mem::{size_of, size_of_val},
+    sync::Arc,
+};
 
 mod division;
 mod limbs;
@@ -398,11 +402,14 @@ fn multiply_into(ctx: &mut CallContext, out: &mut [u32], a: &[u32], b: &[u32]) -
         for (i, &y) in b.iter().enumerate() {
             ctx.charge(1)?;
             let mut carry = 0u64;
-            for (j, (&x, slot)) in a.iter().zip(out.span_mut(i, i + a.len())?).enumerate() {
-                work(ctx, j, a.len())?;
-                carry += x as u64 * y as u64 + *slot as u64;
-                *slot = carry as u32;
-                carry >>= 32;
+            let row = out.span_mut(i, i + a.len())?;
+            for (xs, slots) in a.chunks(CHUNK).zip(row.chunks_mut(CHUNK)) {
+                ctx.work_bytes(size_of_val(xs))?;
+                for (&x, slot) in xs.iter().zip(slots) {
+                    carry += x as u64 * y as u64 + *slot as u64;
+                    *slot = carry as u32;
+                    carry >>= 32;
+                }
             }
             if carry != 0 {
                 add_into(ctx, out.span_mut(i + a.len(), out.len())?, &[carry as u32])?;
@@ -467,11 +474,14 @@ fn significant(words: &[u32]) -> &[u32] {
 /// Adds `value` into `out`, propagating the carry; `out` must hold the sum.
 fn add_into(ctx: &mut CallContext, out: &mut [u32], value: &[u32]) -> Result<()> {
     let mut carry = 0u64;
-    for (i, (&word, slot)) in value.iter().zip(out.span_mut(0, value.len())?).enumerate() {
-        work(ctx, i, value.len())?;
-        carry += *slot as u64 + word as u64;
-        *slot = carry as u32;
-        carry >>= 32;
+    let slots = out.span_mut(0, value.len())?;
+    for (words, slots) in value.chunks(CHUNK).zip(slots.chunks_mut(CHUNK)) {
+        ctx.work_bytes(size_of_val(words))?;
+        for (&word, slot) in words.iter().zip(slots) {
+            carry += *slot as u64 + word as u64;
+            *slot = carry as u32;
+            carry >>= 32;
+        }
     }
     // A carry ripples through words that were all ones, at the same rate.
     let mut i = value.len();
@@ -479,8 +489,9 @@ fn add_into(ctx: &mut CallContext, out: &mut [u32], value: &[u32]) -> Result<()>
         if (i - value.len()) % 16 == 0 {
             ctx.charge(1)?;
         }
-        carry += *out.at(i)? as u64;
-        *out.at_mut(i)? = carry as u32;
+        let slot = out.at_mut(i)?;
+        carry += *slot as u64;
+        *slot = carry as u32;
         carry >>= 32;
         i += 1;
     }
@@ -577,12 +588,15 @@ fn long_divide(ctx: &mut CallContext, a: &[u32], b: &[u32]) -> Result<(Buffer<u3
             }
         }
         let mut borrow = 0i64;
-        for (i, (slot, &divisor)) in u.span_mut(j, j + n)?.iter_mut().zip(v).enumerate() {
-            work(ctx, i, n)?;
-            let product = estimate * divisor as u64;
-            let difference = *slot as i64 - borrow - to_i64(product & u32::MAX as u64);
-            *slot = low_word(difference);
-            borrow = to_i64(product >> 32) - (difference >> 32);
+        let row = u.span_mut(j, j + n)?;
+        for (divisors, slots) in v.chunks(CHUNK).zip(row.chunks_mut(CHUNK)) {
+            ctx.work_bytes(size_of_val(divisors))?;
+            for (&divisor, slot) in divisors.iter().zip(slots) {
+                let product = estimate * divisor as u64;
+                let difference = *slot as i64 - borrow - to_i64(product & u32::MAX as u64);
+                *slot = low_word(difference);
+                borrow = to_i64(product >> 32) - (difference >> 32);
+            }
         }
         let difference = *u.at(j + n)? as i64 - borrow;
         *u.at_mut(j + n)? = low_word(difference);
@@ -590,13 +604,17 @@ fn long_divide(ctx: &mut CallContext, a: &[u32], b: &[u32]) -> Result<(Buffer<u3
             // The estimate was one too large: add the divisor back.
             estimate -= 1;
             let mut carry = 0u64;
-            for (i, (slot, &divisor)) in u.span_mut(j, j + n)?.iter_mut().zip(v).enumerate() {
-                work(ctx, i, n)?;
-                carry += *slot as u64 + divisor as u64;
-                *slot = carry as u32;
-                carry >>= 32;
+            let row = u.span_mut(j, j + n)?;
+            for (divisors, slots) in v.chunks(CHUNK).zip(row.chunks_mut(CHUNK)) {
+                ctx.work_bytes(size_of_val(divisors))?;
+                for (&divisor, slot) in divisors.iter().zip(slots) {
+                    carry += *slot as u64 + divisor as u64;
+                    *slot = carry as u32;
+                    carry >>= 32;
+                }
             }
-            *u.at_mut(j + n)? = u.at(j + n)?.wrapping_add(carry as u32);
+            let slot = u.at_mut(j + n)?;
+            *slot = slot.wrapping_add(carry as u32);
         }
         *quotient.at_mut(j)? = estimate as u32;
     }
@@ -1012,6 +1030,33 @@ mod tests {
         assert_eq!(error.kind, ErrorKind::Internal);
         let error = add_into(&mut ctx, &mut [u32::MAX], &[1]).unwrap_err();
         assert_eq!(error.kind, ErrorKind::Internal);
+    }
+
+    #[test]
+    fn long_schoolbook_rows_preserve_chunk_charges_and_stop_before_unpaid_work() {
+        let a = vec![1; 2 * CHUNK + 7];
+        let b = [1, 1, 1];
+        let mut out = vec![0; a.len() + b.len()];
+        let mut ctx = unlimited_context();
+        multiply_into(&mut ctx, &mut out, &a, &b).unwrap();
+        assert_eq!(trimmed(out), schoolbook(&a, &b));
+        assert_eq!(ctx.stats().steps, 3 * (1 + (a.len() as u64).div_ceil(16)));
+
+        let mut ctx = CallContext::new(crate::CallOptions {
+            limits: crate::Limits {
+                steps: Some(1 + CHUNK as u64 / 16),
+                ..crate::Limits::default()
+            },
+            ..crate::CallOptions::default()
+        });
+        let mut out = vec![0; a.len() + b.len()];
+        let error = multiply_into(&mut ctx, &mut out, &a, &b).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Steps);
+        assert_eq!(ctx.stats().steps, 1 + 2 * CHUNK as u64 / 16);
+        let (paid, unpaid) = out.split_at(CHUNK);
+        assert!(paid.iter().all(|&word| word == 1));
+        assert!(unpaid.iter().all(|&word| word == 0));
+        assert_eq!(ctx.checkpoint().unwrap_err(), error);
     }
 
     #[test]
