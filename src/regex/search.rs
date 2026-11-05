@@ -178,6 +178,15 @@ fn prefix(
     Ok((Some(literal), false))
 }
 
+// Keep the byte loop independent of the fallible KMP scan's register pressure.
+#[inline(never)]
+fn idle_prefix(bytes: &[u8], first: u32, fold: bool) -> usize {
+    bytes
+        .iter()
+        .position(|&byte| byte >= 128 || canonical(u32::from(byte), fold) == first)
+        .unwrap_or(bytes.len())
+}
+
 impl Literal {
     /// Returns the byte range of the first occurrence starting at or after `from`.
     ///
@@ -211,10 +220,7 @@ impl Literal {
                 // their own. It stops where the next charge falls due, which
                 // leaves every charge where a byte at a time would put it.
                 let window = text.span(position, text.len().min(position + (CHUNK - work)))?;
-                let skipped = window
-                    .iter()
-                    .position(|&byte| !idle(byte))
-                    .unwrap_or(window.len());
+                let skipped = idle_prefix(window, first, self.fold);
                 work += skipped;
                 position += skipped;
                 start = position;

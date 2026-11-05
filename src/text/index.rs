@@ -103,9 +103,8 @@ pub(super) fn call(
     } else {
         length
     };
-    position = sequence::rune_offset(ctx, text, start)?;
-    if valid && length == text.len() && end - start >= 16 && pattern.at(0)?.is_ascii() {
-        let found = search_ascii(
+    let found = if valid && length == text.len() && end - start >= 16 && pattern.at(0)?.is_ascii() {
+        search_ascii(
             ctx,
             text,
             &pattern.data,
@@ -113,32 +112,55 @@ pub(super) fn call(
             start..end,
             &mut pending,
             reverse,
-        )?;
-        ctx.settle_bytes(&mut pending)?;
-        return Ok(found);
-    }
-    matched = 0;
+        )?
+    } else {
+        search_runes(
+            ctx,
+            text,
+            &pattern.data,
+            &table.data,
+            start..end,
+            &mut pending,
+            reverse,
+        )?
+    };
+    ctx.settle_bytes(&mut pending)?;
+    Ok(found)
+}
+
+// The rune loop needs its own registers for the same reason as the ASCII loop.
+#[inline(never)]
+fn search_runes(
+    ctx: &mut CallContext,
+    text: &[u8],
+    pattern: &[char],
+    table: &[usize],
+    range: std::ops::Range<usize>,
+    pending: &mut usize,
+    reverse: bool,
+) -> Result<Value> {
+    let mut position = sequence::rune_offset(ctx, text, range.start)?;
+    let mut matched = 0;
     let mut found = Value::nil();
-    for index in start..end {
-        let (rune, width, _) = scan::rune(text.tail(position)?);
-        ctx.scan_bytes(&mut pending, width)?;
+    for index in range {
+        let (rune, width) = scan::code_point(text.tail(position)?);
+        ctx.scan_bytes(pending, width)?;
         position += width;
-        while matched > 0 && rune != *pattern.at(matched)? {
-            ctx.scan_bytes(&mut pending, 1)?;
+        while matched > 0 && rune != u32::from(*pattern.at(matched)?) {
+            ctx.scan_bytes(pending, 1)?;
             matched = *table.at(matched - 1)?;
         }
-        if rune == *pattern.at(matched)? {
+        if rune == u32::from(*pattern.at(matched)?) {
             matched += 1;
         }
-        if matched == count {
-            found = Value::int(to_i64(index + 1 - count));
+        if matched == pattern.len() {
+            found = Value::int(to_i64(index + 1 - pattern.len()));
             if !reverse {
                 break;
             }
             matched = *table.at(matched - 1)?;
         }
     }
-    ctx.settle_bytes(&mut pending)?;
     Ok(found)
 }
 
@@ -154,8 +176,8 @@ fn search_ascii(
     pending: &mut usize,
     reverse: bool,
 ) -> Result<Value> {
+    let mut index = sequence::rune_offset(ctx, text, range.start)?;
     let text = text.span(0, range.end)?;
-    let mut index = range.start;
     let mut matched = 0;
     let mut found = Value::nil();
     while index < text.len() {

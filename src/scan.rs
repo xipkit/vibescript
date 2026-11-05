@@ -626,6 +626,8 @@ static UTF8_SECOND: [(u8, u8); 5] = [
     (0x80, 0x0f),
 ];
 
+// Keep validation out of rune-at-a-time callers that carry their own scan state.
+#[inline(never)]
 fn rune_width(s: &[u8]) -> (usize, bool) {
     sequence(s)
 }
