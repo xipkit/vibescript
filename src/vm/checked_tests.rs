@@ -328,6 +328,32 @@ fn missing_vm_operands_are_terminal_in_host_blocks() {
 }
 
 #[test]
+#[cfg(target_pointer_width = "64")]
+fn frame_indices_reject_truncation() {
+    let script = Engine::new().compile("0").unwrap();
+    let execution = Execution::new(&script, "__main__", &[], &[], CallOptions::default()).unwrap();
+    let run = execution.run.as_ref().unwrap();
+    let limit = u32::MAX as usize;
+    let frame = Frame::new(run.root.clone(), &run.storage, Some(limit), limit, limit).unwrap();
+    assert_eq!(frame.function(), Some(limit));
+    assert_eq!(frame.base(), limit);
+    assert_eq!(frame.local_base(), limit);
+    for (function, base, local_base) in [
+        (Some(limit + 1), 0, 0),
+        (None, limit + 1, 0),
+        (None, 0, limit + 1),
+    ] {
+        let error = Frame::new(run.root.clone(), &run.storage, function, base, local_base)
+            .err()
+            .map(Error::from)
+            .unwrap();
+        assert_eq!(error.kind, ErrorKind::Internal);
+        assert!(error.message.contains("integer conversion out of range"));
+        assert!(error.message.contains("src/vm.rs:"));
+    }
+}
+
+#[test]
 fn a_native_frame_has_no_required_function() {
     let script = Engine::new().compile("0").unwrap();
     let mut execution =

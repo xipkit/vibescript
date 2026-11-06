@@ -4905,6 +4905,8 @@ fn enter_iteration(
     result
 }
 
+// Keep the large fallible frame result in its caller's destination.
+#[inline(always)]
 fn new_frame(
     ctx: &mut CallContext,
     program: &Program,
@@ -5006,7 +5008,8 @@ impl Frame {
     }
 
     /// A frame starting `function` over the current extent of storage.
-    #[inline]
+    // Checked narrowing otherwise tips this constructor out of inlining.
+    #[inline(always)]
     fn new(
         program: Arc<Program>,
         storage: &Storage,
