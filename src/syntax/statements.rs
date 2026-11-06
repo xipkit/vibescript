@@ -35,7 +35,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             let mut p = self.p();
             p.work.charge(1)?;
             p.enter()?;
-            p.tokens[p.pos].offset as u32
+            p.tokens.at(p.pos)?.offset as u32
         };
         let stmt = self
             .modified_statement(offset)
@@ -87,7 +87,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         }
         let keyword = {
             let mut p = self.p();
-            let keyword = p.tokens[p.pos].offset as u32;
+            let keyword = p.tokens.at(p.pos)?.offset as u32;
             p.bump()?;
             keyword
         };
@@ -130,7 +130,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
     async fn begin_statement(&self) -> Result<Statement> {
         let offset = {
             let mut p = self.p();
-            let offset = p.tokens[p.pos].offset as u32;
+            let offset = p.tokens.at(p.pos)?.offset as u32;
             p.pos += 1;
             offset
         };
@@ -181,7 +181,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             Some("raise") => self.raise_statement().await,
             Some("retry") => {
                 let mut p = self.p();
-                let line = p.tokens[p.pos - 1].line;
+                let line = p.tokens.at(p.pos - 1)?.line;
                 if !p.ends_after(p.pos - 1, line) && !p.modifier_follows(line) {
                     p.pos = p.significant(p.pos);
                     return p.err("retry does not accept a value");
@@ -204,7 +204,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 // target list, and one followed by an assignment operator as a target.
                 let target = {
                     let p = self.p();
-                    match &p.tokens[p.significant(p.pos)].token {
+                    match &p.tokens.at(p.significant(p.pos))?.token {
                         Token::P(',') => true,
                         Token::Op(op) => assignment(op),
                         _ => false,
@@ -224,8 +224,8 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let work = self.p().work;
         let (callee, offset) = {
             let mut p = self.p();
-            let offset = p.tokens[p.pos].offset as u32;
-            let line = p.tokens[p.pos].line;
+            let offset = p.tokens.at(p.pos)?.offset as u32;
+            let line = p.tokens.at(p.pos)?.line;
             p.bump()?;
             let callee = p.variable_name("assert")?;
             if p.ends_after(p.pos - 1, line) {
@@ -259,7 +259,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
     async fn flow_statement(&self, flow: &str) -> Result<Statement> {
         let value = {
             let mut p = self.p();
-            let line = p.tokens[p.pos - 1].line;
+            let line = p.tokens.at(p.pos - 1)?.line;
             let value = !p.ends_after(p.pos - 1, line) && !p.modifier_follows(line);
             if value {
                 p.line_breaks()?;
@@ -289,7 +289,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let op = {
             let mut p = self.p();
             let next = p.significant(p.pos);
-            if matches!(&p.tokens[next].token, Token::Op(op) if assignment(op)) {
+            if matches!(&p.tokens.at(next)?.token, Token::Op(op) if assignment(op)) {
                 p.pos = next;
             }
             let op = match p.token() {
@@ -348,7 +348,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                     // Like Go, a comma the line ends on closes the list.
                     let mut p = self.p();
                     let comma = p.pos - 1;
-                    if p.ends_after(comma, p.tokens[comma].line) {
+                    if p.ends_after(comma, p.tokens.at(comma)?.line) {
                         break;
                     }
                     p.line_breaks()?;
@@ -392,11 +392,16 @@ impl Parser<'_> {
     /// comma-separated argument list unless parentheses follow directly.
     fn assertion(&self) -> bool {
         matches!(self.token(), Token::Word(w) if *w == "assert")
-            && !(self.tokens[self.pos + 1].token == Token::P('(')
-                && self.tokens[self.pos + 1].offset == self.tokens[self.pos].end)
+            && !(*self.token_at(self.pos + 1) == Token::P('(')
+                && self
+                    .tokens
+                    .get(self.pos + 1)
+                    .zip(self.tokens.get(self.pos))
+                    .is_some_and(|(next, current)| next.offset == current.end))
     }
     fn comma_on_line(&self) -> Result<bool> {
-        Ok(self.token() == &Token::P(',') && self.tokens[self.pos].line == self.previous()?.line)
+        Ok(self.token() == &Token::P(',')
+            && self.tokens.at(self.pos)?.line == self.previous()?.line)
     }
     fn assignment_ahead(&self) -> Result<bool> {
         self.work.charge(1)?;

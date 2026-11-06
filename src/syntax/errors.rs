@@ -6,7 +6,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         {
             let p = self.p();
             work.charge(1)?;
-            let line = p.tokens[p.pos - 1].line;
+            let line = p.tokens.at(p.pos - 1)?.line;
             if p.ends_after(p.pos - 1, line) || p.modifier_follows(line) {
                 return Ok(Statement::Raise(None, None));
             }
@@ -15,7 +15,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let value = self.line_expr(0).await?;
         let separated = {
             let mut p = self.p();
-            p.tokens[p.pos].line == p.previous()?.end_line && p.take_p(',')
+            p.tokens.at(p.pos)?.line == p.previous()?.end_line && p.take_p(',')
         };
         let message = if separated {
             self.p().line_breaks()?;
@@ -42,8 +42,8 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         while matches!(self.p().token(), Token::Word(w) if w == "rescue") {
             let (offset, classes, binding, existed, declared_it) = {
                 let mut p = self.p();
-                let offset = p.tokens[p.pos].offset as u32;
-                let line = p.tokens[p.pos].line;
+                let offset = p.tokens.at(p.pos)?.offset as u32;
+                let line = p.tokens.at(p.pos)?.line;
                 p.bump()?;
                 let (classes, binding) = p.rescue_clause(offset as usize, line)?;
                 let existed = match &binding {
@@ -53,7 +53,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 let declared_it = p.declared_it;
                 if let Some(name) = &binding {
                     // The binding is the word before the clause's end.
-                    let at = p.tokens[p.pos - 1].offset;
+                    let at = p.tokens.at(p.pos - 1)?.offset;
                     let id = p.local_id(name, at)?;
                     p.locals.insert(work, name.clone(), id)?;
                     p.declared_it |= name == "it";
@@ -123,14 +123,14 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             let p = self.p();
             let rescue = p.pos - 1;
             let next = p.significant(p.pos);
-            if p.tokens[next].line != p.tokens[rescue].line || !p.prefix(next) {
+            if p.tokens.at(next)?.line != p.tokens.at(rescue)?.line || !p.prefix(next) {
                 return Err(Error::syntax(
                     work,
-                    p.tokens[rescue].offset,
+                    p.tokens.at(rescue)?.offset,
                     "rescue modifier requires fallback expression",
                 ));
             }
-            p.tokens[rescue].offset as u32
+            p.tokens.at(rescue)?.offset as u32
         };
         let fallback = self.line_expr(0).await?;
         let attempt = Try {
@@ -162,8 +162,10 @@ impl Parser<'_> {
     /// Reports whether a statement modifier follows on `line`.
     pub(super) fn modifier_follows(&self, line: usize) -> bool {
         let next = self.significant(self.pos);
-        self.tokens[next].line == line
-            && matches!(&self.tokens[next].token, Token::Word(w) if matches!(w.as_str(), "if" | "unless" | "while" | "until"))
+        self.tokens
+            .get(next)
+            .is_some_and(|token| token.line == line)
+            && matches!(self.token_at(next), Token::Word(w) if matches!(w.as_str(), "if" | "unless" | "while" | "until"))
     }
 
     /// Parses a rescue clause's error classes and binding, as Go's
@@ -176,10 +178,10 @@ impl Parser<'_> {
         let work = self.work;
         let mut classes = Buffer::from_array(work, [crate::ErrorClass::Standard])?;
         let next = self.significant(self.pos);
-        if self.tokens[next].line != line {
+        if self.tokens.at(next)?.line != line {
             return Ok((classes, None));
         }
-        let grouped = self.tokens[next].token == Token::P('(');
+        let grouped = self.tokens.at(next)?.token == Token::P('(');
         if grouped || self.ident(next) {
             self.pos = next;
             if grouped {
@@ -188,10 +190,10 @@ impl Parser<'_> {
             }
             let mut options = Vec::new();
             loop {
-                let offset = self.tokens[self.pos].offset;
+                let offset = self.tokens.at(self.pos)?.offset;
                 options.push((offset, self.type_atom(1)?));
                 let pipe = self.significant(self.pos);
-                if self.tokens[pipe].token != Token::P('|') {
+                if self.tokens.at(pipe)?.token != Token::P('|') {
                     break;
                 }
                 self.pos = pipe + 1;
@@ -207,18 +209,18 @@ impl Parser<'_> {
                 self.line_breaks()?;
                 self.expect_p(')')?;
             }
-        } else if self.tokens[next].token != Token::Op("=>") {
-            if self.tokens[next].token == Token::Op("->") {
+        } else if self.tokens.at(next)?.token != Token::Op("=>") {
+            if self.tokens.at(next)?.token == Token::Op("->") {
                 self.pos = next;
                 return self.err("rescue binding must use =>");
             }
             return Ok((classes, None));
         }
         let arrow = self.significant(self.pos);
-        if self.tokens[arrow].line != line {
+        if self.tokens.at(arrow)?.line != line {
             return Ok((classes, None));
         }
-        match self.tokens[arrow].token {
+        match self.tokens.at(arrow)?.token {
             Token::Op("->") => {
                 self.pos = arrow;
                 self.err("rescue binding must use =>")

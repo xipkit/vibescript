@@ -3,6 +3,7 @@
 // See licenses/Go-BSD-3-Clause.txt.
 
 use super::{Zone, calendar};
+use crate::checked::Checked;
 use crate::{CallContext, Result, budget::Buffer};
 use std::{cmp::Ordering, sync::Arc};
 
@@ -14,24 +15,18 @@ pub(super) fn filename_units(ctx: &mut CallContext, mut bytes: &[u8]) -> Result<
     let mut units = Buffer::with_capacity(ctx, bytes.len())?;
     while !bytes.is_empty() {
         ctx.charge(1)?;
-        if bytes.len() >= 3
-            && bytes[0] == 0xed
-            && (0xa0..=0xbf).contains(&bytes[1])
-            && (0x80..=0xbf).contains(&bytes[2])
-        {
-            units.data.push(
-                (u16::from(bytes[0] & 15) << 12)
-                    | (u16::from(bytes[1] & 63) << 6)
-                    | u16::from(bytes[2] & 63),
-            );
-            bytes = &bytes[3..];
+        if let [a @ 0xed, b @ 0xa0..=0xbf, c @ 0x80..=0xbf, rest @ ..] = bytes {
+            units
+                .data
+                .push((u16::from(a & 15) << 12) | (u16::from(b & 63) << 6) | u16::from(c & 63));
+            bytes = rest;
         } else {
             let (rune, width, _) = crate::scan::rune(bytes);
             let mut scratch = [0; 2];
             units
                 .data
                 .extend_from_slice(rune.encode_utf16(&mut scratch));
-            bytes = &bytes[width..];
+            bytes = bytes.tail(width)?;
         }
     }
     Ok(units)
@@ -90,7 +85,7 @@ struct Names {
 }
 
 fn terminated(input: &[u16]) -> &[u16] {
-    &input[..input.iter().position(|&c| c == 0).unwrap_or(input.len())]
+    input.split(|&c| c == 0).next().unwrap_or_default()
 }
 
 fn abbreviate(ctx: &mut CallContext, name: &[u16]) -> Result<Option<Names>> {
@@ -100,19 +95,25 @@ fn abbreviate(ctx: &mut CallContext, name: &[u16]) -> Result<Option<Names>> {
     while lo < hi {
         ctx.charge(1)?;
         let mid = lo + (hi - lo) / 2;
-        match table[mid].0.encode_utf16().cmp(name.iter().copied()) {
+        let &(key, standard, daylight) = table.at(mid)?;
+        match key.encode_utf16().cmp(name.iter().copied()) {
             Ordering::Less => lo = mid + 1,
             Ordering::Greater => hi = mid,
             Ordering::Equal => {
-                let (_, standard, daylight) = table[mid];
                 let mut names = Names {
                     standard: [0; 32],
                     standard_len: standard.len(),
                     daylight: [0; 32],
                     daylight_len: daylight.len(),
                 };
-                names.standard[..standard.len()].copy_from_slice(standard.as_bytes());
-                names.daylight[..daylight.len()].copy_from_slice(daylight.as_bytes());
+                names
+                    .standard
+                    .span_mut(0, standard.len())?
+                    .copy_from_slice(standard.as_bytes());
+                names
+                    .daylight
+                    .span_mut(0, daylight.len())?
+                    .copy_from_slice(daylight.as_bytes());
                 return Ok(Some(names));
             }
         }
@@ -121,13 +122,14 @@ fn abbreviate(ctx: &mut CallContext, name: &[u16]) -> Result<Option<Names>> {
 }
 
 fn capitals(info: &Information) -> Names {
-    fn extract(input: &[u16], output: &mut [u8]) -> usize {
+    fn extract(input: &[u16; 32], output: &mut [u8; 32]) -> usize {
         let mut length = 0;
-        for &c in terminated(input) {
-            if (u16::from(b'A')..=u16::from(b'Z')).contains(&c) {
-                output[length] = c as u8;
-                length += 1;
-            }
+        let capitals = terminated(input)
+            .iter()
+            .filter(|&&c| (u16::from(b'A')..=u16::from(b'Z')).contains(&c));
+        for (slot, &c) in output.iter_mut().zip(capitals) {
+            *slot = c as u8;
+            length += 1;
         }
         length
     }
@@ -165,11 +167,11 @@ fn pseudo_unix(year: i64, date: SystemTime) -> i64 {
 }
 
 fn build(ctx: &mut CallContext, info: &Information, names: Names, year: i64) -> Result<Arc<Zone>> {
-    let standard_name = &names.standard[..names.standard_len];
+    let standard_name = names.standard.span(0, names.standard_len)?;
     if info.standard_date.month == 0 {
         return Zone::fixed(ctx, standard_name, info.bias.wrapping_mul(-60));
     }
-    let daylight_name = &names.daylight[..names.daylight_len];
+    let daylight_name = names.daylight.span(0, names.daylight_len)?;
     let offsets = [
         info.bias.wrapping_add(info.standard_bias).wrapping_mul(-60),
         info.bias.wrapping_add(info.daylight_bias).wrapping_mul(-60),
@@ -205,7 +207,7 @@ fn build(ctx: &mut CallContext, info: &Information, names: Names, year: i64) -> 
         ctx.charge(1)?;
         ctx.checkpoint()?;
         for (date, index) in dates {
-            let when = pseudo_unix(year, date) - i64::from(offsets[1 - index]);
+            let when = pseudo_unix(year, date) - i64::from(*offsets.at(1 - index)?);
             buffer.data.extend_from_slice(&when.to_be_bytes());
         }
     }

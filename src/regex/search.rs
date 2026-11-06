@@ -191,6 +191,9 @@ impl Literal {
     ) -> Result<Option<(usize, usize)>> {
         let runes = &self.runes.data;
         let first = runes[0];
+        // Folded ASCII letters have two ASCII forms; the byte search stops
+        // at only one needle. It already stops before non-ASCII fold members.
+        let ascii = first < 128 && !(self.fold && (first as u8).is_ascii_alphabetic());
         let mut start = from;
         let mut position = from;
         let mut matched = 0;
@@ -209,10 +212,14 @@ impl Literal {
                 // their own. It stops where the next charge falls due, which
                 // leaves every charge where a byte at a time would put it.
                 let window = &text[position..text.len().min(position + (CHUNK - work))];
-                let skipped = window
-                    .iter()
-                    .position(|&byte| !idle(byte))
-                    .unwrap_or(window.len());
+                let skipped = if ascii {
+                    scan::ascii_mismatch(window, first as u8)
+                } else {
+                    window
+                        .iter()
+                        .position(|&byte| !idle(byte))
+                        .unwrap_or(window.len())
+                };
                 work += skipped;
                 position += skipped;
                 start = position;
@@ -902,6 +909,10 @@ mod tests {
             "aabaaabab",
             "abababababc",
             "(?i)aabaak",
+            "(?i)1ks",
+            "(?i):ks",
+            "(?i)k",
+            "(?i)s",
             "(?i)\u{e9}aa\u{c9}ab",
             "\u{754c}aab\u{754c}b",
             "a\u{fffd}a\u{fffd}b",
@@ -941,6 +952,27 @@ mod tests {
                     text.extend_from_slice(pieces[next(pieces.len())]);
                 }
                 texts.push(text);
+            }
+            // Candidates and non-ASCII bytes in the vector lanes and tails,
+            // including both ASCII forms and the K/S folding orbits.
+            for run in [7, 8, 9, 15, 16, 17, 31, 32, 33, CHUNK - 1, CHUNK, CHUNK + 1] {
+                for tail in [
+                    b"ab".as_slice(),
+                    b"1kS",
+                    b":kS",
+                    b"k",
+                    b"K",
+                    b"s",
+                    b"S",
+                    "1\u{212a}\u{17f}".as_bytes(),
+                    "\u{212a}\u{17f}".as_bytes(),
+                    b"\xffab",
+                    b"\xe7\x95ab",
+                ] {
+                    let mut text = vec![b'x'; run];
+                    text.extend_from_slice(tail);
+                    texts.push(text);
+                }
             }
             for text in &texts {
                 for from in [0, text.len().min(1), text.len() / 3, text.len()] {

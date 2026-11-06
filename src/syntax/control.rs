@@ -192,7 +192,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 // Like Go, a comma on the next line continues the values.
                 let mut p = self.p();
                 let comma = p.significant(p.pos);
-                if p.tokens[comma].token != Token::P(',') {
+                if p.tokens.at(comma)?.token != Token::P(',') {
                     break;
                 }
                 p.pos = comma + 1;

@@ -1,0 +1,234 @@
+{
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "binaries": {
+    "before": {
+      "path": "/Volumes/AI/Build/tron-vibe-169/before/release/vibes",
+      "sha256": "80234e9ff2989fc337a8ab3fb0b8aff14d9e76e74fb8ac25d8beb0e9b50c6d2b"
+    },
+    "latch": {
+      "path": "/Volumes/AI/Build/tron-vibe-169/latch/release/vibes",
+      "sha256": "b8205ad83d3bb3f1ee4ba7d10e8fece23bc7d092ed1fca74aefa1e52a8dcce06"
+    }
+  },
+  "order": [
+    [
+      "before",
+      "latch"
+    ],
+    [
+      "latch",
+      "before"
+    ],
+    [
+      "latch",
+      "before"
+    ],
+    [
+      "before",
+      "latch"
+    ],
+    [
+      "before",
+      "latch"
+    ],
+    [
+      "latch",
+      "before"
+    ],
+    [
+      "latch",
+      "before"
+    ],
+    [
+      "before",
+      "latch"
+    ],
+    [
+      "before",
+      "latch"
+    ],
+    [
+      "latch",
+      "before"
+    ],
+    [
+      "latch",
+      "before"
+    ],
+    [
+      "before",
+      "latch"
+    ]
+  ],
+  "samples_ns": {
+    "captured": {
+      "before": [
+        317565208,
+        308735458,
+        372982250,
+        283920500,
+        404958083,
+        416774083,
+        323545250,
+        272433875,
+        317603792,
+        326908167,
+        338473333,
+        392173416
+      ],
+      "latch": [
+        306034917,
+        325867667,
+        321591666,
+        312477583,
+        318580208,
+        414108333,
+        350421084,
+        308072083,
+        313856000,
+        335912584,
+        423740417,
+        342150083
+      ]
+    },
+    "captured_output": {
+      "before": [
+        330484459,
+        269103916,
+        332957375,
+        334877792,
+        314891542,
+        374253875,
+        338317333,
+        311769792,
+        229358542,
+        227496167,
+        238378125,
+        356551375
+      ],
+      "latch": [
+        317072792,
+        377534792,
+        288770709,
+        306982750,
+        355009167,
+        389185625,
+        343198209,
+        343584916,
+        230296500,
+        256642875,
+        330367834,
+        315662042
+      ]
+    },
+    "while": {
+      "before": [
+        166658500,
+        149655291,
+        154913709,
+        159965417,
+        153735542,
+        181444375,
+        159286083,
+        214752125,
+        160173917,
+        142854875,
+        110359000,
+        149267417
+      ],
+      "latch": [
+        139109542,
+        161511042,
+        155986167,
+        164493833,
+        137542417,
+        209828291,
+        169578375,
+        179847208,
+        175401875,
+        142521125,
+        112426416,
+        196274375
+      ]
+    },
+    "range": {
+      "before": [
+        130242666,
+        113583792,
+        116224833,
+        125737000,
+        111334709,
+        156781166,
+        134128667,
+        134655584,
+        122439125,
+        144279208,
+        126180209,
+        110590000
+      ],
+      "latch": [
+        141914292,
+        152253000,
+        125410625,
+        136611750,
+        122898292,
+        123873709,
+        129607708,
+        132188084,
+        132222500,
+        127027917,
+        148761666,
+        95063916
+      ]
+    },
+    "record_totals": {
+      "before": [
+        176129792,
+        160276792,
+        151949792,
+        154070042,
+        172172625,
+        168668750,
+        131195958,
+        180029000,
+        209652083,
+        166819834,
+        186809583,
+        124405250
+      ],
+      "latch": [
+        191526667,
+        180665875,
+        138574250,
+        206364208,
+        186158250,
+        153729666,
+        181795958,
+        177801417,
+        223814959,
+        165928750,
+        153295000,
+        124109833
+      ]
+    }
+  },
+  "rounds": 12,
+  "warmups": 1,
+  "fixtures": {
+    "range": {
+      "source": "t = 0\nfor i in 0...2000000\n t = t + (i % 7) * 2\nend\nputs(t)\n"
+    },
+    "while": {
+      "source": "t = 0\ni = 0\nwhile i < 2000000\n t = t + (i % 7) * 2\n i += 1\nend\nputs(t)\n"
+    },
+    "record_totals": {
+      "source": "rows = [{price: 100, qty: 1, active: false},{price: 107, qty: 2, active: true},{price: 114, qty: 3, active: true},{price: 121, qty: 4, active: true},{price: 128, qty: 5, active: true},{price: 135, qty: 1, active: true},{price: 142, qty: 2, active: true},{price: 149, qty: 3, active: false},{price: 156, qty: 4, active: true},{price: 163, qty: 5, active: true},{price: 170, qty: 1, active: true},{price: 177, qty: 2, active: true},{price: 184, qty: 3, active: true},{price: 191, qty: 4, active: true},{price: 198, qty: 5, active: false},{price: 205, qty: 1, active: true},{price: 212, qty: 2, active: true},{price: 219, qty: 3, active: true},{price: 226, qty: 4, active: true},{price: 233, qty: 5, active: true},{price: 240, qty: 1, active: true},{price: 247, qty: 2, active: false},{price: 254, qty: 3, active: true},{price: 261, qty: 4, active: true},{price: 268, qty: 5, active: true},{price: 275, qty: 1, active: true},{price: 282, qty: 2, active: true},{price: 289, qty: 3, active: true},{price: 296, qty: 4, active: false},{price: 303, qty: 5, active: true},{price: 310, qty: 1, active: true},{price: 317, qty: 2, active: true},{price: 324, qty: 3, active: true},{price: 331, qty: 4, active: true},{price: 338, qty: 5, active: true},{price: 345, qty: 1, active: false},{price: 352, qty: 2, active: true},{price: 359, qty: 3, active: true},{price: 366, qty: 4, active: true},{price: 373, qty: 5, active: true},{price: 380, qty: 1, active: true},{price: 387, qty: 2, active: true},{price: 394, qty: 3, active: false},{price: 401, qty: 4, active: true},{price: 408, qty: 5, active: true},{price: 415, qty: 1, active: true},{price: 422, qty: 2, active: true},{price: 429, qty: 3, active: true},{price: 436, qty: 4, active: true},{price: 443, qty: 5, active: false},{price: 450, qty: 1, active: true},{price: 457, qty: 2, active: true},{price: 464, qty: 3, active: true},{price: 471, qty: 4, active: true},{price: 478, qty: 5, active: true},{price: 485, qty: 1, active: true},{price: 492, qty: 2, active: false},{price: 499, qty: 3, active: true},{price: 506, qty: 4, active: true},{price: 513, qty: 5, active: true},{price: 520, qty: 1, active: true},{price: 527, qty: 2, active: true},{price: 534, qty: 3, active: true},{price: 541, qty: 4, active: false},{price: 548, qty: 5, active: true},{price: 555, qty: 1, active: true},{price: 562, qty: 2, active: true},{price: 569, qty: 3, active: true},{price: 576, qty: 4, active: true},{price: 583, qty: 5, active: true},{price: 590, qty: 1, active: false},{price: 597, qty: 2, active: true},{price: 604, qty: 3, active: true},{price: 611, qty: 4, active: true},{price: 618, qty: 5, active: true},{price: 625, qty: 1, active: true},{price: 632, qty: 2, active: true},{price: 639, qty: 3, active: false},{price: 646, qty: 4, active: true},{price: 653, qty: 5, active: true},{price: 660, qty: 1, active: true},{price: 667, qty: 2, active: true},{price: 674, qty: 3, active: true},{price: 681, qty: 4, active: true},{price: 688, qty: 5, active: false},{price: 695, qty: 1, active: true},{price: 702, qty: 2, active: true},{price: 709, qty: 3, active: true},{price: 716, qty: 4, active: true},{price: 723, qty: 5, active: true},{price: 730, qty: 1, active: true},{price: 737, qty: 2, active: false},{price: 744, qty: 3, active: true},{price: 751, qty: 4, active: true},{price: 758, qty: 5, active: true},{price: 765, qty: 1, active: true},{price: 772, qty: 2, active: true},{price: 779, qty: 3, active: true},{price: 786, qty: 4, active: false},{price: 793, qty: 5, active: true},{price: 800, qty: 1, active: true},{price: 807, qty: 2, active: true},{price: 814, qty: 3, active: true},{price: 821, qty: 4, active: true},{price: 828, qty: 5, active: true},{price: 835, qty: 1, active: false},{price: 842, qty: 2, active: true},{price: 849, qty: 3, active: true},{price: 856, qty: 4, active: true},{price: 863, qty: 5, active: true},{price: 870, qty: 1, active: true},{price: 877, qty: 2, active: true},{price: 884, qty: 3, active: false},{price: 891, qty: 4, active: true},{price: 898, qty: 5, active: true},{price: 905, qty: 1, active: true},{price: 912, qty: 2, active: true},{price: 919, qty: 3, active: true},{price: 926, qty: 4, active: true},{price: 933, qty: 5, active: false},{price: 940, qty: 1, active: true},{price: 947, qty: 2, active: true},{price: 954, qty: 3, active: true},{price: 961, qty: 4, active: true},{price: 968, qty: 5, active: true},{price: 975, qty: 1, active: true},{price: 982, qty: 2, active: false},{price: 989, qty: 3, active: true},{price: 996, qty: 4, active: true},{price: 1003, qty: 5, active: true},{price: 1010, qty: 1, active: true},{price: 1017, qty: 2, active: true},{price: 1024, qty: 3, active: true},{price: 1031, qty: 4, active: false},{price: 1038, qty: 5, active: true},{price: 1045, qty: 1, active: true},{price: 1052, qty: 2, active: true},{price: 1059, qty: 3, active: true},{price: 1066, qty: 4, active: true},{price: 1073, qty: 5, active: true},{price: 1080, qty: 1, active: false},{price: 1087, qty: 2, active: true},{price: 1094, qty: 3, active: true},{price: 1101, qty: 4, active: true},{price: 1108, qty: 5, active: true},{price: 1115, qty: 1, active: true},{price: 1122, qty: 2, active: true},{price: 1129, qty: 3, active: false},{price: 1136, qty: 4, active: true},{price: 1143, qty: 5, active: true},{price: 1150, qty: 1, active: true},{price: 1157, qty: 2, active: true},{price: 1164, qty: 3, active: true},{price: 1171, qty: 4, active: true},{price: 1178, qty: 5, active: false},{price: 1185, qty: 1, active: true},{price: 1192, qty: 2, active: true},{price: 1199, qty: 3, active: true},{price: 1206, qty: 4, active: true},{price: 1213, qty: 5, active: true},{price: 1220, qty: 1, active: true},{price: 1227, qty: 2, active: false},{price: 1234, qty: 3, active: true},{price: 1241, qty: 4, active: true},{price: 1248, qty: 5, active: true},{price: 1255, qty: 1, active: true},{price: 1262, qty: 2, active: true},{price: 1269, qty: 3, active: true},{price: 1276, qty: 4, active: false},{price: 1283, qty: 5, active: true},{price: 1290, qty: 1, active: true},{price: 1297, qty: 2, active: true},{price: 1304, qty: 3, active: true},{price: 1311, qty: 4, active: true},{price: 1318, qty: 5, active: true},{price: 1325, qty: 1, active: false},{price: 1332, qty: 2, active: true},{price: 1339, qty: 3, active: true},{price: 1346, qty: 4, active: true},{price: 1353, qty: 5, active: true},{price: 1360, qty: 1, active: true},{price: 1367, qty: 2, active: true},{price: 1374, qty: 3, active: false},{price: 1381, qty: 4, active: true},{price: 1388, qty: 5, active: true},{price: 1395, qty: 1, active: true},{price: 1402, qty: 2, active: true},{price: 1409, qty: 3, active: true},{price: 1416, qty: 4, active: true},{price: 1423, qty: 5, active: false},{price: 1430, qty: 1, active: true},{price: 1437, qty: 2, active: true},{price: 1444, qty: 3, active: true},{price: 1451, qty: 4, active: true},{price: 1458, qty: 5, active: true},{price: 1465, qty: 1, active: true},{price: 1472, qty: 2, active: false},{price: 1479, qty: 3, active: true},{price: 1486, qty: 4, active: true},{price: 1493, qty: 5, active: true},{price: 1500, qty: 1, active: true},{price: 1507, qty: 2, active: true},{price: 1514, qty: 3, active: true},{price: 1521, qty: 4, active: false},{price: 1528, qty: 5, active: true},{price: 1535, qty: 1, active: true},{price: 1542, qty: 2, active: true},{price: 1549, qty: 3, active: true},{price: 1556, qty: 4, active: true},{price: 1563, qty: 5, active: true},{price: 1570, qty: 1, active: false},{price: 1577, qty: 2, active: true},{price: 1584, qty: 3, active: true},{price: 1591, qty: 4, active: true},{price: 1598, qty: 5, active: true},{price: 1605, qty: 1, active: true},{price: 1612, qty: 2, active: true},{price: 1619, qty: 3, active: false},{price: 1626, qty: 4, active: true},{price: 1633, qty: 5, active: true},{price: 1640, qty: 1, active: true},{price: 1647, qty: 2, active: true},{price: 1654, qty: 3, active: true},{price: 1661, qty: 4, active: true},{price: 1668, qty: 5, active: false},{price: 1675, qty: 1, active: true},{price: 1682, qty: 2, active: true},{price: 1689, qty: 3, active: true},{price: 1696, qty: 4, active: true},{price: 1703, qty: 5, active: true},{price: 1710, qty: 1, active: true},{price: 1717, qty: 2, active: false},{price: 1724, qty: 3, active: true},{price: 1731, qty: 4, active: true},{price: 1738, qty: 5, active: true},{price: 1745, qty: 1, active: true},{price: 1752, qty: 2, active: true},{price: 1759, qty: 3, active: true},{price: 1766, qty: 4, active: false},{price: 1773, qty: 5, active: true},{price: 1780, qty: 1, active: true},{price: 1787, qty: 2, active: true},{price: 1794, qty: 3, active: true},{price: 1801, qty: 4, active: true},{price: 1808, qty: 5, active: true},{price: 1815, qty: 1, active: false},{price: 1822, qty: 2, active: true},{price: 1829, qty: 3, active: true},{price: 1836, qty: 4, active: true},{price: 1843, qty: 5, active: true},{price: 1850, qty: 1, active: true},{price: 1857, qty: 2, active: true},{price: 1864, qty: 3, active: false},{price: 1871, qty: 4, active: true},{price: 1878, qty: 5, active: true},{price: 1885, qty: 1, active: true}]\ntotal = 0\nunits = 0\n2000.times {\n rows.each { |row|\n  next if !row[\"active\"]\n  total += row[\"price\"] * row[\"qty\"]\n  units += row[\"qty\"]\n }\n}\nputs(total)\nputs(units)\n"
+    },
+    "captured": {
+      "source": "t = 0\n2000000.times { |i| t = t + (i % 7) * 2 }\n"
+    },
+    "captured_output": {
+      "source": "t = 0\n2000000.times { |i| t = t + (i % 7) * 2 }\nputs(t)\n"
+    }
+  }
+}

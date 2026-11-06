@@ -1,5 +1,5 @@
 use crate::bytes::Number;
-use crate::checked::violation;
+use crate::checked::{Checked, violation};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK, MAX_VALUE_DEPTH},
@@ -17,11 +17,18 @@ const LONG: u8 = 1;
 /// its length, then its kind: zero for a byte that is written as itself,
 /// `LONG` for a `\u00XX` escape, otherwise the letter of a two-byte escape.
 static ESCAPES: [[u8; 8]; 128] = {
-    let hex = b"0123456789abcdef";
+    const fn digit(nibble: u8) -> u8 {
+        if nibble < 10 {
+            b'0' + nibble
+        } else {
+            b'a' + nibble - 10
+        }
+    }
     let mut escapes = [[0; 8]; 128];
-    let mut byte = 0;
-    while byte < 128 {
-        let letter = match byte as u8 {
+    let mut byte = 0u8;
+    let mut remaining: &mut [[u8; 8]] = &mut escapes;
+    while let Some((escape, tail)) = remaining.split_first_mut() {
+        let letter = match byte {
             b'"' => b'"',
             b'\\' => b'\\',
             b'\n' => b'n',
@@ -32,12 +39,21 @@ static ESCAPES: [[u8; 8]; 128] = {
             _ => 0,
         };
         if letter != 0 {
-            escapes[byte] = [b'\\', letter, 0, 0, 0, 0, 2, letter];
-        } else if byte < 32 || matches!(byte as u8, b'<' | b'>' | b'&') {
-            let digits = [hex[byte >> 4], hex[byte & 15]];
-            escapes[byte] = [b'\\', b'u', b'0', b'0', digits[0], digits[1], 6, LONG];
+            *escape = [b'\\', letter, 0, 0, 0, 0, 2, letter];
+        } else if byte < 32 || matches!(byte, b'<' | b'>' | b'&') {
+            *escape = [
+                b'\\',
+                b'u',
+                b'0',
+                b'0',
+                digit(byte >> 4),
+                digit(byte & 15),
+                6,
+                LONG,
+            ];
         }
         byte += 1;
+        remaining = tail;
     }
     escapes
 };
@@ -166,13 +182,19 @@ impl Output {
             let length = usize::from(escape[6]);
             // At most two steps a byte, so the count cannot overflow.
             if length != 0 {
-                block[written..written + 8].copy_from_slice(escape);
+                let Some(slot) = block.get_mut(written..written + 8) else {
+                    break;
+                };
+                slot.copy_from_slice(escape);
                 written += length;
                 // One step for the escape and one for appending it.
                 steps = steps.wrapping_add(2);
             } else if tail.first().is_some_and(|&next| escape_kind(next) != 0) {
                 // A one-byte span. A longer one is left to the span scanner.
-                block[written] = *byte;
+                let Some(slot) = block.get_mut(written) else {
+                    break;
+                };
+                *slot = *byte;
                 written += 1;
                 steps = steps.wrapping_add(1);
             } else {
@@ -180,7 +202,10 @@ impl Output {
             }
             rest = tail;
         }
-        data.extend_from_slice(&block[..written]);
+        let Some(block) = block.get(..written) else {
+            return (0, 0);
+        };
+        data.extend_from_slice(block);
         (input.len() - rest.len(), steps)
     }
 
@@ -361,7 +386,10 @@ impl std::fmt::Display for Path<'_, '_> {
                 Frame::Hash { entries, .. } => {
                     let mut quoted = Vec::new();
                     crate::shapes::quote(
-                        entries[index].0.as_bytes().unwrap_or_default(),
+                        entries
+                            .get(index)
+                            .and_then(|entry| entry.0.as_bytes())
+                            .unwrap_or_default(),
                         &mut quoted,
                     );
                     write!(
@@ -513,11 +541,13 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
             ctx.checkpoint()?;
             settle_at = rest.len().saturating_sub(CHUNK);
         }
-        let mut b = rest[0];
+        let Some(mut b) = rest.first().copied() else {
+            break;
+        };
         let mut escape = escape_kind(b);
         while escape != 0 {
             pending = pending.wrapping_add(1);
-            rest = &rest[1..];
+            rest = rest.tail(1)?;
             // Go reserves room for the longest escape before any ASCII escape.
             let reserved = out.buffer.data.len().saturating_add(LONGEST);
             if out.limit.is_some_and(|limit| reserved > limit) {
@@ -527,7 +557,7 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
             if escape != LONG {
                 out.put_escape(ctx, escape, &mut pending)?;
             } else {
-                let [text @ .., _, _] = ESCAPES[usize::from(b)];
+                let [text @ .., _, _] = *ESCAPES.at(usize::from(b))?;
                 out.put(ctx, &text, &mut pending)?;
             }
             let Some(&next) = rest.first() else {
@@ -539,12 +569,12 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
             // above. A third in a row starts a run.
             if escape != 0 && rest.get(1).is_some_and(|&next| escape_kind(next) != 0) {
                 let (run, steps) = out.put_run(rest);
-                rest = &rest[run..];
+                rest = rest.tail(run)?;
                 pending = pending.wrapping_add(steps);
                 continue 'bytes;
             }
         }
-        let window = &rest[..rest.len().min(CHUNK)];
+        let window = rest.span(0, rest.len().min(CHUNK))?;
         if b < 128 {
             // A one-byte run between ASCII escapes needs no vector/SWAR mask.
             if window.get(1).is_some_and(|&next| escape_kind(next) != 0) {
@@ -555,35 +585,35 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
                 {
                     let (run, steps) = out.put_run(rest);
                     if run != 0 {
-                        rest = &rest[run..];
+                        rest = rest.tail(run)?;
                         pending = pending.wrapping_add(steps);
                         continue;
                     }
                 }
-                out.put(ctx, &window[..1], &mut pending)?;
-                rest = &rest[1..];
+                out.put(ctx, window.span(0, 1)?, &mut pending)?;
+                rest = rest.tail(1)?;
                 continue;
             }
             // An ordinary run ending at an escape or the window is exactly
             // the span `text_span` would find, so it skips the rune scan.
             let n = scan::prefix(window, Class::JsonStringify);
             if window.get(n).is_none_or(|&next| next < 128) {
-                out.put(ctx, &window[..n], &mut pending)?;
-                rest = &rest[n..];
+                out.put(ctx, window.span(0, n)?, &mut pending)?;
+                rest = rest.tail(n)?;
                 continue;
             }
         }
         let n = write_text(ctx, rest, out, &mut pending)?;
-        rest = &rest[n..];
+        rest = rest.tail(n)?;
     }
     ctx.charge_pending(&mut pending)?;
     out.push(ctx, b'"')?;
     Ok(())
 }
 
-/// Writes one non-ASCII span or the rune that stopped it, returning the bytes
-/// consumed. Keep its scanners out of `write_string` so they do not compete
-/// with the ASCII and escape loops for registers.
+/// Writes the next text span or a rune that stops the span scanner, returning
+/// the bytes consumed. Keep its scanners out of `write_string` so they do not
+/// compete with the ASCII and escape loops for registers.
 #[inline(never)]
 fn write_text(
     ctx: &mut CallContext,
@@ -591,16 +621,15 @@ fn write_text(
     out: &mut Output,
     pending: &mut u64,
 ) -> Result<usize> {
-    let window = &input[..input.len().min(CHUNK)];
+    let window = input.span(0, input.len().min(CHUNK))?;
     let span = scan::text_span(window, Class::JsonStringify);
     if span.len > 0 {
         if span.runes != span.len {
             *pending = pending.wrapping_add(span.steps);
         }
-        out.put(ctx, &window[..span.len], pending)?;
+        out.put(ctx, window.span(0, span.len)?, pending)?;
         return Ok(span.len);
     }
-    // Decode from the full tail: a valid rune can cross the chunk boundary.
     *pending = pending.wrapping_add(1);
     let (ch, n, valid) = scan::rune(input);
     let replacement: &[u8] = if ch == '\u{2028}' {
@@ -610,7 +639,7 @@ fn write_text(
     } else if !valid {
         b"\\ufffd"
     } else {
-        &input[..n]
+        input.span(0, n)?
     };
     out.put(ctx, replacement, pending)?;
     Ok(n)

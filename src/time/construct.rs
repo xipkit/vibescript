@@ -64,7 +64,7 @@ impl Constructor {
                 return Err(at_shape());
             }
             let zone = location(ctx, zone_input, true)?;
-            let (seconds, mut nanos) = match args[0].0 {
+            let (seconds, mut nanos) = match args.first().ok_or_else(at_shape)?.0 {
                 Kind::Int(n) => (n, 0),
                 Kind::Float(n) if n.is_finite() => {
                     let whole = raw_int(n);
@@ -82,7 +82,7 @@ impl Constructor {
                     "Time.at subsecond value out of range",
                 )
             };
-            if args.len() >= 2 {
+            if let Some(subsecond) = args.get(1) {
                 let factor = if let Some(unit) = args.get(2) {
                     let Kind::Symbol(name) = &unit.0 else {
                         return Err(unexpected_unit(ctx, unit)?);
@@ -96,7 +96,7 @@ impl Constructor {
                 } else {
                     1000
                 };
-                let subsecond = scaled(&args[1], factor).map_err(|error| match error {
+                let subsecond = scaled(subsecond, factor).map_err(|error| match error {
                     Subsecond::NotNumeric => argument("Time.at subsecond value must be numeric"),
                     Subsecond::NotFinite => Error::new(
                         ErrorKind::Arithmetic,
@@ -115,9 +115,9 @@ impl Constructor {
                 zone,
             );
         }
-        if args.is_empty() {
+        let Some(year) = args.first() else {
             return Err(argument("Time constructor expects at least a year"));
-        }
+        };
         for arg in args {
             ctx.charge(1)?;
             if matches!(arg.0, Kind::Big(_)) {
@@ -131,7 +131,7 @@ impl Constructor {
                 "Time constructor expects at most year, month, day, hour, minute, second, microsecond",
             ));
         }
-        let year = required_year(&args[0])?;
+        let year = required_year(year)?;
         let mut parts = [year, 1, 1, 0, 0, 0];
         for (i, part) in parts.iter_mut().enumerate().skip(1) {
             if let Some(arg) = args.get(i) {
