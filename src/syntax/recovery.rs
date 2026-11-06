@@ -349,7 +349,7 @@ impl Parser<'_> {
         let failed = self.pos.max(start + 1).min(self.tokens.len() - 1);
         while index < self.tokens.len() - 1 {
             self.work.charge(1)?;
-            let token = &self.tokens[index];
+            let token = self.tokens.at(index)?;
             let word = match &token.token {
                 Token::Word(w) => w.as_str(),
                 _ => "",
@@ -368,7 +368,7 @@ impl Parser<'_> {
                 }
                 if blocks == 0
                     && index > start
-                    && self.tokens[index - 1].token == Token::EndLine
+                    && self.tokens.at(index - 1)?.token == Token::EndLine
                     && matches!(token.token, Token::Word(_))
                     && self
                         .tokens
@@ -384,7 +384,7 @@ impl Parser<'_> {
                 if blocks == 0
                     && delimiters.is_empty()
                     && index > start
-                    && self.tokens[index - 1].token == Token::EndLine
+                    && self.tokens.at(index - 1)?.token == Token::EndLine
                 {
                     break;
                 }

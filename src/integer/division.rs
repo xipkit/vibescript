@@ -9,6 +9,7 @@ use super::{
     ntt::{self, Meter},
     shifted, significant, subtract, trim, work, zeros,
 };
+use crate::checked::Checked;
 use crate::{CallContext, Result, budget::Buffer};
 use std::cmp::Ordering;
 
@@ -31,16 +32,15 @@ pub(super) fn divide(
 ) -> Result<(Buffer<u32>, Buffer<u32>)> {
     // Normalizing puts the divisor's top bit in its leading word; the
     // quotient is unchanged and the remainder shifts back at the end.
-    let shift = b[b.len() - 1].leading_zeros();
+    let shift = b.at(b.len() - 1)?.leading_zeros();
     let divisor = shifted(ctx, b, shift, b.len())?;
     let mut dividend = shifted(ctx, a, shift, a.len() + 1)?;
     trim(ctx, &mut dividend.data)?;
     let (quotient, remainder) = normalized(ctx, &dividend.data, &divisor.data)?;
     let mut out = zeros(ctx, remainder.data.len())?;
-    for (i, word) in out.data.iter_mut().enumerate() {
+    for (i, (word, &low)) in out.data.iter_mut().zip(&remainder.data).enumerate() {
         work(ctx, i, remainder.data.len())?;
-        let wide = (remainder.data.get(i + 1).copied().unwrap_or(0) as u64) << 32
-            | remainder.data[i] as u64;
+        let wide = (remainder.data.get(i + 1).copied().unwrap_or(0) as u64) << 32 | low as u64;
         *word = (wide >> shift) as u32;
     }
     trim(ctx, &mut out.data)?;
@@ -61,7 +61,7 @@ fn normalized(ctx: &mut CallContext, a: &[u32], b: &[u32]) -> Result<(Buffer<u32
     // over, divides by truncation, and each further digit comes from the
     // remainder so far and the next n words of the dividend.
     let blocks = (length - 1) / n;
-    let head = &a[blocks * n..];
+    let head = a.tail(blocks * n)?;
     let inverse = reciprocal(ctx, b)?;
     let (top, mut remainder) = if head.len() >= 2 * n - 1 {
         reduce(ctx, head, b, &inverse.data)?
@@ -71,17 +71,17 @@ fn normalized(ctx: &mut CallContext, a: &[u32], b: &[u32]) -> Result<(Buffer<u32
     let mut quotient = zeros(ctx, blocks * n + top.data.len())?;
     for (i, &word) in top.data.iter().enumerate() {
         work(ctx, i, top.data.len())?;
-        quotient.data[blocks * n + i] = word;
+        *quotient.at_mut(blocks * n + i)? = word;
     }
     for index in (0..blocks).rev() {
-        let block = &a[index * n..(index + 1) * n];
+        let block = a.span(index * n, (index + 1) * n)?;
         let mut current = Buffer::with_capacity(ctx, n + remainder.data.len())?;
         current.extend(ctx, block)?;
         current.extend(ctx, &remainder.data)?;
         let (digit, rest) = reduce(ctx, &current.data, b, &inverse.data)?;
         for (i, &word) in digit.data.iter().enumerate() {
             work(ctx, i, digit.data.len())?;
-            quotient.data[index * n + i] = word;
+            *quotient.at_mut(index * n + i)? = word;
         }
         remainder = rest;
     }
@@ -98,7 +98,7 @@ fn truncated(
     length: usize,
 ) -> Result<(Buffer<u32>, Buffer<u32>)> {
     let drop = b.len() - (length + 1).min(b.len());
-    let (top, head) = (&a[drop..], &b[drop..]);
+    let (top, head) = (a.tail(drop)?, b.tail(drop)?);
     let inverse = reciprocal(ctx, head)?;
     let mut quotient = estimate(ctx, top, head, &inverse.data)?;
     // The estimate may exceed the quotient by one only when words were
@@ -183,11 +183,11 @@ fn remainder(ctx: &mut CallContext, a: &[u32], b: &[u32], q: &[u32]) -> Result<B
     let mut remainder = zeros(ctx, words)?;
     let (low, high) = a.split_at(words.min(a.len()));
     meter.spend(ctx, low.len())?;
-    remainder.data[..low.len()].copy_from_slice(low);
+    remainder.span_mut(0, low.len())?.copy_from_slice(low);
     add_wrapped(ctx, &mut meter, &mut remainder.data, high)?;
     subtract_wrapped(ctx, &mut meter, &mut remainder.data, &product.data)?;
     // β^L - 1 itself stands for zero.
-    if remainder.data[0] == u32::MAX {
+    if *remainder.at(0)? == u32::MAX {
         meter.spend(ctx, words)?;
         if remainder.data.iter().all(|&word| word == u32::MAX) {
             remainder.data.fill(0);
@@ -209,7 +209,7 @@ fn error(ctx: &mut CallContext, a: &[u32], x: &mut [u32], limit: usize) -> Resul
         let product = ntt::multiply_cyclic(ctx, a, x, words)?;
         let mut meter = Meter::default();
         let mut error = zeros(ctx, words)?;
-        error.data[limit % words] = 1;
+        *error.at_mut(limit % words)? = 1;
         subtract_wrapped(ctx, &mut meter, &mut error.data, &product.data)?;
         for _ in 0..CORRECTIONS {
             let length = significant(&error.data).len();
@@ -300,7 +300,7 @@ fn reciprocal(ctx: &mut CallContext, a: &[u32]) -> Result<Buffer<u32>> {
     }
     let low = (n - 1) / 2;
     let high = n - low;
-    let mut x = reciprocal(ctx, &a[low..])?;
+    let mut x = reciprocal(ctx, a.tail(low)?)?;
     let error = error(ctx, a, &mut x.data, n + high)?;
     let u = multiply(
         ctx,
@@ -311,7 +311,7 @@ fn reciprocal(ctx: &mut CallContext, a: &[u32]) -> Result<Buffer<u32>> {
     let mut out = zeros(ctx, n + 2)?;
     for (i, &word) in x.data.iter().enumerate() {
         work(ctx, i, x.data.len())?;
-        out.data[low + i] = word;
+        *out.at_mut(low + i)? = word;
     }
     add_into(ctx, &mut out.data, significant(correction))?;
     trim(ctx, &mut out.data)?;

@@ -61,13 +61,16 @@ impl<'b> Room<'b> {
     }
 
     /// Refuses the pass after a broken source-range invariant.
+    #[track_caller]
     pub fn violated(&self) {
-        self.violation.get_or_init(|| {
-            crate::checked::violation(
-                "surface text range must be in bounds and on UTF-8 boundaries",
-            )
-            .into()
-        });
+        self.record(crate::checked::violation(
+            "surface text range must be in bounds and on UTF-8 boundaries",
+        ));
+    }
+
+    /// Records an invariant violation that refuses the pass, keeping the first.
+    pub fn record(&self, violation: crate::checked::Violation) {
+        self.violation.get_or_init(|| violation.into());
     }
 
     /// The first internal error that refused the pass.
@@ -417,7 +420,10 @@ impl Edits {
         members: &[usize],
         room: &Room<'_>,
     ) -> Option<Vec<(Span, String)>> {
-        let mut edits: Vec<&Edit> = members.iter().map(|&index| &self.edits[index]).collect();
+        let mut edits: Vec<&Edit> = members
+            .iter()
+            .map(|&index| self.edits.get(index))
+            .collect::<Option<_>>()?;
         // Each edit's place among them is its own, so the order is total.
         let sorted = room.sort_unstable_by(&mut edits, |a, b| {
             (a.span.start, a.span.end, a.order).cmp(&(b.span.start, b.span.end, b.order))
@@ -604,15 +610,15 @@ impl Edits {
             if !out.room.charge(1) {
                 return None;
             }
-            if self.edits[i].span.start != span.start {
+            if self.edits.get(i)?.span.start != span.start {
                 break;
             }
-            if self.edits[i].span == span && span.end > span.start {
+            if self.edits.get(i)?.span == span && span.end > span.start {
                 top = Some(i);
             }
         }
         if let Some(top) = top {
-            for piece in &self.edits[top].pieces {
+            for piece in &self.edits.get(top)?.pieces {
                 if !out.room.charge(1) {
                     return None;
                 }
@@ -632,7 +638,7 @@ impl Edits {
             if !out.room.charge(1) {
                 return None;
             }
-            let edit = &self.edits[index];
+            let edit = self.edits.get(index)?;
             let past = edit.span.start > span.end
                 || (edit.span.start == span.end
                     && span.end > span.start
@@ -658,8 +664,8 @@ impl Edits {
                 return None;
             }
             if empty {
-                if !state.inserted[index] {
-                    state.inserted[index] = true;
+                if !*state.inserted.get(index)? {
+                    *state.inserted.get_mut(index)? = true;
                     for piece in &edit.pieces {
                         if !out.room.charge(1) {
                             return None;

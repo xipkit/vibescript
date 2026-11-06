@@ -8,6 +8,7 @@
 //! reporting is not mirrored: a source this parser refuses is left alone.
 
 use super::syntax::*;
+use crate::checked::Checked;
 use crate::tooling::{self, TokenKind};
 use std::{
     collections::HashSet,
@@ -25,6 +26,17 @@ pub struct Fail {
     /// way without it.
     pub too_deep: bool,
     pub invalid_text: bool,
+}
+
+impl From<crate::checked::Violation> for Fail {
+    fn from(violation: crate::checked::Violation) -> Self {
+        Self {
+            offset: 0,
+            message: crate::Error::from(violation).message,
+            too_deep: false,
+            invalid_text: false,
+        }
+    }
 }
 
 type Result<T> = std::result::Result<T, Fail>;
@@ -218,7 +230,7 @@ fn convert(
             kind => kind.clone(),
         };
         let mut newlines = 0;
-        for chunk in source.as_bytes()[token.span.clone()].chunks(4096) {
+        for chunk in source.as_bytes().get(token.span.clone())?.chunks(4096) {
             if stop() {
                 return None;
             }
@@ -549,15 +561,19 @@ impl<'s> Parser<'s> {
     // Token queries -------------------------------------------------------
 
     fn kind(&self) -> &TokenKind {
-        &self.tokens[self.pos].kind
+        self.kind_at(self.pos)
     }
 
     fn kind_at(&self, index: usize) -> &TokenKind {
-        &self.tokens[index.min(self.tokens.len() - 1)].kind
+        self.tokens
+            .get(index)
+            .map_or(&TokenKind::Eof, |token| &token.kind)
     }
 
     fn text(&self, index: usize) -> &'s str {
-        let token = &self.tokens[index];
+        let Some(token) = self.tokens.get(index) else {
+            return "";
+        };
         self.source_text(token.start..token.end)
     }
 
@@ -618,7 +634,7 @@ impl<'s> Parser<'s> {
 
     fn fail<T>(&self, message: &str) -> Result<T> {
         Err(Fail {
-            offset: self.tokens[self.pos.min(self.tokens.len() - 1)].start,
+            offset: self.start(),
             message: message.to_owned(),
             too_deep: false,
             invalid_text: false,
@@ -704,8 +720,8 @@ impl<'s> Parser<'s> {
         self.floor
     }
 
-    fn previous(&self) -> &Token {
-        &self.tokens[self.previous_index()]
+    fn previous(&self) -> Option<&Token> {
+        self.tokens.get(self.previous_index())
     }
 
     /// The end of the last token before the current one, for spans.
@@ -713,18 +729,28 @@ impl<'s> Parser<'s> {
         let mut index = self.pos;
         while index > self.floor {
             if self.poll().is_err() {
-                return self.tokens[index].end;
+                return self
+                    .tokens
+                    .get(index)
+                    .map_or(self.source.len(), |token| token.end);
             }
             index -= 1;
             if !self.end_line(index) {
-                return self.tokens[index].end;
+                return self
+                    .tokens
+                    .get(index)
+                    .map_or(self.source.len(), |token| token.end);
             }
         }
-        self.tokens[self.floor].start
+        self.tokens
+            .get(self.floor)
+            .map_or(self.source.len(), |token| token.start)
     }
 
     fn start(&self) -> usize {
-        self.tokens[self.pos].start
+        self.tokens
+            .get(self.pos)
+            .map_or(self.source.len(), |token| token.start)
     }
 
     fn ident(&self, index: usize) -> bool {
@@ -847,13 +873,18 @@ impl<'s> Parser<'s> {
             {
                 true
             }
-            _ => self.tokens[next].line != line,
+            _ => self
+                .tokens
+                .get(next)
+                .is_some_and(|token| token.line != line),
         }
     }
 
     fn modifier_follows(&self, line: usize) -> bool {
         let next = self.significant(self.pos);
-        self.tokens[next].line == line
+        self.tokens
+            .get(next)
+            .is_some_and(|token| token.line == line)
             && self
                 .word_at(next)
                 .is_some_and(|w| matches!(w, "if" | "unless" | "while" | "until"))
@@ -869,7 +900,12 @@ impl<'s> Parser<'s> {
     }
 
     fn comma_on_line(&self) -> bool {
-        self.at_p(',') && self.tokens[self.pos].line == self.previous().line
+        self.at_p(',')
+            && self
+                .tokens
+                .get(self.pos)
+                .zip(self.previous())
+                .is_some_and(|(next, previous)| next.line == previous.line)
     }
 
     fn ternary_separator(&mut self) {
@@ -886,10 +922,10 @@ impl<'s> Parser<'s> {
     }
 
     fn negative_literal(&self, sign: usize) -> bool {
-        if sign + 1 >= self.tokens.len() {
+        let Some((sign_token, next)) = self.tokens.get(sign).zip(self.tokens.get(sign + 1)) else {
             return false;
-        }
-        self.tokens[sign].end == self.tokens[sign + 1].start
+        };
+        sign_token.end == next.start
             && matches!(
                 self.kind_at(sign + 1),
                 TokenKind::Integer | TokenKind::Float
@@ -902,7 +938,11 @@ impl<'s> Parser<'s> {
     fn assertion(&self) -> bool {
         self.at_word("assert")
             && !(self.is_p(self.pos + 1, '(')
-                && self.tokens[self.pos + 1].start == self.tokens[self.pos].end)
+                && self
+                    .tokens
+                    .get(self.pos + 1)
+                    .zip(self.tokens.get(self.pos))
+                    .is_some_and(|(next, current)| next.start == current.end))
     }
 
     fn assignment_ahead(&self) -> bool {
@@ -1004,14 +1044,19 @@ impl<'s> Parser<'s> {
     }
 
     fn statement_continues(&self) -> bool {
-        let next = &self.tokens[self.pos];
+        let Some(next) = self.tokens.get(self.pos) else {
+            return false;
+        };
         let continues = match &next.kind {
             TokenKind::Punct('.' | '(' | '[' | '?') => true,
             TokenKind::Operator(op) => matches!(*op, "&." | "::") || binding_power(op).is_some(),
             TokenKind::Word => matches!(self.text(self.pos), "do" | "rescue"),
             _ => false,
         };
-        continues && next.line == self.previous().end_line
+        continues
+            && self
+                .previous()
+                .is_some_and(|previous| next.line == previous.end_line)
     }
 
     fn limit_continues(&self, index: usize) -> bool {
@@ -1020,13 +1065,20 @@ impl<'s> Parser<'s> {
             // An index that abuts the end of an expression spanning lines, as
             // in `(case x ... end)[0]`, indexes it; adjacent expressions are
             // an error.
-            TokenKind::Punct('[') => {
-                index > 0 && self.tokens[index - 1].end == self.tokens[index].start
-            }
+            TokenKind::Punct('[') => index
+                .checked_sub(1)
+                .and_then(|previous| self.tokens.get(previous))
+                .zip(self.tokens.get(index))
+                .is_some_and(|(previous, current)| previous.end == current.start),
             TokenKind::Operator("*") => !self.splat_assignment_ahead(index),
             TokenKind::Operator("+" | "-") => {
-                let sign = &self.tokens[index];
-                let next = &self.tokens[self.significant(index + 1)];
+                let Some((sign, next)) = self
+                    .tokens
+                    .get(index)
+                    .zip(self.tokens.get(self.significant(index + 1)))
+                else {
+                    return false;
+                };
                 next.kind != TokenKind::Eof
                     && (next.line > sign.line || (next.line == sign.line && next.start > sign.end))
             }
@@ -1096,11 +1148,11 @@ impl<'s> Parser<'s> {
                 }
                 match *op {
                     "+" | "-" => {
-                        let lexeme = &self.tokens[next];
+                        let lexeme = self.tokens.get(next)?;
                         (next + 1..self.tokens.len())
                             .find(|&i| !self.newline(i))
-                            .is_some_and(|i| {
-                                let operand = &self.tokens[i];
+                            .and_then(|i| self.tokens.get(i))
+                            .is_some_and(|operand| {
                                 !matches!(
                                     operand.kind,
                                     TokenKind::Eof | TokenKind::Semicolon | TokenKind::Newline
@@ -1121,16 +1173,21 @@ impl<'s> Parser<'s> {
         let mut groups = 0usize;
         let mut previous = start;
         let operand = start + 1;
+        let Some(first) = self.tokens.get(start) else {
+            return false;
+        };
         let shaped = self.is_p(operand, ',')
             || self.is_op(operand, "=")
-            || self.tokens[operand].start == self.tokens[previous].end;
+            || self
+                .tokens
+                .get(operand)
+                .is_some_and(|operand| operand.start == first.end);
         let mut comma = false;
-        for i in start + 1..self.tokens.len() {
+        for (i, token) in self.tokens.iter().enumerate().skip(start + 1) {
             if self.poll().is_err() {
                 return false;
             }
-            let token = &self.tokens[i];
-            if token.line > self.tokens[start].line + 64 {
+            if token.line > first.line + 64 {
                 return false;
             }
             if self.end_line(i) {
@@ -1139,7 +1196,9 @@ impl<'s> Parser<'s> {
                 }
                 continue;
             }
-            let previous_token = &self.tokens[previous];
+            let Some(previous_token) = self.tokens.get(previous) else {
+                return false;
+            };
             if token.line > previous_token.end_line
                 && groups == 0
                 && !self.is_p(previous, ',')
@@ -1232,8 +1291,12 @@ impl<'s> Parser<'s> {
             }
             _ => return false,
         };
-        let previous = self.previous();
-        let next = &self.tokens[self.pos];
+        let Some(previous) = self.previous() else {
+            return false;
+        };
+        let Some(next) = self.tokens.get(self.pos) else {
+            return false;
+        };
         if next.line != previous.end_line {
             return false;
         }
@@ -1266,8 +1329,9 @@ impl<'s> Parser<'s> {
                     && self.pos + 1 < self.tokens.len()
                     && !self.end_line(self.pos + 1)
                     && !self.eof(self.pos + 1)
-                    && self.tokens[self.pos + 1].line == next.end_line
-                    && self.tokens[self.pos + 1].start == next.end
+                    && self.tokens.get(self.pos + 1).is_some_and(|operand| {
+                        operand.line == next.end_line && operand.start == next.end
+                    })
             }
             _ => self.command_argument_start(self.pos, false),
         }
@@ -1289,16 +1353,23 @@ impl<'s> Parser<'s> {
     }
 
     fn alias_ahead(&self) -> bool {
-        let next = &self.tokens[self.pos + 1];
+        let Some((current, next)) = self.tokens.get(self.pos).zip(self.tokens.get(self.pos + 1))
+        else {
+            return false;
+        };
         self.at_word("alias")
-            && next.line == self.tokens[self.pos].line
+            && next.line == current.line
             && (self.ident(self.pos + 1) || matches!(next.kind, TokenKind::Symbol { .. }))
     }
 
     fn module_ahead(&self) -> bool {
         self.at_word("module")
             && self.ident(self.pos + 1)
-            && self.tokens[self.pos].line == self.tokens[self.pos + 1].line
+            && self
+                .tokens
+                .get(self.pos)
+                .zip(self.tokens.get(self.pos + 1))
+                .is_some_and(|(current, next)| current.line == next.line)
     }
 
     fn declaration(&mut self) -> Result<Stmt> {
@@ -1344,7 +1415,7 @@ impl<'s> Parser<'s> {
             Some("type")
                 if self.ident(self.pos + 1)
                     && self.is_op(self.pos + 2, "=")
-                    && self.tokens[self.pos + 1].line == self.tokens[self.pos].line =>
+                    && self.tokens.at(self.pos + 1)?.line == self.tokens.at(self.pos)?.line =>
             {
                 Some("type")
             }
@@ -1399,12 +1470,12 @@ impl<'s> Parser<'s> {
     }
 
     fn alias_names(&mut self) -> Result<()> {
-        let line = self.tokens[self.pos].line;
+        let line = self.tokens.at(self.pos)?.line;
         self.bump();
         for _ in 0..2 {
             self.poll()?;
             self.pos = self.significant(self.pos);
-            if self.tokens[self.pos].line == line
+            if self.tokens.at(self.pos)?.line == line
                 && (self.ident(self.pos) || matches!(self.kind(), TokenKind::Symbol { .. }))
             {
                 self.bump();
@@ -1613,13 +1684,12 @@ impl<'s> Parser<'s> {
     /// Whether the name at `index` is followed by a colon written as an
     /// annotation's: attached to the name and followed by a space.
     fn annotation_colon(&self, index: usize) -> bool {
-        index + 1 < self.tokens.len()
-            && self.is_p(index + 1, ':')
-            && self.tokens[index + 1].start == self.tokens[index].end
-            && matches!(
-                self.source.as_bytes().get(self.tokens[index + 1].end),
-                Some(b' ' | b'\t')
-            )
+        let Some((name, colon)) = self.tokens.get(index).zip(self.tokens.get(index + 1)) else {
+            return false;
+        };
+        self.is_p(index + 1, ':')
+            && colon.start == name.end
+            && matches!(self.source.as_bytes().get(colon.end), Some(b' ' | b'\t'))
     }
 
     /// Whether a statement declares a typed local or constant,
@@ -1638,7 +1708,7 @@ impl<'s> Parser<'s> {
     fn typed_local(&mut self) -> Result<Stmt> {
         let start = self.start();
         let name = self.bump();
-        let token = &self.tokens[name];
+        let token = self.tokens.at(name)?;
         let target = Target::Expr(Expr {
             span: Span {
                 start: token.start,
@@ -1669,13 +1739,13 @@ impl<'s> Parser<'s> {
 
     fn assertion_call(&mut self) -> Result<Expr> {
         let start = self.start();
-        let line = self.tokens[self.pos].line;
+        let line = self.tokens.at(self.pos)?.line;
         let name_tok = self.bump();
         if self.ends_after(self.pos - 1, line) {
             return Ok(Expr {
                 span: Span {
                     start,
-                    end: self.tokens[name_tok].end,
+                    end: self.tokens.at(name_tok)?.end,
                 },
                 kind: ExprKind::Name("assert".to_owned()),
             });
@@ -1715,13 +1785,20 @@ impl<'s> Parser<'s> {
     }
 
     fn raise_statement(&mut self, keyword: Tok) -> Result<StmtKind> {
-        let line = self.tokens[keyword].line;
+        let line = self.tokens.at(keyword)?.line;
         if self.ends_after(self.pos - 1, line) || self.modifier_follows(line) {
             return Ok(StmtKind::Raise(keyword, None, None));
         }
         self.line_breaks();
         let value = self.line_expr(0)?;
-        let separated = self.tokens[self.pos].line == self.previous().end_line && self.at_p(',');
+        let separated = self.tokens.at(self.pos)?.line
+            == self
+                .previous()
+                .ok_or(crate::checked::violation(
+                    "surface parser must have a previous token",
+                ))?
+                .end_line
+            && self.at_p(',');
         let message = if separated {
             self.bump();
             self.line_breaks();
@@ -1733,7 +1810,7 @@ impl<'s> Parser<'s> {
     }
 
     fn flow_value(&mut self, keyword: Tok) -> Result<Option<Expr>> {
-        let line = self.tokens[keyword].line;
+        let line = self.tokens.at(keyword)?.line;
         let value = !self.ends_after(self.pos - 1, line) && !self.modifier_follows(line);
         if !value {
             return Ok(None);
@@ -1791,7 +1868,7 @@ impl<'s> Parser<'s> {
             loop {
                 self.poll()?;
                 let comma = self.pos - 1;
-                if self.ends_after(comma, self.tokens[comma].line) {
+                if self.ends_after(comma, self.tokens.at(comma)?.line) {
                     break;
                 }
                 self.line_breaks();
@@ -2066,14 +2143,14 @@ impl<'s> Parser<'s> {
 
     fn function(&mut self, constants: bool, modifier: Option<Tok>) -> Result<Def> {
         let def_tok = self.bump();
-        let def_line = self.tokens[def_tok].line;
+        let def_line = self.tokens.at(def_tok)?.line;
         self.line_breaks();
         let (mut name, name_span, class_method, operator) = self.function_name()?;
         self.line_breaks();
         let mut name_end = name_span.end;
         if self.at_op("=") && (!operator || name == "[]") {
             let tok = self.bump();
-            name_end = self.tokens[tok].end;
+            name_end = self.tokens.at(tok)?.end;
             self.line_breaks();
             name.push('=');
         }
@@ -2088,7 +2165,7 @@ impl<'s> Parser<'s> {
             }
         }
         let outer_it = std::mem::replace(&mut self.declared_it, false);
-        let line = self.tokens[self.pos].line;
+        let line = self.tokens.at(self.pos)?.line;
         let parenthesized = self.at_p('(') && line == def_line;
         let bare = !parenthesized
             && line == def_line
@@ -2120,13 +2197,18 @@ impl<'s> Parser<'s> {
                 }
                 params
             };
-            signature = self.tokens[self.pos].line;
+            signature = self.tokens.at(self.pos)?.line;
             let close = self.bump();
             parens = Some((open, close));
             params
         } else if bare {
             let params = self.parameters(false)?;
-            signature = self.previous().line;
+            signature = self
+                .previous()
+                .ok_or(crate::checked::violation(
+                    "surface parser must have a previous token",
+                ))?
+                .line;
             params
         } else {
             Vec::new()
@@ -2134,7 +2216,7 @@ impl<'s> Parser<'s> {
         let block = self.block_param.take();
         let star = self.keyword_star.take();
         let arrow = self.significant(self.pos);
-        let result = if self.is_op(arrow, "->") && self.tokens[arrow].line == signature {
+        let result = if self.is_op(arrow, "->") && self.tokens.at(arrow)?.line == signature {
             self.pos = arrow + 1;
             self.line_breaks();
             Some((arrow, self.type_expr(1, false)?))
@@ -2187,7 +2269,7 @@ impl<'s> Parser<'s> {
                 self.text(tok).to_owned(),
                 Span {
                     start,
-                    end: self.tokens[tok].end,
+                    end: self.tokens.at(tok)?.end,
                 },
                 true,
                 false,
@@ -2211,7 +2293,7 @@ impl<'s> Parser<'s> {
                 op.to_owned(),
                 Span {
                     start,
-                    end: self.tokens[tok].end,
+                    end: self.tokens.at(tok)?.end,
                 },
                 false,
                 true,
@@ -2225,7 +2307,7 @@ impl<'s> Parser<'s> {
             self.text(tok).to_owned(),
             Span {
                 start,
-                end: self.tokens[tok].end,
+                end: self.tokens.at(tok)?.end,
             },
             false,
             false,
@@ -2429,7 +2511,14 @@ impl<'s> Parser<'s> {
             | TokenKind::Newline
             | TokenKind::Semicolon
             | TokenKind::Eof => !parenthesized,
-            _ => !parenthesized && self.tokens[next].line != self.tokens[colon].line,
+            _ => {
+                !parenthesized
+                    && self
+                        .tokens
+                        .get(next)
+                        .zip(self.tokens.get(colon))
+                        .is_some_and(|(next, previous)| next.line != previous.line)
+            }
         }
     }
 
@@ -2510,7 +2599,13 @@ impl<'s> Parser<'s> {
         let mut next = self.significant(peek + 1);
         // The compiler's lexer splits `int?=nil` so that `?=` never ends a
         // name; the adjacent `?` is still the type's optional marker.
-        if self.is_p(next, '?') && self.tokens[next].start == self.tokens[peek].end {
+        if self.is_p(next, '?')
+            && self
+                .tokens
+                .get(next)
+                .zip(self.tokens.get(peek))
+                .is_some_and(|(next, name)| next.start == name.end)
+        {
             next = self.significant(next + 1);
         }
         match self.kind_at(next) {
@@ -2526,7 +2621,14 @@ impl<'s> Parser<'s> {
             | TokenKind::Newline
             | TokenKind::Semicolon
             | TokenKind::Eof => parenthesized,
-            _ => parenthesized || self.tokens[next].line == self.tokens[peek].line,
+            _ => {
+                parenthesized
+                    || self
+                        .tokens
+                        .get(next)
+                        .zip(self.tokens.get(peek))
+                        .is_some_and(|(next, name)| next.line == name.line)
+            }
         }
     }
 
@@ -2591,7 +2693,14 @@ impl<'s> Parser<'s> {
             | TokenKind::Newline
             | TokenKind::Semicolon
             | TokenKind::Eof => !parenthesized,
-            _ => !parenthesized && self.tokens[next].line != self.tokens[last].line,
+            _ => {
+                !parenthesized
+                    && self
+                        .tokens
+                        .get(next)
+                        .zip(self.tokens.get(last))
+                        .is_some_and(|(next, previous)| next.line != previous.line)
+            }
         }
     }
 
@@ -2670,7 +2779,8 @@ impl<'s> Parser<'s> {
                 let ty = self.type_expr(1, false)?;
                 let equals = self.significant(self.pos);
                 let default = if self.is_op(equals, "=")
-                    && self.tokens[equals].line == self.tokens[start_token(self, start)].line
+                    && self.tokens.at(equals)?.line
+                        == self.tokens.at(start_token(self, start))?.line
                 {
                     self.pos = equals + 1;
                     self.line_breaks();
@@ -2784,7 +2894,10 @@ impl<'s> Parser<'s> {
 
     fn inline_visibility(&self) -> bool {
         let next = self.significant(self.pos + 1);
-        self.tokens[next].line == self.tokens[self.pos].line
+        self.tokens
+            .get(next)
+            .zip(self.tokens.get(self.pos))
+            .is_some_and(|(next, current)| next.line == current.line)
             && self
                 .word_at(next)
                 .is_some_and(|w| matches!(w, "def" | "property" | "getter" | "setter"))
@@ -2794,11 +2907,17 @@ impl<'s> Parser<'s> {
         let Some(word) = self.word_at(self.pos) else {
             return false;
         };
-        let line = self.tokens[self.pos].line;
+        let Some(current) = self.tokens.get(self.pos) else {
+            return false;
+        };
+        let line = current.line;
         let next = self.significant(self.pos + 1);
         if self.inline_visibility()
             || (matches!(self.kind_at(next), TokenKind::Symbol { .. })
-                && self.tokens[next].line == line)
+                && self
+                    .tokens
+                    .get(next)
+                    .is_some_and(|token| token.line == line))
         {
             return true;
         }
@@ -2807,14 +2926,18 @@ impl<'s> Parser<'s> {
 
     /// Parses a visibility word; true when it applies to the declaration after it.
     fn visibility_member(&mut self) -> Result<bool> {
-        let line = self.tokens[self.pos].line;
+        let line = self.tokens.at(self.pos)?.line;
         if self.inline_visibility() {
             self.bump();
             self.line_breaks();
             return Ok(true);
         }
         let next = self.significant(self.pos + 1);
-        if matches!(self.kind_at(next), TokenKind::Symbol { .. }) && self.tokens[next].line == line
+        if matches!(self.kind_at(next), TokenKind::Symbol { .. })
+            && self
+                .tokens
+                .get(next)
+                .is_some_and(|token| token.line == line)
         {
             self.pos = next;
             loop {
@@ -2873,7 +2996,7 @@ impl<'s> Parser<'s> {
         while self.at_word("rescue") {
             self.poll()?;
             let keyword = self.bump();
-            let line = self.tokens[keyword].line;
+            let line = self.tokens.at(keyword)?.line;
             let binding = self.rescue_clause(line)?;
             let existed = binding
                 .as_ref()
@@ -2912,7 +3035,7 @@ impl<'s> Parser<'s> {
 
     fn rescue_clause(&mut self, line: usize) -> Result<Option<String>> {
         let next = self.significant(self.pos);
-        if self.tokens[next].line != line {
+        if self.tokens.at(next)?.line != line {
             return Ok(None);
         }
         let grouped = self.is_p(next, '(');
@@ -2940,7 +3063,7 @@ impl<'s> Parser<'s> {
             return Ok(None);
         }
         let arrow = self.significant(self.pos);
-        if self.tokens[arrow].line != line || !self.is_op(arrow, "=>") {
+        if self.tokens.at(arrow)?.line != line || !self.is_op(arrow, "=>") {
             return Ok(None);
         }
         let name = self.significant(arrow + 1);
@@ -2985,7 +3108,7 @@ impl<'s> Parser<'s> {
     }
 
     fn expr(&mut self, min: u8) -> Result<Expr> {
-        let line = self.tokens[self.pos].line;
+        let line = self.tokens.at(self.pos)?.line;
         let lhs = self.prefix_expr()?;
         self.expr_tail(lhs, min, None, Some(line), false)
     }
@@ -3019,7 +3142,7 @@ impl<'s> Parser<'s> {
                 Expr {
                     span: Span {
                         start,
-                        end: self.tokens[close].end,
+                        end: self.tokens.at(close)?.end,
                     },
                     kind: ExprKind::Group(open, Box::new(inner), close),
                 }
@@ -3074,7 +3197,7 @@ impl<'s> Parser<'s> {
     }
 
     fn leaf(&mut self, tok: Tok) -> Result<Expr> {
-        let token = &self.tokens[tok];
+        let token = self.tokens.at(tok)?;
         let span = Span {
             start: token.start,
             end: token.end,
@@ -3089,10 +3212,10 @@ impl<'s> Parser<'s> {
                 let mut parts = Vec::with_capacity(count);
                 for index in 0..count {
                     self.poll()?;
-                    let TokenKind::Template(spans) = &self.tokens[tok].kind else {
+                    let TokenKind::Template(spans) = &self.tokens.at(tok)?.kind else {
                         return self.fail("template token changed during interpolation");
                     };
-                    let span = spans[index].clone();
+                    let span = spans.at(index)?.clone();
                     let part = self.interpolation(span);
                     if self.stopped.load(Relaxed) {
                         return self.fail("stopped");
@@ -3172,7 +3295,7 @@ impl<'s> Parser<'s> {
     }
 
     fn word_expression(&mut self, word: &str, tok: Tok) -> Result<Expr> {
-        let token = &self.tokens[tok];
+        let token = self.tokens.at(tok)?;
         let span = Span {
             start: token.start,
             end: token.end,
@@ -3230,14 +3353,14 @@ impl<'s> Parser<'s> {
     }
 
     fn begin_expression(&mut self, keyword: Tok) -> Result<Expr> {
-        let start = self.tokens[keyword].start;
+        let start = self.tokens.at(keyword)?.start;
         let body = self.block(&["rescue", "else", "ensure", "end"])?;
         let rescued = self.rescue_tail()?;
         let end = self.expect_word("end")?;
         Ok(Expr {
             span: Span {
                 start,
-                end: self.tokens[end].end,
+                end: self.tokens.at(end)?.end,
             },
             kind: ExprKind::Begin(Box::new(Begin {
                 keyword,
@@ -3307,8 +3430,13 @@ impl<'s> Parser<'s> {
     }
 
     fn yield_expr(&mut self, keyword: Tok) -> Result<Expr> {
-        let start = self.tokens[keyword].start;
-        let line = self.previous().line;
+        let start = self.tokens.at(keyword)?.start;
+        let line = self
+            .previous()
+            .ok_or(crate::checked::violation(
+                "surface parser must have a previous token",
+            ))?
+            .line;
         let mut next = self.pos;
         while self.newline(next) {
             self.poll()?;
@@ -3333,11 +3461,11 @@ impl<'s> Parser<'s> {
             })
         } else {
             let mut items = Vec::new();
-            if self.tokens[self.pos].line == line && self.starts_expression() {
+            if self.tokens.at(self.pos)?.line == line && self.starts_expression() {
                 items.push(self.line_expr(0)?);
                 while self.at_p(',')
-                    && self.tokens[self.pos].line == line
-                    && self.tokens[self.pos + 1].line == line
+                    && self.tokens.at(self.pos)?.line == line
+                    && self.tokens.at(self.pos + 1)?.line == line
                 {
                     self.bump();
                     items.push(self.line_expr(0)?);
@@ -3415,7 +3543,7 @@ impl<'s> Parser<'s> {
                     if !label {
                         return self.fail("missing value for hash key");
                     }
-                    let token = &self.tokens[key];
+                    let token = self.tokens.at(key)?;
                     Expr {
                         span: Span {
                             start: token.start,
@@ -3478,7 +3606,9 @@ impl<'s> Parser<'s> {
                 Suffix::Rescue => {
                     let keyword = self.pos - 1;
                     let next = self.significant(self.pos);
-                    if self.tokens[next].line != self.tokens[keyword].line || !self.prefix(next) {
+                    if self.tokens.at(next)?.line != self.tokens.at(keyword)?.line
+                        || !self.prefix(next)
+                    {
                         return self.fail("rescue modifier requires fallback expression");
                     }
                     let fallback = self.line_expr(0)?;
@@ -3517,7 +3647,7 @@ impl<'s> Parser<'s> {
                     Expr {
                         span: Span {
                             start: lhs.span.start,
-                            end: self.tokens[close].end,
+                            end: self.tokens.at(close)?.end,
                         },
                         kind: ExprKind::Index(Box::new(lhs), open, items, close),
                     }
@@ -3525,7 +3655,13 @@ impl<'s> Parser<'s> {
                 Suffix::Ternary => self.ternary_expression(lhs)?,
                 Suffix::Binary(right) => self.binary_expression(lhs, right)?,
             };
-            line = Some(self.previous().line);
+            line = Some(
+                self.previous()
+                    .ok_or(crate::checked::violation(
+                        "surface parser must have a previous token",
+                    ))?
+                    .line,
+            );
         }
     }
 
@@ -3548,7 +3684,9 @@ impl<'s> Parser<'s> {
         let resumed = self.continuation_position(min);
         if let Some(next) = resumed {
             self.pos = next;
-        } else if line.is_some_and(|line| self.tokens[self.pos].line > line)
+        } else if line
+            .zip(self.tokens.get(self.pos))
+            .is_some_and(|(line, token)| token.line > line)
             && self.line_exprs > 0
             && !self.end_line(self.pos)
             && !self.limit_continues(self.pos)
@@ -3558,7 +3696,7 @@ impl<'s> Parser<'s> {
         }
         if min == 0
             && (self.command_depth == 0 || self.groups > self.command_group)
-            && (resumed.is_some() || self.tokens[self.pos].line == self.previous().end_line)
+            && (resumed.is_some() || self.tokens.get(self.pos)?.line == self.previous()?.end_line)
             && self.at_word("rescue")
             && !self.keyword_label(self.pos)
         {
@@ -3569,7 +3707,7 @@ impl<'s> Parser<'s> {
             return Some(Suffix::Command);
         }
         if self.at_p('{')
-            && self.tokens[self.pos].line == self.previous().end_line
+            && self.tokens.get(self.pos)?.line == self.previous()?.end_line
             && self.block_follows(lhs)
         {
             return Some(Suffix::Block(true));
@@ -3651,10 +3789,15 @@ impl<'s> Parser<'s> {
         loop {
             self.poll()?;
             items.push(self.call_argument(false, false)?);
-            let last = self.previous().line;
+            let last = self
+                .previous()
+                .ok_or(crate::checked::violation(
+                    "surface parser must have a previous token",
+                ))?
+                .line;
             if !self.at_p(',')
-                || self.tokens[self.pos].line != last
-                || self.tokens[self.pos + 1].line != last
+                || self.tokens.at(self.pos)?.line != last
+                || self.tokens.at(self.pos + 1)?.line != last
                 || !self.command_argument_start(self.pos + 1, true)
             {
                 break;
@@ -3751,10 +3894,11 @@ impl<'s> Parser<'s> {
                 || (!parenthesized
                     && (self.eof(self.pos)
                         || self.newline(self.pos)
-                        || self.tokens[self.pos].line != self.tokens[self.pos - 1].end_line));
+                        || self.tokens.at(self.pos)?.line
+                            != self.tokens.at(self.pos - 1)?.end_line));
             if shorthand {
                 let label = self.pos - 2;
-                let token = &self.tokens[label];
+                let token = self.tokens.at(label)?;
                 let value = Expr {
                     span: Span {
                         start: token.start,
@@ -3821,8 +3965,8 @@ impl<'s> Parser<'s> {
         }
         self.pos = end;
         let span = Span {
-            start: self.tokens[start].start,
-            end: self.tokens[end - 1].end,
+            start: self.tokens.get(start)?.start,
+            end: self.tokens.get(end - 1)?.end,
         };
         Some(if end == start + 1 {
             Expr {
@@ -3896,7 +4040,7 @@ impl<'s> Parser<'s> {
         let block = self.attached_block(brace)?;
         let span = Span {
             start: lhs.span.start,
-            end: self.tokens[block.close].end,
+            end: self.tokens.at(block.close)?.end,
         };
         let lhs = ungroup(lhs);
         let kind = match lhs.kind {
@@ -4075,7 +4219,7 @@ impl<'s> Parser<'s> {
             TokenKind::Punct('[') => ']',
             _ if self.ident(self.pos) => {
                 let tok = self.bump();
-                let token = &self.tokens[tok];
+                let token = self.tokens.at(tok)?;
                 let target = Target::Expr(Expr {
                     span: Span {
                         start: token.start,
@@ -4147,7 +4291,9 @@ impl<'s> Parser<'s> {
             };
             let span = Span {
                 start: lhs.span.start,
-                end: end.as_ref().map_or(self.tokens[op].end, |end| end.span.end),
+                end: end
+                    .as_ref()
+                    .map_or(self.tokens.at(op)?.end, |end| end.span.end),
             };
             return Ok(Expr {
                 span,
@@ -4190,7 +4336,7 @@ impl<'s> Parser<'s> {
             return self.required(options.pop(), "expected type alternative");
         }
         let span = Span {
-            start: options[0].span.start,
+            start: options.at(0)?.span.start,
             end: self
                 .required(options.last(), "expected type alternative")?
                 .span
@@ -4256,7 +4402,7 @@ impl<'s> Parser<'s> {
             }
             self.pos = question + 1;
             ty.nullable = true;
-            ty.span.end = self.tokens[question].end;
+            ty.span.end = self.tokens.at(question)?.end;
         }
         Ok(ty)
     }
@@ -4298,7 +4444,7 @@ impl<'s> Parser<'s> {
             return Ok(TypeExpr {
                 span: Span {
                     start,
-                    end: self.tokens[last].end,
+                    end: self.tokens.at(last)?.end,
                 },
                 nullable: self.text(last).ends_with('?'),
                 kind: TypeKind::Qualified(names),
@@ -4314,7 +4460,7 @@ impl<'s> Parser<'s> {
             return Ok(TypeExpr {
                 span: Span {
                     start,
-                    end: self.tokens[member].end,
+                    end: self.tokens.at(member)?.end,
                 },
                 kind: TypeKind::Qualified(vec![tok, member]),
                 nullable: self.text(member).ends_with('?'),
@@ -4325,7 +4471,7 @@ impl<'s> Parser<'s> {
             return Ok(TypeExpr {
                 span: Span {
                     start,
-                    end: self.tokens[tok].end,
+                    end: self.tokens.at(tok)?.end,
                 },
                 kind: TypeKind::Named(tok, Vec::new()),
                 nullable,
@@ -4504,5 +4650,27 @@ mod tests {
         let polls = AtomicUsize::new(0);
         assert!(convert("x", &[token], 0, &|| polls.fetch_add(1, Relaxed) == 8).is_none());
         assert_eq!(polls.load(Relaxed), 9);
+    }
+
+    #[test]
+    fn conversion_refuses_tokens_outside_the_source() {
+        let token = tooling::Token {
+            kind: TokenKind::Word,
+            span: 0..2,
+            line: 1,
+        };
+        assert!(convert("x", &[token], 0, &|| false).is_none());
+    }
+
+    #[test]
+    fn token_queries_allow_an_empty_stream_but_parsing_a_missing_leaf_fails() {
+        let mut parser = Parser::new("", Vec::new(), Starts::default(), &|| false);
+        assert_eq!(parser.kind(), &TokenKind::Eof);
+        assert!(parser.previous().is_none());
+        assert!(!parser.alias_ahead());
+        assert!(!parser.annotation_colon(0));
+        assert!(parser.word_at(0).is_none());
+        let failure = parser.leaf(0).unwrap_err();
+        assert!(failure.message.contains("internal error"));
     }
 }

@@ -83,14 +83,15 @@ impl Starts {
     /// after it among the source's own.
     pub fn find(&self, tokens: &[Token], offset: usize) -> Tok {
         let end = self.end.min(tokens.len());
-        let index = tokens[..end].partition_point(|token| token.start < offset);
-        if index < end && tokens[index].start == offset {
+        let head = tokens.split_at(end).0;
+        let index = head.partition_point(|token| token.start < offset);
+        if head.get(index).is_some_and(|token| token.start == offset) {
             return index;
         }
         self.tail
             .get(&offset)
             .copied()
-            .unwrap_or(index.min(tokens.len() - 1))
+            .unwrap_or(index.min(tokens.len().saturating_sub(1)))
     }
 }
 
@@ -260,8 +261,8 @@ pub struct Def {
 
 impl Def {
     /// The offset the compiler records for the function: its `def`.
-    pub fn offset(&self, tokens: &[Token]) -> usize {
-        tokens[self.keyword].start
+    pub fn offset(&self, tokens: &[Token]) -> Option<usize> {
+        Some(tokens.get(self.keyword)?.start)
     }
 }
 
@@ -437,14 +438,18 @@ pub struct Call {
 }
 
 impl Call {
+    /// Whether the call uses the safe-navigation operator `&.`.
     pub fn safe(&self, tokens: &[Token]) -> bool {
         self.operator
-            .is_some_and(|op| tokens[op].kind == TokenKind::Operator("&."))
+            .and_then(|op| tokens.get(op))
+            .is_some_and(|token| token.kind == TokenKind::Operator("&."))
     }
 
+    /// Whether the call uses the namespace operator `::`.
     pub fn scoped(&self, tokens: &[Token]) -> bool {
         self.operator
-            .is_some_and(|op| tokens[op].kind == TokenKind::Operator("::"))
+            .and_then(|op| tokens.get(op))
+            .is_some_and(|token| token.kind == TokenKind::Operator("::"))
     }
 
     pub fn argument_count(&self) -> usize {

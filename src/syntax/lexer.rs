@@ -1,4 +1,5 @@
 use super::Mode;
+use crate::checked::Checked;
 use crate::checked::violation;
 use crate::{
     Error, Result,
@@ -449,7 +450,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
         previous: Option<&Lexeme<'a>>,
     ) -> Result<Buffer<Lexeme<'a>>> {
         let source = self.source;
-        let s = &source.as_bytes()[..self.limit];
+        let s = source.as_bytes().span(0, self.limit)?;
         let mut out = Buffer::<Lexeme<'a>>::new();
         // Like Go, an interpolation ends at a `}` outside every bracket it opened.
         let (mut braces, mut brackets, mut parens) = (0usize, 0usize, 0usize);
@@ -467,7 +468,11 @@ impl<'a, 'w> Lexer<'a, 'w> {
                 self.memo.charge(self.work, start, 1)?;
             }
             let mut i = start;
-            if interpolation && s[i] == b'}' && braces == 0 && brackets == 0 && parens == 0 {
+            let rest = s.tail(start)?;
+            let byte = *rest
+                .first()
+                .ok_or(violation("lexer must have a byte to scan"))?;
+            if interpolation && byte == b'}' && braces == 0 && brackets == 0 && parens == 0 {
                 out.push(
                     self.work,
                     Lexeme {
@@ -481,13 +486,13 @@ impl<'a, 'w> Lexer<'a, 'w> {
                 self.pos += 1;
                 return Ok(out);
             }
-            match s[i] {
+            match byte {
                 b' ' | b'\t' | b'\r' => {
                     self.pos += 1;
                     continue;
                 }
                 b'#' => {
-                    while self.pos < self.limit && s[self.pos] != b'\n' {
+                    while s.get(self.pos).is_some_and(|&byte| byte != b'\n') {
                         self.work.charge(1)?;
                         self.pos += 1;
                     }
@@ -554,7 +559,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
                     i = self.pos;
                     return Ok(token);
                 }
-                Ok(match s[i] {
+                Ok(match byte {
                     b'/' if self
                         .tail
                         .is_none_or(|last| !last.def && (last.end_line < line || !last.ends)) =>
@@ -568,7 +573,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
                         Token::EndLine
                     }
                     b'\'' | b'"' => {
-                        let parts = self.quoted(s[i], line)?;
+                        let parts = self.quoted(byte, line)?;
                         i = self.pos;
                         if parts.iter().any(|p| matches!(p, Part::Expr(..))) {
                             Token::Template(parts)
@@ -631,7 +636,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
                             "!=", "<=", ">=", "&&", "||", "+=", "-=", "*=", "/=", "%=", "**", "//",
                             "<<", "::", "->", "=~", "!~", "&.",
                         ] {
-                            if s[i..].starts_with(op.as_bytes()) {
+                            if rest.starts_with(op.as_bytes()) {
                                 found = Some(op);
                                 break;
                             }
@@ -641,7 +646,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
                             Token::Op(op)
                         } else {
                             i += 1;
-                            match s[start] {
+                            match byte {
                                 b'+' => Token::Op("+"),
                                 b'-' => Token::Op("-"),
                                 b'*' => Token::Op("*"),
@@ -653,7 +658,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
                                 b'!' => Token::Op("!"),
                                 b'&' => Token::Op("&"),
                                 b'(' | b')' | b'[' | b']' | b'{' | b'}' | b',' | b'.' | b':'
-                                | b'?' | b'|' => Token::P(s[start] as char),
+                                | b'?' | b'|' => Token::P(byte as char),
                                 _ => {
                                     return Err(Error::syntax(
                                         self.work,
@@ -690,7 +695,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
             }
             self.work.bytes(i - start)?;
             let start_line = line;
-            line += s[start..i].iter().filter(|&&b| b == b'\n').count();
+            line += s.span(start, i)?.iter().filter(|&&b| b == b'\n').count();
             match token {
                 Token::P('{') => braces += 1,
                 Token::P('}') => braces = braces.saturating_sub(1),
@@ -711,7 +716,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
             self.pos = i;
             if let Some((outer, _)) = self.scan {
                 let stops = matches!(lexeme.token, Token::Invalid(_))
-                    || (lexeme.token == Token::EndLine && s[start] == b';');
+                    || (lexeme.token == Token::EndLine && byte == b';');
                 if stops {
                     return Ok(out);
                 }
@@ -797,22 +802,28 @@ impl<'a, 'w> Lexer<'a, 'w> {
     }
 
     fn marker(&self, start: usize, marker: &str) -> bool {
-        let s = &self.source.as_bytes()[..self.limit];
-        s[start..].starts_with(marker.as_bytes())
-            && s.get(start + marker.len())
+        let Some(s) = self.source.as_bytes().get(..self.limit) else {
+            return false;
+        };
+        let Some((before, after)) = s.split_at_checked(start) else {
+            return false;
+        };
+        after.strip_prefix(marker.as_bytes()).is_some_and(|rest| {
+            rest.first()
                 .is_none_or(|c| matches!(c, b' ' | b'\t' | b'\r' | b'\n'))
-            && s[..start]
-                .iter()
-                .rev()
-                .take_while(|&&c| c != b'\n')
-                .all(|c| matches!(c, b' ' | b'\t' | b'\r'))
+                && before
+                    .iter()
+                    .rev()
+                    .take_while(|&&c| c != b'\n')
+                    .all(|c| matches!(c, b' ' | b'\t' | b'\r'))
+        })
     }
 
     fn block_comment(&mut self, line: &mut usize) -> Result<()> {
-        let s = &self.source.as_bytes()[..self.limit];
+        let s = self.source.as_bytes().span(0, self.limit)?;
         let start = self.pos;
         let mut rest_of_line = |lexer: &mut Self, newline: bool| -> Result<()> {
-            while lexer.pos < lexer.limit && s[lexer.pos] != b'\n' {
+            while s.get(lexer.pos).is_some_and(|&byte| byte != b'\n') {
                 lexer.work.charge(1)?;
                 lexer.pos += 1;
             }
@@ -824,7 +835,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
         };
         rest_of_line(self, true)?;
         loop {
-            while self.pos < self.limit && matches!(s[self.pos], b' ' | b'\t' | b'\r') {
+            while matches!(s.get(self.pos), Some(b' ' | b'\t' | b'\r')) {
                 self.work.charge(1)?;
                 self.pos += 1;
             }
@@ -871,7 +882,9 @@ impl<'a, 'w> Lexer<'a, 'w> {
     // `=` and `~` end the scan, so only its last character can hide `!=`,
     // `?=` or `!~`. Keep other malformed names intact for the parser's fix.
     fn name_end(&self, end: usize) -> usize {
-        let bytes = &self.source.as_bytes()[..self.limit];
+        let Some(bytes) = self.source.as_bytes().get(..self.limit) else {
+            return end;
+        };
         let last = bytes.get(end.wrapping_sub(1));
         // A lenient parse reads `x?=1` as it did before suffixes were
         // reserved, as an assignment to `x?`.
@@ -1273,9 +1286,11 @@ impl<'a, 'w> Lexer<'a, 'w> {
         let found = {
             let memo = self.memo.answers.borrow();
             memo.binary_search_by(|&(offset, depth, _)| (offset, depth).cmp(&key))
-                .map(|index| memo[index].2)
+                .ok()
+                .and_then(|index| memo.get(index))
+                .map(|answer| answer.2)
         };
-        if let Ok(answer) = found {
+        if let Some(answer) = found {
             return Ok(answer);
         }
         let scans = self.scan.map_or(0, |(_, scans)| scans) + 1;
@@ -1313,14 +1328,15 @@ impl<'a, 'w> Lexer<'a, 'w> {
     }
 
     fn quoted(&mut self, quote: u8, mut line: usize) -> Result<Buffer<Part<'a>>> {
+        let bytes = self.source.as_bytes().span(0, self.limit)?;
         let start = self.pos;
         self.pos += 1;
         let mut parts = Buffer::new();
         let mut text = Buffer::new();
-        while self.pos < self.limit {
+        while let Some(&byte) = bytes.get(self.pos) {
             self.work.charge(1)?;
             let before = self.pos;
-            match self.source.as_bytes()[self.pos] {
+            match byte {
                 b if b == quote => {
                     self.pos += 1;
                     flush(&mut parts, &mut text, self.work)?;
@@ -1329,10 +1345,8 @@ impl<'a, 'w> Lexer<'a, 'w> {
                 b'\\' if quote == b'"' => self.escape(&mut text, Some(start))?,
                 b'\\' => {
                     self.pos += 1;
-                    if self.pos < self.limit
-                        && matches!(self.source.as_bytes()[self.pos], b'\'' | b'\\')
-                    {
-                        text.push(self.work, self.source.as_bytes()[self.pos])?;
+                    if let Some(&escaped @ (b'\'' | b'\\')) = bytes.get(self.pos) {
+                        text.push(self.work, escaped)?;
                         self.pos += 1;
                     } else {
                         text.push(self.work, b'\\')?;
@@ -1363,7 +1377,10 @@ impl<'a, 'w> Lexer<'a, 'w> {
                     self.pos += 1;
                 }
             }
-            line += self.source.as_bytes()[before..self.pos]
+            line += self
+                .source
+                .as_bytes()
+                .span(before, self.pos)?
                 .iter()
                 .filter(|&&b| b == b'\n')
                 .count();
@@ -1373,18 +1390,18 @@ impl<'a, 'w> Lexer<'a, 'w> {
 
     fn regex(&mut self) -> Result<Token<'a>> {
         let start = self.pos;
-        let bytes = &self.source.as_bytes()[..self.limit];
+        let bytes = self.source.as_bytes().span(0, self.limit)?;
         self.pos += 1;
         let body = self.pos;
         let mut class = false;
         let mut members = 0;
-        while self.pos < self.limit {
+        while let Some(&byte) = bytes.get(self.pos) {
             self.work.charge(1)?;
-            match bytes[self.pos] {
+            match byte {
                 0 | b'\n' => break,
                 b'\\' => {
                     self.pos += 1;
-                    if self.pos == self.limit || matches!(bytes[self.pos], 0 | b'\n') {
+                    if matches!(bytes.get(self.pos), None | Some(0 | b'\n')) {
                         break;
                     }
                     self.pos += crate::checked::text(self.source, self.pos..self.limit)?
@@ -1427,13 +1444,15 @@ impl<'a, 'w> Lexer<'a, 'w> {
                     self.pos += 1;
                 }
                 b'/' if !class => {
-                    let pattern = Bytes::from_slice(self.work, &bytes[body..self.pos])?;
+                    let pattern = Bytes::from_slice(self.work, bytes.span(body, self.pos)?)?;
                     self.pos += 1;
                     let mut flags = 0;
                     let mut failure = None;
-                    while bytes.get(self.pos).is_some_and(u8::is_ascii_alphabetic) {
+                    while let Some(&flag) = bytes
+                        .get(self.pos)
+                        .filter(|byte| byte.is_ascii_alphabetic())
+                    {
                         self.work.charge(1)?;
-                        let flag = bytes[self.pos];
                         let bit = match flag {
                             b'i' => 1,
                             b'm' => 2,
@@ -1610,7 +1629,10 @@ impl<'a, 'w> Lexer<'a, 'w> {
                     in_word = true;
                 }
             }
-            line += self.source.as_bytes()[before..self.pos]
+            line += self
+                .source
+                .as_bytes()
+                .span(before, self.pos)?
                 .iter()
                 .filter(|&&b| b == b'\n')
                 .count();
@@ -1647,10 +1669,10 @@ impl<'a, 'w> Lexer<'a, 'w> {
                 let start = self.pos;
                 let mut value = 0;
                 let max = if c == 'x' { 2 } else { 4 };
-                while self.pos < self.limit && self.pos - start < max {
+                let bytes = self.source.as_bytes().span(0, self.limit)?;
+                while let Some(&byte) = bytes.get(self.pos).filter(|_| self.pos - start < max) {
                     self.work.charge(1)?;
-                    let Some(digit) = (self.source.as_bytes()[self.pos] as char).to_digit(16)
-                    else {
+                    let Some(digit) = (byte as char).to_digit(16) else {
                         break;
                     };
                     value = value * 16 + digit;

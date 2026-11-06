@@ -2,7 +2,13 @@ use super::*;
 
 impl<'a> Parser<'a> {
     pub(super) fn token(&self) -> &Token<'a> {
-        &self.tokens[self.pos].token
+        self.token_at(self.pos)
+    }
+    /// The token kind for lookahead, with absent tokens treated as end of input.
+    pub(super) fn token_at(&self, index: usize) -> &Token<'a> {
+        self.tokens
+            .get(index)
+            .map_or(&Token::Eof, |lexeme| &lexeme.token)
     }
     /// Adds a tooling fact when this parse is recording.
     pub(super) fn note(&mut self, add: impl FnOnce(&mut record::Record)) {
@@ -18,7 +24,9 @@ impl<'a> Parser<'a> {
     /// stamps a multi-character operator at the operator's last character,
     /// except `<=>` and `===`.
     pub(super) fn position(&self, index: usize) -> usize {
-        let lexeme = &self.tokens[index];
+        let Some(lexeme) = self.tokens.get(index) else {
+            return self.source.len();
+        };
         match lexeme.token {
             Token::Op(op) if !matches!(op, "<=>" | "===") => lexeme.offset + op.len() - 1,
             _ => lexeme.offset,
@@ -28,8 +36,10 @@ impl<'a> Parser<'a> {
     /// token for a line break.
     pub(super) fn significant(&self, mut index: usize) -> usize {
         while index + 1 < self.tokens.len()
-            && self.tokens[index].token == Token::EndLine
-            && self.source.as_bytes().get(self.tokens[index].offset) != Some(&b';')
+            && self.tokens.get(index).is_some_and(|lexeme| {
+                lexeme.token == Token::EndLine
+                    && self.source.as_bytes().get(lexeme.offset) != Some(&b';')
+            })
         {
             index += 1;
         }
@@ -37,7 +47,9 @@ impl<'a> Parser<'a> {
     }
     /// Go's diagnostic name for the token at `index`.
     fn label(&self, index: usize) -> Label<'a> {
-        let lexeme = &self.tokens[index];
+        let Some(lexeme) = self.tokens.get(index) else {
+            return Label::Text("end of input");
+        };
         match &lexeme.token {
             Token::Word(word) if word.starts_with("@@") => Label::Text("class variable"),
             Token::Word(word) if word.starts_with('@') => Label::Text("instance variable"),
@@ -74,17 +86,18 @@ impl<'a> Parser<'a> {
     }
     /// A lexer diagnostic that Go reports in place of any expectation at `index`.
     pub(super) fn diagnostic(&self, index: usize) -> Option<Error> {
-        let token = &self.tokens[index];
+        let token = self.tokens.get(index)?;
         if token.token == Token::P('?')
             && !self.mode.lenient
             && self.source.as_bytes().get(token.end) == Some(&b'=')
             && index.checked_sub(1).is_some_and(|previous| {
-                let name = &self.tokens[previous];
-                name.end == token.offset
-                    && matches!(&name.token, Token::Word(word) if !keyword(word)
-                    || previous.checked_sub(1).is_some_and(|separator| {
-                        matches!(self.tokens[separator].token, Token::P('.') | Token::Op("&."))
-                    }))
+                self.tokens.get(previous).is_some_and(|name| {
+                    name.end == token.offset
+                        && matches!(&name.token, Token::Word(word) if !keyword(word)
+                        || previous.checked_sub(1).is_some_and(|separator| {
+                            matches!(self.token_at(separator), Token::P('.') | Token::Op("&."))
+                        }))
+                })
             })
         {
             let mut error = self.name_suffix_error(token.offset);
@@ -99,7 +112,7 @@ impl<'a> Parser<'a> {
             }
             return Some(error);
         }
-        match &self.tokens[index].token {
+        match &token.token {
             Token::Invalid(invalid) if invalid.failure == Failure::Diagnostic => Some(
                 Error::syntax(self.work, invalid.offset, invalid.message.as_str()),
             ),
@@ -134,7 +147,7 @@ impl<'a> Parser<'a> {
     }
     pub(super) fn bump(&mut self) -> Result<Token<'a>> {
         self.work
-            .bytes(self.tokens[self.pos].end - self.tokens[self.pos].offset)?;
+            .bytes(self.tokens.at(self.pos)?.end - self.tokens.at(self.pos)?.offset)?;
         let t = self.token().copy(self.work)?;
         if !matches!(t, Token::Eof) {
             self.pos += 1;
@@ -180,10 +193,12 @@ impl<'a> Parser<'a> {
     /// token `first` consumed, excluding line breaks and separators it ended on.
     pub(super) fn declaration_end(&self, first: usize) -> usize {
         let mut last = self.pos.max(first + 1);
-        while last > first + 1 && matches!(self.tokens[last - 1].token, Token::EndLine) {
+        while last > first + 1 && matches!(self.token_at(last - 1), Token::EndLine) {
             last -= 1;
         }
-        self.tokens[last - 1].end
+        self.tokens
+            .get(last - 1)
+            .map_or(self.source.len(), |token| token.end)
     }
     pub(super) fn lines(&mut self) -> Result<()> {
         while matches!(self.token(), Token::EndLine) {
@@ -193,8 +208,8 @@ impl<'a> Parser<'a> {
         Ok(())
     }
     pub(super) fn expression_separator(&self) -> Result<()> {
-        let previous = &self.tokens[self.pos - 1];
-        let next = &self.tokens[self.pos];
+        let previous = self.tokens.at(self.pos - 1)?;
+        let next = self.tokens.at(self.pos)?;
         if previous.token != Token::EndLine
             && previous.end_line == next.line
             && self.prefix(self.pos)
@@ -212,7 +227,7 @@ impl<'a> Parser<'a> {
     }
     pub(super) fn line_breaks(&mut self) -> Result<()> {
         while self.token() == &Token::EndLine
-            && self.tokens[self.pos].line != self.tokens[self.pos].end_line
+            && self.tokens.at(self.pos)?.line != self.tokens.at(self.pos)?.end_line
         {
             self.work.charge(1)?;
             self.pos += 1;
@@ -222,7 +237,7 @@ impl<'a> Parser<'a> {
     /// Go's test that a token has a prefix parser: whether the token at
     /// `index` can start an expression.
     pub(super) fn prefix(&self, index: usize) -> bool {
-        match &self.tokens[index].token {
+        match self.token_at(index) {
             Token::Word(w) if w.starts_with('@') => true,
             Token::Word(w) if keyword(w) => matches!(
                 w.as_str(),
@@ -277,14 +292,14 @@ impl<'a> Parser<'a> {
     /// Consumes a comma that follows, skipping line breaks as Go's lookahead does.
     pub(super) fn comma_follows(&mut self) -> bool {
         let comma = self.significant(self.pos);
-        if self.tokens[comma].token != Token::P(',') {
+        if self.token_at(comma) != &Token::P(',') {
             return false;
         }
         self.pos = comma + 1;
         true
     }
     pub(super) fn make(&self, node: Node, depth: u32) -> Result<Expr> {
-        let offset = self.tokens[self.pos.saturating_sub(1)].offset as u32;
+        let offset = self.tokens.at(self.pos.saturating_sub(1))?.offset as u32;
         self.make_at(node, depth, offset)
     }
     pub(super) fn make_at(&self, node: Node, depth: u32, offset: u32) -> Result<Expr> {
@@ -302,7 +317,7 @@ impl<'a> Parser<'a> {
         while index > 0 {
             self.work.charge(1)?;
             index -= 1;
-            if self.tokens[index].token != Token::EndLine {
+            if self.tokens.at(index)?.token != Token::EndLine {
                 return Ok(index);
             }
         }
@@ -385,6 +400,17 @@ impl std::fmt::Display for SourceText<'_> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn missing_tokens_are_absent_for_lookahead_and_internal_for_consumption() {
+        let mut parser = crate::syntax::parser("", &()).unwrap();
+        parser.pos = parser.tokens.len();
+        assert_eq!(parser.token(), &super::Token::Eof);
+        assert!(!parser.ident(parser.pos));
+        assert!(!parser.prefix(parser.pos));
+        assert!(parser.diagnostic(parser.pos).is_none());
+        assert_eq!(parser.bump().unwrap_err().kind, crate::ErrorKind::Internal);
+    }
+
     #[test]
     fn a_missing_previous_token_is_an_internal_error() {
         let parser = crate::syntax::parser("", &()).unwrap();

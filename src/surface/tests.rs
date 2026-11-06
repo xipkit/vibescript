@@ -928,7 +928,11 @@ fn stopping(source: &str) -> (std::time::Duration, std::time::Duration) {
     });
     let tree = super::parse::parse_tokens(source, &tokens, usize::MAX, &|| false).unwrap();
     let prepare = least(&|| {
-        assert!(super::context::Surface::new(source, &tree, stopped).is_none());
+        assert!(
+            super::context::Surface::new(source, &tree, stopped)
+                .unwrap()
+                .is_none()
+        );
     });
     (parse, prepare)
 }

@@ -261,7 +261,10 @@ pub(crate) fn add_to(
         .collect();
     checked.diagnostics.retain(|diagnostic| {
         let before = reach.partition_point(|&(start, _)| start <= diagnostic.span.start);
-        before == 0 || reach[before - 1].1 < diagnostic.span.end
+        before
+            .checked_sub(1)
+            .and_then(|index| reach.get(index))
+            .is_none_or(|&(_, end)| end < diagnostic.span.end)
     });
     checked.diagnostics.extend(surface);
     // Put in order, keeping those of a span in the order found, with the
@@ -323,8 +326,15 @@ fn diagnostics<'s>(
     stop: parse::Stop<'s>,
     room: &Room<'_>,
 ) -> Option<Vec<Diagnostic>> {
+    let surface = match Surface::new(source, tree, stop) {
+        Ok(surface) => surface?,
+        Err(violation) => {
+            room.record(violation);
+            return None;
+        }
+    };
     let mut checker = Checker {
-        surface: Surface::new(source, tree, stop)?,
+        surface,
         calls,
         findings: Vec::new(),
         stop,
@@ -372,7 +382,7 @@ impl<'a> Checker<'a> {
             let edits: Vec<Edit> = self
                 .surface
                 .edits
-                .flatten_group(source, &groups[group], self.room)?
+                .flatten_group(source, groups.get(group)?, self.room)?
                 .into_iter()
                 .map(|(at, replacement)| Edit {
                     span: span(at),
@@ -574,7 +584,7 @@ impl<'a> Checker<'a> {
     /// The static checker's receiver type for a member call.
     fn receiver(&self, call: &syntax::Call) -> Option<&'a crate::typing::ReceiverType> {
         self.calls
-            .receiver_at(self.surface.tokens[call.name_tok].start)
+            .receiver_at(self.surface.tokens.get(call.name_tok)?.start)
     }
 
     /// Takes a finding the rules could not turn into a rewrite.
@@ -660,8 +670,10 @@ impl<'a> Checker<'a> {
 
     /// Whether every receiver alternative resolves this call to a user method.
     pub(super) fn receiver_owns_method(&self, _: &'a syntax::Expr, call: &'a syntax::Call) -> bool {
-        self.calls
-            .user_method_at(self.surface.tokens[call.name_tok].start)
+        self.surface
+            .tokens
+            .get(call.name_tok)
+            .is_some_and(|token| self.calls.user_method_at(token.start))
     }
 }
 
@@ -694,9 +706,10 @@ mod tests {
     #[test]
     fn invalid_surface_text_stops_the_walk() {
         let source = "é.to_s";
-        let tree = parse::parse(source).unwrap();
-        let surface = Surface::new(source, &tree, &|| false).unwrap();
-        assert_eq!(surface.source_text(1..2), "");
+        let mut tree = parse::parse(source).unwrap();
+        tree.tokens[0].start = 1;
+        let surface = Surface::new(source, &tree, &|| false).unwrap().unwrap();
+        assert_eq!(surface.token_text(0), "");
         let room = Room::default();
         let mut checker = Checker {
             surface,
@@ -708,6 +721,22 @@ mod tests {
         };
         assert!(checker.found(source, &tree, &|| false).is_none());
         assert!(checker.stopped);
+    }
+
+    #[test]
+    fn invalid_operator_text_is_reported_during_initialization() {
+        for source in ["é && true", "é || false"] {
+            let mut tree = parse::parse(source).unwrap();
+            let operator = tree
+                .tokens
+                .iter_mut()
+                .find(|token| matches!(token.kind, tooling::TokenKind::Operator("&&" | "||")))
+                .unwrap();
+            operator.start = 1;
+            let room = Room::default();
+            assert!(diagnostics(source, &tree, &CallTypes::default(), &|| false, &room).is_none());
+            assert_eq!(room.violation().unwrap().kind, crate::ErrorKind::Internal);
+        }
     }
 
     #[test]
@@ -729,7 +758,7 @@ mod tests {
         };
         let room = Room::new(None, &|steps| steps <= 8, 0);
         let mut checker = Checker {
-            surface: Surface::new(&source, &tree, &|| false).unwrap(),
+            surface: Surface::new(&source, &tree, &|| false).unwrap().unwrap(),
             calls: &CallTypes::default(),
             findings: Vec::new(),
             stop: &|| false,
