@@ -1,4 +1,4 @@
-use crate::checked::violation;
+use crate::checked::{Checked, violation};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK},
@@ -24,7 +24,7 @@ pub(crate) fn call(
             "string.template expects exactly one context hash",
         ));
     }
-    if !matches!(args[0].0, Kind::Hash(_)) {
+    if !matches!(args.at(0)?.0, Kind::Hash(_)) {
         return Err(Error::new(
             ErrorKind::Type,
             "string.template context must be hash",
@@ -48,7 +48,7 @@ pub(crate) fn call(
             ));
         }
     };
-    render(ctx, receiver, &args[0], strict).map(Some)
+    render(ctx, receiver, args.at(0)?, strict).map(Some)
 }
 
 fn render(ctx: &mut CallContext, receiver: &Value, context: &Value, strict: bool) -> Result<Value> {
@@ -59,9 +59,9 @@ fn render(ctx: &mut CallContext, receiver: &Value, context: &Value, strict: bool
     let mut last = 0;
     let mut scan = 0;
     while let Some(placeholder) = next(ctx, bytes, &mut scan)? {
-        let key = &bytes[placeholder.key.clone()];
+        let key = bytes.span(placeholder.key.start, placeholder.key.end)?;
         let replacement = if let Some(index) = cache.find(ctx, key)? {
-            cache.buffer.data[index].1.clone()
+            cache.buffer.at(index)?.1.clone()
         } else {
             let replacement = match lookup(ctx, context, key)? {
                 Some(value) => scalar(ctx, value, key)?,
@@ -97,20 +97,20 @@ fn render(ctx: &mut CallContext, receiver: &Value, context: &Value, strict: bool
     last = 0;
     scan = 0;
     while let Some(placeholder) = next(ctx, bytes, &mut scan)? {
-        output.extend(ctx, &bytes[last..placeholder.open])?;
+        output.extend(ctx, bytes.span(last, placeholder.open)?)?;
         let index = cache
-            .find(ctx, &bytes[placeholder.key])?
+            .find(ctx, bytes.span(placeholder.key.start, placeholder.key.end)?)?
             .ok_or(violation("prepared template key must be cached"))?;
-        let replacement = &cache.buffer.data[index].1;
+        let replacement = &cache.buffer.at(index)?.1;
         let part = if matches!(replacement.0, Kind::Nil) {
-            &bytes[placeholder.open..placeholder.end]
+            bytes.span(placeholder.open, placeholder.end)?
         } else {
             replacement.require_bytes()?
         };
         output.extend(ctx, part)?;
         last = placeholder.end;
     }
-    output.extend(ctx, &bytes[last..])?;
+    output.extend(ctx, bytes.tail(last)?)?;
     Value::from_bytes(ctx, output)
 }
 
@@ -155,14 +155,14 @@ fn lookup<'a>(ctx: &mut CallContext, context: &'a Value, path: &[u8]) -> Result<
             ctx.work_bytes((path.len() - index).min(CHUNK))?;
         }
         if *byte == b'.' {
-            let Some(value) = field(ctx, current, &path[start..index])? else {
+            let Some(value) = field(ctx, current, path.span(start, index)?)? else {
                 return Ok(None);
             };
             current = value;
             start = index + 1;
         }
     }
-    field(ctx, current, &path[start..])
+    field(ctx, current, path.tail(start)?)
 }
 
 fn field<'a>(ctx: &mut CallContext, value: &'a Value, key: &[u8]) -> Result<Option<&'a Value>> {
@@ -173,7 +173,10 @@ fn field<'a>(ctx: &mut CallContext, value: &'a Value, key: &[u8]) -> Result<Opti
     if key.is_empty() {
         return Ok(None);
     }
-    Ok(hash.find(ctx, key)?.map(|index| &hash.buffer.data[index].1))
+    let Some(index) = hash.find(ctx, key)? else {
+        return Ok(None);
+    };
+    Ok(Some(&hash.buffer.at(index)?.1))
 }
 
 /// One `{{ key }}` placeholder: its full byte span and the trimmed key.
@@ -197,7 +200,7 @@ pub(crate) fn next(
         scan_step(ctx, &mut visited)?;
         let open = *scan;
         *scan += 1;
-        if bytes[open] != b'{' || bytes.get(open + 1) != Some(&b'{') {
+        if *bytes.at(open)? != b'{' || bytes.get(open + 1) != Some(&b'{') {
             continue;
         }
         let mut index = open + 2;

@@ -165,18 +165,17 @@ pub(crate) fn prefix(s: &[u8], class: Class) -> usize {
     // The first block is tested here, so a short string or a short run never
     // calls into the block loop, and a clean block skips the scalar peel. The
     // loop retests it, which keeps its wide blocks aligned to the start.
-    let mut blocks = 0;
-    if let Some(block) = s.first_chunk::<BLOCK>() {
-        if block_clean(block, class) {
-            blocks = if s.len() >= 2 * BLOCK {
+    let tail = match s.split_first_chunk::<BLOCK>() {
+        Some((block, tail)) if block_clean(block, class) => {
+            if s.len() >= 2 * BLOCK {
                 clean_blocks(s, class)
             } else {
-                BLOCK
-            };
+                tail
+            }
         }
-    }
-    let tail = &s[blocks..];
-    blocks
+        _ => s,
+    };
+    s.len() - tail.len()
         + tail
             .iter()
             .position(|&byte| !ordinary(byte, class))
@@ -188,7 +187,7 @@ pub(crate) fn prefix(s: &[u8], class: Class) -> usize {
 /// registers whatever the register pressure of the scan around it; each class
 /// gets a copy of the loop with its tests resolved.
 #[inline(never)]
-fn clean_blocks(s: &[u8], class: Class) -> usize {
+fn clean_blocks(s: &[u8], class: Class) -> &[u8] {
     match class {
         Class::Ascii => clean_blocks_of(s, Class::Ascii),
         Class::JsonParse => clean_blocks_of(s, Class::JsonParse),
@@ -199,7 +198,7 @@ fn clean_blocks(s: &[u8], class: Class) -> usize {
 // The loops carry the unscanned tail rather than a running offset, so no
 // counter needs an overflow check on every block.
 #[inline(always)]
-fn clean_blocks_of(s: &[u8], class: Class) -> usize {
+fn clean_blocks_of(s: &[u8], class: Class) -> &[u8] {
     let mut rest = s;
     #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
     if matches!(class, Class::Ascii) {
@@ -216,7 +215,7 @@ fn clean_blocks_of(s: &[u8], class: Class) -> usize {
         }
         rest = tail;
     }
-    s.len() - rest.len()
+    rest
 }
 
 #[derive(Default)]
@@ -233,20 +232,25 @@ pub(crate) struct TextSpan {
 #[inline(always)]
 pub(crate) fn text_span(s: &[u8], class: Class) -> TextSpan {
     let mut span = TextSpan::default();
-    while span.len < s.len() {
-        if s[span.len] < 128 {
-            let n = prefix(&s[span.len..], class);
+    let mut rest = s;
+    while let Some(&lead) = rest.first() {
+        if lead < 128 {
+            let n = prefix(rest, class);
             if n == 0 {
                 break;
             }
             span.len += n;
             span.runes += n;
             span.steps += (n as u64).div_ceil(64);
-            if span.len < s.len() && s[span.len] < 128 {
+            let Some(tail) = rest.get(n..) else {
+                break;
+            };
+            rest = tail;
+            if rest.first().is_some_and(|&lead| lead < 128) {
                 break;
             }
         } else {
-            let tail = &s[span.len..];
+            let tail = rest;
             if matches!(class, Class::JsonParse) {
                 let unicode = unicode_span(tail);
                 if unicode.len == 0 {
@@ -255,21 +259,27 @@ pub(crate) fn text_span(s: &[u8], class: Class) -> TextSpan {
                 span.len += unicode.len;
                 span.runes += unicode.runes;
                 span.steps += unicode.steps;
+                let Some(tail) = rest.get(unicode.len..) else {
+                    break;
+                };
+                rest = tail;
                 continue;
             }
             let (n, valid) = rune_width(tail);
             if !valid
                 || (matches!(class, Class::JsonStringify)
                     && n == 3
-                    && tail[0] == 0xe2
-                    && tail[1] == 0x80
-                    && matches!(tail[2], 0xa8 | 0xa9))
+                    && matches!(tail, [0xe2, 0x80, 0xa8 | 0xa9, ..]))
             {
                 break;
             }
             span.len += n;
             span.runes += 1;
             span.steps += 1;
+            let Some(tail) = rest.get(n..) else {
+                break;
+            };
+            rest = tail;
         }
     }
     span
@@ -287,22 +297,28 @@ pub(crate) fn unicode_span(s: &[u8]) -> TextSpan {
     // carries the unscanned tail rather than an offset for the same reason:
     // the lead is then loaded from the carried pointer itself, not from a
     // sum that has to be formed first.
-    let mut rest = &s[len..];
-    while let Some(window) = rest.first_chunk::<4>() {
-        let lead = window[0];
+    let Some(mut rest) = s.get(len..) else {
+        return TextSpan::default();
+    };
+    while let Some(&[lead, second, third, fourth]) = rest.first_chunk::<4>() {
         let n = lead.leading_ones() as usize;
-        let tag = UTF8_LEAD[usize::from(lead)];
+        let tag = UTF8_LEAD.get(usize::from(lead)).copied().unwrap_or(0);
         if !(2..=4).contains(&n) || usize::from(tag & 7) != n {
             break;
         }
-        let (low, span) = UTF8_SECOND[usize::from(tag >> 4)];
-        if window[1].wrapping_sub(low) > span
-            || (n >= 3 && window[2] & 0xc0 != 0x80)
-            || (n == 4 && window[3] & 0xc0 != 0x80)
+        let Some(&(low, span)) = UTF8_SECOND.get(usize::from(tag >> 4)) else {
+            break;
+        };
+        if second.wrapping_sub(low) > span
+            || (n >= 3 && third & 0xc0 != 0x80)
+            || (n == 4 && fourth & 0xc0 != 0x80)
         {
             break;
         }
-        rest = &rest[n..];
+        let Some(tail) = rest.get(n..) else {
+            break;
+        };
+        rest = tail;
         // A rune takes at least a byte, so the count stays below `s.len()`
         // and cannot wrap; a checked add here is a branch on every rune.
         runes = runes.wrapping_add(1);
@@ -312,7 +328,10 @@ pub(crate) fn unicode_span(s: &[u8]) -> TextSpan {
         if !valid {
             break;
         }
-        rest = &rest[n..];
+        let Some(tail) = rest.get(n..) else {
+            break;
+        };
+        rest = tail;
         runes += 1;
     }
     TextSpan {
@@ -578,8 +597,9 @@ fn vector_case(s: &mut [u8; 16], upper: bool) {
 const UTF8_LEAD: [u8; 256] = {
     let mut table = [0; 256];
     let mut b = 0;
-    while b < 256 {
-        table[b] = match b {
+    let mut rest: &mut [u8] = &mut table;
+    while let Some((slot, tail)) = rest.split_first_mut() {
+        *slot = match b {
             0..=0x7f => 1,
             0xc2..=0xdf => 2,
             0xe0 => 0x13,
@@ -591,6 +611,7 @@ const UTF8_LEAD: [u8; 256] = {
             _ => 0,
         };
         b += 1;
+        rest = tail;
     }
     table
 };
@@ -605,6 +626,8 @@ static UTF8_SECOND: [(u8, u8); 5] = [
     (0x80, 0x0f),
 ];
 
+// Keep validation out of rune-at-a-time callers that carry their own scan state.
+#[inline(never)]
 fn rune_width(s: &[u8]) -> (usize, bool) {
     sequence(s)
 }
@@ -612,7 +635,10 @@ fn rune_width(s: &[u8]) -> (usize, bool) {
 /// The body of [`rune_width`], for a decoder that has to stay a leaf.
 #[inline(always)]
 fn sequence(s: &[u8]) -> (usize, bool) {
-    let tag = UTF8_LEAD[usize::from(s[0])];
+    let Some(&lead) = s.first() else {
+        return (0, false);
+    };
+    let tag = UTF8_LEAD.get(usize::from(lead)).copied().unwrap_or(0);
     let n = usize::from(tag & 7);
     if n <= 1 {
         return (1, n == 1);
@@ -620,10 +646,12 @@ fn sequence(s: &[u8]) -> (usize, bool) {
     if s.len() < n {
         return (1, false);
     }
-    let (low, span) = UTF8_SECOND[usize::from(tag >> 4)];
-    if s[1].wrapping_sub(low) > span
-        || (n >= 3 && s[2] & 0xc0 != 0x80)
-        || (n == 4 && s[3] & 0xc0 != 0x80)
+    let Some(&(low, span)) = UTF8_SECOND.get(usize::from(tag >> 4)) else {
+        return (1, false);
+    };
+    if s.get(1).is_none_or(|&byte| byte.wrapping_sub(low) > span)
+        || (n >= 3 && s.get(2).is_none_or(|&byte| byte & 0xc0 != 0x80))
+        || (n == 4 && s.get(3).is_none_or(|&byte| byte & 0xc0 != 0x80))
     {
         return (1, false);
     }
@@ -632,15 +660,18 @@ fn sequence(s: &[u8]) -> (usize, bool) {
 
 /// Decodes one rune, replacing each invalid byte as Go's UTF-8 decoder does.
 pub(crate) fn rune(s: &[u8]) -> (char, usize, bool) {
-    if s[0] < 128 {
-        return (s[0] as char, 1, true);
+    let Some(&lead) = s.first() else {
+        return ('\u{fffd}', 0, false);
+    };
+    if lead < 128 {
+        return (lead as char, 1, true);
     }
     let (n, valid) = rune_width(s);
     if !valid {
         return ('\u{fffd}', 1, false);
     }
-    let mut cp = u32::from(s[0] & (0x7f >> n));
-    for &byte in &s[1..n] {
+    let mut cp = u32::from(lead & (0x7f >> n));
+    for &byte in s.get(1..n).unwrap_or_default() {
         cp = (cp << 6) | u32::from(byte & 0x3f);
     }
     match char::from_u32(cp) {
@@ -655,15 +686,18 @@ pub(crate) fn rune(s: &[u8]) -> (char, usize, bool) {
 /// step inline: one call per rune, with no registers to save around it.
 #[inline(never)]
 pub(crate) fn code_point(s: &[u8]) -> (u32, usize) {
-    if s[0] < 128 {
-        return (u32::from(s[0]), 1);
+    let Some(&lead) = s.first() else {
+        return (0xfffd, 0);
+    };
+    if lead < 128 {
+        return (u32::from(lead), 1);
     }
     let (n, valid) = sequence(s);
     if !valid {
         return (u32::from(char::REPLACEMENT_CHARACTER), 1);
     }
-    let mut cp = u32::from(s[0] & (0x7f >> n));
-    for &byte in &s[1..n] {
+    let mut cp = u32::from(lead & (0x7f >> n));
+    for &byte in s.get(1..n).unwrap_or_default() {
         cp = (cp << 6) | u32::from(byte & 0x3f);
     }
     (cp, n)
@@ -681,6 +715,17 @@ mod tests {
         match valid.chars().next() {
             Some(ch) => (ch, ch.len_utf8(), true),
             None => ('\u{fffd}', 1, false),
+        }
+    }
+
+    #[test]
+    fn empty_decoders_and_spans_do_not_read_a_lead_byte() {
+        assert_eq!(rune(b""), ('\u{fffd}', 0, false));
+        assert_eq!(code_point(b""), (0xfffd, 0));
+        assert_eq!(unicode_span(b"").len, 0);
+        for class in [Class::Ascii, Class::JsonParse, Class::JsonStringify] {
+            assert_eq!(prefix(b"", class), 0);
+            assert_eq!(text_span(b"", class).len, 0);
         }
     }
 

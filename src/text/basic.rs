@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::Buffer,
@@ -78,10 +79,10 @@ pub(crate) fn call(
         "clamp" => clamp(ctx, receiver, args)?,
         "between?" => {
             crate::arguments::between("string.between?", args, false, false)?;
-            let lower = ops::compare(ctx, &args[0], receiver)?;
+            let lower = ops::compare(ctx, args.at(0)?, receiver)?;
             let within = matches!(lower, Some(Ordering::Less | Ordering::Equal))
                 && matches!(
-                    ops::compare(ctx, receiver, &args[1])?,
+                    ops::compare(ctx, receiver, args.at(1)?)?,
                     Some(Ordering::Less | Ordering::Equal)
                 );
             Value::boolean(within)
@@ -143,16 +144,16 @@ fn clamp(ctx: &mut CallContext, receiver: &Value, args: &[Value]) -> Result<Valu
             return Err(argument("string.clamp bounds must be strings or nil"));
         }
     }
-    let lower = !matches!(args[0].0, Kind::Nil);
-    let upper = !matches!(args[1].0, Kind::Nil);
-    if lower && upper && ops::compare(ctx, &args[0], &args[1])? == Some(Ordering::Greater) {
+    let lower = !matches!(args.at(0)?.0, Kind::Nil);
+    let upper = !matches!(args.at(1)?.0, Kind::Nil);
+    if lower && upper && ops::compare(ctx, args.at(0)?, args.at(1)?)? == Some(Ordering::Greater) {
         return Err(argument("string.clamp min must be <= max"));
     }
-    if lower && ops::compare(ctx, receiver, &args[0])? == Some(Ordering::Less) {
-        return Ok(args[0].clone());
+    if lower && ops::compare(ctx, receiver, args.at(0)?)? == Some(Ordering::Less) {
+        return Ok(args.at(0)?.clone());
     }
-    if upper && ops::compare(ctx, receiver, &args[1])? == Some(Ordering::Greater) {
-        return Ok(args[1].clone());
+    if upper && ops::compare(ctx, receiver, args.at(1)?)? == Some(Ordering::Greater) {
+        return Ok(args.at(1)?.clone());
     }
     Ok(receiver.clone())
 }
@@ -169,7 +170,10 @@ fn inum(ctx: &mut CallContext, text: &[u8], detect_base: bool) -> Result<Value> 
         )
     };
     let mut position = 0;
-    while position < text.len() && super::split::space(text[position]) {
+    while text
+        .get(position)
+        .is_some_and(|&byte| super::split::space(byte))
+    {
         ctx.charge(1)?;
         position += 1;
     }

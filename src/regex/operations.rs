@@ -4,7 +4,7 @@ use super::{
     search::{ABSENT, Search},
     value::Regex,
 };
-use crate::checked::violation;
+use crate::checked::{Access, Checked, violation};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::Buffer,
@@ -65,25 +65,25 @@ fn arguments(
             },
         ));
     }
-    if !matches!(args[0].0, Kind::Bytes(_) | Kind::Regex(_)) {
+    if !matches!(args.at(0)?.0, Kind::Bytes(_) | Kind::Regex(_)) {
         return Err(Error::new(
             ErrorKind::Type,
             format!("{method} pattern must be string or regex"),
         ));
     }
-    if matches!(&args[0].0, Kind::Bytes(bytes) if bytes.data().len() > super::MAX_PATTERN) {
+    if matches!(&args.at(0)?.0, Kind::Bytes(bytes) if bytes.data().len() > super::MAX_PATTERN) {
         return super::pattern_limit(ctx, method);
     }
     super::text_limit(ctx, receiver.require_bytes()?, method, "text")?;
     let offset = if args.len() == 2 {
-        crate::sequence::integer(&args[1]).map_err(|mut error| {
+        crate::sequence::integer(args.at(1)?).map_err(|mut error| {
             error.message = "string.match offset must be integer".to_owned();
             error
         })?
     } else {
         0
     };
-    Ok((pattern(ctx, &args[0], method)?, offset))
+    Ok((pattern(ctx, args.at(0)?, method)?, offset))
 }
 
 fn offset(ctx: &mut CallContext, text: &[u8], offset: i64) -> Result<Option<usize>> {
@@ -100,7 +100,7 @@ fn offset(ctx: &mut CallContext, text: &[u8], offset: i64) -> Result<Option<usiz
     let mut remaining = offset;
     while remaining != 0 && position < text.len() {
         ctx.charge(1)?;
-        position += scan::rune(&text[position..]).1;
+        position += scan::rune(text.tail(position)?).1;
         remaining -= 1;
     }
     Ok(Some(position))
@@ -164,15 +164,15 @@ impl Cursor {
                 self.done = true;
                 return Ok(None);
             };
-            let start = indices.data[0];
-            let end = indices.data[1];
+            let start = *indices.at(0)?;
+            let end = *indices.at(1)?;
             let accepted = start != end || self.previous_end != Some(end);
             self.previous_end = Some(end);
             if start == end {
                 if end == text.len() {
                     self.done = true;
                 } else {
-                    self.position = end + scan::rune(&text[end..]).1;
+                    self.position = end + scan::rune(text.tail(end)?).1;
                 }
             } else {
                 self.position = end;
@@ -186,46 +186,57 @@ impl Cursor {
 }
 
 fn element(ctx: &mut CallContext, subject: &Value, indices: &[usize]) -> Result<Value> {
-    if indices.len() == 2 {
-        return super::window(ctx, subject, indices[0], indices[1]);
+    if let &[start, end] = indices {
+        return super::window(ctx, subject, start, end);
     }
     let mut values = Buffer::with_capacity(ctx, indices.len() / 2 - 1)?;
-    for pair in indices[2..].chunks_exact(2) {
+    for pair in indices.tail(2)?.chunks_exact(2) {
+        let &[start, end] = pair else {
+            continue;
+        };
         ctx.charge(1)?;
-        let value = if pair[0] == ABSENT {
+        let value = if start == ABSENT {
             Value::nil()
         } else {
-            super::window(ctx, subject, pair[0], pair[1])?
+            super::window(ctx, subject, start, end)?
         };
         values.data.push(value);
     }
     Value::from_array(ctx, values)
 }
 
-fn element_bytes(text: &[u8], indices: &[usize]) -> usize {
-    if indices.len() == 2 {
-        return matches::window_bytes(text, indices[0], indices[1]);
+fn element_bytes(text: &[u8], indices: &[usize]) -> Access<usize> {
+    if let &[start, end] = indices {
+        return Ok(matches::window_bytes(text, start, end));
     }
-    indices[2..].chunks_exact(2).fold(
+    Ok(indices.tail(2)?.chunks_exact(2).fold(
         Heap::<Value>::header_bytes() + (indices.len() / 2 - 1) * size_of::<Value>(),
-        |size, pair| size.saturating_add(matches::window_bytes(text, pair[0], pair[1])),
-    )
+        |size, pair| {
+            let &[start, end] = pair else {
+                return size;
+            };
+            size.saturating_add(matches::window_bytes(text, start, end))
+        },
+    ))
 }
 
 // Preserve the reference's fixed scan guards independently of Rust's actual storage charges.
-fn reference_element(indices: &[usize]) -> usize {
+fn reference_element(indices: &[usize]) -> Access<usize> {
     let (indices, initial) = if indices.len() == 2 {
         (indices, 0)
     } else {
-        (&indices[2..], 32 + (indices.len() / 2 - 1) * 32)
+        (indices.tail(2)?, 32 + (indices.len() / 2 - 1) * 32)
     };
-    indices.chunks_exact(2).fold(initial, |size, pair| {
-        if pair[0] == ABSENT {
+    Ok(indices.chunks_exact(2).fold(initial, |size, pair| {
+        let &[start, end] = pair else {
+            return size;
+        };
+        if start == ABSENT {
             size
         } else {
-            size.saturating_add(16 + pair[1] - pair[0])
+            size.saturating_add(16 + end - start)
         }
-    })
+    }))
 }
 
 fn materialize(ctx: &mut CallContext, regex: &Regex, subject: &Value) -> Result<Value> {
@@ -248,7 +259,7 @@ fn materialize(ctx: &mut CallContext, regex: &Regex, subject: &Value) -> Result<
         count += 1;
         guard = guard
             .saturating_add(32)
-            .saturating_add(reference_element(&indices.data));
+            .saturating_add(reference_element(&indices.data)?);
         if guard > super::MAX_TEXT {
             return ctx.fail(
                 ErrorKind::OutputLimit,
@@ -257,7 +268,7 @@ fn materialize(ctx: &mut CallContext, regex: &Regex, subject: &Value) -> Result<
         }
         projected = projected
             .saturating_add(size_of::<Value>())
-            .saturating_add(element_bytes(text, &indices.data));
+            .saturating_add(element_bytes(text, &indices.data)?);
         ctx.check_memory(projected)?;
     }
     let mut output = Buffer::with_capacity(ctx, count)?;
@@ -337,7 +348,7 @@ impl Driver {
         ctx.check_memory(if self.single {
             0
         } else {
-            element_bytes(self.receiver.require_bytes()?, &indices.data)
+            element_bytes(self.receiver.require_bytes()?, &indices.data)?
         })?;
         let value = if self.single {
             matches::data(ctx, self.regex.view()?, &self.receiver, &indices.data)?
