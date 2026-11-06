@@ -84,12 +84,10 @@ fn module_resolver_internal_reaches_compile() {
         assert!(armed.fired(), "nested={nested}: fault did not fire");
         drop(armed);
         assert_eq!(error.kind, ErrorKind::Internal, "nested={nested}: {error}");
-        assert!(
-            error
-                .message
-                .starts_with("internal error at src/loading/source_tests.rs:"),
-            "{error}"
-        );
+        // `file!()` spells the path as the fault's caller location does,
+        // with the platform's separators.
+        let site = format!("internal error at {}:", file!());
+        assert!(error.message.starts_with(&site), "{error}");
         assert!(error.message.ends_with(INJECTED), "{error}");
         assert!(error.diagnostics().is_empty(), "{error}");
         // The one-shot fault leaves no quota latch or cached failure behind.
