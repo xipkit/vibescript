@@ -161,7 +161,12 @@ fn execute(case: &Json, stdout: &Capture, stderr: &Capture) -> Json {
         }
     }
     if let Some(byte) = case.get("entropy_byte").and_then(Json::as_u64) {
-        let byte = byte as u8;
+        let Ok(byte) = u8::try_from(byte) else {
+            return failure(
+                "setup",
+                &Error::new(ErrorKind::Argument, "entropy byte out of range"),
+            );
+        };
         engine.set_random_source(move |_, output| {
             output.fill(byte);
             Ok(output.len())
@@ -350,10 +355,16 @@ fn inputs(case: &Json, signature: Option<vibescript::HostMethod>) -> Result<Inpu
         allow_require: flag(case, "allow_require"),
         limits: Limits {
             steps: limit("steps", 5_000_000),
-            memory_bytes: limit("memory", 64 << 20).map(|bytes| bytes as usize),
+            memory_bytes: limit("memory", 64 << 20)
+                .map(usize::try_from)
+                .transpose()
+                .map_err(|_| "memory limit out of range")?,
             recursion: case["recursion"]
                 .as_u64()
-                .map_or(256, |depth| depth as usize),
+                .map(usize::try_from)
+                .transpose()
+                .map_err(|_| "recursion limit out of range")?
+                .unwrap_or(256),
         },
         deadline: Some(Instant::now() + Duration::from_millis(timeout)),
         ..CallOptions::default()

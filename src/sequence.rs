@@ -8,7 +8,7 @@ pub(crate) fn integer(value: &Value) -> Result<i64> {
     match value.0 {
         Kind::Int(n) => Ok(n),
         Kind::Float(n) if n.is_finite() && n >= i64::MIN as f64 && n < 9223372036854775808.0 => {
-            Ok(n as i64)
+            Ok(crate::numeric::float_to_i64(n))
         }
         _ => Err(Error::new(
             ErrorKind::Type,

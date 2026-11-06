@@ -235,7 +235,9 @@ fn malformed_literal_combinations_return_errors_without_panicking() {
             state ^= state << 13;
             state ^= state >> 7;
             state ^= state << 17;
-            source.push_str(pieces[state as usize % pieces.len()]);
+            source.push_str(
+                pieces[usize::try_from(state & usize::MAX as u64).unwrap() % pieces.len()],
+            );
         }
         assert!(
             std::panic::catch_unwind(|| Engine::new().compile(&source)).is_ok(),

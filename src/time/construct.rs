@@ -1,4 +1,5 @@
 use super::{NANOS, Stamp, argument, calendar, location, parse, scaled_float, value};
+use crate::checked::convert;
 use crate::{CallContext, Error, ErrorKind, Result, Value, bytes, ops, value::Kind};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -111,7 +112,7 @@ impl Constructor {
                 .ok_or_else(out_of_range)?;
             return value(
                 ctx,
-                Stamp::new(seconds, nanos.rem_euclid(NANOS) as u32),
+                Stamp::new(seconds, convert::<u32, _>(nanos.rem_euclid(NANOS))?),
                 zone,
             );
         }
@@ -187,7 +188,7 @@ impl Constructor {
 fn raw_int(value: f64) -> i64 {
     // Go's conversion of an out-of-range float depends on the CPU; every
     // platform uses the reference's arm64 result, which saturates.
-    value as i64
+    crate::numeric::float_to_i64(value)
 }
 
 /// Scales a subsecond number; the error names a non-numeric value, a
@@ -230,7 +231,7 @@ fn required_year(year: &Value) -> Result<i64> {
     match year.0 {
         Kind::Int(n) => Ok(n),
         Kind::Float(n) if n.is_finite() && n > i64::MIN as f64 && n < i64::MAX as f64 => {
-            Ok(n as i64)
+            Ok(crate::numeric::float_to_i64(n))
         }
         Kind::Float(n) if n.is_nan() => {
             Err(argument("Time constructor year must be finite, got NaN"))

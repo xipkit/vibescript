@@ -1,5 +1,5 @@
 use super::*;
-use crate::checked::Checked;
+use crate::checked::{Checked, convert};
 
 // The first operand of an expression, parsed without a task when it is a
 // single token.
@@ -83,7 +83,7 @@ impl<'a> Parser<'a> {
         self.work.charge(1)?;
         self.enter()?;
         self.work.charge(1)?;
-        let offset = self.tokens.at(self.pos)?.offset as u32;
+        let offset = convert(self.tokens.at(self.pos)?.offset)?;
         let line = self.tokens.at(self.pos)?.line;
         let mut lhs = match self.bump()? {
             Token::Word(w) => match w.as_str() {
@@ -195,7 +195,7 @@ impl<'a> Parser<'a> {
     }
 
     fn hash_label(&mut self) -> Result<(Bytes, Option<Expr>)> {
-        let offset = self.tokens.at(self.pos)?.offset as u32;
+        let offset = convert(self.tokens.at(self.pos)?.offset)?;
         let labeled = matches!(self.token(), Token::Word(w) if !w.starts_with('@'))
             || matches!(self.token(), Token::Bytes(_));
         let colon = self.significant(self.pos + 1);

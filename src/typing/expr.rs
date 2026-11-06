@@ -2105,7 +2105,7 @@ impl<'a> Checker<'a> {
                         .program
                         .enumeration(id)?
                         .symbol(&symbol)
-                        .map(|place| place as u32);
+                        .and_then(|place| self.meter.index(place));
                 }
                 if self.types.kind(ty) != &Kind::EnumValue(id) {
                     if ty != Ty::ERROR && !self.types.assignable(ty, subject) {
@@ -2120,7 +2120,7 @@ impl<'a> Checker<'a> {
                     Node::Scope(_, name, None) => decl.member(name)?,
                     _ => return None,
                 };
-                Some(place as u32)
+                self.meter.index(place)
             }
             Kind::Bool => match &value.node {
                 Node::Literal(v) if v.type_name() == "bool" => Some(u32::from(v.truthy())),

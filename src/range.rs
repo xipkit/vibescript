@@ -124,7 +124,7 @@ const INTEGER_CEILING: f64 = 9223372036854775808.0;
 pub(crate) fn truncate(value: f64) -> Option<i64> {
     (INTEGER_FLOOR..INTEGER_CEILING)
         .contains(&value)
-        .then_some(value as i64)
+        .then_some(crate::numeric::float_to_i64(value))
 }
 
 /// Converts a range literal endpoint. Finite floats truncate toward zero, as at
@@ -169,7 +169,10 @@ pub(crate) fn contains_float(
     if value >= INTEGER_CEILING {
         return end.is_none();
     }
-    let (floor, ceil) = (value.floor() as i64, value.ceil() as i64);
+    let (floor, ceil) = (
+        crate::numeric::float_to_i64(value.floor()),
+        crate::numeric::float_to_i64(value.ceil()),
+    );
     match (start, end) {
         (Some(a), Some(b)) if a > b => ceil <= a && if exclusive { ceil > b } else { floor >= b },
         _ => {

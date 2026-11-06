@@ -1,4 +1,5 @@
 use super::*;
+use crate::checked::convert;
 
 impl<M: super::recovery::Mode> Parsing<'_, M> {
     /// Attaches a block to a whole statement-level expression, as Go's
@@ -142,7 +143,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let (offset, outer, outer_it) = {
             let mut p = self.p();
             p.work.charge(1)?;
-            let offset = p.tokens.at(p.pos)?.offset as u32;
+            let offset = convert(p.tokens.at(p.pos)?.offset)?;
             p.bump()?;
             p.line_breaks()?;
             (offset, p.locals.copy(p.work)?, p.declared_it)

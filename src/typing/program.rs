@@ -102,8 +102,8 @@ impl Enum {
                 return None;
             }
             symbols.push(symbol).ok()?;
-            by_member.push(index as u32).ok()?;
-            by_symbol.push(index as u32).ok()?;
+            by_member.push(meter.index(index)?).ok()?;
+            by_symbol.push(meter.index(index)?).ok()?;
         }
         super::counted::sort_unstable_by(meter, &mut by_member, |&a, &b| {
             names.get(a as usize).cmp(&names.get(b as usize))
@@ -519,7 +519,9 @@ impl<'a> Checker<'a> {
                     {
                         return;
                     }
-                    let id = program.host_modules.len() as u32;
+                    let Some(id) = self.meter.index(program.host_modules.len()) else {
+                        return;
+                    };
                     program.host_modules.push_within(module);
                     self.types.names.hosts.push_kept(&mut kept, name.clone());
                     let ty = self.types.intern(Kind::Host(id));
@@ -574,9 +576,14 @@ impl<'a> Checker<'a> {
             {
                 return;
             }
-            self.program
-                .enum_names
-                .insert_kept(&mut kept, name.to_string(), index as u32);
+            self.program.enum_names.insert_kept(
+                &mut kept,
+                name.to_string(),
+                match self.meter.index(index) {
+                    Some(index) => index,
+                    None => return,
+                },
+            );
             self.program.enums.push_within(Arc::new(enumeration));
             self.types
                 .names
@@ -594,7 +601,7 @@ impl<'a> Checker<'a> {
         }
         // Each alias is a step, and the budget is checked as a walk checks
         // it, while they are declared.
-        let pace = super::walk::PACE as usize;
+        let pace = usize::from(super::walk::PACE);
         let aliases = &parsed.additions.aliases;
         for (index, (scope, alias)) in aliases.iter().enumerate() {
             if index % pace == pace - 1 && self.meter.pace(pace as u64, 0) {
@@ -640,7 +647,7 @@ impl<'a> Checker<'a> {
         let mut blocks: HashMap<u32, &BlockParam> = HashMap::with_capacity(recorded.len());
         // Each entry is a step, and the budget is checked as a walk checks
         // it, while the index is filled.
-        let pace = super::walk::PACE as usize;
+        let pace = usize::from(super::walk::PACE);
         for (index, (owner, block)) in recorded.iter().enumerate() {
             if index % pace == pace - 1 && self.meter.pace(pace as u64, 0) {
                 self.release(blocks_held);
@@ -689,6 +696,10 @@ impl<'a> Checker<'a> {
             let Some(namespace) = self.meter.found(self.program.namespaces.at(ns)) else {
                 return;
             };
+            let Some(ns_id) = self.meter.index(ns) else {
+                self.release(blocks_held);
+                return;
+            };
             let Some(module) = namespace.module else {
                 continue;
             };
@@ -698,8 +709,7 @@ impl<'a> Checker<'a> {
                     return;
                 }
                 let block = block_param(def.offset);
-                let Some(id) =
-                    self.function(def, Some(ns as NsId), true, block, false, *visibility)
+                let Some(id) = self.function(def, Some(ns_id), true, block, false, *visibility)
                 else {
                     self.release(blocks_held);
                     return;
@@ -715,8 +725,7 @@ impl<'a> Checker<'a> {
                     return;
                 }
                 let block = block_param(def.offset);
-                let Some(id) =
-                    self.function(def, Some(ns as NsId), false, block, false, *visibility)
+                let Some(id) = self.function(def, Some(ns_id), false, block, false, *visibility)
                 else {
                     self.release(blocks_held);
                     return;
@@ -1055,7 +1064,7 @@ impl<'a> Checker<'a> {
     /// the cancellation. Returns whether the check has stopped.
     #[must_use = "the budget may have stopped the check, which must then do no more work"]
     pub(super) fn paced(&self, count: usize) -> bool {
-        let pace = super::walk::PACE as usize;
+        let pace = usize::from(super::walk::PACE);
         (count % pace == pace - 1 && self.meter.pace(0, 0)) || self.halted()
     }
 
@@ -1145,7 +1154,7 @@ impl<'a> Checker<'a> {
             name.push_str("::");
         }
         name.push_str(&module.name);
-        let id = program.namespaces.len() as NsId;
+        let id = self.meter.index(program.namespaces.len())?;
         self.types
             .names
             .namespaces

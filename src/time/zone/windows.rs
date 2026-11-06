@@ -3,7 +3,7 @@
 // See licenses/Go-BSD-3-Clause.txt.
 
 use super::{Zone, calendar};
-use crate::checked::Checked;
+use crate::checked::{Checked, convert};
 use crate::{CallContext, Result, budget::Buffer};
 use std::{cmp::Ordering, sync::Arc};
 
@@ -126,9 +126,10 @@ fn capitals(info: &Information) -> Names {
         let mut length = 0;
         let capitals = terminated(input)
             .iter()
-            .filter(|&&c| (u16::from(b'A')..=u16::from(b'Z')).contains(&c));
-        for (slot, &c) in output.iter_mut().zip(capitals) {
-            *slot = c as u8;
+            .filter_map(|&c| u8::try_from(c).ok())
+            .filter(u8::is_ascii_uppercase);
+        for (slot, c) in output.iter_mut().zip(capitals) {
+            *slot = c;
             length += 1;
         }
         length
@@ -193,12 +194,12 @@ fn build(ctx: &mut CallContext, info: &Information, names: Names, year: i64) -> 
         buffer.extend_from_slice(daylight);
         buffer.push(0);
     }
-    header(&mut buffer.data, 0, 1, name_len as u32);
+    header(&mut buffer.data, 0, 1, convert(name_len)?);
     buffer.data.extend_from_slice(&offsets[0].to_be_bytes());
     buffer.data.extend_from_slice(&[0, 0]);
     names_into(&mut buffer.data, standard_name, daylight_name);
-    header(&mut buffer.data, 400, 2, name_len as u32);
-    let mut dates = [(info.standard_date, 0usize), (info.daylight_date, 1usize)];
+    header(&mut buffer.data, 400, 2, convert(name_len)?);
+    let mut dates = [(info.standard_date, 0u8), (info.daylight_date, 1u8)];
     if dates[0].0.month > dates[1].0.month {
         dates.swap(0, 1);
     }
@@ -207,24 +208,22 @@ fn build(ctx: &mut CallContext, info: &Information, names: Names, year: i64) -> 
         ctx.charge(1)?;
         ctx.checkpoint()?;
         for (date, index) in dates {
-            let when = pseudo_unix(year, date) - i64::from(*offsets.at(1 - index)?);
+            let when = pseudo_unix(year, date) - i64::from(*offsets.at(usize::from(1 - index))?);
             buffer.data.extend_from_slice(&when.to_be_bytes());
         }
     }
     for _ in 0..200 {
         ctx.charge(1)?;
-        buffer
-            .data
-            .extend_from_slice(&[dates[0].1 as u8, dates[1].1 as u8]);
+        buffer.data.extend_from_slice(&[dates[0].1, dates[1].1]);
     }
     for (index, offset) in offsets.iter().enumerate() {
         buffer.data.extend_from_slice(&offset.to_be_bytes());
         buffer.data.extend_from_slice(&[
-            index as u8,
+            convert(index)?,
             if index == 0 {
                 0
             } else {
-                standard_name.len() as u8 + 1
+                convert::<u8, _>(standard_name.len())? + 1
             },
         ]);
     }

@@ -1,4 +1,5 @@
 use super::*;
+use crate::checked::convert;
 
 impl<M: super::recovery::Mode> Parsing<'_, M> {
     /// Parses a line expression that may take a `do` block from a later line.
@@ -41,7 +42,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             // Go locates a folded negative number at its digits.
             let folded = p.token() == &Token::Op("-") && p.negative_literal(p.pos)?;
             (
-                p.tokens.at(p.pos + usize::from(folded))?.offset as u32,
+                convert(p.tokens.at(p.pos + usize::from(folded))?.offset)?,
                 p.token() == &Token::P('('),
             )
         };
@@ -56,7 +57,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let (offset, token) = {
             let mut p = self.p();
             p.work.charge(1)?;
-            let offset = p.tokens.at(p.pos)?.offset as u32;
+            let offset = convert(p.tokens.at(p.pos)?.offset)?;
             (offset, p.bump()?)
         };
         match token {

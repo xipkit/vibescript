@@ -3,7 +3,7 @@
 // See licenses/Go-BSD-3-Clause.txt.
 
 use super::calendar;
-use crate::checked::{Access, Checked, violation};
+use crate::checked::{Access, Checked, convert, violation};
 use crate::{
     CallContext, CallOptions, Error, ErrorKind, Limits, Result, Value,
     budget::{Buffer, Charge},
@@ -248,7 +248,7 @@ impl Tzif {
         }
         Ok(Offset {
             name: names.span(0, length)?,
-            seconds: int(bytes, record, 4)? as i32,
+            seconds: convert::<i32, _>(int(bytes, record, 4)?)?,
             dst: self.dst(bytes, index)?,
             start: i64::MIN,
             end: i64::MAX,

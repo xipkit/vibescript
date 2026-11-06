@@ -158,9 +158,12 @@ impl<'a> RecordProof<'a> {
         let mut order = [0; 15];
         for ((key, _), slot) in hash.buffer.data.iter().zip(&mut order) {
             let name = key.as_bytes()?;
-            *slot = fields
-                .binary_search_by(|field| field.name.as_slice().cmp(name))
-                .ok()? as u8;
+            *slot = u8::try_from(
+                fields
+                    .binary_search_by(|field| field.name.as_slice().cmp(name))
+                    .ok()?,
+            )
+            .ok()?;
         }
         Some(Self {
             ty,

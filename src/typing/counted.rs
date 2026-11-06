@@ -1610,18 +1610,21 @@ mod tests {
         }
         let refused = refused.expect("the budget refuses the list's growth");
         let (length, capacity) = (list.len(), list.capacity());
-        assert_eq!(length as u32, refused);
+        assert_eq!(u32::try_from(length).unwrap(), refused);
         assert!(meter.stopped());
         // A stopped check grows nothing more, but a list with room takes
         // what fits.
         assert_eq!(list.push(ledger, 0).is_err(), length == capacity);
         list.truncate(length);
         assert_eq!(
-            list.extend_from_slice(ledger, &(0..capacity as u32).collect::<Vec<_>>()),
+            list.extend_from_slice(
+                ledger,
+                &(0..u32::try_from(capacity).unwrap()).collect::<Vec<_>>()
+            ),
             Err(Refused)
         );
         assert_eq!((list.len(), list.capacity()), (length, capacity));
-        assert!(list.iter().copied().eq(0..length as u32));
+        assert!(list.iter().copied().eq(0..u32::try_from(length).unwrap()));
     }
 
     #[test]

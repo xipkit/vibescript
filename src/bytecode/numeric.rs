@@ -19,8 +19,13 @@ impl Compiler<'_> {
     }
 
     /// Emits a fused addition with the same proof about its operands.
-    pub(super) fn number_store(&mut self, slot: usize, a: &Expr, b: &Expr) -> usize {
-        self.emit(Op::AddStore(narrow(slot), self.number_pair(a, b)))
+    pub(super) fn number_store(
+        &mut self,
+        slot: usize,
+        a: &Expr,
+        b: &Expr,
+    ) -> crate::checked::Access<usize> {
+        Ok(self.emit(Op::AddStore(narrow(slot)?, self.number_pair(a, b))))
     }
 }
 

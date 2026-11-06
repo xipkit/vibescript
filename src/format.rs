@@ -99,7 +99,7 @@ fn integer(value: &Value) -> Option<i64> {
         Kind::Float(n)
             if n.is_finite() && (-9223372036854775808.0..9223372036854775808.0).contains(&n) =>
         {
-            Some(n as i64)
+            Some(crate::numeric::float_to_i64(n))
         }
         _ => None,
     }

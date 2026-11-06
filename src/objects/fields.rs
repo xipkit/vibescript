@@ -1,4 +1,5 @@
 use super::*;
+use crate::checked::convert;
 
 const ABSENT: u32 = u32::MAX;
 const END: u32 = u32::MAX - 1;
@@ -106,6 +107,10 @@ impl Fields {
                 last,
             } => {
                 ctx.charge(1)?;
+                let slot_id = convert::<u32, _>(slot)?;
+                if slot_id >= END {
+                    return Err(violation("field slot overlaps a list sentinel").into());
+                }
                 if slot >= values.data.len() {
                     values.ensure(ctx, slot + 1)?;
                     while values.data.len() < slot {
@@ -128,14 +133,14 @@ impl Fields {
                 }
                 if values.at(slot)?.next == ABSENT {
                     if *last == END {
-                        *first = slot as u32;
+                        *first = slot_id;
                     } else {
-                        values.at_mut(*last as usize)?.next = slot as u32;
+                        values.at_mut(*last as usize)?.next = slot_id;
                     }
                     let linked = values.at_mut(slot)?;
                     linked.previous = *last;
                     linked.next = END;
-                    *last = slot as u32;
+                    *last = slot_id;
                 }
                 values.at_mut(slot)?.value = value;
                 Ok(())
@@ -269,6 +274,31 @@ impl DoubleEndedIterator for Iter<'_> {
 mod tests {
     use super::*;
     use crate::{CallOptions, Engine};
+
+    #[test]
+    fn field_slots_cannot_overlap_link_sentinels() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let mut fields = Fields::Slots {
+            values: Buffer::empty(),
+            first: END,
+            last: END,
+        };
+        for slot in [END as usize, ABSENT as usize, usize::MAX] {
+            let error = fields.set_slot(&mut ctx, slot, Value::nil()).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Internal);
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        }
+        let Fields::Slots {
+            values,
+            first,
+            last,
+        } = fields
+        else {
+            panic!("slot storage expected");
+        };
+        assert!(values.data.is_empty());
+        assert_eq!((first, last), (END, END));
+    }
 
     #[test]
     fn sparse_slot_initialization_observes_work_limits_before_publication() {

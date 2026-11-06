@@ -1,5 +1,5 @@
 use super::*;
-use crate::checked::{Checked, violation};
+use crate::checked::{Checked, convert, violation};
 use crate::{budget::CHUNK, scan};
 
 mod number;
@@ -98,7 +98,7 @@ fn printf(ctx: &mut CallContext, prepared: &Prepared, output: &mut Output) -> Re
                     if width < 0 {
                         field.flags = (field.flags | MINUS) & !ZERO;
                     }
-                    Some(width.unsigned_abs() as usize)
+                    Some(convert::<usize, _>(width.unsigned_abs())?)
                 }
                 None => {
                     output.write(ctx, b"%!(BADWIDTH)")?;

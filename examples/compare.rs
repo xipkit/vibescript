@@ -257,9 +257,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let n = if fixed > 0 {
                 fixed
             } else {
-                case.get("iterations")
-                    .and_then(Json::as_u64)
-                    .ok_or("missing iterations")? as usize
+                usize::try_from(
+                    case.get("iterations")
+                        .and_then(Json::as_u64)
+                        .ok_or("missing iterations")?,
+                )?
             };
             if n == 0 {
                 return Err("zero iterations".into());
@@ -351,9 +353,11 @@ fn measure_parse(
     let n = if fixed > 0 {
         fixed
     } else {
-        case.get("iterations")
-            .and_then(Json::as_u64)
-            .ok_or("missing iterations")? as usize
+        usize::try_from(
+            case.get("iterations")
+                .and_then(Json::as_u64)
+                .ok_or("missing iterations")?,
+        )?
     };
     if n == 0 {
         return Err("zero iterations".into());

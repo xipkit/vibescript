@@ -95,6 +95,10 @@ pub(crate) fn exp(x: f64) -> f64 {
     if x.abs() < f64::from_bits(0x3e30000000000000) {
         return 1.0 + x;
     }
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "range reduction rounds toward zero; the finite input bounds above keep k in -1076..=1024"
+    )]
     let k = x.mul_add(LOG2_E, if x < 0.0 { -0.5 } else { 0.5 }) as i32;
     let hi = (-f64::from(k)).mul_add(LN2_HI, x);
     let lo = f64::from(k) * LN2_LO;
@@ -432,7 +436,7 @@ fn reduce_large(x: f64) -> (u64, f64) {
     let z2 = u128::from(word(digit + 2)) * u128::from(mantissa);
     let z1 = u128::from(word(digit + 1)) * u128::from(mantissa);
     let z0 = word(digit).wrapping_mul(mantissa);
-    let (lo, carry) = (z1 as u64).overflowing_add((z2 >> 64) as u64);
+    let (lo, carry) = crate::numeric::low_u64(z1).overflowing_add((z2 >> 64) as u64);
     let hi = z0
         .wrapping_add((z1 >> 64) as u64)
         .wrapping_add(u64::from(carry));

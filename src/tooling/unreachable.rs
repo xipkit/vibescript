@@ -146,7 +146,7 @@ fn expression_offset(text: &str, expr: &Expr) -> u32 {
             if !matches!(op, "<=>" | "===")
                 && text.get(at..).is_some_and(|rest| rest.starts_with(op))
             {
-                offset + op.len() as u32 - 1
+                op.bytes().skip(1).fold(offset, |offset, _| offset + 1)
             } else {
                 offset
             }

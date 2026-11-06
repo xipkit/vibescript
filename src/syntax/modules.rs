@@ -1,5 +1,5 @@
 use super::{Label, Parser, Parsing, Stmt, Token, keyword, source_text};
-use crate::checked::Checked;
+use crate::checked::{Checked, convert};
 use crate::{
     Result,
     compilation::{Buffer, Name, Table, Text},
@@ -286,7 +286,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let (offset, def_line, name, class_method, outer_locals, outer_it, outer_body) = {
             let mut p = self.p();
             work.charge(1)?;
-            let offset = p.tokens.at(p.pos)?.offset as u32;
+            let offset = convert(p.tokens.at(p.pos)?.offset)?;
             let def_line = p.tokens.at(p.pos)?.line;
             p.bump()?;
             p.line_breaks()?;
@@ -447,7 +447,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let (mut class, outer_locals, outer_it, outer_class, outer_namespace) = {
             let mut p = self.p();
             work.charge(1)?;
-            let offset = p.tokens.at(p.pos)?.offset as u32;
+            let offset = convert(p.tokens.at(p.pos)?.offset)?;
             p.bump()?;
             let next = p.significant(p.pos);
             if !module && p.tokens.at(next)?.token == Token::Op("<<") {
@@ -540,7 +540,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                                     ),
                                 ));
                             }
-                            p.class_alias(&mut class, new, old, offset as u32)?;
+                            p.class_alias(&mut class, new, old, convert(offset)?)?;
                             Member::Done
                         }
                         "alias_method" => {
@@ -556,7 +556,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                                     ),
                                 ));
                             }
-                            p.class_alias(&mut class, new, old, offset as u32)?;
+                            p.class_alias(&mut class, new, old, convert(offset)?)?;
                             Member::Done
                         }
                         "public" | "protected" | "private"

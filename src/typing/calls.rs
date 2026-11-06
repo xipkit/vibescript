@@ -1046,7 +1046,10 @@ impl<'a> Checker<'a> {
                             id
                         }
                     };
-                    return self.types.intern(Kind::Host(id as u32));
+                    let Some(id) = self.meter.index(id) else {
+                        return Ty::ERROR;
+                    };
+                    return self.types.intern(Kind::Host(id));
                 }
                 crate::signatures::Member::Constant(constant) => {
                     self.non_callable_member(call);

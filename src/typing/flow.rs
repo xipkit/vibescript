@@ -124,12 +124,13 @@ impl Flow {
     }
 
     /// Adds a local, unassigned, in the room [`Self::reserve`] made.
-    pub fn add(&mut self, declared: Ty) -> LocalId {
+    pub fn add(&mut self, declared: Ty) -> Option<LocalId> {
+        let id = self.meter.index(self.vars.len())?;
         self.vars.push_within(VarState {
             ty: declared,
             assigned: false,
         });
-        (self.vars.len() - 1) as LocalId
+        Some(id)
     }
 
     /// The bytes the states and the trail hold.

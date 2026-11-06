@@ -1155,7 +1155,7 @@ mod tests {
                 let bytes: Vec<u8> = (0..len)
                     .map(|_| {
                         state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
-                        (state >> 32) as u8
+                        (state >> 32).to_le_bytes()[0]
                     })
                     .collect();
                 let original = bytes.iter().fold(0usize, |hash, &byte| {
@@ -1521,10 +1521,10 @@ mod tests {
                 .wrapping_mul(6364136223846793005)
                 .wrapping_add(1442695040888963407);
             let digits = (n >> 7).to_string();
-            cases.push(digits[..1 + (n as usize % digits.len())].to_string());
+            cases.push(digits[..1 + (crate::numeric::hash_word(n) % digits.len())].to_string());
             cases.push(format!(
                 "-{}",
-                &digits[..1 + (n as usize >> 3) % digits.len()]
+                &digits[..1 + (crate::numeric::hash_word(n) >> 3) % digits.len()]
             ));
         }
         for text in cases {
@@ -1563,7 +1563,7 @@ mod tests {
             seed ^= seed << 13;
             seed ^= seed >> 7;
             seed ^= seed << 17;
-            (seed % bound as u64) as usize
+            usize::try_from(seed % bound as u64).unwrap()
         };
         for case in 0..600 {
             let mut input = b"\"".to_vec();
@@ -1579,7 +1579,7 @@ mod tests {
             }
             let mut plain = CallContext::new(CallOptions::default());
             let _ = reference(&mut Parser::new(&mut plain, &input));
-            let steps = plain.stats().steps as usize;
+            let steps = usize::try_from(plain.stats().steps).unwrap();
             let peak = plain.stats().peak_memory_bytes;
             for limits in [
                 (None, None),

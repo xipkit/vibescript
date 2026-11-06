@@ -1,3 +1,4 @@
+use crate::checked::convert;
 use crate::{CallContext, Error, ErrorKind, Result, Value, budget::Buffer, scan, value::Kind};
 
 fn argument(message: &str) -> Error {
@@ -32,15 +33,15 @@ impl Token {
         Ok(token)
     }
 
-    fn encode(self, scratch: &mut [u8; 4]) -> &[u8] {
+    fn encode(self, scratch: &mut [u8; 4]) -> crate::checked::Access<&[u8]> {
         if self.raw {
-            scratch[0] = self.code as u8;
-            &scratch[..1]
+            scratch[0] = convert(self.code)?;
+            Ok(&scratch[..1])
         } else {
-            char::from_u32(self.code)
+            Ok(char::from_u32(self.code)
                 .unwrap_or('\u{fffd}')
                 .encode_utf8(scratch)
-                .as_bytes()
+                .as_bytes())
         }
     }
 }
@@ -154,7 +155,7 @@ impl Set {
             ctx.charge(1)?;
             if index < span.length() {
                 return Ok(Some(Token {
-                    code: span.low + index as u32,
+                    code: span.low + convert::<u32, _>(index)?,
                     raw: span.raw,
                 }));
             }
@@ -217,7 +218,7 @@ fn walk(
             }
         };
         if let Some(token) = output {
-            emit(ctx, token.encode(&mut [0; 4]))?;
+            emit(ctx, token.encode(&mut [0; 4])?)?;
         }
     }
     Ok(count)
@@ -325,7 +326,8 @@ mod tests {
             set.at(&mut ctx, 0xd800)
                 .unwrap()
                 .unwrap()
-                .encode(&mut [0; 4]),
+                .encode(&mut [0; 4])
+                .unwrap(),
             "�".as_bytes()
         );
         assert_eq!(set.at(&mut ctx, u64::MAX).unwrap().unwrap().code, 0x10ffff);

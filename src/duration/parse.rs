@@ -231,11 +231,12 @@ fn iso(ctx: &mut CallContext, input: &[u8], negative: bool) -> Result<i64> {
         if scan.peek().is_some() {
             return Err(week());
         }
-        let weeks = if negative {
+        let weeks = i64::try_from(if negative {
             -(magnitude as i128)
         } else {
             magnitude as i128
-        } as i64;
+        })
+        .map_err(|_| week())?;
         weeks.wrapping_mul(604800)
     } else {
         let (date, time) = match time_at {

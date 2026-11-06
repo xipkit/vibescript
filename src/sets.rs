@@ -1,4 +1,4 @@
-use crate::checked::Checked;
+use crate::checked::{Checked, convert};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK},
@@ -181,7 +181,7 @@ fn hash_float(hasher: &mut DefaultHasher, value: f64) {
         hasher.write_u8(4);
     } else if value.fract() == 0.0 && value >= i64::MIN as f64 && value < -(i64::MIN as f64) {
         // Integral floats equal the integer they convert to; -0.0 becomes 0.
-        hash_integer(hasher, value as i64);
+        hash_integer(hasher, crate::numeric::float_to_i64(value));
     } else {
         hasher.write_u8(4);
         hasher.write_u64(value.to_bits());
@@ -270,7 +270,7 @@ impl Index {
     pub fn fill(&mut self, slot: usize, hash: u64, position: usize) -> crate::checked::Access<()> {
         debug_assert_eq!(self.slots.at(slot)?.1, VACANT);
         // `reserve` bounds the number of entries, and so positions, below u32::MAX.
-        *self.slots.at_mut(slot)? = (hash as u32, position as u32);
+        *self.slots.at_mut(slot)? = (crate::numeric::low_u32(hash), convert::<u32, _>(position)?);
         self.len += 1;
         Ok(())
     }
@@ -282,7 +282,7 @@ impl Index {
         value: &Value,
         hash: u64,
     ) -> Result<Entry> {
-        let hash = hash as u32;
+        let hash = crate::numeric::low_u32(hash);
         let mask = self.slots.data.len() - 1;
         let mut slot = hash as usize & mask;
         loop {
@@ -812,7 +812,7 @@ mod tests {
             state ^= state << 13;
             state ^= state >> 7;
             state ^= state << 17;
-            (state % bound as u64) as usize
+            usize::try_from(state % bound as u64).unwrap()
         };
         let singles = atoms.len();
         for _ in 0..120 {

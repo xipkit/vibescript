@@ -7,7 +7,7 @@
 //! are preflighted before any row is allocated. Intrinsic size guards raise
 //! recoverable limit errors; exhausted quotas latch like every other charge.
 
-use crate::checked::{Access, Checked};
+use crate::checked::{Access, Checked, convert};
 use crate::numeric::{float_to_u64, to_usize};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
@@ -231,7 +231,7 @@ impl Swaps {
         let mut hash = DefaultHasher::new();
         key.hash(&mut hash);
         let mask = self.0.data.len() - 1;
-        let mut slot = hash.finish() as usize & mask;
+        let mut slot = crate::numeric::hash_word(hash.finish()) & mask;
         loop {
             ctx.charge(1)?;
             let stored = self.0.at(slot)?.0;
@@ -257,7 +257,7 @@ fn sample(ctx: &mut CallContext, label: &str, array: &[Value], args: &[Value]) -
             return Ok(Value::nil());
         }
         let index = crate::random::bounded(ctx, array.len() as u64)?;
-        return Ok(array.at(index as usize)?.clone());
+        return Ok(array.at(convert::<usize, _>(index)?)?.clone());
     }
     let count = sample_count(label, args.at(0)?)?.min(array.len());
     if count == 0 {
@@ -285,7 +285,7 @@ fn sample(ctx: &mut CallContext, label: &str, array: &[Value], args: &[Value]) -
     let mut out = Buffer::with_capacity(ctx, count)?;
     for i in 0..count {
         ctx.charge(1)?;
-        let offset = crate::random::bounded(ctx, (array.len() - i) as u64)? as usize;
+        let offset = convert::<usize, _>(crate::random::bounded(ctx, (array.len() - i) as u64)?)?;
         let j = i + offset;
         let target = swaps.slot(ctx, j)?;
         let selected = swaps.value(target, j)?;
@@ -302,7 +302,7 @@ fn shuffle(ctx: &mut CallContext, array: &[Value]) -> Result<Value> {
     out.extend(ctx, array)?;
     for i in (1..out.data.len()).rev() {
         ctx.charge(1)?;
-        let j = crate::random::bounded(ctx, i as u64 + 1)? as usize;
+        let j = convert::<usize, _>(crate::random::bounded(ctx, i as u64 + 1)?)?;
         out.data.swap(i, j);
     }
     Value::from_array(ctx, out)
@@ -321,7 +321,7 @@ fn rotate(ctx: &mut CallContext, label: &str, array: &[Value], args: &[Value]) -
         return empty(ctx);
     }
     let length = array.len();
-    let shift = offset.rem_euclid(crate::numeric::to_i64(length)) as usize;
+    let shift = convert::<usize, _>(offset.rem_euclid(crate::numeric::to_i64(length)))?;
     let mut out = Buffer::with_capacity(ctx, length)?;
     let (head, tail) = array.split_at(shift);
     for value in tail.iter().chain(head) {

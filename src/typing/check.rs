@@ -521,7 +521,10 @@ impl<'a> Checker<'a> {
             if self.over_budget() {
                 return;
             }
-            self.check_namespace_body(ns as NsId);
+            let Some(ns) = self.meter.index(ns) else {
+                return;
+            };
+            self.check_namespace_body(ns);
         }
         for id in 0..self.program.fns.len() {
             if self.over_budget() {
@@ -618,7 +621,7 @@ impl<'a> Checker<'a> {
             let mut defaults: HashMap<u32, Vec<(&'a Stmt, Option<&'a str>)>> = HashMap::new();
             // Each entry is a step, and the budget is checked as a walk
             // checks it.
-            let pace = super::walk::PACE as usize;
+            let pace = usize::from(super::walk::PACE);
             for (index, (class, ivar)) in additions.ivars.iter().enumerate() {
                 if index % pace == pace - 1 && self.meter.pace(pace as u64, most) {
                     return Vec::new();
@@ -1131,7 +1134,10 @@ impl<'a> Checker<'a> {
         self.frame.flow.untrack();
         self.frame.initialize = None;
         for place in 0..roster.len() {
-            let id = first + place as LocalId;
+            let Some(place) = self.meter.index(place) else {
+                return;
+            };
+            let id = first + place;
             let state = self.frame.flow.get(id);
             self.frame.flow.set(
                 id,
@@ -1499,7 +1505,7 @@ impl<'a> Checker<'a> {
         if let Some(scope) = frame.scopes.last_mut() {
             scope.reserve(tables, 1).ok()?;
         }
-        let id = frame.flow.add(declared);
+        let id = frame.flow.add(declared)?;
         debug_assert_eq!(id as usize, frame.locals.len());
         frame.locals.push_kept(
             &mut kept,
@@ -1531,7 +1537,7 @@ impl<'a> Checker<'a> {
         let tables = self.meter.tables();
         self.frame.flow.reserve().ok()?;
         self.frame.locals.reserve(tables, 1).ok()?;
-        let id = self.frame.flow.add(Ty::BOOL);
+        let id = self.frame.flow.add(Ty::BOOL)?;
         self.frame.locals.push_within(Local {
             name: String::new(),
             declared: Ty::BOOL,
@@ -3374,7 +3380,12 @@ impl<'a> Checker<'a> {
                     continue;
                 }
                 if declared
-                    .insert_made(tables, name.len(), || name.to_owned(), index as u32)
+                    .insert_made(
+                        tables,
+                        name.len(),
+                        || name.to_owned(),
+                        self.meter.index(index)?,
+                    )
                     .is_err()
                 {
                     return None;
@@ -3487,7 +3498,10 @@ impl<'a> Checker<'a> {
             return;
         };
         if let Ok(place) = roster.binary_search_by(|ivar| ivar.as_str().cmp(name)) {
-            let id = first + place as LocalId;
+            let Some(place) = self.meter.index(place) else {
+                return;
+            };
+            let id = first + place;
             let state = self.frame.flow.get(id);
             self.frame.flow.set(
                 id,
@@ -3779,7 +3793,7 @@ impl<'a> Checker<'a> {
                     let ns = self.program.namespaces.iter().position(|ns| {
                         ns.is_class && ns.module.is_some_and(|module| module.name == base)
                     })?;
-                    self.types.intern(Kind::Instance(ns as NsId))
+                    self.types.intern(Kind::Instance(self.meter.index(ns)?))
                 }
             }
         };

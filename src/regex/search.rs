@@ -3,6 +3,7 @@ use super::{
     program::{Op, View},
     unicode,
 };
+use crate::checked::convert;
 use crate::checked::violation;
 use crate::{
     CallContext, Result,
@@ -100,7 +101,7 @@ fn canonical(rune: u32, fold: bool) -> u32 {
         // non-ASCII members of the K and S orbits are larger than both
         // letters. Arithmetic rather than a test of `fold`, since the scan
         // does this for every ASCII byte.
-        let lower = (rune as u8).is_ascii_lowercase();
+        let lower = (u32::from(b'a')..=u32::from(b'z')).contains(&rune);
         rune ^ (u32::from(lower & fold) << 5)
     } else if fold {
         least(rune)
@@ -173,7 +174,7 @@ fn prefix(
         if runes[i] == runes[matched] {
             matched += 1;
         }
-        literal.table.data.push(matched as u32);
+        literal.table.data.push(convert(matched)?);
     }
     Ok((Some(literal), false))
 }
@@ -193,7 +194,8 @@ impl Literal {
         let first = runes[0];
         // Folded ASCII letters have two ASCII forms; the byte search stops
         // at only one needle. It already stops before non-ASCII fold members.
-        let ascii = first < 128 && !(self.fold && (first as u8).is_ascii_alphabetic());
+        let ascii = first < 128
+            && !(self.fold && u8::try_from(first).is_ok_and(|byte| byte.is_ascii_alphabetic()));
         let mut start = from;
         let mut position = from;
         let mut matched = 0;
@@ -213,7 +215,7 @@ impl Literal {
                 // leaves every charge where a byte at a time would put it.
                 let window = &text[position..text.len().min(position + (CHUNK - work))];
                 let skipped = if ascii {
-                    scan::ascii_mismatch(window, first as u8)
+                    scan::ascii_mismatch(window, convert(first)?)
                 } else {
                     window
                         .iter()
@@ -551,7 +553,9 @@ fn previous(bytes: &[u8], position: usize) -> u32 {
 impl Assertion {
     fn matches(self, position: usize, before: Option<u32>, after: Option<u32>) -> bool {
         let word = |rune: Option<u32>| {
-            rune.is_some_and(|r| r < 128 && ((r as u8).is_ascii_alphanumeric() || r == '_' as u32))
+            rune.is_some_and(|r| {
+                u8::try_from(r).is_ok_and(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+            })
         };
         match self {
             Self::BeginText => position == 0,
@@ -816,7 +820,7 @@ mod tests {
             state ^= state << 13;
             state ^= state >> 7;
             state ^= state << 17;
-            (state % bound as u64) as usize
+            usize::try_from(state % bound as u64).unwrap()
         };
         for pattern in patterns {
             let program =
@@ -922,7 +926,7 @@ mod tests {
             state ^= state << 13;
             state ^= state >> 7;
             state ^= state << 17;
-            (state % bound as u64) as usize
+            usize::try_from(state % bound as u64).unwrap()
         };
         for pattern in patterns {
             let mut ctx = context(None);

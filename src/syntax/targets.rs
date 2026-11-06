@@ -1,5 +1,5 @@
 use super::*;
-use crate::checked::Checked;
+use crate::checked::{Checked, convert};
 
 /// Where a destructuring target list appears.
 #[derive(Clone, Copy, PartialEq)]
@@ -122,7 +122,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         loop {
             let (rest, anonymous, group, star) = {
                 let mut p = self.p();
-                let star = p.tokens.at(p.pos)?.offset as u32;
+                let star = convert(p.tokens.at(p.pos)?.offset)?;
                 let rest = p.token() == &Token::Op("*");
                 let mut anonymous = false;
                 if rest {
@@ -156,7 +156,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 let open = {
                     let mut p = self.p();
                     p.enter()?;
-                    let open = p.tokens.at(p.pos)?.offset as u32;
+                    let open = convert(p.tokens.at(p.pos)?.offset)?;
                     p.bump()?;
                     let next = p.significant(p.pos);
                     if p.tokens.at(next)?.token == Token::P(close) {
@@ -274,7 +274,9 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 .ok_or(crate::checked::violation("single target must have a value"))?
         };
         let p = self.p();
-        let offset = target.offset().unwrap_or(p.tokens.at(p.pos)?.offset as u32);
+        let offset = target
+            .offset()
+            .unwrap_or(convert(p.tokens.at(p.pos)?.offset)?);
         p.check_depth(target.depth(p.work)?, offset)?;
         Ok((target, tuple))
     }

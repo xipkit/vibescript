@@ -284,7 +284,7 @@ mod tests {
         assert_eq!(text.len() % 2, 0);
         text.chunks_exact(2)
             .map(|pair| {
-                let digit = |b: u8| (b as char).to_digit(16).unwrap() as u8;
+                let digit = |b: u8| u8::try_from((b as char).to_digit(16).unwrap()).unwrap();
                 digit(pair[0]) * 16 + digit(pair[1])
             })
             .collect()

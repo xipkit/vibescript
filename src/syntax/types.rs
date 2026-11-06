@@ -1,4 +1,5 @@
 use super::{Expr, Label, Node, Parser, Parsing, Token};
+use crate::checked::convert;
 use crate::{
     Result,
     compilation::{Boxed, Buffer, Bytes, Field, Name, Type, TypeKind},
@@ -146,7 +147,7 @@ impl Parser<'_> {
             return Ok(None);
         }
         let start = self.pos;
-        let offset = self.tokens.at(start)?.offset as u32;
+        let offset = convert(self.tokens.at(start)?.offset)?;
         let structural = self.type_structural_error;
         let candidate = self.speculative_type(|p| p.type_expr(1, false))?;
         let end = self.pos;
@@ -246,7 +247,7 @@ impl Parser<'_> {
             return Ok(None);
         }
         let start = self.pos;
-        let offset = self.tokens.at(start)?.offset as u32;
+        let offset = convert(self.tokens.at(start)?.offset)?;
         let structural = self.type_structural_error;
         let candidate = self.speculative_type(|p| p.type_expr(1, false))?;
         let end = self.pos;
