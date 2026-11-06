@@ -15,7 +15,10 @@ use super::{
     counted::{CountedMap, CountedSet, CountedVec, ScratchVec},
     meter::Meter,
 };
-use crate::syntax::{Argument, Expr, Node, Statement, Stmt, Target, Try, When};
+use crate::{
+    checked::{Access, Checked as _},
+    syntax::{Argument, Expr, Node, Statement, Stmt, Target, Try, When},
+};
 use std::{iter::Rev, slice::Iter};
 
 fn implicit_bit(name: &str) -> u16 {
@@ -158,16 +161,25 @@ impl<'a> Assigns<'a> {
         if span.start >= span.end {
             return names;
         }
-        let root = &self.roots[span.root as usize];
-        let all = |found: &mut dyn FnMut(u32)| {
-            self.first(root, span, 1, root.start, root.start + root.width, found);
+        let Some(root) = meter.found(self.roots.at(span.root as usize)) else {
+            return names;
+        };
+        let all = |found: &mut dyn FnMut(u32) -> Access<()>| {
+            self.first(root, span, 1, root.start, root.start + root.width, found)
         };
         let mut count = 0;
-        all(&mut |_| count += 1);
-        if names.reserve(count).is_err() {
+        let counted = all(&mut |_| {
+            count += 1;
+            Ok(())
+        });
+        if meter.found(counted).is_none() || names.reserve(count).is_err() {
             return names;
         }
-        all(&mut |id| names.push_within(self.names[id as usize].0));
+        let listed = all(&mut |id| {
+            names.push_within(self.names.at(id as usize)?.0);
+            Ok(())
+        });
+        meter.found(listed);
         names
     }
 
@@ -198,22 +210,43 @@ impl<'a> Assigns<'a> {
         node: usize,
         left: u32,
         right: u32,
-        found: &mut dyn FnMut(u32),
-    ) {
+        found: &mut dyn FnMut(u32) -> Access<()>,
+    ) -> Access<()> {
         if right <= span.start
             || span.end <= left
-            || root.lowest[node] > span.start
-            || root.lowest_scope[node] > span.scope
+            || *root.lowest.at(node)? > span.start
+            || *root.lowest_scope.at(node)? > span.scope
         {
-            return;
+            return Ok(());
         }
         if right - left == 1 {
-            found(self.sites[left as usize]);
-            return;
+            return found(*self.sites.at(left as usize)?);
         }
         let middle = left + (right - left) / 2;
-        self.first(root, span, 2 * node, left, middle, found);
-        self.first(root, span, 2 * node + 1, middle, right, found);
+        self.first(root, span, 2 * node, left, middle, found)?;
+        self.first(root, span, 2 * node + 1, middle, right, found)
+    }
+
+    /// The two trees of a root over the assignments from `start`, at
+    /// `width` leaves: the lowest previous position and the lowest scope
+    /// under each node.
+    fn trees(&self, start: usize, width: usize) -> Access<(Vec<u32>, Vec<u32>)> {
+        let mut lowest = vec![u32::MAX; 2 * width];
+        let mut lowest_scope = vec![u32::MAX; 2 * width];
+        let leaves = lowest.iter_mut().skip(width);
+        for (leaf, &previous) in leaves.zip(self.previous.iter().skip(start)) {
+            *leaf = previous;
+        }
+        let leaves = lowest_scope.iter_mut().skip(width);
+        for (leaf, &id) in leaves.zip(self.sites.iter().skip(start)) {
+            *leaf = self.names.at(id as usize)?.1;
+        }
+        for node in (1..width).rev() {
+            for tree in [&mut lowest, &mut lowest_scope] {
+                *tree.at_mut(node)? = (*tree.at(2 * node)?).min(*tree.at(2 * node + 1)?);
+            }
+        }
+        Ok((lowest, lowest_scope))
     }
 
     /// Walks a body no earlier walk covered, as a new root. A walk the
@@ -224,8 +257,12 @@ impl<'a> Assigns<'a> {
         if self.roots.reserve(meter.tables(), 1).is_err() {
             return;
         }
-        let start = self.sites.len() as u32;
-        let root = self.roots.len() as u32;
+        let Some(start) = meter.index(self.sites.len()) else {
+            return;
+        };
+        let Some(root) = meter.index(self.roots.len()) else {
+            return;
+        };
         let mut walk = Walk {
             assigns: self,
             root,
@@ -248,7 +285,10 @@ impl<'a> Assigns<'a> {
         // of two, is counted before it is built.
         let tree = 4 * width * std::mem::size_of::<u32>();
         let kept = meter.tables().keep(tree);
-        let (false, Ok(mut kept)) = (stopped, kept) else {
+        let trees = (!stopped && kept.is_ok())
+            .then(|| meter.found(self.trees(start as usize, width)))
+            .flatten();
+        let (Some((lowest, lowest_scope)), Ok(mut kept)) = (trees, kept) else {
             // The spans the stopped walk recorded cover no positions of its
             // empty tree, so they find no assignments.
             self.roots.push_within(Root {
@@ -259,22 +299,15 @@ impl<'a> Assigns<'a> {
             });
             return;
         };
-        let mut lowest = vec![u32::MAX; 2 * width];
-        let mut lowest_scope = vec![u32::MAX; 2 * width];
-        lowest[width..width + count].copy_from_slice(&self.previous[start as usize..]);
-        for (place, &id) in self.sites[start as usize..].iter().enumerate() {
-            lowest_scope[width + place] = self.names[id as usize].1;
-        }
-        for node in (1..width).rev() {
-            lowest[node] = lowest[2 * node].min(lowest[2 * node + 1]);
-            lowest_scope[node] = lowest_scope[2 * node].min(lowest_scope[2 * node + 1]);
-        }
         self.held += (lowest.capacity() + lowest_scope.capacity()) * std::mem::size_of::<u32>();
         self.roots.push_kept(
             &mut kept,
             Root {
                 start,
-                width: width as u32,
+                width: match meter.index(width) {
+                    Some(width) => width,
+                    None => return,
+                },
                 lowest,
                 lowest_scope,
             },
@@ -366,15 +399,20 @@ impl<'a> Walk<'a, '_> {
         self.stopped
     }
 
-    fn here(&self) -> u32 {
-        self.assigns.sites.len() as u32
+    fn here(&mut self) -> Option<u32> {
+        let position = self.meter.index(self.assigns.sites.len());
+        self.stopped |= position.is_none();
+        position
     }
 
-    fn span(&self, start: u32) -> Span {
+    fn span(&mut self, start: u32) -> Span {
+        let Some(end) = self.here() else {
+            return Span::EMPTY;
+        };
         Span {
             root: self.root,
             start,
-            end: self.here(),
+            end,
             scope: self.scope,
             implicit_assignments: self.implicit_assignments,
         }
@@ -394,11 +432,16 @@ impl<'a> Walk<'a, '_> {
         let assigns = &mut *self.assigns;
         let known = assigns.ids.get(&(name, scope)).copied();
         let mut fresh = CountedVec::new();
-        let before = known.map_or(0, |id| assigns.positions[id as usize].capacity());
+        let before = known
+            .and_then(|id| assigns.positions.get(id as usize))
+            .map_or(0, |positions| positions.capacity());
         let room = assigns.sites.reserve(tables, 1).is_ok()
             && assigns.previous.reserve(tables, 1).is_ok()
             && match known {
-                Some(id) => assigns.positions[id as usize].reserve(tables, 1).is_ok(),
+                Some(id) => self
+                    .meter
+                    .found(assigns.positions.at_mut(id as usize))
+                    .is_some_and(|positions| positions.reserve(tables, 1).is_ok()),
                 None => {
                     fresh.reserve(tables, 1).is_ok()
                         && assigns.names.reserve(tables, 1).is_ok()
@@ -410,15 +453,24 @@ impl<'a> Walk<'a, '_> {
             self.stopped = true;
             return;
         }
-        let id = known.unwrap_or_else(|| {
-            let id = assigns.names.len() as u32;
+        let Some(id) = known.or_else(|| {
+            let id = self.meter.index(assigns.names.len())?;
             assigns.names.push_within((name, scope));
             assigns.positions.push_within(fresh);
             assigns.ids.insert_within((name, scope), id);
-            id
-        });
-        let position = assigns.sites.len() as u32;
-        let positions = &mut assigns.positions[id as usize];
+            Some(id)
+        }) else {
+            self.stopped = true;
+            return;
+        };
+        let Some(position) = self.meter.index(assigns.sites.len()) else {
+            self.stopped = true;
+            return;
+        };
+        let Some(positions) = self.meter.found(assigns.positions.at_mut(id as usize)) else {
+            self.stopped = true;
+            return;
+        };
         let previous = positions.last().map_or(0, |&last| last + 1);
         positions.push_within(position);
         assigns.held += (positions.capacity() - before) * std::mem::size_of::<u32>();
@@ -451,7 +503,15 @@ impl<'a> Walk<'a, '_> {
                 self.shadows.truncate(mark);
                 return;
             }
-            let (name, previous) = self.shadows.pop().unwrap();
+            let Some((name, previous)) =
+                self.meter
+                    .found(self.shadows.pop().ok_or(crate::checked::violation(
+                        "shadow restore must have a binding",
+                    )))
+            else {
+                self.stopped = true;
+                return;
+            };
             if self.meter.charge(1 + (name.len() / 64) as u64) {
                 self.stopped = true;
                 continue;
@@ -502,7 +562,9 @@ impl<'a> Walk<'a, '_> {
     /// Lists `body`'s assignments and records its span, unless the check
     /// stops first.
     fn stmts(&mut self, body: &'a [Stmt]) -> Span {
-        let start = self.here();
+        let Some(start) = self.here() else {
+            return Span::EMPTY;
+        };
         for stmt in body {
             if self.visit() {
                 return self.span(start);
@@ -573,7 +635,9 @@ impl<'a> Walk<'a, '_> {
         // A `retry` in the body, the `else` or the ensure reruns an
         // enclosing `begin`, since this one is not rescuing then.
         let body = self.stmts(&attempt.body);
-        let start = self.here();
+        let Some(start) = self.here() else {
+            return;
+        };
         let outer = self.target.replace(address);
         for rescue in attempt.rescues.iter() {
             if self.stopped {

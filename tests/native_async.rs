@@ -448,8 +448,10 @@ fn inline_bridges_restore_context_after_nested_failure_and_abandonment() {
             engine.register_method(
                 "inspect",
                 HostMethod::new_with_block("inspect", move |call, _, _| {
+                    let before = std::ptr::from_mut(call.context()).addr();
                     assert_eq!(call.call_block(&[]).unwrap_err().kind, expected);
                     // A host may ignore the error and keep using its context.
+                    assert_eq!(std::ptr::from_mut(call.context()).addr(), before);
                     assert_eq!(call.context().checkpoint().unwrap_err().kind, expected);
                     observed.store(true, Ordering::SeqCst);
                     Ok(Value::int(999))

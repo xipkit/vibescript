@@ -1,3 +1,4 @@
+use crate::checked::violation;
 use crate::{
     CallContext, ErrorKind, Result, Value,
     budget::{CHUNK, Charge},
@@ -173,23 +174,24 @@ impl Reservation {
             Charge::merge(&mut self.charge, charge);
         } else {
             self.unused -= bytes;
-            self.peak = self
-                .peak
-                .max(self.charge.as_ref().unwrap().reserved_usage(self.unused));
+            self.peak = self.peak.max(
+                self.charge
+                    .as_ref()
+                    .ok_or(violation("active JSON reservation must have a charge"))?
+                    .reserved_usage(self.unused),
+            );
         }
         Ok(())
     }
 
     fn settle(&mut self) {
-        if self.peak != 0 {
-            self.charge
-                .as_ref()
-                .unwrap()
-                .publish_peak(std::mem::take(&mut self.peak));
-        }
-        if self.unused != 0 {
-            self.charge.as_mut().unwrap().release(self.unused);
-            self.unused = 0;
+        if let Some(charge) = &mut self.charge {
+            if self.peak != 0 {
+                charge.publish_peak(std::mem::take(&mut self.peak));
+            }
+            if self.unused != 0 {
+                charge.release(std::mem::take(&mut self.unused));
+            }
         }
     }
 

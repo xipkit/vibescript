@@ -124,7 +124,7 @@ const INTEGER_CEILING: f64 = 9223372036854775808.0;
 pub(crate) fn truncate(value: f64) -> Option<i64> {
     (INTEGER_FLOOR..INTEGER_CEILING)
         .contains(&value)
-        .then_some(value as i64)
+        .then_some(crate::numeric::float_to_i64(value))
 }
 
 /// Converts a range literal endpoint. Finite floats truncate toward zero, as at
@@ -137,8 +137,9 @@ pub(crate) fn endpoint(value: &Value) -> Result<i64> {
                 return Ok(n);
             }
             let mut text = crate::bytes::Number::new();
-            crate::ops::format_float(&mut text, n);
-            let text = std::str::from_utf8(text.bytes()).unwrap();
+            crate::ops::format_float(&mut text, n)?;
+            let text = std::str::from_utf8(text.bytes()?)
+                .map_err(|_| crate::checked::violation("formatted number must be UTF-8"))?;
             if n.is_finite() {
                 format!("float {text} is out of integer range")
             } else {
@@ -168,7 +169,10 @@ pub(crate) fn contains_float(
     if value >= INTEGER_CEILING {
         return end.is_none();
     }
-    let (floor, ceil) = (value.floor() as i64, value.ceil() as i64);
+    let (floor, ceil) = (
+        crate::numeric::float_to_i64(value.floor()),
+        crate::numeric::float_to_i64(value.ceil()),
+    );
     match (start, end) {
         (Some(a), Some(b)) if a > b => ceil <= a && if exclusive { ceil > b } else { floor >= b },
         _ => {
@@ -212,10 +216,10 @@ pub(crate) fn method(
         |problem: &str| Error::new(ErrorKind::Argument, format!("range.{name} {problem}"));
     match method {
         Include => {
-            if args.len() != 1 {
+            let [value] = args else {
                 return Err(argument("expects one argument"));
-            }
-            Ok(Value::boolean(range.contains(&args[0])))
+            };
+            Ok(Value::boolean(range.contains(value)))
         }
         Length | ToArray => {
             if !args.is_empty() {
@@ -254,13 +258,13 @@ pub(crate) fn method(
             if args.is_empty() {
                 return Ok(Value::int(endpoint));
             }
-            if args.len() != 1 {
+            let [count] = args else {
                 return Err(argument("expects at most one argument"));
-            }
+            };
             if range.start.is_none() {
                 return Err(open_error("beginless"));
             }
-            let count = match args[0].0 {
+            let count = match count.0 {
                 Kind::Int(count) if count < 0 => {
                     return Err(argument("count must be non-negative"));
                 }

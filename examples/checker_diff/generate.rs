@@ -1524,7 +1524,9 @@ impl Gen {
             Ty::Class(class)
                 if self.rng.chance(50) && self.classes.at(*class)?.element.is_some() =>
             {
-                let element = self.classes.at(*class)?.element.clone().unwrap();
+                let element = self.classes.at(*class)?.element.clone().ok_or_else(|| {
+                    std::io::Error::other("indexed class must have an element type")
+                })?;
                 let index = self.expr(env, &Ty::Int, 0, false)?;
                 if element == Ty::Int && self.rng.chance(40) {
                     self.line(format!("{name}[{index}] += 1"));
@@ -1672,8 +1674,15 @@ impl Gen {
                                     .get(start + 1..)
                                     .ok_or_else(|| std::io::Error::other("invalid block start"))?
                                     .find('|')
-                                    .unwrap();
-                            format!("{} {assign};{}", &call[..=end], &call[end + 1..])
+                                    .ok_or_else(|| {
+                                        std::io::Error::other(
+                                            "block parameters must have a closing pipe",
+                                        )
+                                    })?;
+                            let (head, tail) = call.split_at_checked(end + 1).ok_or_else(|| {
+                                std::io::Error::other("invalid block parameter boundary")
+                            })?;
+                            format!("{head} {assign};{tail}")
                         }
                         None => assign.clone(),
                     }
@@ -2075,10 +2084,9 @@ impl Gen {
                 options.push(Ty::Nil);
             }
             options.dedup();
-            if options.len() == 1 {
-                options.pop().unwrap()
-            } else {
-                Ty::Union(options)
+            match options.as_slice() {
+                [only] => only.clone(),
+                _ => Ty::Union(options),
             }
         };
         self.line(format!(
@@ -3355,7 +3363,10 @@ impl Gen {
     }
 
     fn yield_expr(&mut self, env: &mut Env, depth: usize) -> std::io::Result<String> {
-        let block = env.yields.clone().unwrap();
+        let block = env
+            .yields
+            .clone()
+            .ok_or_else(|| std::io::Error::other("yield requires a block signature"))?;
         let args: Vec<String> = block
             .params
             .iter()

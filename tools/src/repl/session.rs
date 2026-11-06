@@ -383,7 +383,7 @@ impl Session {
             .filter(|declaration| declaration.span.start >= start)
             .cloned()
             .collect();
-        let declared = carry(&source, &own, start);
+        let declared = carry(&source, &own, start)?;
         let checked = budget
             .type_check(&engine, &combined)
             .map_err(|error| snippet_error(map.remap(error), combined.len()))?;
@@ -473,26 +473,40 @@ pub struct Evaluated {
 
 /// Records each declaration's text and starting position in `source`; spans
 /// are offset by `base` bytes from the start of `source`.
-fn carry(source: &Arc<str>, declarations: &[vibescript::Declaration], base: usize) -> Vec<Carried> {
+fn carry(
+    source: &Arc<str>,
+    declarations: &[vibescript::Declaration],
+    base: usize,
+) -> Result<Vec<Carried>, Error> {
     declarations
         .iter()
         .map(|declaration| {
-            let start = declaration.span.start - base;
-            let end = declaration.span.end - base;
-            let before = &source[..start];
+            let invalid =
+                || Error::new(ErrorKind::Internal, "invalid REPL declaration source range");
+            let start = declaration
+                .span
+                .start
+                .checked_sub(base)
+                .ok_or_else(invalid)?;
+            let end = declaration.span.end.checked_sub(base).ok_or_else(invalid)?;
+            let before = source.get(..start).ok_or_else(invalid)?;
+            let text = source.get(start..end).ok_or_else(invalid)?;
             let line = before.matches('\n').count() + 1;
-            let column = before[before.rfind('\n').map_or(0, |i| i + 1)..]
+            let column = before
+                .rsplit('\n')
+                .next()
+                .unwrap_or_default()
                 .chars()
                 .count()
                 + 1;
-            Carried {
+            Ok(Carried {
                 kind: declaration.kind,
                 name: declaration.name.clone(),
-                text: source[start..end].to_owned(),
+                text: text.to_owned(),
                 line,
                 column,
                 source: source.clone(),
-            }
+            })
         })
         .collect()
 }
@@ -665,6 +679,22 @@ fn code_frame(text: &str, position: Position) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn carried_declarations_validate_offsets_and_utf8() {
+        let source: Arc<str> = Arc::from("é");
+        for (span, base) in [(1..2, 0), (0..1, 0), (0..2, 1), (0..3, 0)] {
+            let declarations = [vibescript::Declaration {
+                kind: DeclarationKind::Function,
+                name: "é".to_owned(),
+                span,
+            }];
+            assert_eq!(
+                carry(&source, &declarations, base).unwrap_err().kind,
+                ErrorKind::Internal
+            );
+        }
+    }
 
     #[test]
     fn code_frames_match_the_library() {

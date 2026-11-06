@@ -527,7 +527,7 @@ fn adversarial() -> Vec<(String, String)> {
     let key = |mut i: usize| {
         let mut key = String::new();
         loop {
-            key.push((b'a' + (i % 26) as u8) as char);
+            key.push((b'a' + u8::try_from(i % 26).unwrap()) as char);
             i /= 26;
             if i == 0 {
                 return key;
@@ -2451,7 +2451,10 @@ fn process_time() -> std::time::Duration {
         };
         // SAFETY: `now` is a valid, writable `timespec` the call fills.
         if unsafe { libc::clock_gettime(libc::CLOCK_PROCESS_CPUTIME_ID, &mut now) } == 0 {
-            return std::time::Duration::new(now.tv_sec as u64, now.tv_nsec as u32);
+            return std::time::Duration::new(
+                u64::try_from(now.tv_sec).unwrap(),
+                u32::try_from(now.tv_nsec).unwrap(),
+            );
         }
     }
     static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();

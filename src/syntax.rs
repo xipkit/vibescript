@@ -1,8 +1,6 @@
 use crate::{
     Error, Result, Value,
-    compilation::{
-        Boxed, Buffer, Bytes, Frame, Name, Shared, Table, Tasks, Text, Work, framed, task,
-    },
+    compilation::{Boxed, Buffer, Bytes, Frame, Name, Shared, Table, Tasks, Work, framed, task},
 };
 use std::cell::RefMut;
 

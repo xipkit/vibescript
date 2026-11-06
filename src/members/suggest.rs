@@ -87,20 +87,19 @@ impl<'n> Suggestion<'n> {
             ctx.scan_bytes(&mut self.pending, read)?;
             self.read += read;
             self.offered += 1;
+            let kept = self.best.get(..self.len).unwrap_or_default();
             // A repeated candidate ranks the same as its first copy, so skipping
             // it among the kept results considers each name once.
             if candidate.is_empty()
                 || candidate == self.name.as_bytes()
-                || self.best[..self.len]
-                    .iter()
-                    .any(|(_, kept)| kept == candidate)
+                || kept.iter().any(|(_, kept)| kept == candidate)
             {
                 continue;
             }
             let Some(rank) = self.rank(candidate) else {
                 continue;
             };
-            let position = self.best[..self.len]
+            let position = kept
                 .partition_point(|(other, kept)| (*other, kept.as_slice()) <= (rank, candidate));
             if position == MAX_RESULTS {
                 continue;
@@ -108,8 +107,13 @@ impl<'n> Suggestion<'n> {
             if self.len < MAX_RESULTS {
                 self.len += 1;
             }
-            self.best[position..self.len].rotate_right(1);
-            self.best[position] = (rank, candidate.to_vec());
+            let Some(places) = self.best.get_mut(position..self.len) else {
+                continue;
+            };
+            places.rotate_right(1);
+            if let Some(first) = places.first_mut() {
+                *first = (rank, candidate.to_vec());
+            }
         }
         Ok(self)
     }
@@ -170,7 +174,7 @@ fn runes(bytes: &[u8]) -> impl Iterator<Item = char> + '_ {
             return None;
         }
         let (rune, width, _) = scan::rune(rest);
-        rest = &rest[width..];
+        rest = rest.get(width..)?;
         Some(rune)
     })
 }
@@ -193,12 +197,12 @@ fn distance(a: &[u8], a_len: usize, b: &[u8], b_len: usize, limit: usize) -> Opt
     let unreachable = limit + 1;
     // Row j keeps column i at band offset i + limit - j.
     let at = |row: &[usize; BAND], j: usize, i: usize| match (i + limit).checked_sub(j) {
-        Some(offset) if offset <= 2 * limit => row[offset],
+        Some(offset) if offset <= 2 * limit => row.get(offset).copied().unwrap_or(unreachable),
         _ => unreachable,
     };
     let mut previous = [unreachable; BAND];
     for i in 0..=short_len.min(limit) {
-        previous[i + limit] = i;
+        *previous.get_mut(i + limit)? = i;
     }
     // The band reads short runes up to `limit` behind and ahead of the row.
     let mut pending = runes(short);
@@ -213,16 +217,16 @@ fn distance(a: &[u8], a_len: usize, b: &[u8], b_len: usize, limit: usize) -> Opt
                 j
             } else {
                 while read < i {
-                    window[read % BAND] = pending.next().unwrap();
+                    *window.get_mut(read % BAND)? = pending.next()?;
                     read += 1;
                 }
-                let cost = usize::from(window[(i - 1) % BAND] != long_rune);
+                let cost = usize::from(*window.get((i - 1) % BAND)? != long_rune);
                 (at(&previous, j - 1, i) + 1)
                     .min(at(&current, j, i - 1) + 1)
                     .min(at(&previous, j - 1, i - 1) + cost)
                     .min(unreachable)
             };
-            current[i + limit - j] = value;
+            *current.get_mut(i + limit - j)? = value;
             row_min = row_min.min(value);
         }
         if row_min > limit {
@@ -236,7 +240,8 @@ fn distance(a: &[u8], a_len: usize, b: &[u8], b_len: usize, limit: usize) -> Opt
 
 impl fmt::Display for Suggestion<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Some(((_, last), rest)) = self.best[..self.len].split_last() else {
+        let Some(((_, last), rest)) = self.best.get(..self.len).and_then(|best| best.split_last())
+        else {
             return Ok(());
         };
         f.write_str(" (did you mean ")?;
@@ -264,10 +269,10 @@ impl fmt::Display for Suggestion<'_> {
 fn quote(f: &mut fmt::Formatter<'_>, bytes: &[u8]) -> fmt::Result {
     f.write_str("\"")?;
     let mut rest = bytes;
-    while !rest.is_empty() {
+    while let Some(&first) = rest.first() {
         let (rune, width, valid) = scan::rune(rest);
         if !valid {
-            write!(f, "\\x{:02x}", rest[0])?;
+            write!(f, "\\x{:02x}", first)?;
         } else {
             match rune {
                 '"' => f.write_str("\\\"")?,
@@ -291,7 +296,7 @@ fn quote(f: &mut fmt::Formatter<'_>, bytes: &[u8]) -> fmt::Result {
                 rune => write!(f, "{rune}")?,
             }
         }
-        rest = &rest[width..];
+        rest = rest.get(width..).unwrap_or_default();
     }
     f.write_str("\"")
 }

@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value, budget::Buffer, bytes, json, numeric::to_u64,
     ops, value::Kind,
@@ -14,8 +15,9 @@ pub(crate) fn int64(value: &Value) -> Result<i64> {
                 return Ok(n);
             }
             let mut text = bytes::Number::new();
-            ops::format_float(&mut text, n);
-            let text = std::str::from_utf8(text.bytes()).unwrap();
+            ops::format_float(&mut text, n)?;
+            let text = std::str::from_utf8(text.bytes()?)
+                .map_err(|_| crate::checked::violation("formatted number must be UTF-8"))?;
             if n.is_finite() {
                 format!("float {text} is out of integer range")
             } else {
@@ -36,7 +38,7 @@ fn invalid() -> Error {
 /// else unparsable, including an overflowing literal, is not numeric.
 pub(crate) fn float(ctx: &mut CallContext, input: &[u8], name: &str) -> Result<f64> {
     let (start, end) = ops::trim(ctx, input)?;
-    let input = &input[start..end];
+    let input = input.span(start, end)?;
     trimmed_float(ctx, input).map_err(|error| {
         if error.kind != ErrorKind::Argument {
             return error;
@@ -63,7 +65,7 @@ pub(crate) fn float(ctx: &mut CallContext, input: &[u8], name: &str) -> Result<f
 /// rejecting it in Go's words.
 pub(crate) fn integer(ctx: &mut CallContext, input: &[u8], name: &str) -> Result<Value> {
     let (start, end) = ops::trim(ctx, input)?;
-    let text = &input[start..end];
+    let text = input.span(start, end)?;
     let malformed = || format!("{name} expects a base-10 integer string");
     if std::str::from_utf8(text).is_err() {
         return Err(Error::new(ErrorKind::Type, malformed()));
@@ -208,25 +210,29 @@ fn digits(
 }
 
 fn hex_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
-    let negative = input[0] == b'-';
-    let mut at = usize::from(matches!(input[0], b'-' | b'+')) + 2;
+    let negative = *input.at(0)? == b'-';
+    let mut at = usize::from(matches!(input.at(0)?, b'-' | b'+')) + 2;
     let mut mantissa = 0u64;
     let mut significant = 0usize;
     let mut fractional = 0usize;
     let mut fraction = false;
     let mut tail = false;
-    while !matches!(input[at], b'p' | b'P') {
+    while !matches!(input.at(at)?, b'p' | b'P') {
         if at % 1024 == 0 {
             ctx.work_bytes((input.len() - at).min(1024))?;
         }
-        let byte = input[at];
+        let byte = *input.at(at)?;
         at += 1;
         if byte == b'.' {
             fraction = true;
             continue;
         }
         fractional += usize::from(fraction);
-        let digit = (byte as char).to_digit(16).unwrap() as u64;
+        let digit = (byte as char)
+            .to_digit(16)
+            .ok_or(crate::checked::violation(
+                "hexadecimal float digit expected",
+            ))? as u64;
         if significant != 0 || digit != 0 {
             if significant < 16 {
                 mantissa = mantissa << 4 | digit;
@@ -248,7 +254,7 @@ fn hex_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
         }
         exponent = exponent
             .saturating_mul(10)
-            .saturating_add((input[at] - b'0') as i128);
+            .saturating_add((input.at(at)? - b'0') as i128);
         at += 1;
     }
     if exponent_negative {

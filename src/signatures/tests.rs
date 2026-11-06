@@ -663,7 +663,7 @@ fn shared(width: usize, depth: usize, hashes: bool) -> Value {
         level = match hashes {
             true => Value::hash(
                 (0..width)
-                    .map(|i| (vec![b'a' + i as u8], level.clone()))
+                    .map(|i| (vec![b'a' + (i).to_le_bytes()[0]], level.clone()))
                     .collect(),
             ),
             false => Value::array(vec![level; width]),
@@ -752,7 +752,7 @@ fn shared_type(width: usize, depth: usize, hashes: bool, level: usize) -> String
         true => format!(
             "{{ {} }}",
             (0..width)
-                .map(|i| format!("{}: {inner}", (b'a' + i as u8) as char))
+                .map(|i| format!("{}: {inner}", (b'a' + (i).to_le_bytes()[0]) as char))
                 .collect::<Vec<_>>()
                 .join(", ")
         ),

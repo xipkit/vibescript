@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value, budget::Buffer, bytecode::Method, hash::Hash,
     numeric::to_usize, ops, sequence, value::Kind,
@@ -41,7 +42,7 @@ pub(crate) fn call(
             let (at, values) = if matches!(method, Prepend) {
                 (0, args)
             } else {
-                let Some(index) = args.first() else {
+                let Some((index, values)) = args.split_first() else {
                     return Err(argument("array.insert expects an index"));
                 };
                 let index = i128::from(sequence::integer(index).map_err(|error| {
@@ -62,7 +63,7 @@ pub(crate) fn call(
                         "array.insert index {index} out of range"
                     )));
                 }
-                (size(ctx, at)?, &args[1..])
+                (size(ctx, at)?, values)
             };
             if values.is_empty() {
                 return Ok((receiver.clone(), receiver));
@@ -70,13 +71,14 @@ pub(crate) fn call(
             let source = &array.buffer.data;
             let length = size(ctx, at.max(source.len()) as i128 + values.len() as i128)?;
             let mut out = Buffer::with_capacity(ctx, length)?;
-            out.extend(ctx, &source[..at.min(source.len())])?;
+            let (before, after) = source.split_at(at.min(source.len()));
+            out.extend(ctx, before)?;
             while out.data.len() < at {
                 ctx.charge(1)?;
                 out.data.push(Value::nil());
             }
             out.extend(ctx, values)?;
-            out.extend(ctx, &source[at.min(source.len())..])?;
+            out.extend(ctx, after)?;
             let result = Value::from_array(ctx, out)?;
             Ok((result.clone(), result))
         }
@@ -97,15 +99,15 @@ pub(crate) fn call(
             Ok((value.clone(), value))
         }
         (Kind::Array(array), Delete) => {
-            if args.len() != 1 {
+            let [wanted] = args else {
                 return Err(argument("array.delete expects exactly one value"));
-            }
+            };
             let mut out = Buffer::empty();
             let mut removed = None;
             for (i, item) in array.buffer.data.iter().enumerate() {
-                if ops::equal(ctx, item, &args[0], 0)? {
+                if ops::equal(ctx, item, wanted, 0)? {
                     if removed.is_none() {
-                        out.extend(ctx, &array.buffer.data[..i])?;
+                        out.extend(ctx, array.buffer.span(0, i)?)?;
                     }
                     removed = Some(item.clone());
                 } else if removed.is_some() {
@@ -119,17 +121,20 @@ pub(crate) fn call(
             }
         }
         (Kind::Hash(_), Delete) => {
-            if args.len() != 1 {
+            let [key] = args else {
                 return Err(argument("hash.delete expects a key"));
-            }
-            args[0].hash_key_for("hash.delete key is an")?;
-            receiver.delete_hash(ctx, &args[0])
+            };
+            key.hash_key_for("hash.delete key is an")?;
+            receiver.delete_hash(ctx, key)
         }
         (Kind::Hash(original), Replace) => {
-            if args.len() != 1 || !matches!(args[0].0, Kind::Hash(_)) {
+            let [value] = args else {
+                return Err(argument("hash.replace expects a single hash argument"));
+            };
+            if !matches!(value.0, Kind::Hash(_)) {
                 return Err(argument("hash.replace expects a single hash argument"));
             }
-            let mut value = args[0].clone();
+            let mut value = value.clone();
             if let Kind::Hash(hash) = &mut value.0 {
                 if hash.object != original.object {
                     Hash::make_mut(ctx, hash)?.object = original.object;
@@ -138,11 +143,11 @@ pub(crate) fn call(
             Ok((value.clone(), value))
         }
         (Kind::Array(array), Fill) => {
-            let Some(value) = args.first() else {
+            let Some((value, selectors)) = args.split_first() else {
                 return Err(argument("array.fill requires a value or a block"));
             };
             let source = &array.buffer.data;
-            let (start, end, length) = fill_span(ctx, &args[1..], source.len())?;
+            let (start, end, length) = fill_span(ctx, selectors, source.len())?;
             if start == end && length == source.len() {
                 return Ok((receiver.clone(), receiver));
             }
@@ -173,7 +178,9 @@ fn remove_end(
     if args.len() > 1 {
         return Err(argument(&format!("{member} accepts at most one argument")));
     }
-    let source = receiver.as_array().unwrap();
+    let source = receiver.as_array().ok_or(crate::checked::violation(
+        "mutation receiver must be an array",
+    ))?;
     let count = if let Some(count) = args.first() {
         let invalid = || format!("{member} expects non-negative integer");
         let n = sequence::integer(count).map_err(|error| error.with_message(invalid()))?;
@@ -195,9 +202,9 @@ fn remove_end(
             .unwrap_or_default()
     } else {
         ctx.array(if front {
-            &source[..count]
+            source.span(0, count)?
         } else {
-            &source[end..]
+            source.tail(end)?
         })?
     };
     Ok((receiver.keep_array_range(ctx, start, end)?, removed))
@@ -319,14 +326,14 @@ fn string(
             Value::from_bytes(ctx, out)
         }
         Method::Insert => {
-            if args.len() != 2 {
+            let [index, inserted] = args else {
                 return Err(argument("string.insert expects an index and a string"));
-            }
-            let requested = sequence::integer(&args[0]).map_err(|mut error| {
+            };
+            let requested = sequence::integer(index).map_err(|mut error| {
                 error.message = "string.insert index must be integer".into();
                 error
             })?;
-            strict(&args[1], "string.insert value must be string")?;
+            strict(inserted, "string.insert value must be string")?;
             let length = ops::runes(ctx, bytes)?.0 as i128;
             let index = i128::from(requested);
             let index = if index < 0 { length + index + 1 } else { index };
@@ -336,12 +343,12 @@ fn string(
                 )));
             }
             let offset = sequence::rune_offset(ctx, bytes, to_usize(index))?;
-            let inserted = args[1].require_bytes()?;
+            let inserted = inserted.require_bytes()?;
             let capacity = size(ctx, bytes.len() as i128 + inserted.len() as i128)?;
             let mut out = Buffer::with_capacity(ctx, capacity)?;
-            out.extend(ctx, &bytes[..offset])?;
+            out.extend(ctx, bytes.span(0, offset)?)?;
             out.extend(ctx, inserted)?;
-            out.extend(ctx, &bytes[offset..])?;
+            out.extend(ctx, bytes.tail(offset)?)?;
             Value::from_bytes(ctx, out)
         }
         _ => Err(Error::new(

@@ -12,6 +12,7 @@ use super::{
 };
 use crate::{
     capability::Registered,
+    checked::Checked as _,
     diagnostic::{Code, Diagnostic},
     syntax::{Declarations, Expr, Node, Statement, Stmt, modules::Visibility},
 };
@@ -297,7 +298,9 @@ impl<'a> Checker<'a> {
                     return;
                 }
             }
-            let path = &names[0];
+            let Some(path) = names.first() else {
+                return;
+            };
             let id = self.load_module(path);
             if self.halted() {
                 return;
@@ -309,7 +312,9 @@ impl<'a> Checker<'a> {
                     if reasons.push(reason).is_err() {
                         return;
                     }
-                    let reason = &reasons[0];
+                    let Some(reason) = reasons.first() else {
+                        return;
+                    };
                     self.report(Diagnostic::error(
                         Code::UNDEFINED_NAME,
                         self.spans.token(offset),
@@ -535,6 +540,13 @@ impl<'a> Checker<'a> {
                     self.meter.stop();
                     return Err("the check ran out of its budget".into());
                 }
+                // A first-parse Internal passes through both reporting helpers
+                // unchanged; recovery can also return one. Both stop here.
+                if error.kind == crate::ErrorKind::Internal {
+                    self.meter.violated(error);
+                    self.stopped = true;
+                    return Err("the check stopped for an internal error".into());
+                }
                 return Err(text!(self, "{error}"));
             }
         };
@@ -560,7 +572,16 @@ impl<'a> Checker<'a> {
             observe: None,
             annotate: false,
         };
-        let checked = super::check_nested(&input, self.modules.depth + 1);
+        // A broken invariant in the file is one in this check.
+        let checked = match super::check_nested(&input, self.modules.depth + 1) {
+            Ok(checked) => checked,
+            Err(violation) => {
+                self.meter.violated(violation);
+                self.stopped = true;
+                self.release(tree);
+                return Err("the check ran out of its budget".into());
+            }
+        };
         let charged = self.meter.charge(checked.steps);
         let (peak, stopped) = (checked.peak(), checked.stopped);
         // This check keeps the file's diagnostics and imports its exports;
@@ -671,6 +692,11 @@ impl<'a> Checker<'a> {
         let (functions, enums) = match &exported {
             Some(exported) => {
                 let imported = self.import(exported);
+                // The file's type table reports to the file's check, which
+                // has ended.
+                if let Some(violation) = exported.types.violation() {
+                    self.meter.violated(violation);
+                }
                 // A check that importing them stops publishes none of them.
                 if self.halted() {
                     self.release(found);
@@ -731,7 +757,10 @@ impl<'a> Checker<'a> {
             self.held();
             self.meter.declarations().kept(bytes);
         }
-        let id = self.modules.loaded.len() as u32;
+        let id = self
+            .meter
+            .index(self.modules.loaded.len())
+            .ok_or("module index out of range")?;
         self.modules.loaded.push_kept(
             &mut kept,
             Exports {
@@ -763,8 +792,11 @@ impl<'a> Checker<'a> {
             if self.meter.charge(1) {
                 return 0;
             }
-            if self.program.fns[id].def.is_some_and(|def| !def.private) {
-                let Some(sig) = sig_bytes(&self.program.fns[id].sig, &self.meter) else {
+            let Some(function) = self.program.function(id) else {
+                return 0;
+            };
+            if function.def.is_some_and(|def| !def.private) {
+                let Some(sig) = sig_bytes(&function.sig, &self.meter) else {
                     return 0;
                 };
                 bytes += size_of::<(String, Sig)>() + name.len() + sig;
@@ -785,7 +817,10 @@ impl<'a> Checker<'a> {
                 if name == "initialize" {
                     continue;
                 }
-                let Some(sig) = sig_bytes(&self.program.fns[id].sig, &self.meter) else {
+                let Some(function) = self.program.function(id) else {
+                    return 0;
+                };
+                let Some(sig) = sig_bytes(&function.sig, &self.meter) else {
                     return 0;
                 };
                 bytes += size_of::<(String, Sig, Visibility)>() + name.len() + sig;
@@ -803,7 +838,11 @@ impl<'a> Checker<'a> {
         // Each list is made at the length it takes, which
         // [`Self::export_bytes`] counted.
         let program = &self.program;
-        let public = |id: FnId| program.fns[id].def.is_some_and(|def| !def.private);
+        let public = |id: FnId| {
+            program
+                .function(id)
+                .is_some_and(|function| function.def.is_some_and(|def| !def.private))
+        };
         let exported = program
             .functions
             .values()
@@ -819,7 +858,7 @@ impl<'a> Checker<'a> {
                 return None;
             }
             if public(id) {
-                let sig = copy_sig(&program.fns[id].sig, &self.meter)?;
+                let sig = copy_sig(&program.function(id)?.sig, &self.meter)?;
                 functions.push(((*name).to_owned(), sig));
             }
         }
@@ -828,7 +867,10 @@ impl<'a> Checker<'a> {
         if self.meter.pace(self.parsed.enums.len() as u64, 0) {
             return None;
         }
-        let enums = program.enums[..self.parsed.enums.len()].to_vec();
+        let enums = self
+            .meter
+            .found(program.enums.span(0, self.parsed.enums.len()))?
+            .to_vec();
         let class = |namespace: &Namespace<'_>| namespace.module.is_some() && namespace.is_class;
         let count = program
             .namespaces
@@ -863,7 +905,7 @@ impl<'a> Checker<'a> {
                     return None;
                 }
                 if exported(&name) {
-                    let decl = &program.fns[id];
+                    let decl = program.function(id)?;
                     methods.push((
                         name.clone(),
                         copy_sig(&decl.sig, &self.meter)?,
@@ -874,13 +916,18 @@ impl<'a> Checker<'a> {
             super::counted::sort_unstable_by(&self.meter, &mut methods, |a, b| a.0.cmp(&b.0))
                 .ok()?;
             classes.push(ExportedClass {
-                id: ns as NsId,
+                id: self.meter.index(ns)?,
                 name: namespace.name.clone(),
                 methods,
             });
         }
+        // The table left behind has an account of its own.
+        let left = Types::new();
+        if let Some(violation) = left.violation() {
+            self.meter.violated(violation);
+        }
         Some(Exported {
-            types: std::mem::replace(&mut self.types, Types::new()),
+            types: std::mem::replace(&mut self.types, left),
             functions,
             enums,
             classes,
@@ -924,7 +971,9 @@ impl<'a> Checker<'a> {
             {
                 break;
             }
-            let id = program.enums.len() as u32;
+            let Some(id) = self.meter.index(program.enums.len()) else {
+                break;
+            };
             program.enums.push_within(declared.clone());
             self.types
                 .names
@@ -958,7 +1007,9 @@ impl<'a> Checker<'a> {
             {
                 break;
             }
-            let id = self.program.namespaces.len() as NsId;
+            let Some(id) = self.meter.index(self.program.namespaces.len()) else {
+                break;
+            };
             self.types
                 .names
                 .namespaces
@@ -998,7 +1049,10 @@ impl<'a> Checker<'a> {
                 // holds no more than the file's, and room for it in both
                 // tables are counted before any is made.
                 let declarations = self.meter.declarations();
-                let methods = &mut self.program.namespaces[owner as usize].methods;
+                let Some(namespace) = self.program.namespace_mut(owner) else {
+                    break;
+                };
+                let methods = &mut namespace.methods;
                 let Ok(mut kept) = declarations.keep(
                     name.len()
                         + sig.heap()
@@ -1025,11 +1079,9 @@ impl<'a> Checker<'a> {
                     main: false,
                     visibility: *visibility,
                 });
-                self.program.namespaces[owner as usize].methods.insert_kept(
-                    &mut kept,
-                    name.clone(),
-                    id,
-                );
+                if let Some(namespace) = self.program.namespace_mut(owner) {
+                    namespace.methods.insert_kept(&mut kept, name.clone(), id);
+                }
             }
         }
         let mut functions = CountedMap::new();
@@ -1184,9 +1236,9 @@ impl<'a> Checker<'a> {
                 self.types.intern(kind)
             }
             Kind::Host(id) => {
-                let name = &from.names.hosts[*id as usize];
+                let name = self.meter.found(from.names.hosts.at(*id as usize))?;
                 match self.types.names.hosts.iter().position(|host| host == name) {
-                    Some(index) => self.types.intern(Kind::Host(index as u32)),
+                    Some(index) => self.types.intern(Kind::Host(self.meter.index(index)?)),
                     None => Ty::ANY,
                 }
             }
@@ -1223,7 +1275,8 @@ impl<'a> Checker<'a> {
 
     /// `receiver.name(...)` on the object `require` returned.
     pub(super) fn exported(&self, id: u32, name: &str) -> Option<Arc<Sig>> {
-        self.modules.loaded[id as usize]
+        self.meter
+            .found(self.modules.loaded.at(id as usize))?
             .functions
             .get(name)
             .cloned()
@@ -1231,11 +1284,18 @@ impl<'a> Checker<'a> {
 
     /// `receiver.Name` on the object `require` returned, for an enum.
     pub(super) fn exported_enum(&self, id: u32, name: &str) -> Option<u32> {
-        self.modules.loaded[id as usize].enums.get(name).copied()
+        self.meter
+            .found(self.modules.loaded.at(id as usize))?
+            .enums
+            .get(name)
+            .copied()
     }
 
     pub(super) fn unknown_export(&mut self, id: u32, name: &str, span: crate::diagnostic::Span) {
-        let path = &self.modules.loaded[id as usize].path;
+        let Some(loaded) = self.meter.found(self.modules.loaded.at(id as usize)) else {
+            return;
+        };
+        let path = &loaded.path;
         self.report(Diagnostic::error(
             Code::UNKNOWN_MEMBER,
             span,

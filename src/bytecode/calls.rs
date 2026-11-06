@@ -14,25 +14,31 @@ impl<'x> Compiling<'_, 'x> {
             work.charge(1)?;
             c.global(name);
             if c.program.file || c.namespace.is_some() {
-                let slot = c.locals.get(work, name)?.copied().map_or(NO_SLOT, narrow);
-                let name = c.call_site(name, false).name;
+                let slot = c
+                    .locals
+                    .get(work, name)?
+                    .copied()
+                    .map(narrow)
+                    .transpose()?
+                    .unwrap_or(NO_SLOT);
+                let name = c.call_site(name, false)?.name;
                 c.emit(Op::ResolveCall(slot, name));
                 None
             } else if let Some(&slot) = c.locals.get(work, name)? {
-                let name = c.call_site(name, false).name;
-                c.emit(Op::ResolveCall(narrow(slot), name));
+                let name = c.call_site(name, false)?.name;
+                c.emit(Op::ResolveCall(narrow(slot)?, name));
                 None
             } else if c.program.declaration_names.contains_key(name) {
                 Some(Invocation::NonCallable)
             } else if let Some(&fun) = c.program.names.get(name) {
-                Some(Invocation::Function(narrow(fun)))
+                Some(Invocation::Function(narrow(fun)?))
             } else if let Some(host) = c.host_position(name)? {
-                Some(Invocation::Host(narrow(host)))
+                Some(Invocation::Host(narrow(host)?))
             } else if let Some(global) = c.global(name) {
-                c.emit(Op::ResolveGlobalCall(narrow(global)));
+                c.emit(Op::ResolveGlobalCall(narrow(global)?));
                 None
             } else {
-                let site = c.call_site(name, false);
+                let site = c.call_site(name, false)?;
                 c.emit(Op::ResolveCall(NO_SLOT, site.name));
                 None
             }
@@ -47,7 +53,7 @@ impl<'x> Compiling<'_, 'x> {
         };
         {
             let mut c = self.c();
-            let name = c.call_site(name, false).name;
+            let name = c.call_site(name, false)?.name;
             let listed = expanded(args, c.work)?;
             c.emit(Op::RootCall(name, listed));
         }
@@ -59,9 +65,9 @@ impl<'x> Compiling<'_, 'x> {
                 self.expr(&arg.value).await?;
             }
             self.c().emit(match target {
-                Invocation::Function(fun) => Op::Call(fun, narrow(args.len())),
-                Invocation::Host(host) => Op::Host(host, narrow(args.len())),
-                Invocation::NonCallable => Op::NonCallable(narrow(args.len())),
+                Invocation::Function(fun) => Op::Call(fun, narrow(args.len())?),
+                Invocation::Host(host) => Op::Host(host, narrow(args.len())?),
+                Invocation::NonCallable => Op::NonCallable(narrow(args.len())?),
                 _ => {
                     return Err(crate::checked::internal("static call target expected"));
                 }
@@ -88,7 +94,7 @@ impl<'x> Compiling<'_, 'x> {
         self.argument_values(args).await?;
         let mut c = self.c();
         if let Some(block) = block {
-            c.emit(Op::Attach(narrow(block)));
+            c.emit(Op::Attach(narrow(block)?));
         }
         c.emit(Op::Invoke(Invocation::Resolved));
         Ok(())
@@ -121,17 +127,20 @@ impl<'x> Compiling<'_, 'x> {
                     .locals
                     .get(c.work, name.as_str())?
                     .copied()
-                    .map_or(NO_SLOT, narrow);
-                let name = c.call_site(name, false).name;
+                    .map(narrow)
+                    .transpose()?
+                    .unwrap_or(NO_SLOT);
+                let name = c.call_site(name, false)?.name;
                 c.emit(Op::CallName(slot, name));
             }
             Node::Member(receiver, name) | Node::SafeMember(receiver, name) => {
-                let receiving = self.receiving(receiver, name, CallForm::Parenthesized, arguments);
+                let receiving =
+                    self.receiving(receiver, name, CallForm::Parenthesized, arguments)?;
                 self.member_receiver(receiver, receiving).await?;
                 let mut c = self.c();
                 let skip =
                     matches!(expr.node, Node::SafeMember(..)).then(|| c.emit(Op::JumpNil(0)));
-                let site = c.call_site(name, false);
+                let site = c.call_site(name, false)?;
                 c.emit(Op::CallMember(site));
                 if let Some(skip) = skip {
                     let done = c.emit(Op::Jump(0));
@@ -145,7 +154,7 @@ impl<'x> Compiling<'_, 'x> {
             Node::Scope(receiver, name, None) => {
                 self.expr(receiver).await?;
                 let mut c = self.c();
-                let mut site = c.call_site(name, false);
+                let mut site = c.call_site(name, false)?;
                 site.scope = true;
                 c.emit(Op::CallMember(site));
             }
@@ -157,9 +166,9 @@ impl<'x> Compiling<'_, 'x> {
                     c.program
                         .type_guards
                         .push(names.iter().map(|name| name.as_str().to_owned()).collect());
-                    let guard = c.emit(Op::TypeShadowed(narrow(index), 0));
+                    let guard = c.emit(Op::TypeShadowed(narrow(index)?, 0));
                     let shape = crate::shapes::compile(ty.compile(c.work)?);
-                    c.constant(shape);
+                    c.constant(shape)?;
                     c.emit(Op::CallValue);
                     let done = c.emit(Op::Jump(0));
                     let end = c.code.len();

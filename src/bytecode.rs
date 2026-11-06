@@ -1,3 +1,4 @@
+use crate::checked::convert;
 use crate::{
     Result, Value,
     builtin::{Builtin, Global},
@@ -173,7 +174,7 @@ pub(crate) enum Op {
     Return,
     Finish,
     /// Executes an outlined instruction from [`Program::extended`].
-    Extended(u32),
+    Extended(usize),
 }
 
 const _: () = assert!(std::mem::size_of::<Op>() == 16);
@@ -206,9 +207,9 @@ impl Extended {
 /// [`crate::syntax::MAX_SOURCE`] bytes, and no stack holds four billion
 /// entries within memory.
 #[inline]
-pub(crate) fn narrow(index: usize) -> u32 {
-    debug_assert!(u32::try_from(index).is_ok());
-    index as u32
+#[track_caller]
+pub(crate) fn narrow(index: usize) -> crate::checked::Access<u32> {
+    convert(index)
 }
 
 /// The slot of [`Op::ResolveCall`] and [`Op::CallName`] for a name without
@@ -300,7 +301,12 @@ impl Receiving {
 
     /// Selects the rule for the receiver of `member`, called in `form` with
     /// `arguments` argument values.
-    pub(crate) fn of(member: &str, index: usize, form: CallForm, arguments: usize) -> Self {
+    pub(crate) fn of(
+        member: &str,
+        index: usize,
+        form: CallForm,
+        arguments: usize,
+    ) -> crate::checked::Access<Self> {
         let kind = if member != "call" {
             Self::MEMBER
         } else if form == CallForm::Auto {
@@ -310,8 +316,13 @@ impl Receiving {
         } else {
             Self::CALL_ARGUMENTS
         };
-        debug_assert!(index < 1 << (32 - Self::KIND_BITS));
-        Self(narrow(index) << Self::KIND_BITS | kind)
+        let index =
+            narrow(index)?
+                .checked_mul(1 << Self::KIND_BITS)
+                .ok_or(crate::checked::violation(
+                    "receiver member index out of range",
+                ))?;
+        Ok(Self(index | kind))
     }
 
     fn kind(self) -> u32 {
@@ -858,7 +869,12 @@ pub(crate) fn compile_parsed(
             offset: def.offset,
             private: def.private,
             locations: c.locations,
-            trace_name: def.name.rsplit(['.', '#']).next().unwrap().into(),
+            trace_name: def
+                .name
+                .rsplit(['.', '#'])
+                .next()
+                .ok_or(violation("function must have a trace name"))?
+                .into(),
             instance: contexts.at(index)?.2,
             accessor: def
                 .accessor
@@ -951,14 +967,15 @@ impl Program {
                         if !raw.starts_with('@') || raw.starts_with("@@") {
                             continue;
                         }
-                        &raw[1..]
+                        raw.strip_prefix('@')
+                            .ok_or(violation("instance variable must start with @"))?
                     }
                     _ => continue,
                 };
                 let mut slot = None;
                 for (index, field) in layout.iter().enumerate() {
                     if same_name(work, field, name)? {
-                        slot = Some(narrow(index));
+                        slot = Some(narrow(index)?);
                         break;
                     }
                 }
@@ -1448,7 +1465,7 @@ impl Compiler<'_> {
         let op = if let Some(extended) = extended {
             let index = self.program.extended.len();
             self.program.extended.push(extended);
-            Op::Extended(narrow(index))
+            Op::Extended(index)
         } else {
             op
         };
@@ -1490,7 +1507,7 @@ impl Compiler<'_> {
                 | Op::TypeShadowed(_, n)
                 | Op::AddressBound(_, n)
                 | Op::ReceiverBound(_, n),
-            ) => *n = narrow(target),
+            ) => *n = narrow(target)?,
             _ => {
                 return Err(crate::checked::violation(
                     "patch expected a branch instruction",
@@ -1499,14 +1516,15 @@ impl Compiler<'_> {
         }
         Ok(())
     }
-    fn constant(&mut self, v: Value) {
+    fn constant(&mut self, v: Value) -> crate::checked::Access<()> {
         let n = self.program.constants.len();
         self.program.constants.push(v);
-        self.emit(Op::Constant(narrow(n)));
+        self.emit(Op::Constant(narrow(n)?));
+        Ok(())
     }
     /// Pushes a literal, sharing a string or symbol with every literal of
     /// the program that has the same text.
-    fn literal(&mut self, value: Value) {
+    fn literal(&mut self, value: Value) -> crate::checked::Access<()> {
         let (symbol, bytes) = match &value.0 {
             crate::value::Kind::Bytes(bytes) => (false, bytes),
             crate::value::Kind::Symbol(bytes) => (true, bytes),
@@ -1523,12 +1541,14 @@ impl Compiler<'_> {
                 slot
             }
         };
-        self.emit(Op::Shared(narrow(slot)));
+        self.emit(Op::Shared(narrow(slot)?));
+        Ok(())
     }
-    fn integer_literal(&mut self, text: Value, radix: u32) {
+    fn integer_literal(&mut self, text: Value, radix: u32) -> crate::checked::Access<()> {
         let n = self.program.constants.len();
         self.program.constants.push(text);
-        self.emit(Op::Integer(narrow(n), radix));
+        self.emit(Op::Integer(narrow(n)?, radix));
+        Ok(())
     }
     fn host_position(&self, name: &str) -> Result<Option<usize>> {
         for (index, host) in self.program.hosts.iter().enumerate() {
@@ -1556,7 +1576,7 @@ impl Compiler<'_> {
     }
     fn declare_bindings(&mut self, body: &[Stmt]) -> Result<()> {
         for slot in self.statement_bindings(body)? {
-            self.emit(Op::Declare(narrow(slot)));
+            self.emit(Op::Declare(narrow(slot)?));
         }
         Ok(())
     }
@@ -1586,7 +1606,7 @@ impl Compiler<'_> {
                     .strip_prefix(name)
                     .is_some_and(|suffix| suffix.is_empty() || suffix.starts_with("::"))
             {
-                self.emit(Op::InitNamespace(narrow(module.index)));
+                self.emit(Op::InitNamespace(narrow(module.index)?));
             }
         }
         Ok(())
@@ -1597,41 +1617,45 @@ impl Compiler<'_> {
             && name.chars().next().is_some_and(syntax::unicode::upper)
             && !self.locals.contains(self.work, name)?)
         .then(|| {
-            let name = self.call_site(name, false).name;
-            self.emit(Op::NamespaceConstant(name, 0))
-        });
-        let ambient =
-            (self.namespace.is_some() && !self.locals.contains(self.work, name)?).then(|| {
-                let name = self.call_site(name, false).name;
-                self.emit(Op::AmbientValue(name, 0))
-            });
-        let file = (self.program.file && !self.locals.contains(self.work, name)?).then(|| {
-            let name = self.call_site(name, false).name;
-            self.emit(Op::FileValue(name, 0, receiving))
-        });
+            let name = self.call_site(name, false)?.name;
+            Ok::<_, crate::checked::Violation>(self.emit(Op::NamespaceConstant(name, 0)))
+        })
+        .transpose()?;
+        let ambient = (self.namespace.is_some() && !self.locals.contains(self.work, name)?)
+            .then(|| {
+                let name = self.call_site(name, false)?.name;
+                Ok::<_, crate::checked::Violation>(self.emit(Op::AmbientValue(name, 0)))
+            })
+            .transpose()?;
+        let file = (self.program.file && !self.locals.contains(self.work, name)?)
+            .then(|| {
+                let name = self.call_site(name, false)?.name;
+                Ok::<_, crate::checked::Violation>(self.emit(Op::FileValue(name, 0, receiving)))
+            })
+            .transpose()?;
         if let Some(&slot) = self.locals.get(self.work, name)? {
             if !self.parameters.contains(self.work, name)? {
-                let name = self.call_site(name, false).name;
-                self.emit(Op::LoadOptional(narrow(slot), name, receiving));
+                let name = self.call_site(name, false)?.name;
+                self.emit(Op::LoadOptional(narrow(slot)?, name, receiving));
             } else {
-                self.emit(Op::Load(narrow(slot)));
+                self.emit(Op::Load(narrow(slot)?));
             }
         } else if let Some(&index) = self.program.declaration_names.get(name) {
-            self.emit(Op::Declaration(narrow(index)));
+            self.emit(Op::Declaration(narrow(index)?));
         } else if let Some(&fun) = self.program.names.get(name) {
-            self.emit(Op::AutoCall(narrow(fun), receiving));
+            self.emit(Op::AutoCall(narrow(fun)?, receiving));
         } else if let Some(host) = self.host_position(name)? {
-            self.emit(Op::HostValue(narrow(host), receiving));
+            self.emit(Op::HostValue(narrow(host)?, receiving));
         } else if let Some(global) = global {
-            self.emit(Op::Global(narrow(global)));
+            self.emit(Op::Global(narrow(global)?));
         } else if let Some(alias) = self.aliases.get(
             aliases::scope(&self.program.namespaces, self.namespace),
             name,
         ) {
             let shape = crate::shapes::compile(alias.clone());
-            self.constant(shape);
+            self.constant(shape)?;
         } else {
-            let site = self.call_site(name, false);
+            let site = self.call_site(name, false)?;
             self.emit(Op::Unbound(site.name, receiving));
         }
         if let Some(constant) = constant {
@@ -1655,24 +1679,29 @@ impl Compiler<'_> {
                     regex::Literal::new(pattern.compiler_constant(), *flags, self.work.unmetered());
                 self.work.checkpoint()?;
                 self.program.regexes.push(compiled);
-                self.emit(Op::Regex(narrow(index)));
+                self.emit(Op::Regex(narrow(index)?));
             }
             Node::Integer(n) => {
                 if let Ok(n) = i64::try_from(*n) {
-                    self.constant(Value::int(n));
+                    self.constant(Value::int(n))?;
                 } else {
                     let mut digits = [0; 20];
-                    self.integer_literal(Value::bytes(decimal_digits(*n, &mut digits)), 10);
+                    self.integer_literal(Value::bytes(decimal_digits(*n, &mut digits)?), 10)?;
                 }
             }
-            Node::BigInteger(text, radix) => self.integer_literal(text.compiler_constant(), *radix),
-            Node::Literal(v) => self.literal(v.compiler_constant()),
+            Node::BigInteger(text, radix) => {
+                self.integer_literal(text.compiler_constant(), *radix)?
+            }
+            Node::Literal(v) => self.literal(v.compiler_constant())?,
             Node::Var(name) if name.starts_with('@') => {
-                let name = self.call_site(name, false).name;
+                let name = self.call_site(name, false)?.name;
                 self.emit(Op::NamespaceVariable(name, true));
             }
             Node::Var(name) if name == "self" && self.namespace.is_some() => {
-                self.emit(Op::NamespaceSelf(narrow(self.namespace.unwrap())));
+                self.emit(Op::NamespaceSelf(narrow(
+                    self.namespace
+                        .ok_or(violation("self must have a namespace"))?,
+                )?));
             }
             Node::Var(name) if name == "block_given?" => {
                 self.emit(Op::BlockGiven(false, false));
@@ -1684,15 +1713,15 @@ impl Compiler<'_> {
         }
         Ok(())
     }
-    fn call_site(&mut self, name: &str, auto: bool) -> CallSite {
+    fn call_site(&mut self, name: &str, auto: bool) -> crate::checked::Access<CallSite> {
         let index = self.program.members.len();
         self.program.members.push(name.to_owned());
-        CallSite {
-            name: narrow(index),
+        Ok(CallSite {
+            name: narrow(index)?,
             method: Method::parse(name),
             auto,
             scope: false,
-        }
+        })
     }
     fn annotation(&mut self, ty: &crate::compilation::Type) -> Result<usize> {
         let index = self.program.types.len();
@@ -1771,17 +1800,18 @@ impl Compiler<'_> {
     /// Checks the value on top of the stack against `ty`, naming it by
     /// `subject`, unless the checker proves the check (see
     /// [`crate::types::Type::unproven`]).
-    fn check(&mut self, ty: usize, subject: usize) {
+    fn check(&mut self, ty: usize, subject: usize) -> crate::checked::Access<()> {
         // A type the table lacks is checked, so the VM reports the bug.
         if self.facts.keep_type_checks || self.program.types.get(ty).is_none_or(|ty| ty.unproven())
         {
-            self.emit(Op::Check(narrow(ty), narrow(subject)));
+            self.emit(Op::Check(narrow(ty)?, narrow(subject)?));
         }
+        Ok(())
     }
     /// Checks a value stored into `name` when it is a typed local.
     fn check_local(&mut self, name: &str) -> Result<()> {
         if let Some((ty, subject)) = self.local_type(name)? {
-            self.check(ty, subject);
+            self.check(ty, subject)?;
         }
         Ok(())
     }
@@ -2051,7 +2081,11 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 let mut c = self.c();
                 work.bytes(param.name.len())?;
                 let ty = param.ty.as_ref().map(|ty| c.annotation(ty)).transpose()?;
-                let bind = binds_parameters.then(|| c.emit(Op::Bind(narrow(i), 0)));
+                let bind = if binds_parameters {
+                    Some(c.emit(Op::Bind(narrow(i)?, 0)))
+                } else {
+                    None
+                };
                 (ty, bind)
             };
             if let Some(value) = &param.default {
@@ -2070,13 +2104,13 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     c.program
                         .constants
                         .push(Value::bytes(param.name.as_bytes()));
-                    c.emit(Op::Normalize(narrow(ty), narrow(label)));
+                    c.emit(Op::Normalize(narrow(ty)?, narrow(label)?));
                 }
             }
             let mut c = self.c();
             let slot = c.slot(&param.name)?;
             if param.default.is_some() {
-                c.emit(Op::Store(narrow(slot)));
+                c.emit(Op::Store(narrow(slot)?));
                 c.emit(Op::Pop);
             }
             if let Some(bind) = bind {
@@ -2085,8 +2119,8 @@ impl<'a, 'x> Compiling<'a, 'x> {
             }
             if c.instance {
                 if let Some(name) = &param.ivar {
-                    let name = c.call_site(name, false).name;
-                    c.emit(Op::BindIvar(name, narrow(slot)));
+                    let name = c.call_site(name, false)?.name;
+                    c.emit(Op::BindIvar(name, narrow(slot)?));
                 }
             }
             c.parameters.insert(work, param.name.clone(), ())?;
@@ -2121,8 +2155,8 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 for param in &params {
                     if let Some(ty) = param.ty {
                         let subject = c.subject(&["parameter ", &param.name])?;
-                        c.emit(Op::Load(narrow(param.slot)));
-                        c.check(ty, subject);
+                        c.emit(Op::Load(narrow(param.slot)?));
+                        c.check(ty, subject)?;
                         c.emit(Op::Pop);
                     }
                 }
@@ -2174,7 +2208,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                         continue;
                     }
                     if let Some(&slot) = c.locals.get(work, name)? {
-                        c.emit(Op::Declare(narrow(slot)));
+                        c.emit(Op::Declare(narrow(slot)?));
                     }
                 }
             }
@@ -2188,7 +2222,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
         {
             let mut c = self.c();
             for slot in c.statement_bindings(std::slice::from_ref(stmt))? {
-                c.emit(Op::Declare(narrow(slot)));
+                c.emit(Op::Declare(narrow(slot)?));
             }
         }
         Ok(())
@@ -2218,7 +2252,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             drop(calls);
             drop(seen);
             for &slot in &slots {
-                c.emit(Op::Bypass(narrow(slot)));
+                c.emit(Op::Bypass(narrow(slot)?));
             }
             slots.len()
         };
@@ -2226,7 +2260,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             self.expr(value).await?;
         }
         if slots != 0 {
-            self.c().emit(Op::BypassEnd(narrow(slots)));
+            self.c().emit(Op::BypassEnd(narrow(slots)?));
         }
         Ok(())
     }
@@ -2255,7 +2289,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             }
             Statement::UnboundClass(name) => {
                 let mut c = self.c();
-                let name = c.call_site(name, false).name;
+                let name = c.call_site(name, false)?.name;
                 c.emit(Op::UnboundClass(name));
             }
             Statement::Unsupported => {
@@ -2321,8 +2355,8 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 *c.code.at_mut(mark)? = Op::LoopStart {
                     iterable: false,
                     expression,
-                    next: narrow(next),
-                    end: narrow(end),
+                    next: narrow(next)?,
+                    end: narrow(end)?,
                 };
             }
             Statement::For(target, iterable, body) => {
@@ -2334,7 +2368,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     target_names(target, &mut names, work)?;
                     for name in names {
                         if let Some(&slot) = c.locals.get(work, name)? {
-                            c.emit(Op::Declare(narrow(slot)));
+                            c.emit(Op::Declare(narrow(slot)?));
                         }
                     }
                     c.emit(Op::LoopStart {
@@ -2360,8 +2394,8 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 *c.code.at_mut(mark)? = Op::LoopStart {
                     iterable: true,
                     expression,
-                    next: narrow(next),
-                    end: narrow(end),
+                    next: narrow(next)?,
+                    end: narrow(end)?,
                 };
             }
             Statement::Return(value) => {
@@ -2402,7 +2436,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 if let Some(bindings) = c.loop_bindings.last() {
                     for &slot in bindings {
                         c.work.charge(1)?;
-                        c.code.push(Op::Declare(narrow(slot)));
+                        c.code.push(Op::Declare(narrow(slot)?));
                         c.locations.push(c.offset);
                     }
                 }
@@ -2443,7 +2477,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     if matches!(op, "||=" | "&&=") {
                         let skip = {
                             let mut c = self.c();
-                            c.emit(Op::Global(narrow(global)));
+                            c.emit(Op::Global(narrow(global)?));
                             c.emit(Op::Dup);
                             let skip = c.emit(if op == "||=" {
                                 Op::JumpTrue(0)
@@ -2455,20 +2489,20 @@ impl<'a, 'x> Compiling<'a, 'x> {
                         };
                         self.assignment_rhs(binding_target, &[rhs]).await?;
                         let mut c = self.c();
-                        c.emit(Op::StoreGlobal(narrow(global)));
+                        c.emit(Op::StoreGlobal(narrow(global)?));
                         let end = c.code.len();
                         c.patch(skip, end)?;
                         return Ok(());
                     }
                     if binary.is_some() {
-                        self.c().emit(Op::Global(narrow(global)));
+                        self.c().emit(Op::Global(narrow(global)?));
                     }
                     self.assignment_rhs(binding_target, &[rhs]).await?;
                     let mut c = self.c();
                     if let Some(op) = binary {
                         c.number_binary(op, target, rhs)?;
                     }
-                    c.emit(Op::StoreGlobal(narrow(global)));
+                    c.emit(Op::StoreGlobal(narrow(global)?));
                     return Ok(());
                 }
                 let slot = self.c().slot(name)?;
@@ -2488,7 +2522,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     self.assignment_rhs(binding_target, &[rhs]).await?;
                     let mut c = self.c();
                     c.check_local(name)?;
-                    c.emit(Op::Store(narrow(slot)));
+                    c.emit(Op::Store(narrow(slot)?));
                     let end = c.code.len();
                     c.patch(skip, end)?;
                     return Ok(());
@@ -2501,7 +2535,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     if let Node::Binary("+", left, right) = &rhs.node {
                         self.assignment_rhs(binding_target, &[left, right]).await?;
                         let mut c = self.c();
-                        let instruction = c.number_store(slot, left, right);
+                        let instruction = c.number_store(slot, left, right)?;
                         *c.locations.at_mut(instruction)? = rhs.offset;
                         return Ok(());
                     }
@@ -2512,7 +2546,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 self.assignment_rhs(binding_target, &[rhs]).await?;
                 let mut c = self.c();
                 if binary == Some("+") && fused {
-                    c.number_store(slot, target, rhs);
+                    c.number_store(slot, target, rhs)?;
                     return Ok(());
                 }
                 if let Some(op) = binary {
@@ -2521,7 +2555,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 if typed {
                     c.check_local(name)?;
                 }
-                c.emit(Op::Store(narrow(slot)));
+                c.emit(Op::Store(narrow(slot)?));
             }
             // Go reports a failed write, and a compound operator's failure, at the target.
             Node::Index(..) | Node::Member(..) => {
@@ -2558,7 +2592,13 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     } else {
                         self.assignment_rhs(binding_target, &[rhs]).await?;
                         let mut c = self.c();
-                        let operator = c.number_binary(binary.unwrap(), target, rhs)?;
+                        let operator = c.number_binary(
+                            binary.ok_or(violation(
+                                "compound assignment must have a binary operator",
+                            ))?,
+                            target,
+                            rhs,
+                        )?;
                         let store = c.emit(Op::AddressStore);
                         *c.locations.at_mut(operator)? = target.offset;
                         *c.locations.at_mut(store)? = target.offset;
@@ -2592,7 +2632,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 "local variable "
             };
             let subject = c.subject(&[kind, name])?;
-            c.check(ty, subject);
+            c.check(ty, subject)?;
             (ty, subject)
         };
         let Target::Typed(inner, _) = target else {
@@ -2638,7 +2678,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     if c.facts.keep_type_checks || c.program.types.at(ty)?.unproven() {
                         let label = c.program.constants.len();
                         c.program.constants.push(Value::bytes(&*text));
-                        c.emit(Op::Normalize(narrow(ty), narrow(label)));
+                        c.emit(Op::Normalize(narrow(ty)?, narrow(label)?));
                     }
                     drop(text);
                 }
@@ -2653,11 +2693,11 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     c.check_local(name)?;
                     c.store_namespace_name(name)?;
                 } else if let Some(global) = c.global_binding(name)? {
-                    c.emit(Op::StoreGlobal(narrow(global)));
+                    c.emit(Op::StoreGlobal(narrow(global)?));
                 } else {
                     let slot = c.slot(name)?;
                     c.check_local(name)?;
-                    c.emit(Op::Store(narrow(slot)));
+                    c.emit(Op::Store(narrow(slot)?));
                 }
             }
             Target::Value(
@@ -2689,7 +2729,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     };
                     {
                         let mut c = self.c();
-                        let index = narrow(c.program.selections.len());
+                        let index = narrow(c.program.selections.len())?;
                         c.program.selections.push(select);
                         c.emit(Op::Extract(index));
                     }
@@ -2732,13 +2772,13 @@ impl<'a, 'x> Compiling<'a, 'x> {
             }
             Node::Unary("-", value) if matches!(value.node, Node::Integer(n) if n == i64::MAX as u64 + 1) =>
             {
-                self.c().constant(Value::int(i64::MIN));
+                self.c().constant(Value::int(i64::MIN))?;
             }
             Node::Array(values) => {
                 for v in values {
                     self.expr(v).await?;
                 }
-                self.c().emit(Op::Array(narrow(values.len())));
+                self.c().emit(Op::Array(narrow(values.len())?));
             }
             Node::Template(parts, symbol) => {
                 self.c().emit(Op::TextStart);
@@ -2752,10 +2792,10 @@ impl<'a, 'x> Compiling<'a, 'x> {
             }
             Node::Hash(values) => {
                 for (k, v) in values {
-                    self.c().literal(k.compiler_constant());
+                    self.c().literal(k.compiler_constant())?;
                     self.expr(v).await?;
                 }
-                self.c().emit(Op::Hash(narrow(values.len())));
+                self.c().emit(Op::Hash(narrow(values.len())?));
             }
             Node::Unary(op, v) => {
                 self.expr(v).await?;
@@ -2806,7 +2846,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 framed(self.work, self.address(a))?.await?;
                 self.expr(b).await?;
                 let mut c = self.c();
-                let site = c.call_site("push", false);
+                let site = c.call_site("push", false)?;
                 c.emit(Op::Shovel(site, false));
             }
             Node::Binary(op, a, b) => {
@@ -2842,14 +2882,14 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     let mut c = self.c();
                     let check = c.block.as_ref().and_then(|block| block.params.get(index));
                     if let Some(&(ty, subject)) = check {
-                        c.check(ty, subject);
+                        c.check(ty, subject)?;
                     }
                 }
                 let mut c = self.c();
-                c.emit(Op::Yield(narrow(args.len())));
+                c.emit(Op::Yield(narrow(args.len())?));
                 match c.block.as_ref().map(|block| block.result) {
                     Some(Some((ty, subject))) => {
-                        c.check(ty, subject);
+                        c.check(ty, subject)?;
                     }
                     Some(None) => {
                         c.emit(Op::Pop);
@@ -2911,7 +2951,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     && key.as_bytes().is_some()
                 {
                     let mut c = self.c();
-                    c.literal(key.clone());
+                    c.literal(key.clone())?;
                     let ip = c.code.len() - 1;
                     let Op::Shared(slot) = *c.code.at(ip)? else {
                         return Err(crate::checked::internal("compound expression expected"));
@@ -2925,7 +2965,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     self.expr(index).await?;
                 }
                 let mut c = self.c();
-                let ip = c.emit(Op::Index(narrow(index.len())));
+                let ip = c.emit(Op::Index(narrow(index.len())?));
                 let plain = c.facts.plain(e);
                 c.mark_plain(ip, plain);
             }
@@ -2960,13 +3000,13 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 crate::budget::Charge::merge(&mut c.handler_locals, held);
                 let index = c.program.type_guards.len();
                 c.program.type_guards.push(copied);
-                Some(c.emit(Op::TypeShadowed(narrow(index), 0)))
+                Some(c.emit(Op::TypeShadowed(narrow(index)?, 0)))
             } else {
                 None
             };
             let scope = aliases::scope(&c.program.namespaces, c.namespace);
             let shape = crate::shapes::compile(c.aliases.compile(scope, ty, c.work)?);
-            c.constant(shape);
+            c.constant(shape)?;
             guard
         };
         if let Some(fallback) = fallback {
@@ -2974,7 +3014,10 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 let mut c = self.c();
                 let done = c.emit(Op::Jump(0));
                 let end = c.code.len();
-                c.patch(guard.unwrap(), end)?;
+                c.patch(
+                    guard.ok_or(violation("type fallback must have a guard"))?,
+                    end,
+                )?;
                 done
             };
             self.expr(fallback).await?;
@@ -3059,7 +3102,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
     ) -> Result<()> {
         self.c().work.charge(1)?;
         let mutating = mutating_member(name);
-        let receiving = self.receiving(receiver, name, form, args.len());
+        let receiving = self.receiving(receiver, name, form, args.len())?;
         if mutating {
             self.address_receiver(receiver, receiving).await?;
         } else {
@@ -3074,7 +3117,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     Op::JumpNil(0)
                 })
             });
-            let site = c.call_site(name, form == CallForm::Auto);
+            let site = c.call_site(name, form == CallForm::Auto)?;
             let listed = expanded(args, c.work)?;
             let direct = direct.filter(|&base| {
                 !mutating
@@ -3107,7 +3150,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 self.expr(&arg.value).await?;
             }
             let mut c = self.c();
-            let ip = c.emit(Op::Direct(site, narrow(args.len())));
+            let ip = c.emit(Op::Direct(site, narrow(args.len())?));
             c.mark_plain(ip, plain);
             if plain_args {
                 c.plain_inputs.insert(ip);
@@ -3127,7 +3170,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             self.argument_values(args).await?;
             let mut c = self.c();
             if let Some(block) = block {
-                c.emit(Op::Attach(narrow(block)));
+                c.emit(Op::Attach(narrow(block)?));
             }
             c.emit(Op::Invoke(Invocation::Resolved));
             if let Some(skip) = skip {
@@ -3145,7 +3188,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             self.call_arguments(args).await?;
             let mut c = self.c();
             if let Some(block) = block {
-                c.emit(Op::Attach(narrow(block)));
+                c.emit(Op::Attach(narrow(block)?));
             }
             let ip = c.emit(Op::Invoke(Invocation::Member(site, mutating)));
             c.mark_plain(ip, plain);
@@ -3160,16 +3203,16 @@ impl<'a, 'x> Compiling<'a, 'x> {
             if !mutating {
                 if let Some((function, class)) = c.method_of(whole, name)? {
                     c.emit(Op::MethodOf(
-                        narrow(function),
-                        narrow(class),
-                        narrow(args.len()),
+                        narrow(function)?,
+                        narrow(class)?,
+                        narrow(args.len())?,
                     ));
                 }
             }
             let ip = c.emit(if mutating {
-                Op::Mutate(site, narrow(args.len()))
+                Op::Mutate(site, narrow(args.len())?)
             } else {
-                Op::Method(site, narrow(args.len()))
+                Op::Method(site, narrow(args.len())?)
             });
             c.mark_plain(ip, plain);
         }
@@ -3189,15 +3232,15 @@ impl<'a, 'x> Compiling<'a, 'x> {
         member: &str,
         form: CallForm,
         arguments: usize,
-    ) -> Receiving {
+    ) -> crate::checked::Access<Receiving> {
         match &receiver.node {
             Node::Var(name)
                 if !name.starts_with('@') && !matches!(name.as_str(), "self" | "block_given?") =>
             {
-                let index = self.c().call_site(member, false).name;
+                let index = self.c().call_site(member, false)?.name;
                 Receiving::of(member, index as usize, form, arguments)
             }
-            _ => Receiving::VALUE,
+            _ => Ok(Receiving::VALUE),
         }
     }
 
@@ -3213,7 +3256,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 c.locals.get(c.work, name.as_str())?.copied()
             };
             if let Some(slot) = slot {
-                let bound = self.c().emit(Op::ReceiverBound(narrow(slot), 0));
+                let bound = self.c().emit(Op::ReceiverBound(narrow(slot)?, 0));
                 self.receiver_expr(receiver, receiving).await?;
                 let mut c = self.c();
                 let end = c.code.len();
@@ -3222,7 +3265,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             }
             let mut c = self.c();
             if let Some(global) = c.global_fallback(name)? {
-                c.emit(Op::GlobalReceiver(narrow(global), receiving));
+                c.emit(Op::GlobalReceiver(narrow(global)?, receiving));
                 return Ok(());
             }
         }
@@ -3240,7 +3283,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
         self.expr(receiver).await?;
         let site = {
             let mut c = self.c();
-            let mut site = c.call_site(name, args.is_none() && block.is_none());
+            let mut site = c.call_site(name, args.is_none() && block.is_none())?;
             site.scope = true;
             site
         };
@@ -3249,14 +3292,14 @@ impl<'a, 'x> Compiling<'a, 'x> {
             self.call_arguments(args).await?;
             let mut c = self.c();
             if let Some(block) = block {
-                c.emit(Op::Attach(narrow(block)));
+                c.emit(Op::Attach(narrow(block)?));
             }
             c.emit(Op::Invoke(Invocation::Member(site, false)));
         } else {
             for arg in args {
                 self.expr(&arg.value).await?;
             }
-            self.c().emit(Op::Method(site, narrow(args.len())));
+            self.c().emit(Op::Method(site, narrow(args.len())?));
         }
         Ok(())
     }
@@ -3317,8 +3360,14 @@ impl<'a, 'x> Compiling<'a, 'x> {
             let mut c = self.c();
             if c.program.file || c.namespace.is_some() {
                 c.global(name);
-                let slot = c.locals.get(c.work, name)?.copied().map_or(NO_SLOT, narrow);
-                let name = c.call_site(name, false).name;
+                let slot = c
+                    .locals
+                    .get(c.work, name)?
+                    .copied()
+                    .map(narrow)
+                    .transpose()?
+                    .unwrap_or(NO_SLOT);
+                let name = c.call_site(name, false)?.name;
                 c.emit(Op::ResolveCall(slot, name));
                 true
             } else {
@@ -3328,7 +3377,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
         if resolved {
             self.argument_values(args).await?;
             let mut c = self.c();
-            c.emit(Op::Attach(narrow(function)));
+            c.emit(Op::Attach(narrow(function)?));
             let ip = c.emit(Op::Invoke(Invocation::Resolved));
             let plain = c.facts.plain(whole);
             c.mark_plain(ip, plain);
@@ -3337,21 +3386,21 @@ impl<'a, 'x> Compiling<'a, 'x> {
         let target = {
             let mut c = self.c();
             if let Some(&slot) = c.locals.get(c.work, name)? {
-                let name = c.call_site(name, false).name;
-                c.emit(Op::ResolveCall(narrow(slot), name));
+                let name = c.call_site(name, false)?.name;
+                c.emit(Op::ResolveCall(narrow(slot)?, name));
                 Some(Invocation::Resolved)
             } else if let Some(global) = c.global_binding(name)? {
-                c.emit(Op::ResolveGlobalCall(narrow(global)));
+                c.emit(Op::ResolveGlobalCall(narrow(global)?));
                 Some(Invocation::Resolved)
             } else {
                 let target = if c.program.declaration_names.contains_key(name) {
                     Some(Invocation::NonCallable)
                 } else if let Some(&function) = c.program.names.get(name) {
-                    Some(Invocation::Function(narrow(function)))
+                    Some(Invocation::Function(narrow(function)?))
                 } else if let Some(host) = c.host_position(name)? {
-                    Some(Invocation::Host(narrow(host)))
+                    Some(Invocation::Host(narrow(host)?))
                 } else {
-                    let site = c.call_site(name, false);
+                    let site = c.call_site(name, false)?;
                     c.emit(Op::ResolveCall(NO_SLOT, site.name));
                     None
                 };
@@ -3360,7 +3409,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 let listed =
                     expanded(args, c.work)? || !matches!(target, Some(Invocation::Function(_)));
                 if target.is_some() {
-                    let name = c.call_site(name, false).name;
+                    let name = c.call_site(name, false)?.name;
                     c.emit(Op::RootCall(name, listed));
                 }
                 target
@@ -3371,13 +3420,16 @@ impl<'a, 'x> Compiling<'a, 'x> {
             for arg in args {
                 self.expr(&arg.value).await?;
             }
-            self.c()
-                .emit(Op::CallBlock(callee, narrow(args.len()), narrow(function)));
+            self.c().emit(Op::CallBlock(
+                callee,
+                narrow(args.len())?,
+                narrow(function)?,
+            ));
             return Ok(());
         }
         self.argument_values(args).await?;
         let mut c = self.c();
-        c.emit(Op::Attach(narrow(function)));
+        c.emit(Op::Attach(narrow(function)?));
         let ip = match target {
             Some(Invocation::Resolved) | None => c.emit(Op::Invoke(Invocation::Resolved)),
             Some(target) => c.emit(Op::InvokeRoot(target)),
@@ -3414,7 +3466,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 for name in names {
                     let slot = c.slot(name)?;
                     c.parameters.insert(work, name.clone(), ())?;
-                    c.emit(Op::Shadow(narrow(slot)));
+                    c.emit(Op::Shadow(narrow(slot)?));
                 }
             }
         }
@@ -3422,7 +3474,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
         for (index, target) in block.params.iter().enumerate() {
             {
                 let mut c = self.c();
-                let ip = c.emit(Op::BlockArg(narrow(index), block.params.len() > 1));
+                let ip = c.emit(Op::BlockArg(narrow(index)?, block.params.len() > 1));
                 c.mark_plain(ip, plain_params);
             }
             self.assign_value(target).await?;
@@ -3442,10 +3494,10 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     let name = Name::new(work, name)?;
                     let slot = c.slot(&name)?;
                     c.parameters.insert(work, name, ())?;
-                    c.emit(Op::Shadow(narrow(slot)));
-                    let ip = c.emit(Op::BlockArg(narrow(index), false));
+                    c.emit(Op::Shadow(narrow(slot)?));
+                    let ip = c.emit(Op::BlockArg(narrow(index)?, false));
                     c.mark_plain(ip, plain_params);
-                    c.emit(Op::Store(narrow(slot)));
+                    c.emit(Op::Store(narrow(slot)?));
                     c.emit(Op::Pop);
                 }
             }
@@ -3478,7 +3530,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             let kind = match &arg.kind {
                 ArgumentKind::Positional => ArgumentOp::Positional,
                 ArgumentKind::Splat => ArgumentOp::Splat,
-                ArgumentKind::Keyword(name) => ArgumentOp::Keyword(c.call_site(name, false).name),
+                ArgumentKind::Keyword(name) => ArgumentOp::Keyword(c.call_site(name, false)?.name),
                 ArgumentKind::KeywordSplat => ArgumentOp::KeywordSplat,
             };
             let ip = c.emit(Op::Argument(kind));
@@ -3508,12 +3560,12 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     self.expr(index).await?;
                 }
                 self.c()
-                    .emit(Op::AddressTarget(narrow(indices.len()), read));
+                    .emit(Op::AddressTarget(narrow(indices.len())?, read));
             }
             Node::Member(receiver, name) => {
                 self.assignment_address(receiver).await?;
                 let mut c = self.c();
-                let site = c.call_site(name, true);
+                let site = c.call_site(name, true)?;
                 c.emit(Op::AddressMemberTarget(site, read));
             }
             _ => {
@@ -3578,7 +3630,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                         && name.chars().next().is_some_and(syntax::unicode::upper)
                         && !c.parameters.contains(work, name.as_str())? =>
                 {
-                    Some(c.call_site(name, false).name)
+                    Some(c.call_site(name, false)?.name)
                 }
                 _ => None,
             };
@@ -3591,7 +3643,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 .map(|name| c.emit(Op::NamespaceConstantAddress(name, 0)));
             let root = if let Node::Var(name) = &receiver.node {
                 if !name.starts_with('@') && !c.locals.contains(work, name.as_str())? {
-                    let name = c.call_site(name, false).name;
+                    let name = c.call_site(name, false)?.name;
                     Some(c.emit(Op::RootAddress(name, 0)))
                 } else {
                     None
@@ -3602,7 +3654,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             let file = if c.program.file {
                 if let Node::Var(name) = &receiver.node {
                     if !name.starts_with('@') && !c.parameters.contains(work, name.as_str())? {
-                        let name = c.call_site(name, false).name;
+                        let name = c.call_site(name, false)?.name;
                         Some(c.emit(Op::FileAddress(name, 0)))
                     } else {
                         None
@@ -3618,33 +3670,41 @@ impl<'a, 'x> Compiling<'a, 'x> {
         match &receiver.node {
             Node::Var(name) if name.starts_with('@') => {
                 let mut c = self.c();
-                let name = c.call_site(name, false).name;
+                let name = c.call_site(name, false)?.name;
                 c.emit(Op::NamespaceAddress(name, true));
             }
             Node::Var(name) if self.c().local(name)? => {
                 let (bound, constant, ambient, global, implicit) = {
                     let mut c = self.c();
                     let work = c.work;
-                    let slot = *c.locals.get(work, name)?.unwrap();
+                    let slot = *c
+                        .locals
+                        .get(work, name)?
+                        .ok_or(violation("local address must have a slot"))?;
                     if c.parameters.contains(work, name.as_str())? {
-                        c.emit(Op::AddressLocal(narrow(slot)));
+                        c.emit(Op::AddressLocal(narrow(slot)?));
                         (None, None, None, true, None)
                     } else {
-                        let bound = c.emit(Op::AddressBound(narrow(slot), 0));
+                        let bound = c.emit(Op::AddressBound(narrow(slot)?, 0));
                         let constant =
                             constant.map(|name| c.emit(Op::NamespaceConstantAddress(name, 0)));
-                        let ambient = c.namespace.map(|_| {
-                            let name = c.call_site(name, false).name;
-                            c.emit(Op::AmbientAddress(name, 0))
-                        });
+                        let ambient = c
+                            .namespace
+                            .map(|_| {
+                                let name = c.call_site(name, false)?.name;
+                                Ok::<_, crate::checked::Violation>(
+                                    c.emit(Op::AmbientAddress(name, 0)),
+                                )
+                            })
+                            .transpose()?;
                         let global = if let Some(global) = c.global_fallback(name)? {
-                            c.emit(Op::AddressGlobal(narrow(global)));
+                            c.emit(Op::AddressGlobal(narrow(global)?));
                             true
                         } else {
                             false
                         };
                         let implicit = if assignment && !global && c.implicit_name(name)? {
-                            let name = c.call_site(name, false).name;
+                            let name = c.call_site(name, false)?.name;
                             Some(c.emit(Op::ImplicitAddress(name, 0)))
                         } else {
                             None
@@ -3668,7 +3728,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             Node::Var(name) if self.c().namespace.is_some() => {
                 let (ambient, global, implicit) = {
                     let mut c = self.c();
-                    let index = c.call_site(name, false).name;
+                    let index = c.call_site(name, false)?.name;
                     let ambient = c.emit(Op::AmbientAddress(index, 0));
                     let global = c.global_fallback(name)?.is_some();
                     if global {
@@ -3693,15 +3753,17 @@ impl<'a, 'x> Compiling<'a, 'x> {
             }
             Node::Var(name) if self.c().global_fallback(name)?.is_some() => {
                 let mut c = self.c();
-                let global = c.global_fallback(name)?.unwrap();
-                c.emit(Op::AddressGlobal(narrow(global)));
+                let global = c
+                    .global_fallback(name)?
+                    .ok_or(violation("global address must have a binding"))?;
+                c.emit(Op::AddressGlobal(narrow(global)?));
             }
             Node::Member(root, name) | Node::SafeMember(root, name) => {
                 self.nested_address(root).await?;
                 let mut c = self.c();
                 let skip = matches!(receiver.node, Node::SafeMember(..))
                     .then(|| c.emit(Op::AddressJumpNil(0, false)));
-                let site = c.call_site(name, true);
+                let site = c.call_site(name, true)?;
                 c.emit(Op::AddressMember(site));
                 if let Some(skip) = skip {
                     let end = c.code.len();
@@ -3713,7 +3775,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 for index in indices {
                     self.expr(index).await?;
                 }
-                self.c().emit(Op::AddressIndex(narrow(indices.len())));
+                self.c().emit(Op::AddressIndex(narrow(indices.len())?));
             }
             _ => {
                 self.receiver_expr(receiver, receiving).await?;
@@ -3829,7 +3891,7 @@ fn target_label(
     Ok(())
 }
 
-fn decimal_digits(mut value: u64, digits: &mut [u8; 20]) -> &str {
+fn decimal_digits(mut value: u64, digits: &mut [u8; 20]) -> crate::checked::Access<&str> {
     let mut start = digits.len();
     for digit in digits.iter_mut().rev() {
         start -= 1;
@@ -3839,7 +3901,7 @@ fn decimal_digits(mut value: u64, digits: &mut [u8; 20]) -> &str {
             break;
         }
     }
-    std::str::from_utf8(digits.get(start..).unwrap_or_default()).unwrap()
+    std::str::from_utf8(digits.tail(start)?).map_err(|_| violation("decimal digits must be UTF-8"))
 }
 
 fn target_names<'a>(
@@ -3890,7 +3952,9 @@ fn statement_names<'a>(
             Step::Target(target) => target_names(target, names, work)?,
             Step::Clause => clauses.push(work, names.len())?,
             Step::EndClause(binding) => {
-                let start = clauses.pop().unwrap();
+                let start = clauses
+                    .pop()
+                    .ok_or(violation("rescue clause must have a name boundary"))?;
                 let mut kept = start;
                 for index in start..names.len() {
                     work.charge(1)?;
@@ -3967,6 +4031,14 @@ pub(crate) fn mutating_member(name: &str) -> bool {
 mod budget_tests {
     use super::*;
     use crate::{CallContext, CallOptions, ErrorKind, compilation::Meter};
+
+    #[test]
+    fn receiver_member_index_must_fit_beside_its_kind() {
+        let limit = 1usize << (32 - Receiving::KIND_BITS);
+        let receiving = Receiving::of("value", limit - 1, CallForm::Auto, 0).unwrap();
+        assert_eq!(receiving.member(), Some(limit - 1));
+        assert!(Receiving::of("value", limit, CallForm::Auto, 0).is_err());
+    }
 
     #[test]
     fn field_type_search_charges_each_candidate() {

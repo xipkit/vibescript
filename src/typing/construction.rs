@@ -23,6 +23,7 @@ use super::{
     ty::Ty,
 };
 use crate::{
+    checked::{Access, Checked as _, violation},
     diagnostic::{Code, Diagnostic, Span},
     syntax::{Expr, Node},
 };
@@ -95,7 +96,8 @@ impl Unassigned {
         self.marks
             .indices()
             .into_iter()
-            .map(|place| self.roster[place].as_str())
+            .filter_map(|place| self.roster.get(place))
+            .map(String::as_str)
             .collect()
     }
 
@@ -115,7 +117,8 @@ impl Unassigned {
                 .marks
                 .indices()
                 .into_iter()
-                .map(|place| self.roster[place].as_str())
+                .filter_map(|place| self.roster.get(place))
+                .map(String::as_str)
                 .filter(|name| read.contains(*name))
                 .collect();
             (names, self.len())
@@ -362,9 +365,9 @@ impl<'a> Checker<'a> {
             (Node::Var(name), Some(ns), true)
                 if name.as_str() == "self" && member != "initialize" =>
             {
-                self.program.namespaces[ns as usize]
-                    .methods
-                    .get(member)
+                self.program
+                    .namespace(ns)
+                    .and_then(|namespace| namespace.methods.get(member))
                     .copied()
             }
             _ => None,
@@ -391,7 +394,10 @@ impl<'a> Checker<'a> {
             return;
         };
         let mut unproven: HashSet<NsId> = HashSet::with_capacity(namespaces);
-        unproven.extend((0..namespaces as NsId).filter(|&ns| !self.initializes(ns)));
+        let Some(namespaces) = self.meter.index(namespaces) else {
+            return;
+        };
+        unproven.extend((0..namespaces).filter(|&ns| !self.initializes(ns)));
         let (reads, reads_held) = self.method_reads();
         let sites = std::mem::take(&mut self.construction.sites);
         // Taken from the records, the sites are held while they are read,
@@ -478,8 +484,10 @@ impl<'a> Checker<'a> {
                 "{names} {are} read before `initialize` assigns {them}, and {they} {reads} as nil; assign {them} first or give {them} a default in the class body"
             ),
             SiteKind::Call(callee) => {
-                let method = self.program.fns[*callee]
-                    .def
+                let method = self
+                    .program
+                    .function(*callee)
+                    .and_then(|function| function.def)
                     .map_or("", |def| def.name.as_str());
                 text!(
                     self,
@@ -502,7 +510,9 @@ impl<'a> Checker<'a> {
     /// variables assigned once constructed: its `initialize` assigns them,
     /// as V0205 requires, or it has none.
     fn initializes(&mut self, ns: NsId) -> bool {
-        let namespace = &self.program.namespaces[ns as usize];
+        let Some(namespace) = self.program.namespace(ns) else {
+            return false;
+        };
         if namespace.module.is_none() || !namespace.is_class {
             return false;
         }
@@ -551,7 +561,12 @@ impl<'a> Checker<'a> {
         let mut calls = ScratchVec::new(&self.meter);
         for id in ids.iter() {
             let mut row = ScratchVec::new(&self.meter);
-            for callee in self.construction.methods[id].calls.iter() {
+            let uses = self.construction.methods.get(id);
+            let uses = uses.ok_or(violation("a listed method has no recorded uses"));
+            let Some(uses) = self.meter.found(uses) else {
+                return (HashMap::new(), 0);
+            };
+            for callee in uses.calls.iter() {
                 let Some(&at) = place.get(callee) else {
                     continue;
                 };
@@ -589,7 +604,14 @@ impl<'a> Checker<'a> {
             let mut escapes = false;
             let mut read = CountedBTreeSet::new();
             for &member in members {
-                let uses = &self.construction.methods[&ids[member]];
+                let uses = ids.at(member).and_then(|id| {
+                    let uses = self.construction.methods.get(id);
+                    uses.ok_or(violation("a listed method has no recorded uses"))
+                });
+                let Some(uses) = self.meter.found(uses) else {
+                    self.release(held);
+                    return (HashMap::new(), 0);
+                };
                 if self
                     .meter
                     .charge(uses.calls.len() as u64 + uses.reads.len() as u64)
@@ -603,12 +625,23 @@ impl<'a> Checker<'a> {
                     self.release(held);
                     return (HashMap::new(), 0);
                 }
-                for &callee in calls[member].iter() {
-                    let other = cycle_of[callee];
+                let Some(row) = self.meter.found(calls.at(member)) else {
+                    self.release(held);
+                    return (HashMap::new(), 0);
+                };
+                for &callee in row.iter() {
+                    let Some(&other) = self.meter.found(cycle_of.at(callee)) else {
+                        self.release(held);
+                        return (HashMap::new(), 0);
+                    };
                     if other == cycle {
                         continue;
                     }
-                    match &*found[other] {
+                    let Some(called) = self.meter.found(found.at(other)) else {
+                        self.release(held);
+                        return (HashMap::new(), 0);
+                    };
+                    match &**called {
                         None => escapes = true,
                         Some(called) => {
                             if self.meter.charge(called.len() as u64)
@@ -627,8 +660,8 @@ impl<'a> Checker<'a> {
         }
         let reads: Reads = ids
             .iter()
-            .enumerate()
-            .map(|(at, &id)| (id, Arc::clone(&found[cycle_of[at]])))
+            .zip(cycle_of.iter())
+            .filter_map(|(&id, &cycle)| Some((id, Arc::clone(found.get(cycle)?))))
             .collect();
         // The graph, the search's scratch and the cycles go here; only the
         // reads by method stay, held while the sites are read.
@@ -701,7 +734,18 @@ const ARC_COUNTS: usize = 2 * std::mem::size_of::<usize>();
 fn cycles(
     edges: &[impl std::ops::Deref<Target = [usize]>],
     meter: &super::meter::Meter,
-) -> Option<(Vec<Vec<usize>>, Vec<usize>)> {
+) -> Option<Cycles> {
+    meter.found(search(edges, meter)).flatten()
+}
+
+/// The cycles found, each a list of nodes, and the cycle of each node.
+type Cycles = (Vec<Vec<usize>>, Vec<usize>);
+
+/// [`cycles`], whose lists are indexed by the nodes the edges name.
+fn search(
+    edges: &[impl std::ops::Deref<Target = [usize]>],
+    meter: &super::meter::Meter,
+) -> Access<Option<Cycles>> {
     use super::walk::PACE;
     const UNSEEN: usize = usize::MAX;
     let count = edges.len();
@@ -715,54 +759,54 @@ fn cycles(
     let mut visited = 0;
     let pace = |visited: &mut u64| {
         *visited += 1;
-        if *visited == PACE {
+        if *visited == u64::from(PACE) {
             *visited = 0;
-            meter.pace(PACE, 0)
+            meter.pace(u64::from(PACE), 0)
         } else {
             false
         }
     };
     for root in 0..count {
         if pace(&mut visited) {
-            return None;
+            return Ok(None);
         }
-        if order[root] != UNSEEN {
+        if *order.at(root)? != UNSEEN {
             continue;
         }
         // Each frame is a node and how many of its edges it has followed.
         let mut frames = vec![(root, 0)];
-        order[root] = next;
-        low[root] = next;
+        *order.at_mut(root)? = next;
+        *low.at_mut(root)? = next;
         next += 1;
         stack.push(root);
-        on_stack[root] = true;
+        *on_stack.at_mut(root)? = true;
         while let Some(&mut (node, ref mut followed)) = frames.last_mut() {
-            if let Some(&to) = edges[node].get(*followed) {
+            if let Some(&to) = edges.at(node)?.get(*followed) {
                 *followed += 1;
                 if pace(&mut visited) {
-                    return None;
+                    return Ok(None);
                 }
-                if order[to] == UNSEEN {
-                    order[to] = next;
-                    low[to] = next;
+                if *order.at(to)? == UNSEEN {
+                    *order.at_mut(to)? = next;
+                    *low.at_mut(to)? = next;
                     next += 1;
                     stack.push(to);
-                    on_stack[to] = true;
+                    *on_stack.at_mut(to)? = true;
                     frames.push((to, 0));
-                } else if on_stack[to] {
-                    low[node] = low[node].min(order[to]);
+                } else if *on_stack.at(to)? {
+                    *low.at_mut(node)? = (*low.at(node)?).min(*order.at(to)?);
                 }
                 continue;
             }
             frames.pop();
             if let Some(&(parent, _)) = frames.last() {
-                low[parent] = low[parent].min(low[node]);
+                *low.at_mut(parent)? = (*low.at(parent)?).min(*low.at(node)?);
             }
-            if low[node] == order[node] {
+            if *low.at(node)? == *order.at(node)? {
                 let mut members = Vec::new();
                 while let Some(member) = stack.pop() {
-                    on_stack[member] = false;
-                    cycle_of[member] = cycles.len();
+                    *on_stack.at_mut(member)? = false;
+                    *cycle_of.at_mut(member)? = cycles.len();
                     members.push(member);
                     if member == node {
                         break;
@@ -773,7 +817,7 @@ fn cycles(
         }
     }
     if meter.charge(visited) {
-        return None;
+        return Ok(None);
     }
-    Some((cycles, cycle_of))
+    Ok(Some((cycles, cycle_of)))
 }

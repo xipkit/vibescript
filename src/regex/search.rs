@@ -3,6 +3,7 @@ use super::{
     program::{Op, View},
     unicode,
 };
+use crate::checked::{Access, Checked, convert, violation};
 use crate::{
     CallContext, Result,
     budget::{Buffer, CHUNK},
@@ -36,6 +37,42 @@ pub(super) struct Search {
     epoch: u32,
     slots: usize,
     literal: Option<Literal>,
+    anchored: bool,
+}
+
+/// Proves that every path to a rune or a match passes BeginText first. Other
+/// assertions may fail, so following them unconditionally is conservative.
+/// The search reuses these visited marks by starting with a later epoch.
+fn anchored(
+    ctx: &mut CallContext,
+    program: View<'_>,
+    start: usize,
+    visited: &mut [u32],
+) -> Result<bool> {
+    let mut pending = Buffer::empty();
+    let mut pc = start;
+    loop {
+        let next = if *visited.at(pc)? == 0 {
+            *visited.at_mut(pc)? = 1;
+            let instruction = *program.instructions.at(pc)?;
+            match instruction.op {
+                Op::Fail | Op::Assert(Assertion::BeginText) => None,
+                Op::Split => {
+                    pending.push(ctx, instruction.alternate)?;
+                    Some(instruction.next)
+                }
+                Op::Save(_) | Op::Assert(_) => Some(instruction.next),
+                _ => return Ok(false),
+            }
+        } else {
+            None
+        };
+        let Some(next) = next.or_else(|| pending.data.pop()) else {
+            return Ok(true);
+        };
+        pc = next;
+        ctx.charge(1)?;
+    }
 }
 
 /// The runes every match starts with, found by following the program's
@@ -58,13 +95,24 @@ struct Literal {
 /// Returns the least member of a rune's case-folding orbit, or the rune itself
 /// without folding. Two runes match under folding exactly when these agree.
 fn canonical(rune: u32, fold: bool) -> u32 {
-    if !fold {
-        return rune;
-    }
     if rune < 128 {
-        // The non-ASCII members of the K and S orbits are larger than both letters.
-        return (rune as u8).to_ascii_uppercase() as u32;
+        // An ASCII letter's orbit starts at its upper case, one bit away; the
+        // non-ASCII members of the K and S orbits are larger than both
+        // letters. Arithmetic rather than a test of `fold`, since the scan
+        // does this for every ASCII byte.
+        let lower = (u32::from(b'a')..=u32::from(b'z')).contains(&rune);
+        rune ^ (u32::from(lower & fold) << 5)
+    } else if fold {
+        least(rune)
+    } else {
+        rune
     }
+}
+
+/// Walks a non-ASCII rune's case-folding orbit for its least member. Out of
+/// line, so that `canonical` stays a few instructions wherever it is inlined.
+#[inline(never)]
+fn least(rune: u32) -> u32 {
     let mut least = rune;
     let mut current = unicode::fold(rune);
     while current != rune {
@@ -74,57 +122,72 @@ fn canonical(rune: u32, fold: bool) -> u32 {
     least
 }
 
-impl Literal {
-    fn new(ctx: &mut CallContext, program: View<'_>) -> Result<Option<Self>> {
-        let mut literal = Self {
-            runes: Buffer::empty(),
-            table: Buffer::empty(),
-            fold: false,
-            complete: false,
-            saves: Buffer::empty(),
-        };
-        let mut pc = program.start;
-        loop {
-            ctx.charge(1)?;
-            let instruction = program.instructions[pc];
-            match instruction.op {
-                Op::Save(slot) => literal.saves.push(ctx, (slot, literal.runes.data.len()))?,
-                Op::Rune(rune, fold) if literal.runes.data.is_empty() || fold == literal.fold => {
-                    literal.fold = fold;
-                    literal.runes.push(ctx, canonical(rune, fold))?;
-                }
-                Op::Match => {
-                    literal.complete = true;
-                    break;
-                }
-                _ => break,
+/// Finds the shared literal prefix or proves a text anchor. The anchor proof
+/// starts at the already charged instruction where the literal prefix ends.
+fn prefix(
+    ctx: &mut CallContext,
+    program: View<'_>,
+    visited: &mut [u32],
+) -> Result<(Option<Literal>, bool)> {
+    let mut literal = Literal {
+        runes: Buffer::empty(),
+        table: Buffer::empty(),
+        fold: false,
+        complete: false,
+        saves: Buffer::empty(),
+    };
+    let mut pc = program.start;
+    loop {
+        ctx.charge(1)?;
+        let instruction = *program.instructions.at(pc)?;
+        match instruction.op {
+            Op::Save(slot) => literal.saves.push(ctx, (slot, literal.runes.data.len()))?,
+            Op::Rune(rune, fold) if literal.runes.data.is_empty() || fold == literal.fold => {
+                literal.fold = fold;
+                literal.runes.push(ctx, canonical(rune, fold))?;
             }
-            pc = instruction.next;
-        }
-        if literal.runes.data.is_empty() {
-            return Ok(None);
-        }
-        if !literal.complete {
-            literal.saves = Buffer::empty();
-        }
-        let runes = &literal.runes.data;
-        literal.table.ensure(ctx, runes.len())?;
-        literal.table.data.push(0);
-        let mut matched = 0;
-        for i in 1..runes.len() {
-            ctx.charge(1)?;
-            while matched > 0 && runes[i] != runes[matched] {
-                ctx.charge(1)?;
-                matched = literal.table.data[matched - 1] as usize;
+            Op::Match => {
+                literal.complete = true;
+                break;
             }
-            if runes[i] == runes[matched] {
-                matched += 1;
-            }
-            literal.table.data.push(matched as u32);
+            _ => break,
         }
-        Ok(Some(literal))
+        pc = instruction.next;
     }
+    if literal.runes.data.is_empty() {
+        return Ok((None, anchored(ctx, program, pc, visited)?));
+    }
+    if !literal.complete {
+        literal.saves = Buffer::empty();
+    }
+    let runes = &literal.runes.data;
+    literal.table.ensure(ctx, runes.len())?;
+    literal.table.data.push(0);
+    let mut matched = 0;
+    for rune in runes.iter().skip(1) {
+        ctx.charge(1)?;
+        while matched > 0 && rune != runes.at(matched)? {
+            ctx.charge(1)?;
+            matched = *literal.table.at(matched - 1)? as usize;
+        }
+        if rune == runes.at(matched)? {
+            matched += 1;
+        }
+        literal.table.data.push(convert(matched)?);
+    }
+    Ok((Some(literal), false))
+}
 
+// Keep the byte loop independent of the fallible KMP scan's register pressure.
+#[inline(never)]
+fn idle_prefix(bytes: &[u8], first: u32, fold: bool) -> usize {
+    bytes
+        .iter()
+        .position(|&byte| byte >= 128 || canonical(u32::from(byte), fold) == first)
+        .unwrap_or(bytes.len())
+}
+
+impl Literal {
     /// Returns the byte range of the first occurrence starting at or after `from`.
     ///
     /// Decoding, table transitions and moving the start are each counted as
@@ -136,6 +199,11 @@ impl Literal {
         from: usize,
     ) -> Result<Option<(usize, usize)>> {
         let runes = &self.runes.data;
+        let first = *runes.at(0)?;
+        // Folded ASCII letters have two ASCII forms; the byte search stops
+        // at only one needle. It already stops before non-ASCII fold members.
+        let ascii = first < 128
+            && !(self.fold && u8::try_from(first).is_ok_and(|byte| byte.is_ascii_alphabetic()));
         let mut start = from;
         let mut position = from;
         let mut matched = 0;
@@ -145,20 +213,51 @@ impl Literal {
                 ctx.work_bytes(work)?;
                 work = 0;
             }
-            let (rune, width, _) = scan::rune(&text[position..]);
-            let rune = canonical(rune as u32, self.fold);
-            work += width;
-            while matched > 0 && rune != runes[matched] {
-                let next = self.table.data[matched - 1] as usize;
-                // The partial match loses its first `matched - next` runes.
-                for _ in next..matched {
-                    start += scan::rune(&text[start..]).1;
-                }
-                work += 2 * (matched - next);
-                matched = next;
+            let Some(&byte) = text.get(position) else {
+                break;
+            };
+            // An ASCII byte that cannot begin the literal.
+            let idle = |byte: u8| byte < 128 && canonical(u32::from(byte), self.fold) != first;
+            if matched == 0 && idle(byte) {
+                // With nothing matched, a run of such bytes only moves the
+                // start. Most of a scan is these runs, so they get a loop of
+                // their own. It stops where the next charge falls due, which
+                // leaves every charge where a byte at a time would put it.
+                let window = text.span(position, text.len().min(position + (CHUNK - work)))?;
+                let skipped = if ascii {
+                    scan::ascii_mismatch(window, convert(first)?)
+                } else {
+                    idle_prefix(window, first, self.fold)
+                };
+                work += skipped;
+                position += skipped;
+                start = position;
+                continue;
             }
+            let (rune, width) = if byte < 128 {
+                (u32::from(byte), 1)
+            } else {
+                scan::code_point(text.tail(position)?)
+            };
+            work += width;
             position += width;
-            if rune == runes[matched] {
+            let rune = canonical(rune, self.fold);
+            if matched > 0 && rune != *runes.at(matched)? {
+                let partial = matched;
+                while matched > 0 && rune != *runes.at(matched)? {
+                    matched = *self.table.at(matched - 1)? as usize;
+                }
+                // The partial match loses its first `partial - matched` runes.
+                for _ in matched..partial {
+                    start += if *text.at(start)? < 128 {
+                        1
+                    } else {
+                        scan::code_point(text.tail(start)?).1
+                    };
+                }
+                work += 2 * (partial - matched);
+            }
+            if rune == *runes.at(matched)? {
                 matched += 1;
                 if matched == runes.len() {
                     ctx.work_bytes(work)?;
@@ -180,16 +279,17 @@ impl Search {
             ctx.work_bytes(chunk.len() * size_of::<u32>())?;
             visited.data.resize(visited.data.len() + chunk.len(), 0);
         }
-        let literal = Literal::new(ctx, program)?;
+        let (literal, anchored) = prefix(ctx, program, &mut visited.data)?;
         Ok(Self {
             current: Buffer::empty(),
             next: Buffer::empty(),
             visited,
             actions: Buffer::empty(),
             pool: Buffer::empty(),
-            epoch: 0,
+            epoch: 1,
             slots: if captures { 2 * program.names.len() } else { 2 },
             literal,
+            anchored,
         })
     }
 
@@ -201,23 +301,34 @@ impl Search {
         text: &[u8],
         from: usize,
     ) -> Result<Option<Buffer<usize>>> {
-        let Some((start, end)) = self.literal.as_ref().unwrap().scan(ctx, text, from)? else {
+        let Some((start, end)) = self
+            .literal
+            .as_ref()
+            .ok_or(violation("literal search must have a literal"))?
+            .scan(ctx, text, from)?
+        else {
             return Ok(None);
         };
         let mut captures = self.captures(ctx)?;
-        captures.data[0] = start;
-        captures.data[1] = end;
+        *captures.at_mut(0)? = start;
+        *captures.at_mut(1)? = end;
         let mut position = start;
         let mut offset = 0;
-        for &(slot, runes) in &self.literal.as_ref().unwrap().saves.data {
+        for &(slot, runes) in &self
+            .literal
+            .as_ref()
+            .ok_or(violation("literal search must have a literal"))?
+            .saves
+            .data
+        {
             ctx.charge(1)?;
             while offset < runes {
                 ctx.charge(1)?;
-                position += scan::rune(&text[position..]).1;
+                position += scan::rune(text.tail(position)?).1;
                 offset += 1;
             }
             if slot < self.slots {
-                captures.data[slot] = position;
+                *captures.at_mut(slot)? = position;
             }
         }
         Ok(Some(captures))
@@ -264,13 +375,13 @@ impl Search {
         while let Some(action) = self.actions.data.pop() {
             ctx.charge(1)?;
             match action {
-                Action::Restore(slot, value) => captures.data[slot] = value,
+                Action::Restore(slot, value) => *captures.at_mut(slot)? = value,
                 Action::Visit(pc) => {
-                    if self.visited.data[pc] == self.epoch {
+                    if *self.visited.at(pc)? == self.epoch {
                         continue;
                     }
-                    self.visited.data[pc] = self.epoch;
-                    let instruction = program.instructions[pc];
+                    *self.visited.at_mut(pc)? = self.epoch;
+                    let instruction = *program.instructions.at(pc)?;
                     match instruction.op {
                         Op::Fail => (),
                         Op::Split => {
@@ -281,8 +392,8 @@ impl Search {
                         Op::Save(slot) => {
                             if slot < self.slots {
                                 self.actions
-                                    .push(ctx, Action::Restore(slot, captures.data[slot]))?;
-                                captures.data[slot] = position;
+                                    .push(ctx, Action::Restore(slot, *captures.at(slot)?))?;
+                                *captures.at_mut(slot)? = position;
                             }
                             self.actions.push(ctx, Action::Visit(instruction.next))?;
                         }
@@ -319,7 +430,7 @@ impl Search {
     ) -> Result<Option<Buffer<usize>>> {
         self.current.data.clear();
         self.next.data.clear();
-        if from > text.len() {
+        if from > text.len() || (self.anchored && from > 0) {
             return Ok(None);
         }
         if self
@@ -334,11 +445,12 @@ impl Search {
         let mut before = if from == 0 {
             None
         } else {
-            Some(previous(text, from))
+            Some(previous(text, from)?)
         };
         let mut best = None;
         loop {
             ctx.checkpoint()?;
+            debug_assert!(!self.anchored || position == 0 || !self.next.data.is_empty());
             if best.is_none() && self.next.data.is_empty() {
                 // With no thread running, a match can only start where the literal does.
                 if let Some(literal) = &self.literal {
@@ -347,19 +459,19 @@ impl Search {
                     };
                     if start != position {
                         position = start;
-                        before = Some(previous(text, start));
+                        before = Some(previous(text, start)?);
                     }
                 }
             }
             let (after, width) = if position < text.len() {
-                let (rune, width, _) = scan::rune(&text[position..]);
+                let (rune, width, _) = scan::rune(text.tail(position)?);
                 (Some(rune as u32), width)
             } else {
                 (None, 0)
             };
-            if best.is_none() {
+            if best.is_none() && (!self.anchored || position == 0) {
                 let mut captures = self.captures(ctx)?;
-                captures.data[0] = position;
+                *captures.at_mut(0)? = position;
                 self.add(
                     ctx,
                     program,
@@ -375,7 +487,7 @@ impl Search {
             std::mem::swap(&mut self.current, &mut self.next);
             self.advance_epoch(ctx)?;
             let following = if position + width < text.len() {
-                Some(scan::rune(&text[position + width..]).0 as u32)
+                Some(scan::rune(text.tail(position + width)?).0 as u32)
             } else {
                 None
             };
@@ -387,9 +499,9 @@ impl Search {
                     self.pool.push(ctx, thread.captures)?;
                     continue;
                 }
-                let instruction = program.instructions[thread.pc];
+                let instruction = *program.instructions.at(thread.pc)?;
                 if matches!(instruction.op, Op::Match) {
-                    thread.captures.data[1] = position;
+                    *thread.captures.at_mut(1)? = position;
                     if let Some(old) = best.replace(thread.captures) {
                         self.pool.push(ctx, old)?;
                     }
@@ -421,7 +533,9 @@ impl Search {
                 }
             }
             self.current = current;
-            if position == text.len() || (best.is_some() && self.next.data.is_empty()) {
+            if position == text.len()
+                || ((self.anchored || best.is_some()) && self.next.data.is_empty())
+            {
                 return Ok(best);
             }
             position += width;
@@ -430,23 +544,25 @@ impl Search {
     }
 }
 
-fn previous(bytes: &[u8], position: usize) -> u32 {
+fn previous(bytes: &[u8], position: usize) -> Access<u32> {
     let mut start = position - 1;
-    while start > position.saturating_sub(4) && bytes[start] & 0xc0 == 0x80 {
+    while start > position.saturating_sub(4) && bytes.at(start)? & 0xc0 == 0x80 {
         start -= 1;
     }
-    let (rune, width, valid) = scan::rune(&bytes[start..position]);
+    let (rune, width, valid) = scan::rune(bytes.span(start, position)?);
     if valid && start + width == position {
-        rune as u32
+        Ok(rune as u32)
     } else {
-        0xfffd
+        Ok(0xfffd)
     }
 }
 
 impl Assertion {
     fn matches(self, position: usize, before: Option<u32>, after: Option<u32>) -> bool {
         let word = |rune: Option<u32>| {
-            rune.is_some_and(|r| r < 128 && ((r as u8).is_ascii_alphanumeric() || r == '_' as u32))
+            rune.is_some_and(|r| {
+                u8::try_from(r).is_ok_and(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+            })
         };
         match self {
             Self::BeginText => position == 0,
@@ -495,6 +611,200 @@ mod tests {
     }
 
     #[test]
+    fn invalid_program_and_literal_indices_return_internal_errors() {
+        let mut ctx = context(None);
+        let mut program = Program::compile(&mut ctx, Value::bytes(b"aab"), "Regex.match").unwrap();
+        program.start = usize::MAX;
+        let error = Search::new(&mut ctx, program.view().unwrap(), false)
+            .err()
+            .unwrap();
+        assert_eq!(error.kind, ErrorKind::Internal);
+        assert!(error.message.contains("out of range"));
+
+        let program = Program::compile(&mut ctx, Value::bytes(b"aab"), "Regex.match").unwrap();
+        let mut search = Search::new(&mut ctx, program.view().unwrap(), false).unwrap();
+        let literal = search.literal.as_mut().unwrap();
+        literal.table.data.fill(u32::MAX);
+        let error = literal.scan(&mut ctx, b"aaac", 0).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Internal);
+        assert!(error.message.contains("out of range"));
+    }
+
+    #[test]
+    fn text_anchor_proof_checks_every_non_consuming_path() {
+        for (pattern, expected) in [
+            (r"\AID-[0-9]+\z", true),
+            (r"^ID-[0-9]+$", true),
+            (r"(\Aa)|(^b)", true),
+            (r"(?:\Aa|\Ab)+", true),
+            (r"\b(?:\Aa|^b)", true),
+            (r"(?:\b)*\Aa", true),
+            (r"(?:\A)+a", true),
+            (r"\A", true),
+            (r"\z\A", true),
+            (r"(?m:^a)|\Ab", false),
+            (r"(?m)^a", false),
+            (r"\Aa|b", false),
+            (r"a|\Ab", false),
+            (r"\Aa|", false),
+            (r"(?:\Aa)?", false),
+            (r"(?:\Aa)*", false),
+            (r"(?:\A)*a", false),
+            (r"a?\Ab", false),
+            (r"a\A", false),
+            (r"\ba", false),
+            (r"[ab]", false),
+            (r"a", false),
+            (r"", false),
+        ] {
+            let mut ctx = context(None);
+            let program =
+                Program::compile(&mut ctx, Value::bytes(pattern.as_bytes()), "Regex.match")
+                    .unwrap();
+            let search = Search::new(&mut ctx, program.view().unwrap(), false).unwrap();
+            assert_eq!(search.anchored, expected, "{pattern}");
+        }
+    }
+
+    #[test]
+    fn anchored_searches_agree_with_the_thread_machine() {
+        let mut ctx = context(None);
+        let patterns = [
+            r"\AID-[0-9]+\z",
+            r"^a+$",
+            r"(\Aa+)|(\Ab+)",
+            r"\A(a+|ab)",
+            r"\A(ab|a+)",
+            r"\A(a+?)",
+            r"\A(a*)",
+            r"\A(a*)(b?)",
+            r"\A(?i:é+)",
+            r"\A.",
+            r"\A\x{fffd}",
+            r"\b\Aa*",
+            r"(?:\b)*\Aa*",
+            r"(?:\A)+a*",
+            r"\A|\Ab",
+            r"\z\A",
+            r"\Aa|b+",
+            r"a+|\Ab",
+            r"(?:\Aa)?",
+            r"(?:\Aa)*",
+            r"a?\Ab",
+            r"(?m:^b)|\Aa",
+        ];
+        let texts: [&[u8]; 14] = [
+            b"",
+            b"x",
+            b"a",
+            b"aaab",
+            b"ababa",
+            b"bbb",
+            b"ba",
+            b"ID-123",
+            b"xID-123",
+            b"a\nb\n",
+            "éÉa".as_bytes(),
+            b"\xffa",
+            b"\xc3\xa9\xff",
+            b"\xe7\x95",
+        ];
+        for pattern in patterns {
+            let program =
+                Program::compile(&mut ctx, Value::bytes(pattern.as_bytes()), "Regex.match")
+                    .unwrap();
+            let view = program.view().unwrap();
+            for captures in [false, true] {
+                for text in texts {
+                    let mut fast = Search::new(&mut ctx, view, captures).unwrap();
+                    let mut plain = Search::new(&mut ctx, view, captures).unwrap();
+                    plain.anchored = false;
+                    plain.literal = None;
+                    for from in 0..=text.len() + 1 {
+                        let fast = fast.find(&mut ctx, view, text, from).unwrap();
+                        let plain = plain.find(&mut ctx, view, text, from).unwrap();
+                        assert_eq!(
+                            fast.as_ref().map(|found| &found.data),
+                            plain.as_ref().map(|found| &found.data),
+                            "{pattern} from {from} in {text:?}"
+                        );
+                    }
+                    assert_eq!(
+                        matches(&mut ctx, &mut fast, view, text),
+                        matches(&mut ctx, &mut plain, view, text),
+                        "{pattern} in {text:?}"
+                    );
+                }
+            }
+        }
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+
+    #[test]
+    fn anchored_misses_do_not_walk_the_remaining_text() {
+        for from in [0, 1] {
+            let mut costs = Vec::new();
+            for length in [1, 16384, 1 << 20] {
+                let mut ctx = context(None);
+                let program =
+                    Program::compile(&mut ctx, Value::bytes(br"\AID-[0-9]+\z"), "Regex.match")
+                        .unwrap();
+                let mut search = Search::new(&mut ctx, program.view().unwrap(), false).unwrap();
+                let before = ctx.stats().steps;
+                assert!(
+                    search
+                        .find(&mut ctx, program.view().unwrap(), &vec![b'x'; length], from)
+                        .unwrap()
+                        .is_none()
+                );
+                costs.push(ctx.stats().steps - before);
+            }
+            assert!(costs.iter().all(|&cost| cost == costs[0]), "{costs:?}");
+            assert!(costs[0] < 10, "{costs:?}");
+        }
+    }
+
+    #[test]
+    fn anchored_searches_do_not_restart_threads() {
+        let text = vec![b'a'; 4096];
+        for captures in [false, true] {
+            let mut ctx = context(None);
+            let program =
+                Program::compile(&mut ctx, Value::bytes(br"\Aa+z"), "Regex.match").unwrap();
+            let view = program.view().unwrap();
+            let mut fast = Search::new(&mut ctx, view, captures).unwrap();
+            let mut plain = Search::new(&mut ctx, view, captures).unwrap();
+            plain.anchored = false;
+            let before = ctx.stats().steps;
+            assert!(fast.find(&mut ctx, view, &text, 0).unwrap().is_none());
+            let fast_steps = ctx.stats().steps - before;
+            let before = ctx.stats().steps;
+            assert!(plain.find(&mut ctx, view, &text, 0).unwrap().is_none());
+            let plain_steps = ctx.stats().steps - before;
+            assert!(fast_steps < plain_steps, "{fast_steps} >= {plain_steps}");
+        }
+    }
+
+    #[test]
+    fn anchored_threads_still_observe_quotas_and_cancellation() {
+        for kind in [ErrorKind::Steps, ErrorKind::Cancelled] {
+            let mut ctx = context(None);
+            let program =
+                Program::compile(&mut ctx, Value::bytes(br"\Aa+z"), "Regex.match").unwrap();
+            let mut search = Search::new(&mut ctx, program.view().unwrap(), false).unwrap();
+            if kind == ErrorKind::Steps {
+                ctx.options.limits.steps = Some(ctx.stats().steps + 1000);
+            } else {
+                ctx.cancellation().cancel();
+            }
+            let error = search
+                .find(&mut ctx, program.view().unwrap(), &vec![b'a'; 16384], 0)
+                .unwrap_err();
+            assert_eq!(error.kind, kind);
+        }
+    }
+
+    #[test]
     fn literal_scans_agree_with_the_thread_machine() {
         let mut ctx = context(None);
         let pieces: [&[u8]; 12] = [
@@ -537,13 +847,13 @@ mod tests {
             state ^= state << 13;
             state ^= state >> 7;
             state ^= state << 17;
-            (state % bound as u64) as usize
+            usize::try_from(state % bound as u64).unwrap()
         };
         for pattern in patterns {
             let program =
                 Program::compile(&mut ctx, Value::bytes(pattern.as_bytes()), "Regex.match")
                     .unwrap();
-            let view = program.view();
+            let view = program.view().unwrap();
             for captures in [false, true] {
                 for _ in 0..60 {
                     let mut text = Vec::new();
@@ -564,6 +874,151 @@ mod tests {
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
 
+    /// The rune-at-a-time scan `Literal::scan` must reproduce: what it finds,
+    /// and the steps its chunked charges come to.
+    fn reference_scan(
+        literal: &Literal,
+        text: &[u8],
+        from: usize,
+    ) -> (Option<(usize, usize)>, u64) {
+        let runes = &literal.runes.data;
+        let (mut start, mut position, mut matched) = (from, from, 0);
+        let (mut work, mut steps) = (0usize, 0);
+        while position < text.len() {
+            if work >= CHUNK {
+                steps += (work as u64).div_ceil(64);
+                work = 0;
+            }
+            let (rune, width, _) = scan::rune(&text[position..]);
+            let rune = canonical(rune as u32, literal.fold);
+            work += width;
+            while matched > 0 && rune != runes[matched] {
+                let next = literal.table.data[matched - 1] as usize;
+                for _ in next..matched {
+                    start += scan::rune(&text[start..]).1;
+                }
+                work += 2 * (matched - next);
+                matched = next;
+            }
+            position += width;
+            if rune == runes[matched] {
+                matched += 1;
+                if matched == runes.len() {
+                    return (Some((start, position)), steps + (work as u64).div_ceil(64));
+                }
+            } else {
+                start = position;
+            }
+        }
+        (None, steps + (work as u64).div_ceil(64))
+    }
+
+    #[test]
+    fn literal_scans_charge_like_rune_at_a_time_matching() {
+        // Mostly the literals' own runes, so partial matches and the failure
+        // links they fall back along are frequent; and runs of a byte that
+        // begins none of them, long enough to be cut by a charge.
+        let pieces: [&[u8]; 14] = [
+            &[b'x'; 1531],
+            b"xx",
+            b"a",
+            b"a",
+            b"a",
+            b"b",
+            b"b",
+            b"A",
+            b"k",
+            "\u{212a}".as_bytes(),
+            "\u{e9}".as_bytes(),
+            "\u{754c}".as_bytes(),
+            b"\xff",
+            b"\xe7\x95",
+        ];
+        let patterns = [
+            "c",
+            "ab",
+            "aabaaabab",
+            "abababababc",
+            "(?i)aabaak",
+            "(?i)1ks",
+            "(?i):ks",
+            "(?i)k",
+            "(?i)s",
+            "(?i)\u{e9}aa\u{c9}ab",
+            "\u{754c}aab\u{754c}b",
+            "a\u{fffd}a\u{fffd}b",
+        ];
+        let mut state = 0x2545_f491_4f6c_dd1du64;
+        let mut next = move |bound: usize| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            usize::try_from(state % bound as u64).unwrap()
+        };
+        for pattern in patterns {
+            let mut ctx = context(None);
+            let program =
+                Program::compile(&mut ctx, Value::bytes(pattern.as_bytes()), "Regex.match")
+                    .unwrap();
+            let search = Search::new(&mut ctx, program.view().unwrap(), false).unwrap();
+            let literal = search.literal.as_ref().unwrap();
+            let mut texts = Vec::new();
+            for case in 0..200 {
+                // Some texts span several chunks, so charges fall mid-scan.
+                let target = if case % 20 == 0 {
+                    2 * CHUNK + next(2 * CHUNK)
+                } else {
+                    next(300)
+                };
+                let mut text = Vec::new();
+                while text.len() < target {
+                    text.extend_from_slice(pieces[next(pieces.len())]);
+                }
+                texts.push(text);
+            }
+            // Runs that end on a charge, just before one and just after.
+            for run in [CHUNK - 1, CHUNK, CHUNK + 1, 2 * CHUNK] {
+                let mut text = vec![b'x'; run];
+                for _ in 0..40 {
+                    text.extend_from_slice(pieces[next(pieces.len())]);
+                }
+                texts.push(text);
+            }
+            // Candidates and non-ASCII bytes in the vector lanes and tails,
+            // including both ASCII forms and the K/S folding orbits.
+            for run in [7, 8, 9, 15, 16, 17, 31, 32, 33, CHUNK - 1, CHUNK, CHUNK + 1] {
+                for tail in [
+                    b"ab".as_slice(),
+                    b"1kS",
+                    b":kS",
+                    b"k",
+                    b"K",
+                    b"s",
+                    b"S",
+                    "1\u{212a}\u{17f}".as_bytes(),
+                    "\u{212a}\u{17f}".as_bytes(),
+                    b"\xffab",
+                    b"\xe7\x95ab",
+                ] {
+                    let mut text = vec![b'x'; run];
+                    text.extend_from_slice(tail);
+                    texts.push(text);
+                }
+            }
+            for text in &texts {
+                for from in [0, text.len().min(1), text.len() / 3, text.len()] {
+                    let before = ctx.stats().steps;
+                    let found = literal.scan(&mut ctx, text, from).unwrap();
+                    assert_eq!(
+                        (found, ctx.stats().steps - before),
+                        reference_scan(literal, text, from),
+                        "{pattern} from {from} in {text:?}"
+                    );
+                }
+            }
+        }
+    }
+
     #[test]
     fn long_literals_scan_in_linear_work() {
         let cost = |length: usize| {
@@ -580,9 +1035,9 @@ mod tests {
             let mut text = [vec![b'A'; length - 1], vec![b'b']].concat().repeat(2);
             text.extend(vec![b'A'; length]);
             let before = ctx.stats().steps;
-            let mut search = Search::new(&mut ctx, program.view(), false).unwrap();
+            let mut search = Search::new(&mut ctx, program.view().unwrap(), false).unwrap();
             let found = search
-                .find(&mut ctx, program.view(), &text, 0)
+                .find(&mut ctx, program.view().unwrap(), &text, 0)
                 .unwrap()
                 .unwrap();
             assert_eq!(found.data[..2], [2 * length, 3 * length]);
@@ -601,14 +1056,16 @@ mod tests {
         for kind in [ErrorKind::Steps, ErrorKind::Cancelled] {
             let mut ctx = context(None);
             let program = Program::compile(&mut ctx, pattern.clone(), "Regex.match").unwrap();
-            let mut search = Search::new(&mut ctx, program.view(), false).unwrap();
+            let mut search = Search::new(&mut ctx, program.view().unwrap(), false).unwrap();
             let steps = ctx.stats().steps;
             if kind == ErrorKind::Steps {
                 ctx.options.limits.steps = Some(steps + 1000);
             } else {
                 ctx.cancellation().cancel();
             }
-            let error = search.find(&mut ctx, program.view(), &text, 0).unwrap_err();
+            let error = search
+                .find(&mut ctx, program.view().unwrap(), &text, 0)
+                .unwrap_err();
             assert_eq!(error.kind, kind);
             // A failing chunk charge can overshoot the quota by one chunk.
             assert!(ctx.stats().steps <= steps + 1000 + (CHUNK / 64) as u64);
@@ -617,9 +1074,11 @@ mod tests {
         // A prefix skip stops the same way when no thread is running.
         let mut ctx = context(None);
         let program = Program::compile(&mut ctx, Value::bytes(b"ab\\d"), "Regex.match").unwrap();
-        let mut search = Search::new(&mut ctx, program.view(), false).unwrap();
+        let mut search = Search::new(&mut ctx, program.view().unwrap(), false).unwrap();
         ctx.cancellation().cancel();
-        let error = search.find(&mut ctx, program.view(), &text, 0).unwrap_err();
+        let error = search
+            .find(&mut ctx, program.view().unwrap(), &text, 0)
+            .unwrap_err();
         assert_eq!(error.kind, ErrorKind::Cancelled);
     }
 }

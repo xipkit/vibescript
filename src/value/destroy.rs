@@ -46,28 +46,34 @@ fn discard(value: Value) {
     };
     loop {
         let child = match &mut current {
-            Container::Array(array) => Arc::get_mut(array).unwrap().buffer.data.pop(),
+            Container::Array(array) => {
+                Arc::get_mut(array).and_then(|array| array.buffer.data.pop())
+            }
             Container::Hash(hash) => {
-                let entries = &mut Arc::get_mut(hash).unwrap().buffer.data;
-                match entries.last_mut() {
-                    // Leave a nil marker while visiting a value, then visit its
-                    // key on the next pass. Even a malformed internal key is
-                    // therefore destroyed without recursive container glue.
-                    Some((_, value)) if !matches!(value.0, Kind::Nil) => Some(mem::take(value)),
-                    Some(_) => entries.pop().map(|(key, _)| key),
-                    None => None,
-                }
+                Arc::get_mut(hash).and_then(|hash| {
+                    let entries = &mut hash.buffer.data;
+                    match entries.last_mut() {
+                        // Leave a nil marker while visiting a value, then visit its
+                        // key on the next pass. Even a malformed internal key is
+                        // therefore destroyed without recursive container glue.
+                        Some((_, value)) if !matches!(value.0, Kind::Nil) => Some(mem::take(value)),
+                        Some(_) => entries.pop().map(|(key, _)| key),
+                        None => None,
+                    }
+                })
             }
         };
         if let Some(child) = child {
             if child.depth() > SHALLOW {
                 if let Some(mut child) = unique(child) {
-                    *parent(&mut child) = Some(current.into_value());
-                    current = child;
+                    if let Some(parent) = parent(&mut child) {
+                        *parent = Some(current.into_value());
+                        current = child;
+                    }
                 }
             }
         } else {
-            let previous = parent(&mut current).take();
+            let previous = parent(&mut current).and_then(Option::take);
             // The container is empty and unlinked, so its normal destructor
             // releases its allocation and original charge without descending.
             drop(current);
@@ -83,10 +89,10 @@ fn discard(value: Value) {
     }
 }
 
-fn parent(value: &mut Container) -> &mut Option<Value> {
+fn parent(value: &mut Container) -> Option<&mut Option<Value>> {
     match value {
-        Container::Array(array) => &mut Arc::get_mut(array).unwrap().drop_parent,
-        Container::Hash(hash) => &mut Arc::get_mut(hash).unwrap().drop_parent,
+        Container::Array(array) => Arc::get_mut(array).map(|array| &mut array.drop_parent),
+        Container::Hash(hash) => Arc::get_mut(hash).map(|hash| &mut hash.drop_parent),
     }
 }
 
@@ -101,14 +107,14 @@ fn unique(value: Value) -> Option<Container> {
                 // Weak references, so the old allocation has already been freed.
                 array = Arc::new(Arc::into_inner(array)?);
             }
-            debug_assert!(Arc::get_mut(&mut array).unwrap().drop_parent.is_none());
+            debug_assert!(array.drop_parent.is_none());
             Some(Container::Array(array))
         }
         Kind::Hash(mut hash) => {
             if Arc::get_mut(&mut hash).is_none() {
                 hash = Arc::new(Arc::into_inner(hash)?);
             }
-            debug_assert!(Arc::get_mut(&mut hash).unwrap().drop_parent.is_none());
+            debug_assert!(hash.drop_parent.is_none());
             Some(Container::Hash(hash))
         }
         _ => None,

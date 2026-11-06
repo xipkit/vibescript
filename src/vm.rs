@@ -1,3 +1,4 @@
+use crate::checked::convert;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     address::{self, Address},
@@ -190,9 +191,16 @@ impl LoopState {
                 ctx.array(&[key.clone(), value.clone()])?
             }
             Kind::Range(r) => {
-                let start = r.start.unwrap();
-                let direction = if start <= r.end.unwrap() { 1 } else { -1 };
-                Value::int((i128::from(start) + self.position * direction) as i64)
+                let start = r
+                    .start
+                    .ok_or(violation("iterated range must have a start"))?;
+                let direction =
+                    if start <= r.end.ok_or(violation("iterated range must have an end"))? {
+                        1
+                    } else {
+                        -1
+                    };
+                Value::int(convert(i128::from(start) + self.position * direction)?)
             }
             _ => {
                 return Err(crate::checked::internal(
@@ -398,7 +406,7 @@ impl Run {
         loop {
             if boundary.is_some_and(|floor| self.frames.data.len() == floor) {
                 ctx.checkpoint()?;
-                return Ok(Step::Complete(Exit::Value(self.stack.data.pop().unwrap())));
+                return Ok(Step::Complete(Exit::Value(self.stack.pop()?)));
             }
             let event = match pending.take() {
                 Some(event) => event,
@@ -510,7 +518,9 @@ impl Run {
                         }
                     }
                     if frames.data.is_empty() {
-                        let (function, input) = pending_entry.take().unwrap();
+                        let (function, input) = pending_entry
+                            .take()
+                            .ok_or(violation("empty frame stack must have a pending entry"))?;
                         enter_checked(program, ctx, frames, storage, function, input, 0, true)
                             .map_err(entry_binding)?;
                     }
@@ -538,20 +548,20 @@ impl Run {
                         executing.plain_result,
                     );
                     let waiting = if pooled {
-                        storage.iteration_pool.last().unwrap().waiting
+                        storage
+                            .iteration_pool
+                            .last()
+                            .ok_or(violation("pooled iteration must have a driver"))?
+                            .waiting
                     } else {
                         storage.iterations.at(iteration_base)?.waiting()?
                     };
-                    let returned = if waiting {
-                        Some(stack.data.pop().unwrap())
-                    } else {
-                        None
-                    };
+                    let returned = if waiting { Some(stack.pop()?) } else { None };
                     let progress = if pooled {
                         storage
                             .iteration_pool
                             .last_mut()
-                            .unwrap()
+                            .ok_or(violation("pooled iteration must have a driver"))?
                             .advance(ctx, returned)?
                     } else {
                         storage
@@ -566,7 +576,8 @@ impl Run {
                                     crate::exports::check(ctx, value)?;
                                 }
                             }
-                            let block = block.unwrap();
+                            let block =
+                                block.ok_or(violation("yielding iteration must have a block"))?;
                             for value in args.into_iter().take(count) {
                                 stack.push(ctx, value)?;
                             }
@@ -579,7 +590,7 @@ impl Run {
                                 storage.iterations.at_mut(iteration_base)?.take_mutation()
                             };
                             if mutating {
-                                let address = storage.addresses.data.pop().unwrap();
+                                let address = storage.addresses.pop()?;
                                 if let Some(mutation) = mutation {
                                     let guard_program = programs::address(ctx, storage, &address)?;
                                     let guard = address_guard(
@@ -619,7 +630,7 @@ impl Run {
             let hosts = &program.code.hosts;
             let (outer, rest) = frames.data.split_at_mut(current);
             let frame = rest.at_mut(0)?;
-            let function = program.functions.at(frame.function().unwrap())?;
+            let function = program.functions.at(frame.required_function()?)?;
             simple::run(ctx, program, function, outer, frame, storage, stack)?;
             let op = *function.code.at(frame.ip)?;
             let frame = frames.at_mut(current)?;
@@ -660,7 +671,7 @@ impl Run {
                 }
                 Op::Return | Op::Finish => {
                     ctx.charge(1)?;
-                    let mut value = stack.data.pop().unwrap();
+                    let mut value = stack.pop()?;
                     if function.returns_nil && matches!(op, Op::Finish) {
                         value = Value::nil();
                     }
@@ -712,7 +723,7 @@ impl Run {
             let caller_instance = matches!(frame.receiver, Some(Value(Kind::Instance(_))));
             ctx.charge(1)?;
             let op = match op {
-                Op::Extended(index) => program.extended.at(index as usize)?.op(),
+                Op::Extended(index) => program.extended.at(index)?.op(),
                 op => op,
             };
             let mut slot = |slot: usize, skip: bool| -> Result<usize> {
@@ -728,12 +739,12 @@ impl Run {
             let mut bound = |relative: u32| {
                 let absolute = slot(relative as usize, false)?;
                 local = Some((relative as usize, absolute));
-                Ok::<_, Error>(narrow(absolute))
+                Ok::<_, Error>(narrow(absolute)?)
             };
             // A name an assignment skips resolves to no slot.
             let resolved = |absolute: usize| {
                 if absolute == usize::MAX {
-                    NO_SLOT
+                    Ok(NO_SLOT)
                 } else {
                     narrow(absolute)
                 }
@@ -751,12 +762,12 @@ impl Run {
                 Op::AddressBound(n, next) => Op::AddressBound(bound(n)?, next),
                 // A required file's own bindings live in its scope rather than in slots.
                 Op::Bypass(n) if program.file => Op::Bypass(bound(n)?),
-                Op::Bypass(n) => Op::Bypass(narrow(slot(n as usize, false)?)),
+                Op::Bypass(n) => Op::Bypass(narrow(slot(n as usize, false)?)?),
                 Op::ResolveCall(n, name) if n != NO_SLOT => {
-                    Op::ResolveCall(resolved(slot(n as usize, true)?), name)
+                    Op::ResolveCall(resolved(slot(n as usize, true)?)?, name)
                 }
                 Op::CallName(n, name) if n != NO_SLOT => {
-                    Op::CallName(resolved(slot(n as usize, false)?), name)
+                    Op::CallName(resolved(slot(n as usize, false)?)?, name)
                 }
                 op => op,
             };
@@ -766,13 +777,13 @@ impl Run {
             | Op::NonCallable(count) = op
             {
                 if !ctx.options.globals.is_empty() || !ctx.capability_names.data.is_empty() {
-                    let target = storage.arguments.data.pop().unwrap().target;
+                    let target = storage.arguments.pop()?.target;
                     if let Some(target) = target {
                         let base = stack.data.len() - count as usize;
                         let mut args = Arguments::from_values(ctx, stack.tail(base)?)?;
                         args.target = Some(target);
                         if let Op::CallBlock(_, _, function) = op {
-                            args.block = Some(Block::new(function as usize, current));
+                            args.block = Some(Block::new(function as usize, current)?);
                         }
                         stack.data.truncate(base);
                         storage.arguments.push(ctx, args)?;
@@ -841,11 +852,8 @@ impl Run {
                     }
                 }
                 Op::RaiseValue => {
-                    let args = storage.arguments.data.last_mut().unwrap();
-                    args.target = Some(crate::arguments::Target::Raise(
-                        None,
-                        stack.data.pop().unwrap(),
-                    ));
+                    let args = storage.arguments.top_mut()?;
+                    args.target = Some(crate::arguments::Target::Raise(None, stack.pop()?));
                 }
                 Op::Raise(count) => {
                     if count == 0 {
@@ -854,11 +862,15 @@ impl Run {
                         }
                         return Err(Error::new(ErrorKind::Runtime, ""));
                     }
-                    let message = stack.data.pop().unwrap();
+                    let message = stack.pop()?;
                     if count == 1 {
                         return Err(handlers::raise(ctx, None, message, false)?);
                     }
-                    let target = storage.arguments.data.pop().unwrap().target.unwrap();
+                    let target = storage
+                        .arguments
+                        .pop()?
+                        .target
+                        .ok_or(violation("raise must have a resolved target"))?;
                     let crate::arguments::Target::Raise(class, value) = target else {
                         return Err(crate::checked::internal(
                             "raise arguments have no raise target",
@@ -885,7 +897,12 @@ impl Run {
                     };
                     let instance = instance.clone();
                     let slot = frame.local_base() + local as usize;
-                    let value = storage.locals.at(slot)?.as_ref().unwrap().clone();
+                    let value = storage
+                        .locals
+                        .at(slot)?
+                        .as_ref()
+                        .ok_or(violation("resolved local must have a value"))?
+                        .clone();
                     let value = if function.proven_ivars.contains(frame.ip - 1) {
                         value
                     } else {
@@ -932,14 +949,22 @@ impl Run {
                         None
                     };
                     let value = match local {
-                        Some(local) => storage.locals.at(local)?.as_ref().unwrap(),
-                        None => stack.data.last().unwrap(),
+                        Some(local) => storage
+                            .locals
+                            .at(local)?
+                            .as_ref()
+                            .ok_or(violation("resolved local must have a value"))?,
+                        None => stack.top()?,
                     }
                     .clone();
                     let value = if function.proven_ivars.contains(frame.ip - 1) {
                         value
                     } else {
-                        let name = instance.class().field_layout().unwrap().at(slot as usize)?;
+                        let name = instance
+                            .class()
+                            .field_layout()
+                            .ok_or(violation("field assignment must have a declared layout"))?
+                            .at(slot as usize)?;
                         normalize_ivar(ctx, frames, storage, &instance, name, value)?
                     };
                     address::refresh(
@@ -953,13 +978,17 @@ impl Run {
                     if let Some(local) = local {
                         *storage.locals.at_mut(local)? = Some(value);
                     } else {
-                        *stack.data.last_mut().unwrap() = value;
+                        *stack.top_mut()? = value;
                     }
                 }
                 Op::InitNamespace(module) => {
                     let state = namespaces::state(program, ctx, storage, module as usize)?;
                     if !storage.namespaces.at(state)?.initialized {
-                        let body = program.namespaces.at(module as usize)?.body.unwrap();
+                        let body = program
+                            .namespaces
+                            .at(module as usize)?
+                            .body
+                            .ok_or(violation("namespace initialization must have a body"))?;
                         enter_arguments(
                             program,
                             ctx,
@@ -969,7 +998,7 @@ impl Run {
                             Arguments::empty(),
                             stack.data.len(),
                         )?;
-                        frames.data.last_mut().unwrap().parent = Some(narrow(current));
+                        frames.top_mut()?.parent = Some(narrow(current)?);
                     }
                 }
                 Op::AmbientValue(name, next) | Op::AmbientAddress(name, next) => {
@@ -984,7 +1013,12 @@ impl Run {
                         if let Some(slot) =
                             namespaces::ambient_slot(ctx, frames, storage, current, name)?
                         {
-                            let value = storage.locals.at(slot)?.as_ref().unwrap().clone();
+                            let value = storage
+                                .locals
+                                .at(slot)?
+                                .as_ref()
+                                .ok_or(violation("resolved local must have a value"))?
+                                .clone();
                             if address {
                                 storage
                                     .addresses
@@ -1071,12 +1105,12 @@ impl Run {
                 }
                 Op::PrepareMember(site, mutating) => {
                     if mutating {
-                        storage.addresses.data.last().unwrap().check_present(ctx)?;
+                        storage.addresses.top()?.check_present(ctx)?;
                     }
                     let receiver = if mutating {
-                        &storage.addresses.data.last().unwrap().value
+                        &storage.addresses.top()?.value
                     } else {
-                        stack.data.last().unwrap()
+                        stack.top()?
                     };
                     if matches!(receiver.0, Kind::Hash(_)) {
                         let field = members::prepare(
@@ -1091,15 +1125,13 @@ impl Run {
                                     method,
                                     receiver: receiver.clone(),
                                 };
-                                storage.addresses.data.last_mut().unwrap().capability =
-                                    Some(selected);
+                                storage.addresses.top_mut()?.capability = Some(selected);
                             }
                             // The receiver stays on the stack so the call can snapshot
                             // it; dispatch selects the same field from the same value.
                             Some(Value(Kind::Host(_))) => (),
                             Some(Value(Kind::Function(function))) if mutating => {
-                                storage.addresses.data.last_mut().unwrap().exported =
-                                    Some(function);
+                                storage.addresses.top_mut()?.exported = Some(function);
                             }
                             _ => (),
                         }
@@ -1118,7 +1150,8 @@ impl Run {
                         program,
                         ctx,
                         storage,
-                        namespace.unwrap(),
+                        namespace
+                            .ok_or(violation("namespace instruction must have a namespace"))?,
                         program.members.at(name as usize)?,
                     )? {
                         stack.push(ctx, value)?;
@@ -1126,7 +1159,8 @@ impl Run {
                     }
                 }
                 Op::NamespaceConstantAddress(name, next) => {
-                    let module = namespace.unwrap();
+                    let module = namespace
+                        .ok_or(violation("namespace instruction must have a namespace"))?;
                     let name = program.members.at(name as usize)?;
                     if namespaces::field(program, ctx, storage, module, name)?.is_some() {
                         let address =
@@ -1144,8 +1178,13 @@ impl Run {
                                 "no instance context for ivar",
                             ));
                         };
-                        let value =
-                            crate::objects::field(ctx, instance, &raw[1..])?.unwrap_or_default();
+                        let value = crate::objects::field(
+                            ctx,
+                            instance,
+                            raw.strip_prefix('@')
+                                .ok_or(violation("instance variable must start with @"))?,
+                        )?
+                        .unwrap_or_default();
                         stack.push(ctx, value)?;
                         continue;
                     }
@@ -1176,7 +1215,12 @@ impl Run {
                                 "no instance context for ivar",
                             ));
                         };
-                        let mut address = crate::objects::address(ctx, instance, &raw[1..])?;
+                        let mut address = crate::objects::address(
+                            ctx,
+                            instance,
+                            raw.strip_prefix('@')
+                                .ok_or(violation("instance variable must start with @"))?,
+                        )?;
                         address.proven = function.proven_ivars.contains(frame.ip - 1);
                         storage.addresses.push(ctx, address)?;
                         continue;
@@ -1202,7 +1246,12 @@ impl Run {
                         {
                             Address::new(
                                 Some(slot),
-                                storage.locals.at(slot)?.as_ref().unwrap().clone(),
+                                storage
+                                    .locals
+                                    .at(slot)?
+                                    .as_ref()
+                                    .ok_or(violation("resolved local must have a value"))?
+                                    .clone(),
                             )
                         } else if let Some(&index) = program.declaration_names.get(name) {
                             Address::new(None, declaration_value(program, ctx, storage, index)?)
@@ -1226,14 +1275,29 @@ impl Run {
                                 "no instance context for ivar",
                             ));
                         };
-                        let value = stack.data.last().unwrap().clone();
+                        let value = stack.top()?.clone();
                         let value = if function.proven_ivars.contains(frame.ip - 1) {
                             value
                         } else {
-                            normalize_ivar(ctx, frames, storage, instance, &raw[1..], value)?
+                            normalize_ivar(
+                                ctx,
+                                frames,
+                                storage,
+                                instance,
+                                raw.strip_prefix('@')
+                                    .ok_or(violation("instance variable must start with @"))?,
+                                value,
+                            )?
                         };
-                        set_ivar(ctx, storage, instance, &raw[1..], &value)?;
-                        *stack.data.last_mut().unwrap() = value;
+                        set_ivar(
+                            ctx,
+                            storage,
+                            instance,
+                            raw.strip_prefix('@')
+                                .ok_or(violation("instance variable must start with @"))?,
+                            &value,
+                        )?;
+                        *stack.top_mut()? = value;
                         continue;
                     }
                     let (module, name) = namespaces::variable_name(
@@ -1241,14 +1305,7 @@ impl Run {
                         program.members.at(name as usize)?,
                         true,
                     )?;
-                    namespaces::set(
-                        program,
-                        ctx,
-                        storage,
-                        module,
-                        name,
-                        stack.data.last().unwrap().clone(),
-                    )?;
+                    namespaces::set(program, ctx, storage, module, name, stack.top()?.clone())?;
                 }
                 Op::StoreDeclaration(index) => {
                     if !program.file
@@ -1262,7 +1319,7 @@ impl Run {
                             ctx,
                             storage,
                             file_bindings::declaration_name(program, index as usize)?,
-                            stack.data.last().unwrap(),
+                            stack.top()?,
                         )?;
                         continue;
                     }
@@ -1272,7 +1329,7 @@ impl Run {
                             ctx,
                             storage,
                             file_bindings::declaration_name(program, index as usize)?,
-                            stack.data.last().unwrap(),
+                            stack.top()?,
                         )?;
                         continue;
                     }
@@ -1280,23 +1337,23 @@ impl Run {
                     for (key, value) in &mut storage.declarations.data {
                         ctx.charge(1)?;
                         if *key == (program.index, index as usize) {
-                            *value = stack.data.last().unwrap().clone();
+                            *value = stack.top()?.clone();
                             found = true;
                             break;
                         }
                     }
                     if !found {
-                        storage.declarations.push(
-                            ctx,
-                            (
-                                (program.index, index as usize),
-                                stack.data.last().unwrap().clone(),
-                            ),
-                        )?;
+                        storage
+                            .declarations
+                            .push(ctx, ((program.index, index as usize), stack.top()?.clone()))?;
                     }
                 }
                 Op::Integer(n, radix) => {
-                    let text = program.constants.at(n as usize)?.as_bytes().unwrap();
+                    let text = program
+                        .constants
+                        .at(n as usize)?
+                        .as_bytes()
+                        .ok_or(violation("integer literal must be bytes"))?;
                     let value = crate::integer::parse(ctx, text, radix)?;
                     stack.push(ctx, value)?;
                 }
@@ -1338,7 +1395,7 @@ impl Run {
                 Op::Nil => stack.push(ctx, Value::nil())?,
                 Op::TextStart => storage.texts.push(ctx, Buffer::empty())?,
                 Op::TextPart => {
-                    let value = stack.data.pop().unwrap();
+                    let value = stack.pop()?;
                     if let Some(call) = operators::string(ctx, &value)? {
                         enter_arguments(
                             program,
@@ -1349,13 +1406,13 @@ impl Run {
                             Arguments::empty(),
                             stack.data.len(),
                         )?;
-                        frames.data.last_mut().unwrap().return_to = ReturnTo::Text(value);
+                        frames.top_mut()?.return_to = ReturnTo::Text(value);
                         continue;
                     }
-                    crate::text::append(ctx, &value, storage.texts.data.last_mut().unwrap())?;
+                    crate::text::append(ctx, &value, storage.texts.top_mut()?)?;
                 }
                 Op::TextEnd(symbol) => {
-                    let text = storage.texts.data.pop().unwrap();
+                    let text = storage.texts.pop()?;
                     let mut value = Value::from_bytes(ctx, text)?;
                     if symbol {
                         let Kind::Bytes(bytes) = value.0 else {
@@ -1371,7 +1428,8 @@ impl Run {
                     let mut v = if let Some(name) = file_local {
                         file_bindings::get(program, ctx, name)?.unwrap_or_default()
                     } else if let Some(name) = root_local {
-                        requires::get(ctx, storage, name)?.unwrap()
+                        requires::get(ctx, storage, name)?
+                            .ok_or(violation("resolved root binding must have a value"))?
                     } else {
                         storage.locals.at(n as usize)?.clone().unwrap_or_default()
                     };
@@ -1413,7 +1471,15 @@ impl Run {
                     } else if let Some(slot) =
                         namespaces::ambient_slot(ctx, frames, storage, current, member)?
                     {
-                        stack.push(ctx, storage.locals.at(slot)?.as_ref().unwrap().clone())?;
+                        stack.push(
+                            ctx,
+                            storage
+                                .locals
+                                .at(slot)?
+                                .as_ref()
+                                .ok_or(violation("resolved local must have a value"))?
+                                .clone(),
+                        )?;
                     } else if let Some(&index) = program.declaration_names.get(member) {
                         let value = declaration_value(program, ctx, storage, index)?;
                         stack.push(ctx, value)?;
@@ -1591,7 +1657,7 @@ impl Run {
                             ctx,
                             storage,
                             program.globals.at(index as usize)?.0.name(),
-                            stack.data.last().unwrap(),
+                            stack.top()?,
                         )?;
                         continue;
                     }
@@ -1601,12 +1667,12 @@ impl Run {
                             ctx,
                             storage,
                             program.globals.at(index as usize)?.0.name(),
-                            stack.data.last().unwrap(),
+                            stack.top()?,
                         )?;
                         continue;
                     }
                     let index = program.global_base + index as usize;
-                    let value = stack.data.last().unwrap();
+                    let value = stack.top()?;
                     address::refresh(
                         ctx,
                         address::Root::Global(index),
@@ -1650,7 +1716,7 @@ impl Run {
                                         function,
                                         stack.data.len(),
                                     )?;
-                                    frames.data.last_mut().unwrap().return_to = ReturnTo::Address;
+                                    frames.top_mut()?.return_to = ReturnTo::Address;
                                 }
                                 file_bindings::RootBinding::Host(owner, host) => {
                                     return Err(callable_value_error(
@@ -1673,16 +1739,10 @@ impl Run {
                     ));
                 }
                 Op::Bind(param, next) => {
-                    if let Some(value) = storage
-                        .parameters
-                        .data
-                        .last()
-                        .unwrap()
-                        .value(ctx, param as usize)?
-                    {
+                    if let Some(value) = storage.parameters.top()?.value(ctx, param as usize)? {
                         let param = program
                             .functions
-                            .at(frame.function().unwrap())?
+                            .at(frame.required_function()?)?
                             .params
                             .at(param as usize)?;
                         let slot = frame.local_base() + param.slot;
@@ -1710,7 +1770,7 @@ impl Run {
                     }
                 }
                 Op::Normalize(ty, label) => {
-                    let value = stack.data.pop().unwrap();
+                    let value = stack.pop()?;
                     let value = normalize_type(
                         program,
                         ctx,
@@ -1720,7 +1780,11 @@ impl Run {
                         (
                             ty as usize,
                             crate::types::Context::Argument(
-                                program.constants.at(label as usize)?.as_bytes().unwrap(),
+                                program
+                                    .constants
+                                    .at(label as usize)?
+                                    .as_bytes()
+                                    .ok_or(violation("argument label must be bytes"))?,
                             ),
                         ),
                         value,
@@ -1728,7 +1792,7 @@ impl Run {
                     stack.push(ctx, value)?;
                 }
                 Op::Check(ty, subject) => {
-                    let value = stack.data.pop().unwrap();
+                    let value = stack.pop()?;
                     let value = normalize_type(
                         program,
                         ctx,
@@ -1738,7 +1802,11 @@ impl Run {
                         (
                             ty as usize,
                             crate::types::Context::Subject(
-                                program.constants.at(subject as usize)?.as_bytes().unwrap(),
+                                program
+                                    .constants
+                                    .at(subject as usize)?
+                                    .as_bytes()
+                                    .ok_or(violation("type subject must be bytes"))?,
                             ),
                         ),
                         value,
@@ -1762,7 +1830,7 @@ impl Run {
                 Op::Bypass(slot) => {
                     let bypass = match (file_local, local) {
                         (Some(_), Some((relative, _))) => {
-                            Bypass::File(program.index, frame.function().unwrap(), relative)
+                            Bypass::File(program.index, frame.required_function()?, relative)
                         }
                         _ => Bypass::Local(slot as usize),
                     };
@@ -1782,8 +1850,8 @@ impl Run {
                     stack.push(ctx, value.unwrap_or_default())?;
                 }
                 Op::Attach(function) => {
-                    storage.arguments.data.last_mut().unwrap().block =
-                        Some(Block::new(function as usize, current));
+                    storage.arguments.top_mut()?.block =
+                        Some(Block::new(function as usize, current)?);
                 }
                 Op::BlockGiven(arguments, block) => {
                     if arguments || block {
@@ -1804,11 +1872,13 @@ impl Run {
                     }
                 }
                 Op::Yield(n) => {
-                    let block = frame.block.unwrap();
+                    let block = frame
+                        .block
+                        .ok_or(violation("yield instruction must have a block"))?;
                     enter_block(ctx, frames, storage, stack, block, n as usize)?;
                 }
                 Op::Store(n) => {
-                    let value = stack.data.last().unwrap();
+                    let value = stack.top()?;
                     if let Some(name) = file_local {
                         file_bindings::set(program, ctx, storage, name, value)?;
                     } else if let Some(name) = root_local {
@@ -1819,21 +1889,21 @@ impl Run {
                     }
                 }
                 Op::Pop => {
-                    stack.data.pop().unwrap();
+                    stack.pop()?;
                 }
                 Op::Dup => {
-                    let v = stack.data.last().unwrap().clone();
+                    let v = stack.top()?.clone();
                     stack.push(ctx, v)?;
                 }
                 Op::Unary(op) => {
                     let op = op.name();
-                    let value = stack.data.pop().unwrap();
+                    let value = stack.pop()?;
                     let result = ops::unary(ctx, op, value)?;
                     stack.push(ctx, result)?;
                 }
                 Op::Binary(op, _) => {
-                    let b = stack.data.pop().unwrap();
-                    let a = stack.data.pop().unwrap();
+                    let b = stack.pop()?;
+                    let a = stack.pop()?;
                     if let Some(value) = ops::immediate(ctx, op, &a, &b)? {
                         stack.push(ctx, value)?;
                         continue;
@@ -1853,7 +1923,7 @@ impl Run {
                             stack.data.len(),
                         )?;
                         if resolved.negate {
-                            frames.data.last_mut().unwrap().return_to = ReturnTo::Negate;
+                            frames.top_mut()?.return_to = ReturnTo::Negate;
                         }
                         continue;
                     }
@@ -1861,8 +1931,8 @@ impl Run {
                     stack.push(ctx, value)?;
                 }
                 Op::AddStore(n, _) => {
-                    let b = stack.data.pop().unwrap();
-                    let a = stack.data.pop().unwrap();
+                    let b = stack.pop()?;
+                    let a = stack.pop()?;
                     // An immediate sum cannot fail part way, so the slot is written once.
                     if root_local.is_none() {
                         if let Some(value) = ops::immediate(ctx, Operator::Add, &a, &b)? {
@@ -1893,7 +1963,7 @@ impl Run {
                             args,
                             stack.data.len(),
                         )?;
-                        frames.data.last_mut().unwrap().return_to = if let Some(name) = root_local {
+                        frames.top_mut()?.return_to = if let Some(name) = root_local {
                             ReturnTo::RootBinding(ctx.bytes(name.as_bytes())?)
                         } else {
                             ReturnTo::Local(n as usize)
@@ -1917,8 +1987,8 @@ impl Run {
                     stack.push(ctx, value)?;
                 }
                 Op::Shovel(site, last) => {
-                    let value = stack.data.pop().unwrap();
-                    let address = storage.addresses.data.pop().unwrap();
+                    let value = stack.pop()?;
+                    let address = storage.addresses.pop()?;
                     address.check_present(ctx)?;
                     if matches!(address.value.0, Kind::Instance(_)) {
                         let resolved = operators::resolve(
@@ -1944,7 +2014,7 @@ impl Run {
                     if !matches!(address.value.0, Kind::Array(_)) {
                         return Err(ops::unsupported("<<"));
                     }
-                    let exact = last && take_loop_alias(storage, &address.value);
+                    let exact = last && take_loop_alias(storage, &address.value)?;
                     let guard_program = programs::address(ctx, storage, &address)?;
                     let guard =
                         address_guard(guard_program.as_deref(), ctx, frames, storage, &address)?;
@@ -1989,7 +2059,7 @@ impl Run {
                     values.buffer.ensure(ctx, n as usize)?;
                     let mut iter = stack.data.drain(base..);
                     while let Some(key) = iter.next() {
-                        let value = iter.next().unwrap();
+                        let value = iter.next().ok_or(violation("hash key must have a value"))?;
                         values.insert(ctx, key, value)?;
                     }
                     drop(iter);
@@ -1997,12 +2067,12 @@ impl Run {
                     stack.push(ctx, value)?;
                 }
                 Op::RangeStart => {
-                    let start = stack.data.last_mut().unwrap();
+                    let start = stack.top_mut()?;
                     *start = Value::int(crate::range::endpoint(start)?);
                 }
                 Op::Range(start, end, exclusive) => {
-                    let end = end.then(|| stack.data.pop().unwrap());
-                    let start = start.then(|| stack.data.pop().unwrap());
+                    let end = end.then(|| stack.pop()).transpose()?;
+                    let start = start.then(|| stack.pop()).transpose()?;
                     let start = start.as_ref().map(crate::range::endpoint).transpose()?;
                     let end = end.as_ref().map(crate::range::endpoint).transpose()?;
                     let value = Value(Kind::Range(Range::new(ctx, start, end, exclusive)?));
@@ -2042,7 +2112,7 @@ impl Run {
                         && matches!(
                             program
                                 .functions
-                                .at(frame.function().unwrap())?
+                                .at(frame.required_function()?)?
                                 .code
                                 .get(frame.ip),
                             Some(Op::CallValue)
@@ -2052,7 +2122,7 @@ impl Run {
                         // arguments run; CallValue keeps the root only for host methods.
                         let receiver = root.clone();
                         if storage.arguments.data.len() > frame.argument_base() {
-                            storage.arguments.data.last_mut().unwrap().receiver = Some(receiver);
+                            storage.arguments.top_mut()?.receiver = Some(receiver);
                         }
                     }
                     stack.data.truncate(base);
@@ -2062,7 +2132,8 @@ impl Run {
                     let address = if let Some(name) = file_local {
                         file_bindings::address(program, ctx, name)?
                     } else if let Some(name) = root_local {
-                        requires::address(program, ctx, frames, storage, current, name)?.unwrap()
+                        requires::address(program, ctx, frames, storage, current, name)?
+                            .ok_or(violation("resolved root binding must have an address"))?
                     } else {
                         Address::new(
                             Some(n as usize),
@@ -2097,12 +2168,12 @@ impl Run {
                     }
                 }
                 Op::AddressValue => {
-                    let value = stack.data.pop().unwrap();
+                    let value = stack.pop()?;
                     storage.addresses.push(ctx, Address::new(None, value))?;
                 }
                 Op::AddressIndex(n) => {
                     let base = stack.data.len() - n as usize;
-                    let root = &storage.addresses.data.last().unwrap().value;
+                    let root = &storage.addresses.top()?.value;
                     if matches!(root.0, Kind::Instance(_)) {
                         let call = operators::index(
                             program,
@@ -2114,21 +2185,16 @@ impl Run {
                         let args = Arguments::from_values(ctx, stack.tail(base)?)?;
                         storage.addresses.data.pop();
                         enter_arguments(program, ctx, frames, storage, call, args, base)?;
-                        frames.data.last_mut().unwrap().return_to = ReturnTo::Address;
+                        frames.top_mut()?.return_to = ReturnTo::Address;
                         stack.data.truncate(base);
                         continue;
                     }
-                    storage
-                        .addresses
-                        .data
-                        .last_mut()
-                        .unwrap()
-                        .index(ctx, stack.tail(base)?)?;
+                    storage.addresses.top_mut()?.index(ctx, stack.tail(base)?)?;
                     stack.data.truncate(base);
                 }
                 Op::AddressNamespaceField(site) => {
                     let name = program.members.at(site.name as usize)?;
-                    let address = storage.addresses.data.pop().unwrap();
+                    let address = storage.addresses.pop()?;
                     if let Kind::Namespace(receiver) = &address.value.0 {
                         namespaces::member(
                             ctx,
@@ -2160,12 +2226,9 @@ impl Run {
                 }
                 Op::AddressMember(site) => {
                     let name = program.members.at(site.name as usize)?;
-                    if let Some(function) = crate::exports::member(
-                        ctx,
-                        site,
-                        name,
-                        &storage.addresses.data.last().unwrap().value,
-                    )? {
+                    if let Some(function) =
+                        crate::exports::member(ctx, site, name, &storage.addresses.top()?.value)?
+                    {
                         if site.auto && site.scope {
                             return Err(function.value_error());
                         }
@@ -2179,14 +2242,14 @@ impl Run {
                             site.auto,
                             stack.data.len(),
                         )?;
-                        frames.data.last_mut().unwrap().return_to = ReturnTo::Address;
+                        frames.top_mut()?.return_to = ReturnTo::Address;
                         continue;
                     }
                     if matches!(
-                        storage.addresses.data.last().unwrap().value.0,
+                        storage.addresses.top()?.value.0,
                         Kind::Namespace(_) | Kind::Instance(_)
                     ) {
-                        let receiver = storage.addresses.data.last().unwrap().value.clone();
+                        let receiver = storage.addresses.top()?.value.clone();
                         match namespaces::member(
                             ctx,
                             storage,
@@ -2211,7 +2274,7 @@ impl Run {
                                     Arguments::empty(),
                                     stack.data.len(),
                                 )?;
-                                frames.data.last_mut().unwrap().return_to = ReturnTo::Address;
+                                frames.top_mut()?.return_to = ReturnTo::Address;
                                 continue;
                             }
                             namespaces::Member::Value(value) => {
@@ -2245,7 +2308,7 @@ impl Run {
                             }
                         }
                     }
-                    let address = storage.addresses.data.last_mut().unwrap();
+                    let address = storage.addresses.top_mut()?;
                     let key = ctx.bytes(name.as_bytes())?;
                     let data = if let Kind::Hash(hash) = &address.value.0 {
                         hash.find(ctx, name.as_bytes())?
@@ -2278,7 +2341,7 @@ impl Run {
                         }
                         address.index(ctx, &[key])?;
                     } else {
-                        let address = storage.addresses.data.pop().unwrap();
+                        let address = storage.addresses.pop()?;
                         if !crate::bytecode::mutating_member(name) {
                             let (_, value) = members::call(ctx, site, name, address.value, &[])?;
                             storage.addresses.push(ctx, Address::new(None, value))?;
@@ -2308,7 +2371,7 @@ impl Run {
                     }
                 }
                 Op::AddressMemberTarget(site, read) => {
-                    let address = storage.addresses.data.last_mut().unwrap();
+                    let address = storage.addresses.top_mut()?;
                     address.check_present(ctx)?;
                     let name = program.members.at(site.name as usize)?;
                     let key = ctx.bytes(name.as_bytes())?;
@@ -2363,7 +2426,7 @@ impl Run {
                                 }
                             }
                         }
-                        let address = storage.addresses.data.last().unwrap();
+                        let address = storage.addresses.top()?;
                         let (_, value) =
                             members::call(ctx, site, name, address.value.clone(), &[])?;
                         stack.push(ctx, value)?;
@@ -2371,7 +2434,7 @@ impl Run {
                 }
                 Op::AddressTarget(n, read) => {
                     let base = stack.data.len() - n as usize;
-                    let address = storage.addresses.data.last_mut().unwrap();
+                    let address = storage.addresses.top_mut()?;
                     address.check_present(ctx)?;
                     address.selectors.ensure(ctx, n as usize)?;
                     for value in stack.data.drain(base..) {
@@ -2404,14 +2467,13 @@ impl Run {
                     }
                 }
                 Op::AddressStore => {
-                    let address = storage.addresses.data.pop().unwrap();
-                    let value = stack.data.pop().unwrap();
+                    let address = storage.addresses.pop()?;
+                    let value = stack.pop()?;
                     if address.member_target
                         && matches!(address.value.0, Kind::Namespace(_) | Kind::Instance(_))
                     {
                         let receiver = &address.value;
-                        let key = address.selectors.at(0)?.require_bytes()?;
-                        let name = std::str::from_utf8(key).unwrap();
+                        let name = requires::binding_name(address.selectors.at(0)?)?;
                         if let Some(function) = namespaces::setter(
                             program,
                             ctx,
@@ -2431,7 +2493,7 @@ impl Run {
                                 args,
                                 stack.data.len(),
                             )?;
-                            frames.data.last_mut().unwrap().return_to = ReturnTo::Assigned(value);
+                            frames.top_mut()?.return_to = ReturnTo::Assigned(value);
                             continue;
                         }
                         match &receiver.0 {
@@ -2490,7 +2552,7 @@ impl Run {
                             args,
                             stack.data.len(),
                         )?;
-                        frames.data.last_mut().unwrap().return_to = ReturnTo::Assigned(value);
+                        frames.top_mut()?.return_to = ReturnTo::Assigned(value);
                         continue;
                     }
                     let guard_program = programs::address(ctx, storage, &address)?;
@@ -2511,10 +2573,10 @@ impl Run {
                     stack.push(ctx, value)?;
                 }
                 Op::AddressDrop => {
-                    storage.addresses.data.pop().unwrap();
+                    storage.addresses.pop()?;
                 }
                 Op::Mutate(site, n) => {
-                    let address = storage.addresses.data.last().unwrap();
+                    let address = storage.addresses.top()?;
                     let method = if let Some(method) = &address.capability {
                         Some(method.clone())
                     } else {
@@ -2568,7 +2630,7 @@ impl Run {
                         continue;
                     }
                     let base = stack.data.len() - n as usize;
-                    let address = storage.addresses.data.pop().unwrap();
+                    let address = storage.addresses.pop()?;
                     if matches!(address.value.0, Kind::Namespace(_) | Kind::Instance(_)) {
                         let receiver = &address.value;
                         let name = program.members.at(site.name as usize)?;
@@ -2655,7 +2717,7 @@ impl Run {
                     stack.push(ctx, value)?;
                 }
                 Op::Extract(selection) => {
-                    let source = stack.data.last().unwrap();
+                    let source = stack.top()?;
                     let values = source
                         .as_array()
                         .unwrap_or_else(|| std::slice::from_ref(source));
@@ -2682,12 +2744,8 @@ impl Run {
                     stack.push(ctx, value)?;
                 }
                 Op::CaseCompare(target, splat) => {
-                    let candidate = stack.data.pop().unwrap();
-                    let target = if target {
-                        Some(stack.data.pop().unwrap())
-                    } else {
-                        None
-                    };
+                    let candidate = stack.pop()?;
+                    let target = if target { Some(stack.pop()?) } else { None };
                     let matched = ops::case_matches(ctx, target.as_ref(), &candidate, splat)?;
                     stack.push(ctx, Value::boolean(matched))?;
                 }
@@ -2697,11 +2755,7 @@ impl Run {
                     next,
                     end,
                 } => {
-                    let source = if iterable {
-                        stack.data.pop().unwrap()
-                    } else {
-                        Value::nil()
-                    };
+                    let source = if iterable { stack.pop()? } else { Value::nil() };
                     let length = if iterable {
                         match &source.0 {
                             Kind::Array(h) => h.buffer.data.len() as i128,
@@ -2738,13 +2792,13 @@ impl Run {
                     )?;
                 }
                 Op::LoopTest => {
-                    if !stack.data.pop().unwrap().truthy() {
-                        frame.ip = storage.loops.data.last().unwrap().end;
+                    if !stack.pop()?.truthy() {
+                        frame.ip = storage.loops.top()?.end;
                     }
                 }
                 Op::IterNext => {
                     let plain = !ctx.has_exports || function.plain_values.contains(frame.ip - 1);
-                    let state = storage.loops.data.last_mut().unwrap();
+                    let state = storage.loops.top_mut()?;
                     if let Some(value) = state.next_value(ctx)? {
                         if !plain {
                             crate::exports::check(ctx, &value)?;
@@ -2755,8 +2809,8 @@ impl Run {
                     }
                 }
                 Op::LoopBody => {
-                    let state = storage.loops.data.last_mut().unwrap();
-                    state.last = stack.data.pop().unwrap();
+                    let state = storage.loops.top_mut()?;
+                    state.last = stack.pop()?;
                     stack.data.truncate(state.base);
                     storage.addresses.data.truncate(state.address_base);
                     storage.bypasses.data.truncate(state.bypass_base);
@@ -2765,7 +2819,7 @@ impl Run {
                     frame.ip = state.next;
                 }
                 Op::LoopEnd => {
-                    let state = storage.loops.data.pop().unwrap();
+                    let state = storage.loops.pop()?;
                     stack.data.truncate(state.base);
                     storage.addresses.data.truncate(state.address_base);
                     storage.bypasses.data.truncate(state.bypass_base);
@@ -2775,7 +2829,7 @@ impl Run {
                 }
                 Op::LoopGuard(breaking) => handlers::guard_loop(ctx, frames, storage, breaking)?,
                 Op::Break(has_value) | Op::Next(has_value) => {
-                    let value = has_value.then(|| stack.data.pop().unwrap());
+                    let value = has_value.then(|| stack.pop()).transpose()?;
                     let control =
                         handlers::loop_control(frames, storage, matches!(op, Op::Break(_)), value)?;
                     return Ok(Event::Control(control));
@@ -2885,18 +2939,18 @@ impl Run {
                         slot as usize,
                         name as usize,
                     )?;
-                    storage.arguments.data.last_mut().unwrap().resolve(target);
+                    storage.arguments.top_mut()?.resolve(target);
                 }
                 Op::CallValue => {
-                    let value = stack.data.pop().unwrap();
-                    let args = storage.arguments.data.last_mut().unwrap();
+                    let value = stack.pop()?;
+                    let args = storage.arguments.top_mut()?;
                     // An immediate `receiver[:name](...)` left its root here.
                     let pending = args.receiver.take();
                     args.resolve(value_invocation(&value));
                     args.keep_receiver(pending);
                 }
                 Op::CallMember(site) => {
-                    let receiver = stack.data.pop().unwrap();
+                    let receiver = stack.pop()?;
                     let selected = receiver.clone();
                     let target = call_targets::member(
                         program,
@@ -2907,7 +2961,7 @@ impl Run {
                         namespace,
                         frame.receiver.is_some(),
                     )?;
-                    let args = storage.arguments.data.last_mut().unwrap();
+                    let args = storage.arguments.top_mut()?;
                     args.resolve(target);
                     args.keep_receiver(Some(selected));
                 }
@@ -2928,7 +2982,13 @@ impl Run {
                     )? {
                         value_invocation(&value)
                     } else if let Some(slot) = ambient_call(ctx, frames, storage, current, name)? {
-                        value_invocation(storage.locals.at(slot)?.as_ref().unwrap())
+                        value_invocation(
+                            storage
+                                .locals
+                                .at(slot)?
+                                .as_ref()
+                                .ok_or(violation("resolved local must have a value"))?,
+                        )
                     } else if let Some(value) = scoped
                         .then(|| file_bindings::get(program, ctx, name))
                         .transpose()?
@@ -2936,13 +2996,16 @@ impl Run {
                     {
                         value_invocation(&value)
                     } else if !program.file && globals::contains(ctx, name)? {
-                        value_invocation(&requires::get(ctx, storage, name)?.unwrap())
+                        value_invocation(
+                            &requires::get(ctx, storage, name)?
+                                .ok_or(violation("resolved root binding must have a value"))?,
+                        )
                     } else if scoped && program.declaration_names.contains_key(name) {
                         crate::arguments::Target::Plain(Invocation::NonCallable)
                     } else if let Some(&function) = program.names.get(name) {
-                        crate::arguments::Target::Plain(Invocation::Function(narrow(function)))
+                        crate::arguments::Target::Plain(Invocation::Function(narrow(function)?))
                     } else if let Some(host) = program.hosts.iter().position(|h| h == name) {
-                        crate::arguments::Target::Plain(Invocation::Host(narrow(host)))
+                        crate::arguments::Target::Plain(Invocation::Host(narrow(host)?))
                     } else if let Some(binding) =
                         file_bindings::root_binding(program, ctx, storage, name)?
                     {
@@ -2981,7 +3044,7 @@ impl Run {
                                     ));
                                 }
                                 crate::arguments::Target::Plain(Invocation::ImplicitMember(
-                                    narrow(module),
+                                    narrow(module)?,
                                     name_index,
                                 ))
                             }
@@ -2992,7 +3055,7 @@ impl Run {
                     storage.arguments.push(ctx, arguments)?;
                 }
                 Op::Argument(op) => {
-                    let value = stack.data.pop().unwrap();
+                    let value = stack.pop()?;
                     let name = if let ArgumentOp::Keyword(name) = op {
                         program.members.at(name as usize)?
                     } else {
@@ -3001,13 +3064,11 @@ impl Run {
                     let plain = !ctx.has_exports || function.plain_values.contains(frame.ip - 1);
                     storage
                         .arguments
-                        .data
-                        .last_mut()
-                        .unwrap()
+                        .top_mut()?
                         .push(ctx, op, name, value, plain)?;
                 }
                 Op::Invoke(target) | Op::InvokeRoot(target) => {
-                    let mut args = storage.arguments.data.pop().unwrap();
+                    let mut args = storage.arguments.pop()?;
                     let target = if matches!(op, Op::InvokeRoot(_))
                         || matches!(target, Invocation::Resolved)
                     {
@@ -3081,7 +3142,7 @@ impl Run {
                             stack.push(ctx, receiver)?;
                             Invocation::Member(
                                 crate::bytecode::CallSite {
-                                    name: narrow(name),
+                                    name: narrow(name)?,
                                     method: crate::bytecode::Method::parse(
                                         program.members.at(name)?,
                                     ),
@@ -3310,7 +3371,8 @@ impl Run {
                     }
                     let direct = members::direct::call(
                         ctx,
-                        site.method.unwrap(),
+                        site.method
+                            .ok_or(violation("direct call site must have a method"))?,
                         name,
                         stack.at(base)?,
                         stack.tail(base + 1)?,
@@ -3356,30 +3418,29 @@ impl Run {
                     }
                 }
                 Op::JumpNil(target) => {
-                    if matches!(stack.data.last().unwrap().0, Kind::Nil) {
+                    if matches!(stack.top()?.0, Kind::Nil) {
                         frame.ip = target as usize;
                     }
                 }
                 Op::AddressJumpNil(target, value_result) => {
-                    if matches!(storage.addresses.data.last().unwrap().value.0, Kind::Nil) {
+                    if matches!(storage.addresses.top()?.value.0, Kind::Nil) {
                         if value_result {
                             storage.addresses.data.pop();
                             stack.push(ctx, Value::nil())?;
                         } else {
-                            *storage.addresses.data.last_mut().unwrap() =
-                                Address::new(None, Value::nil());
+                            *storage.addresses.top_mut()? = Address::new(None, Value::nil());
                         }
                         frame.ip = target as usize;
                     }
                 }
                 Op::Jump(target) => frame.ip = target as usize,
                 Op::JumpFalse(target) => {
-                    if !stack.data.pop().unwrap().truthy() {
+                    if !stack.pop()?.truthy() {
                         frame.ip = target as usize;
                     }
                 }
                 Op::JumpTrue(target) => {
-                    if stack.data.pop().unwrap().truthy() {
+                    if stack.pop()?.truthy() {
                         frame.ip = target as usize;
                     }
                 }
@@ -3416,7 +3477,7 @@ impl Run {
                     frame
                         .program
                         .functions
-                        .at(frame.function().unwrap())?
+                        .at(frame.required_function()?)?
                         .code
                         .get(frame.ip),
                     Some(Op::CallValue)
@@ -3562,13 +3623,12 @@ fn diagnostic_site<'a>(
     mut frames: &'a [Frame],
     mut entry: usize,
 ) -> (&'a crate::bytecode::Program, &'a [Frame], u32) {
-    while let Some((index, frame)) = frames
+    while let Some((index, frame, function)) = frames
         .iter()
         .enumerate()
         .rev()
-        .find(|(_, frame)| frame.function().is_some())
+        .find_map(|(index, frame)| frame.function().map(|function| (index, frame, function)))
     {
-        let function = frame.function().unwrap();
         let owner = &frame.program.code.program;
         let op = owner
             .functions
@@ -3674,7 +3734,11 @@ fn normalize_return(
     let returning = frames.at(frame)?;
     let program = &returning.program;
     if returning.constructor {
-        return Ok(returning.receiver.as_ref().unwrap().clone());
+        return Ok(returning
+            .receiver
+            .as_ref()
+            .ok_or(violation("constructor must have a receiver"))?
+            .clone());
     }
     let Some(function) = returning.function() else {
         return Ok(value);
@@ -3866,7 +3930,11 @@ fn address_guard<'a>(
     let program = program
         .ok_or_else(|| Error::new(ErrorKind::Host, "object address has no owning program"))?;
     let name = crate::objects::field_name(instance, field)?;
-    let name = std::str::from_utf8(name.as_bytes().unwrap()).unwrap();
+    let name = std::str::from_utf8(
+        name.as_bytes()
+            .ok_or(violation("object field name must be bytes"))?,
+    )
+    .map_err(|_| violation("object field name must be UTF-8"))?;
     let Some(ty) = property_type(program, ctx, instance, name)? else {
         return Ok(None);
     };
@@ -3918,7 +3986,7 @@ fn resolve_type(
         while let Some(index) = scope {
             ctx.charge(1)?;
             let frame = frames.at(index)?;
-            let function = frame.program.functions.at(frame.function().unwrap())?;
+            let function = frame.program.functions.at(frame.required_function()?)?;
             let mut found = None;
             for (slot, candidate) in function.local_names.iter().enumerate() {
                 ctx.charge(1)?;
@@ -3939,7 +4007,7 @@ fn resolve_type(
         let mut declaration = None;
         if let Some(environment) = file_bindings::environment(program) {
             for (key, value) in crate::objects::bindings(ctx, environment)?.data {
-                let candidate = std::str::from_utf8(key.as_bytes().unwrap()).unwrap();
+                let candidate = requires::binding_name(&key)?;
                 if let Some(value) =
                     type_candidate(ctx, candidate, &value, binding, member, fold, enum_only)?
                 {
@@ -3953,7 +4021,7 @@ fn resolve_type(
         globals::types(ctx, storage, binding, fold)?;
         if let Some(bindings) = &storage.bindings {
             for (key, value) in crate::objects::bindings(ctx, bindings)?.data {
-                let candidate = std::str::from_utf8(key.as_bytes().unwrap()).unwrap();
+                let candidate = requires::binding_name(&key)?;
                 if let Some(value) =
                     type_candidate(ctx, candidate, &value, binding, member, fold, enum_only)?
                 {
@@ -4195,13 +4263,17 @@ fn implicit_read(
     let text = program.members.at(name)?;
     match namespaces::implicit(program, ctx, storage, namespace, self_value.as_ref(), text)? {
         namespaces::Member::Function(_) if !receiving.runs_static(None) => {
-            let module = program.namespaces.at(namespace.unwrap())?;
+            let module = program
+                .namespaces
+                .at(namespace.ok_or(violation("namespace instruction must have a namespace"))?)?;
             let separator = if matches!(self_value, Some(Value(Kind::Instance(_)))) {
                 '#'
             } else {
                 '.'
             };
-            let member = program.members.at(receiving.member().unwrap())?;
+            let member = program.members.at(receiving
+                .member()
+                .ok_or(violation("member access must have a member"))?)?;
             Err(callable_member_error(
                 "method",
                 &format!("{}{separator}{text}", module.name),
@@ -4248,7 +4320,7 @@ fn implicit_read(
                 namespaces::value(program, ctx, storage, module)?
             };
             let site = crate::bytecode::CallSite {
-                name: narrow(name),
+                name: narrow(name)?,
                 method: crate::bytecode::Method::parse(text),
                 auto: true,
                 scope: false,
@@ -4420,7 +4492,12 @@ fn global_value(
             return Ok(value);
         }
         let slot = file_bindings::global_slot(program, ctx, storage, index)?;
-        return Ok(storage.globals.at(slot)?.as_ref().unwrap().clone());
+        return Ok(storage
+            .globals
+            .at(slot)?
+            .as_ref()
+            .ok_or(violation("resolved global must have a value"))?
+            .clone());
     }
     if let Some(value) = requires::get(ctx, storage, program.globals.at(index)?.0.name())? {
         return Ok(value);
@@ -4429,7 +4506,12 @@ fn global_value(
     if storage.globals.at(slot)?.is_none() {
         *storage.globals.at_mut(slot)? = Some(ctx.import(&program.globals.at(index)?.1)?);
     }
-    Ok(storage.globals.at(slot)?.as_ref().unwrap().clone())
+    Ok(storage
+        .globals
+        .at(slot)?
+        .as_ref()
+        .ok_or(violation("resolved global must have a value"))?
+        .clone())
 }
 
 fn callable_value_error(name: &str, kind: &str) -> Error {
@@ -4462,7 +4544,9 @@ fn receive_function(
     if runs {
         return enter_auto(program, ctx, frames, storage, function, base);
     }
-    let member = program.members.at(receiving.member().unwrap())?;
+    let member = program.members.at(receiving
+        .member()
+        .ok_or(violation("member access must have a member"))?)?;
     Err(callable_member_error("function", &fun.name, member))
 }
 
@@ -4533,9 +4617,9 @@ fn enter(
     frames.push(
         ctx,
         Frame {
-            home: (function != 0 && !fun.initializer).then_some(narrow(frames.data.len())),
+            home: (function != 0 && !fun.initializer).then_some(narrow(frames.data.len())?),
             ip: start,
-            ..Frame::new(pinned, storage, Some(function), base, local_base)
+            ..Frame::new(pinned, storage, Some(function), base, local_base)?
         },
     )
 }
@@ -4598,7 +4682,7 @@ fn enter_checked(
             &arguments.positional.data,
             base,
         )?;
-        let frame = frames.data.last_mut().unwrap();
+        let frame = frames.top_mut()?;
         frame.block = arguments.block;
         frame.receiver = call.receiver;
         frame.constructor = call.constructor;
@@ -4627,7 +4711,7 @@ fn check_entry(
     frames.at_mut(current)?.checked = true;
     let function = program
         .functions
-        .at(frames.at(current)?.function().unwrap())?;
+        .at(frames.at(current)?.required_function()?)?;
     for (index, param) in function.params.iter().enumerate() {
         let Some(ty) = param.ty else {
             continue;
@@ -4635,7 +4719,11 @@ fn check_entry(
         // The parameter's `Bind` is instruction `index` of the prologue.
         frames.at_mut(current)?.ip = index + 1;
         let slot = frames.at(current)?.local_base() + param.slot;
-        let value = storage.locals.at_mut(slot)?.take().unwrap();
+        let value = storage
+            .locals
+            .at_mut(slot)?
+            .take()
+            .ok_or(violation("bound parameter must have a value"))?;
         let context = crate::types::Context::Argument(param.name.as_bytes());
         let value = normalize_type(program, ctx, frames, storage, current, (ty, context), value)?;
         *storage.locals.at_mut(slot)? = Some(value);
@@ -4666,7 +4754,7 @@ fn call_block(
         stack.tail(base)?,
         base,
     )?;
-    frames.data.last_mut().unwrap().block = Some(Block::new(block, parent));
+    frames.top_mut()?.block = Some(Block::new(block, parent)?);
     stack.data.truncate(base);
     Ok(())
 }
@@ -4692,7 +4780,7 @@ fn enter_values(
     let fun = receiving(program, &call)?;
     if fun.plain || fun.proven.is_some() {
         enter(program, ctx, frames, storage, call.function, values, base)?;
-        let frame = frames.data.last_mut().unwrap();
+        let frame = frames.top_mut()?;
         frame.receiver = call.receiver;
         frame.constructor = call.constructor;
         return Ok(());
@@ -4765,7 +4853,7 @@ fn bind(
     let block = arguments.block;
     let binding = Binding::new(ctx, &fun.params, arguments)?;
     let mut frame = new_frame(ctx, program, storage, Some(function), base)?;
-    frame.home = (function != 0 && !fun.initializer).then_some(narrow(frames.data.len()));
+    frame.home = (function != 0 && !fun.initializer).then_some(narrow(frames.data.len())?);
     frame.checked = checked;
     frame.block = block;
     frame.receiver = call.receiver;
@@ -4826,7 +4914,7 @@ fn new_frame(
 ) -> Result<Frame> {
     let local_base = open_locals(ctx, program, storage, function)?;
     let pinned = programs::pin(ctx, storage, program.index)?;
-    Ok(Frame::new(pinned, storage, function, base, local_base))
+    Ok(Frame::new(pinned, storage, function, base, local_base)?)
 }
 
 /// Adds a function's unbound locals to storage, returning where they start.
@@ -4860,6 +4948,13 @@ impl Frame {
             FrameCode::Function(index) => Some(index as usize),
             FrameCode::Iteration | FrameCode::PooledIteration => None,
         }
+    }
+
+    #[inline]
+    #[track_caller]
+    fn required_function(&self) -> Access<usize> {
+        self.function()
+            .ok_or(violation("frame must have a function"))
     }
 
     fn parent(&self) -> Option<usize> {
@@ -4918,8 +5013,8 @@ impl Frame {
         function: Option<usize>,
         base: usize,
         local_base: usize,
-    ) -> Self {
-        Self {
+    ) -> crate::checked::Access<Self> {
+        Ok(Self {
             program,
             host: false,
             checked: false,
@@ -4929,25 +5024,26 @@ impl Frame {
             receiver: None,
             constructor: false,
             return_to: ReturnTo::Stack,
-            function: function.map_or(FrameCode::Iteration, |index| {
-                FrameCode::Function(narrow(index))
-            }),
+            function: match function {
+                Some(index) => FrameCode::Function(narrow(index)?),
+                None => FrameCode::Iteration,
+            },
             mutating: false,
             ip: 0,
-            iteration_base: narrow(storage.iterations.data.len()),
-            base: narrow(base),
-            local_base: narrow(local_base),
-            address_base: narrow(storage.addresses.data.len()),
-            bypass_base: narrow(storage.bypasses.data.len()),
-            text_base: narrow(storage.texts.data.len()),
-            loop_base: narrow(storage.loops.data.len()),
-            argument_base: narrow(storage.arguments.data.len()),
+            iteration_base: narrow(storage.iterations.data.len())?,
+            base: narrow(base)?,
+            local_base: narrow(local_base)?,
+            address_base: narrow(storage.addresses.data.len())?,
+            bypass_base: narrow(storage.bypasses.data.len())?,
+            text_base: narrow(storage.texts.data.len())?,
+            loop_base: narrow(storage.loops.data.len())?,
+            argument_base: narrow(storage.arguments.data.len())?,
             binding: false,
             parent: None,
             home: None,
             block: None,
             block_args: 0,
-        }
+        })
     }
 }
 
@@ -5012,7 +5108,7 @@ fn resolve_slot(
     let function = resolving
         .program
         .functions
-        .at(resolving.function().unwrap())?;
+        .at(resolving.required_function()?)?;
     if function.initializer && storage.locals.at(own)?.is_none() {
         if let Some(slot) =
             namespaces::ambient_slot(ctx, frames, storage, frame, function.local_names.at(slot)?)?
@@ -5039,7 +5135,7 @@ fn resolve_slot(
         let Some(capture) = resolving
             .program
             .functions
-            .at(resolving.function().unwrap())?
+            .at(resolving.required_function()?)?
             .captures
             .get(slot)
             .copied()
@@ -5049,7 +5145,10 @@ fn resolve_slot(
         };
         for _ in 0..=capture.depth {
             ctx.charge(1)?;
-            frame = frames.at(frame)?.parent().unwrap();
+            frame = frames
+                .at(frame)?
+                .parent()
+                .ok_or(violation("captured local must have a parent frame"))?;
         }
         slot = capture.slot;
     }
@@ -5075,10 +5174,10 @@ fn enter_block(
     let program = parent.program.clone();
     let mut frame = new_frame(ctx, &program, storage, Some(block.function()), base)?;
     frame.receiver = receiver;
-    frame.parent = Some(narrow(block.parent()));
+    frame.parent = Some(narrow(block.parent())?);
     frame.home = home;
     frame.block = outer;
-    frame.block_args = narrow(count);
+    frame.block_args = narrow(count)?;
     // Charges the work of copying the arguments, as a separate list did.
     for chunk in stack
         .tail(base)?
@@ -5090,15 +5189,15 @@ fn enter_block(
 }
 
 /// Drops an unused loop-tail array alias before the next append to that array.
-fn take_loop_alias(storage: &mut Storage, receiver: &Value) -> bool {
-    let state = storage.loops.data.last_mut().unwrap();
+fn take_loop_alias(storage: &mut Storage, receiver: &Value) -> Access<bool> {
+    let state = storage.loops.top_mut()?;
     if let (Kind::Array(last), Kind::Array(receiver)) = (&state.last.0, &receiver.0)
         && Arc::ptr_eq(last, receiver)
     {
         state.last = Value::nil();
-        return true;
+        return Ok(true);
     }
-    false
+    Ok(false)
 }
 
 /// A program's shared literal by slot, imported on its first use in the

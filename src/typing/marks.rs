@@ -72,7 +72,10 @@ impl Marks {
                 Node::Leaf(bits) => return bits & (1u64 << index) != 0,
                 Node::Inner(children, _) => {
                     span /= FAN;
-                    node = &children[index / span];
+                    let Some(child) = children.get(index / span) else {
+                        return false;
+                    };
+                    node = child;
                     index %= span;
                 }
             }
@@ -97,7 +100,10 @@ impl Marks {
                 Node::Leaf(_) => return copied,
                 Node::Inner(children, _) => {
                     span /= FAN;
-                    node = &children[index / span];
+                    let Some(child) = children.get(index / span) else {
+                        return copied;
+                    };
+                    node = child;
                     index %= span;
                 }
             }
@@ -148,7 +154,11 @@ impl Marks {
                         *held -= 1;
                     }
                     span /= FAN;
-                    node = &mut children[index / span];
+                    let Some(child) = children.get_mut(index / span) else {
+                        self.bytes += copied;
+                        return copied;
+                    };
+                    node = child;
                     index %= span;
                 }
             }

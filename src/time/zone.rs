@@ -3,6 +3,7 @@
 // See licenses/Go-BSD-3-Clause.txt.
 
 use super::calendar;
+use crate::checked::{Access, Checked, convert, violation};
 use crate::{
     CallContext, CallOptions, Error, ErrorKind, Limits, Result, Value,
     budget::{Buffer, Charge},
@@ -44,7 +45,7 @@ const MAX_ZONE_BYTES: usize = 10 << 20;
 const BUNDLED: &[u8] = include_bytes!("zone/data/zoneinfo.zip");
 
 static ZONEINFO: OnceLock<Option<std::ffi::OsString>> = OnceLock::new();
-static BUNDLED_INDEX: OnceLock<source::Index<'static>> = OnceLock::new();
+static BUNDLED_INDEX: OnceLock<Access<source::Index<'static>>> = OnceLock::new();
 #[cfg(not(any(
     windows,
     target_os = "android",
@@ -104,26 +105,41 @@ fn invalid() -> Error {
     Error::new(ErrorKind::Argument, "invalid timezone")
 }
 
-fn int(bytes: &[u8], index: usize, width: usize) -> i64 {
+fn int(bytes: &[u8], index: usize, width: usize) -> Access<i64> {
+    let bytes = bytes.tail(index)?;
     if width == 8 {
-        i64::from_be_bytes(bytes[index..index + 8].try_into().unwrap())
-    } else {
-        i64::from(i32::from_be_bytes(
-            bytes[index..index + 4].try_into().unwrap(),
+        Ok(i64::from_be_bytes(
+            *bytes
+                .first_chunk::<8>()
+                .ok_or(violation("eight timezone bytes expected"))?,
         ))
+    } else {
+        Ok(i64::from(i32::from_be_bytes(
+            *bytes
+                .first_chunk::<4>()
+                .ok_or(violation("four timezone bytes expected"))?,
+        )))
     }
 }
 
 impl Tzif {
     fn parse(ctx: &mut CallContext, bytes: &[u8]) -> Result<(Self, Option<rules::Rules>)> {
-        if bytes.len() < 44 || &bytes[..4] != b"TZif" || !matches!(bytes[4], 0 | b'2' | b'3') {
+        let Some(header) = bytes.first_chunk::<44>() else {
             return Err(invalid());
-        }
+        };
+        let [b'T', b'Z', b'i', b'f', version @ (0 | b'2' | b'3'), ..] = header else {
+            return Err(invalid());
+        };
         let counts = |start: usize| -> Result<[usize; 6]> {
             let raw = bytes.get(start..start + 24).ok_or_else(invalid)?;
-            Ok(std::array::from_fn(|i| {
-                u32::from_be_bytes(raw[i * 4..i * 4 + 4].try_into().unwrap()) as usize
-            }))
+            let mut counts = [0; 6];
+            for (count, bytes) in counts.iter_mut().zip(raw.chunks_exact(4)) {
+                let &[a, b, c, d] = bytes else {
+                    return Err(invalid());
+                };
+                *count = u32::from_be_bytes([a, b, c, d]) as usize;
+            }
+            Ok(counts)
         };
         let length = |n: [usize; 6], width: usize| -> Result<usize> {
             let total = n[0] as u64
@@ -135,7 +151,7 @@ impl Tzif {
             usize::try_from(total).map_err(|_| invalid())
         };
         let mut n = counts(20)?;
-        let (start, width) = if bytes[4] == 0 {
+        let (start, width) = if *version == 0 {
             (44usize, 4)
         } else {
             let header = 44usize.checked_add(length(n, 4)?).ok_or_else(invalid)?;
@@ -160,16 +176,16 @@ impl Tzif {
         let first_transition = if info.count == 0 {
             0
         } else {
-            bytes[info.indices] as usize
+            *bytes.get(info.indices).ok_or_else(invalid)? as usize
         };
         let mut first_standard = None;
         let mut before_transition = None;
         for i in 0..info.zone_count {
             ctx.charge(1)?;
-            if bytes[info.zones + i * 6 + 5] as usize >= info.name_count {
+            if *bytes.get(info.zones + i * 6 + 5).ok_or_else(invalid)? as usize >= info.name_count {
                 return Err(invalid());
             }
-            if !info.dst(bytes, i) {
+            if !info.dst(bytes, i)? {
                 first_standard.get_or_insert(i);
                 if i < first_transition {
                     before_transition = Some(i);
@@ -179,33 +195,35 @@ impl Tzif {
         let mut zero_used = false;
         for i in 0..info.count {
             ctx.charge(1)?;
-            let zone = bytes[info.indices + i] as usize;
+            let zone = *bytes.get(info.indices + i).ok_or_else(invalid)? as usize;
             if zone >= info.zone_count {
                 return Err(invalid());
             }
             zero_used |= zone == 0;
         }
         if zero_used {
-            let before_dst = if info.dst(bytes, first_transition) {
+            let before_dst = if info.dst(bytes, first_transition)? {
                 before_transition
             } else {
                 None
             };
             info.first = before_dst.or(first_standard).unwrap_or(0);
         }
-        let extension =
-            if bytes.len() > end + 2 && bytes[end] == b'\n' && bytes.last() == Some(&b'\n') {
-                rules::Rules::parse(ctx, bytes, end + 1, bytes.len() - 1)?
-            } else {
-                None
-            };
+        let extension = if bytes.len() > end + 2
+            && bytes.get(end) == Some(&b'\n')
+            && bytes.last() == Some(&b'\n')
+        {
+            rules::Rules::parse(ctx, bytes, end + 1, bytes.len() - 1)?
+        } else {
+            None
+        };
         Ok((info, extension))
     }
 
-    fn dst(self, bytes: &[u8], index: usize) -> bool {
-        bytes[self.zones + index * 6 + 4] != 0
+    fn dst(self, bytes: &[u8], index: usize) -> Access<bool> {
+        Ok(*bytes.at(self.zones + index * 6 + 4)? != 0)
     }
-    fn when(self, bytes: &[u8], index: usize) -> i64 {
+    fn when(self, bytes: &[u8], index: usize) -> Access<i64> {
         int(bytes, self.times + index * self.width, self.width)
     }
 
@@ -216,8 +234,8 @@ impl Tzif {
         index: usize,
     ) -> Result<Offset<'a>> {
         let record = self.zones + index * 6;
-        let start = self.names + bytes[record + 5] as usize;
-        let names = &bytes[start..self.names + self.name_count];
+        let start = self.names + *bytes.at(record + 5)? as usize;
+        let names = bytes.span(start, self.names + self.name_count)?;
         let mut length = 0;
         for chunk in names.chunks(1024) {
             ctx.charge(1)?;
@@ -229,9 +247,9 @@ impl Tzif {
             length += chunk.len();
         }
         Ok(Offset {
-            name: &names[..length],
-            seconds: int(bytes, record, 4) as i32,
-            dst: self.dst(bytes, index),
+            name: names.span(0, length)?,
+            seconds: convert::<i32, _>(int(bytes, record, 4)?)?,
+            dst: self.dst(bytes, index)?,
             start: i64::MIN,
             end: i64::MAX,
         })
@@ -381,7 +399,8 @@ impl Zone {
                         }
                     }
                     normalized = buffer;
-                    std::str::from_utf8(&normalized.data).unwrap()
+                    std::str::from_utf8(&normalized.data)
+                        .map_err(|_| violation("normalized timezone path must be UTF-8"))?
                 }
             };
             std::ffi::OsStr::new(text)
@@ -411,7 +430,10 @@ impl Zone {
     /// per process, since it is part of the binary; each lookup still copies
     /// and parses the zone, as Go's `LoadLocation` does.
     fn bundled(ctx: &mut CallContext, name: &[u8]) -> Result<Option<Arc<Self>>> {
-        let index = BUNDLED_INDEX.get_or_init(|| source::Index::new(BUNDLED));
+        let index = BUNDLED_INDEX
+            .get_or_init(|| source::Index::new(BUNDLED))
+            .as_ref()
+            .map_err(|error| *error)?;
         let Some(payload) = index.get(ctx, name)? else {
             return Ok(None);
         };
@@ -616,15 +638,15 @@ impl Zone {
         if bytes.eq_ignore_ascii_case(b"LOCAL") {
             return Self::local(ctx).map(Some);
         }
-        if bytes.len() == 6 && matches!(bytes[0], b'+' | b'-') && bytes[3] == b':' {
+        if let [sign @ (b'+' | b'-'), a, b, b':', c, d] = bytes {
             let pair = |part: &[u8]| -> Result<i32> {
                 std::str::from_utf8(part)
                     .ok()
                     .and_then(|s| s.parse().ok())
                     .ok_or_else(|| Error::new(ErrorKind::Argument, "invalid timezone offset"))
             };
-            let offset = (pair(&bytes[1..3])? * 3600 + pair(&bytes[4..])? * 60)
-                * if bytes[0] == b'-' { -1 } else { 1 };
+            let offset = (pair(&[*a, *b])? * 3600 + pair(&[*c, *d])? * 60)
+                * if *sign == b'-' { -1 } else { 1 };
             return Self::fixed(ctx, bytes, offset).map(Some);
         }
         if matches!(bytes.first(), Some(b'/' | b'\\')) {
@@ -637,7 +659,10 @@ impl Zone {
 
     pub fn lookup(&self, ctx: &mut CallContext, seconds: i64) -> Result<Offset<'_>> {
         ctx.charge(1)?;
-        let bytes = self.bytes.as_bytes().unwrap();
+        let bytes = self
+            .bytes
+            .as_bytes()
+            .ok_or(violation("timezone storage must be bytes"))?;
         let Some(info) = self.info else {
             return Ok(Offset {
                 name: bytes,
@@ -645,9 +670,9 @@ impl Zone {
                 ..Offset::utc()
             });
         };
-        if info.count != 0 && seconds < info.when(bytes, 0) {
+        if info.count != 0 && seconds < info.when(bytes, 0)? {
             return Ok(Offset {
-                end: info.when(bytes, 0),
+                end: info.when(bytes, 0)?,
                 ..info.offset(ctx, bytes, info.first)?
             });
         }
@@ -656,7 +681,7 @@ impl Zone {
         while hi.saturating_sub(lo) > 1 {
             ctx.charge(1)?;
             let mid = lo + (hi - lo) / 2;
-            let when = info.when(bytes, mid);
+            let when = info.when(bytes, mid)?;
             if seconds < when {
                 end = when;
                 hi = mid;
@@ -667,17 +692,17 @@ impl Zone {
         let start = if info.count == 0 {
             i64::MIN
         } else {
-            info.when(bytes, lo)
+            info.when(bytes, lo)?
         };
         if info.count == 0 || lo == info.count - 1 {
             if let Some(rules) = &self.rules {
-                return Ok(rules.lookup(bytes, start, seconds));
+                return Ok(rules.lookup(bytes, start, seconds)?);
             }
         }
         let index = if info.count == 0 {
             0
         } else {
-            bytes[info.indices + lo] as usize
+            *bytes.at(info.indices + lo)? as usize
         };
         Ok(Offset {
             start,
@@ -721,7 +746,10 @@ impl Zone {
         name: &[u8],
         seconds: i64,
     ) -> Result<Option<i32>> {
-        let bytes = self.bytes.as_bytes().unwrap();
+        let bytes = self
+            .bytes
+            .as_bytes()
+            .ok_or(violation("timezone storage must be bytes"))?;
         let Some(info) = self.info else {
             return Ok(Self::equal_name(ctx, bytes, name)?.then_some(self.offset));
         };

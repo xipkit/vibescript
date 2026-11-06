@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{CallContext, Result, Value, budget::Charge, hash::Hash, syntax::modules::Visibility};
 use std::sync::Arc;
 
@@ -172,7 +173,13 @@ impl Namespace {
             .map_or(0, |bindings| bindings.data.len());
         for index in 0..count {
             ctx.charge(1)?;
-            let (code, environment) = &ctx.snapshot_namespaces.as_ref().unwrap().data[index];
+            let (code, environment) = ctx
+                .snapshot_namespaces
+                .as_ref()
+                .ok_or(crate::checked::violation(
+                    "snapshot namespace bindings expected",
+                ))?
+                .at(index)?;
             if Arc::ptr_eq(code, &owner) {
                 return Ok(Some(environment.clone()));
             }

@@ -13,6 +13,10 @@
 //! that a host callback can reach by another way must latch at that boundary
 //! too, or the callback could swallow the error and the script run on.
 //!
+//! The type checker's walk returns types rather than results, so its tables
+//! report a violation through its meter instead, which stops the check as a
+//! budget does; `typing::check` returns the violation for its caller to raise.
+//!
 //! A helper on a hot path returns [`Access`] rather than [`crate::Result`]:
 //! [`Violation`] is small and `Copy`, so after inlining `?` decides on a
 //! register-held value and the [`Error`] is built only on the failing path,
@@ -87,9 +91,35 @@ impl From<Violation> for Error {
 /// What a checked access returns: the value, or the violation.
 pub(crate) type Access<T> = Result<T, Violation>;
 
+/// Converts an integer whose range is guaranteed by the caller's invariant.
+#[inline]
+#[track_caller]
+pub(crate) fn convert<T: TryFrom<U>, U>(value: U) -> Access<T> {
+    match T::try_from(value) {
+        Ok(value) => Ok(value),
+        Err(_) => Err(violation("integer conversion out of range")),
+    }
+}
+
+/// Reads a byte range that must be within a string and on UTF-8 boundaries.
+#[inline]
+#[track_caller]
+pub(crate) fn text(
+    source: &str,
+    range: impl std::slice::SliceIndex<str, Output = str>,
+) -> Access<&str> {
+    source.get(range).ok_or(violation(
+        "text range must be in bounds and on UTF-8 boundaries",
+    ))
+}
+
 /// Indexing that reports an [`ErrorKind::Internal`] error instead of
 /// panicking when the position is out of range.
 pub(crate) trait Checked<T> {
+    /// The last element of a nonempty stack.
+    fn top(&self) -> Access<&T>;
+    /// The last element of a nonempty stack, mutably.
+    fn top_mut(&mut self) -> Access<&mut T>;
     /// The element at `index`.
     fn at(&self, index: usize) -> Access<&T>;
     /// The element at `index`, mutably.
@@ -103,6 +133,18 @@ pub(crate) trait Checked<T> {
 }
 
 impl<T> Checked<T> for [T] {
+    #[inline]
+    #[track_caller]
+    fn top(&self) -> Access<&T> {
+        self.last().ok_or(violation("stack must not be empty"))
+    }
+
+    #[inline]
+    #[track_caller]
+    fn top_mut(&mut self) -> Access<&mut T> {
+        self.last_mut().ok_or(violation("stack must not be empty"))
+    }
+
     #[inline]
     #[track_caller]
     fn at(&self, index: usize) -> Access<&T> {
@@ -180,6 +222,18 @@ impl<T> Checked<T> for [T] {
 impl<T> Checked<T> for Buffer<T> {
     #[inline]
     #[track_caller]
+    fn top(&self) -> Access<&T> {
+        self.data.top()
+    }
+
+    #[inline]
+    #[track_caller]
+    fn top_mut(&mut self) -> Access<&mut T> {
+        self.data.top_mut()
+    }
+
+    #[inline]
+    #[track_caller]
     fn at(&self, index: usize) -> Access<&T> {
         self.data.at(index)
     }
@@ -209,9 +263,48 @@ impl<T> Checked<T> for Buffer<T> {
     }
 }
 
+impl<T> Buffer<T> {
+    /// Removes the last element of a nonempty stack.
+    #[inline]
+    #[track_caller]
+    pub(crate) fn pop(&mut self) -> Access<T> {
+        self.data.pop().ok_or(violation("stack must not be empty"))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn integer_conversions_reject_lost_bits_and_signs() {
+        assert_eq!(convert::<u32, _>(u64::from(u32::MAX)).unwrap(), u32::MAX);
+        assert_eq!(convert::<i64, _>(i128::from(i64::MIN)).unwrap(), i64::MIN);
+        for failure in [
+            convert::<u32, _>(u64::from(u32::MAX) + 1).unwrap_err(),
+            convert::<u32, _>(-1i64).unwrap_err(),
+            convert::<i64, _>(i128::from(i64::MIN) - 1).unwrap_err(),
+            convert::<i64, _>(i128::from(i64::MAX) + 1).unwrap_err(),
+        ] {
+            let error = Error::from(failure);
+            assert_eq!(error.kind, ErrorKind::Internal);
+            assert!(error.message.contains("integer conversion out of range"));
+        }
+    }
+
+    #[test]
+    fn text_access_checks_utf8_boundaries_and_ranges() {
+        let source = "aé🦀z";
+        assert_eq!(text(source, 1..7).unwrap(), "é🦀");
+        assert_eq!(text(source, ..1).unwrap(), "a");
+        assert_eq!(text(source, 7..).unwrap(), "z");
+        assert_eq!(text(source, 8..8).unwrap(), "");
+        for (start, end) in [(2, 7), (1, 5), (9, 9), (7, 3)] {
+            let error = Error::from(text(source, start..end).unwrap_err());
+            assert_eq!(error.kind, ErrorKind::Internal);
+            assert!(error.message.contains("UTF-8 boundaries"));
+        }
+    }
 
     #[test]
     fn in_range_access_succeeds() {
@@ -284,5 +377,24 @@ mod tests {
         }
         assert_eq!(read(&[4, 5], 1).unwrap(), 5);
         assert_eq!(read(&[4, 5], 2).unwrap_err().kind, ErrorKind::Internal);
+    }
+
+    #[test]
+    fn stack_access_preserves_elements_and_reports_empty_stacks() {
+        let mut stack = Buffer::untracked(vec![1, 2]);
+        assert_eq!(*stack.top().unwrap(), 2);
+        *stack.top_mut().unwrap() = 3;
+        assert_eq!(stack.pop().unwrap(), 3);
+        assert_eq!(stack.pop().unwrap(), 1);
+        for violation in [
+            stack.top().unwrap_err(),
+            stack.top_mut().unwrap_err(),
+            stack.pop().unwrap_err(),
+        ] {
+            let error = Error::from(violation);
+            assert_eq!(error.kind, ErrorKind::Internal);
+            assert!(error.message.ends_with("stack must not be empty"));
+            assert!(error.message.contains("src/checked.rs:"));
+        }
     }
 }

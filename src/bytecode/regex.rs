@@ -16,14 +16,17 @@ impl Literal {
     /// Compiles a host constant now, or defers compilation inside a budgeted
     /// invocation until evaluation, where its work has always been charged.
     pub fn new(source: Value, flags: u8, unmetered: bool) -> Self {
-        let compiled = OnceLock::new();
-        if unmetered {
+        let compiled = if unmetered {
             let mut ctx = crate::integer::unlimited_context();
             let value = Regex::compile(&mut ctx, source.clone(), flags, "regex literal");
-            if !ctx.exhausted() {
-                compiled.set(value).unwrap();
+            if ctx.exhausted() {
+                OnceLock::new()
+            } else {
+                OnceLock::from(value)
             }
-        }
+        } else {
+            OnceLock::new()
+        };
         Self {
             source,
             flags,
@@ -50,7 +53,9 @@ impl Literal {
                     Ok(value) => crate::integer::unlimited_context().import(value),
                     Err(error) => Err(error.clone()),
                 };
-                self.compiled.set(cached).unwrap();
+                self.compiled.set(cached).map_err(|_| {
+                    crate::checked::violation("regex literal must be cached only once")
+                })?;
             }
             value
         })

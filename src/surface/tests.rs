@@ -1,3 +1,8 @@
+#![allow(
+    clippy::string_slice,
+    reason = "test fixture scanners and assertions inspect known source spans"
+)]
+
 //! One positive and one negative case per code, and a round trip through
 //! each fix: the fixed source compiles without that diagnostic.
 
@@ -923,7 +928,11 @@ fn stopping(source: &str) -> (std::time::Duration, std::time::Duration) {
     });
     let tree = super::parse::parse_tokens(source, &tokens, usize::MAX, &|| false).unwrap();
     let prepare = least(&|| {
-        assert!(super::context::Surface::new(source, &tree, stopped).is_none());
+        assert!(
+            super::context::Surface::new(source, &tree, stopped)
+                .unwrap()
+                .is_none()
+        );
     });
     (parse, prepare)
 }
@@ -1111,7 +1120,8 @@ fn a_source_only_the_compiler_reads_fails_a_debug_build() {
         &|_| true,
         &|source, _| Some(crate::syntax::canonical_error(source, &())),
         None,
-    );
+    )
+    .unwrap();
 }
 
 /// The text each file of the rules' pass writes outside its room, with a
@@ -1125,7 +1135,8 @@ const WRITTEN: &[(&str, [usize; 3])] = &[
     ("checker.rs", [3, 0, 0]),
     ("context.rs", [0, 6, 0]),
     ("edits.rs", [2, 0, 0]),
-    ("parse.rs", [11, 22, 0]),
+    // Includes the fixed internal-error message for invalid source spans.
+    ("parse.rs", [12, 22, 0]),
     ("patterns.rs", [12, 0, 0]),
     ("rules.rs", [7, 0, 0]),
     ("walk.rs", [1, 2, 0]),

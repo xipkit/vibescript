@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{
     CallContext, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK, Charge, MAX_VALUE_DEPTH},
@@ -39,7 +40,9 @@ impl Index {
                 _header: header,
             });
         }
-        Ok(Arc::get_mut(index).unwrap())
+        Ok(Arc::get_mut(index).ok_or(crate::checked::violation(
+            "hash index must be uniquely owned",
+        ))?)
     }
 
     fn vacant(&self, ctx: &mut CallContext, hash: usize) -> Result<usize> {
@@ -47,7 +50,7 @@ impl Index {
         let mut slot = hash & mask;
         loop {
             ctx.charge(1)?;
-            if self.buckets.data[slot] == EMPTY {
+            if *self.buckets.at(slot)? == EMPTY {
                 return Ok(slot);
             }
             slot = (slot + 1) & mask;
@@ -134,7 +137,7 @@ impl Hash {
         }
     }
 
-    pub fn untracked(data: Vec<(Value, Value)>, depth: usize) -> Arc<Self> {
+    pub fn untracked(data: Vec<(Value, Value)>, depth: usize) -> Self {
         let at_max = data
             .iter()
             .filter(|(_, v)| v.depth() + 1 == depth && depth > 1)
@@ -143,7 +146,7 @@ impl Hash {
         hash.buffer = Buffer::untracked(data);
         hash.depth = depth;
         hash.at_max = at_max;
-        Arc::new(hash)
+        hash
     }
 
     pub(crate) fn into_buffer(mut self) -> Buffer<(Value, Value)> {
@@ -186,7 +189,7 @@ impl Hash {
             }
             .into_arc(ctx)?;
         }
-        Ok(Arc::get_mut(hash).unwrap())
+        Ok(Arc::get_mut(hash).ok_or(crate::checked::violation("hash must be uniquely owned"))?)
     }
 
     /// Records a container's nesting depth and the count of entries at that
@@ -211,11 +214,11 @@ impl Hash {
             let mut slot = hash & mask;
             loop {
                 ctx.charge(1)?;
-                let entry = index.buckets.data[slot];
+                let entry = *index.buckets.at(slot)?;
                 if entry == EMPTY {
                     return Ok(None);
                 }
-                if bytes_equal(ctx, self.buffer.data[entry].0.require_bytes()?, key)? {
+                if bytes_equal(ctx, self.buffer.at(entry)?.0.require_bytes()?, key)? {
                     return Ok(Some(entry));
                 }
                 slot = (slot + 1) & mask;
@@ -265,7 +268,8 @@ impl Hash {
         };
         let existing = self.find_hashed(ctx, key.bytes()?, hash)?;
         let old_depth = existing
-            .map(|i| self.buffer.data[i].1.depth() + 1)
+            .and_then(|i| self.buffer.data.get(i))
+            .map(|entry| entry.1.depth() + 1)
             .unwrap_or(0);
         let new_depth = value.depth() + 1;
         let mut depth = self.depth.max(new_depth);
@@ -302,7 +306,7 @@ impl Hash {
             return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
         }
         if let Some(i) = existing {
-            self.buffer.data[i].1 = value;
+            self.buffer.at_mut(i)?.1 = value;
         } else {
             let Some(len) = self.buffer.data.len().checked_add(1) else {
                 return ctx.fail(ErrorKind::Memory, "hash size overflow");
@@ -320,8 +324,15 @@ impl Hash {
             self.buffer.push(ctx, (key, value))?;
             if let Some(slot) = slot {
                 // ensure_index made the table unique before entries were changed.
-                let index = Arc::get_mut(self.index.as_mut().unwrap()).unwrap();
-                index.buckets.data[slot] = len - 1;
+                let index = Arc::get_mut(
+                    self.index
+                        .as_mut()
+                        .ok_or(crate::checked::violation("hash index expected"))?,
+                )
+                .ok_or(crate::checked::violation(
+                    "hash index must be uniquely owned",
+                ))?;
+                *index.buckets.at_mut(slot)? = len - 1;
             }
         }
         self.depth = depth;
@@ -363,7 +374,7 @@ impl Hash {
         for slots in indices.data.chunks(CHUNK) {
             for slot in slots {
                 if *slot < len {
-                    marked.data[*slot] = 1;
+                    *marked.at_mut(*slot)? = 1;
                 }
             }
             ctx.checkpoint()?;
@@ -378,8 +389,8 @@ impl Hash {
         let mut deepest_removed = false;
         for read in 0..len {
             ctx.charge(1)?;
-            if marked.data[read] != 0 {
-                if self.buffer.data[read].1.depth() + 1 == self.depth {
+            if *marked.at(read)? != 0 {
+                if self.buffer.at(read)?.1.depth() + 1 == self.depth {
                     deepest_removed = true;
                 }
                 continue;
@@ -387,7 +398,7 @@ impl Hash {
             if write != read {
                 self.buffer.data.swap(write, read);
             }
-            let child = self.buffer.data[write].1.depth() + 1;
+            let child = self.buffer.at(write)?.1.depth() + 1;
             if child > depth {
                 depth = child;
                 at_max = 1;
@@ -434,7 +445,11 @@ impl Hash {
             ctx.charge(1)?;
             self.buffer.data.swap(i, i + 1);
         }
-        let (_, removed) = self.buffer.data.pop().unwrap();
+        let (_, removed) = self
+            .buffer
+            .data
+            .pop()
+            .ok_or(crate::checked::violation("removed hash entry expected"))?;
         if self.buffer.data.is_empty() {
             self.buffer = Buffer::empty();
         } else if self.buffer.data.len() < self.buffer.data.capacity() / 2 {
@@ -475,11 +490,13 @@ impl Hash {
             return ctx.fail(ErrorKind::Memory, "hash index size overflow");
         };
         let mut index = Index::new(ctx, size)?;
-        let writable = Arc::get_mut(&mut index).unwrap();
+        let writable = Arc::get_mut(&mut index).ok_or(crate::checked::violation(
+            "new hash index must be uniquely owned",
+        ))?;
         for (i, (key, _)) in self.buffer.data.iter().enumerate() {
             let hash = hash_key(ctx, key.require_bytes()?)?;
             let slot = writable.vacant(ctx, hash)?;
-            writable.buckets.data[slot] = i;
+            *writable.buckets.at_mut(slot)? = i;
         }
         self.index = Some(index);
         Ok(())
@@ -494,7 +511,7 @@ fn hash_key(ctx: &mut CallContext, key: &[u8]) -> Result<usize> {
         ctx.work_bytes(chunk.len())?;
         hasher.write(chunk);
     }
-    Ok(hasher.finish() as usize)
+    Ok(crate::numeric::hash_word(hasher.finish()))
 }
 
 /// Returns a hash's value nesting depth and how many values sit at that

@@ -132,15 +132,22 @@ impl Loader {
         let mut candidates = self.resolver.candidates(ctx, request.as_bytes(), caller)?;
         while let Some(candidate) = candidates.next(ctx)? {
             if let Some(source) = self.resolver.read(ctx, &candidate)? {
-                let bytes = source.contents.as_bytes().unwrap();
+                let bytes = source
+                    .contents
+                    .as_bytes()
+                    .ok_or(crate::checked::violation("module bytes expected"))?;
                 let text = std::str::from_utf8(bytes).map_err(|_| {
                     Error::new(ErrorKind::Syntax, "required module source is not UTF-8")
                 })?;
                 // The copy returned, and the origin's copy of the file's
                 // name, are made beside the source read.
-                let name = candidate.relative.as_bytes().unwrap().len();
+                let name = candidate
+                    .relative
+                    .as_bytes()
+                    .ok_or(crate::checked::violation("module bytes expected"))?
+                    .len();
                 let _copy = ctx.reserve(text.len().saturating_add(name))?;
-                return Ok((text.to_owned(), candidate.origin()));
+                return Ok((text.to_owned(), candidate.origin()?));
             }
         }
         Err(Error::new(
@@ -165,8 +172,13 @@ impl Loader {
                 && pin.caller.as_ref() == caller
                 && crate::bytes::bytes_equal(
                     ctx,
-                    pin.request.as_bytes().unwrap(),
-                    request.normalized.as_bytes().unwrap(),
+                    pin.request
+                        .as_bytes()
+                        .ok_or(crate::checked::violation("module bytes expected"))?,
+                    request
+                        .normalized
+                        .as_bytes()
+                        .ok_or(crate::checked::violation("module bytes expected"))?,
                 )?
             {
                 return Ok(pin.code.clone());
@@ -174,12 +186,15 @@ impl Loader {
         }
         let mut candidates = self.resolver.candidates(ctx, input, caller)?;
         while let Some(candidate) = candidates.next(ctx)? {
+            let relative = candidate
+                .relative
+                .as_bytes()
+                .ok_or(crate::checked::violation("module name must be bytes"))?;
             let mut pinned = None;
             for pin in &pins.data {
-                ctx.charge(candidate.relative.as_bytes().unwrap().len() as u64 + 1)?;
+                ctx.charge(relative.len() as u64 + 1)?;
                 if pin.code.origin.as_ref().is_some_and(|origin| {
-                    origin.root == candidate.root
-                        && origin.relative.as_ref() == candidate.relative.as_bytes().unwrap()
+                    origin.root == candidate.root && origin.relative.as_ref() == relative
                 }) {
                     pinned = Some(pin.code.clone());
                     break;
@@ -197,9 +212,14 @@ impl Loader {
                 )?;
                 return Ok(code);
             }
-            let (epoch, cached) =
-                self.cache
-                    .lookup(ctx, &candidate.root, candidate.relative.as_bytes().unwrap())?;
+            let (epoch, cached) = self.cache.lookup(
+                ctx,
+                &candidate.root,
+                candidate
+                    .relative
+                    .as_bytes()
+                    .ok_or(crate::checked::violation("module bytes expected"))?,
+            )?;
             let code = if let Some(cached) = cached {
                 if !self.development || self.resolver.valid(ctx, &candidate, cached.stamp)? {
                     Some(cached.code.clone())
@@ -216,19 +236,30 @@ impl Loader {
                 let Some(source) = self.resolver.read(ctx, &candidate)? else {
                     continue;
                 };
-                let source_text = std::str::from_utf8(source.contents.as_bytes().unwrap())
-                    .map_err(|_| {
-                        crate::compilation::error(
-                            &crate::compilation::Meter::new(&mut *ctx),
-                            None,
-                            format_args!("required source must be UTF-8"),
-                        )
-                    })?;
+                let source_text = std::str::from_utf8(
+                    source
+                        .contents
+                        .as_bytes()
+                        .ok_or(crate::checked::violation("module bytes expected"))?,
+                )
+                .map_err(|_| {
+                    crate::compilation::error(
+                        &crate::compilation::Meter::new(&mut *ctx),
+                        None,
+                        format_args!("required source must be UTF-8"),
+                    )
+                })?;
                 ctx.work_bytes(source_text.len())?;
                 // The origin's copy of the file's name is reserved before it
                 // is made, while the file compiles beside it.
-                let _name = ctx.reserve(candidate.relative.as_bytes().unwrap().len())?;
-                let origin = candidate.origin();
+                let _name = ctx.reserve(
+                    candidate
+                        .relative
+                        .as_bytes()
+                        .ok_or(crate::checked::violation("module bytes expected"))?
+                        .len(),
+                )?;
+                let origin = candidate.origin()?;
                 let compiled = crate::code::Code::compile_module(
                     ctx,
                     source_text,
@@ -294,7 +325,11 @@ impl Name {
         if !relative && output.data.split(|&b| b == b'/').any(|part| part == b"..") {
             return Err(argument("module name escapes search paths"));
         }
-        let base = output.data.rsplit(|&b| b == b'/').next().unwrap();
+        let base = output
+            .data
+            .rsplit(|&b| b == b'/')
+            .next()
+            .unwrap_or_default();
         if base == b".." {
             return Err(argument("module name resolves to a directory"));
         }

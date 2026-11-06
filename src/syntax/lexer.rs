@@ -1,4 +1,6 @@
 use super::Mode;
+use crate::checked::violation;
+use crate::checked::{Checked, convert};
 use crate::{
     Error, Result,
     compilation::{Boxed, Buffer, Bytes, Shared, Text, Work},
@@ -43,7 +45,7 @@ pub(super) enum Token<'a> {
     /// A quoted symbol's decoded name.
     QuotedSymbol(Bytes),
     Int(u64),
-    BigInt(Text, u32),
+    BigInt(Bytes, u32),
     Float(f64),
     Bytes(Bytes),
     Template(Buffer<Part<'a>>),
@@ -448,7 +450,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
         previous: Option<&Lexeme<'a>>,
     ) -> Result<Buffer<Lexeme<'a>>> {
         let source = self.source;
-        let s = &source.as_bytes()[..self.limit];
+        let s = source.as_bytes().span(0, self.limit)?;
         let mut out = Buffer::<Lexeme<'a>>::new();
         // Like Go, an interpolation ends at a `}` outside every bracket it opened.
         let (mut braces, mut brackets, mut parens) = (0usize, 0usize, 0usize);
@@ -466,7 +468,11 @@ impl<'a, 'w> Lexer<'a, 'w> {
                 self.memo.charge(self.work, start, 1)?;
             }
             let mut i = start;
-            if interpolation && s[i] == b'}' && braces == 0 && brackets == 0 && parens == 0 {
+            let rest = s.tail(start)?;
+            let byte = *rest
+                .first()
+                .ok_or(violation("lexer must have a byte to scan"))?;
+            if interpolation && byte == b'}' && braces == 0 && brackets == 0 && parens == 0 {
                 out.push(
                     self.work,
                     Lexeme {
@@ -480,13 +486,13 @@ impl<'a, 'w> Lexer<'a, 'w> {
                 self.pos += 1;
                 return Ok(out);
             }
-            match s[i] {
+            match byte {
                 b' ' | b'\t' | b'\r' => {
                     self.pos += 1;
                     continue;
                 }
                 b'#' => {
-                    while self.pos < self.limit && s[self.pos] != b'\n' {
+                    while s.get(self.pos).is_some_and(|&byte| byte != b'\n') {
                         self.work.charge(1)?;
                         self.pos += 1;
                     }
@@ -526,15 +532,19 @@ impl<'a, 'w> Lexer<'a, 'w> {
             }
             let before = self.nesting.ternaries.len();
             let scanned = (|| -> Result<Token<'a>> {
-                let initial = source[i..self.limit].chars().next().unwrap();
+                let initial = crate::checked::text(source, i..self.limit)?
+                    .chars()
+                    .next()
+                    .ok_or(violation("lexer must have a character to scan"))?;
                 if initial == '@' {
-                    let token = self.variable(start);
+                    let token = self.variable(start)?;
                     i = self.pos;
                     return Ok(token);
                 }
                 if initial == '_' || super::unicode::letter(initial) {
                     i += initial.len_utf8();
-                    while let Some(c) = source[i..self.limit].chars().next() {
+                    while let Some(c) = crate::checked::text(source, i..self.limit)?.chars().next()
+                    {
                         self.work.charge(1)?;
                         if !identifier(c) {
                             break;
@@ -542,14 +552,14 @@ impl<'a, 'w> Lexer<'a, 'w> {
                         i += c.len_utf8();
                     }
                     i = self.name_end(i);
-                    return Ok(Token::Word(Word(&source[start..i])));
+                    return Ok(Token::Word(Word(crate::checked::text(source, start..i)?)));
                 }
                 if super::unicode::digit(initial) {
                     let token = self.number(start)?;
                     i = self.pos;
                     return Ok(token);
                 }
-                Ok(match s[i] {
+                Ok(match byte {
                     b'/' if self
                         .tail
                         .is_none_or(|last| !last.def && (last.end_line < line || !last.ends)) =>
@@ -563,7 +573,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
                         Token::EndLine
                     }
                     b'\'' | b'"' => {
-                        let parts = self.quoted(s[i], line)?;
+                        let parts = self.quoted(byte, line)?;
                         i = self.pos;
                         if parts.iter().any(|p| matches!(p, Part::Expr(..))) {
                             Token::Template(parts)
@@ -626,7 +636,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
                             "!=", "<=", ">=", "&&", "||", "+=", "-=", "*=", "/=", "%=", "**", "//",
                             "<<", "::", "->", "=~", "!~", "&.",
                         ] {
-                            if s[i..].starts_with(op.as_bytes()) {
+                            if rest.starts_with(op.as_bytes()) {
                                 found = Some(op);
                                 break;
                             }
@@ -636,7 +646,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
                             Token::Op(op)
                         } else {
                             i += 1;
-                            match s[start] {
+                            match byte {
                                 b'+' => Token::Op("+"),
                                 b'-' => Token::Op("-"),
                                 b'*' => Token::Op("*"),
@@ -648,7 +658,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
                                 b'!' => Token::Op("!"),
                                 b'&' => Token::Op("&"),
                                 b'(' | b')' | b'[' | b']' | b'{' | b'}' | b',' | b'.' | b':'
-                                | b'?' | b'|' => Token::P(s[start] as char),
+                                | b'?' | b'|' => Token::P(byte as char),
                                 _ => {
                                     return Err(Error::syntax(
                                         self.work,
@@ -667,7 +677,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
                     // Resolving an earlier percent token may require re-lexing this suffix.
                     i = self.limit;
                     if self.mode.lexical {
-                        i = source[start..self.limit]
+                        i = crate::checked::text(source, start..self.limit)?
                             .find('\n')
                             .map_or(self.limit, |end| start + end);
                     }
@@ -685,7 +695,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
             }
             self.work.bytes(i - start)?;
             let start_line = line;
-            line += s[start..i].iter().filter(|&&b| b == b'\n').count();
+            line += s.span(start, i)?.iter().filter(|&&b| b == b'\n').count();
             match token {
                 Token::P('{') => braces += 1,
                 Token::P('}') => braces = braces.saturating_sub(1),
@@ -706,7 +716,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
             self.pos = i;
             if let Some((outer, _)) = self.scan {
                 let stops = matches!(lexeme.token, Token::Invalid(_))
-                    || (lexeme.token == Token::EndLine && s[start] == b';');
+                    || (lexeme.token == Token::EndLine && byte == b';');
                 if stops {
                     return Ok(out);
                 }
@@ -792,22 +802,28 @@ impl<'a, 'w> Lexer<'a, 'w> {
     }
 
     fn marker(&self, start: usize, marker: &str) -> bool {
-        let s = &self.source.as_bytes()[..self.limit];
-        s[start..].starts_with(marker.as_bytes())
-            && s.get(start + marker.len())
+        let Some(s) = self.source.as_bytes().get(..self.limit) else {
+            return false;
+        };
+        let Some((before, after)) = s.split_at_checked(start) else {
+            return false;
+        };
+        after.strip_prefix(marker.as_bytes()).is_some_and(|rest| {
+            rest.first()
                 .is_none_or(|c| matches!(c, b' ' | b'\t' | b'\r' | b'\n'))
-            && s[..start]
-                .iter()
-                .rev()
-                .take_while(|&&c| c != b'\n')
-                .all(|c| matches!(c, b' ' | b'\t' | b'\r'))
+                && before
+                    .iter()
+                    .rev()
+                    .take_while(|&&c| c != b'\n')
+                    .all(|c| matches!(c, b' ' | b'\t' | b'\r'))
+        })
     }
 
     fn block_comment(&mut self, line: &mut usize) -> Result<()> {
-        let s = &self.source.as_bytes()[..self.limit];
+        let s = self.source.as_bytes().span(0, self.limit)?;
         let start = self.pos;
         let mut rest_of_line = |lexer: &mut Self, newline: bool| -> Result<()> {
-            while lexer.pos < lexer.limit && s[lexer.pos] != b'\n' {
+            while s.get(lexer.pos).is_some_and(|&byte| byte != b'\n') {
                 lexer.work.charge(1)?;
                 lexer.pos += 1;
             }
@@ -819,7 +835,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
         };
         rest_of_line(self, true)?;
         loop {
-            while self.pos < self.limit && matches!(s[self.pos], b' ' | b'\t' | b'\r') {
+            while matches!(s.get(self.pos), Some(b' ' | b'\t' | b'\r')) {
                 self.work.charge(1)?;
                 self.pos += 1;
             }
@@ -839,27 +855,36 @@ impl<'a, 'w> Lexer<'a, 'w> {
 
     /// Reads an instance or class variable as Go does: the character after
     /// the sigils always belongs to the name, followed by identifier characters.
-    fn variable(&mut self, start: usize) -> Token<'a> {
-        let source = &self.source[..self.limit];
+    fn variable(&mut self, start: usize) -> Result<Token<'a>> {
+        let source = crate::checked::text(self.source, ..self.limit)?;
         let mut i = start + 1;
         if source.as_bytes().get(i) == Some(&b'@') {
             i += 1;
         }
-        if let Some(c) = source[i..].chars().next() {
+        if let Some(c) = crate::checked::text(source, i..)?.chars().next() {
             i += c.len_utf8();
-            while let Some(c) = source[i..].chars().next().filter(|&c| identifier(c)) {
+            while let Some(c) = crate::checked::text(source, i..)?
+                .chars()
+                .next()
+                .filter(|&c| identifier(c))
+            {
                 i += c.len_utf8();
             }
         }
         i = self.name_end(i);
         self.pos = i;
-        Token::Word(Word(&self.source[start..i]))
+        Ok(Token::Word(Word(crate::checked::text(
+            self.source,
+            start..i,
+        )?)))
     }
 
     // `=` and `~` end the scan, so only its last character can hide `!=`,
     // `?=` or `!~`. Keep other malformed names intact for the parser's fix.
     fn name_end(&self, end: usize) -> usize {
-        let bytes = &self.source.as_bytes()[..self.limit];
+        let Some(bytes) = self.source.as_bytes().get(..self.limit) else {
+            return end;
+        };
         let last = bytes.get(end.wrapping_sub(1));
         // A lenient parse reads `x?=1` as it did before suffixes were
         // reserved, as an assignment to `x?`.
@@ -876,9 +901,9 @@ impl<'a, 'w> Lexer<'a, 'w> {
 
     /// Reads a numeric literal with Go's rules.
     fn number(&mut self, start: usize) -> Result<Token<'a>> {
-        let source = &self.source[..self.limit];
+        let source = crate::checked::text(self.source, ..self.limit)?;
         let at = |i: usize| source.get(i..).and_then(|rest| rest.chars().next());
-        let first = at(start).unwrap();
+        let first = at(start).ok_or(violation("numeric literal must have a first character"))?;
         if first == '0'
             && let Some(radix) = at(start + 1).and_then(|marker| match marker {
                 'x' | 'X' => Some(16),
@@ -913,15 +938,15 @@ impl<'a, 'w> Lexer<'a, 'w> {
                 }
             };
             if !valid {
-                while at(i).is_some_and(numeric_trail) {
+                while let Some(c) = at(i).filter(|&c| numeric_trail(c)) {
                     self.work.charge(1)?;
-                    i += at(i).unwrap().len_utf8();
+                    i += c.len_utf8();
                 }
                 if at(i) == Some('.') && at(i + 1).is_some_and(super::unicode::digit) {
                     i += 1;
-                    while at(i).is_some_and(numeric_trail) {
+                    while let Some(c) = at(i).filter(|&c| numeric_trail(c)) {
                         self.work.charge(1)?;
-                        i += at(i).unwrap().len_utf8();
+                        i += c.len_utf8();
                     }
                 }
                 self.pos = i;
@@ -971,9 +996,9 @@ impl<'a, 'w> Lexer<'a, 'w> {
                     last = sign;
                 }
                 if !at(i).is_some_and(super::unicode::digit) {
-                    while at(i).is_some_and(identifier) {
+                    while let Some(c) = at(i).filter(|&c| identifier(c)) {
                         self.work.charge(1)?;
-                        i += at(i).unwrap().len_utf8();
+                        i += c.len_utf8();
                     }
                     malformed = Some(if c == 'e' {
                         "malformed exponent in numeric literal: expected digits after 'e'"
@@ -994,9 +1019,9 @@ impl<'a, 'w> Lexer<'a, 'w> {
                                 continue;
                             }
                             i += 1;
-                            while at(i).is_some_and(identifier) {
+                            while let Some(c) = at(i).filter(|&c| identifier(c)) {
                                 self.work.charge(1)?;
-                                i += at(i).unwrap().len_utf8();
+                                i += c.len_utf8();
                             }
                             malformed = Some(
                                 "malformed exponent in numeric literal: underscore must sit between exponent digits",
@@ -1032,7 +1057,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
                 self.work.charge(1)?;
                 end += c.len_utf8();
             }
-            if !super::keyword(&source[i..end]) {
+            if !super::keyword(crate::checked::text(source, i..end)?) {
                 i = end;
                 malformed = Some(
                     "malformed numeric literal: identifier cannot immediately follow a number",
@@ -1044,7 +1069,8 @@ impl<'a, 'w> Lexer<'a, 'w> {
             return Err(Error::syntax(self.work, start, message));
         }
         let text_bytes = text;
-        let text = std::str::from_utf8(&text_bytes).unwrap();
+        let text = std::str::from_utf8(&text_bytes)
+            .map_err(|_| violation("numeric literal must be UTF-8"))?;
         if dot || exponent {
             return match text.parse() {
                 Ok(value) if text.is_ascii() => Ok(Token::Float(value)),
@@ -1055,7 +1081,10 @@ impl<'a, 'w> Lexer<'a, 'w> {
             // Go's integer conversion reports an overflow before it reaches a
             // non-ASCII digit, and then only rejects a literal by its length.
             let digits = text.len() - text.trim_start_matches(|c: char| c.is_ascii_digit()).len();
-            let overflows = text[..digits].parse::<u64>().is_err() && digits > 0;
+            let overflows = crate::checked::text(text, ..digits)?
+                .parse::<u64>()
+                .is_err()
+                && digits > 0;
             let message = if overflows && text.len() > 100_000 {
                 "integer literal exceeds 100000 digits"
             } else {
@@ -1073,7 +1102,10 @@ impl<'a, 'w> Lexer<'a, 'w> {
         offset: usize,
         prefix: usize,
     ) -> Result<Token<'a>> {
-        let parsed = u64::from_str_radix(std::str::from_utf8(&text).unwrap(), radix);
+        let parsed = u64::from_str_radix(
+            std::str::from_utf8(&text).map_err(|_| violation("integer literal must be UTF-8"))?,
+            radix,
+        );
         if text.len() + prefix > 100_000 && !parsed.as_ref().is_ok_and(|&n| n <= i64::MAX as u64) {
             return self.invalid(
                 offset,
@@ -1083,26 +1115,24 @@ impl<'a, 'w> Lexer<'a, 'w> {
         }
         Ok(match parsed {
             Ok(n) => Token::Int(n),
-            Err(_) => Token::BigInt(
-                Text::from_bytes(Bytes::new(self.work, text)?).unwrap(),
-                radix,
-            ),
+            Err(_) => Token::BigInt(Bytes::new(self.work, text)?, radix),
         })
     }
 
     /// Reads a colon as Go's lexer does: the separator of a label, hash key or
     /// ternary, or the start of a symbol.
     fn colon(&mut self, start: usize, line: usize) -> Result<Token<'a>> {
-        let source = &self.source[..self.limit];
+        let source = crate::checked::text(self.source, ..self.limit)?;
         let closes = self.colon_closes_ternary(start, line)?;
         if closes {
             self.nesting.ternaries.pop();
         }
-        let next = source[start + 1..].chars().next();
-        let symbol = !closes && !self.colon_separates_value(start, line);
-        if symbol && matches!(next, Some('"' | '\'')) {
+        let after = crate::checked::text(source, start + 1..)?;
+        let next = after.chars().next();
+        let symbol = !closes && !self.colon_separates_value(start, line)?;
+        if symbol && let Some(quote @ ('"' | '\'')) = next {
             self.pos = start + 1;
-            let parts = match self.quoted(next.unwrap() as u8, line) {
+            let parts = match self.quoted(quote as u8, line) {
                 Ok(parts) => parts,
                 Err(error) if error.kind == crate::ErrorKind::Syntax => {
                     return Err(Error::syntax(self.work, start, &error.message));
@@ -1121,24 +1151,34 @@ impl<'a, 'w> Lexer<'a, 'w> {
         if symbol
             && let Some(op) = OPERATOR_SYMBOLS
                 .into_iter()
-                .find(|op| source[start + 1..].starts_with(op))
+                .find(|op| after.starts_with(op))
         {
             self.pos = start + 1 + op.len();
-            return Ok(Token::Symbol(Word(&self.source[start + 1..self.pos])));
+            return Ok(Token::Symbol(Word(crate::checked::text(
+                self.source,
+                start + 1..self.pos,
+            )?)));
         }
         if !closes && !symbol {
             self.pos = start + 1;
             return Ok(Token::P(':'));
         }
         let mut end = start + 1;
-        while let Some(c) = source[end..].chars().next().filter(|&c| identifier(c)) {
+        while let Some(c) = crate::checked::text(source, end..)?
+            .chars()
+            .next()
+            .filter(|&c| identifier(c))
+        {
             self.work.charge(1)?;
             end += c.len_utf8();
         }
         end = self.name_end(end);
         if end > start + 1 {
             self.pos = end;
-            return Ok(Token::Symbol(Word(&self.source[start + 1..end])));
+            return Ok(Token::Symbol(Word(crate::checked::text(
+                self.source,
+                start + 1..end,
+            )?)));
         }
         self.pos = start + 1;
         Ok(Token::P(':'))
@@ -1154,7 +1194,11 @@ impl<'a, 'w> Lexer<'a, 'w> {
         let label = self.nesting.last.is_some_and(|last| last.label)
             && (parenless || self.label_follows_callee() || self.label_follows_comma());
         if label && self.label_precedes_separator(start, line)? {
-            self.nesting.ternaries.last_mut().unwrap().1 = true;
+            self.nesting
+                .ternaries
+                .last_mut()
+                .ok_or(violation("label separator must have an open ternary"))?
+                .1 = true;
             return Ok(false);
         }
         Ok(self.nesting.last.is_some_and(|last| last.ends))
@@ -1162,38 +1206,38 @@ impl<'a, 'w> Lexer<'a, 'w> {
 
     /// Whether the colon at `start`, on `line`, separates a label, hash key
     /// or keyword argument from its value rather than starting a symbol.
-    fn colon_separates_value(&self, start: usize, line: usize) -> bool {
+    fn colon_separates_value(&self, start: usize, line: usize) -> Result<bool> {
         let nesting = &self.nesting;
         let Some(last) = nesting.last else {
-            return false;
+            return Ok(false);
         };
         if last.label {
-            let abuts = self.source[..start]
+            let abuts = crate::checked::text(self.source, ..start)?
                 .chars()
                 .next_back()
                 .is_some_and(|c| !c.is_whitespace());
             if abuts {
-                return true;
+                return Ok(true);
             }
             // Unlike Go, a spaced colon after a keyword such as `then` or
             // `else` starts a symbol, and so does one on a later line than a
             // label outside brackets, where a line ends a statement.
             if self.label_follows_bracket() {
-                return true;
+                return Ok(true);
             }
             if !last.ends || (last.end_line != line && nesting.brackets.is_empty()) {
-                return false;
+                return Ok(false);
             }
-            return self.label_follows_callee() || self.label_follows_comma();
+            return Ok(self.label_follows_callee() || self.label_follows_comma());
         }
-        last.string
+        Ok(last.string
             && nesting
                 .previous
                 .is_some_and(|previous| matches!(previous.mark, b'{' | b','))
             && nesting
                 .brackets
                 .last()
-                .is_some_and(|&(kind, block)| kind == b'{' && !block)
+                .is_some_and(|&(kind, block)| kind == b'{' && !block))
     }
 
     fn label_follows_bracket(&self) -> bool {
@@ -1242,9 +1286,11 @@ impl<'a, 'w> Lexer<'a, 'w> {
         let found = {
             let memo = self.memo.answers.borrow();
             memo.binary_search_by(|&(offset, depth, _)| (offset, depth).cmp(&key))
-                .map(|index| memo[index].2)
+                .ok()
+                .and_then(|index| memo.get(index))
+                .map(|answer| answer.2)
         };
-        if let Ok(answer) = found {
+        if let Some(answer) = found {
             return Ok(answer);
         }
         let scans = self.scan.map_or(0, |(_, scans)| scans) + 1;
@@ -1282,14 +1328,15 @@ impl<'a, 'w> Lexer<'a, 'w> {
     }
 
     fn quoted(&mut self, quote: u8, mut line: usize) -> Result<Buffer<Part<'a>>> {
+        let bytes = self.source.as_bytes().span(0, self.limit)?;
         let start = self.pos;
         self.pos += 1;
         let mut parts = Buffer::new();
         let mut text = Buffer::new();
-        while self.pos < self.limit {
+        while let Some(&byte) = bytes.get(self.pos) {
             self.work.charge(1)?;
             let before = self.pos;
-            match self.source.as_bytes()[self.pos] {
+            match byte {
                 b if b == quote => {
                     self.pos += 1;
                     flush(&mut parts, &mut text, self.work)?;
@@ -1298,10 +1345,8 @@ impl<'a, 'w> Lexer<'a, 'w> {
                 b'\\' if quote == b'"' => self.escape(&mut text, Some(start))?,
                 b'\\' => {
                     self.pos += 1;
-                    if self.pos < self.limit
-                        && matches!(self.source.as_bytes()[self.pos], b'\'' | b'\\')
-                    {
-                        text.push(self.work, self.source.as_bytes()[self.pos])?;
+                    if let Some(&escaped @ (b'\'' | b'\\')) = bytes.get(self.pos) {
+                        text.push(self.work, escaped)?;
                         self.pos += 1;
                     } else {
                         text.push(self.work, b'\\')?;
@@ -1332,7 +1377,10 @@ impl<'a, 'w> Lexer<'a, 'w> {
                     self.pos += 1;
                 }
             }
-            line += self.source.as_bytes()[before..self.pos]
+            line += self
+                .source
+                .as_bytes()
+                .span(before, self.pos)?
                 .iter()
                 .filter(|&&b| b == b'\n')
                 .count();
@@ -1342,24 +1390,24 @@ impl<'a, 'w> Lexer<'a, 'w> {
 
     fn regex(&mut self) -> Result<Token<'a>> {
         let start = self.pos;
-        let bytes = &self.source.as_bytes()[..self.limit];
+        let bytes = self.source.as_bytes().span(0, self.limit)?;
         self.pos += 1;
         let body = self.pos;
         let mut class = false;
         let mut members = 0;
-        while self.pos < self.limit {
+        while let Some(&byte) = bytes.get(self.pos) {
             self.work.charge(1)?;
-            match bytes[self.pos] {
+            match byte {
                 0 | b'\n' => break,
                 b'\\' => {
                     self.pos += 1;
-                    if self.pos == self.limit || matches!(bytes[self.pos], 0 | b'\n') {
+                    if matches!(bytes.get(self.pos), None | Some(0 | b'\n')) {
                         break;
                     }
-                    self.pos += self.source[self.pos..self.limit]
+                    self.pos += crate::checked::text(self.source, self.pos..self.limit)?
                         .chars()
                         .next()
-                        .unwrap()
+                        .ok_or(violation("regex literal must have a character to scan"))?
                         .len_utf8();
                     members += 1;
                 }
@@ -1396,13 +1444,15 @@ impl<'a, 'w> Lexer<'a, 'w> {
                     self.pos += 1;
                 }
                 b'/' if !class => {
-                    let pattern = Bytes::from_slice(self.work, &bytes[body..self.pos])?;
+                    let pattern = Bytes::from_slice(self.work, bytes.span(body, self.pos)?)?;
                     self.pos += 1;
                     let mut flags = 0;
                     let mut failure = None;
-                    while bytes.get(self.pos).is_some_and(u8::is_ascii_alphabetic) {
+                    while let Some(&flag) = bytes
+                        .get(self.pos)
+                        .filter(|byte| byte.is_ascii_alphabetic())
+                    {
                         self.work.charge(1)?;
-                        let flag = bytes[self.pos];
                         let bit = match flag {
                             b'i' => 1,
                             b'm' => 2,
@@ -1429,10 +1479,10 @@ impl<'a, 'w> Lexer<'a, 'w> {
                     return Ok(Token::Regex(pattern, flags));
                 }
                 _ => {
-                    self.pos += self.source[self.pos..self.limit]
+                    self.pos += crate::checked::text(self.source, self.pos..self.limit)?
                         .chars()
                         .next()
-                        .unwrap()
+                        .ok_or(violation("regex literal must have a character to scan"))?
                         .len_utf8();
                     members += 1;
                 }
@@ -1450,7 +1500,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
             return Err(Error::syntax(self.work, self.pos, INTERPOLATION_TOO_DEEP));
         }
         self.pos += 2;
-        let start = self.pos as u32;
+        let start = convert(self.pos)?;
         self.depth += 1;
         // Go reads an interpolation with a fresh lexer.
         let tail = self.tail.take();
@@ -1461,7 +1511,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
         self.nesting = nesting;
         self.scan = scan;
         self.depth -= 1;
-        Ok(Part::Expr(result?, (start, self.pos as u32)))
+        Ok(Part::Expr(result?, (start, convert(self.pos)?)))
     }
 
     fn percent_kind(&self) -> Option<(u8, char, char)> {
@@ -1489,7 +1539,9 @@ impl<'a, 'w> Lexer<'a, 'w> {
 
     fn words(&mut self, mut line: usize, ambiguous: bool) -> Result<Token<'a>> {
         let start = self.pos;
-        let (kind, open, close) = self.percent_kind().unwrap();
+        let (kind, open, close) = self
+            .percent_kind()
+            .ok_or(violation("word literal must have a percent delimiter"))?;
         self.pos += 2 + open.len_utf8();
         let mut nesting = 1;
         let mut words = Buffer::new();
@@ -1500,7 +1552,10 @@ impl<'a, 'w> Lexer<'a, 'w> {
         while self.pos < self.limit {
             self.work.charge(1)?;
             let before = self.pos;
-            let c = self.source[self.pos..self.limit].chars().next().unwrap();
+            let c = crate::checked::text(self.source, self.pos..self.limit)?
+                .chars()
+                .next()
+                .ok_or(violation("word literal must have a character to scan"))?;
             if c == '\0' {
                 break;
             }
@@ -1509,7 +1564,10 @@ impl<'a, 'w> Lexer<'a, 'w> {
                     self.escape(&mut text, None)?;
                 } else {
                     self.pos += 1;
-                    if let Some(c) = self.source[self.pos..self.limit].chars().next() {
+                    if let Some(c) = crate::checked::text(self.source, self.pos..self.limit)?
+                        .chars()
+                        .next()
+                    {
                         if !(c.is_whitespace() || c == '\\' || c == open || c == close) {
                             text.push(self.work, b'\\')?;
                         }
@@ -1571,7 +1629,10 @@ impl<'a, 'w> Lexer<'a, 'w> {
                     in_word = true;
                 }
             }
-            line += self.source.as_bytes()[before..self.pos]
+            line += self
+                .source
+                .as_bytes()
+                .span(before, self.pos)?
                 .iter()
                 .filter(|&&b| b == b'\n')
                 .count();
@@ -1587,7 +1648,10 @@ impl<'a, 'w> Lexer<'a, 'w> {
     /// its opening quote, as Go does; a word array keeps it literally.
     fn escape(&mut self, out: &mut Buffer<u8>, string: Option<usize>) -> Result<()> {
         self.pos += 1;
-        let Some(c) = self.source[self.pos..self.limit].chars().next() else {
+        let Some(c) = crate::checked::text(self.source, self.pos..self.limit)?
+            .chars()
+            .next()
+        else {
             out.push(self.work, b'\\')?;
             return Ok(());
         };
@@ -1605,10 +1669,10 @@ impl<'a, 'w> Lexer<'a, 'w> {
                 let start = self.pos;
                 let mut value = 0;
                 let max = if c == 'x' { 2 } else { 4 };
-                while self.pos < self.limit && self.pos - start < max {
+                let bytes = self.source.as_bytes().span(0, self.limit)?;
+                while let Some(&byte) = bytes.get(self.pos).filter(|_| self.pos - start < max) {
                     self.work.charge(1)?;
-                    let Some(digit) = (self.source.as_bytes()[self.pos] as char).to_digit(16)
-                    else {
+                    let Some(digit) = (byte as char).to_digit(16) else {
                         break;
                     };
                     value = value * 16 + digit;
@@ -1631,12 +1695,12 @@ impl<'a, 'w> Lexer<'a, 'w> {
                     self.pos = start;
                     out.push(self.work, c as u8)?;
                 } else if c == 'x' {
-                    out.push(self.work, value as u8)?;
+                    out.push(self.work, convert(value)?)?;
                 } else {
                     out.extend_from_slice(
                         self.work,
                         char::from_u32(value)
-                            .unwrap()
+                            .ok_or(violation("validated Unicode escape must be a scalar value"))?
                             .encode_utf8(&mut [0; 4])
                             .as_bytes(),
                     )?;
@@ -1671,7 +1735,10 @@ fn flush(parts: &mut Buffer<Part<'_>>, text: &mut Buffer<u8>, work: &dyn Work) -
 
 pub(super) fn plain(mut parts: Buffer<Part<'_>>, work: &dyn Work) -> Result<Bytes> {
     if parts.len() == 1 {
-        let Part::Text(bytes) = parts.pop().unwrap() else {
+        let Part::Text(bytes) = parts
+            .pop()
+            .ok_or(violation("plain literal must have a text part"))?
+        else {
             return Err(crate::checked::internal(
                 "plain literal contains interpolation",
             ));
@@ -1715,6 +1782,27 @@ fn ends_expression(token: &Token<'_>) -> bool {
 mod tests {
     use super::*;
     use crate::{CallContext, CallOptions, compilation::Meter};
+
+    #[test]
+    fn invalid_utf8_scan_ranges_are_internal_errors() {
+        for (source, start, limit) in [("é", 0, 1), ("é", 1, 2), ("@é", 0, 2)] {
+            let memo = Memo::new(source.len());
+            let mut lexer = Lexer::new(Input::new(source, &()), start, limit, 0, &memo);
+            let error = lexer.tokens(limit, 1, false, false, None).unwrap_err();
+            assert_eq!(error.kind, crate::ErrorKind::Internal);
+            assert!(error.message.contains("UTF-8 boundaries"));
+        }
+    }
+
+    #[test]
+    fn corrupted_numeric_text_is_an_internal_error() {
+        let memo = Memo::new(0);
+        let lexer = Lexer::new(Input::new("", &()), 0, 0, 0, &memo);
+        let text = Buffer::from_array(&(), [0xff]).unwrap();
+        let error = lexer.integer(text, 10, 0, 0).unwrap_err();
+        assert_eq!(error.kind, crate::ErrorKind::Internal);
+        assert!(error.message.contains("integer literal must be UTF-8"));
+    }
 
     #[test]
     fn compilation_invalid_token_copies_share_the_accounted_message() {

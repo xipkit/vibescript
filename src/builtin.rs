@@ -1,5 +1,5 @@
+use crate::checked::Checked;
 use crate::{CallContext, Error, ErrorKind, Result, Value, json, math, ops, value::Kind};
-use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Builtin {
@@ -136,7 +136,7 @@ impl Global {
 
     pub fn value(self) -> Value {
         use Builtin::*;
-        let field = |name: &str, value| (Value::bytes(name.as_bytes()), value);
+        let field = |name: &str, value| (name.as_bytes().to_vec(), value);
         let mut entries = match self {
             Self::Require => return Value(Kind::Builtin(Require)),
             Self::Output(kind) => return Value(Kind::Builtin(Output(kind))),
@@ -183,7 +183,7 @@ impl Global {
             .into_iter()
             .map(|constructor| {
                 field(
-                    constructor.name().strip_prefix("Time.").unwrap(),
+                    Time(constructor).member_name(),
                     Value(Kind::Builtin(Time(constructor))),
                 )
             })
@@ -224,25 +224,13 @@ impl Global {
                     crate::builtin::Math::Log,
                 ] {
                     let builtin = Math(method);
-                    entries.push(field(
-                        builtin.name().strip_prefix("Math.").unwrap(),
-                        Value(Kind::Builtin(builtin)),
-                    ));
+                    entries.push(field(builtin.member_name(), Value(Kind::Builtin(builtin))));
                 }
                 entries
             }
         };
-        entries.sort_unstable_by(|(left, _), (right, _)| {
-            left.as_bytes().unwrap().cmp(right.as_bytes().unwrap())
-        });
-        let depth = 1 + entries
-            .iter()
-            .map(|(_, value)| value.depth())
-            .max()
-            .unwrap_or(0);
-        let mut hash = crate::hash::Hash::untracked(entries, depth);
-        Arc::get_mut(&mut hash).unwrap().object = true;
-        Value(Kind::Hash(hash))
+        entries.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
+        Value::object(entries)
     }
 }
 
@@ -306,6 +294,12 @@ impl Builtin {
                 Log => "Math.log",
             },
         }
+    }
+
+    /// The member part of a qualified name, or the whole unqualified name.
+    fn member_name(self) -> &'static str {
+        let name = self.name();
+        name.rsplit_once('.').map_or(name, |(_, member)| member)
     }
 
     /// Refuses the builtin as a value, naming it as the script wrote it, as Go does:
@@ -431,13 +425,13 @@ impl Builtin {
             return crate::duration::parse(ctx, args);
         }
         if self == Self::Money {
-            if args.len() != 1 {
+            let [value] = args else {
                 return Err(Error::new(
                     ErrorKind::Argument,
                     "money expects a single string literal",
                 ));
-            }
-            let Kind::Bytes(bytes) = &args[0].0 else {
+            };
+            let Kind::Bytes(bytes) = &value.0 else {
                 return Err(Error::new(
                     ErrorKind::Type,
                     "money expects a string literal",
@@ -446,25 +440,20 @@ impl Builtin {
             return crate::money::parse(ctx, bytes.data()).map(|value| Value(Kind::Money(value)));
         }
         if self == Self::MoneyCents {
-            if args.len() != 2 {
+            let [cents, currency] = args else {
                 return Err(Error::new(
                     ErrorKind::Argument,
                     "money_cents expects cents and currency",
                 ));
-            }
-            if !matches!(args[0].0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_)) {
+            };
+            if !matches!(cents.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_)) {
                 return Err(Error::new(
                     ErrorKind::Type,
                     "money_cents expects integer cents",
                 ));
             }
-            let cents = crate::conversion::int64(&args[0]).map_err(|error| {
-                Error::new(
-                    ErrorKind::Type,
-                    format!("money_cents expects integer cents: {}", error.message),
-                )
-            })?;
-            let Kind::Bytes(bytes) = &args[1].0 else {
+            let cents = crate::conversion::int64(cents).map_err(money_cents_error)?;
+            let Kind::Bytes(bytes) = &currency.0 else {
                 return Err(Error::new(
                     ErrorKind::Type,
                     "money_cents expects currency string",
@@ -510,7 +499,7 @@ impl Builtin {
             ));
         }
         ops::arity(args, 1)?;
-        let value = &args[0];
+        let value = args.at(0)?;
         match self {
             Self::ToInt => match &value.0 {
                 Kind::Int(_) | Kind::Big(_) => Ok(value.clone()),
@@ -527,7 +516,9 @@ impl Builtin {
             },
             Self::ToFloat => match &value.0 {
                 Kind::Int(_) | Kind::Big(_) | Kind::Float(_) => {
-                    Ok(Value::float(value.as_float().unwrap()))
+                    Ok(Value::float(value.as_float().ok_or(
+                        crate::checked::violation("numeric value expected"),
+                    )?))
                 }
                 Kind::Bytes(bytes) => {
                     crate::conversion::float(ctx, bytes.data(), "to_float").map(Value::float)
@@ -555,6 +546,17 @@ impl Builtin {
             | Self::Loop
             | Self::Require => Err(crate::checked::internal("builtin was not dispatched")),
         }
+    }
+}
+
+fn money_cents_error(error: Error) -> Error {
+    if error.kind == ErrorKind::Internal {
+        error
+    } else {
+        Error::new(
+            ErrorKind::Type,
+            format!("money_cents expects integer cents: {}", error.message),
+        )
     }
 }
 
@@ -657,7 +659,7 @@ fn call_math(
         })
     };
     let domain = || Error::new(ErrorKind::Arithmetic, format!("{name} out of domain"));
-    let x = number(&args[0])?;
+    let x = number(args.at(0)?)?;
     if matches!(method, Sqrt | Log | Log2 | Log10) && x < 0.0
         || matches!(method, Asin | Acos) && (x < -1.0 || x > 1.0)
     {
@@ -675,11 +677,11 @@ fn call_math(
         Exp => math::exp(x),
         Log2 => math::log2(x),
         Log10 => math::log10(x),
-        Atan2 => math::atan2(x, number(&args[1])?),
-        Hypot => math::hypot(x, number(&args[1])?),
+        Atan2 => math::atan2(x, number(args.at(1)?)?),
+        Hypot => math::hypot(x, number(args.at(1)?)?),
         Log if args.len() == 1 => math::log(x),
         Log => {
-            let base = number(&args[1])?;
+            let base = number(args.at(1)?)?;
             if base < 0.0 {
                 return Err(domain());
             }
@@ -692,6 +694,24 @@ fn call_math(
 #[cfg(test)]
 mod tests {
     use super::Global;
+
+    #[test]
+    fn money_cents_keeps_internal_conversion_errors_terminal() {
+        let error = super::money_cents_error(crate::checked::internal("formatting failed"));
+        assert_eq!(error.kind, crate::ErrorKind::Internal);
+        assert!(error.message.ends_with("formatting failed"));
+        assert!(error.class().is_none());
+
+        let error = super::money_cents_error(crate::Error::new(
+            crate::ErrorKind::Type,
+            "integer must fit in a 64-bit integer",
+        ));
+        assert_eq!(error.kind, crate::ErrorKind::Type);
+        assert_eq!(
+            error.message,
+            "money_cents expects integer cents: integer must fit in a 64-bit integer"
+        );
+    }
 
     #[test]
     fn every_global_is_listed_once_in_name_order() {

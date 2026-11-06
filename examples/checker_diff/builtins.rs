@@ -114,29 +114,32 @@ fn parse_table(source: &str) -> Vec<Sig> {
 }
 
 struct Parser<'a> {
-    text: &'a str,
-    at: usize,
+    chars: std::str::Chars<'a>,
 }
 
 impl<'a> Parser<'a> {
     fn new(text: &'a str) -> Self {
-        Self { text, at: 0 }
+        Self {
+            chars: text.chars(),
+        }
     }
 
     fn rest(&self) -> &'a str {
-        &self.text[self.at..]
+        self.chars.as_str()
     }
 
     fn skip(&mut self) {
         while self.rest().starts_with(' ') {
-            self.at += 1;
+            self.chars.next();
         }
     }
 
     fn eat(&mut self, token: &str) -> bool {
         self.skip();
         if self.rest().starts_with(token) {
-            self.at += token.len();
+            for _ in token.chars() {
+                self.chars.next();
+            }
             true
         } else {
             false
@@ -145,12 +148,16 @@ impl<'a> Parser<'a> {
 
     fn word(&mut self) -> String {
         self.skip();
-        let length = self
-            .rest()
-            .find(|c: char| !(c.is_alphanumeric() || c == '_' || c == '?' || c == '!'))
-            .unwrap_or(self.rest().len());
-        let word = self.rest()[..length].to_owned();
-        self.at += length;
+        let mut word = String::new();
+        while let Some(c) = self
+            .chars
+            .clone()
+            .next()
+            .filter(|c| c.is_alphanumeric() || matches!(c, '_' | '?' | '!'))
+        {
+            word.push(c);
+            self.chars.next();
+        }
         word
     }
 
@@ -296,7 +303,7 @@ impl<'a> Parser<'a> {
                 ',' if depth == 0 => return,
                 _ => {}
             }
-            self.at += c.len_utf8();
+            self.chars.next();
         }
     }
 
@@ -327,21 +334,21 @@ impl<'a> Parser<'a> {
     }
 
     fn union(&mut self) -> T {
-        let mut options = vec![self.postfix()];
+        let first = self.postfix();
+        if !self.eat("|") {
+            return first;
+        }
+        let mut options = vec![first, self.postfix()];
         while self.eat("|") {
             options.push(self.postfix());
         }
-        if options.len() == 1 {
-            options.pop().unwrap()
-        } else {
-            T::Union(options)
-        }
+        T::Union(options)
     }
 
     fn postfix(&mut self) -> T {
         let mut ty = self.primary();
         while self.rest().starts_with('?') {
-            self.at += 1;
+            self.chars.next();
             ty = T::Opt(Box::new(ty));
         }
         ty
@@ -502,9 +509,9 @@ fn union(options: Vec<T>) -> T {
             }
         }
     }
-    let ty = match flat.len() {
-        0 => return T::Named("nil".into()),
-        1 => flat.pop().unwrap(),
+    let ty = match flat.as_slice() {
+        [] => return T::Named("nil".into()),
+        [only] => only.clone(),
         _ => T::Union(flat),
     };
     if nil { opt(ty) } else { ty }

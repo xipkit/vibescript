@@ -1,4 +1,5 @@
 use super::unicode;
+use crate::checked::{Access, Checked};
 use crate::{CallContext, Error, ErrorKind, Result, budget::Buffer};
 use std::hash::{Hash, Hasher};
 
@@ -85,7 +86,7 @@ pub(super) struct Class {
 
 impl Class {
     pub(super) fn matches(self, ctx: &mut CallContext, parts: &[Part], rune: u32) -> Result<bool> {
-        for part in &parts[self.start..self.start + self.count] {
+        for part in parts.span(self.start, self.start + self.count)? {
             ctx.charge(1)?;
             if unicode::folded(rune, self.fold, |point| part.set.contains(point)) != part.negated {
                 return Ok(!self.negated);
@@ -174,7 +175,7 @@ pub(super) fn parse(ctx: &mut CallContext, pattern: &[u8]) -> Result<Parsed> {
             ErrorKind::Argument,
             format!(
                 "error parsing regexp: invalid UTF-8: `{}`",
-                String::from_utf8_lossy(&pattern[error.valid_up_to()..])
+                String::from_utf8_lossy(pattern.get(error.valid_up_to()..).unwrap_or_default())
             ),
         )
     })?;
@@ -194,7 +195,7 @@ pub(super) fn parse(ctx: &mut CallContext, pattern: &[u8]) -> Result<Parsed> {
     parser.parsed.names.push(parser.ctx, (0, 0))?;
     while parser.position < text.len() {
         parser.ctx.charge(1)?;
-        let flags = parser.group().flags;
+        let flags = parser.group()?.flags;
         let start = parser.position;
         match parser.next(|_| crate::checked::internal("regex cursor ended before the pattern"))? {
             '(' => parser.open()?,
@@ -203,7 +204,7 @@ pub(super) fn parse(ctx: &mut CallContext, pattern: &[u8]) -> Result<Parsed> {
                     return Err(parser.syntax(UNEXPECTED_PAREN, 0..text.len()));
                 }
                 let child = parser.finish()?;
-                let group = parser.groups.data.pop().unwrap();
+                let group = parser.groups.pop()?;
                 let node = if group.capture == 0 {
                     child
                 } else {
@@ -213,11 +214,11 @@ pub(super) fn parse(ctx: &mut CallContext, pattern: &[u8]) -> Result<Parsed> {
             }
             '|' => {
                 let sequence = parser.sequence()?;
-                let alternate = match parser.group().alternate {
+                let alternate = match parser.group()?.alternate {
                     Some(left) => parser.node(Kind::Alt(left, sequence))?,
                     None => sequence,
                 };
-                let group = parser.group();
+                let group = parser.group()?;
                 group.alternate = Some(alternate);
                 group.quantified = false;
             }
@@ -245,7 +246,7 @@ pub(super) fn parse(ctx: &mut CallContext, pattern: &[u8]) -> Result<Parsed> {
                 parser.atom(node)?;
             }
             '^' | '$' => {
-                let begin = text.as_bytes()[parser.position - 1] == b'^';
+                let begin = *text.as_bytes().at(parser.position - 1)? == b'^';
                 let assertion = match (begin, flags & MULTILINE != 0) {
                     (true, true) => Assertion::BeginLine,
                     (true, false) => Assertion::BeginText,
@@ -308,33 +309,45 @@ impl Parser<'_> {
     fn syntax(&self, code: &str, expr: std::ops::Range<usize>) -> Error {
         Error::new(
             ErrorKind::Argument,
-            format!("error parsing regexp: {code}: `{}`", &self.text[expr]),
+            format!(
+                "error parsing regexp: {code}: `{}`",
+                match crate::checked::text(self.text, expr) {
+                    Ok(text) => text,
+                    Err(error) => return error.into(),
+                }
+            ),
         )
     }
 
     /// Returns the byte offset just past the rune at `position`, or `position` at the end.
-    fn after_rune(&self, position: usize) -> usize {
-        position
-            + self.text[position..]
+    fn after_rune(&self, position: usize) -> Access<usize> {
+        Ok(position
+            + crate::checked::text(self.text, position..)?
                 .chars()
                 .next()
-                .map_or(0, char::len_utf8)
+                .map_or(0, char::len_utf8))
     }
 
     fn remaining(&self) -> &[u8] {
-        &self.text.as_bytes()[self.position..]
+        self.text
+            .as_bytes()
+            .get(self.position..)
+            .unwrap_or_default()
     }
     fn peek(&self) -> Option<u8> {
         self.remaining().first().copied()
     }
-    fn group(&mut self) -> &mut Group {
-        self.groups.data.last_mut().unwrap()
+    fn group(&mut self) -> Access<&mut Group> {
+        self.groups.top_mut()
     }
 
     /// Reads the next rune; `end` explains a pattern that stops here.
     fn next(&mut self, end: impl FnOnce(&Self) -> Error) -> Result<char> {
         self.ctx.charge(1)?;
-        let Some(rune) = self.text[self.position..].chars().next() else {
+        let Some(rune) = crate::checked::text(self.text, self.position..)?
+            .chars()
+            .next()
+        else {
             return Err(end(self));
         };
         self.position += rune.len_utf8();
@@ -344,10 +357,10 @@ impl Parser<'_> {
     fn node(&mut self, kind: Kind) -> Result<usize> {
         self.ctx.charge(1)?;
         if let Kind::Concat(left, right) = kind {
-            if matches!(self.parsed.nodes.data[left].kind, Kind::Empty) {
+            if matches!(self.parsed.nodes.at(left)?.kind, Kind::Empty) {
                 return Ok(right);
             }
-            if matches!(self.parsed.nodes.data[right].kind, Kind::Empty) {
+            if matches!(self.parsed.nodes.at(right)?.kind, Kind::Empty) {
                 return Ok(left);
             }
         }
@@ -364,33 +377,33 @@ impl Parser<'_> {
                 if let Part {
                     set: Set::Range(low, high),
                     negated: false,
-                } = self.parsed.parts.data[class.start]
+                } = self.parsed.parts.at(class.start)?
                 {
                     if low == high {
-                        return self.node(Kind::Rune(low, class.fold));
+                        return self.node(Kind::Rune(*low, class.fold));
                     }
                 }
             }
         }
-        let node = |id: usize| self.parsed.nodes.data[id];
+        let node = |id: usize| self.parsed.nodes.at(id);
         let literal = match kind {
             Kind::Rune(_, fold) => Some(fold),
             Kind::Concat(a, b)
-                if node(a).literal.is_some() && node(a).literal == node(b).literal =>
+                if node(a)?.literal.is_some() && node(a)?.literal == node(b)?.literal =>
             {
-                node(a).literal
+                node(a)?.literal
             }
             _ => None,
         };
         let height = match kind {
             Kind::Concat(..) if literal.is_some() => 1,
-            Kind::Concat(a, b) => (node(a).height
-                + usize::from(!matches!(node(a).kind, Kind::Concat(..))))
-            .max(node(b).height + usize::from(!matches!(node(b).kind, Kind::Concat(..)))),
-            Kind::Alt(a, b) => (node(a).height
-                + usize::from(!matches!(node(a).kind, Kind::Alt(..))))
-            .max(node(b).height + usize::from(!matches!(node(b).kind, Kind::Alt(..)))),
-            Kind::Capture(_, child) | Kind::Repeat { child, .. } => node(child).height + 1,
+            Kind::Concat(a, b) => (node(a)?.height
+                + usize::from(!matches!(node(a)?.kind, Kind::Concat(..))))
+            .max(node(b)?.height + usize::from(!matches!(node(b)?.kind, Kind::Concat(..)))),
+            Kind::Alt(a, b) => (node(a)?.height
+                + usize::from(!matches!(node(a)?.kind, Kind::Alt(..))))
+            .max(node(b)?.height + usize::from(!matches!(node(b)?.kind, Kind::Alt(..)))),
+            Kind::Capture(_, child) | Kind::Repeat { child, .. } => node(child)?.height + 1,
             _ => 1,
         };
         if height > 1000 {
@@ -402,7 +415,11 @@ impl Parser<'_> {
             Kind::Rune(rune, fold) => (rune, fold).hash(&mut hash),
             Kind::Class(class) => {
                 (class.negated, class.fold).hash(&mut hash);
-                for part in &self.parsed.parts.data[class.start..class.start + class.count] {
+                for part in self
+                    .parsed
+                    .parts
+                    .span(class.start, class.start + class.count)?
+                {
                     self.ctx.charge(1)?;
                     part.hash(&mut hash);
                 }
@@ -410,15 +427,15 @@ impl Parser<'_> {
             Kind::Any(newline) => newline.hash(&mut hash),
             Kind::Assert(assertion) => assertion.hash(&mut hash),
             Kind::Concat(a, b) | Kind::Alt(a, b) => {
-                (node(a).fingerprint, node(b).fingerprint).hash(&mut hash)
+                (node(a)?.fingerprint, node(b)?.fingerprint).hash(&mut hash)
             }
-            Kind::Capture(slot, child) => (slot, node(child).fingerprint).hash(&mut hash),
+            Kind::Capture(slot, child) => (slot, node(child)?.fingerprint).hash(&mut hash),
             Kind::Repeat {
                 child,
                 min,
                 max,
                 greedy,
-            } => (node(child).fingerprint, min, max, greedy).hash(&mut hash),
+            } => (node(child)?.fingerprint, min, max, greedy).hash(&mut hash),
             Kind::Empty => (),
         }
         let fingerprint = hash.finish();
@@ -427,24 +444,27 @@ impl Parser<'_> {
             Kind::Assert(_) => (true, 1, 1),
             Kind::Rune(..) | Kind::Class(_) | Kind::Any(_) => (false, 1, 1),
             Kind::Concat(a, b) => (
-                node(a).nullable && node(b).nullable,
-                node(a).cost.saturating_add(node(b).cost),
-                node(a).repetitions.max(node(b).repetitions),
+                node(a)?.nullable && node(b)?.nullable,
+                node(a)?.cost.saturating_add(node(b)?.cost),
+                node(a)?.repetitions.max(node(b)?.repetitions),
             ),
             Kind::Alt(a, b) => (
-                node(a).nullable || node(b).nullable,
-                node(a).cost.saturating_add(node(b).cost).saturating_add(1),
-                node(a).repetitions.max(node(b).repetitions),
+                node(a)?.nullable || node(b)?.nullable,
+                node(a)?
+                    .cost
+                    .saturating_add(node(b)?.cost)
+                    .saturating_add(1),
+                node(a)?.repetitions.max(node(b)?.repetitions),
             ),
             Kind::Capture(_, child) => (
-                node(child).nullable,
-                node(child).cost.saturating_add(2),
-                node(child).repetitions,
+                node(child)?.nullable,
+                node(child)?.cost.saturating_add(2),
+                node(child)?.repetitions,
             ),
             Kind::Repeat {
                 child, min, max, ..
             } => {
-                let child = node(child);
+                let child = node(child)?;
                 let copies = if max == UNBOUNDED { min.max(1) } else { max };
                 let branches = if max == UNBOUNDED {
                     1 + usize::from(min == 0 && child.nullable)
@@ -469,10 +489,10 @@ impl Parser<'_> {
         };
         let minimum = match kind {
             Kind::Rune(..) | Kind::Class(_) | Kind::Any(_) => 1,
-            Kind::Capture(_, child) => node(child).minimum,
-            Kind::Concat(a, b) => node(a).minimum.saturating_add(node(b).minimum),
-            Kind::Alt(a, b) => node(a).minimum.min(node(b).minimum),
-            Kind::Repeat { child, min, .. } => node(child).minimum.saturating_mul(min),
+            Kind::Capture(_, child) => node(child)?.minimum,
+            Kind::Concat(a, b) => node(a)?.minimum.saturating_add(node(b)?.minimum),
+            Kind::Alt(a, b) => node(a)?.minimum.min(node(b)?.minimum),
+            Kind::Repeat { child, min, .. } => node(child)?.minimum.saturating_mul(min),
             _ => 0,
         };
         let id = self.parsed.nodes.data.len();
@@ -496,7 +516,7 @@ impl Parser<'_> {
         if left == right {
             return Ok(true);
         }
-        if self.parsed.nodes.data[left].fingerprint != self.parsed.nodes.data[right].fingerprint {
+        if self.parsed.nodes.at(left)?.fingerprint != self.parsed.nodes.at(right)?.fingerprint {
             return Ok(false);
         }
         let mut pending = Buffer::empty();
@@ -506,7 +526,7 @@ impl Parser<'_> {
             if left == right {
                 continue;
             }
-            let (a, b) = (self.parsed.nodes.data[left], self.parsed.nodes.data[right]);
+            let (a, b) = (self.parsed.nodes.at(left)?, self.parsed.nodes.at(right)?);
             if a.fingerprint != b.fingerprint {
                 return Ok(false);
             }
@@ -541,8 +561,7 @@ impl Parser<'_> {
                 {
                     for i in 0..a.count {
                         self.ctx.charge(1)?;
-                        if self.parsed.parts.data[a.start + i]
-                            != self.parsed.parts.data[b.start + i]
+                        if self.parsed.parts.at(a.start + i)? != self.parsed.parts.at(b.start + i)?
                         {
                             return Ok(false);
                         }
@@ -562,7 +581,7 @@ impl Parser<'_> {
             if self.same(current, right)? {
                 return Ok(true);
             }
-            if let Kind::Alt(a, b) = self.parsed.nodes.data[current].kind {
+            if let Kind::Alt(a, b) = self.parsed.nodes.at(current)?.kind {
                 pending.push(self.ctx, a)?;
                 pending.push(self.ctx, b)?;
             }
@@ -577,8 +596,8 @@ impl Parser<'_> {
             _ => None,
         };
         let (Some((a, ar, af)), Some((b, br, bf))) = (
-            descriptor(self.parsed.nodes.data[left]),
-            descriptor(self.parsed.nodes.data[right]),
+            descriptor(*self.parsed.nodes.at(left)?),
+            descriptor(*self.parsed.nodes.at(right)?),
         ) else {
             return Ok(None);
         };
@@ -605,7 +624,7 @@ impl Parser<'_> {
                     self.ctx.charge(1)?;
                     self.parsed
                         .parts
-                        .push(self.ctx, self.parsed.parts.data[a.start + i])?;
+                        .push(self.ctx, *self.parsed.parts.at(a.start + i)?)?;
                 }
             } else {
                 self.parsed.parts.push(
@@ -623,7 +642,7 @@ impl Parser<'_> {
                 self.ctx.charge(1)?;
                 self.parsed
                     .parts
-                    .push(self.ctx, self.parsed.parts.data[b.start + i])?;
+                    .push(self.ctx, *self.parsed.parts.at(b.start + i)?)?;
             }
         } else {
             self.parsed.parts.push(
@@ -643,28 +662,28 @@ impl Parser<'_> {
     }
 
     fn literal(&mut self, rune: u32) -> Result<()> {
-        let fold = self.group().flags & FOLD != 0;
+        let fold = self.group()?.flags & FOLD != 0;
         let node = self.node(Kind::Rune(rune, fold))?;
         self.atom(node)
     }
 
     fn atom(&mut self, node: usize) -> Result<()> {
-        if let Some(last) = self.group().last.take() {
-            let sequence = match self.group().sequence {
+        if let Some(last) = self.group()?.last.take() {
+            let sequence = match self.group()?.sequence {
                 Some(left) => self.node(Kind::Concat(left, last))?,
                 None => last,
             };
-            self.group().sequence = Some(sequence);
+            self.group()?.sequence = Some(sequence);
         }
-        let group = self.group();
+        let group = self.group()?;
         group.last = Some(node);
         group.quantified = false;
         Ok(())
     }
 
     fn sequence(&mut self) -> Result<usize> {
-        let last = self.group().last.take();
-        let sequence = self.group().sequence.take();
+        let last = self.group()?.last.take();
+        let sequence = self.group()?.sequence.take();
         match (sequence, last) {
             (Some(a), Some(b)) => self.node(Kind::Concat(a, b)),
             (Some(node), None) | (None, Some(node)) => Ok(node),
@@ -674,7 +693,7 @@ impl Parser<'_> {
 
     fn finish(&mut self) -> Result<usize> {
         let sequence = self.sequence()?;
-        match self.group().alternate.take() {
+        match self.group()?.alternate.take() {
             Some(alternate) => self.node(Kind::Alt(alternate, sequence)),
             None => Ok(sequence),
         }
@@ -684,14 +703,14 @@ impl Parser<'_> {
     fn repeat(&mut self, start: usize, min: usize, max: usize, counted: bool) -> Result<()> {
         // Go reads a lazy `?` before checking the operand.
         let after = self.position + usize::from(self.peek() == Some(b'?'));
-        if self.group().quantified {
-            let previous = self.group().repeated;
+        if self.group()?.quantified {
+            let previous = self.group()?.repeated;
             return Err(self.syntax(INVALID_REPEAT_OP, previous..after));
         }
-        let Some(child) = self.group().last else {
+        let Some(child) = self.group()?.last else {
             return Err(self.syntax(MISSING_REPEAT_ARGUMENT, start..after));
         };
-        let mut greedy = self.group().flags & UNGREEDY == 0;
+        let mut greedy = self.group()?.flags & UNGREEDY == 0;
         if self.peek() == Some(b'?') {
             self.position += 1;
             greedy = !greedy;
@@ -704,11 +723,11 @@ impl Parser<'_> {
         })?;
         if counted
             && (min >= 2 || (max != UNBOUNDED && max >= 2))
-            && self.parsed.nodes.data[node].repetitions > 1000
+            && self.parsed.nodes.at(node)?.repetitions > 1000
         {
             return Err(self.syntax(INVALID_REPEAT_SIZE, start..self.position));
         }
-        let group = self.group();
+        let group = self.group()?;
         group.last = Some(node);
         group.quantified = true;
         group.repeated = start;
@@ -725,12 +744,12 @@ impl Parser<'_> {
                 ctx.charge(1)?;
                 value = value
                     .saturating_mul(10)
-                    .saturating_add(usize::from(bytes[*position] - b'0'))
+                    .saturating_add(usize::from(bytes.at(*position)? - b'0'))
                     .min(1001);
                 *position += 1;
             }
             Ok(
-                (*position > start && (*position == start + 1 || bytes[start] != b'0'))
+                (*position > start && (*position == start + 1 || *bytes.at(start)? != b'0'))
                     .then_some(value),
             )
         };
@@ -754,7 +773,7 @@ impl Parser<'_> {
 
     fn open(&mut self) -> Result<()> {
         let start = self.position - 1;
-        let mut flags = self.group().flags;
+        let mut flags = self.group()?.flags;
         let mut capture = true;
         let mut name = (0, 0);
         if self.peek() == Some(b'?') {
@@ -784,9 +803,9 @@ impl Parser<'_> {
                             if negative && !saw_flag {
                                 return Err(self.syntax(INVALID_PERL_OP, start..self.position));
                             }
-                            if self.text.as_bytes()[self.position - 1] == b')' {
-                                self.group().flags = flags;
-                                self.group().quantified = false;
+                            if *self.text.as_bytes().at(self.position - 1)? == b')' {
+                                self.group()?.flags = flags;
+                                self.group()?.quantified = false;
                                 return Ok(());
                             }
                             break;
@@ -827,7 +846,7 @@ impl Parser<'_> {
     /// Explains a rejected `(?P<name>` or `(?<name>` group opening at `start`
     /// the way Go reads it.
     fn named_capture_error(&self, start: usize) -> Error {
-        let rest = &self.text.as_bytes()[start..];
+        let rest = self.text.as_bytes().get(start..).unwrap_or_default();
         let minimum = if rest.get(2) == Some(&b'P') { 5 } else { 4 };
         if rest.len() < minimum {
             // Too short to hold a name; Go reads it as an unknown flag.
@@ -890,7 +909,7 @@ impl Parser<'_> {
                         let Some(hex) = self.next(truncated)?.to_digit(16) else {
                             // Go reads both runes before rejecting either.
                             let end = if digit == 0 {
-                                self.after_rune(self.position)
+                                self.after_rune(self.position)?
                             } else {
                                 self.position
                             };
@@ -937,11 +956,11 @@ impl Parser<'_> {
             }
             let end = self.position;
             self.position += 1;
-            &self.text.as_bytes()[start..end]
+            self.text.as_bytes().span(start, end)?
         } else {
             let start = self.position;
             self.next(truncated)?;
-            &self.text.as_bytes()[start..self.position]
+            self.text.as_bytes().span(start, self.position)?
         };
         let negated = (byte == b'P') ^ name.starts_with(b"^");
         let name = name.strip_prefix(b"^").unwrap_or(name);
@@ -971,12 +990,13 @@ impl Parser<'_> {
             first = false;
             if self.remaining().starts_with(b"[:") {
                 let mut end = self.position + 2;
-                while end + 1 < self.text.len() && &self.text.as_bytes()[end..end + 2] != b":]" {
+                while end + 1 < self.text.len() && self.text.as_bytes().span(end, end + 2)? != b":]"
+                {
                     self.ctx.charge(1)?;
                     end += 1;
                 }
                 if end + 1 < self.text.len() {
-                    let name = &self.text.as_bytes()[self.position + 2..end];
+                    let name = self.text.as_bytes().span(self.position + 2, end)?;
                     let inverted = name.starts_with(b"^");
                     let name = name.strip_prefix(b"^").unwrap_or(name);
                     let set = match name {

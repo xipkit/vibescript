@@ -365,21 +365,13 @@ impl Error {
         struct Lossy<'a>(&'a [u8]);
         impl fmt::Display for Lossy<'_> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                let mut bytes = self.0;
-                loop {
-                    match std::str::from_utf8(bytes) {
-                        Ok(text) => return f.write_str(text),
-                        Err(error) => {
-                            let valid = error.valid_up_to();
-                            f.write_str(std::str::from_utf8(&bytes[..valid]).unwrap())?;
-                            f.write_str("\u{fffd}")?;
-                            match error.error_len() {
-                                Some(length) => bytes = &bytes[valid + length..],
-                                None => return Ok(()),
-                            }
-                        }
+                for chunk in self.0.utf8_chunks() {
+                    f.write_str(chunk.valid())?;
+                    if !chunk.invalid().is_empty() {
+                        f.write_str("\u{fffd}")?;
                     }
                 }
+                Ok(())
             }
         }
         ctx.work_bytes(bytes.len())?;
@@ -467,3 +459,9 @@ impl std::error::Error for Error {}
 
 /// An interpreter operation that may fail.
 pub type Result<T> = std::result::Result<T, Error>;
+
+impl From<std::convert::Infallible> for Error {
+    fn from(never: std::convert::Infallible) -> Self {
+        match never {}
+    }
+}

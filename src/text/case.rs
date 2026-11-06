@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{CallContext, Error, ErrorKind, Result, Value, budget::Buffer, ops, scan, value::Kind};
 use std::cmp::Ordering;
 
@@ -31,7 +32,9 @@ impl Transform {
             Self::Capitalize => {
                 scan::ascii_case(bytes, false);
                 if first {
-                    bytes[0] = bytes[0].to_ascii_uppercase();
+                    if let Some(byte) = bytes.first_mut() {
+                        *byte = byte.to_ascii_uppercase();
+                    }
                 }
             }
             Self::Swap => {
@@ -71,7 +74,7 @@ fn walk(
     let mut scratch = [0; 4096];
     while position < bytes.len() {
         let end = position + (bytes.len() - position).min(scratch.len());
-        let chunk = &bytes[position..end];
+        let chunk = bytes.span(position, end)?;
         let length = if ascii {
             chunk.len()
         } else {
@@ -79,8 +82,8 @@ fn walk(
         };
         if length > 0 {
             ctx.work_bytes(length)?;
-            let original = &chunk[..length];
-            let mapped = &mut scratch[..length];
+            let original = chunk.span(0, length)?;
+            let mapped = scratch.span_mut(0, length)?;
             mapped.copy_from_slice(original);
             transform.ascii(mapped, position == 0);
             changed |= mapped != original;
@@ -89,14 +92,17 @@ fn walk(
             continue;
         }
         ctx.charge(1)?;
-        let (rune, length, _) = scan::rune(&bytes[position..]);
-        let original = &bytes[position..position + length];
-        let encoded = entry(rune).map_or(0, |(maps, _)| maps[transform.index(position == 0)]);
+        let (rune, length, _) = scan::rune(bytes.tail(position)?);
+        let original = bytes.span(position, position + length)?;
+        let encoded = entry(rune)
+            .and_then(|(maps, _)| maps.get(transform.index(position == 0)))
+            .copied()
+            .unwrap_or(0);
         let mapped = if encoded == 0 {
             original
         } else {
             let start = (encoded >> 4) as usize;
-            &data::BYTES[start..start + (encoded & 15) as usize]
+            data::BYTES.span(start, start + (encoded & 15) as usize)?
         };
         changed |= mapped != original;
         emit(ctx, mapped)?;
@@ -158,8 +164,8 @@ pub(crate) fn equal(ctx: &mut CallContext, mut a: &[u8], mut b: &[u8]) -> Result
         if fold(left) != fold(right) {
             return Ok(false);
         }
-        a = &a[n..];
-        b = &b[m..];
+        a = a.tail(n)?;
+        b = b.tail(m)?;
     }
     Ok(a.is_empty() && b.is_empty())
 }
@@ -182,7 +188,7 @@ pub(crate) fn call(
                 format!("string.{name} expects exactly one string"),
             ));
         }
-        let Kind::Bytes(other) = &args[0].0 else {
+        let Kind::Bytes(other) = &args.at(0)?.0 else {
             return Ok(Some(Value::nil()));
         };
         return Ok(Some(if name == "casecmp?" {
