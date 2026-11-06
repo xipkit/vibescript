@@ -187,6 +187,69 @@ n="a".match(/(?<x>a)|(?<x>b)/).as(match_data)
 }
 
 #[test]
+fn empty_match_fields_copy_on_write_and_preserve_host_shape() {
+    let script = Engine::new()
+        .compile(
+            r#"
+m="a".match(/a/).as(match_data)
+n="b".match(/b/).as(match_data)
+captures=m.captures
+captures.push("x")
+named=m.named_captures
+named["x"]="y"
+pre=m.pre_match
+pre+="prefix"
+post=m.post_match
+post+="suffix"
+[captures,named,pre,post,m.captures,m.named_captures,m.pre_match,m.post_match,
+ n.captures,n.named_captures,n.pre_match,n.post_match]
+def matched -> match_data
+ "".match(/()/).as(match_data)
+end
+def read(m: match_data) -> array<any>
+ [m.fetch(0),m.fetch(1),m.begin(0),m.end(1),m.pre_match,m.post_match,m.captures]
+end
+"#,
+        )
+        .unwrap();
+    assert_eq!(
+        json(&script.run(CallOptions::default()).unwrap().value),
+        serde_json::json!([["x"], {"x":"y"}, "prefix", "suffix", [], {}, "", "", [], {}, "", ""])
+    );
+    let matched = script
+        .call("matched", &[], CallOptions::default())
+        .unwrap()
+        .value;
+    let fields = matched.as_hash().unwrap();
+    assert_eq!(
+        fields
+            .iter()
+            .map(|(key, _)| key.as_bytes().unwrap())
+            .collect::<Vec<_>>(),
+        [
+            b"begin".as_slice(),
+            b"captures",
+            b"end",
+            b"named_captures",
+            b"post_match",
+            b"pre_match",
+            b"to_s"
+        ]
+    );
+    assert_eq!(matched.to_string(), "");
+    assert!(format!("{matched:?}").starts_with("Value(Object({"));
+    assert_eq!(
+        json(
+            &script
+                .call("read", &[matched], CallOptions::default())
+                .unwrap()
+                .value
+        ),
+        serde_json::json!(["", "", 0, 0, "", "", [""]])
+    );
+}
+
+#[test]
 fn scans_preserve_match_shapes_and_refuse_blocks() {
     let script = Engine::new()
         .compile(

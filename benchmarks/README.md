@@ -25,6 +25,11 @@ are also saved per binary in `summary.json` under `timing_reliability`, with
 `UNRELIABLE` warning on stderr. Results are still saved and the command exits
 successfully; rerun on a quiet machine before drawing performance conclusions.
 
+The [eager match-data report](eager-match-data.md) measures the exact 128-line
+log workload and construction/access controls before and after sharing fixed
+keys and empty fields. `scripts/bench_match_data.py` reproduces its paired
+SIMD/portable measurements with separate timing and allocator binaries.
+
 ## Service footprint
 
 `scripts/footprint.py` measures a fresh embedding process at startup, after

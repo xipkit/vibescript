@@ -8,7 +8,52 @@ use crate::{
     ops,
     value::{Bytes, Heap, Kind},
 };
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
+
+// These immutable language constants contain no invocation data. Imports still
+// account for them in the destination budget, just as for compiler constants.
+fn keys() -> &'static [Value; 7] {
+    static KEYS: OnceLock<[Value; 7]> = OnceLock::new();
+    KEYS.get_or_init(|| {
+        [
+            "begin",
+            "captures",
+            "end",
+            "named_captures",
+            "post_match",
+            "pre_match",
+            "to_s",
+        ]
+        .map(|name| Value::bytes(name.as_bytes()))
+    })
+}
+
+fn empty_captures() -> Value {
+    static EMPTY: OnceLock<Value> = OnceLock::new();
+    EMPTY.get_or_init(|| Value::array(Vec::new())).clone()
+}
+
+fn empty_named() -> Value {
+    static EMPTY: OnceLock<Value> = OnceLock::new();
+    EMPTY.get_or_init(|| Value::hash(Vec::new())).clone()
+}
+
+fn window(ctx: &mut CallContext, subject: &Value, start: usize, end: usize) -> Result<Value> {
+    if start == end {
+        static EMPTY: OnceLock<Value> = OnceLock::new();
+        Ok(EMPTY.get_or_init(|| Value::bytes(b"")).clone())
+    } else {
+        super::window(ctx, subject, start, end)
+    }
+}
+
+fn data_window_bytes(text: &[u8], start: usize, end: usize) -> usize {
+    if start == end {
+        0
+    } else {
+        window_bytes(text, start, end)
+    }
+}
 
 #[derive(Debug)]
 pub(crate) struct Offset {
@@ -118,21 +163,19 @@ pub(super) fn data(
     let text = subject.require_bytes()?;
     let count = indices.len() / 2;
     let groups = count - 1;
-    let mut projected = count
-        .saturating_mul(size_of::<Value>())
-        .saturating_add(3 * Heap::<Value>::header_bytes())
+    let mut projected = (2 + usize::from(groups != 0))
+        .saturating_mul(Heap::<Value>::header_bytes())
         .saturating_add((2 * count + groups).saturating_mul(size_of::<Value>()))
         .saturating_add(2 * (size_of::<Offset>() + 2 * size_of::<usize>()))
-        .saturating_add(2 * (size_of::<Hash>() + 2 * size_of::<usize>()))
-        .saturating_add(7 * size_of::<(Value, Value)>())
-        .saturating_add(7 * Bytes::header_bytes() + 57);
+        .saturating_add(size_of::<Hash>() + 2 * size_of::<usize>())
+        .saturating_add(7 * size_of::<(Value, Value)>());
     let mut named_count = 0usize;
     for (index, pair) in indices.chunks_exact(2).enumerate() {
         let &[start, end] = pair else {
             continue;
         };
         ctx.charge(1)?;
-        projected = projected.saturating_add(window_bytes(text, start, end));
+        projected = projected.saturating_add(data_window_bytes(text, start, end));
         if index != 0 {
             let (start, end) = *program.names.at(index)?;
             if start != end {
@@ -142,32 +185,44 @@ pub(super) fn data(
         }
     }
     projected = projected
-        .saturating_add(window_bytes(text, 0, *indices.at(0)?))
-        .saturating_add(window_bytes(text, *indices.at(1)?, text.len()))
+        .saturating_add(data_window_bytes(text, 0, *indices.at(0)?))
+        .saturating_add(data_window_bytes(text, *indices.at(1)?, text.len()))
+        .saturating_add(if named_count == 0 {
+            0
+        } else {
+            size_of::<Hash>() + 2 * size_of::<usize>()
+        })
         .saturating_add(
             named_count.saturating_mul(2 * size_of::<(Value, Value)>() + size_of::<[usize; 8]>()),
         )
         .saturating_add(if named_count >= 16 { 256 } else { 0 });
     ctx.check_memory(projected)?;
-    let mut values = Buffer::with_capacity(ctx, count)?;
+    let mut captures = Buffer::with_capacity(ctx, groups)?;
+    let mut whole = Value::nil();
     let mut starts = Buffer::with_capacity(ctx, count)?;
     let mut ends = Buffer::with_capacity(ctx, count)?;
-    for pair in indices.chunks_exact(2) {
+    for (index, pair) in indices.chunks_exact(2).enumerate() {
         let &[start, end] = pair else {
             continue;
         };
         ctx.charge(1)?;
-        if start == ABSENT {
-            values.data.push(Value::nil());
+        let value = if start == ABSENT {
             starts.data.push(Value::nil());
             ends.data.push(Value::nil());
+            Value::nil()
         } else {
-            values.data.push(super::window(ctx, subject, start, end)?);
+            let value = window(ctx, subject, start, end)?;
             starts
                 .data
                 .push(Value::int(to_i64(ops::runes(ctx, text.span(0, start)?)?.0)));
             ends.data
                 .push(Value::int(to_i64(ops::runes(ctx, text.span(0, end)?)?.0)));
+            value
+        };
+        if index == 0 {
+            whole = value;
+        } else {
+            captures.data.push(value);
         }
     }
     let mut named = Hash::empty();
@@ -177,35 +232,36 @@ pub(super) fn data(
             continue;
         }
         let name = program.source.span(start, end)?;
-        if matches!(values.at(index)?.0, Kind::Nil) && named.find(ctx, name)?.is_some() {
+        let value = captures.at(index - 1)?;
+        if matches!(value.0, Kind::Nil) && named.find(ctx, name)?.is_some() {
             continue;
         }
         let key = ctx.bytes(name)?;
-        named.insert(ctx, key, values.at(index)?.clone())?;
+        named.insert(ctx, key, value.clone())?;
     }
-    let named = crate::arguments::ordered_hash(ctx, named.into_buffer())?;
-    let named = Value::from_hash(ctx, named)?;
-    let mut captures = Buffer::with_capacity(ctx, groups)?;
-    captures.extend(ctx, values.tail(1)?)?;
-    let captures = Value::from_array(ctx, captures)?;
+    let named = if named_count == 0 {
+        empty_named()
+    } else {
+        let named = crate::arguments::ordered_hash(ctx, named.into_buffer())?;
+        Value::from_hash(ctx, named)?
+    };
+    let captures = if groups == 0 {
+        empty_captures()
+    } else {
+        Value::from_array(ctx, captures)?
+    };
     let starts = Value::from_array(ctx, starts)?;
     let ends = Value::from_array(ctx, ends)?;
     let begin = Offset::value(ctx, starts, false)?;
     let end = Offset::value(ctx, ends, true)?;
-    let pre = super::window(ctx, subject, 0, *indices.at(0)?)?;
-    let post = super::window(ctx, subject, *indices.at(1)?, text.len())?;
+    let pre = window(ctx, subject, 0, *indices.at(0)?)?;
+    let post = window(ctx, subject, *indices.at(1)?, text.len())?;
     let mut entries = Buffer::with_capacity(ctx, 7)?;
-    for (name, value) in [
-        ("begin", begin),
-        ("captures", captures),
-        ("end", end),
-        ("named_captures", named),
-        ("post_match", post),
-        ("pre_match", pre),
-        ("to_s", values.at(0)?.clone()),
-    ] {
-        let name = ctx.bytes(name.as_bytes())?;
-        entries.data.push((name, value));
+    for (name, value) in keys()
+        .iter()
+        .zip([begin, captures, end, named, post, pre, whole])
+    {
+        entries.data.push((name.clone(), value));
     }
     let mut hash = Hash::from_entries(ctx, entries)?;
     hash.object = true;
@@ -412,6 +468,34 @@ mod tests {
                 .0,
             Kind::Nil
         ));
+        drop(imported);
+        assert_eq!(second.stats().retained_memory_bytes, 0);
+    }
+
+    #[test]
+    fn importing_match_constants_charges_the_destination_and_releases_the_origin() {
+        let mut first = CallContext::new(CallOptions::default());
+        let subject = first.bytes(b"").unwrap();
+        let program = Program::compile(&mut first, Value::bytes(b""), "Regex.match").unwrap();
+        let original = data(&mut first, program.view().unwrap(), &subject, &[0, 0]).unwrap();
+        let mut second = CallContext::new(CallOptions::default());
+        let imported = second.import(&original).unwrap();
+        for (key, _) in imported.as_hash().unwrap() {
+            let Kind::Bytes(bytes) = &key.0 else {
+                panic!("match key must be bytes")
+            };
+            // Re-importing a key in its destination shares its existing charge.
+            let copied = second.import(key).unwrap();
+            let Kind::Bytes(copied) = &copied.0 else {
+                panic!("imported match key must be bytes")
+            };
+            assert!(bytes.ptr_eq(copied));
+        }
+        drop(original);
+        drop(subject);
+        drop(program);
+        assert_eq!(first.stats().retained_memory_bytes, 0);
+        assert!(second.stats().retained_memory_bytes > 0);
         drop(imported);
         assert_eq!(second.stats().retained_memory_bytes, 0);
     }
