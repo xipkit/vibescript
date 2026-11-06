@@ -184,6 +184,18 @@ The [differential tests](../../docs/checker-diff.md), extended to hosts, nested 
 
 ## Counter log
 
+- Cheap eager match data (2026-11-06): fixed field keys and empty values are
+  immutable process constants, and captures are built without a temporary
+  whole-match vector. Dynamic fields, offsets, buffers and hash headers remain
+  charged; imports charge the destination normally. A paired same-checkout
+  sweep of 197,937 cases isolates 749 reductions in both steps and peak bytes,
+  with retained bytes also falling in 29 cases. Recorded only three conformance,
+  661 language, two compatibility and 83 replay cases, twice; every unselected
+  counter and all observations are preserved. No quota outcome changed; four
+  clock-dependent replay results differ between runs. The exact log workload
+  falls from 41,165 to 40,349 steps and 79,212 to 77,967 peak bytes, retaining
+  the same 55,768 bytes. See the [paired audit](../../benchmarks/results/eager-match-data/counters.jsonl)
+  and [measurements](../../benchmarks/eager-match-data.md).
 - Text-anchored regex search (2026-11-05): when every non-consuming path
   reaches `BeginText`, search only starts threads at position zero and stops
   when those threads finish. Removed positions no longer charge work; the
