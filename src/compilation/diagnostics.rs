@@ -31,7 +31,9 @@ pub(crate) fn formatted(
     write(work, args, |bytes| buffer.extend_from_slice(work, bytes))?;
     work.checkpoint()?;
     let (bytes, charge) = buffer.into_parts();
-    Ok((String::from_utf8(bytes).unwrap(), charge))
+    let message = String::from_utf8(bytes)
+        .map_err(|_| crate::checked::violation("formatted diagnostic must be UTF-8"))?;
+    Ok((message, charge))
 }
 
 fn write(

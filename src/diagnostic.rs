@@ -82,10 +82,13 @@ macro_rules! registry {
             let mut sorted = 1;
             while sorted < registry.len() {
                 let mut at = sorted;
-                while at > 0 && registry[at - 1].code.0 > registry[at].code.0 {
-                    let previous = registry[at - 1];
-                    registry[at - 1] = registry[at];
-                    registry[at] = previous;
+                while let Some((before, after)) = registry.split_at_mut_checked(at) {
+                    let [.., previous] = before else { break };
+                    let [current, ..] = after else { break };
+                    if previous.code.0 <= current.code.0 {
+                        break;
+                    }
+                    std::mem::swap(previous, current);
                     at -= 1;
                 }
                 sorted += 1;
@@ -281,11 +284,11 @@ impl Span {
 
 fn position(source: &str, offset: usize) -> crate::Position {
     let offset = boundary(source, offset);
-    let before = &source[..offset];
+    let before = source.get(..offset).unwrap_or(source);
     let line_start = before.rfind('\n').map_or(0, |index| index + 1);
     crate::Position {
         line: before.bytes().filter(|&b| b == b'\n').count() + 1,
-        column: before[line_start..].chars().count() + 1,
+        column: before.get(line_start..).unwrap_or(before).chars().count() + 1,
     }
 }
 
@@ -373,11 +376,11 @@ impl Fix {
             {
                 return None;
             }
-            output.push_str(&source[cursor..start]);
+            output.push_str(source.get(cursor..start)?);
             output.push_str(&edit.replacement);
             cursor = end;
         }
-        output.push_str(&source[cursor..]);
+        output.push_str(source.get(cursor..)?);
         Some(output)
     }
 
@@ -387,10 +390,10 @@ impl Fix {
     /// are put in order first, as [`Self::apply`] puts them.
     pub(crate) fn applies(&self, source: &str) -> bool {
         let key = |span: Span| (span.start, span.end);
-        let ordered = self
-            .edits
-            .windows(2)
-            .all(|pair| key(pair[0].span) <= key(pair[1].span));
+        let ordered = self.edits.windows(2).all(|pair| match pair {
+            [a, b] => key(a.span) <= key(b.span),
+            _ => true,
+        });
         if ordered {
             return applies_in_order(self.edits.iter().map(|edit| edit.span), source);
         }
@@ -526,8 +529,17 @@ impl Diagnostic {
         out.push_str(&format!("  --> {file}{line}:{column}\n"));
         if let Some(text) = source.lines().nth(line - 1) {
             let start = boundary(source, self.span.start);
-            let before = &source[source[..start].rfind('\n').map_or(0, |index| index + 1)..start];
-            let width = self.span.end.min(line_end(source, self.span.start)) - self.span.start;
+            let before = source
+                .get(..start)
+                .unwrap_or(source)
+                .rsplit('\n')
+                .next()
+                .unwrap_or_default();
+            let width = self
+                .span
+                .end
+                .min(line_end(source, self.span.start))
+                .saturating_sub(self.span.start);
             let marked = source
                 .get(self.span.start..self.span.start + width)
                 .map_or(1, |text| {
@@ -677,15 +689,14 @@ pub(crate) struct Controls<'a>(pub &'a str);
 
 impl fmt::Display for Controls<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut start = 0;
-        for (index, ch) in self.0.char_indices() {
+        for ch in self.0.chars() {
             if ch.is_control() && ch != '\t' {
-                f.write_str(&self.0[start..index])?;
                 write!(f, "{}", ch.escape_default())?;
-                start = index + ch.len_utf8();
+            } else {
+                f.write_char(ch)?;
             }
         }
-        f.write_str(&self.0[start..])
+        Ok(())
     }
 }
 
@@ -714,16 +725,13 @@ pub(crate) struct Filename<'a>(pub &'a [u8]);
 impl fmt::Display for Filename<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for chunk in self.0.utf8_chunks() {
-            let text = chunk.valid();
-            let mut start = 0;
-            for (index, ch) in text.char_indices() {
+            for ch in chunk.valid().chars() {
                 if ch.is_control() || ch == '\\' {
-                    f.write_str(&text[start..index])?;
                     write!(f, "{}", ch.escape_default())?;
-                    start = index + ch.len_utf8();
+                } else {
+                    f.write_char(ch)?;
                 }
             }
-            f.write_str(&text[start..])?;
             for byte in chunk.invalid() {
                 write!(f, "\\x{byte:02x}")?;
             }
@@ -771,8 +779,10 @@ fn boundary(source: &str, offset: usize) -> usize {
 }
 
 fn line_end(source: &str, offset: usize) -> usize {
-    let offset = offset.min(source.len());
-    source[offset..]
+    let offset = boundary(source, offset);
+    source
+        .get(offset..)
+        .unwrap_or_default()
         .find('\n')
         .map_or(source.len(), |index| offset + index)
 }
@@ -798,6 +808,16 @@ fn json_string(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rendering_clamps_spans_inside_unicode_or_past_the_source() {
+        for (span, position) in [(Span::new(1, 2), "1:1"), (Span::new(9, 10), "1:2")] {
+            let diagnostic = Diagnostic::error(Code::SYNTAX, span, "invalid span");
+            let rendered = diagnostic.render("é");
+            assert!(rendered.contains(&format!("--> {position}")), "{rendered}");
+            assert!(rendered.contains('é'), "{rendered}");
+        }
+    }
 
     #[test]
     fn codes_are_unique_ordered_and_grouped() {

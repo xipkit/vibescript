@@ -1,3 +1,4 @@
+use crate::checked::{Access, Checked, convert};
 use crate::{CallContext, Error, ErrorKind, Result, Value, budget::Buffer, scan, value::Kind};
 
 fn argument(message: &str) -> Error {
@@ -11,36 +12,36 @@ struct Token {
 }
 
 impl Token {
-    fn read(bytes: &[u8], position: &mut usize) -> Self {
-        let (rune, width, valid) = scan::rune(&bytes[*position..]);
+    fn read(bytes: &[u8], position: &mut usize) -> Access<Self> {
+        let (rune, width, valid) = scan::rune(bytes.tail(*position)?);
         let code = if valid {
             rune as u32
         } else {
-            u32::from(bytes[*position])
+            u32::from(*bytes.at(*position)?)
         };
         *position += width;
-        Self { code, raw: !valid }
+        Ok(Self { code, raw: !valid })
     }
 
     fn escaped(ctx: &mut CallContext, bytes: &[u8], position: &mut usize) -> Result<Self> {
         ctx.charge(1)?;
-        let token = Self::read(bytes, position);
+        let token = Self::read(bytes, position)?;
         if token.code == u32::from(b'\\') && !token.raw && *position < bytes.len() {
             ctx.charge(1)?;
-            return Ok(Self::read(bytes, position));
+            return Ok(Self::read(bytes, position)?);
         }
         Ok(token)
     }
 
-    fn encode(self, scratch: &mut [u8; 4]) -> &[u8] {
+    fn encode(self, scratch: &mut [u8; 4]) -> crate::checked::Access<&[u8]> {
         if self.raw {
-            scratch[0] = self.code as u8;
-            &scratch[..1]
+            scratch[0] = convert(self.code)?;
+            Ok(&scratch[..1])
         } else {
-            char::from_u32(self.code)
+            Ok(char::from_u32(self.code)
                 .unwrap_or('\u{fffd}')
                 .encode_utf8(scratch)
-                .as_bytes()
+                .as_bytes())
         }
     }
 }
@@ -72,7 +73,7 @@ impl Set {
     /// Parses the character set `bytes` given to the member `name`, which
     /// its range errors name.
     fn parse(ctx: &mut CallContext, name: &str, bytes: &[u8], complement: bool) -> Result<Self> {
-        let complement = complement && bytes.len() > 1 && bytes[0] == b'^';
+        let complement = complement && bytes.len() > 1 && bytes.first() == Some(&b'^');
         let mut position = usize::from(complement);
         let mut set = Self {
             spans: Buffer::empty(),
@@ -81,7 +82,7 @@ impl Set {
         };
         while position < bytes.len() {
             let start = Token::escaped(ctx, bytes, &mut position)?;
-            let end = if position + 1 < bytes.len() && bytes[position] == b'-' {
+            let end = if position + 1 < bytes.len() && bytes.get(position) == Some(&b'-') {
                 ctx.charge(1)?;
                 position += 1;
                 Token::escaped(ctx, bytes, &mut position)?
@@ -154,7 +155,7 @@ impl Set {
             ctx.charge(1)?;
             if index < span.length() {
                 return Ok(Some(Token {
-                    code: span.low + index as u32,
+                    code: span.low + convert::<u32, _>(index)?,
                     raw: span.raw,
                 }));
             }
@@ -196,7 +197,7 @@ fn walk(
     let mut count = 0;
     while position < bytes.len() {
         ctx.charge(1)?;
-        let token = Token::read(bytes, &mut position);
+        let token = Token::read(bytes, &mut position)?;
         let output = match operation {
             Operation::Count => {
                 count += usize::from(matches(ctx, sets, token)?);
@@ -204,8 +205,8 @@ fn walk(
             }
             Operation::Delete => (!matches(ctx, sets, token)?).then_some(token),
             Operation::Translate => {
-                if let Some(index) = sets[0].index(ctx, token)? {
-                    sets[1].at(ctx, index)?
+                if let Some(index) = sets.at(0)?.index(ctx, token)? {
+                    sets.at(1)?.at(ctx, index)?
                 } else {
                     Some(token)
                 }
@@ -217,7 +218,7 @@ fn walk(
             }
         };
         if let Some(token) = output {
-            emit(ctx, token.encode(&mut [0; 4]))?;
+            emit(ctx, token.encode(&mut [0; 4])?)?;
         }
     }
     Ok(count)
@@ -325,7 +326,8 @@ mod tests {
             set.at(&mut ctx, 0xd800)
                 .unwrap()
                 .unwrap()
-                .encode(&mut [0; 4]),
+                .encode(&mut [0; 4])
+                .unwrap(),
             "�".as_bytes()
         );
         assert_eq!(set.at(&mut ctx, u64::MAX).unwrap().unwrap().code, 0x10ffff);

@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{CallContext, Error, ErrorKind, Result, Value, bytecode::CallSite, value::Kind};
 use std::sync::Arc;
 
@@ -21,13 +22,13 @@ pub(crate) fn type_atom<'a>(
             format!("is_type? does not take {shape}"),
         ));
     }
-    if args.len() != 1 {
+    let [argument] = args else {
         return Err(Error::new(
             ErrorKind::Argument,
             "is_type? expects exactly one argument",
         ));
-    }
-    let bytes = match &args[0].0 {
+    };
+    let bytes = match &argument.0 {
         Kind::Bytes(bytes) | Kind::Symbol(bytes) => &bytes.data(),
         _ => {
             return Err(Error::new(
@@ -59,7 +60,7 @@ pub(crate) fn field_named(ctx: &mut CallContext, name: &str, receiver: &Value) -
     if let Kind::Hash(hash) = &receiver.0 {
         if hash.object {
             if let Some(index) = hash.find(ctx, name.as_bytes())? {
-                return Ok(super::callable(&hash.buffer.data[index].1));
+                return Ok(super::callable(&hash.buffer.at(index)?.1));
             }
         }
     }

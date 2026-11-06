@@ -521,7 +521,10 @@ impl<'a> Checker<'a> {
             if self.over_budget() {
                 return;
             }
-            self.check_namespace_body(ns as NsId);
+            let Some(ns) = self.meter.index(ns) else {
+                return;
+            };
+            self.check_namespace_body(ns);
         }
         for id in 0..self.program.fns.len() {
             if self.over_budget() {
@@ -618,7 +621,7 @@ impl<'a> Checker<'a> {
             let mut defaults: HashMap<u32, Vec<(&'a Stmt, Option<&'a str>)>> = HashMap::new();
             // Each entry is a step, and the budget is checked as a walk
             // checks it.
-            let pace = super::walk::PACE as usize;
+            let pace = usize::from(super::walk::PACE);
             for (index, (class, ivar)) in additions.ivars.iter().enumerate() {
                 if index % pace == pace - 1 && self.meter.pace(pace as u64, most) {
                     return Vec::new();
@@ -643,7 +646,14 @@ impl<'a> Checker<'a> {
             }
             self.defaults = Some((defaults, bytes));
         }
-        let (defaults, bytes) = self.defaults.take().unwrap();
+        let Some((defaults, bytes)) =
+            self.meter
+                .found(self.defaults.take().ok_or(crate::checked::violation(
+                    "class defaults must be collected before they are read",
+                )))
+        else {
+            return Vec::new();
+        };
         let mut defaults = defaults;
         let taken = defaults.remove(&offset).unwrap_or_default();
         // The caller keeps the removed list charged until its defaults
@@ -1124,7 +1134,10 @@ impl<'a> Checker<'a> {
         self.frame.flow.untrack();
         self.frame.initialize = None;
         for place in 0..roster.len() {
-            let id = first + place as LocalId;
+            let Some(place) = self.meter.index(place) else {
+                return;
+            };
+            let id = first + place;
             let state = self.frame.flow.get(id);
             self.frame.flow.set(
                 id,
@@ -1492,7 +1505,7 @@ impl<'a> Checker<'a> {
         if let Some(scope) = frame.scopes.last_mut() {
             scope.reserve(tables, 1).ok()?;
         }
-        let id = frame.flow.add(declared);
+        let id = frame.flow.add(declared)?;
         debug_assert_eq!(id as usize, frame.locals.len());
         frame.locals.push_kept(
             &mut kept,
@@ -1524,7 +1537,7 @@ impl<'a> Checker<'a> {
         let tables = self.meter.tables();
         self.frame.flow.reserve().ok()?;
         self.frame.locals.reserve(tables, 1).ok()?;
-        let id = self.frame.flow.add(Ty::BOOL);
+        let id = self.frame.flow.add(Ty::BOOL)?;
         self.frame.locals.push_within(Local {
             name: String::new(),
             declared: Ty::BOOL,
@@ -1995,7 +2008,15 @@ impl<'a> Checker<'a> {
             return Ty::ERROR;
         }
         let value = self.stmts(body, Self::body_want(last));
-        let context = self.frame.contexts.pop().unwrap();
+        let Some(context) = self.meter.found(
+            self.frame
+                .contexts
+                .pop()
+                .ok_or(crate::checked::violation("loop body must have a context")),
+        ) else {
+            self.frame.flow.rollback(before);
+            return Ty::ERROR;
+        };
         let mut values = self.finish_loop(before, context, !infinite);
         // A `break` without a value leaves the loop's value as it was.
         if !infinite || (last && values.contains(&Ty::NIL)) {
@@ -2098,7 +2119,15 @@ impl<'a> Checker<'a> {
             return Ty::ERROR;
         }
         let value = self.stmts(body, Self::body_want(last));
-        let mut context = self.frame.contexts.pop().unwrap();
+        let Some(mut context) = self.meter.found(
+            self.frame
+                .contexts
+                .pop()
+                .ok_or(crate::checked::violation("loop body must have a context")),
+        ) else {
+            self.frame.flow.rollback(before);
+            return Ty::ERROR;
+        };
         let skips = !context.exits().nexts.is_empty();
         // A `break` gives the loop its value instead of the iterable.
         let mut values = self.finish_loop(before, context, true);
@@ -2362,7 +2391,12 @@ impl<'a> Checker<'a> {
         }
         let branch = self.frame.flow.peek(mark);
         let tables = self.meter.tables();
-        let exits = self.frame.contexts.last_mut().unwrap().exits();
+        let Some(context) = self.meter.found(self.frame.contexts.last_mut().ok_or(
+            crate::checked::violation("control flow exit must have a context"),
+        )) else {
+            return;
+        };
+        let exits = context.exits();
         // A check the budget stops records neither.
         if exits.values.reserve(tables, 1).is_ok() && exits.record(tables, branch, true).is_ok() {
             exits.values.push_within(value);
@@ -2379,7 +2413,12 @@ impl<'a> Checker<'a> {
         };
         let branch = self.frame.flow.peek(context.mark());
         let tables = self.meter.tables();
-        let exits = self.frame.contexts.last_mut().unwrap().exits();
+        let Some(context) = self.meter.found(self.frame.contexts.last_mut().ok_or(
+            crate::checked::violation("control flow exit must have a context"),
+        )) else {
+            return;
+        };
+        let exits = context.exits();
         let kept = exits.record(tables, branch, leaves);
         // A check the budget stops keeps no more of them.
         if kept.is_err() {
@@ -2510,20 +2549,27 @@ impl<'a> Checker<'a> {
                     );
                 }
                 let ty = self.expr(value, Some(current));
-                self.memo.get_mut().unwrap().replay = true;
+                self.memo.replay(&self.meter);
                 self.target_write(target, ty, value);
                 self.restore_memo(outer);
                 ty
             }
             _ => {
-                let operator = &op[..op.len() - 1];
+                let Some(operator) =
+                    self.meter
+                        .found(op.strip_suffix('=').ok_or(crate::checked::violation(
+                            "compound assignment must end with =",
+                        )))
+                else {
+                    return Ty::ERROR;
+                };
                 // The write reuses the types the read found for the target's
                 // receiver and selectors instead of checking them again.
                 let outer = self.set_memo(Some(super::Memo::default()));
                 let current = self.target_read(target);
                 let right = self.expr(value, None);
                 let span = self.spans.stmt(stmt);
-                self.memo.get_mut().unwrap().replay = true;
+                self.memo.replay(&self.meter);
                 let result = match self.optional_element(target, op, value, current) {
                     Some(present) => {
                         self.binary_types(operator, present, right, span, Some((None, value)))
@@ -2629,7 +2675,7 @@ impl<'a> Checker<'a> {
         let selector_span = self.spans.expr(selector);
         let receiver_text = self.source.get(receiver_span.start..receiver_span.end)?;
         let selector_text = self.source.get(selector_span.start..selector_span.end)?;
-        let operator = &op[..op.len() - 1];
+        let operator = op.strip_suffix('=')?;
         let grouped = matches!(
             value.node,
             Node::Integer(_)
@@ -2701,7 +2747,7 @@ impl<'a> Checker<'a> {
                 }
                 Node::Var(name) if name.starts_with('@') => {
                     let span = self.spans.expr(expr);
-                    self.write_ivar(&name[1..], ty, span, value);
+                    self.write_ivar(self.meter.text(name, 1..), ty, span, value);
                 }
                 Node::Var(name) => {
                     if let Some(id) = self.local(name) {
@@ -2809,7 +2855,7 @@ impl<'a> Checker<'a> {
                                 this.expr_against(
                                     value,
                                     declared,
-                                    &Purpose::Ivar(this.copy(&name[1..])),
+                                    &Purpose::Ivar(this.copy(this.meter.text(name, 1..))),
                                 )
                             })
                         }
@@ -2822,7 +2868,7 @@ impl<'a> Checker<'a> {
                 }
                 Node::Var(name) if name.starts_with('@') => {
                     let span = self.spans.expr(expr);
-                    let ivar = &name[1..];
+                    let ivar = self.meter.text(name, 1..);
                     let expected = self.ivar_type(ivar, span);
                     if matches!(&value.node, Node::Var(value) if value.as_str() == "self") {
                         self.storing_self = Some(self.copy(ivar));
@@ -2876,7 +2922,13 @@ impl<'a> Checker<'a> {
                             ty
                         }
                         None if self.host_global(name).is_some() => {
-                            let global = self.host_global(name).unwrap();
+                            let Some(global) = self.meter.found(self.host_global(name).ok_or(
+                                crate::checked::violation(
+                                    "host global assignment must have a declared type",
+                                ),
+                            )) else {
+                                return Ty::ERROR;
+                            };
                             self.expr_against(value, global, &Purpose::Global(self.copy(name)))
                         }
                         None => {
@@ -3054,7 +3106,14 @@ impl<'a> Checker<'a> {
         match target {
             Target::Value(expr) => match &expr.node {
                 Node::Var(name) if assignment && self.host_global(name).is_some() => {
-                    let global = self.host_global(name).unwrap();
+                    let Some(global) =
+                        self.meter
+                            .found(self.host_global(name).ok_or(crate::checked::violation(
+                                "host global target must have a declared type",
+                            )))
+                    else {
+                        return;
+                    };
                     let span = self.spans.expr(expr);
                     self.global_write(name, global, ty, span);
                 }
@@ -3083,17 +3142,17 @@ impl<'a> Checker<'a> {
                 }
                 Node::Var(name) => {
                     let span = self.spans.expr(expr);
-                    if let Some(expected) = self.ivar_type(&name[1..], span) {
+                    if let Some(expected) = self.ivar_type(self.meter.text(name, 1..), span) {
                         if !self.types.assignable(ty, expected) {
                             self.mismatch(
                                 span,
                                 expected,
                                 ty,
-                                &Purpose::Ivar(self.copy(&name[1..])),
+                                &Purpose::Ivar(self.copy(self.meter.text(name, 1..))),
                             );
                         }
                     }
-                    self.mark_ivar_assigned(&name[1..]);
+                    self.mark_ivar_assigned(self.meter.text(name, 1..));
                 }
                 // A destructured element written through an index or a
                 // setter is checked as an assigned value is.
@@ -3103,7 +3162,7 @@ impl<'a> Checker<'a> {
                     // receiver and keys, and the write replays their types.
                     let outer = self.set_memo(Some(super::Memo::default()));
                     self.expr(expr, None);
-                    self.memo.get_mut().unwrap().replay = true;
+                    self.memo.replay(&self.meter);
                     self.index_write(expr, receiver, selectors, ty, expr, false);
                     self.restore_memo(outer);
                 }
@@ -3131,7 +3190,13 @@ impl<'a> Checker<'a> {
                         ..
                     }) if assignment && self.host_global(name).is_some() => {
                         // The value already has the declared type.
-                        let global = self.host_global(name).unwrap();
+                        let Some(global) = self.meter.found(self.host_global(name).ok_or(
+                            crate::checked::violation(
+                                "host global target must have a declared type",
+                            ),
+                        )) else {
+                            return;
+                        };
                         let span = self.spans.token(*offset as usize);
                         self.global_declaration(name, global, declared, span);
                     }
@@ -3322,7 +3387,12 @@ impl<'a> Checker<'a> {
                     continue;
                 }
                 if declared
-                    .insert_made(tables, name.len(), || name.to_owned(), index as u32)
+                    .insert_made(
+                        tables,
+                        name.len(),
+                        || name.to_owned(),
+                        self.meter.index(index)?,
+                    )
                     .is_err()
                 {
                     return None;
@@ -3355,7 +3425,12 @@ impl<'a> Checker<'a> {
         if let Some(declared) = self.constants.get(&key).copied() {
             if !self.types.assignable(ty, declared) {
                 let span = self.spans.expr(value);
-                self.mismatch(span, declared, ty, &Purpose::Ivar(self.copy(&name[1..])));
+                self.mismatch(
+                    span,
+                    declared,
+                    ty,
+                    &Purpose::Ivar(self.copy(self.meter.text(name, 1..))),
+                );
             }
             return;
         }
@@ -3435,7 +3510,10 @@ impl<'a> Checker<'a> {
             return;
         };
         if let Ok(place) = roster.binary_search_by(|ivar| ivar.as_str().cmp(name)) {
-            let id = first + place as LocalId;
+            let Some(place) = self.meter.index(place) else {
+                return;
+            };
+            let id = first + place;
             let state = self.frame.flow.get(id);
             self.frame.flow.set(
                 id,
@@ -3490,7 +3568,7 @@ impl<'a> Checker<'a> {
                 && !self.types.assignable(Ty::BOOL, rest)
                 && !self.types.members(rest).contains(&Ty::BOOL)
             {
-                let text = &self.source[span.start..span.end];
+                let text = self.meter.text(self.source, span.start..span.end);
                 let replacement = if is_simple(expr) {
                     text!(self, "{text} != nil")
                 } else {
@@ -3727,7 +3805,7 @@ impl<'a> Checker<'a> {
                     let ns = self.program.namespaces.iter().position(|ns| {
                         ns.is_class && ns.module.is_some_and(|module| module.name == base)
                     })?;
-                    self.types.intern(Kind::Instance(ns as NsId))
+                    self.types.intern(Kind::Instance(self.meter.index(ns)?))
                 }
             }
         };

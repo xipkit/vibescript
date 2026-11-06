@@ -1,9 +1,13 @@
 use super::{Expr, Label, Node, Parser, Parsing, Token};
+use crate::checked::convert;
 use crate::{
     Result,
     compilation::{Boxed, Buffer, Bytes, Field, Name, Type, TypeKind},
     types::Scalar,
 };
+
+#[cfg(test)]
+mod tests;
 
 impl<M: super::recovery::Mode> Parsing<'_, M> {
     pub(super) async fn hash_expr(&self) -> Result<Expr> {
@@ -85,6 +89,9 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             }
             Err(error) => {
                 work.checkpoint()?;
+                if error.kind != crate::ErrorKind::Syntax {
+                    return Err(error);
+                }
                 let mut p = self.p();
                 (
                     p.depth,
@@ -99,10 +106,8 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 ) = state;
                 p.type_structural_error = structural;
                 let Some(ty) = candidate else {
-                    if error.kind == crate::ErrorKind::Syntax {
-                        p.pos = start;
-                        p.type_shape(0)?;
-                    }
+                    p.pos = start;
+                    p.type_shape(0)?;
                     return Err(error);
                 };
                 p.pos = end;
@@ -113,6 +118,20 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
 }
 
 impl Parser<'_> {
+    /// Allows a syntax mismatch to fall back without hiding internal or quota errors.
+    pub(super) fn speculative_type<T>(
+        &mut self,
+        parse: impl FnOnce(&mut Self) -> Result<T>,
+    ) -> Result<Option<T>> {
+        let candidate = parse(self);
+        self.work.checkpoint()?;
+        match candidate {
+            Ok(value) => Ok(Some(value)),
+            Err(error) if error.kind == crate::ErrorKind::Syntax => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
     /// Parses an argument that is a type literal, such as `int` or
     /// `array<string>`, and where the call takes `types`, a tuple type.
     pub(super) fn argument_type_literal(&mut self, types: bool) -> Result<Option<Expr>> {
@@ -128,16 +147,15 @@ impl Parser<'_> {
             return Ok(None);
         }
         let start = self.pos;
-        let offset = self.tokens[start].offset as u32;
+        let offset = convert(self.tokens.at(start)?.offset)?;
         let structural = self.type_structural_error;
-        let candidate = self.type_expr(1, false);
-        self.work.checkpoint()?;
+        let candidate = self.speculative_type(|p| p.type_expr(1, false))?;
         let end = self.pos;
         self.line_breaks()?;
         let boundary = matches!(self.token(), Token::P(',' | ')'));
         self.pos = start;
         self.type_structural_error = structural;
-        let Ok(ty) = candidate else {
+        let Some(ty) = candidate else {
             return Ok(None);
         };
         self.work.ty(&ty)?;
@@ -155,7 +173,7 @@ impl Parser<'_> {
         // the value; the runtime's guard does not see every such binding. In
         // a call that takes types, a builtin function named like a builtin
         // type, such as `money`, is the type, since a function is not a value.
-        let (local, function) = match &self.tokens[start].token {
+        let (local, function) = match &self.tokens.at(start)?.token {
             Token::Word(name) if end == start + 1 => {
                 let newer = matches!(
                     name.as_str(),
@@ -174,7 +192,7 @@ impl Parser<'_> {
             return Ok(None);
         }
         let fallback = if end == start + 1 && !function {
-            if let Token::Word(name) = &self.tokens[start].token {
+            if let Token::Word(name) = &self.tokens.at(start)?.token {
                 let name = Name::new(self.work, name)?;
                 names.push(self.work, name.clone())?;
                 Some(Boxed::new(
@@ -229,16 +247,15 @@ impl Parser<'_> {
             return Ok(None);
         }
         let start = self.pos;
-        let offset = self.tokens[start].offset as u32;
+        let offset = convert(self.tokens.at(start)?.offset)?;
         let structural = self.type_structural_error;
-        let candidate = self.type_expr(1, false);
-        self.work.checkpoint()?;
+        let candidate = self.speculative_type(|p| p.type_expr(1, false))?;
         let end = self.pos;
         self.line_breaks()?;
         let boundary = matches!(self.token(), Token::P(',' | ')'));
         self.pos = start;
         self.type_structural_error = structural;
-        let Ok(ty) = candidate else {
+        let Some(ty) = candidate else {
             return Ok(None);
         };
         self.work.ty(&ty)?;
@@ -275,16 +292,15 @@ impl Parser<'_> {
     ) -> Result<(Option<Type>, usize, bool)> {
         let structural = self.type_structural_error;
         self.type_structural_error = false;
-        let candidate = self.type_shape(0);
-        self.work.checkpoint()?;
+        let candidate = self.speculative_type(|p| p.type_shape(0))?;
         let end = self.pos;
         let malformed = self.type_structural_error;
         self.type_structural_error = structural;
-        if let Ok(ty) = &candidate {
+        if let Some(ty) = &candidate {
             self.work.ty(ty)?;
         }
         let candidate = match candidate {
-            Ok(ty)
+            Some(ty)
                 if self.token() != &Token::P('?')
                     && !self.default_field(&ty)?
                     && self.literal_leaves(&ty, classes) =>
@@ -323,7 +339,9 @@ impl Parser<'_> {
             options.push(self.work, self.type_atom(depth)?)?;
         }
         if options.len() == 1 {
-            return Ok(options.pop().unwrap());
+            return Ok(options.pop().ok_or(crate::checked::violation(
+                "type union must have an alternative",
+            ))?);
         }
         Ok(Type {
             name: Name::default(),
@@ -343,7 +361,7 @@ impl Parser<'_> {
             self.named_type(depth)?
         };
         let question = self.significant(self.pos);
-        if self.tokens[question].token == Token::P('?') {
+        if self.tokens.at(question)?.token == Token::P('?') {
             self.pos = question;
             if ty.nullable {
                 return self.err(format_args!(
@@ -354,7 +372,7 @@ impl Parser<'_> {
             self.bump()?;
             ty.nullable = true;
             let second = self.significant(self.pos);
-            if self.tokens[second].token == Token::P('?') {
+            if self.tokens.at(second)?.token == Token::P('?') {
                 self.pos = second;
                 return self.err(format_args!(
                     "duplicate nullable suffix on type {}",
@@ -374,8 +392,9 @@ impl Parser<'_> {
             return Err(crate::checked::internal("type name expected"));
         };
         let written = written.as_str();
-        let continues = |p: &Self| p.tokens[p.significant(p.pos)].token == Token::Op("::");
-        let mut path = self.type_read(0, written, self.tokens[index].offset, continues(self))?;
+        let continues = |p: &Self| p.token_at(p.significant(p.pos)) == &Token::Op("::");
+        let mut path =
+            self.type_read(0, written, self.tokens.at(index)?.offset, continues(self))?;
         let name = written.strip_suffix('?').unwrap_or(written);
         if name.ends_with('?') {
             self.pos = index;
@@ -390,7 +409,9 @@ impl Parser<'_> {
         // `Outer::Inner`, as a value is.
         loop {
             let scope = self.significant(self.pos);
-            if !matches!(ty.kind, TypeKind::Named) || self.tokens[scope].token != Token::Op("::") {
+            if !matches!(ty.kind, TypeKind::Named)
+                || self.tokens.at(scope)?.token != Token::Op("::")
+            {
                 break;
             }
             if ty.nullable {
@@ -409,7 +430,7 @@ impl Parser<'_> {
                 return Err(crate::checked::internal("type name expected"));
             };
             let member = member.as_str();
-            path = self.type_read(path, member, self.tokens[index].offset, continues(self))?;
+            path = self.type_read(path, member, self.tokens.at(index)?.offset, continues(self))?;
             ty.nullable = member.ends_with('?');
             let member = member.strip_suffix('?').unwrap_or(member);
             ty.name = Name::join(self.work, &[&ty.name, "::", member])?;
@@ -417,7 +438,7 @@ impl Parser<'_> {
         let dot = self.significant(self.pos);
         if matches!(ty.kind, TypeKind::Named)
             && !ty.name.contains("::")
-            && self.tokens[dot].token == Token::P('.')
+            && self.tokens.at(dot)?.token == Token::P('.')
         {
             if ty.nullable {
                 self.pos = index;
@@ -440,7 +461,7 @@ impl Parser<'_> {
             ty.name = Name::join(self.work, &[&ty.name, ".", member])?;
         }
         let open = self.significant(self.pos);
-        if self.tokens[open].token != Token::Op("<") {
+        if self.tokens.at(open)?.token != Token::Op("<") {
             return Ok(ty);
         }
         if !matches!(
@@ -483,11 +504,16 @@ impl Parser<'_> {
             if arguments.len() != 1 {
                 return Err(crate::Error::syntax(
                     self.work,
-                    self.tokens[index].offset,
+                    self.tokens.at(index)?.offset,
                     "type expects exactly 1 type argument",
                 ));
             }
-            ty.kind = TypeKind::Literal(Some(Boxed::new(self.work, arguments.pop().unwrap())?));
+            ty.kind = TypeKind::Literal(Some(Boxed::new(
+                self.work,
+                arguments
+                    .pop()
+                    .ok_or(crate::checked::violation("type argument must be present"))?,
+            )?));
             return Ok(ty);
         }
         let array = matches!(ty.kind, TypeKind::Array(_));
@@ -495,7 +521,7 @@ impl Parser<'_> {
         if arguments.len() != expected {
             return Err(crate::Error::syntax(
                 self.work,
-                self.tokens[index].offset,
+                self.tokens.at(index)?.offset,
                 if array {
                     "array type expects exactly 1 type argument"
                 } else {
@@ -504,10 +530,19 @@ impl Parser<'_> {
             ));
         }
         ty.kind = if array {
-            TypeKind::Array(Some(Boxed::new(self.work, arguments.pop().unwrap())?))
+            TypeKind::Array(Some(Boxed::new(
+                self.work,
+                arguments
+                    .pop()
+                    .ok_or(crate::checked::violation("type argument must be present"))?,
+            )?))
         } else {
-            let second = arguments.pop().unwrap();
-            let first = arguments.pop().unwrap();
+            let second = arguments
+                .pop()
+                .ok_or(crate::checked::violation("type argument must be present"))?;
+            let first = arguments
+                .pop()
+                .ok_or(crate::checked::violation("type argument must be present"))?;
             TypeKind::Hash(Some(Boxed::new(self.work, (first, second))?))
         };
         Ok(ty)
@@ -516,7 +551,7 @@ impl Parser<'_> {
     /// Splits the `>=` that closes type arguments followed by a value, as in
     /// `names: array<string>=[]`, into its `>` and `=`.
     fn split_closing_angle(&mut self) -> Result<()> {
-        let lexeme = &self.tokens[self.pos];
+        let lexeme = self.tokens.at(self.pos)?;
         let (offset, end, line) = (lexeme.offset, lexeme.end, lexeme.line);
         let at = |token, offset, end| super::lexer::Lexeme {
             token,
@@ -572,7 +607,7 @@ impl Parser<'_> {
                 }
                 if !self.take_p(',') {
                     self.type_structural_error = self.shape_field_start(self.pos)
-                        && self.tokens[self.significant(self.pos + 1)].token == Token::P(':');
+                        && self.tokens.at(self.significant(self.pos + 1))?.token == Token::P(':');
                     return self.expected(Label::Text("}"));
                 }
                 self.line_breaks()?;
@@ -588,7 +623,7 @@ impl Parser<'_> {
 
     /// Go's `tokenStartsShapeFieldName`: a label, plain string or symbol.
     fn shape_field_start(&self, index: usize) -> bool {
-        match &self.tokens[index].token {
+        match self.token_at(index) {
             Token::Word(word) => !word.starts_with('@'),
             Token::Bytes(_) | Token::Symbol(_) | Token::QuotedSymbol(_) => true,
             _ => false,
@@ -628,23 +663,29 @@ impl Parser<'_> {
         let saved = self.pos;
         self.bump()?;
         self.line_breaks()?;
-        let result = self.type_atom(depth).is_ok()
+        let result = self.speculative_type(|p| p.type_atom(depth))?.is_some()
             && matches!(
-                self.tokens[self.significant(self.pos)].token,
+                self.tokens.at(self.significant(self.pos))?.token,
                 Token::P(',' | '|')
             );
         self.pos = saved;
-        self.work.checkpoint()?;
         Ok(result)
     }
 
     /// Go's `typeAnnotationBoundaryFollows` for the token after the one at `last`.
     fn type_boundary(&self, last: usize, parenthesized: bool) -> bool {
         let next = self.significant(last + 1);
-        match &self.tokens[next].token {
+        match self.token_at(next) {
             Token::P(',' | ')' | ':' | '|') | Token::Op("=") => true,
             Token::Op("->") | Token::EndLine | Token::Eof => !parenthesized,
-            _ => !parenthesized && self.tokens[next].line != self.tokens[last].line,
+            _ => {
+                !parenthesized
+                    && self
+                        .tokens
+                        .get(next)
+                        .zip(self.tokens.get(last))
+                        .is_some_and(|(next, last)| next.line != last.line)
+            }
         }
     }
 
@@ -652,7 +693,7 @@ impl Parser<'_> {
     /// parameter's colon is a default value rather than a type.
     pub(super) fn keyword_default(&mut self, parenthesized: bool) -> Result<bool> {
         let peek = self.significant(self.pos);
-        let result = match &self.tokens[peek].token {
+        let result = match &self.tokens.at(peek)?.token {
             // `name: nil` declares a parameter of type nil, as `name: T`
             // does for any type; a nil keyword default is `*, name: T? = nil`.
             Token::Word(name) if *name == "nil" => false,
@@ -661,11 +702,11 @@ impl Parser<'_> {
                 let structural = self.type_structural_error;
                 self.type_structural_error = false;
                 self.pos = peek;
-                let annotation = match self.type_expr(1, false) {
-                    Ok(ty) => {
+                let annotation = match self.speculative_type(|p| p.type_expr(1, false))? {
+                    Some(ty) => {
                         !self.default_field(&ty)? && self.type_boundary(self.pos - 1, parenthesized)
                     }
-                    Err(_) => self.type_structural_error,
+                    None => self.type_structural_error,
                 };
                 self.pos = saved;
                 self.type_structural_error = structural;
@@ -677,13 +718,13 @@ impl Parser<'_> {
                 let saved = self.pos;
                 let structural = self.type_structural_error;
                 self.pos = peek;
-                let annotation = match self.type_expr(1, false) {
-                    Ok(ty) => {
+                let annotation = match self.speculative_type(|p| p.type_expr(1, false))? {
+                    Some(ty) => {
                         self.declared_leaves(&ty)?
                             && !self.default_field(&ty)?
                             && self.type_boundary(self.pos - 1, parenthesized)
                     }
-                    Err(_) => false,
+                    None => false,
                 };
                 self.pos = saved;
                 self.type_structural_error = structural;
@@ -698,18 +739,18 @@ impl Parser<'_> {
 
     /// Go's `identAfterColonStartsExpression` for the identifier at `peek`.
     fn name_starts_default(&self, peek: usize, parenthesized: bool) -> Result<bool> {
-        let Token::Word(name) = &self.tokens[peek].token else {
+        let Token::Word(name) = &self.tokens.at(peek)?.token else {
             return Err(crate::checked::internal("default argument name expected"));
         };
         let mut next = self.significant(peek + 1);
         // The lexer splits `int?=nil` so that `?=` never ends a name; the
         // adjacent `?` is still the type's optional marker.
-        if self.tokens[next].token == Token::P('?')
-            && self.tokens[next].offset == self.tokens[peek].end
+        if self.tokens.at(next)?.token == Token::P('?')
+            && self.tokens.at(next)?.offset == self.tokens.at(peek)?.end
         {
             next = self.significant(next + 1);
         }
-        Ok(match &self.tokens[next].token {
+        Ok(match &self.tokens.at(next)?.token {
             Token::P(',' | ')' | ':' | '|') | Token::Op("=") => false,
             Token::Op("<") => {
                 !crate::types::builtin_name(name)
@@ -719,7 +760,7 @@ impl Parser<'_> {
             Token::P('.') => !self.dotted_type_follows(peek, next, parenthesized)?,
             Token::Op("::") => !self.scoped_type_follows(peek, parenthesized)?,
             Token::Op("->") | Token::EndLine | Token::Eof => parenthesized,
-            _ => parenthesized || self.tokens[next].line == self.tokens[peek].line,
+            _ => parenthesized || self.tokens.at(next)?.line == self.tokens.at(peek)?.line,
         })
     }
 
@@ -729,7 +770,7 @@ impl Parser<'_> {
         let mut last = peek;
         loop {
             let scope = self.significant(last + 1);
-            if self.tokens[scope].token != Token::Op("::") {
+            if self.tokens.at(scope)?.token != Token::Op("::") {
                 break;
             }
             let member = self.significant(scope + 1);
@@ -739,7 +780,7 @@ impl Parser<'_> {
             last = member;
         }
         let question = self.significant(last + 1);
-        if self.tokens[question].token == Token::P('?') {
+        if self.tokens.at(question)?.token == Token::P('?') {
             last = question;
         }
         Ok(self.type_boundary(last, parenthesized))
@@ -748,7 +789,7 @@ impl Parser<'_> {
     /// Go's `dottedTypeAnnotationFollows`: whether `Namespace.Type` reads as a
     /// qualified type annotation.
     fn dotted_type_follows(&self, peek: usize, dot: usize, parenthesized: bool) -> Result<bool> {
-        let Token::Word(namespace) = &self.tokens[peek].token else {
+        let Token::Word(namespace) = &self.tokens.at(peek)?.token else {
             return Err(crate::checked::internal("qualified type name expected"));
         };
         if self.locals.contains(self.work, namespace.as_str())? {
@@ -758,7 +799,7 @@ impl Parser<'_> {
         if !self.ident(member) {
             return Ok(false);
         }
-        let Token::Word(written) = &self.tokens[member].token else {
+        let Token::Word(written) = &self.tokens.at(member)?.token else {
             return Err(crate::checked::internal("qualified type name expected"));
         };
         let name = written.trim_end_matches('?');
@@ -771,7 +812,7 @@ impl Parser<'_> {
             return Ok(self.type_boundary(member, parenthesized));
         }
         let question = self.significant(member + 1);
-        let last = if self.tokens[question].token == Token::P('?') {
+        let last = if self.tokens.at(question)?.token == Token::P('?') {
             question
         } else {
             member

@@ -7,6 +7,7 @@
 //! Frames live in a [`Buffer`], so every push is charged and every drop, whether
 //! on completion, early stopping or error, releases the scratch immediately.
 
+use crate::checked::{Access, Checked};
 use crate::{CallContext, ErrorKind, Result, Value, budget::Buffer};
 
 /// The entries of an open container, borrowed from the value being rendered.
@@ -33,12 +34,12 @@ impl<'a> Entries<'a> {
     }
 
     /// Returns the hash key, if any, and the value stored at `index`.
-    pub fn get(self, index: usize) -> (Option<&'a Value>, &'a Value) {
+    pub fn get(self, index: usize) -> Access<(Option<&'a Value>, &'a Value)> {
         match self {
-            Self::Array(values) => (None, &values[index]),
+            Self::Array(values) => Ok((None, values.at(index)?)),
             Self::Hash(entries) => {
-                let (key, value) = &entries[index];
-                (Some(key), value)
+                let (key, value) = entries.at(index)?;
+                Ok((Some(key), value))
             }
         }
     }
@@ -190,7 +191,7 @@ mod tests {
         assert_eq!(frame.next(), Some(1));
         assert_eq!(frame.next(), None);
         assert_eq!(frame.next(), None);
-        let (key, value) = frame.entries.get(1);
+        let (key, value) = frame.entries.get(1).unwrap();
         assert!(key.is_none());
         assert_eq!(value.as_int(), Some(2));
         while stack.pop().is_some() {}
@@ -233,7 +234,7 @@ mod tests {
         let scratch = support::bytes::<Option<Buffer<usize>>>(1);
         let order = size_of::<[usize; 8]>();
         assert_eq!(ctx.stats().retained_memory_bytes, scratch + order);
-        let (key, _) = stack.top().unwrap().entries.get(0);
+        let (key, _) = stack.top().unwrap().entries.get(0).unwrap();
         assert_eq!(key.unwrap().as_bytes(), Some(b"k".as_slice()));
         assert_eq!(stack.top().unwrap().entries.closing(), b"}");
         drop(stack.pop());

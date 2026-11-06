@@ -1,4 +1,5 @@
 use crate::budget::CHUNK;
+use crate::checked::Checked;
 use crate::numeric::{to_i64, to_usize};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value, budget::Buffer, ops, scan, sequence, value::Kind,
@@ -45,7 +46,7 @@ pub(super) fn call(
         }
     };
     if !reverse {
-        string(&args[0], member)?;
+        string(args.at(0)?, member)?;
     }
     let (length, valid) = ops::runes(ctx, text)?;
     let offset = if offset < 0 {
@@ -56,7 +57,7 @@ pub(super) fn call(
     if offset < 0 {
         return Ok(Value::nil());
     }
-    let needle = string(&args[0], member)?;
+    let needle = string(args.at(0)?, member)?;
     if !reverse && offset > length as i128 || needle.len() > text.len().saturating_mul(4) {
         return Ok(Value::nil());
     }
@@ -78,20 +79,20 @@ pub(super) fn call(
     let mut pending = 0;
     let mut position = 0;
     while position < needle.len() {
-        let (rune, width, _) = scan::rune(&needle[position..]);
+        let (rune, width, _) = scan::rune(needle.tail(position)?);
         ctx.scan_bytes(&mut pending, width)?;
         pattern.data.push(rune);
         position += width;
     }
     table.data.push(0usize);
     let mut matched = 0;
-    for i in 1..count {
+    for rune in pattern.data.iter().skip(1) {
         ctx.scan_bytes(&mut pending, 1)?;
-        while matched > 0 && pattern.data[i] != pattern.data[matched] {
+        while matched > 0 && rune != pattern.at(matched)? {
             ctx.scan_bytes(&mut pending, 1)?;
-            matched = table.data[matched - 1];
+            matched = *table.at(matched - 1)?;
         }
-        if pattern.data[i] == pattern.data[matched] {
+        if rune == pattern.at(matched)? {
             matched += 1;
         }
         table.data.push(matched);
@@ -102,9 +103,10 @@ pub(super) fn call(
     } else {
         length
     };
-    position = sequence::rune_offset(ctx, text, start)?;
-    if valid && length == text.len() && end - start >= 16 && pattern.data[0].is_ascii() {
-        let found = search_ascii(
+    let found = if valid && length == text.len() && end - start >= 16 && pattern.at(0)?.is_ascii() {
+        // Preserve the offset scan's charge even though ASCII byte and rune offsets agree.
+        sequence::rune_offset(ctx, text, start)?;
+        search_ascii(
             ctx,
             text,
             &pattern.data,
@@ -112,32 +114,55 @@ pub(super) fn call(
             start..end,
             &mut pending,
             reverse,
-        )?;
-        ctx.settle_bytes(&mut pending)?;
-        return Ok(found);
-    }
-    matched = 0;
+        )?
+    } else {
+        search_runes(
+            ctx,
+            text,
+            &pattern.data,
+            &table.data,
+            start..end,
+            &mut pending,
+            reverse,
+        )?
+    };
+    ctx.settle_bytes(&mut pending)?;
+    Ok(found)
+}
+
+// The rune loop needs its own registers for the same reason as the ASCII loop.
+#[inline(never)]
+fn search_runes(
+    ctx: &mut CallContext,
+    text: &[u8],
+    pattern: &[char],
+    table: &[usize],
+    range: std::ops::Range<usize>,
+    pending: &mut usize,
+    reverse: bool,
+) -> Result<Value> {
+    let mut position = sequence::rune_offset(ctx, text, range.start)?;
+    let mut matched = 0;
     let mut found = Value::nil();
-    for index in start..end {
-        let (rune, width, _) = scan::rune(&text[position..]);
-        ctx.scan_bytes(&mut pending, width)?;
+    for index in range {
+        let (rune, width) = scan::code_point(text.tail(position)?);
+        ctx.scan_bytes(pending, width)?;
         position += width;
-        while matched > 0 && rune != pattern.data[matched] {
-            ctx.scan_bytes(&mut pending, 1)?;
-            matched = table.data[matched - 1];
+        while matched > 0 && rune != u32::from(*pattern.at(matched)?) {
+            ctx.scan_bytes(pending, 1)?;
+            matched = *table.at(matched - 1)?;
         }
-        if rune == pattern.data[matched] {
+        if rune == u32::from(*pattern.at(matched)?) {
             matched += 1;
         }
-        if matched == count {
-            found = Value::int(to_i64(index + 1 - count));
+        if matched == pattern.len() {
+            found = Value::int(to_i64(index + 1 - pattern.len()));
             if !reverse {
                 break;
             }
-            matched = table.data[matched - 1];
+            matched = *table.at(matched - 1)?;
         }
     }
-    ctx.settle_bytes(&mut pending)?;
     Ok(found)
 }
 
@@ -153,28 +178,28 @@ fn search_ascii(
     pending: &mut usize,
     reverse: bool,
 ) -> Result<Value> {
-    let text = &text[..range.end];
+    let text = text.span(0, range.end)?;
     let mut index = range.start;
     let mut matched = 0;
     let mut found = Value::nil();
     while index < text.len() {
-        let remaining = &text[index..];
+        let remaining = text.tail(index)?;
         if matched == 0 && remaining.len() >= 16 {
             let limit = remaining.len().min(CHUNK - *pending);
-            let skipped = scan::ascii_mismatch(&remaining[..limit], pattern[0] as u8);
+            let skipped = scan::ascii_mismatch(remaining.span(0, limit)?, *pattern.at(0)? as u8);
             if skipped != 0 {
                 ctx.scan_bytes(pending, skipped)?;
                 index += skipped;
                 continue;
             }
         }
-        let rune = char::from(remaining[0]);
+        let rune = char::from(*remaining.at(0)?);
         ctx.scan_bytes(pending, 1)?;
-        while matched > 0 && rune != pattern[matched] {
+        while matched > 0 && rune != *pattern.at(matched)? {
             ctx.scan_bytes(pending, 1)?;
-            matched = table[matched - 1];
+            matched = *table.at(matched - 1)?;
         }
-        if rune == pattern[matched] {
+        if rune == *pattern.at(matched)? {
             matched += 1;
         }
         if matched == pattern.len() {
@@ -182,7 +207,7 @@ fn search_ascii(
             if !reverse {
                 break;
             }
-            matched = table[matched - 1];
+            matched = *table.at(matched - 1)?;
         }
         index += 1;
     }
@@ -193,6 +218,26 @@ fn search_ascii(
 mod tests {
     use super::*;
     use crate::CallOptions;
+
+    #[test]
+    fn invalid_ascii_search_ranges_and_tables_return_internal_errors() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let mut pending = 0;
+        for (end, table) in [(5, &[][..]), (4, &[][..])] {
+            let error = search_ascii(
+                &mut ctx,
+                b"aaac",
+                &['a', 'a', 'b'],
+                table,
+                0..end,
+                &mut pending,
+                false,
+            )
+            .unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Internal);
+            assert!(error.message.contains("out of range"));
+        }
+    }
 
     #[test]
     fn malformed_single_byte_runes_keep_replacement_character_matching() {

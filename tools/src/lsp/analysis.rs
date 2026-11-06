@@ -234,7 +234,10 @@ pub(crate) fn sections(source: &str) -> Option<Outline> {
     let mut first_line = 0;
     let mut line = 0;
     let mut outline = |start: usize, end: usize, first_line: usize| {
-        if let Ok(outline) = tooling::outline(&source[start..end]) {
+        let Some(fragment) = source.get(start..end) else {
+            return;
+        };
+        if let Ok(outline) = tooling::outline(fragment) {
             items.extend(outline.items.into_iter().map(|mut item| {
                 shift(&mut item, first_line);
                 item

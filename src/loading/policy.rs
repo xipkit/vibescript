@@ -82,7 +82,7 @@ fn normalize(input: &[u8], output: &mut Vec<u8>) {
         output.clear();
         return;
     }
-    let base = &output[output.iter().rposition(|&b| b == b'/').map_or(0, |i| i + 1)..];
+    let base = output.rsplit(|&b| b == b'/').next().unwrap_or_default();
     if let Some(stem) = base.strip_suffix(b".vibe") {
         if !stem.is_empty() && !stem.contains(&b'.') {
             output.truncate(output.len() - 5);
@@ -284,7 +284,7 @@ mod tests {
         assert_eq!(text.len() % 2, 0);
         text.chunks_exact(2)
             .map(|pair| {
-                let digit = |b: u8| (b as char).to_digit(16).unwrap() as u8;
+                let digit = |b: u8| u8::try_from((b as char).to_digit(16).unwrap()).unwrap();
                 digit(pair[0]) * 16 + digit(pair[1])
             })
             .collect()

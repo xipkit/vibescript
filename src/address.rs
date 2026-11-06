@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value, budget::Buffer, numeric::to_i64, ops, value::Kind,
 };
@@ -52,10 +53,15 @@ pub(crate) struct Bindings<'a> {
 impl Bindings<'_> {
     fn set(&mut self, ctx: &mut CallContext, root: &Root, value: Option<Value>) -> Result<()> {
         match root {
-            Root::Local(slot) => self.locals[*slot] = value,
-            Root::Global(slot) => self.globals[*slot] = value,
+            Root::Local(slot) => *self.locals.at_mut(*slot)? = value,
+            Root::Global(slot) => *self.globals.at_mut(*slot)? = value,
             Root::Field(module, field) => {
-                self.namespaces[*module].fields.buffer.data[*field].1 = value.unwrap_or_default()
+                self.namespaces
+                    .at_mut(*module)?
+                    .fields
+                    .buffer
+                    .at_mut(*field)?
+                    .1 = value.unwrap_or_default()
             }
             Root::Object(instance, field) | Root::Environment(instance, field) => {
                 crate::objects::set_slot(ctx, instance, *field, value.unwrap_or_default())?
@@ -143,8 +149,12 @@ impl Address {
 
     pub fn index(&mut self, ctx: &mut CallContext, args: &[Value]) -> Result<()> {
         self.check_present(ctx)?;
-        let value = if args.len() == 1 {
-            ops::index(ctx, &self.value, &args[0])?
+        let single_arg = match args {
+            [key] => Some(key),
+            _ => None,
+        };
+        let value = if let Some(key) = single_arg {
+            ops::index(ctx, &self.value, key)?
         } else {
             ops::index_many(ctx, &self.value, args)?
         };
@@ -153,16 +163,16 @@ impl Address {
                 self.protected = hash.tag;
             }
         }
-        let single = args.len() == 1 && !matches!(args[0].0, Kind::Range(_));
+        let single = single_arg.is_some_and(|key| !matches!(key.0, Kind::Range(_)));
         let nil = matches!(value.0, Kind::Nil);
-        let child = if args.len() == 1 && (self.root.is_some() || (nil && single)) {
-            stored_child(ctx, &self.value, &args[0])?
+        let child = if let Some(key) = single_arg.filter(|_| self.root.is_some() || (nil && single))
+        {
+            stored_child(ctx, &self.value, key)?
         } else {
             None
         };
-        let addressed = self.root.is_some() && args.len() == 1 && child.is_some();
-        if addressed {
-            let key = captured_key(&self.value, &args[0])?;
+        if let Some(key) = single_arg.filter(|_| self.root.is_some() && child.is_some()) {
+            let key = captured_key(&self.value, key)?;
             self.path.push(
                 ctx,
                 Hop {
@@ -178,13 +188,13 @@ impl Address {
             && single
             && child.is_none()
             && matches!(self.value.0, Kind::Array(_) | Kind::Hash(_));
-        if missing {
+        if let Some(key) = single_arg.filter(|_| missing) {
             let container = std::mem::take(&mut self.value);
             self.path.push(
                 ctx,
                 Hop {
                     container,
-                    key: args[0].clone(),
+                    key: key.clone(),
                 },
             )?;
             self.missing = true;
@@ -208,9 +218,9 @@ impl Address {
     }
 
     pub fn read_target(&mut self, ctx: &mut CallContext) -> Result<Value> {
-        if let [key] = self.selectors.data.as_slice() {
+        if let [key] = self.selectors.data.as_mut_slice() {
             let value = ops::index(ctx, &self.value, key)?;
-            self.selectors.data[0] = captured_key(&self.value, key)?;
+            *key = captured_key(&self.value, key)?;
             Ok(value)
         } else {
             ops::index_many(ctx, &self.value, &self.selectors.data)
@@ -354,7 +364,8 @@ fn stored_child(ctx: &mut CallContext, value: &Value, key: &Value) -> Result<Opt
         .cloned()),
         Kind::Hash(h) => Ok(h
             .find(ctx, key.hash_key()?)?
-            .map(|i| h.buffer.data[i].1.clone())),
+            .map(|i| h.buffer.at(i).map(|pair| pair.1.clone()))
+            .transpose()?),
         _ => Ok(None),
     }
 }

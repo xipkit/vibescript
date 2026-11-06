@@ -1,3 +1,4 @@
+use crate::checked::convert;
 use crate::{
     CallContext, Diagnostic, Error, Position, Result,
     budget::{Buffer, Charge},
@@ -52,9 +53,9 @@ impl Source {
                 >= STRIDE
             {
                 checkpoints.push(Checkpoint {
-                    offset: offset as u32,
-                    line: position.line as u32,
-                    column: position.column as u32,
+                    offset: convert(offset)?,
+                    line: convert(position.line)?,
+                    column: convert(position.column)?,
                 });
             }
             advance(&mut position, ch);
@@ -73,17 +74,22 @@ impl Source {
 
     fn location(&self, offset: u32) -> (&str, Position) {
         let offset = boundary(&self.text, offset as usize);
-        let checkpoint = &self.checkpoints[self
-            .checkpoints
-            .partition_point(|p| p.offset as usize <= offset)
-            - 1];
-        (
-            &self.text[checkpoint.offset as usize..offset],
-            Position {
-                line: checkpoint.line as usize,
-                column: checkpoint.column as usize,
-            },
-        )
+        let checkpoint = self.checkpoints.get(
+            self.checkpoints
+                .partition_point(|p| p.offset as usize <= offset)
+                .saturating_sub(1),
+        );
+        let (start, position) =
+            checkpoint.map_or((0, Position { line: 1, column: 1 }), |checkpoint| {
+                (
+                    checkpoint.offset as usize,
+                    Position {
+                        line: checkpoint.line as usize,
+                        column: checkpoint.column as usize,
+                    },
+                )
+            });
+        (self.text.get(start..offset).unwrap_or_default(), position)
     }
 
     pub fn position(&self, offset: u32) -> Position {
@@ -154,8 +160,15 @@ struct Snippet<'a> {
 
 impl<'a> Snippet<'a> {
     fn new(text: &'a str, offset: usize, position: Position, filename: Option<&'a [u8]>) -> Self {
+        let offset = boundary(text, offset);
         let mut start = offset;
-        for ch in text[..offset].chars().rev().take(WINDOW / 2) {
+        for ch in text
+            .get(..offset)
+            .unwrap_or(text)
+            .chars()
+            .rev()
+            .take(WINDOW / 2)
+        {
             if ch == '\n' {
                 break;
             }
@@ -163,7 +176,7 @@ impl<'a> Snippet<'a> {
         }
         let mut end = start;
         let mut count = 0;
-        for ch in text[start..].chars().take(WINDOW) {
+        for ch in text.get(start..).unwrap_or_default().chars().take(WINDOW) {
             if ch == '\n' {
                 break;
             }
@@ -171,7 +184,13 @@ impl<'a> Snippet<'a> {
             count += 1;
         }
         if count < WINDOW {
-            for ch in text[..start].chars().rev().take(WINDOW - count) {
+            for ch in text
+                .get(..start)
+                .unwrap_or(text)
+                .chars()
+                .rev()
+                .take(WINDOW - count)
+            {
                 if ch == '\n' {
                     break;
                 }
@@ -179,10 +198,13 @@ impl<'a> Snippet<'a> {
             }
         }
         Self {
-            text: &text[start..end],
-            caret: &text[start..offset],
-            prefix: start > 0 && text.as_bytes()[start - 1] != b'\n',
-            suffix: end < text.len() && text.as_bytes()[end] != b'\n',
+            text: text.get(start..end).unwrap_or(text),
+            caret: text.get(start..offset).unwrap_or_default(),
+            prefix: start
+                .checked_sub(1)
+                .and_then(|at| text.as_bytes().get(at))
+                .is_some_and(|&b| b != b'\n'),
+            suffix: text.as_bytes().get(end).is_some_and(|&b| b != b'\n'),
             position,
             filename,
         }
@@ -287,7 +309,13 @@ pub(crate) fn parse_error(
     }
     if error.kind == crate::ErrorKind::Syntax && error.diagnostics().is_empty() {
         let start = boundary(source, error.offset.unwrap_or(0));
-        let end = start + source[start..].chars().next().map_or(0, char::len_utf8);
+        let end = start
+            + source
+                .get(start..)
+                .unwrap_or_default()
+                .chars()
+                .next()
+                .map_or(0, char::len_utf8);
         let diagnostic = crate::diagnostic::Diagnostic::error(
             crate::diagnostic::Code::SYNTAX,
             crate::diagnostic::Span::new(start, end),
@@ -302,7 +330,7 @@ pub(crate) fn parse_error(
     {
         let mut offset = boundary(source, offset);
         let mut position = Position { line: 1, column: 1 };
-        for ch in source[..offset].chars() {
+        for ch in source.get(..offset).unwrap_or(source).chars() {
             if let Err(error) = work.charge(1) {
                 return error;
             }
@@ -398,7 +426,11 @@ mod tests {
             for (offset, ch) in text.char_indices() {
                 if offset % 83 < 4 || offset % STRIDE < 5 {
                     for byte in offset..offset + ch.len_utf8() {
-                        assert_eq!(source.position(byte as u32), position, "offset {byte}");
+                        assert_eq!(
+                            source.position(u32::try_from(byte).unwrap()),
+                            position,
+                            "offset {byte}"
+                        );
                     }
                 }
                 if ch == '\n' {
@@ -408,7 +440,10 @@ mod tests {
                     position.column += 1;
                 }
             }
-            assert_eq!(source.position(text.len() as u32), position);
+            assert_eq!(
+                source.position(u32::try_from(text.len()).unwrap()),
+                position
+            );
             assert_eq!(source.position(u32::MAX), position);
             assert!(source.checkpoints.len() <= text.len() / STRIDE + 1);
         }
@@ -440,7 +475,7 @@ mod tests {
                     column + 1,
                     " ".repeat(column - start + prefix.len()),
                 );
-                assert_eq!(source.frame((7 + byte) as u32), expected);
+                assert_eq!(source.frame(u32::try_from(7 + byte).unwrap()), expected);
             }
         }
     }
@@ -463,7 +498,7 @@ mod tests {
         let text = "x = 1\r\n\t\"\x1b]0;t\x07\u{9b}é\"\t+ y\r\nz\n";
         let source = Source::new(text);
         let expected = "  --> line 2, column 13\n 2 | \t\"\\u{1b}]0;t\\u{7}\\u{9b}é\"\t+ y\n   | \t                        \t^";
-        let offset = text.find('+').unwrap() as u32;
+        let offset = u32::try_from(text.find('+').unwrap()).unwrap();
         assert_eq!(source.frame(offset), expected);
         let mut ctx = CallContext::new(crate::CallOptions::default());
         let (frame, _charge) = source

@@ -71,16 +71,19 @@ struct Request {
     files: BTreeMap<String, String>,
     #[serde(default)]
     entry: Option<String>,
-    #[serde(default = "empty_arguments")]
-    args: Box<RawValue>,
+    #[serde(default, deserialize_with = "arguments")]
+    args: Option<Box<RawValue>>,
     #[serde(default)]
     limits: Quotas,
     #[serde(default)]
     capabilities: Vec<Preview>,
 }
 
-fn empty_arguments() -> Box<RawValue> {
-    RawValue::from_string("[]".into()).unwrap()
+// A missing argument list defaults to [], but an explicit null is invalid.
+fn arguments<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<Box<RawValue>>, D::Error> {
+    Box::<RawValue>::deserialize(deserializer).map(Some)
 }
 
 #[derive(Deserialize, PartialEq)]
@@ -368,11 +371,11 @@ fn lines(received: &mpsc::Receiver<Vec<u8>>) -> Vec<String> {
         .collect()
 }
 
-fn inspect(engine: &Engine, source: &str) -> (Option<Script>, Vec<Diagnostic>, Option<Error>) {
+fn inspect(engine: &Engine, source: &str) -> (vibescript::Result<Script>, Vec<Diagnostic>) {
     match engine.compile_with_options(source, &codec_options()) {
         Ok(script) => match engine.type_check(source) {
-            Ok(checked) => (Some(script), checked.diagnostics, None),
-            Err(error) => (None, Vec::new(), Some(error)),
+            Ok(checked) => (Ok(script), checked.diagnostics),
+            Err(error) => (Err(error), Vec::new()),
         },
         Err(error) => {
             let diagnostics = if error.diagnostics().is_empty() && error.kind == ErrorKind::Syntax {
@@ -384,7 +387,7 @@ fn inspect(engine: &Engine, source: &str) -> (Option<Script>, Vec<Diagnostic>, O
             } else {
                 error.diagnostics().to_vec()
             };
-            (None, diagnostics, Some(error))
+            (Err(error), diagnostics)
         }
     }
 }
@@ -457,7 +460,7 @@ fn execute(
         repair.reserve(project_bytes)?;
     }
     let script = loop {
-        let (script, diagnostics, mut error) = inspect(&engine, &request.source);
+        let (mut script, diagnostics) = inspect(&engine, &request.source);
         if request.op == Operation::Fix {
             // Apply one complete fix, then check the entire virtual project again:
             // offsets and dependent module types must always refer to the current text.
@@ -494,7 +497,7 @@ fn execute(
                             engine.set_module_sources(request.files.clone())?;
                             continue;
                         }
-                        Err(limit) => error = Some(limit),
+                        Err(limit) => script = Err(limit),
                     }
                 }
             }
@@ -505,16 +508,19 @@ fn execute(
             response.files = Some(request.files.clone());
             response.applied = Some(applied);
         }
-        if let Some(error) = error {
-            response.fail(&error, &request.source);
-            return Ok(());
+        match script {
+            Ok(script) => break script,
+            Err(error) => {
+                response.fail(&error, &request.source);
+                return Ok(());
+            }
         }
-        break script.unwrap();
     };
     if request.op != Operation::Run {
         return Ok(());
     }
-    let args = vibescript::parse_json(request.args.get().as_bytes(), codec_options())?.value;
+    let args = request.args.as_deref().map_or("[]", RawValue::get);
+    let args = vibescript::parse_json(args.as_bytes(), codec_options())?.value;
     let args = args
         .as_array()
         .ok_or_else(|| invalid("args must be a JSON array"))?;
@@ -534,7 +540,10 @@ fn execute(
     );
     response.stats = stats_json(stats);
     let encoded = vibescript::stringify_json(&value?, codec_options())?;
-    let bytes = encoded.value.as_bytes().unwrap();
+    let bytes = encoded
+        .value
+        .as_bytes()
+        .ok_or_else(|| Error::new(ErrorKind::Internal, "JSON encoding must return a string"))?;
     if bytes.len() > INPUT_LIMIT {
         return Err(Error::new(
             ErrorKind::OutputLimit,

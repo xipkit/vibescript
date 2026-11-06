@@ -2,6 +2,7 @@ use super::{
     Declarations, Definition, Label, Outline, ParamKind, Parameter, Parser, Parsing, Statement,
     Stmt, Token, modules::Module, record, source_text,
 };
+use crate::checked::{Checked, convert};
 use crate::{
     Error, Result,
     compilation::{Buffer, Name, Table, Type, TypeKind},
@@ -44,7 +45,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 Token::Word(_) if p.module_ahead() => Some("module"),
                 _ => None,
             };
-            (word, p.tokens[p.pos].offset)
+            (word, p.tokens.at(p.pos)?.offset)
         };
         let Some(word) = word else {
             return Ok(Declared::Statement(self.plain().await?));
@@ -145,7 +146,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 }
                 _ => return Ok(()),
             };
-            let offset = p.tokens[p.pos].offset;
+            let offset = p.tokens.at(p.pos)?.offset;
             p.bump()?;
             p.line_breaks()?;
             (offset, modifier)
@@ -220,7 +221,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 if matches!(p.token(), Token::Eof) {
                     break;
                 }
-                (p.tokens[p.pos].offset as u32, p.pos)
+                (convert(p.tokens.at(p.pos)?.offset)?, p.pos)
             };
             let checkpoint = self.recovery_checkpoint();
             let declared = match self.declaration().await {
@@ -244,7 +245,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                             end,
                         },
                     )?;
-                    let at = p.tokens[p.significant(first + 1)].offset;
+                    let at = p.tokens.at(p.significant(first + 1))?.offset;
                     order.push(work, Order::Function(definition.name.clone(), at))?;
                     let index = defs.len();
                     def_names.insert(work, definition.name.clone(), index)?;
@@ -255,7 +256,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                     // Like Go, an alias copies a function declared before it.
                     let found = match def_names.get(work, &target)? {
                         Some(&original) => {
-                            let mut definition = super::work::definition(work, &defs[original])?;
+                            let mut definition = super::work::definition(work, defs.at(original)?)?;
                             definition.name = name.clone();
                             let index = defs.len();
                             def_names.insert(work, name.clone(), index)?;
@@ -277,7 +278,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                             end,
                         },
                     )?;
-                    let at = p.tokens[p.significant(first + 1)].offset;
+                    let at = p.tokens.at(p.significant(first + 1))?.offset;
                     order.push(work, Order::Alias(name, target, found, at))?;
                 }
                 Declared::Class(module) => {
@@ -424,7 +425,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                     ));
                 }
                 let comma = p.significant(p.pos);
-                if p.tokens[comma].token == Token::P(',') {
+                if p.tokens.at(comma)?.token == Token::P(',') {
                     p.pos = comma;
                     return p.err("the block parameter must be the last parameter");
                 }
@@ -476,7 +477,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             p.declared_it |= param.name == "it";
             params.push(work, param)?;
             let comma = p.significant(p.pos);
-            if p.tokens[comma].token != Token::P(',') {
+            if p.tokens.at(comma)?.token != Token::P(',') {
                 break;
             }
             p.pos = comma + 1;
@@ -497,7 +498,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 Token::Op("*") => {
                     p.bump()?;
                     let next = p.significant(p.pos);
-                    if p.tokens[next].token == Token::Op("*") {
+                    if p.tokens.at(next)?.token == Token::Op("*") {
                         p.pos = next + 1;
                         ParamKind::KeywordRest
                     } else {
@@ -525,7 +526,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                     _ => "parameter name",
                 }));
             }
-            let offset = p.tokens[p.pos].offset;
+            let offset = p.tokens.at(p.pos)?.offset;
             let Token::Word(word) = p.bump()? else {
                 return Err(crate::checked::internal("parameter name expected"));
             };
@@ -537,7 +538,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let colon = {
             let p = self.p();
             let colon = p.significant(p.pos);
-            (p.tokens[colon].token == Token::P(':')).then_some(colon)
+            (p.tokens.at(colon)?.token == Token::P(':')).then_some(colon)
         };
         if let Some(colon) = colon {
             // The canonical surface declares keywords only after `*`.
@@ -580,7 +581,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             }
             let mut p = self.p();
             p.line_breaks()?;
-            let start = p.tokens[p.pos].offset;
+            let start = p.tokens.at(p.pos)?.offset;
             let annotation = p.type_expr(1, false)?;
             if matches!(kind, ParamKind::Rest | ParamKind::KeywordRest)
                 && !annotation.captures(kind == ParamKind::KeywordRest)
@@ -602,7 +603,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             }
             ty = Some(annotation);
             let trailing = p.significant(p.pos);
-            if plain && p.tokens[trailing].token == Token::P(':') {
+            if plain && p.tokens.at(trailing)?.token == Token::P(':') {
                 p.pos = trailing + 1;
                 if !p.ends_required_keyword(trailing, parenthesized) {
                     p.pos = trailing;
@@ -614,7 +615,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let equals = {
             let mut p = self.p();
             let equals = p.significant(p.pos);
-            if p.tokens[equals].token == Token::Op("=") {
+            if p.tokens.at(equals)?.token == Token::Op("=") {
                 if matches!(kind, ParamKind::Rest | ParamKind::KeywordRest) {
                     p.pos = equals;
                     return p.err("capture parameters cannot have default values");
@@ -669,16 +670,23 @@ impl Parser<'_> {
     /// Whether a bare `*` followed by a comma begins the keyword parameters.
     fn keyword_marker_ahead(&self) -> bool {
         self.token() == &Token::Op("*")
-            && self.tokens[self.significant(self.pos + 1)].token == Token::P(',')
+            && *self.token_at(self.significant(self.pos + 1)) == Token::P(',')
     }
 
     /// Go's `peekEndsRequiredKeywordParam` for the token after the colon at `colon`.
     fn ends_required_keyword(&self, colon: usize, parenthesized: bool) -> bool {
         let next = self.significant(colon + 1);
-        match self.tokens[next].token {
+        match *self.token_at(next) {
             Token::P(',' | ')') => true,
             Token::Op("->") | Token::EndLine | Token::Eof => !parenthesized,
-            _ => !parenthesized && self.tokens[next].line != self.tokens[colon].line,
+            _ => {
+                !parenthesized
+                    && self
+                        .tokens
+                        .get(next)
+                        .zip(self.tokens.get(colon))
+                        .is_some_and(|(next, colon)| next.line != colon.line)
+            }
         }
     }
 
@@ -686,13 +694,13 @@ impl Parser<'_> {
     fn enumeration(&mut self) -> Result<Declared> {
         let work = self.work;
         work.charge(1)?;
-        let offset = self.tokens[self.pos].offset;
+        let offset = self.tokens.at(self.pos)?.offset;
         self.bump()?;
         self.line_breaks()?;
         if !self.ident(self.pos) {
             return self.expected(Label::Text("identifier"));
         }
-        let at = self.tokens[self.pos].offset;
+        let at = self.tokens.at(self.pos)?.offset;
         let name = self.name()?;
         // Enums are declared at the top level only.
         let namespace = self.namespace_entered(&name, at)?;
@@ -709,9 +717,9 @@ impl Parser<'_> {
             if !self.ident(self.pos) && !matches!(self.token(), Token::Word(w) if w == "enum") {
                 return self.expected(Label::Text("enum member name"));
             }
-            let member_offset = self.tokens[self.pos].offset;
+            let member_offset = self.tokens.at(self.pos)?.offset;
             if self.record.is_some() {
-                member_offsets.push(member_offset as u32);
+                member_offsets.push(convert(member_offset)?);
             }
             let Token::Word(member) = self.bump()? else {
                 return Err(crate::checked::internal("enum member name expected"));
@@ -796,9 +804,9 @@ fn compile_checks(
                     .function(name, work)
                     .map_err(|error| duplicate_name(error, name, *at, work))?;
             }
-            Order::Module(index) => registry.module(&modules[*index], work)?,
+            Order::Module(index) => registry.module(modules.at(*index)?, work)?,
             Order::Enum(index) => {
-                let (name, members) = &enums[*index];
+                let (name, members) = enums.at(*index)?;
                 registry.enumeration(name, members, work)?;
             }
             Order::Alias(name, target, found, at) => {

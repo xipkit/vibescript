@@ -1,4 +1,5 @@
 use super::{Label, Parser, Parsing, Stmt, Token, keyword, source_text};
+use crate::checked::{Checked, convert};
 use crate::{
     Result,
     compilation::{Buffer, Name, Table, Text},
@@ -70,21 +71,28 @@ impl Parser<'_> {
     pub(super) fn module_ahead(&self) -> bool {
         matches!(self.token(), Token::Word(w) if w == "module")
             && self.ident(self.pos + 1)
-            && self.tokens[self.pos].line == self.tokens[self.pos + 1].line
+            && self
+                .tokens
+                .get(self.pos)
+                .zip(self.tokens.get(self.pos + 1))
+                .is_some_and(|(current, next)| current.line == next.line)
     }
 
     /// Go's `peekEndsStatement` for the token after the one at `index`, which
     /// starts on `line`.
     pub(super) fn ends_after(&self, index: usize, line: usize) -> bool {
         let next = self.significant(index + 1);
-        match &self.tokens[next].token {
+        match self.token_at(next) {
             Token::Eof | Token::P('}') | Token::EndLine => true,
             Token::Word(w)
                 if matches!(w.as_str(), "end" | "else" | "elsif" | "ensure" | "rescue") =>
             {
                 true
             }
-            _ => self.tokens[next].line != line,
+            _ => self
+                .tokens
+                .get(next)
+                .is_some_and(|token| token.line != line),
         }
     }
 
@@ -92,13 +100,16 @@ impl Parser<'_> {
     /// declaration it applies to.
     fn inline_visibility(&self) -> bool {
         let next = self.significant(self.pos + 1);
-        self.tokens[next].line == self.tokens[self.pos].line
-            && matches!(&self.tokens[next].token, Token::Word(w) if matches!(w.as_str(), "def" | "property" | "getter" | "setter"))
+        self.tokens
+            .get(next)
+            .zip(self.tokens.get(self.pos))
+            .is_some_and(|(next, current)| next.line == current.line)
+            && matches!(self.token_at(next), Token::Word(w) if matches!(w.as_str(), "def" | "property" | "getter" | "setter"))
     }
 
     fn symbol_at(&self, index: usize) -> bool {
         matches!(
-            self.tokens[index].token,
+            *self.token_at(index),
             Token::Symbol(_) | Token::QuotedSymbol(_)
         )
     }
@@ -109,9 +120,10 @@ impl Parser<'_> {
         let Token::Word(word) = self.token() else {
             return Ok(false);
         };
-        let line = self.tokens[self.pos].line;
+        let line = self.tokens.at(self.pos)?.line;
         let next = self.significant(self.pos + 1);
-        if self.inline_visibility() || (self.symbol_at(next) && self.tokens[next].line == line) {
+        if self.inline_visibility() || (self.symbol_at(next) && self.tokens.at(next)?.line == line)
+        {
             return Ok(true);
         }
         Ok(!self.locals.contains(self.work, word.as_str())? && self.ends_after(self.pos, line))
@@ -122,14 +134,14 @@ impl Parser<'_> {
         let Token::Word(word) = self.token() else {
             return Ok(false);
         };
-        let line = self.tokens[self.pos].line;
+        let line = self.tokens.at(self.pos)?.line;
         let next = self.significant(self.pos + 1);
-        let opens = match &self.tokens[next].token {
+        let opens = match &self.tokens.at(next)?.token {
             Token::P('(') => true,
             Token::Word(w) => *w == "self",
             _ => false,
         };
-        if self.tokens[next].line == line && (self.ident(next) || opens) {
+        if self.tokens.at(next)?.line == line && (self.ident(next) || opens) {
             return Ok(true);
         }
         Ok(!self.locals.contains(self.work, word.as_str())? && self.ends_after(self.pos, line))
@@ -146,17 +158,19 @@ impl Parser<'_> {
         if matches!(word, "public" | "protected") {
             class.directives.push(self.work, word)?;
         }
-        let line = self.tokens[self.pos].line;
+        let line = self.tokens.at(self.pos)?.line;
         if self.inline_visibility() {
             self.bump()?;
             self.line_breaks()?;
             return Ok(Directive::Inline);
         }
         let next = self.significant(self.pos + 1);
-        if self.symbol_at(next) && self.tokens[next].line == line {
+        if self.symbol_at(next) && self.tokens.at(next)?.line == line {
             self.pos = next;
             loop {
-                let name = self.symbol_name()?.unwrap();
+                let name = self.symbol_name()?.ok_or(crate::checked::violation(
+                    "visibility directive must name a method",
+                ))?;
                 self.work
                     .charge(class.instance_methods.len() + class.methods.len())?;
                 let instance = class
@@ -178,7 +192,7 @@ impl Parser<'_> {
                     None => (),
                 }
                 let comma = self.significant(self.pos);
-                if self.tokens[comma].token != Token::P(',') {
+                if self.tokens.at(comma)?.token != Token::P(',') {
                     return Ok(Directive::Named);
                 }
                 let symbol = self.significant(comma + 1);
@@ -202,7 +216,7 @@ impl Parser<'_> {
     fn function_name(&mut self, def: u32) -> Result<(Name, FunctionKind)> {
         self.work.charge(1)?;
         if matches!(self.token(), Token::Word(w) if w == "self")
-            && self.tokens[self.significant(self.pos + 1)].token == Token::P('.')
+            && self.tokens.at(self.significant(self.pos + 1))?.token == Token::P('.')
         {
             self.bump()?;
             self.line_breaks()?;
@@ -215,13 +229,15 @@ impl Parser<'_> {
         }
         let operator = match self.token() {
             Token::Op(op) if super::def_operator(op) => Some(*op),
-            Token::P('[') if self.tokens[self.significant(self.pos + 1)].token == Token::P(']') => {
+            Token::P('[')
+                if self.tokens.at(self.significant(self.pos + 1))?.token == Token::P(']') =>
+            {
                 Some("[]")
             }
             _ => None,
         };
         if let Some(op) = operator {
-            self.method_spelling(op, self.tokens[self.pos].offset)?;
+            self.method_spelling(op, self.tokens.at(self.pos)?.offset)?;
             if !self.inside_class {
                 return Err(crate::Error::syntax(
                     self.work,
@@ -270,18 +286,18 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let (offset, def_line, name, class_method, outer_locals, outer_it, outer_body) = {
             let mut p = self.p();
             work.charge(1)?;
-            let offset = p.tokens[p.pos].offset as u32;
-            let def_line = p.tokens[p.pos].line;
+            let offset = convert(p.tokens.at(p.pos)?.offset)?;
+            let def_line = p.tokens.at(p.pos)?.line;
             p.bump()?;
             p.line_breaks()?;
             let (mut name, kind) = p.function_name(offset)?;
-            let name_offset = p.tokens[p.pos - 1].offset;
+            let name_offset = p.tokens.at(p.pos - 1)?.offset;
             // `ok!=` reads as `ok` and `!=`, but after a definition's name it
             // can only be a setter spelled with a suffix, as `ok?=` is.
-            let next = &p.tokens[p.pos];
+            let next = p.tokens.at(p.pos)?;
             if kind != FunctionKind::Operator
                 && next.token == Token::Op("!=")
-                && next.offset == p.tokens[p.pos - 1].end
+                && next.offset == p.tokens.at(p.pos - 1)?.end
             {
                 if !p.mode.lenient {
                     return Err(p.name_suffix_error(next.offset));
@@ -320,7 +336,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         };
         let (parenthesized, bare) = {
             let p = self.p();
-            let line = p.tokens[p.pos].line;
+            let line = p.tokens.at(p.pos)?.line;
             let parenthesized = p.token() == &Token::P('(') && line == def_line;
             let bare = !parenthesized
                 && line == def_line
@@ -353,7 +369,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 params
             };
             let mut p = self.p();
-            signature = p.tokens[p.pos].line;
+            signature = p.tokens.at(p.pos)?.line;
             p.bump()?;
             params
         } else if bare {
@@ -375,7 +391,8 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let return_type = {
             let mut p = self.p();
             let arrow = p.significant(p.pos);
-            if p.tokens[arrow].token == Token::Op("->") && p.tokens[arrow].line == signature {
+            if p.tokens.at(arrow)?.token == Token::Op("->") && p.tokens.at(arrow)?.line == signature
+            {
                 p.pos = arrow + 1;
                 p.line_breaks()?;
                 Some(p.type_expr(1, false)?)
@@ -430,10 +447,10 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let (mut class, outer_locals, outer_it, outer_class, outer_namespace) = {
             let mut p = self.p();
             work.charge(1)?;
-            let offset = p.tokens[p.pos].offset as u32;
+            let offset = convert(p.tokens.at(p.pos)?.offset)?;
             p.bump()?;
             let next = p.significant(p.pos);
-            if !module && p.tokens[next].token == Token::Op("<<") {
+            if !module && p.tokens.at(next)?.token == Token::Op("<<") {
                 p.pos = next;
                 return p.err("class << self definitions are not supported; use def self.name");
             }
@@ -441,14 +458,14 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             if !p.ident(p.pos) {
                 return p.expected(Label::Text("identifier"));
             }
-            let at = p.tokens[p.pos].offset;
+            let at = p.tokens.at(p.pos)?.offset;
             let name = p.name()?;
             if module && !name.as_bytes().first().is_some_and(u8::is_ascii_uppercase) {
                 p.pos -= 1;
                 return p.err("module name must start with an uppercase letter");
             }
             let next = p.significant(p.pos);
-            if !module && p.tokens[next].token == Token::Op("<") {
+            if !module && p.tokens.at(next)?.token == Token::Op("<") {
                 p.pos = next;
                 if !p.mode.lenient {
                     return p.err(format_args!(
@@ -511,7 +528,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                         }
                         "def" => Member::Method,
                         "alias" if p.alias_ahead() => {
-                            let offset = p.tokens[p.pos].offset;
+                            let offset = p.tokens.at(p.pos)?.offset;
                             let (new, old) = p.alias_names()?;
                             if module {
                                 return Err(crate::Error::syntax(
@@ -523,11 +540,11 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                                     ),
                                 ));
                             }
-                            p.class_alias(&mut class, new, old, offset as u32)?;
+                            p.class_alias(&mut class, new, old, convert(offset)?)?;
                             Member::Done
                         }
                         "alias_method" => {
-                            let offset = p.tokens[p.pos].offset;
+                            let offset = p.tokens.at(p.pos)?.offset;
                             let (new, old) = p.alias_method()?;
                             if module {
                                 return Err(crate::Error::syntax(
@@ -539,7 +556,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                                     ),
                                 ));
                             }
-                            p.class_alias(&mut class, new, old, offset as u32)?;
+                            p.class_alias(&mut class, new, old, convert(offset)?)?;
                             Member::Done
                         }
                         "public" | "protected" | "private"
@@ -582,7 +599,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                             } else {
                                 "setter"
                             };
-                            let offset = p.tokens[p.pos].offset;
+                            let offset = p.tokens.at(p.pos)?.offset;
                             let visibility = pending.take().unwrap_or(section);
                             p.class_properties(&mut class, kind, visibility)?;
                             if module {
@@ -857,7 +874,7 @@ impl Registry {
             let _written = work.reserve(crate::enums::symbol_len(member))?;
             let symbol = Name::new(work, &crate::enums::symbol(member))?;
             if let Some(&prior) = symbols.get(work, &symbol)? {
-                let prior = &members[prior];
+                let prior = members.at(prior)?;
                 return Err(super::unsupported(
                     work,
                     &format!(

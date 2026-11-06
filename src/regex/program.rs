@@ -1,4 +1,5 @@
 use super::parse::{self, Assertion, Class, Kind, Part, UNBOUNDED};
+use crate::checked::{Access, Checked, violation};
 use crate::{CallContext, Error, ErrorKind, Result, Value, budget::Buffer};
 
 #[derive(Clone, Copy, Debug)]
@@ -63,15 +64,19 @@ enum Build {
 }
 
 impl Program {
-    pub fn view(&self) -> View<'_> {
-        View {
+    /// Borrows the compiled program, checking that its retained source is text.
+    pub fn view(&self) -> Access<View<'_>> {
+        Ok(View {
             instructions: &self.instructions.data,
             parts: &self.parts.data,
             names: &self.names.data,
-            source: self.source.as_bytes().unwrap(),
+            source: self
+                .source
+                .as_bytes()
+                .ok_or(violation("compiled regex source must be bytes"))?,
             start: self.start,
             minimum: self.minimum,
-        }
+        })
     }
 
     /// Compiles a pattern for `method`, the operation named in its errors.
@@ -101,7 +106,7 @@ impl Program {
                 error
             }
         })?;
-        let capacity = parsed.nodes.data[parsed.root].cost.saturating_add(2);
+        let capacity = parsed.nodes.at(parsed.root)?.cost.saturating_add(2);
         if capacity > super::MAX_INSTRUCTIONS {
             // Go's estimate saturates one instruction past the limit, and it
             // sizes each instruction at 64 bytes.
@@ -121,7 +126,7 @@ impl Program {
             names: parsed.names,
             source,
             start: 0,
-            minimum: parsed.nodes.data[parsed.root].minimum,
+            minimum: parsed.nodes.at(parsed.root)?.minimum,
         };
         program.emit(ctx, Op::Fail, 0, 0)?;
         program.emit(ctx, Op::Match, 0, 0)?;
@@ -131,7 +136,7 @@ impl Program {
         while let Some(task) = tasks.data.pop() {
             ctx.charge(1)?;
             match task {
-                Build::Node(id, next) => match parsed.nodes.data[id].kind {
+                Build::Node(id, next) => match parsed.nodes.at(id)?.kind {
                     Kind::Empty => start = next,
                     Kind::Rune(rune, fold) => {
                         start = program.emit(ctx, Op::Rune(rune, fold), next, 0)?
@@ -177,7 +182,7 @@ impl Program {
                                 next,
                                 greedy,
                                 optional: min == 0,
-                                nullable: parsed.nodes.data[child].nullable,
+                                nullable: parsed.nodes.at(child)?.nullable,
                             },
                         )?;
                         tasks.push(ctx, Build::Node(child, branch))?;
@@ -214,8 +219,9 @@ impl Program {
                     optional,
                     nullable,
                 } => {
-                    program.instructions.data[branch].next = if greedy { start } else { next };
-                    program.instructions.data[branch].alternate = if greedy { next } else { start };
+                    program.instructions.at_mut(branch)?.next = if greedy { start } else { next };
+                    program.instructions.at_mut(branch)?.alternate =
+                        if greedy { next } else { start };
                     if optional {
                         start = if nullable {
                             program.optional(ctx, start, next, greedy)?

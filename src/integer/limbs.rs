@@ -7,6 +7,7 @@
 //! conversion costs O(n log^2 n) word operations.
 
 use super::ntt::{self, Meter, Roots};
+use crate::checked::{Checked, convert};
 use crate::{CallContext, Error, ErrorKind, Result, budget::Buffer};
 
 /// Magnitudes longer than this many words convert by halves.
@@ -24,7 +25,7 @@ trait Base: Copy {
     fn digits(self) -> usize;
     fn base(self) -> u64;
     /// Returns `value / base` and `value % base`.
-    fn split(self, value: u64) -> (u64, u32);
+    fn split(self, value: u64) -> crate::checked::Access<(u64, u32)>;
 }
 
 /// Decimal limbs of `D` digits, divided by a constant.
@@ -44,8 +45,8 @@ impl<const D: u32> Base for Decimal<D> {
         10u64.pow(D)
     }
 
-    fn split(self, value: u64) -> (u64, u32) {
-        (value / 10u64.pow(D), (value % 10u64.pow(D)) as u32)
+    fn split(self, value: u64) -> crate::checked::Access<(u64, u32)> {
+        Ok((value / 10u64.pow(D), convert(value % 10u64.pow(D))?))
     }
 }
 
@@ -86,8 +87,8 @@ impl Base for Radix {
         self.base
     }
 
-    fn split(self, value: u64) -> (u64, u32) {
-        (value / self.base, (value % self.base) as u32)
+    fn split(self, value: u64) -> crate::checked::Access<(u64, u32)> {
+        Ok((value / self.base, convert(value % self.base)?))
     }
 }
 
@@ -155,9 +156,9 @@ impl<B: Base> Converter<B> {
         let leaf = self.base.base().ilog2() as usize;
         let mut scale = {
             let mut one = [0u32; 32];
-            one[leaf] = 1;
+            *one.at_mut(leaf)? = 1;
             let mut limbs = Buffer::with_capacity(ctx, self.width(leaf + 1))?;
-            self.horner(ctx, &one[..=leaf], &mut limbs.data)?;
+            self.horner(ctx, one.span(0, leaf + 1)?, &mut limbs.data)?;
             Scale {
                 limbs,
                 spectrum: Buffer::empty(),
@@ -217,13 +218,14 @@ impl<B: Base> Converter<B> {
         for &word in words.iter().rev() {
             self.meter.spend(ctx, limbs.len() - start + 1)?;
             let mut carry = word as u64;
-            for limb in &mut limbs[start..] {
-                let (quotient, remainder) = self.base.split((*limb as u64) << 32 | carry);
+            let end = limbs.len();
+            for limb in limbs.span_mut(start, end)? {
+                let (quotient, remainder) = self.base.split((*limb as u64) << 32 | carry)?;
                 *limb = remainder;
                 carry = quotient;
             }
             while carry != 0 {
-                let (quotient, remainder) = self.base.split(carry);
+                let (quotient, remainder) = self.base.split(carry)?;
                 limbs.push(remainder);
                 carry = quotient;
             }
@@ -246,7 +248,7 @@ impl<B: Base> Converter<B> {
             .rposition(|&limb| limb != 0)
             .map_or(0, |i| i + 1);
         self.meter.spend(ctx, limbs.len() - length + 1)?;
-        Ok(&limbs[..length])
+        Ok(limbs.span(0, length)?)
     }
 
     /// Returns the spectrum of `limbs` in a transform of `size` values,
@@ -386,8 +388,9 @@ impl<B: Base> Converter<B> {
             ntt::forward(ctx, &mut self.meter, &self.roots, &mut data.data)?;
             ntt::pointwise(ctx, &mut self.meter, &mut data.data, &spectrum.data, 1)?;
             ntt::inverse(ctx, &mut self.meter, &self.roots, &mut data.data)?;
-            let values = &data.data[..chunk.len() + short.len() - 1];
-            self.accumulate(ctx, &mut out[start + index * piece..], values)?;
+            let values = data.span(0, chunk.len() + short.len() - 1)?;
+            let end = out.len();
+            self.accumulate(ctx, out.span_mut(start + index * piece, end)?, values)?;
         }
         Ok(())
     }
@@ -402,15 +405,15 @@ impl<B: Base> Converter<B> {
         self.meter.spend(ctx, values.len())?;
         let mut carry = 0u64;
         for (limb, &value) in limbs.iter_mut().zip(values) {
-            let (quotient, remainder) = self.base.split(*limb as u64 + value + carry);
+            let (quotient, remainder) = self.base.split(*limb as u64 + value + carry)?;
             *limb = remainder;
             carry = quotient;
         }
         let mut index = values.len();
         while carry != 0 {
             self.meter.spend(ctx, 1)?;
-            let (quotient, remainder) = self.base.split(limbs[index] as u64 + carry);
-            limbs[index] = remainder;
+            let (quotient, remainder) = self.base.split(*limbs.at(index)? as u64 + carry)?;
+            *limbs.at_mut(index)? = remainder;
             carry = quotient;
             index += 1;
         }
@@ -431,7 +434,7 @@ impl<B: Base> Converter<B> {
         for i in 0..width {
             let value =
                 values.get(i).copied().unwrap_or(0) + low.get(i).copied().unwrap_or(0) as u64;
-            let (quotient, remainder) = self.base.split(value + carry);
+            let (quotient, remainder) = self.base.split(value + carry)?;
             out.push(remainder);
             carry = quotient;
         }
@@ -456,16 +459,17 @@ impl<B: Base> Converter<B> {
                 let first = (k + 1).saturating_sub(b.len());
                 let last = k.min(a.len() - 1);
                 self.meter.spend(ctx, last + 2 - first)?;
-                for (&x, &y) in a[first..=last]
+                for (&x, &y) in a
+                    .span(first, last + 1)?
                     .iter()
-                    .zip(b[k - last..=k - first].iter().rev())
+                    .zip(b.span(k - last, k - first + 1)?.iter().rev())
                 {
                     sum += x as u64 * y as u64;
                 }
             } else {
                 self.meter.spend(ctx, 1)?;
             }
-            let (quotient, remainder) = self.base.split(sum);
+            let (quotient, remainder) = self.base.split(sum)?;
             out.push(remainder);
             carry = quotient;
         }
@@ -476,7 +480,7 @@ impl<B: Base> Converter<B> {
     /// Appends the digits of nonzero limbs, most significant first.
     fn emit(&mut self, ctx: &mut CallContext, limbs: &[u32], out: &mut Buffer<u8>) -> Result<()> {
         let (radix, digits) = (self.base.radix(), self.base.digits());
-        let mut top = limbs[limbs.len() - 1];
+        let mut top = *limbs.at(limbs.len() - 1)?;
         let mut leading = 0;
         while top != 0 {
             top /= radix;
@@ -489,11 +493,11 @@ impl<B: Base> Converter<B> {
             let width = if index == 0 { leading } else { digits };
             self.meter.spend(ctx, width)?;
             let mut value = limb;
-            for slot in scratch[..width].iter_mut().rev() {
-                *slot = b"0123456789abcdefghijklmnopqrstuvwxyz"[(value % radix) as usize];
+            for slot in scratch.span_mut(0, width)?.iter_mut().rev() {
+                *slot = *b"0123456789abcdefghijklmnopqrstuvwxyz".at((value % radix) as usize)?;
                 value /= radix;
             }
-            out.data.extend_from_slice(&scratch[..width]);
+            out.data.extend_from_slice(scratch.span(0, width)?);
         }
         Ok(())
     }

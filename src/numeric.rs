@@ -1,5 +1,6 @@
+use crate::checked::{Checked, violation};
 use crate::{CallContext, Error, ErrorKind, Result, Value, bytes, integer, ops, value::Kind};
-use std::{cmp::Ordering, fmt::Write};
+use std::cmp::Ordering;
 
 /// Converts a count, a length or another unsigned value known to fit. Nothing
 /// in memory is larger than `isize::MAX`, so the limit stays out of reach; past
@@ -37,6 +38,40 @@ pub(crate) const fn unsigned_bits(value: i64) -> u64 {
     u64::from_ne_bytes(value.to_ne_bytes())
 }
 
+/// Returns the low 32 bits, for arithmetic modulo 2^32.
+#[inline]
+pub(crate) fn low_u32(value: impl Into<u128>) -> u32 {
+    let [a, b, c, d, ..] = value.into().to_le_bytes();
+    u32::from_le_bytes([a, b, c, d])
+}
+
+/// Returns the low 64 bits, for arithmetic modulo 2^64.
+#[inline]
+pub(crate) fn low_u64(value: u128) -> u64 {
+    let [a, b, c, d, e, f, g, h, ..] = value.to_le_bytes();
+    u64::from_le_bytes([a, b, c, d, e, f, g, h])
+}
+
+/// Keeps a hash's low pointer-sized word on both 32-bit and 64-bit targets.
+#[inline]
+pub(crate) fn hash_word(value: u64) -> usize {
+    let mut bytes = [0; size_of::<usize>()];
+    for (byte, source) in bytes.iter_mut().zip(value.to_le_bytes()) {
+        *byte = source;
+    }
+    usize::from_le_bytes(bytes)
+}
+
+/// Rounds toward zero, saturating outside i64's range and returning 0 for NaN.
+#[inline]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "floats have no try_from; as provides the documented rounding and saturation"
+)]
+pub(crate) fn float_to_i64(value: f64) -> i64 {
+    value as i64
+}
+
 /// Rounds toward zero. NaN and anything negative become 0, and a value past the
 /// range saturates.
 #[inline]
@@ -72,7 +107,9 @@ pub(crate) fn call(
     let value = match name {
         "zero?" | "positive?" | "negative?" | "nonzero?" => {
             nullary()?;
-            let number = receiver.as_float().unwrap();
+            let number = receiver
+                .as_float()
+                .ok_or(violation("numeric operand expected"))?;
             match name {
                 "zero?" => Value::boolean(number == 0.0),
                 "positive?" => Value::boolean(number > 0.0),
@@ -83,7 +120,9 @@ pub(crate) fn call(
         }
         "nan?" | "infinite?" | "finite?" if matches!(receiver.0, Kind::Float(_)) => {
             nullary()?;
-            let number = receiver.as_float().unwrap();
+            let number = receiver
+                .as_float()
+                .ok_or(violation("numeric operand expected"))?;
             match name {
                 "nan?" => Value::boolean(number.is_nan()),
                 "finite?" => Value::boolean(number.is_finite()),
@@ -109,21 +148,21 @@ pub(crate) fn call(
                     format!("{method} expects one numeric argument"),
                 ));
             }
-            if args[0].as_float().is_none() {
+            if args.at(0)?.as_float().is_none() {
                 return Err(Error::new(
                     ErrorKind::Type,
                     format!("{method} expects a numeric argument"),
                 ));
             }
-            division(ctx, &method, receiver, &args[0])?
+            division(ctx, &method, receiver, args.at(0)?)?
         }
         "clamp" => clamp(ctx, &format!("{kind}.clamp"), receiver, args)?,
         "between?" => {
             crate::arguments::between(&format!("{kind}.between?"), args, false, false)?;
-            let lower = ops::compare(ctx, &args[0], receiver)?;
+            let lower = ops::compare(ctx, args.at(0)?, receiver)?;
             let inside = matches!(lower, Some(Ordering::Less | Ordering::Equal))
                 && matches!(
-                    ops::compare(ctx, receiver, &args[1])?,
+                    ops::compare(ctx, receiver, args.at(1)?)?,
                     Some(Ordering::Less | Ordering::Equal)
                 );
             Value::boolean(inside)
@@ -141,7 +180,10 @@ fn calculate(ctx: &mut CallContext, op: &'static str, a: &Value, b: &Value) -> R
 fn division(ctx: &mut CallContext, method: &str, a: &Value, b: &Value) -> Result<Value> {
     let name = method.rsplit('.').next().unwrap_or(method);
     if name == "fdiv" {
-        return Ok(Value::float(a.as_float().unwrap() / b.as_float().unwrap()));
+        return Ok(Value::float(
+            a.as_float().ok_or(violation("numeric operand expected"))?
+                / b.as_float().ok_or(violation("numeric operand expected"))?,
+        ));
     }
     if b.as_float() == Some(0.0) {
         return Err(zero_division(method));
@@ -168,8 +210,8 @@ fn division(ctx: &mut CallContext, method: &str, a: &Value, b: &Value) -> Result
             }
         };
     }
-    let a = a.as_float().unwrap();
-    let b = b.as_float().unwrap();
+    let a = a.as_float().ok_or(violation("numeric operand expected"))?;
+    let b = b.as_float().ok_or(violation("numeric operand expected"))?;
     if name == "div" {
         return integer::from_float(ctx, (a / b).floor(), method);
     }
@@ -325,7 +367,9 @@ fn round(ctx: &mut CallContext, receiver: &Value, args: &[Value], method: &str) 
     if receiver.is_integer() {
         return integer_round(ctx, receiver, digits, mode);
     }
-    let number = receiver.as_float().unwrap();
+    let number = receiver
+        .as_float()
+        .ok_or(violation("numeric operand expected"))?;
     if digits > 0 {
         return float_digits(ctx, number, digits, mode).map(Value::float);
     }
@@ -429,7 +473,9 @@ fn float_digits(ctx: &mut CallContext, number: f64, digits: i32, mode: Rounding)
     if matches!(mode, Rounding::Nearest) && digits >= 15 {
         return rational_round(ctx, number, digits.unsigned_abs());
     }
-    let scale = pow10(ctx, digits.unsigned_abs())?.as_float().unwrap();
+    let scale = pow10(ctx, digits.unsigned_abs())?
+        .as_float()
+        .ok_or(violation("numeric operand expected"))?;
     Ok(match mode {
         Rounding::Floor => {
             let whole = (number * scale).floor();
@@ -484,11 +530,11 @@ fn rational_round(ctx: &mut CallContext, number: f64, digits: u32) -> Result<f64
     // The precision guards bound this token and all preceding scratch storage.
     let mut text = integer::format(ctx, &rounded, 10)?;
     let mut suffix = bytes::Number::new();
-    write!(suffix, "e-{digits}").unwrap();
-    text.extend(ctx, suffix.bytes())?;
+    suffix.format(format_args!("e-{digits}"))?;
+    text.extend(ctx, suffix.bytes()?)?;
     ctx.work_bytes(text.data.len())?;
     std::str::from_utf8(&text.data)
-        .unwrap()
+        .map_err(|_| violation("rounded decimal must be UTF-8"))?
         .parse()
         .map_err(|_| Error::new(ErrorKind::Arithmetic, "float rounding failed"))
 }
@@ -496,6 +542,33 @@ fn rational_round(ctx: &mut CallContext, number: f64, digits: u32) -> Result<f64
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn low_words_preserve_the_requested_bits() {
+        let wide = 0x0123_4567_89ab_cdef_fedc_ba98_7654_3210u128;
+        assert_eq!(low_u32(wide), 0x7654_3210);
+        assert_eq!(low_u32(0x0123_4567_89ab_cdefu64), 0x89ab_cdef);
+        assert_eq!(low_u64(wide), 0xfedc_ba98_7654_3210);
+        assert_eq!(low_u32(u128::MAX), u32::MAX);
+        assert_eq!(low_u64(u128::MAX), u64::MAX);
+        assert_eq!(hash_word(u64::MAX), usize::MAX);
+        #[cfg(target_pointer_width = "32")]
+        assert_eq!(hash_word(0x0123_4567_89ab_cdef), 0x89ab_cdef);
+        #[cfg(target_pointer_width = "64")]
+        assert_eq!(hash_word(0x0123_4567_89ab_cdef), 0x0123_4567_89ab_cdef);
+    }
+
+    #[test]
+    fn float_to_i64_truncates_and_saturates_at_the_signed_bounds() {
+        assert_eq!(float_to_i64(1.9), 1);
+        assert_eq!(float_to_i64(-1.9), -1);
+        assert_eq!(float_to_i64(-0.0), 0);
+        assert_eq!(float_to_i64(f64::NAN), 0);
+        assert_eq!(float_to_i64(-9223372036854775808.0), i64::MIN);
+        assert_eq!(float_to_i64(9223372036854775808.0), i64::MAX);
+        assert_eq!(float_to_i64(f64::INFINITY), i64::MAX);
+        assert_eq!(float_to_i64(f64::NEG_INFINITY), i64::MIN);
+    }
 
     #[test]
     fn to_i64_keeps_what_fits_and_never_turns_negative() {

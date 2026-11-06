@@ -22,6 +22,7 @@
 //! charged to the caller's work.
 
 use super::{Error, Expr, Name, Node, Parser, Result, Token, Work, name_suffix_position};
+use crate::checked::Checked;
 use crate::{
     compilation::{Buffer, Table},
     diagnostic::{Code, Diagnostic, Edit, Fix, Span},
@@ -131,17 +132,18 @@ fn key(work: &dyn Work, parent: u32, name: &str) -> Result<Name> {
 /// The key of an offset in the tables that record by one.
 fn at_key(work: &dyn Work, kind: &str, at: u32) -> Result<Name> {
     let mut digits = [0u8; 11];
-    let mut start = digits.len();
+    let mut written = 0;
     let mut at = at;
-    loop {
-        start -= 1;
-        digits[start] = b'0' + (at % 10) as u8;
+    for digit in digits.iter_mut().rev() {
+        *digit = b'0' + (at % 10) as u8;
+        written += 1;
         at /= 10;
         if at == 0 {
             break;
         }
     }
-    let digits = std::str::from_utf8(&digits[start..]).unwrap_or_default();
+    let digits = digits.split_at(digits.len() - written).1;
+    let digits = std::str::from_utf8(digits).unwrap_or_default();
     Name::join(work, &[kind, digits])
 }
 
@@ -265,10 +267,15 @@ impl Uses {
 /// after a sigil, or none when the name has no suffix or one inside it.
 fn suffix_at(source: &str, name: &str, at: usize) -> Option<u32> {
     let suffix = name_suffix_position(name)?;
-    if !name[suffix..].bytes().all(|b| matches!(b, b'?' | b'!')) {
+    if !name
+        .get(suffix..)?
+        .bytes()
+        .all(|b| matches!(b, b'?' | b'!'))
+    {
         return None;
     }
-    let sigil = source[at..].len() - source[at..].trim_start_matches('@').len();
+    let rest = source.get(at..)?;
+    let sigil = rest.len() - rest.trim_start_matches('@').len();
     u32::try_from(at + sigil + suffix).ok()
 }
 
@@ -338,7 +345,7 @@ impl Parser<'_> {
         let mut uses = self.suffixed.borrow_mut();
         let key = key(self.work, parent, name)?;
         if let Some(&id) = uses.namespace_ids.get(self.work, &key)? {
-            let binding = uses.namespace_bindings[id as usize - 1];
+            let binding = *uses.namespace_bindings.at(id as usize - 1)?;
             if let (Some(suffix), true) = (suffix, binding != 0) {
                 uses.site(self.work, suffix, binding)?;
             }
@@ -371,7 +378,7 @@ impl Parser<'_> {
         if !self.mode.lenient {
             return Ok(());
         }
-        let at = self.tokens[self.pos - 1].offset;
+        let at = self.tokens.at(self.pos - 1)?.offset;
         let Some(suffix) = suffix_at(self.source, name, at) else {
             return Ok(());
         };
@@ -442,7 +449,7 @@ impl Parser<'_> {
                 index = uses.value_read(work, entry)?;
                 if called {
                     // A lookahead may have recorded the read already.
-                    uses.scoped[index as usize - 1].safe = false;
+                    uses.scoped.at_mut(index as usize - 1)?.safe = false;
                 }
             }
         }
@@ -542,9 +549,9 @@ impl Parser<'_> {
         };
         if let Some(&index) = index
             && index != 0
-            && uses.scoped[index as usize - 1].name == **name
+            && uses.scoped.at(index as usize - 1)?.name == **name
         {
-            uses.scoped[index as usize - 1].safe = false;
+            uses.scoped.at_mut(index as usize - 1)?.safe = false;
         }
         Ok(())
     }
@@ -559,7 +566,7 @@ impl Parser<'_> {
             if !self.ident(self.pos) {
                 return self.expected(super::Label::Text("identifier"));
             }
-            let at = self.tokens[self.pos].offset;
+            let at = self.tokens.at(self.pos)?.offset;
             let Token::Word(word) = self.bump()? else {
                 return Err(crate::checked::internal("inherited member name expected"));
             };
@@ -710,7 +717,9 @@ fn spell<'t, 's: 't>(
                     .is_some_and(|next| next.token == Token::P(':') && next.offset == lexeme.end);
                 if let Some(suffix) = name_suffix_position(written)
                     && !label
-                    && written[suffix..].bytes().all(|b| matches!(b, b'?' | b'!'))
+                    && written
+                        .get(suffix..)
+                        .is_some_and(|rest| rest.bytes().all(|b| matches!(b, b'?' | b'!')))
                 {
                     let at = u32::try_from(lexeme.offset + suffix).unwrap_or(u32::MAX);
                     uses.places.push(work, (at, index))?;
@@ -820,11 +829,11 @@ fn extended(
     }
     for (id, name) in uses.nameable.iter() {
         if uses.symbols.contains(work, &symbol_key(work, name)?)? {
-            unsafe_ids[*id as usize] = true;
+            *unsafe_ids.at_mut(*id as usize)? = true;
         }
     }
     for &id in uses.labelled.iter() {
-        unsafe_ids[id as usize] = true;
+        *unsafe_ids.at_mut(id as usize)? = true;
     }
     // Each read that resolves to a class, module, enum or constant, with
     // its bindings.
@@ -845,21 +854,21 @@ fn extended(
         }
         if read.path == 0 {
             // A bare read names the namespace itself.
-            let id = uses.namespace_bindings[namespace as usize - 1];
+            let id = *uses.namespace_bindings.at(namespace as usize - 1)?;
             if id != 0 && read.safe {
                 scoped.push(work, (read.at, id))?;
             } else if id != 0 {
-                unsafe_ids[id as usize] = true;
+                *unsafe_ids.at_mut(id as usize)? = true;
                 unsafe_reads.push(work, (read.at, id))?;
             }
             continue;
         }
         if let Some(child) = uses.child(work, namespace, &read.name)? {
-            let id = uses.namespace_bindings[child as usize - 1];
+            let id = *uses.namespace_bindings.at(child as usize - 1)?;
             if id != 0 && read.safe {
                 scoped.push(work, (read.at, id))?;
             } else if id != 0 {
-                unsafe_ids[id as usize] = true;
+                *unsafe_ids.at_mut(id as usize)? = true;
                 unsafe_reads.push(work, (read.at, id))?;
             }
         }
@@ -870,7 +879,7 @@ fn extended(
             if read.safe {
                 scoped.push(work, (read.at, id))?;
             } else {
-                unsafe_ids[id as usize] = true;
+                *unsafe_ids.at_mut(id as usize)? = true;
                 unsafe_reads.push(work, (read.at, id))?;
             }
         }
@@ -878,7 +887,7 @@ fn extended(
     for (id, name) in uses.members.iter() {
         work.charge(1)?;
         if opaque.contains(work, name)? || uses.opaque.contains(work, name)? {
-            unsafe_ids[*id as usize] = true;
+            *unsafe_ids.at_mut(*id as usize)? = true;
         }
     }
     // Group every use by its binding: count, then place.
@@ -894,20 +903,22 @@ fn extended(
     }
     for &(_, id) in all() {
         work.charge(1)?;
-        starts[id as usize + 1] += 1;
+        *starts.at_mut(id as usize + 1)? += 1;
     }
-    for id in 1..starts.len() {
-        starts[id] += starts[id - 1];
+    let mut total = 0;
+    for count in starts.iter_mut() {
+        total += *count;
+        *count = total;
     }
     let mut filled = Buffer::from_slice(work, &starts)?;
-    let mut positions = Buffer::with_capacity(work, starts[bindings + 1])?;
-    for _ in 0..starts[bindings + 1] {
+    let mut positions = Buffer::with_capacity(work, *starts.at(bindings + 1)?)?;
+    for _ in 0..*starts.at(bindings + 1)? {
         positions.push(work, 0u32)?;
     }
     for &(at, id) in all() {
         work.charge(1)?;
-        positions[filled[id as usize]] = at;
-        filled[id as usize] += 1;
+        *positions.at_mut(*filled.at(id as usize)?)? = at;
+        *filled.at_mut(id as usize)? += 1;
     }
     // Where each binding is bound, to find a diagnostic's binding.
     let mut sites = Table::new();
@@ -928,21 +939,26 @@ fn extended(
         if !renames(diagnostic) {
             continue;
         }
-        let edit = &diagnostic.fixes[0].edits[0];
+        let Some(fix) = diagnostic.fixes.first() else {
+            continue;
+        };
+        let Some(edit) = fix.edits.first() else {
+            continue;
+        };
         let at = Name::new(work, &edit.span.start.to_string())?;
         let site = sites.get(work, &at)?.copied();
         if let Some(failed_at) = uses.failed_at {
             // Past where the lenient parse failed, no use is known, and a
             // binding bound before it may be read after it: renaming only
             // what was seen could leave a read behind.
-            let method = diagnostic.fixes[0].message == REPEATED;
+            let method = fix.message == REPEATED;
             if bare(source, edit.span.start)
                 && !method
                 && (site.is_some() || edit.span.start >= failed_at)
             {
                 diagnostic.fixes.clear();
                 if let Some(id) = site {
-                    fixed[id as usize] = true;
+                    *fixed.at_mut(id as usize)? = true;
                 }
             }
             continue;
@@ -950,30 +966,30 @@ fn extended(
         let Some(id) = site else {
             continue;
         };
-        if unsafe_ids[id as usize] {
+        if *unsafe_ids.at(id as usize)? {
             diagnostic.fixes.clear();
             continue;
         }
-        let slice = &mut positions[starts[id as usize]..starts[id as usize + 1]];
+        let slice = positions.span_mut(*starts.at(id as usize)?, *starts.at(id as usize + 1)?)?;
         if slice.len() <= 1 {
             continue;
         }
-        if fixed[id as usize] {
+        if *fixed.at(id as usize)? {
             diagnostic.fixes.clear();
             continue;
         }
-        fixed[id as usize] = true;
+        *fixed.at_mut(id as usize)? = true;
         let length = slice.len();
         radix_sort(work, slice)?;
         const WHEREVER: &str = " wherever the binding is used";
         let bytes = length
             .saturating_mul(std::mem::size_of::<Edit>() + edit.replacement.len())
-            .saturating_add(diagnostic.fixes[0].message.len() + WHEREVER.len());
+            .saturating_add(fix.message.len() + WHEREVER.len());
         crate::budget::Charge::merge(&mut charge, work.reserve(bytes)?);
         // Every use spells the same name, so the same run of `?` and `!`.
         let width = edit.span.end - edit.span.start;
         let replacement = edit.replacement.clone();
-        let message = format!("{}{WHEREVER}", diagnostic.fixes[0].message);
+        let message = format!("{}{WHEREVER}", fix.message);
         let mut edits: Vec<Edit> = Vec::with_capacity(length);
         for &position in slice.iter() {
             work.charge(1)?;
@@ -989,8 +1005,10 @@ fn extended(
                 replacement: replacement.clone(),
             });
         }
-        if edits.len() > 1 {
-            diagnostic.fixes[0] = Fix::edits(message, edits);
+        if edits.len() > 1
+            && let Some(fix) = diagnostic.fixes.first_mut()
+        {
+            *fix = Fix::edits(message, edits);
         }
     }
     // A read the parser reports on its own, as it does `Ready!?` in
@@ -1013,12 +1031,15 @@ fn extended(
         if !renames(diagnostic) {
             continue;
         }
-        let at = Name::new(work, &diagnostic.fixes[0].edits[0].span.start.to_string())?;
+        let Some(edit) = diagnostic.fixes.first().and_then(|fix| fix.edits.first()) else {
+            continue;
+        };
+        let at = Name::new(work, &edit.span.start.to_string())?;
         if sites.get(work, &at)?.is_some() {
             continue;
         }
         if let Some(&id) = read.get(work, &at)? {
-            if fixed[id as usize] || unsafe_ids[id as usize] {
+            if *fixed.at(id as usize)? || *unsafe_ids.at(id as usize)? {
                 diagnostic.fixes.clear();
             }
         }
@@ -1064,16 +1085,18 @@ fn withhold_collisions(
             work.charge(1)?;
             let at = u32::try_from(edit.span.start).unwrap_or(u32::MAX);
             reached.insert(work, at_key(work, "", at)?, ())?;
-            let (from, to) = word(source, edit);
-            if let Some(&index) = spelled.map_or(Ok(None), |s| s.get(work, &source[from..to]))? {
-                renamed_names[index as usize] = true;
+            let (from, to) = word(source, edit)?;
+            if let Some(&index) = spelled.map_or(Ok(None), |s| {
+                s.get(work, crate::checked::text(source, from..to)?)
+            })? {
+                *renamed_names.at_mut(index as usize)? = true;
             }
         }
     }
     for &(at, index) in uses.places.iter() {
         work.charge(1)?;
-        if renamed_names[index as usize] && !reached.contains(work, &at_key(work, "", at)?)? {
-            kept[index as usize] = true;
+        if *renamed_names.at(index as usize)? && !reached.contains(work, &at_key(work, "", at)?)? {
+            *kept.at_mut(index as usize)? = true;
         }
     }
     // The names the fixes kept so far leave, each with the index of the
@@ -1097,7 +1120,7 @@ fn withhold_collisions(
             work.charge(1)?;
             let (name, written, _reserved) = destination(work, source, edit)?;
             if let Some(&index) = spelled.get(work, written)?
-                && kept[index as usize]
+                && *kept.at(index as usize)?
             {
                 collides = true;
                 break;
@@ -1106,7 +1129,7 @@ fn withhold_collisions(
                 continue;
             }
             let other = match taken.get(work, &name)? {
-                Some(&index) => *renamed[index as usize] != *written,
+                Some(&index) => *renamed.at(index as usize)? != *written,
                 None => false,
             };
             if other
@@ -1145,12 +1168,12 @@ fn declarable(
     edit: &Edit,
     name: &str,
 ) -> Result<bool> {
-    let start = source[..edit.span.start]
-        .rfind(|c: char| c != '_' && c != '@' && !super::unicode::letter_or_digit(c))
-        .map_or(0, |i| {
-            i + source[i..].chars().next().map_or(0, char::len_utf8)
-        });
-    let keyword = source[..start]
+    let start = crate::checked::text(source, ..edit.span.start)?
+        .char_indices()
+        .rev()
+        .find(|&(_, c)| c != '_' && c != '@' && !super::unicode::letter_or_digit(c))
+        .map_or(0, |(i, c)| i + c.len_utf8());
+    let keyword = crate::checked::text(source, ..start)?
         .trim_end()
         .rsplit(|c: char| !super::unicode::letter_or_digit(c) && c != '_')
         .next()
@@ -1206,56 +1229,70 @@ fn destination<'s>(
     edit: &Edit,
 ) -> Result<(String, &'s str, Option<crate::budget::Charge>)> {
     let (start, end) = (edit.span.start, edit.span.end);
-    let (from, to) = word(source, edit);
+    let (from, to) = word(source, edit)?;
     if let Some(name) = edit
         .replacement
         .strip_prefix(":\"")
         .and_then(|name| name.strip_suffix('"'))
     {
         let reserved = work.reserve(name.len())?;
-        return Ok((name.to_string(), &source[from..to], reserved));
+        return Ok((
+            name.to_string(),
+            crate::checked::text(source, from..to)?,
+            reserved,
+        ));
     }
-    let (before, after) = (&source[from..start], &source[end..to]);
+    let (before, after) = (
+        crate::checked::text(source, from..start)?,
+        crate::checked::text(source, end..to)?,
+    );
     let length = before.len() + edit.replacement.len() + after.len();
     let reserved = work.reserve(length)?;
     let mut name = String::with_capacity(length);
     name.push_str(before);
     name.push_str(&edit.replacement);
     name.push_str(after);
-    Ok((name, &source[from..to], reserved))
+    Ok((name, crate::checked::text(source, from..to)?, reserved))
 }
 
 /// Where the word an edit of a V0003 fix changes is spelled: the name
 /// around it, or a quoted symbol's name between its quotes.
-fn word(source: &str, edit: &Edit) -> (usize, usize) {
+fn word(source: &str, edit: &Edit) -> Result<(usize, usize)> {
     let (start, end) = (edit.span.start, edit.span.end);
     if edit.replacement.starts_with(":\"") {
-        let quoted = &source[start..end];
+        let quoted = crate::checked::text(source, start..end)?;
         if quoted.starts_with(":\"") && quoted.ends_with('"') && quoted.len() >= 3 {
-            return (start + 2, end - 1);
+            return Ok((start + 2, end - 1));
         }
-        return (start, end);
+        return Ok((start, end));
     }
     let word = |c: char| c == '_' || c == '@' || super::unicode::letter_or_digit(c);
-    let from = source[..start].rfind(|c: char| !word(c)).map_or(0, |i| {
-        i + source[i..].chars().next().map_or(0, char::len_utf8)
-    });
-    let to = source[end..]
+    let from = crate::checked::text(source, ..start)?
+        .char_indices()
+        .rev()
+        .find(|&(_, c)| !word(c))
+        .map_or(0, |(i, c)| i + c.len_utf8());
+    let to = crate::checked::text(source, end..)?
         .find(|c: char| !word(c) && c != '?' && c != '!')
         .map_or(source.len(), |i| end + i);
-    (from, to)
+    Ok((from, to))
 }
 
 /// Whether the name whose suffix starts at `at` stands bare, where it may
 /// name a binding read elsewhere, rather than after a receiver, a sigil, a
 /// `:` or `&`, or a keyword that declares a method or accessor.
 fn bare(source: &str, at: usize) -> bool {
-    let start = source[..at]
-        .rfind(|c: char| c != '_' && !super::unicode::letter_or_digit(c))
-        .map_or(0, |i| {
-            i + source[i..].chars().next().map_or(0, char::len_utf8)
-        });
-    let before = source[..start].trim_end();
+    let Some(prefix) = source.get(..at) else {
+        return false;
+    };
+    let start = prefix
+        .char_indices()
+        .rev()
+        .find(|&(_, c)| c != '_' && !super::unicode::letter_or_digit(c))
+        .map_or(0, |(i, c)| i + c.len_utf8());
+    let Some(before) = source.get(..start).map(str::trim_end) else {
+        return false;
+    };
     if before.ends_with(['.', '@', ':', '&']) {
         return false;
     }
@@ -1282,18 +1319,20 @@ fn radix_sort(work: &dyn Work, values: &mut [u32]) -> Result<()> {
         work.charge(values.len() + 256)?;
         let mut starts = [0usize; 257];
         for &value in values.iter() {
-            starts[(value >> shift & 0xff) as usize + 1] += 1;
+            *starts.at_mut((value >> shift & 0xff) as usize + 1)? += 1;
         }
         if starts[1..].contains(&values.len()) {
             continue;
         }
-        for digit in 1..starts.len() {
-            starts[digit] += starts[digit - 1];
+        let mut total = 0;
+        for count in starts.iter_mut() {
+            total += *count;
+            *count = total;
         }
         for &value in values.iter() {
             let digit = (value >> shift & 0xff) as usize;
-            scratch[starts[digit]] = value;
-            starts[digit] += 1;
+            *scratch.at_mut(*starts.at(digit)?)? = value;
+            *starts.at_mut(digit)? += 1;
         }
         values.copy_from_slice(&scratch);
     }
@@ -1325,9 +1364,9 @@ fn resolve(work: &dyn Work, uses: &Uses) -> Result<Buffer<u32>> {
         let namespace = match path.parent {
             0 => {
                 root += 1;
-                found[root - 1]
+                *found.at(root - 1)?
             }
-            parent => match namespaces[parent as usize - 1] {
+            parent => match *namespaces.at(parent as usize - 1)? {
                 0 => 0,
                 parent => uses.child(work, parent, &path.name)?.unwrap_or(0),
             },
@@ -1341,9 +1380,9 @@ fn resolve(work: &dyn Work, uses: &Uses) -> Result<Buffer<u32>> {
         let namespace = match read.path {
             0 => {
                 bare += 1;
-                found[bare - 1]
+                *found.at(bare - 1)?
             }
-            path => namespaces[path as usize - 1],
+            path => *namespaces.at(path as usize - 1)?,
         };
         resolved.push(work, namespace)?;
     }
@@ -1367,7 +1406,7 @@ fn lookup(work: &dyn Work, uses: &Uses, heads: &[(&str, Option<u32>)]) -> Result
             namespace = uses.child(work, 0, head)?;
         }
         if let (None, Some(owner)) = (namespace, owner) {
-            let parent = uses.parents[owner as usize - 1];
+            let parent = *uses.parents.at(owner as usize - 1)?;
             if parent != 0 {
                 pending.push(work, (parent, u32::try_from(index).unwrap_or(u32::MAX)))?;
             }
@@ -1402,11 +1441,13 @@ fn enclosing(
         let mut order = Buffer::new();
         for (index, key) in keys.enumerate() {
             work.charge(1)?;
-            starts[key as usize + 1] += 1;
+            *starts.at_mut(key as usize + 1)? += 1;
             order.push(work, (key, u32::try_from(index).unwrap_or(u32::MAX)))?;
         }
-        for index in 1..starts.len() {
-            starts[index] += starts[index - 1];
+        let mut total = 0;
+        for count in starts.iter_mut() {
+            total += *count;
+            *count = total;
         }
         let mut filled = Buffer::from_slice(work, &starts)?;
         let mut items = Buffer::with_capacity(work, order.len())?;
@@ -1414,8 +1455,8 @@ fn enclosing(
             items.push(work, 0)?;
         }
         for &(key, item) in order.iter() {
-            items[filled[key as usize]] = item;
-            filled[key as usize] += 1;
+            *items.at_mut(*filled.at(key as usize)?)? = item;
+            *filled.at_mut(key as usize)? += 1;
         }
         Ok((starts, items))
     };
@@ -1426,35 +1467,40 @@ fn enclosing(
     let mut tops: Table<u32> = Table::new();
     let mut frames: Buffer<(u32, u32)> = Buffer::new();
     let mut walk: Buffer<(u32, bool)> = Buffer::new();
-    for &child in &members[member_starts[0]..member_starts[1]] {
+    for &child in members.span(*member_starts.at(0)?, *member_starts.at(1)?)? {
         walk.push(work, (child + 1, false))?;
     }
     while let Some((namespace, leaving)) = walk.pop() {
         work.charge(1)?;
-        let own =
-            &members[member_starts[namespace as usize]..member_starts[namespace as usize + 1]];
+        let own = members.span(
+            *member_starts.at(namespace as usize)?,
+            *member_starts.at(namespace as usize + 1)?,
+        )?;
         if leaving {
             for &child in own.iter().rev() {
                 let (_, below) = frames.pop().unwrap_or_default();
-                tops.insert(work, uses.names[child as usize].clone(), below)?;
+                tops.insert(work, uses.names.at(child as usize)?.clone(), below)?;
             }
             continue;
         }
         for &child in own {
-            let name = &uses.names[child as usize];
+            let name = uses.names.at(child as usize)?;
             let below = tops.get(work, name)?.copied().unwrap_or(0);
             frames.push(work, (namespace, below))?;
             let top = u32::try_from(frames.len()).unwrap_or(u32::MAX);
             tops.insert(work, name.clone(), top)?;
         }
-        for &index in &reads[read_starts[namespace as usize]..read_starts[namespace as usize + 1]] {
-            let (_, read) = pending[index as usize];
-            let (head, _) = heads[read as usize];
+        for &index in reads.span(
+            *read_starts.at(namespace as usize)?,
+            *read_starts.at(namespace as usize + 1)?,
+        )? {
+            let (_, read) = *pending.at(index as usize)?;
+            let (head, _) = *heads.at(read as usize)?;
             if let Some(&top) = tops.get(work, head)?
                 && top != 0
             {
-                let (holder, _) = frames[top as usize - 1];
-                found[read as usize] = uses.child(work, holder, head)?.unwrap_or(0);
+                let (holder, _) = *frames.at(top as usize - 1)?;
+                *found.at_mut(read as usize)? = uses.child(work, holder, head)?.unwrap_or(0);
             }
         }
         walk.push(work, (namespace, true))?;
@@ -1516,7 +1562,7 @@ mod tests {
         let work = Meter::new(&mut context);
         let error = destination(&work, &source, &edit).unwrap_err();
         assert_eq!(error.kind, ErrorKind::Memory, "{error}");
-        let error = symbol_key(&work, &source[..long + 1]).unwrap_err();
+        let error = symbol_key(&work, source.get(..long + 1).unwrap()).unwrap_err();
         assert_eq!(error.kind, ErrorKind::Memory, "{error}");
         let (name, written, _) = destination(&(), &source, &edit).unwrap();
         assert_eq!((name.len(), written.len()), (long, long + 1));

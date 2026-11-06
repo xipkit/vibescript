@@ -3,11 +3,9 @@
 // See licenses/Go-BSD-3-Clause.txt.
 
 use super::MAX_ZONE_BYTES;
+use crate::checked::{Access, Checked, violation};
 use crate::{CallContext, ErrorKind, Result, budget::Buffer};
-use std::{
-    io::{self, Read, Seek, SeekFrom},
-    ops::Range,
-};
+use std::io::{self, Read, Seek, SeekFrom};
 
 pub(super) struct Source<R> {
     reader: R,
@@ -21,23 +19,29 @@ pub(super) enum Format {
     Android,
 }
 
-fn little2(bytes: &[u8], start: usize) -> u64 {
-    u64::from(u16::from_le_bytes(
-        bytes[start..start + 2].try_into().unwrap(),
-    ))
+fn little2(bytes: &[u8], start: usize) -> Access<u64> {
+    let bytes = bytes
+        .tail(start)?
+        .first_chunk::<2>()
+        .ok_or(violation("two archive header bytes expected"))?;
+    Ok(u64::from(u16::from_le_bytes(*bytes)))
 }
 
-fn little4(bytes: &[u8], start: usize) -> u64 {
-    u64::from(u32::from_le_bytes(
-        bytes[start..start + 4].try_into().unwrap(),
-    ))
+fn little4(bytes: &[u8], start: usize) -> Access<u64> {
+    let bytes = bytes
+        .tail(start)?
+        .first_chunk::<4>()
+        .ok_or(violation("four archive header bytes expected"))?;
+    Ok(u64::from(u32::from_le_bytes(*bytes)))
 }
 
 #[cfg(any(target_os = "android", test))]
-fn big4(bytes: &[u8], start: usize) -> u64 {
-    u64::from(u32::from_be_bytes(
-        bytes[start..start + 4].try_into().unwrap(),
-    ))
+fn big4(bytes: &[u8], start: usize) -> Access<u64> {
+    let bytes = bytes
+        .tail(start)?
+        .first_chunk::<4>()
+        .ok_or(violation("four Android timezone header bytes expected"))?;
+    Ok(u64::from(u32::from_be_bytes(*bytes)))
 }
 
 impl<R: Read + Seek> Source<R> {
@@ -82,7 +86,12 @@ impl<R: Read + Seek> Source<R> {
                 ctx.checkpoint()?;
                 match result {
                     Ok(0) => return Ok(false),
-                    Ok(n) => remaining = &mut remaining[n..],
+                    Ok(n) => {
+                        remaining = remaining
+                            .split_at_mut_checked(n)
+                            .ok_or(violation("reader returned more bytes than requested"))?
+                            .1
+                    }
                     Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
                     Err(_) => return Ok(false),
                 }
@@ -94,7 +103,7 @@ impl<R: Read + Seek> Source<R> {
     fn equal(&mut self, ctx: &mut CallContext, mut start: u64, bytes: &[u8]) -> Result<bool> {
         let mut scratch = [0; 1024];
         for chunk in bytes.chunks(scratch.len()) {
-            let scratch = &mut scratch[..chunk.len()];
+            let scratch = scratch.span_mut(0, chunk.len())?;
             if !self.read(ctx, start, scratch)? || scratch != chunk {
                 return Ok(false);
             }
@@ -117,7 +126,7 @@ impl<R: Read + Seek> Source<R> {
             let end = begin + (size - begin).min(4096);
             ctx.work_bytes(end - begin)?;
             bytes.data.resize(end, 0);
-            if !self.read(ctx, start + begin as u64, &mut bytes.data[begin..end])? {
+            if !self.read(ctx, start + begin as u64, bytes.span_mut(begin, end)?)? {
                 return Ok(None);
             }
         }
@@ -136,12 +145,12 @@ impl<R: Read + Seek> Source<R> {
             return Ok(None);
         };
         let mut end = [0; 22];
-        if !self.read(ctx, tail, &mut end)? || end[..4] != *b"PK\x05\x06" {
+        if !self.read(ctx, tail, &mut end)? || !end.starts_with(b"PK\x05\x06") {
             return Ok(None);
         }
-        let count = little2(&end, 10);
-        let mut position = little4(&end, 16);
-        let limit = position + little4(&end, 12);
+        let count = little2(&end, 10)?;
+        let mut position = little4(&end, 16)?;
+        let limit = position + little4(&end, 12)?;
         if limit > tail {
             return Ok(None);
         }
@@ -150,31 +159,31 @@ impl<R: Read + Seek> Source<R> {
         for _ in 0..count {
             if position + central.len() as u64 > limit
                 || !self.read(ctx, position, &mut central)?
-                || central[..4] != *b"PK\x01\x02"
+                || !central.starts_with(b"PK\x01\x02")
             {
                 return Ok(None);
             }
-            let length = little2(&central, 28);
+            let length = little2(&central, 28)?;
             let start = position + central.len() as u64;
-            position = start + length + little2(&central, 30) + little2(&central, 32);
+            position = start + length + little2(&central, 30)? + little2(&central, 32)?;
             if position > limit {
                 return Ok(None);
             }
             if length != name.len() as u64 || !self.equal(ctx, start, name)? {
                 continue;
             }
-            let offset = little4(&central, 42);
-            if little2(&central, 10) != 0
+            let offset = little4(&central, 42)?;
+            if little2(&central, 10)? != 0
                 || !self.read(ctx, offset, &mut local)?
-                || local[..4] != *b"PK\x03\x04"
-                || little2(&local, 8) != 0
-                || little2(&local, 26) != length
+                || !local.starts_with(b"PK\x03\x04")
+                || little2(&local, 8)? != 0
+                || little2(&local, 26)? != length
                 || !self.equal(ctx, offset + local.len() as u64, name)?
             {
                 return Ok(None);
             }
-            let start = offset + local.len() as u64 + length + little2(&local, 28);
-            return self.data(ctx, start, little4(&central, 24));
+            let start = offset + local.len() as u64 + length + little2(&local, 28)?;
+            return self.data(ctx, start, little4(&central, 24)?);
         }
         Ok(None)
     }
@@ -182,11 +191,11 @@ impl<R: Read + Seek> Source<R> {
     #[cfg(any(target_os = "android", test))]
     pub fn android(&mut self, ctx: &mut CallContext, name: &[u8]) -> Result<Option<Buffer<u8>>> {
         let mut header = [0; 24];
-        if name.len() > 40 || !self.read(ctx, 0, &mut header)? || header[..6] != *b"tzdata" {
+        if name.len() > 40 || !self.read(ctx, 0, &mut header)? || !header.starts_with(b"tzdata") {
             return Ok(None);
         }
-        let index = big4(&header, 12);
-        let data = big4(&header, 16);
+        let index = big4(&header, 12)?;
+        let data = big4(&header, 16)?;
         if data < index || data > self.size {
             return Ok(None);
         }
@@ -196,8 +205,8 @@ impl<R: Read + Seek> Source<R> {
                 return Ok(None);
             }
             // Android's reference reader compares the supplied name as a prefix.
-            if entry[..name.len()] == *name {
-                return self.data(ctx, data + big4(&entry, 40), big4(&entry, 44));
+            if entry.starts_with(name) {
+                return self.data(ctx, data + big4(&entry, 40)?, big4(&entry, 44)?);
             }
         }
         Ok(None)
@@ -207,61 +216,65 @@ impl<R: Read + Seek> Source<R> {
 /// The directory of a stored archive held in memory, sorted by entry name so
 /// a lookup need not rescan it. It finds exactly what [`Source::zip`] finds.
 pub(super) struct Index<'a> {
-    archive: &'a [u8],
-    /// Each name's range and its payload's, or `None` where `zip` rejects the
+    /// Each name and its payload, or `None` where `zip` rejects the
     /// entry. Only the first entry of a repeated name is kept, as `zip` stops
     /// at the first match.
-    entries: Vec<(Range<usize>, Option<Range<usize>>)>,
+    entries: Vec<(&'a [u8], Option<&'a [u8]>)>,
 }
 
 impl<'a> Index<'a> {
     /// Reads the directory the way [`Source::zip`] scans it, stopping where
     /// the scan would stop.
-    pub fn new(archive: &'a [u8]) -> Self {
+    pub fn new(archive: &'a [u8]) -> Access<Self> {
         let size = archive.len() as u64;
         let read = |start: u64, length: u64| {
             let end = start.checked_add(length).filter(|&end| end <= size)?;
-            Some(&archive[start as usize..end as usize])
+            archive.get(usize::try_from(start).ok()?..usize::try_from(end).ok()?)
         };
         let mut entries = Vec::new();
         let tail = size.checked_sub(22);
         let end = tail.and_then(|tail| read(tail, 22));
-        if let (Some(tail), Some(end)) = (tail, end.filter(|end| end[..4] == *b"PK\x05\x06")) {
-            let mut position = little4(end, 16);
-            let limit = position + little4(end, 12);
-            for _ in 0..if limit > tail { 0 } else { little2(end, 10) } {
+        if let (Some(tail), Some(end)) = (tail, end.filter(|end| end.starts_with(b"PK\x05\x06"))) {
+            let mut position = little4(end, 16)?;
+            let limit = position + little4(end, 12)?;
+            for _ in 0..if limit > tail { 0 } else { little2(end, 10)? } {
                 let Some(central) = read(position, 46)
-                    .filter(|central| position + 46 <= limit && central[..4] == *b"PK\x01\x02")
+                    .filter(|central| position + 46 <= limit && central.starts_with(b"PK\x01\x02"))
                 else {
                     break;
                 };
-                let length = little2(central, 28);
+                let length = little2(central, 28)?;
                 let start = position + 46;
-                position = start + length + little2(central, 30) + little2(central, 32);
+                position = start + length + little2(central, 30)? + little2(central, 32)?;
                 if position > limit {
                     break;
                 }
-                let name = start as usize..(start + length) as usize;
-                let offset = little4(central, 42);
-                let payload = read(offset, 30)
-                    .filter(|local| {
-                        little2(central, 10) == 0
-                            && local[..4] == *b"PK\x03\x04"
-                            && little2(local, 8) == 0
-                            && little2(local, 26) == length
-                            && read(offset + 30, length) == Some(&archive[name.clone()])
-                    })
-                    .and_then(|local| {
-                        let start = offset + 30 + length + little2(local, 28);
-                        let size = little4(central, 24);
-                        read(start, size).map(|_| start as usize..(start + size) as usize)
-                    });
+                let Some(name) = read(start, length) else {
+                    break;
+                };
+                let offset = little4(central, 42)?;
+                let payload = if let Some(local) = read(offset, 30) {
+                    if little2(central, 10)? == 0
+                        && local.starts_with(b"PK\x03\x04")
+                        && little2(local, 8)? == 0
+                        && little2(local, 26)? == length
+                        && read(offset + 30, length) == Some(name)
+                    {
+                        let start = offset + 30 + length + little2(local, 28)?;
+                        let size = little4(central, 24)?;
+                        read(start, size)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
                 entries.push((name, payload));
             }
         }
-        entries.sort_by(|a, b| archive[a.0.clone()].cmp(&archive[b.0.clone()]));
-        entries.dedup_by(|later, first| archive[later.0.clone()] == archive[first.0.clone()]);
-        Self { archive, entries }
+        entries.sort_by(|a, b| a.0.cmp(b.0));
+        entries.dedup_by(|later, first| later.0 == first.0);
+        Ok(Self { entries })
     }
 
     /// Returns the payload stored under `name`, charging a step per probe.
@@ -269,13 +282,13 @@ impl<'a> Index<'a> {
         let mut probes = 0;
         let found = self.entries.binary_search_by(|entry| {
             probes += 1;
-            self.archive[entry.0.clone()].cmp(name)
+            entry.0.cmp(name)
         });
         ctx.charge(probes)?;
         Ok(found
             .ok()
-            .and_then(|index| self.entries[index].1.clone())
-            .map(|payload| &self.archive[payload]))
+            .and_then(|index| self.entries.get(index))
+            .and_then(|entry| entry.1))
     }
 }
 
@@ -291,12 +304,12 @@ mod tests {
         for &(name, content) in entries {
             let mut local = [0; 30];
             local[..4].copy_from_slice(b"PK\x03\x04");
-            local[26..28].copy_from_slice(&(name.len() as u16).to_le_bytes());
+            local[26..28].copy_from_slice(&u16::try_from(name.len()).unwrap().to_le_bytes());
             let mut central = [0; 46];
             central[..4].copy_from_slice(b"PK\x01\x02");
-            central[24..28].copy_from_slice(&(content.len() as u32).to_le_bytes());
-            central[28..30].copy_from_slice(&(name.len() as u16).to_le_bytes());
-            central[42..46].copy_from_slice(&(data.len() as u32).to_le_bytes());
+            central[24..28].copy_from_slice(&u32::try_from(content.len()).unwrap().to_le_bytes());
+            central[28..30].copy_from_slice(&u16::try_from(name.len()).unwrap().to_le_bytes());
+            central[42..46].copy_from_slice(&u32::try_from(data.len()).unwrap().to_le_bytes());
             data.extend_from_slice(&local);
             data.extend_from_slice(name);
             data.extend_from_slice(content);
@@ -305,9 +318,9 @@ mod tests {
         }
         let mut tail = [0; 22];
         tail[..4].copy_from_slice(b"PK\x05\x06");
-        tail[10..12].copy_from_slice(&(entries.len() as u16).to_le_bytes());
-        tail[12..16].copy_from_slice(&(directory.len() as u32).to_le_bytes());
-        tail[16..20].copy_from_slice(&(data.len() as u32).to_le_bytes());
+        tail[10..12].copy_from_slice(&u16::try_from(entries.len()).unwrap().to_le_bytes());
+        tail[12..16].copy_from_slice(&u32::try_from(directory.len()).unwrap().to_le_bytes());
+        tail[16..20].copy_from_slice(&u32::try_from(data.len()).unwrap().to_le_bytes());
         data.extend_from_slice(&directory);
         data.extend_from_slice(&tail);
         data
@@ -363,7 +376,8 @@ mod tests {
                     data[12..16].copy_from_slice(&24u32.to_be_bytes());
                     data[16..20].copy_from_slice(&76u32.to_be_bytes());
                     data[24..28].copy_from_slice(b"zone");
-                    data[68..72].copy_from_slice(&(payload.len() as u32).to_be_bytes());
+                    data[68..72]
+                        .copy_from_slice(&u32::try_from(payload.len()).unwrap().to_be_bytes());
                     data.extend_from_slice(&payload);
                     data
                 }
@@ -442,7 +456,7 @@ mod tests {
     #[test]
     fn indexed_lookups_find_exactly_what_the_directory_scan_finds() {
         let check = |bytes: &[u8], names: &[&[u8]], label: &str| {
-            let index = Index::new(bytes);
+            let index = Index::new(bytes).unwrap();
             for &name in names {
                 let mut ctx = CallContext::new(CallOptions::default());
                 let scanned = read_zip(&mut ctx, bytes, name).unwrap();
@@ -474,12 +488,8 @@ mod tests {
             check(&bytes, &names, &format!("byte {start}"));
         }
         let bundled = super::super::BUNDLED;
-        let index = Index::new(bundled);
-        let mut names: Vec<&[u8]> = index
-            .entries
-            .iter()
-            .map(|entry| &bundled[entry.0.clone()])
-            .collect();
+        let index = Index::new(bundled).unwrap();
+        let mut names: Vec<&[u8]> = index.entries.iter().map(|entry| entry.0).collect();
         assert_eq!(names.len(), 598);
         names.extend([&b"Not/AZone"[..], b"america/new_york", b"", b"Z"]);
         check(bundled, &names, "bundled");

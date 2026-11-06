@@ -8,8 +8,7 @@ exclude = ["tests/platforms/wasi"]
 [workspace.metadata.adamantium]
 skip = ["tests/", "cli/tests/", "tools/tests/"]
 allow = [
-  "indexing_slicing", "unwrap_used", "cast_possible_truncation",
-  "string_slice",
+  "indexing_slicing", "unwrap_used",
 ]
 
 # The parser and compiler use `async fn` for stack-safe recursion, not

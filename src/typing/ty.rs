@@ -472,7 +472,7 @@ impl Types {
     }
 
     /// The first invariant this table's check found broken, if any.
-    pub fn violation(&self) -> Option<crate::checked::Violation> {
+    pub fn violation(&self) -> Option<crate::Error> {
         self.meter.violation()
     }
 
@@ -589,7 +589,7 @@ impl Types {
         self.kinds.reserve(ledger, 1).ok()?;
         self.properties.reserve(ledger, 1).ok()?;
         self.ids.reserve(ledger, 1).ok()?;
-        let ty = Ty(self.kinds.len() as u32);
+        let ty = Ty(self.meter.index(self.kinds.len())?);
         self.payload += payload;
         let properties = self.properties_of(&kind);
         let kind = Arc::new(kind);
@@ -1054,13 +1054,12 @@ impl Types {
                     {
                         return ScratchVec::new(&self.meter);
                     }
-                    if index
-                        .heads
-                        .get_mut(&head)
-                        .unwrap()
-                        .push(ledger, alternative)
-                        .is_err()
-                    {
+                    let Some(alternatives) = self.meter.found(index.heads.get_mut(&head).ok_or(
+                        crate::checked::violation("union index must contain its head"),
+                    )) else {
+                        return ScratchVec::new(&self.meter);
+                    };
+                    if alternatives.push(ledger, alternative).is_err() {
                         return ScratchVec::new(&self.meter);
                     }
                 }
@@ -1840,7 +1839,7 @@ fn put(out: &mut Text<'_>, text: &str, room: &mut usize) {
     while !text.is_char_boundary(end) {
         end -= 1;
     }
-    out.push_str(&text[..end]);
+    out.push_str(text.get(..end).unwrap_or(text));
     *room = if end < text.len() { 0 } else { *room - end };
 }
 

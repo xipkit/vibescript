@@ -1,3 +1,5 @@
+use crate::checked::Checked;
+use crate::checked::violation;
 use crate::{CallContext, Error, ErrorKind, Result, Value, scan, value::Kind};
 use program::Program;
 use search::Search;
@@ -44,7 +46,7 @@ fn window(ctx: &mut CallContext, subject: &Value, start: usize, end: usize) -> R
     if start == 0 && end == bytes.len() {
         Ok(subject.clone())
     } else {
-        ctx.bytes(&bytes[start..end])
+        ctx.bytes(bytes.span(start, end)?)
     }
 }
 
@@ -64,13 +66,13 @@ pub(crate) fn member(
             "string.match? does not accept keyword arguments",
         ));
     }
-    if !(1..=2).contains(&args.len()) {
+    let Some((pattern, offsets)) = args.split_first().filter(|(_, rest)| rest.len() <= 1) else {
         return Err(Error::new(
             ErrorKind::Argument,
             "string.match? expects a pattern and optional offset",
         ));
-    }
-    if !matches!(args[0].0, Kind::Bytes(_) | Kind::Regex(_)) {
+    };
+    if !matches!(pattern.0, Kind::Bytes(_) | Kind::Regex(_)) {
         return Err(Error::new(
             ErrorKind::Type,
             "string.match? pattern must be string or regex",
@@ -82,8 +84,8 @@ pub(crate) fn member(
             "string.match? offset must be non-negative integer",
         )
     };
-    let offset = if args.len() == 2 {
-        crate::sequence::integer(&args[1]).map_err(|mut error| {
+    let offset = if let Some(offset) = offsets.first() {
+        crate::sequence::integer(offset).map_err(|mut error| {
             error.message = negative().message;
             error
         })?
@@ -94,24 +96,27 @@ pub(crate) fn member(
         return Err(negative());
     }
     let text = receiver.require_bytes()?;
-    if matches!(&args[0].0, Kind::Bytes(pattern) if pattern.data().len() > MAX_PATTERN) {
+    if matches!(&pattern.0, Kind::Bytes(pattern) if pattern.data().len() > MAX_PATTERN) {
         return pattern_limit(ctx, "string.match?");
     }
     text_limit(ctx, text, "string.match?", "text")?;
-    let compiled = if matches!(args[0].0, Kind::Regex(_)) {
+    let compiled = if matches!(pattern.0, Kind::Regex(_)) {
         None
     } else {
-        Some(Program::compile(ctx, args[0].clone(), "string.match?")?)
+        Some(Program::compile(ctx, pattern.clone(), "string.match?")?)
     };
-    let program = match &args[0].0 {
-        Kind::Regex(regex) => regex.view(),
-        _ => compiled.as_ref().unwrap().view(),
+    let program = match &pattern.0 {
+        Kind::Regex(regex) => regex.view()?,
+        _ => compiled
+            .as_ref()
+            .ok_or(violation("string pattern must be compiled"))?
+            .view()?,
     };
     let mut position = 0;
     let mut remaining = offset.unsigned_abs();
     while remaining > 0 && position < text.len() {
         ctx.charge(1)?;
-        position += scan::rune(&text[position..]).1;
+        position += scan::rune(text.tail(position)?).1;
         remaining -= 1;
     }
     if remaining > 0 {
@@ -129,13 +134,56 @@ mod tests {
     use crate::CallOptions;
 
     #[test]
+    fn corrupted_program_source_returns_an_internal_error() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let mut program = Program::compile(&mut ctx, Value::bytes(b"a"), "Regex.match").unwrap();
+        program.source = Value::nil();
+        let error = match program.view() {
+            Ok(_) => panic!("corrupted regex source was accepted"),
+            Err(error) => Error::from(error),
+        };
+        assert_eq!(error.kind, ErrorKind::Internal);
+    }
+
+    #[test]
+    fn missing_match_and_substitution_block_results_are_internal_errors() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let receiver = Value::bytes(b"a");
+        let args = [Value::regex(b"a", "").unwrap()];
+        let mut matcher = operations::Driver::new(&mut ctx, "match", &receiver, &args, false, true)
+            .unwrap()
+            .unwrap();
+        assert!(matches!(
+            matcher.advance(&mut ctx, None).unwrap(),
+            crate::iteration::Progress::Yield(..)
+        ));
+        let error = match matcher.advance(&mut ctx, None) {
+            Ok(_) => panic!("missing match result was accepted"),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind, ErrorKind::Internal);
+        let mut substitute = substitute::Driver::new(&mut ctx, "sub", &receiver, &args, &[], true)
+            .unwrap()
+            .unwrap();
+        assert!(matches!(
+            substitute.advance(&mut ctx, None).unwrap(),
+            crate::iteration::Progress::Yield(..)
+        ));
+        let error = match substitute.advance(&mut ctx, None) {
+            Ok(_) => panic!("missing substitution result was accepted"),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind, ErrorKind::Internal);
+    }
+
+    #[test]
     fn compiled_program_search_and_capture_charges_have_independent_lifetimes() {
         let mut ctx = CallContext::new(CallOptions::default());
         let program = Program::compile(&mut ctx, Value::bytes(b"(a+)(b?)"), "Regex.match").unwrap();
         assert!(ctx.stats().retained_memory_bytes > 0);
-        let mut search = Search::new(&mut ctx, program.view(), true).unwrap();
+        let mut search = Search::new(&mut ctx, program.view().unwrap(), true).unwrap();
         let captures = search
-            .find(&mut ctx, program.view(), b"zaab", 0)
+            .find(&mut ctx, program.view().unwrap(), b"zaab", 0)
             .unwrap()
             .unwrap();
         assert_eq!(captures.data, [1, 4, 1, 3, 3, 4]);
@@ -169,8 +217,10 @@ mod tests {
             Program::compile(&mut ctx, Value::bytes(b"(a?){1000}"), "Regex.match").unwrap();
         let baseline = ctx.stats().retained_memory_bytes;
         ctx.options.limits.memory_bytes = Some(baseline + 32768);
-        let mut search = Search::new(&mut ctx, program.view(), true).unwrap();
-        let error = search.find(&mut ctx, program.view(), b"a", 0).unwrap_err();
+        let mut search = Search::new(&mut ctx, program.view().unwrap(), true).unwrap();
+        let error = search
+            .find(&mut ctx, program.view().unwrap(), b"a", 0)
+            .unwrap_err();
         assert_eq!(error.kind, ErrorKind::Memory);
         drop(search);
         assert_eq!(ctx.stats().retained_memory_bytes, baseline);

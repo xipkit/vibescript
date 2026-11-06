@@ -20,6 +20,23 @@ fn run_captures_streams_and_calls_an_entry_with_json_arguments() {
 }
 
 #[test]
+fn absent_arguments_default_to_an_empty_array_but_null_is_rejected() {
+    for args in [None, Some(json!([]))] {
+        let mut input = json!({"op":"run", "source":"42"});
+        if let Some(args) = args {
+            input["args"] = args;
+        }
+        let response = request(input);
+        assert_eq!(response["ok"], true, "{response}");
+        assert_eq!(response["result"], 42, "{response}");
+    }
+    let response = request(json!({"op":"run", "source":"42", "args":null}));
+    assert_eq!(response["ok"], false, "{response}");
+    assert_eq!(response["error"]["kind"], "Argument", "{response}");
+    assert_eq!(response["error"]["message"], "args must be a JSON array");
+}
+
+#[test]
 fn check_reports_cli_diagnostics_and_fix_repairs_optional_index() {
     let source = "def run -> int\n [1][0] + 1\nend\n";
     let checked = request(json!({"op":"check", "source":source}));

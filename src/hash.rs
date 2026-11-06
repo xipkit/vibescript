@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{
     CallContext, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK, Charge, MAX_VALUE_DEPTH},
@@ -49,7 +50,7 @@ impl Index {
         let mut slot = hash & mask;
         loop {
             ctx.charge(1)?;
-            if self.buckets.data[slot] == EMPTY {
+            if *self.buckets.at(slot)? == EMPTY {
                 return Ok(slot);
             }
             slot = (slot + 1) & mask;
@@ -213,11 +214,11 @@ impl Hash {
             let mut slot = hash & mask;
             loop {
                 ctx.charge(1)?;
-                let entry = index.buckets.data[slot];
+                let entry = *index.buckets.at(slot)?;
                 if entry == EMPTY {
                     return Ok(None);
                 }
-                if bytes_equal(ctx, self.buffer.data[entry].0.require_bytes()?, key)? {
+                if bytes_equal(ctx, self.buffer.at(entry)?.0.require_bytes()?, key)? {
                     return Ok(Some(entry));
                 }
                 slot = (slot + 1) & mask;
@@ -267,7 +268,8 @@ impl Hash {
         };
         let existing = self.find_hashed(ctx, key.bytes()?, hash)?;
         let old_depth = existing
-            .map(|i| self.buffer.data[i].1.depth() + 1)
+            .and_then(|i| self.buffer.data.get(i))
+            .map(|entry| entry.1.depth() + 1)
             .unwrap_or(0);
         let new_depth = value.depth() + 1;
         let mut depth = self.depth.max(new_depth);
@@ -304,7 +306,7 @@ impl Hash {
             return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
         }
         if let Some(i) = existing {
-            self.buffer.data[i].1 = value;
+            self.buffer.at_mut(i)?.1 = value;
         } else {
             let Some(len) = self.buffer.data.len().checked_add(1) else {
                 return ctx.fail(ErrorKind::Memory, "hash size overflow");
@@ -330,7 +332,7 @@ impl Hash {
                 .ok_or(crate::checked::violation(
                     "hash index must be uniquely owned",
                 ))?;
-                index.buckets.data[slot] = len - 1;
+                *index.buckets.at_mut(slot)? = len - 1;
             }
         }
         self.depth = depth;
@@ -372,7 +374,7 @@ impl Hash {
         for slots in indices.data.chunks(CHUNK) {
             for slot in slots {
                 if *slot < len {
-                    marked.data[*slot] = 1;
+                    *marked.at_mut(*slot)? = 1;
                 }
             }
             ctx.checkpoint()?;
@@ -387,8 +389,8 @@ impl Hash {
         let mut deepest_removed = false;
         for read in 0..len {
             ctx.charge(1)?;
-            if marked.data[read] != 0 {
-                if self.buffer.data[read].1.depth() + 1 == self.depth {
+            if *marked.at(read)? != 0 {
+                if self.buffer.at(read)?.1.depth() + 1 == self.depth {
                     deepest_removed = true;
                 }
                 continue;
@@ -396,7 +398,7 @@ impl Hash {
             if write != read {
                 self.buffer.data.swap(write, read);
             }
-            let child = self.buffer.data[write].1.depth() + 1;
+            let child = self.buffer.at(write)?.1.depth() + 1;
             if child > depth {
                 depth = child;
                 at_max = 1;
@@ -494,7 +496,7 @@ impl Hash {
         for (i, (key, _)) in self.buffer.data.iter().enumerate() {
             let hash = hash_key(ctx, key.require_bytes()?)?;
             let slot = writable.vacant(ctx, hash)?;
-            writable.buckets.data[slot] = i;
+            *writable.buckets.at_mut(slot)? = i;
         }
         self.index = Some(index);
         Ok(())
@@ -509,7 +511,7 @@ fn hash_key(ctx: &mut CallContext, key: &[u8]) -> Result<usize> {
         ctx.work_bytes(chunk.len())?;
         hasher.write(chunk);
     }
-    Ok(hasher.finish() as usize)
+    Ok(crate::numeric::hash_word(hasher.finish()))
 }
 
 /// Returns a hash's value nesting depth and how many values sit at that

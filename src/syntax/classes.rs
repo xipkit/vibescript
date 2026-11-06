@@ -3,6 +3,7 @@ use super::{
     modules::{Module, Visibility},
     source_text,
 };
+use crate::checked::convert;
 use crate::{
     Result,
     compilation::{Buffer, Name, Text},
@@ -12,9 +13,12 @@ impl Parser<'_> {
     /// Reports whether `alias` starts a declaration. Go requires a name or
     /// symbol on the same line and otherwise reads `alias` as an identifier.
     pub(super) fn alias_ahead(&self) -> bool {
-        let next = &self.tokens[self.pos + 1];
+        let Some((current, next)) = self.tokens.get(self.pos).zip(self.tokens.get(self.pos + 1))
+        else {
+            return false;
+        };
         matches!(self.token(), Token::Word(w) if w == "alias")
-            && next.line == self.tokens[self.pos].line
+            && next.line == current.line
             && (self.ident(self.pos + 1)
                 || matches!(next.token, Token::Symbol(_) | Token::QuotedSymbol(_)))
     }
@@ -23,7 +27,7 @@ impl Parser<'_> {
     /// line of `alias`.
     pub(super) fn alias_names(&mut self) -> Result<(Name, Name)> {
         self.work.charge(1)?;
-        let line = self.tokens[self.pos].line;
+        let line = self.tokens.at(self.pos)?.line;
         self.bump()?;
         let new = self.alias_name(line)?;
         let old = self.alias_name(line)?;
@@ -32,7 +36,7 @@ impl Parser<'_> {
 
     fn alias_name(&mut self, line: usize) -> Result<Name> {
         self.pos = self.significant(self.pos);
-        if self.tokens[self.pos].line == line {
+        if self.tokens.at(self.pos)?.line == line {
             if self.ident(self.pos) {
                 return self.method_name();
             }
@@ -48,7 +52,7 @@ impl Parser<'_> {
     pub(super) fn alias_method(&mut self) -> Result<(Name, Name)> {
         self.work.charge(1)?;
         self.bump()?;
-        let parenthesized = self.tokens[self.significant(self.pos)].token == Token::P('(');
+        let parenthesized = self.tokens.at(self.significant(self.pos))?.token == Token::P('(');
         if parenthesized {
             self.line_breaks()?;
             self.bump()?;
@@ -130,7 +134,7 @@ impl Parser<'_> {
         self.bump()?;
         self.line_breaks()?;
         loop {
-            let offset = self.tokens[self.pos].offset as u32;
+            let offset = convert(self.tokens.at(self.pos)?.offset)?;
             if !self.ident(self.pos) {
                 if let Token::Symbol(name) = self.token() {
                     let name = source_text(name);
@@ -150,7 +154,7 @@ impl Parser<'_> {
             let name = self.name()?;
             self.method_spelling(&name, offset as usize)?;
             let colon = self.significant(self.pos);
-            let ty = if self.tokens[colon].token == Token::P(':') {
+            let ty = if self.tokens.at(colon)?.token == Token::P(':') {
                 self.pos = colon + 1;
                 self.line_breaks()?;
                 Some(self.type_expr(1, false)?)
@@ -214,7 +218,7 @@ impl Parser<'_> {
                 )?;
             }
             let comma = self.significant(self.pos);
-            if self.tokens[comma].token != Token::P(',') {
+            if self.tokens.at(comma)?.token != Token::P(',') {
                 break;
             }
             self.pos = comma + 1;

@@ -184,6 +184,18 @@ The [differential tests](../../docs/checker-diff.md), extended to hosts, nested 
 
 ## Counter log
 
+- Text-anchored regex search (2026-11-05): when every non-consuming path
+  reaches `BeginText`, search only starts threads at position zero and stops
+  when those threads finish. Removed positions no longer charge work; the
+  additional prefix proof charges each instruction it visits beyond the
+  existing literal-prefix check and accounts for its temporary branch stack.
+  Targeted `--cases` recordings change four conformance, 7,259 language, two
+  compatibility and 1,761 replay counters: 1,259 step counts fall, 7,766 rise,
+  and 397 peak-byte counts rise. Retained bytes and all observations stay
+  unchanged. Both `regex_loop` modes fall from 12,057 to 9,241 steps, and both
+  `regex_record_fields` modes from 41,915 to 35,167. A paired same-checkout
+  audit of 197,917 cases isolates these changes from existing quota drift
+  and four clock-dependent replay observations.
 - Exact concatenation storage (2026-10-15): `string + string` reserves the
   full result length before copying either side, instead of growing an empty
   buffer through a second reservation that copies the left side again, so a

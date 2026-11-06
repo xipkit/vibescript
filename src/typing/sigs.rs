@@ -2,7 +2,7 @@
 //! builtins from the signature table and host functions share one form.
 
 use super::ty::{Field, Kind, Ty, Types};
-use crate::checked::Checked as _;
+use crate::checked::{Checked as _, convert};
 use crate::signatures::{self, Class, Function, Item, Member};
 use std::{
     collections::HashMap,
@@ -251,7 +251,7 @@ impl Index {
         self.modules
             .iter()
             .position(|(module, _)| *module == name)
-            .map(|index| index as u32)
+            .and_then(|index| u32::try_from(index).ok())
     }
 }
 
@@ -390,7 +390,10 @@ pub(crate) fn table_type(types: &mut Types, ty: &signatures::Type, vars: &[Strin
     use signatures::Type as T;
     match ty {
         T::Var(name) => match vars.iter().position(|v| v == name) {
-            Some(index) => types.intern(Kind::Var(index as u32)),
+            Some(index) => match types.found(convert(index)) {
+                Some(index) => types.intern(Kind::Var(index)),
+                None => Ty::ERROR,
+            },
             None => Ty::ANY,
         },
         T::Optional(inner) => {

@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value, budget::Buffer, bytecode::Method,
     numeric::to_usize, ops, scan, value::Kind,
@@ -7,7 +8,7 @@ pub(crate) fn integer(value: &Value) -> Result<i64> {
     match value.0 {
         Kind::Int(n) => Ok(n),
         Kind::Float(n) if n.is_finite() && n >= i64::MIN as f64 && n < 9223372036854775808.0 => {
-            Ok(n as i64)
+            Ok(crate::numeric::float_to_i64(n))
         }
         _ => Err(Error::new(
             ErrorKind::Type,
@@ -64,15 +65,18 @@ fn window(
         Some(member) => error.with_message(message(member).to_owned()),
         None => error,
     };
-    if args.is_empty() || args.len() > 2 {
-        let error = Error::new(
-            ErrorKind::Argument,
-            "slice expects an index, a start and length, or a range",
-        );
-        return Err(relabel(error, |member| member.arity));
-    }
+    let (index, rest) = match args {
+        [index, rest @ ..] if rest.len() <= 1 => (index, rest),
+        _ => {
+            let error = Error::new(
+                ErrorKind::Argument,
+                "slice expects an index, a start and length, or a range",
+            );
+            return Err(relabel(error, |member| member.arity));
+        }
+    };
     let len = length as i128;
-    let (start, end, single) = if let Kind::Range(range) = &args[0].0 {
+    let (start, end, single) = if let Kind::Range(range) = &index.0 {
         ops::arity(args, 1).map_err(|error| relabel(error, |member| member.start))?;
         let start = range.start.map_or(0, |n| bound(n, length));
         let end = range
@@ -86,12 +90,11 @@ fn window(
         } else {
             |member| member.start
         };
-        let start = integer(&args[0]).map_err(|error| relabel(error, first))?;
+        let start = integer(index).map_err(|error| relabel(error, first))?;
         let start = bound(start, length);
-        let count = if single {
-            1
-        } else {
-            integer(&args[1]).map_err(|error| relabel(error, |member| member.length))?
+        let count = match rest {
+            [count] => integer(count).map_err(|error| relabel(error, |member| member.length))?,
+            _ => 1,
         };
         if count < 0 {
             return Ok(None);
@@ -114,7 +117,7 @@ pub(crate) fn rune_offset(ctx: &mut CallContext, bytes: &[u8], count: usize) -> 
         if offset == bytes.len() {
             break;
         }
-        offset += scan::rune(&bytes[offset..]).1;
+        offset += scan::rune(bytes.tail(offset)?).1;
     }
     Ok(offset)
 }
@@ -134,9 +137,9 @@ pub(crate) fn slice(
                 return Ok(Value::nil());
             };
             if single {
-                return Ok(array[start].clone());
+                return Ok(array.at(start)?.clone());
             }
-            return ctx.array(&array[start..end]);
+            return ctx.array(array.span(start, end)?);
         }
     }
     let Kind::Bytes(bytes) = &value.0 else {
@@ -146,14 +149,16 @@ pub(crate) fn slice(
         ));
     };
     let bytes = bytes.data();
-    if !byte_slice && args.len() == 1 && matches!(args[0].0, Kind::Bytes(_)) {
-        return Ok(
-            if ops::find(ctx, bytes, args[0].require_bytes()?, false)?.is_some() {
-                args[0].clone()
-            } else {
-                Value::nil()
-            },
-        );
+    if let [substring] = args {
+        if !byte_slice && matches!(substring.0, Kind::Bytes(_)) {
+            return Ok(
+                if ops::find(ctx, bytes, substring.require_bytes()?, false)?.is_some() {
+                    substring.clone()
+                } else {
+                    Value::nil()
+                },
+            );
+        }
     }
     let length = if byte_slice {
         bytes.len()
@@ -167,10 +172,10 @@ pub(crate) fn slice(
         (start, end)
     } else {
         let from = rune_offset(ctx, bytes, start)?;
-        let to = from + rune_offset(ctx, &bytes[from..], end - start)?;
+        let to = from + rune_offset(ctx, bytes.tail(from)?, end - start)?;
         (from, to)
     };
-    let selected = &bytes[start..end];
+    let selected = bytes.span(start, end)?;
     if byte_slice || ops::runes(ctx, selected)?.1 {
         return ctx.bytes(selected);
     }
@@ -178,7 +183,7 @@ pub(crate) fn slice(
     let mut offset = 0;
     while offset < selected.len() {
         ctx.charge(1)?;
-        let (ch, n, _) = scan::rune(&selected[offset..]);
+        let (ch, n, _) = scan::rune(selected.tail(offset)?);
         let mut encoded = [0; 4];
         out.extend(ctx, ch.encode_utf8(&mut encoded).as_bytes())?;
         offset += n;
@@ -203,14 +208,14 @@ pub(crate) fn method(
             slice(ctx, &value, args, matches!(method, ByteSlice), Some(member))
         }
         GetByte => {
-            if args.len() != 1 {
+            let [index] = args else {
                 return Err(Error::new(
                     ErrorKind::Argument,
                     "string.getbyte expects exactly one index",
                 ));
-            }
+            };
             let bytes = value.require_bytes()?;
-            let index = integer(&args[0]).map_err(|error| {
+            let index = integer(index).map_err(|error| {
                 error.with_message("string.getbyte index must be an integer".to_owned())
             })?;
             let n = bound(index, bytes.len());
@@ -230,22 +235,22 @@ pub(crate) fn method(
                     .unwrap_or_default());
             }
             let member = if last { "array.last" } else { "array.first" };
-            if args.len() > 1 {
+            let [count] = args else {
                 return Err(Error::new(
                     ErrorKind::Argument,
                     format!("{member} accepts at most one count"),
                 ));
-            }
+            };
             let invalid = || format!("{member} expects non-negative integer");
-            let n = integer(&args[0]).map_err(|error| error.with_message(invalid()))?;
+            let n = integer(count).map_err(|error| error.with_message(invalid()))?;
             if n < 0 {
                 return Err(Error::new(ErrorKind::Argument, invalid()));
             }
             let n = usize::try_from(n).unwrap_or(usize::MAX).min(array.len());
             ctx.array(if last {
-                &array[array.len() - n..]
+                array.tail(array.len() - n)?
             } else {
-                &array[..n]
+                array.span(0, n)?
             })
         }
         ToArray => {

@@ -5,6 +5,7 @@ use super::{
     BlockParam, Expr, Label, Node, Parser, Parsing, Statement, Target, Token, TypeAlias,
     source_text,
 };
+use crate::checked::convert;
 use crate::{
     Error, Result,
     compilation::{Boxed, Buffer, Name, Type, TypeKind},
@@ -48,17 +49,17 @@ impl Parser<'_> {
         for index in 0..self.tokens.len().saturating_sub(2) {
             self.work.checkpoint()?;
             self.work.charge(1)?;
-            let Token::Word(word) = &self.tokens[index].token else {
+            let Token::Word(word) = &self.tokens.at(index)?.token else {
                 continue;
             };
             if !matches!(word.as_str(), "type" | "class" | "enum") || !self.ident(index + 1) {
                 continue;
             }
-            let Token::Word(name) = &self.tokens[index + 1].token else {
+            let Token::Word(name) = &self.tokens.at(index + 1)?.token else {
                 return Err(crate::checked::internal("declared type name expected"));
             };
             let alias = *word == "type";
-            if alias && self.tokens[index + 2].token != Token::Op("=") {
+            if alias && self.tokens.at(index + 2)?.token != Token::Op("=") {
                 continue;
             }
             let name = Name::new(self.work, name)?;
@@ -83,9 +84,11 @@ impl Parser<'_> {
     /// Whether the name at `index` is followed by a colon written as an
     /// annotation's, `name: T`: attached to the name and followed by a space.
     fn annotation_colon(&self, index: usize) -> bool {
-        let colon = &self.tokens[index + 1];
+        let Some((name, colon)) = self.tokens.get(index).zip(self.tokens.get(index + 1)) else {
+            return false;
+        };
         colon.token == Token::P(':')
-            && colon.offset == self.tokens[index].end
+            && colon.offset == name.end
             && matches!(self.source.as_bytes().get(colon.end), Some(b' ' | b'\t'))
     }
 
@@ -103,16 +106,15 @@ impl Parser<'_> {
         }
         let (start, structural) = (self.pos, self.type_structural_error);
         self.pos += 2;
-        let parsed = self.type_expr(1, false);
-        self.work.checkpoint()?;
+        let parsed = self.speculative_type(|p| p.type_expr(1, false))?;
         let next = self.significant(self.pos);
         let result = match parsed {
-            Ok(_) if self.tokens[next].token == Token::Op("=") => true,
-            Ok(ty) => {
+            Some(_) if self.tokens.at(next)?.token == Token::Op("=") => true,
+            Some(ty) => {
                 matches!(self.token(), Token::EndLine | Token::Eof) && self.declared_leaves(&ty)?
             }
             // A malformed type still declares when `=` follows on its line.
-            Err(_) => {
+            None => {
                 let mut assigned = false;
                 for lexeme in self.tokens.from(start + 2) {
                     self.work.checkpoint()?;
@@ -152,14 +154,13 @@ impl Parser<'_> {
         }
         let (start, structural) = (self.pos, self.type_structural_error);
         self.pos += 2;
-        let parsed = self.type_expr(1, false);
-        self.work.checkpoint()?;
+        let parsed = self.speculative_type(|p| p.type_expr(1, false))?;
         let result = match parsed {
-            Ok(_) if self.token() == &Token::Op("=") => true,
-            Ok(ty) => {
+            Some(_) if self.token() == &Token::Op("=") => true,
+            Some(ty) => {
                 matches!(self.token(), Token::EndLine | Token::Eof) && self.declared_leaves(&ty)?
             }
-            Err(_) => false,
+            None => false,
         };
         self.pos = start;
         self.type_structural_error = structural;
@@ -170,15 +171,19 @@ impl Parser<'_> {
     pub(super) fn type_alias_ahead(&self) -> bool {
         matches!(self.token(), Token::Word(w) if w == "type")
             && self.ident(self.pos + 1)
-            && self.tokens[self.pos + 2].token == Token::Op("=")
-            && self.tokens[self.pos + 1].line == self.tokens[self.pos].line
+            && *self.token_at(self.pos + 2) == Token::Op("=")
+            && self
+                .tokens
+                .get(self.pos + 1)
+                .zip(self.tokens.get(self.pos))
+                .is_some_and(|(next, current)| next.line == current.line)
     }
 
     /// Parses a type alias from its `type` keyword.
     pub(super) fn type_alias(&mut self) -> Result<TypeAlias> {
         self.work.charge(1)?;
         self.bump()?;
-        let offset = self.tokens[self.pos].offset as u32;
+        let offset = convert(self.tokens.at(self.pos)?.offset)?;
         let name = self.name()?;
         // An alias's name is bound where it is declared, like a class's, and
         // read in types.
@@ -203,7 +208,7 @@ impl Parser<'_> {
     /// `&name: T` or `&name?: T`.
     pub(super) fn block_param_ahead(&self) -> bool {
         self.token() == &Token::Op("&")
-            && matches!(&self.tokens[self.pos + 1].token, Token::Word(w) if !w.starts_with('@'))
+            && matches!(self.token_at(self.pos + 1), Token::Word(w) if !w.starts_with('@'))
             && self.annotation_colon(self.pos + 1)
     }
 
@@ -212,9 +217,9 @@ impl Parser<'_> {
     pub(super) fn block_param(&mut self) -> Result<BlockParam> {
         let work = self.work;
         work.charge(1)?;
-        let offset = self.tokens[self.pos].offset as u32;
+        let offset = convert(self.tokens.at(self.pos)?.offset)?;
         self.bump()?;
-        let at = self.tokens[self.pos].offset;
+        let at = self.tokens.at(self.pos)?.offset;
         let Token::Word(word) = self.bump()? else {
             return Err(crate::checked::internal("block parameter name expected"));
         };
@@ -247,7 +252,7 @@ impl Parser<'_> {
             params.push(work, self.type_expr(1, false)?)?;
         }
         let arrow = self.significant(self.pos);
-        let result = if self.tokens[arrow].token == Token::Op("->") {
+        let result = if self.tokens.at(arrow)?.token == Token::Op("->") {
             self.pos = arrow + 1;
             self.line_breaks()?;
             Some(self.type_expr(1, false)?)
@@ -266,7 +271,7 @@ impl Parser<'_> {
     /// a builtin type name or a type the source declares, optional or not,
     /// or a nested tuple or shape, whose leaves decide.
     pub(super) fn tuple_start(&self, index: usize) -> bool {
-        match &self.tokens[index].token {
+        match self.token_at(index) {
             Token::Word(name) => self.type_name(name.trim_end_matches('?')),
             Token::P('[' | '{') => true,
             _ => false,
@@ -372,14 +377,14 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let target = {
             let mut p = self.p();
             work.charge(1)?;
-            let offset = p.tokens[p.pos].offset as u32;
+            let offset = convert(p.tokens.at(p.pos)?.offset)?;
             let name = p.name()?;
             p.bump()?;
             p.line_breaks()?;
             let ty = p.type_expr(1, false)?;
             let equals = p.significant(p.pos);
-            if p.tokens[equals].token != Token::Op("=") {
-                let at = p.tokens[p.pos - 1].end;
+            if p.tokens.at(equals)?.token != Token::Op("=") {
+                let at = p.tokens.at(p.pos - 1)?.end;
                 return Err(Error::syntax(
                     work,
                     at,
@@ -407,12 +412,14 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let (ivar, variable, equals) = {
             let mut p = self.p();
             work.charge(1)?;
-            let offset = p.tokens[p.pos].offset;
+            let offset = p.tokens.at(p.pos)?.offset;
             let Token::Word(word) = p.bump()? else {
                 return Err(crate::checked::internal("instance variable name expected"));
             };
             p.binding_name(&word, offset)?;
-            let name = &word[1..];
+            let name = word.strip_prefix('@').ok_or(crate::checked::violation(
+                "instance variable must start with @",
+            ))?;
             if name.is_empty() {
                 return Err(Error::syntax(
                     work,
@@ -420,7 +427,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                     "expected instance variable name, got instance variable",
                 ));
             }
-            let variable = p.make_at(Node::Var(Name::new(work, &word)?), 1, offset as u32)?;
+            let variable = p.make_at(Node::Var(Name::new(work, &word)?), 1, convert(offset)?)?;
             let name = Name::new(work, name)?;
             p.bump()?;
             p.line_breaks()?;
@@ -434,7 +441,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             let ivar = Ivar {
                 name,
                 ty,
-                offset: offset as u32,
+                offset: convert(offset)?,
             };
             (ivar, variable, equals)
         };
@@ -457,7 +464,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let (declared, variable) = {
             let mut p = self.p();
             work.charge(1)?;
-            let offset = p.tokens[p.pos].offset;
+            let offset = p.tokens.at(p.pos)?.offset;
             let Token::Word(word) = p.bump()? else {
                 return Err(crate::checked::internal("class variable name expected"));
             };
@@ -470,12 +477,12 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 ));
             }
             let name = Name::new(work, &word)?;
-            let variable = p.make_at(Node::Var(name.clone()), 1, offset as u32)?;
+            let variable = p.make_at(Node::Var(name.clone()), 1, convert(offset)?)?;
             p.bump()?;
             p.line_breaks()?;
             let ty = p.type_expr(1, false)?;
             if p.token() != &Token::Op("=") {
-                let at = p.tokens[p.pos - 1].end;
+                let at = p.tokens.at(p.pos - 1)?.end;
                 return Err(Error::syntax(
                     work,
                     at,
@@ -491,7 +498,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             let declared = Ivar {
                 name,
                 ty,
-                offset: offset as u32,
+                offset: convert(offset)?,
             };
             (declared, variable)
         };

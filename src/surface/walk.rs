@@ -196,7 +196,9 @@ impl<'a> Checker<'a> {
             return;
         }
         if node.unless {
-            let (condition, _) = &node.branches[0];
+            let Some((condition, _)) = node.branches.first() else {
+                return;
+            };
             self.negated(Rule::Unless, node.keyword, "if", condition);
             if self.halt() {
                 return;
@@ -278,7 +280,9 @@ impl<'a> Checker<'a> {
         if self.halt() {
             return;
         }
-        let span = self.token_span(keyword);
+        let Some(span) = self.token_span(keyword) else {
+            return;
+        };
         let removed = self.token_text(keyword);
         let advice = format!("write `{positive}` with the negated condition");
         let previous = self.enter(rule, span, removed, advice);
@@ -684,11 +688,14 @@ impl<'a> Checker<'a> {
             }
         }
         if let Some(block) = &call.block {
-            let end = call
+            let Some(end) = call
                 .args
                 .as_ref()
                 .and_then(|args| args.items.last().map(|arg| arg.span.end))
-                .unwrap_or(self.token_span(call.name_tok).end);
+                .or_else(|| self.token_span(call.name_tok).map(|span| span.end))
+            else {
+                return;
+            };
             self.block(block, Some(call), end);
             if self.halt() {
                 return;
@@ -811,8 +818,11 @@ impl<'a> Checker<'a> {
             }
             ExprKind::Unary(op, operand) if self.token_text(*op) == "!" => {
                 if negate {
+                    let Some(token) = self.tokens.get(*op) else {
+                        return;
+                    };
                     let span = Span {
-                        start: self.tokens[*op].start,
+                        start: token.start,
                         end: operand.span.start,
                     };
                     let group = self.negation;

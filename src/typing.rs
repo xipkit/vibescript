@@ -20,9 +20,7 @@
 //! and checks the files a program requires, and `spans` turns the syntax
 //! tree's start offsets into exact spans from the parser's tokens.
 
-use crate::{
-    capability::Registered, checked::Access, diagnostic::Diagnostic, syntax::Declarations,
-};
+use crate::{capability::Registered, diagnostic::Diagnostic, syntax::Declarations};
 use counted::{CountedMap, CountedSet, CountedVec, Ledger};
 use std::{collections::HashMap, fmt};
 
@@ -530,7 +528,7 @@ fn listed<T>(
 
 /// Checks one parsed source. A broken invariant fails the check, whatever
 /// it found, which the caller reports as an internal error.
-pub(crate) fn check(input: &Input<'_>) -> Access<Checked> {
+pub(crate) fn check(input: &Input<'_>) -> crate::Result<Checked> {
     if input.source.len() > SHALLOW {
         return crate::threads::on_stack(STACK, || check_nested(input, 0))
             .unwrap_or_else(|_| check_nested(input, 0));
@@ -539,7 +537,7 @@ pub(crate) fn check(input: &Input<'_>) -> Access<Checked> {
 }
 
 /// Checks a source `depth` requires deep.
-fn check_nested(input: &Input<'_>, depth: usize) -> Access<Checked> {
+fn check_nested(input: &Input<'_>, depth: usize) -> crate::Result<Checked> {
     let meter = meter::Meter::new(input.budget.clone(), input.observe);
     let checked = check_metered(input, depth, std::sync::Arc::clone(&meter));
     match meter.violation() {
@@ -746,7 +744,7 @@ fn check_metered(input: &Input<'_>, depth: usize, meter: std::sync::Arc<meter::M
             checked.surfaced = checker_held;
             let budget = &input.budget;
             let asked = std::sync::atomic::AtomicU32::new(0);
-            crate::surface::add_to(
+            if let Err(error) = crate::surface::add_to(
                 &mut checked,
                 input.source,
                 input.tokens,
@@ -801,7 +799,9 @@ fn check_metered(input: &Input<'_>, depth: usize, meter: std::sync::Arc<meter::M
                 // memory leaves beside the check and the pass's footprint;
                 // more stops the check.
                 budget.memory.map(|left| left.saturating_sub(held)),
-            );
+            ) {
+                meter.violated(error);
+            }
             if checked.stopped {
                 meter.stop();
             }
@@ -877,7 +877,7 @@ pub(crate) fn entry_arguments(
     input: &Input<'_>,
     function: &str,
     count: usize,
-) -> Access<Vec<Diagnostic>> {
+) -> crate::Result<Vec<Diagnostic>> {
     let meter = meter::Meter::new(input.budget.clone(), input.observe);
     // The spans may copy the tokens, before the type table first polls.
     let spans = spans::Spans::new(
@@ -1368,7 +1368,7 @@ mod fault_tests {
         assert!(meter.stopped());
         assert!(program.function(9).is_none());
 
-        let error = Error::from(meter.violation().unwrap());
+        let error = meter.violation().unwrap();
         assert_eq!(error.kind, ErrorKind::Internal);
         let site = format!("{}:{line}", file!());
         assert!(error.message.contains(&site), "{}", error.message);

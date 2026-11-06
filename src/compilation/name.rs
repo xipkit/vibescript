@@ -1,14 +1,9 @@
-use super::{Buffer, Work};
-use crate::{Result, budget::Charge};
-use std::{borrow::Borrow, cmp::Ordering, fmt, hash::Hash, ops::Deref, sync::Arc};
-
-struct OwnedName {
-    text: String,
-    _charge: Option<Charge>,
-}
+use super::{Text, Work};
+use crate::Result;
+use std::{borrow::Borrow, cmp::Ordering, fmt, hash::Hash, ops::Deref};
 
 #[derive(Clone, Default)]
-pub(crate) struct Name(Option<Arc<OwnedName>>);
+pub(crate) struct Name(Option<Text>);
 
 impl Name {
     /// Copies a syntax name into storage owned by the compiler budget.
@@ -18,43 +13,20 @@ impl Name {
 
     /// Assembles a generated name after reserving its complete backing storage.
     pub fn join(work: &dyn Work, pieces: &[&str]) -> Result<Self> {
-        work.checkpoint()?;
-        let length = pieces.iter().try_fold(0usize, |length, piece| {
-            length
-                .checked_add(piece.len())
-                .ok_or_else(|| work.allocation_error("compiler name size overflow"))
-        })?;
-        if length == 0 {
+        if pieces.iter().all(|piece| piece.is_empty()) {
+            work.checkpoint()?;
             return Ok(Self::default());
         }
-        let mut charge = work.reserve(size_of::<OwnedName>() + 2 * size_of::<usize>())?;
-        let mut bytes = Buffer::with_capacity(work, length)?;
-        for piece in pieces {
-            bytes.extend_from_slice(work, piece.as_bytes())?;
-        }
-        work.bytes(length)?;
-        let (bytes, storage) = bytes.into_parts();
-        Charge::merge(&mut charge, storage);
-        Ok(Self(Some(Arc::new(OwnedName {
-            text: String::from_utf8(bytes)
-                .map_err(|error| crate::Error::new(crate::ErrorKind::Host, error.to_string()))?,
-            _charge: charge,
-        }))))
+        Ok(Self(Some(Text::join(work, pieces)?)))
     }
 
     pub fn as_str(&self) -> &str {
-        self.0.as_ref().map_or("", |name| name.text.as_str())
+        self.0.as_ref().map_or("", Text::as_str)
     }
 
     /// Transfers a name to compiled metadata, which does not own invocation charges.
     pub fn into_string(self) -> String {
-        match self.0 {
-            Some(name) => match Arc::try_unwrap(name) {
-                Ok(name) => name.text,
-                Err(name) => name.text.clone(),
-            },
-            None => String::new(),
-        }
+        self.0.map(Text::into_string).unwrap_or_default()
     }
 }
 
@@ -120,7 +92,7 @@ impl fmt::Display for Name {
 mod tests {
     use super::*;
     use crate::{CallContext, CallOptions, ErrorKind, compilation::Meter};
-    use std::time::Instant;
+    use std::{sync::Arc, time::Instant};
 
     #[test]
     fn shared_names_release_the_budget_at_the_compiled_boundary() {

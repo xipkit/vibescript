@@ -165,18 +165,17 @@ pub(crate) fn prefix(s: &[u8], class: Class) -> usize {
     // The first block is tested here, so a short string or a short run never
     // calls into the block loop, and a clean block skips the scalar peel. The
     // loop retests it, which keeps its wide blocks aligned to the start.
-    let mut blocks = 0;
-    if let Some(block) = s.first_chunk::<BLOCK>() {
-        if block_clean(block, class) {
-            blocks = if s.len() >= 2 * BLOCK {
+    let tail = match s.split_first_chunk::<BLOCK>() {
+        Some((block, tail)) if block_clean(block, class) => {
+            if s.len() >= 2 * BLOCK {
                 clean_blocks(s, class)
             } else {
-                BLOCK
-            };
+                tail
+            }
         }
-    }
-    let tail = &s[blocks..];
-    blocks
+        _ => s,
+    };
+    s.len() - tail.len()
         + tail
             .iter()
             .position(|&byte| !ordinary(byte, class))
@@ -188,7 +187,7 @@ pub(crate) fn prefix(s: &[u8], class: Class) -> usize {
 /// registers whatever the register pressure of the scan around it; each class
 /// gets a copy of the loop with its tests resolved.
 #[inline(never)]
-fn clean_blocks(s: &[u8], class: Class) -> usize {
+fn clean_blocks(s: &[u8], class: Class) -> &[u8] {
     match class {
         Class::Ascii => clean_blocks_of(s, Class::Ascii),
         Class::JsonParse => clean_blocks_of(s, Class::JsonParse),
@@ -199,7 +198,7 @@ fn clean_blocks(s: &[u8], class: Class) -> usize {
 // The loops carry the unscanned tail rather than a running offset, so no
 // counter needs an overflow check on every block.
 #[inline(always)]
-fn clean_blocks_of(s: &[u8], class: Class) -> usize {
+fn clean_blocks_of(s: &[u8], class: Class) -> &[u8] {
     let mut rest = s;
     #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
     if matches!(class, Class::Ascii) {
@@ -216,7 +215,7 @@ fn clean_blocks_of(s: &[u8], class: Class) -> usize {
         }
         rest = tail;
     }
-    s.len() - rest.len()
+    rest
 }
 
 #[derive(Default)]
@@ -233,20 +232,25 @@ pub(crate) struct TextSpan {
 #[inline(always)]
 pub(crate) fn text_span(s: &[u8], class: Class) -> TextSpan {
     let mut span = TextSpan::default();
-    while span.len < s.len() {
-        if s[span.len] < 128 {
-            let n = prefix(&s[span.len..], class);
+    let mut rest = s;
+    while let Some(&lead) = rest.first() {
+        if lead < 128 {
+            let n = prefix(rest, class);
             if n == 0 {
                 break;
             }
             span.len += n;
             span.runes += n;
             span.steps += (n as u64).div_ceil(64);
-            if span.len < s.len() && s[span.len] < 128 {
+            let Some(tail) = rest.get(n..) else {
+                break;
+            };
+            rest = tail;
+            if rest.first().is_some_and(|&lead| lead < 128) {
                 break;
             }
         } else {
-            let tail = &s[span.len..];
+            let tail = rest;
             if matches!(class, Class::JsonParse) {
                 let unicode = unicode_span(tail);
                 if unicode.len == 0 {
@@ -255,21 +259,27 @@ pub(crate) fn text_span(s: &[u8], class: Class) -> TextSpan {
                 span.len += unicode.len;
                 span.runes += unicode.runes;
                 span.steps += unicode.steps;
+                let Some(tail) = rest.get(unicode.len..) else {
+                    break;
+                };
+                rest = tail;
                 continue;
             }
             let (n, valid) = rune_width(tail);
             if !valid
                 || (matches!(class, Class::JsonStringify)
                     && n == 3
-                    && tail[0] == 0xe2
-                    && tail[1] == 0x80
-                    && matches!(tail[2], 0xa8 | 0xa9))
+                    && matches!(tail, [0xe2, 0x80, 0xa8 | 0xa9, ..]))
             {
                 break;
             }
             span.len += n;
             span.runes += 1;
             span.steps += 1;
+            let Some(tail) = rest.get(n..) else {
+                break;
+            };
+            rest = tail;
         }
     }
     span
@@ -286,7 +296,9 @@ pub(crate) fn unicode_span(s: &[u8]) -> TextSpan {
         Some(head) if u128::from_le_bytes(*head) & HIGH == HIGH => unicode_blocks(s),
         _ => (0, 0),
     };
-    let mut rest = &s[start..];
+    let Some(mut rest) = s.get(start..) else {
+        return TextSpan::default();
+    };
     let mut state = UTF8_ACCEPT;
     let mut bytes = rest.iter();
     while let Some(&byte) = bytes.next() {
@@ -323,9 +335,11 @@ fn unicode_blocks(s: &[u8]) -> (usize, usize) {
     // Decoding a rune at a time makes each lead's address wait on the width
     // of the rune before it, and branches on that width. Here the state is
     // all a byte waits on, and nothing branches until the block is done.
-    let mut rest = &s[start..];
+    let Some(mut rest) = s.get(start..) else {
+        return (0, 0);
+    };
     let mut state = UTF8_ACCEPT;
-    while let Some(block) = rest.first_chunk::<8>() {
+    while let Some((block, tail)) = rest.split_first_chunk::<8>() {
         for &byte in block {
             state = utf8_step(state, byte);
         }
@@ -335,9 +349,9 @@ fn unicode_blocks(s: &[u8]) -> (usize, usize) {
         // No byte of a valid block is ASCII, so bit 6 alone marks its leads.
         let leads = u64::from_le_bytes(*block) & 0x4040_4040_4040_4040;
         runes = runes.wrapping_add(leads.count_ones() as usize);
-        rest = &rest[8..];
+        rest = tail;
     }
-    let valid = &s[start..s.len() - rest.len()];
+    let valid = s.get(start..s.len() - rest.len()).unwrap_or_default();
     match valid.iter().rposition(|&byte| byte & 0xc0 != 0x80) {
         Some(lead) => (start + lead, runes - 1),
         None => (start, runes),
@@ -347,11 +361,12 @@ fn unicode_blocks(s: &[u8]) -> (usize, usize) {
 pub(crate) fn ascii_case(s: &mut [u8], upper: bool) {
     #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
     let tail = {
-        let mut chunks = s.chunks_exact_mut(16);
-        for chunk in &mut chunks {
-            vector_case(chunk.try_into().unwrap(), upper);
+        let (mut rest, tail) = s.split_at_mut(s.len() / 16 * 16);
+        while let Some((chunk, tail)) = rest.split_first_chunk_mut::<16>() {
+            vector_case(chunk, upper);
+            rest = tail;
         }
-        chunks.into_remainder()
+        tail
     };
     #[cfg(not(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64"))))]
     let tail = s;
@@ -599,8 +614,9 @@ fn vector_case(s: &mut [u8; 16], upper: bool) {
 const UTF8_LEAD: [u8; 256] = {
     let mut table = [0; 256];
     let mut b = 0;
-    while b < 256 {
-        table[b] = match b {
+    let mut rest: &mut [u8] = &mut table;
+    while let Some((slot, tail)) = rest.split_first_mut() {
+        *slot = match b {
             0..=0x7f => 1,
             0xc2..=0xdf => 2,
             0xe0 => 0x13,
@@ -612,6 +628,7 @@ const UTF8_LEAD: [u8; 256] = {
             _ => 0,
         };
         b += 1;
+        rest = tail;
     }
     table
 };
@@ -646,7 +663,8 @@ static UTF8_STEP: [u64; 256] = {
     const F4: u64 = 48;
     let mut table = [0; 256];
     let mut b = 0;
-    while b < 256 {
+    let mut rest: &mut [u64] = &mut table;
+    while let Some((slot, tail)) = rest.split_first_mut() {
         let lead = match b {
             0xc2..=0xdf => ONE,
             0xe0 => E0,
@@ -673,8 +691,9 @@ static UTF8_STEP: [u64; 256] = {
         if matches!(b, 0x80..=0x8f) {
             entry |= TWO << F4;
         }
-        table[b] = entry;
+        *slot = entry;
         b += 1;
+        rest = tail;
     }
     table
 };
@@ -684,9 +703,11 @@ static UTF8_STEP: [u64; 256] = {
 /// rather than the result costs nothing, since a shift ignores them anyway.
 #[inline(always)]
 fn utf8_step(state: u64, byte: u8) -> u64 {
-    UTF8_STEP[usize::from(byte)] >> (state & 63)
+    UTF8_STEP.get(usize::from(byte)).copied().unwrap_or(0) >> (state & 63)
 }
 
+// Keep validation out of rune-at-a-time callers that carry their own scan state.
+#[inline(never)]
 fn rune_width(s: &[u8]) -> (usize, bool) {
     sequence(s)
 }
@@ -694,7 +715,10 @@ fn rune_width(s: &[u8]) -> (usize, bool) {
 /// The body of [`rune_width`], for a decoder that has to stay a leaf.
 #[inline(always)]
 fn sequence(s: &[u8]) -> (usize, bool) {
-    let tag = UTF8_LEAD[usize::from(s[0])];
+    let Some(&lead) = s.first() else {
+        return (0, false);
+    };
+    let tag = UTF8_LEAD.get(usize::from(lead)).copied().unwrap_or(0);
     let n = usize::from(tag & 7);
     if n <= 1 {
         return (1, n == 1);
@@ -702,10 +726,12 @@ fn sequence(s: &[u8]) -> (usize, bool) {
     if s.len() < n {
         return (1, false);
     }
-    let (low, span) = UTF8_SECOND[usize::from(tag >> 4)];
-    if s[1].wrapping_sub(low) > span
-        || (n >= 3 && s[2] & 0xc0 != 0x80)
-        || (n == 4 && s[3] & 0xc0 != 0x80)
+    let Some(&(low, span)) = UTF8_SECOND.get(usize::from(tag >> 4)) else {
+        return (1, false);
+    };
+    if s.get(1).is_none_or(|&byte| byte.wrapping_sub(low) > span)
+        || (n >= 3 && s.get(2).is_none_or(|&byte| byte & 0xc0 != 0x80))
+        || (n == 4 && s.get(3).is_none_or(|&byte| byte & 0xc0 != 0x80))
     {
         return (1, false);
     }
@@ -714,18 +740,24 @@ fn sequence(s: &[u8]) -> (usize, bool) {
 
 /// Decodes one rune, replacing each invalid byte as Go's UTF-8 decoder does.
 pub(crate) fn rune(s: &[u8]) -> (char, usize, bool) {
-    if s[0] < 128 {
-        return (s[0] as char, 1, true);
+    let Some(&lead) = s.first() else {
+        return ('\u{fffd}', 0, false);
+    };
+    if lead < 128 {
+        return (lead as char, 1, true);
     }
     let (n, valid) = rune_width(s);
     if !valid {
         return ('\u{fffd}', 1, false);
     }
-    let mut cp = u32::from(s[0] & (0x7f >> n));
-    for &byte in &s[1..n] {
+    let mut cp = u32::from(lead & (0x7f >> n));
+    for &byte in s.get(1..n).unwrap_or_default() {
         cp = (cp << 6) | u32::from(byte & 0x3f);
     }
-    (char::from_u32(cp).unwrap(), n, true)
+    match char::from_u32(cp) {
+        Some(rune) => (rune, n, true),
+        None => ('\u{fffd}', 1, false),
+    }
 }
 
 /// Decodes one rune as [`rune`] does, to its code point and width.
@@ -734,15 +766,18 @@ pub(crate) fn rune(s: &[u8]) -> (char, usize, bool) {
 /// step inline: one call per rune, with no registers to save around it.
 #[inline(never)]
 pub(crate) fn code_point(s: &[u8]) -> (u32, usize) {
-    if s[0] < 128 {
-        return (u32::from(s[0]), 1);
+    let Some(&lead) = s.first() else {
+        return (0xfffd, 0);
+    };
+    if lead < 128 {
+        return (u32::from(lead), 1);
     }
     let (n, valid) = sequence(s);
     if !valid {
         return (u32::from(char::REPLACEMENT_CHARACTER), 1);
     }
-    let mut cp = u32::from(s[0] & (0x7f >> n));
-    for &byte in &s[1..n] {
+    let mut cp = u32::from(lead & (0x7f >> n));
+    for &byte in s.get(1..n).unwrap_or_default() {
         cp = (cp << 6) | u32::from(byte & 0x3f);
     }
     (cp, n)
@@ -760,6 +795,17 @@ mod tests {
         match valid.chars().next() {
             Some(ch) => (ch, ch.len_utf8(), true),
             None => ('\u{fffd}', 1, false),
+        }
+    }
+
+    #[test]
+    fn empty_decoders_and_spans_do_not_read_a_lead_byte() {
+        assert_eq!(rune(b""), ('\u{fffd}', 0, false));
+        assert_eq!(code_point(b""), (0xfffd, 0));
+        assert_eq!(unicode_span(b"").len, 0);
+        for class in [Class::Ascii, Class::JsonParse, Class::JsonStringify] {
+            assert_eq!(prefix(b"", class), 0);
+            assert_eq!(text_span(b"", class).len, 0);
         }
     }
 
@@ -876,7 +922,7 @@ mod tests {
             seed ^= seed << 13;
             seed ^= seed >> 7;
             seed ^= seed << 17;
-            (seed % bound as u64) as usize
+            usize::try_from(seed % bound as u64).unwrap()
         };
         for case in 0..20000 {
             let mut input = Vec::new();
@@ -937,7 +983,9 @@ mod tests {
         for upper in [false, true] {
             for offset in 0..16 {
                 for len in 0..80 {
-                    let mut data: Vec<u8> = (0..offset + len).map(|i| (i * 31) as u8).collect();
+                    let mut data: Vec<u8> = (0usize..offset + len)
+                        .map(|i| (i * 31).to_le_bytes()[0])
+                        .collect();
                     let expected: Vec<_> = data[offset..]
                         .iter()
                         .map(|b| {

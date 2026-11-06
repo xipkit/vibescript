@@ -47,15 +47,27 @@ pub(super) fn diagnostics_with_tokens(
         Some(tokens) => parser_from_tokens(source, &work, tokens, mode),
         None => parser_in(source, &work, mode),
     };
-    let Ok(parser) = parser else {
-        return caller.checkpoint().err().unwrap_or(first);
+    let parser = match parser {
+        Ok(parser) => parser,
+        Err(error) => {
+            let error = if error.kind == ErrorKind::Internal {
+                error
+            } else {
+                first
+            };
+            return caller.checkpoint().err().unwrap_or(error);
+        }
     };
     let parsing = Parsing::<Recover>::new(parser);
-    if let Err(error) = parsing.run(Call::Program) {
-        parsing.recovery.borrow_mut().record(error);
-    }
+    let error = parsing.run(Call::Program).err();
     if let Err(error) = caller.checkpoint() {
         return error;
+    }
+    if let Some(error) = error {
+        if error.kind == ErrorKind::Internal {
+            return error;
+        }
+        parsing.recovery.borrow_mut().record(error);
     }
     let mut diagnostics = vec![diagnostic(source, &first)];
     for error in parsing.recovery.into_inner().errors {
@@ -117,7 +129,11 @@ fn diagnostic(source: &str, error: &Error) -> Diagnostic {
         return diagnostic.clone();
     }
     let start = error.offset.unwrap_or(0).min(source.len());
-    let end = start + source[start..].chars().next().map_or(0, char::len_utf8);
+    let end = start
+        + source
+            .get(start..)
+            .and_then(|tail| tail.chars().next())
+            .map_or(0, char::len_utf8);
     Diagnostic::error(Code::SYNTAX, Span::new(start, end), error.message.clone())
 }
 
@@ -156,7 +172,7 @@ pub(super) struct Checkpoint {
 
 pub(super) struct Scope<'p, 'a> {
     parser: &'p Shared<Parser<'a>>,
-    locals: Option<Table<u32>>,
+    locals: Table<u32>,
     declared_it: bool,
     block_name: Option<Name>,
     inside_class: bool,
@@ -166,7 +182,7 @@ pub(super) struct Scope<'p, 'a> {
 impl Drop for Scope<'_, '_> {
     fn drop(&mut self) {
         let mut p = self.parser.borrow_mut();
-        p.locals = self.locals.take().unwrap();
+        p.locals = std::mem::take(&mut self.locals);
         p.declared_it = self.declared_it;
         p.block_name = self.block_name.take();
         p.inside_class = self.inside_class;
@@ -238,7 +254,7 @@ impl Mode for Recover {
         let p = parser.borrow();
         Ok(Scope {
             parser,
-            locals: Some(p.locals.copy(p.work)?),
+            locals: p.locals.copy(p.work)?,
             declared_it: p.declared_it,
             block_name: p.block_name.clone(),
             inside_class: p.inside_class,
@@ -333,7 +349,7 @@ impl Parser<'_> {
         let failed = self.pos.max(start + 1).min(self.tokens.len() - 1);
         while index < self.tokens.len() - 1 {
             self.work.charge(1)?;
-            let token = &self.tokens[index];
+            let token = self.tokens.at(index)?;
             let word = match &token.token {
                 Token::Word(w) => w.as_str(),
                 _ => "",
@@ -352,7 +368,7 @@ impl Parser<'_> {
                 }
                 if blocks == 0
                     && index > start
-                    && self.tokens[index - 1].token == Token::EndLine
+                    && self.tokens.at(index - 1)?.token == Token::EndLine
                     && matches!(token.token, Token::Word(_))
                     && self
                         .tokens
@@ -368,7 +384,7 @@ impl Parser<'_> {
                 if blocks == 0
                     && delimiters.is_empty()
                     && index > start
-                    && self.tokens[index - 1].token == Token::EndLine
+                    && self.tokens.at(index - 1)?.token == Token::EndLine
                 {
                     break;
                 }
@@ -404,3 +420,6 @@ impl Parser<'_> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests;

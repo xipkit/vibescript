@@ -3,6 +3,7 @@
 //! other radixes splits the digits in halves around a power of the radix.
 
 use super::{Magnitude, multiply, trim, work};
+use crate::checked::{Access, Checked, convert, violation};
 use crate::{
     CallContext, Result,
     budget::{Buffer, CHUNK},
@@ -22,8 +23,10 @@ fn chunk(radix: u32) -> (usize, u32) {
     (width, base)
 }
 
-fn digit(byte: u8, radix: u32) -> u32 {
-    (byte as char).to_digit(radix).unwrap()
+fn digit(byte: u8, radix: u32) -> Access<u32> {
+    (byte as char)
+        .to_digit(radix)
+        .ok_or(violation("validated integer digit expected"))
 }
 
 /// Charges `length` bytes of digit work in chunks as `index` reaches each one.
@@ -68,7 +71,7 @@ impl Powers {
             };
             self.table.push(ctx, next)?;
         }
-        Ok(&self.table.data[level].data)
+        Ok(&self.table.at(level)?.data)
     }
 }
 
@@ -84,9 +87,12 @@ pub(super) fn parse(ctx: &mut CallContext, digits: &[u8], radix: u32) -> Result<
     while end > 0 {
         let start = end.saturating_sub(width);
         work(ctx, chunks.data.len(), chunks.data.capacity())?;
-        let value = digits[start..end]
+        let value = digits
+            .span(start, end)?
             .iter()
-            .fold(0, |value, &byte| value * radix + digit(byte, radix));
+            .try_fold(0, |value, &byte| {
+                digit(byte, radix).map(|digit| value * radix + digit)
+            })?;
         chunks.data.push(value);
         end = start;
     }
@@ -102,11 +108,11 @@ fn combine(ctx: &mut CallContext, chunks: &[u32], powers: &mut Powers) -> Result
             let mut carry = value as u64;
             for word in &mut words.data {
                 carry += *word as u64 * powers.base as u64;
-                *word = carry as u32;
+                *word = crate::numeric::low_u32(carry);
                 carry >>= 32;
             }
             if carry != 0 {
-                words.data.push(carry as u32);
+                words.data.push(crate::numeric::low_u32(carry));
             }
         }
         return Ok(words);
@@ -133,10 +139,10 @@ fn parse_bits(ctx: &mut CallContext, digits: &[u8], bits: u32) -> Result<Buffer<
     for (index, &byte) in digits.iter().rev().enumerate() {
         digit_work(ctx, index, digits.len())?;
         let position = index * bits as usize;
-        let value = (digit(byte, 1 << bits) as u64) << (position % 32);
-        words.data[position / 32] |= value as u32;
+        let value = (digit(byte, 1 << bits)? as u64) << (position % 32);
+        *words.at_mut(position / 32)? |= crate::numeric::low_u32(value);
         if value >> 32 != 0 {
-            words.data[position / 32 + 1] |= (value >> 32) as u32;
+            *words.at_mut(position / 32 + 1)? |= (value >> 32) as u32;
         }
     }
     trim(ctx, &mut words.data)?;
@@ -157,9 +163,24 @@ pub(super) fn format_bits(
     for index in (0..count).rev() {
         digit_work(ctx, count - 1 - index, count)?;
         let position = index * bits as usize;
-        let value = (magnitude.window(position) & ((1 << bits) - 1)) as usize;
+        let value = convert::<usize, _>(magnitude.window(position) & ((1 << bits) - 1))?;
         out.data
-            .push(b"0123456789abcdefghijklmnopqrstuvwxyz"[value]);
+            .push(*b"0123456789abcdefghijklmnopqrstuvwxyz".at(value)?);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn invalid_validated_digits_return_internal_errors_in_both_radix_paths() {
+        let mut ctx = CallContext::new(crate::CallOptions::default());
+        for radix in [2, 3, 10, 16, 36] {
+            let error = parse(&mut ctx, b"!", radix).unwrap_err();
+            assert_eq!(error.kind, crate::ErrorKind::Internal);
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        }
+    }
 }

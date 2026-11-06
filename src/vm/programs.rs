@@ -34,11 +34,17 @@ pub(super) fn snapshot_arguments(
     snapshot_values(ctx, storage, &mut values.data)?;
     let mut values = values.data.into_iter();
     for value in positional {
-        *value = values.next().unwrap();
+        *value = values
+            .next()
+            .ok_or(violation("argument snapshot must preserve its length"))?;
     }
     for (key, value) in keywords {
-        *key = values.next().unwrap();
-        *value = values.next().unwrap();
+        *key = values
+            .next()
+            .ok_or(violation("argument snapshot must preserve its length"))?;
+        *value = values
+            .next()
+            .ok_or(violation("argument snapshot must preserve its length"))?;
     }
     Ok(())
 }
@@ -174,7 +180,12 @@ pub(super) fn load(
             ctx.charge(1)?;
             if state.program == index {
                 state.program = usize::MAX;
-                state.namespace = previous.environment.as_ref().unwrap().class().clone();
+                state.namespace = previous
+                    .environment
+                    .as_ref()
+                    .ok_or(violation("reused program must have an environment"))?
+                    .class()
+                    .clone();
                 state.backing = None;
             }
         }
@@ -250,7 +261,10 @@ pub(super) fn release(ctx: &mut CallContext, storage: &mut Storage) -> Result<()
             continue;
         };
         // File bindings live in the heap; these caches must not root abandoned scopes.
-        let environment = program.environment.as_ref().unwrap();
+        let environment = program
+            .environment
+            .as_ref()
+            .ok_or(violation("released program must have an environment"))?;
         if environment.alive() {
             program.environment = Some(crate::objects::unroot(environment)?);
             for state in &mut storage.namespaces.data {
@@ -261,7 +275,11 @@ pub(super) fn release(ctx: &mut CallContext, storage: &mut Storage) -> Result<()
                 state.namespace = crate::namespace::Namespace::with_environment(
                     ctx,
                     &state.namespace,
-                    program.environment.as_ref().unwrap().clone(),
+                    program
+                        .environment
+                        .as_ref()
+                        .ok_or(violation("released program must have an environment"))?
+                        .clone(),
                 )?;
                 state.backing = state
                     .backing
@@ -317,11 +335,20 @@ pub(super) fn arguments(
         }
         return admit(ctx, storage, values, 0);
     }
-    let count = ctx.code_roots.as_ref().unwrap().data.len();
+    let count = ctx
+        .code_roots
+        .as_ref()
+        .ok_or(violation("invocation must retain its code roots"))?
+        .data
+        .len();
     // No callbacks have run yet; all retained sources belong to the accepted arguments.
     for index in (0..count).rev() {
         ctx.charge(1)?;
-        let code = ctx.code_roots.as_ref().unwrap().at(index)?;
+        let code = ctx
+            .code_roots
+            .as_ref()
+            .ok_or(violation("invocation must retain its code roots"))?
+            .at(index)?;
         // The entry program is already registered, and loading it again only pins it.
         if storage
             .programs
@@ -356,7 +383,7 @@ fn discovered(ctx: &mut CallContext, storage: &mut Storage) -> Result<()> {
     while let Some(code) = ctx
         .code_roots
         .as_ref()
-        .unwrap()
+        .ok_or(violation("invocation must retain its code roots"))?
         .data
         .get(storage.discovered)
         .cloned()
@@ -425,7 +452,13 @@ pub(super) fn imported(ctx: &mut CallContext, storage: &mut Storage, value: &Val
         .count();
     if !ctx.scoped_sources
         && pending == 0
-        && storage.discovered == ctx.code_roots.as_ref().unwrap().data.len()
+        && storage.discovered
+            == ctx
+                .code_roots
+                .as_ref()
+                .ok_or(violation("invocation must retain its code roots"))?
+                .data
+                .len()
     {
         return Ok(());
     }
@@ -518,7 +551,13 @@ fn admit(
         }
         if !ctx.scoped_sources
             && needed.data.len() == pending
-            && storage.discovered == ctx.code_roots.as_ref().unwrap().data.len()
+            && storage.discovered
+                == ctx
+                    .code_roots
+                    .as_ref()
+                    .ok_or(violation("invocation must retain its code roots"))?
+                    .data
+                    .len()
         {
             break;
         }
@@ -530,7 +569,7 @@ fn admit(
             .data
             .iter()
             .position(|a| a.program == program)
-            .unwrap();
+            .ok_or(violation("needed program must have an activation"))?;
         let activation = storage.activations.data.remove(index);
         storage.activations.data.push(activation);
     }
@@ -558,15 +597,15 @@ pub(super) fn advance(
                 storage.activations.data.pop();
                 continue;
             }
-            storage.activations.data.last_mut().unwrap().waiting = None;
+            storage.activations.top_mut()?.waiting = None;
         }
-        let next = storage.activations.data.last().unwrap().next;
+        let next = storage.activations.top()?.next;
         if next == program.namespaces.len() {
             storage.activations.data.pop();
             continue;
         }
         ctx.charge(1)?;
-        storage.activations.data.last_mut().unwrap().next += 1;
+        storage.activations.top_mut()?.next += 1;
         let Some(body) = program.namespaces.at(next)?.body else {
             continue;
         };
@@ -583,8 +622,8 @@ pub(super) fn advance(
                     Arguments::empty(),
                     base,
                 )?;
-                frames.data.last_mut().unwrap().activation = true;
-                storage.activations.data.last_mut().unwrap().waiting = Some((frame, state));
+                frames.top_mut()?.activation = true;
+                storage.activations.top_mut()?.waiting = Some((frame, state));
                 return Ok(true);
             }
             Ok(false)

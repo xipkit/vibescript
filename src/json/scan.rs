@@ -1,6 +1,8 @@
 //! A bounded structural index. Only the current 64 input bytes are retained;
 //! scanning ahead cannot allocate or change the parser's failure order.
 
+use crate::checked::{Access, Checked};
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct Masks {
     punctuation: u64,
@@ -26,15 +28,22 @@ pub(super) struct Scanner {
 
 impl Scanner {
     /// Tests a structural delimiter outside string contents.
-    pub fn punctuation(&mut self, input: &[u8], pos: usize) -> bool {
-        self.block(input, pos);
-        self.structural & (1 << (pos - self.start)) != 0
+    #[inline(always)]
+    pub fn punctuation(&mut self, input: &[u8], pos: usize) -> Access<bool> {
+        self.block(input, pos)?;
+        Ok(self.structural & (1 << (pos - self.start)) != 0)
     }
 
-    fn block(&mut self, input: &[u8], pos: usize) {
+    #[inline(always)]
+    fn block(&mut self, input: &[u8], pos: usize) -> Access<()> {
         if pos >= self.start && pos < self.end {
-            return;
+            return Ok(());
         }
+        self.refill(input, pos)
+    }
+
+    #[inline(never)]
+    fn refill(&mut self, input: &[u8], pos: usize) -> Access<()> {
         // Unicode escapes can rewind inside a surrogate pair. Rebuild from
         // that position; the raw masks used by string decoding are independent
         // of quote state. Normal forward traversal preserves the carry bits.
@@ -43,10 +52,15 @@ impl Scanner {
             self.inside = true;
             self.escaped = false;
         }
+        if pos >= input.len() {
+            return Err(crate::checked::violation(
+                "JSON scanner position exceeds input",
+            ));
+        }
         while pos >= self.end {
             self.start = self.end;
             self.end = input.len().min(self.start + 64);
-            self.masks = classify(&input[self.start..self.end], self.portable());
+            self.masks = classify(input.span(self.start, self.end)?, self.portable());
             let (quoted, inside, escaped) = strings(
                 self.masks.quote,
                 self.masks.slash,
@@ -57,6 +71,7 @@ impl Scanner {
             self.inside = inside;
             self.escaped = escaped;
         }
+        Ok(())
     }
 
     fn portable(&self) -> bool {
@@ -68,20 +83,22 @@ impl Scanner {
 
     /// Returns the ASCII string prefix, stopping before escapes or UTF-8.
     #[inline(always)]
-    pub fn string(&mut self, input: &[u8], pos: usize, end: usize) -> usize {
+    pub fn string(&mut self, input: &[u8], pos: usize, end: usize) -> Access<usize> {
         if end - pos >= 256 {
-            self.block(input, pos);
+            self.block(input, pos)?;
             let ordinary =
                 !(self.masks.quote | self.masks.slash | self.masks.control | self.masks.high);
             let available = self.end - pos;
             let n = ((ordinary >> (pos - self.start)).trailing_ones() as usize).min(available);
             if n == available {
-                let n =
-                    n + crate::scan::prefix(&input[pos + n..end], crate::scan::Class::JsonParse);
+                let n = n + crate::scan::prefix(
+                    input.span(pos + n, end)?,
+                    crate::scan::Class::JsonParse,
+                );
                 self.skip_string(pos + n);
-                return n;
+                return Ok(n);
             }
-            return n;
+            return Ok(n);
         }
         self.prefix(input, pos, end, |m| {
             !(m.quote | m.slash | m.control | m.high)
@@ -109,12 +126,12 @@ impl Scanner {
     }
 
     /// Returns a whitespace prefix, with the caller retaining charge boundaries.
-    pub fn space(&mut self, input: &[u8], pos: usize, end: usize) -> usize {
+    pub fn space(&mut self, input: &[u8], pos: usize, end: usize) -> Access<usize> {
         self.prefix(input, pos, end, |m| m.space)
     }
 
     /// Returns a decimal digit prefix, without accepting signs or punctuation.
-    pub fn digits(&mut self, input: &[u8], pos: usize, end: usize) -> usize {
+    pub fn digits(&mut self, input: &[u8], pos: usize, end: usize) -> Access<usize> {
         self.prefix(input, pos, end, |m| m.digit)
     }
 
@@ -124,10 +141,10 @@ impl Scanner {
         pos: usize,
         end: usize,
         mask: impl Fn(Masks) -> u64,
-    ) -> usize {
+    ) -> Access<usize> {
         let mut at = pos;
         while at < end {
-            self.block(input, at);
+            self.block(input, at)?;
             let bits = mask(self.masks) >> (at - self.start);
             let n = (bits.trailing_ones() as usize).min(self.end.min(end) - at);
             at += n;
@@ -135,7 +152,7 @@ impl Scanner {
                 break;
             }
         }
-        at - pos
+        Ok(at - pos)
     }
 }
 
@@ -166,12 +183,14 @@ fn strings(quotes: u64, mut slashes: u64, inside: bool, carry: bool) -> (u64, bo
 fn classify(input: &[u8], portable: bool) -> Masks {
     let mut masks = Masks::default();
     let mut at = 0;
+    let remaining = input;
     #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
-    if !portable {
-        while input.len() - at >= 16 {
+    let remaining = if !portable {
+        let mut chunks = remaining.chunks_exact(16);
+        for chunk in chunks.by_ref() {
             // SAFETY: this slice has 16 accessible bytes; NEON and SSE2 are
             // baseline features of aarch64 and x86_64 respectively.
-            let lane = unsafe { vector(&input[at..at + 16]) };
+            let lane = unsafe { vector(chunk) };
             masks.punctuation |= lane.punctuation << at;
             masks.quote |= lane.quote << at;
             masks.slash |= lane.slash << at;
@@ -181,10 +200,15 @@ fn classify(input: &[u8], portable: bool) -> Masks {
             masks.digit |= lane.digit << at;
             at += 16;
         }
-    }
+        chunks.remainder()
+    } else {
+        remaining
+    };
     let _ = portable;
-    while input.len() - at >= 8 {
-        let bytes = u64::from_le_bytes(input[at..at + 8].try_into().unwrap());
+    let mut remaining = remaining;
+    while let Some((chunk, tail)) = remaining.split_first_chunk::<8>() {
+        remaining = tail;
+        let bytes = u64::from_le_bytes(*chunk);
         let equal = |byte| zero(bytes ^ (u64::from(byte) * 0x0101010101010101));
         let pack = |bits: u64| ((bits >> 7).wrapping_mul(0x0102040810204080) >> 56) << at;
         masks.punctuation |=
@@ -202,7 +226,7 @@ fn classify(input: &[u8], portable: bool) -> Masks {
         masks.digit |= pack(lower & !upper & !bytes & 0x8080808080808080);
         at += 8;
     }
-    for (offset, &byte) in input[at..].iter().enumerate() {
+    for (offset, &byte) in remaining.iter().enumerate() {
         let bit = 1 << (at + offset);
         masks.punctuation |=
             u64::from(matches!(byte, b'{' | b'}' | b'[' | b']' | b':' | b',')) * bit;
@@ -290,6 +314,15 @@ mod tests {
     use super::*;
 
     #[test]
+    fn positions_past_the_input_report_internal_errors() {
+        let mut scanner = Scanner::default();
+        let error = crate::Error::from(scanner.punctuation(b"", 0).unwrap_err());
+        assert_eq!(error.kind, crate::ErrorKind::Internal);
+        let error = crate::Error::from(scanner.punctuation(b"[]", 2).unwrap_err());
+        assert_eq!(error.kind, crate::ErrorKind::Internal);
+    }
+
+    #[test]
     fn masks_match_every_byte_in_every_lane() {
         for len in [1, 7, 8, 15, 16, 17, 31, 32, 63, 64] {
             for lane in 0..len {
@@ -332,7 +365,7 @@ mod tests {
                     let structural =
                         matches!(byte, b'[' | b']' | b'{' | b'}' | b',' | b':') && !quoted;
                     assert_eq!(
-                        scanner.punctuation(text.as_bytes(), pos),
+                        scanner.punctuation(text.as_bytes(), pos).unwrap(),
                         structural,
                         "{padding} {slashes} {pos}"
                     );

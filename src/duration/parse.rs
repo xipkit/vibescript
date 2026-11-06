@@ -1,6 +1,7 @@
 // Go-style duration parsing adapts time/format.go from the Go standard library.
 // Copyright 2010 The Go Authors. All rights reserved.
 // See licenses/Go-BSD-3-Clause.txt.
+use crate::checked::Checked;
 use crate::{CallContext, Error, ErrorKind, Result, numeric::float_to_u64};
 
 /// A parse failure worded as Go's `ParseDurationString` reports it.
@@ -57,12 +58,12 @@ impl<'a, 'c> Scan<'a, 'c> {
         self.input.get(self.at).copied()
     }
     fn advance(&mut self) -> Result<u8> {
+        let byte = *self.input.at(self.at)?;
         if self.at >= self.checkpoint {
             self.ctx
                 .work_bytes((self.input.len() - self.at).min(1024))?;
             self.checkpoint = self.at + 1024;
         }
-        let byte = self.input[self.at];
         self.at += 1;
         Ok(byte)
     }
@@ -91,12 +92,12 @@ impl<'a, 'c> Scan<'a, 'c> {
     /// whether it ended there.
     fn skip_charged_digits(&mut self) -> bool {
         while self.at < self.checkpoint.min(self.input.len()) {
-            if !self.input[self.at].is_ascii_digit() {
+            if !self.peek().is_some_and(|byte| byte.is_ascii_digit()) {
                 return true;
             }
             self.at += 1;
         }
-        self.at == self.input.len() || !self.input[self.at].is_ascii_digit()
+        !self.peek().is_some_and(|byte| byte.is_ascii_digit())
     }
     fn fraction(&mut self) -> Result<(u64, f64, bool)> {
         let start = self.at;
@@ -124,10 +125,12 @@ pub(super) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<i64> {
         return Err(failure("empty duration string"));
     }
     let negative = input.first() == Some(&b'-');
-    let sign = usize::from(matches!(input.first(), Some(b'-' | b'+')));
-    let input = &input[sign..];
-    if input.first() == Some(&b'P') {
-        return iso(ctx, &input[1..], negative);
+    let input = match input.split_first() {
+        Some((b'-' | b'+', rest)) => rest,
+        _ => input,
+    };
+    if let Some(rest) = input.strip_prefix(b"P") {
+        return iso(ctx, rest, negative);
     }
     if input == b"0" {
         return Ok(0);
@@ -159,7 +162,7 @@ pub(super) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<i64> {
         {
             scan.advance()?;
         }
-        let unit = match &input[start..scan.at] {
+        let unit = match input.get(start..scan.at).ok_or_else(format)? {
             b"ns" => 1u64,
             b"us" | b"\xc2\xb5s" | b"\xce\xbcs" => 1000,
             b"ms" => 1_000_000,
@@ -213,29 +216,36 @@ fn iso(ctx: &mut CallContext, input: &[u8], negative: bool) -> Result<i64> {
         if time_at.is_some() || mixed {
             return Err(failure("invalid mixed week duration"));
         }
-        if input.last() != Some(&b'W') || input.len() == 1 {
+        let Some(text) = input.strip_suffix(b"W").filter(|text| !text.is_empty()) else {
             return Err(failure("invalid week duration format"));
-        }
-        let text = &input[..input.len() - 1];
+        };
         let negative = text.first() == Some(&b'-');
-        let sign = usize::from(matches!(text.first(), Some(b'-' | b'+')));
-        let mut scan = Scan::new(&text[sign..], ctx);
+        let text = match text.split_first() {
+            Some((b'-' | b'+', rest)) => rest,
+            _ => text,
+        };
+        let mut scan = Scan::new(text, ctx);
         let magnitude = scan
             .digits(i64::MAX as u64 + u64::from(negative))?
             .value(week, week)?;
         if scan.peek().is_some() {
             return Err(week());
         }
-        let weeks = if negative {
+        let weeks = i64::try_from(if negative {
             -(magnitude as i128)
         } else {
             magnitude as i128
-        } as i64;
+        })
+        .map_err(|_| week())?;
         weeks.wrapping_mul(604800)
     } else {
-        let (date, time) = time_at.map_or((input, b"".as_slice()), |at| {
-            (&input[..at], &input[at + 1..])
-        });
+        let (date, time) = match time_at {
+            Some(at) => {
+                let (date, time) = input.split_at_checked(at).ok_or_else(format)?;
+                (date, time.strip_prefix(b"T").ok_or_else(format)?)
+            }
+            None => (input, b"".as_slice()),
+        };
         segment(ctx, date, &[(b'D', 86400)])?.wrapping_add(segment(
             ctx,
             time,
@@ -251,7 +261,7 @@ fn iso(ctx: &mut CallContext, input: &[u8], negative: bool) -> Result<i64> {
 
 fn segment(ctx: &mut CallContext, input: &[u8], units: &[(u8, i64)]) -> Result<i64> {
     let mut scan = Scan::new(input, ctx);
-    let mut first_unit = 0;
+    let mut units = units.iter();
     let mut total = 0i64;
     while scan.peek().is_some() {
         let value = match scan.digits(i64::MAX as u64)? {
@@ -260,22 +270,19 @@ fn segment(ctx: &mut CallContext, input: &[u8], units: &[(u8, i64)]) -> Result<i
                 // unit it still accepts; a run past the charged window is
                 // reported as a number.
                 let known = !scan.skip_charged_digits()
-                    || scan.peek().is_some_and(|suffix| {
-                        units[first_unit..].iter().any(|&(unit, _)| unit == suffix)
-                    });
+                    || scan
+                        .peek()
+                        .is_some_and(|suffix| units.clone().any(|&(unit, _)| unit == suffix));
                 return Err(if known { number() } else { format() });
             }
             digits => i64::try_from(digits.value(format, number)?).map_err(|_| number())?,
         };
         let suffix = scan.peek().ok_or_else(format)?;
-        let index = units[first_unit..]
-            .iter()
-            .position(|&(unit, _)| unit == suffix)
-            .map(|index| first_unit + index)
+        let &(_, factor) = units
+            .find(|&&(unit, _)| unit == suffix)
             .ok_or_else(format)?;
         scan.advance()?;
-        total = total.wrapping_add(value.wrapping_mul(units[index].1));
-        first_unit = index + 1;
+        total = total.wrapping_add(value.wrapping_mul(factor));
     }
     Ok(total)
 }
