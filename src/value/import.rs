@@ -7,6 +7,7 @@
 //! `MAX_ENVIRONMENT_DEPTH`.
 
 use super::{Bytes, Heap, Kind, Value};
+use crate::checked::Checked;
 use crate::{
     CallContext, ErrorKind, Result,
     budget::{Buffer, CHUNK, MAX_VALUE_DEPTH},
@@ -122,13 +123,14 @@ impl Keys {
         if ctx.owns(bytes.charge()) || bytes.data().len() > Self::LENGTH {
             return ctx.import_scalar(key);
         }
-        let slot = bytes
-            .data()
-            .iter()
-            .fold(0xcbf2_9ce4_8422_2325_u64, |hash, &byte| {
-                (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
-            }) as usize
-            % Self::SLOTS;
+        let slot = crate::numeric::hash_word(
+            bytes
+                .data()
+                .iter()
+                .fold(0xcbf2_9ce4_8422_2325_u64, |hash, &byte| {
+                    (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
+                }),
+        ) % Self::SLOTS;
         if let Some(Some(imported)) = self.slots.data.get(slot) {
             if imported.as_bytes() == Some(bytes.data().as_slice()) {
                 return Ok(imported.clone());
@@ -139,7 +141,7 @@ impl Keys {
             self.slots.ensure(ctx, Self::SLOTS)?;
             self.slots.data.resize(Self::SLOTS, None);
         }
-        self.slots.data[slot] = Some(imported.clone());
+        *self.slots.at_mut(slot)? = Some(imported.clone());
         Ok(imported)
     }
 }
@@ -161,7 +163,7 @@ impl CallContext {
                 // Plain scalars import as copies, so a run of them is charged
                 // its per-element steps at once and copied into the capacity
                 // reserved when the frame opened.
-                let rest = &source.buffer.data[out.data.len()..];
+                let rest = source.buffer.tail(out.data.len())?;
                 let run = rest
                     .iter()
                     .take(CHUNK)
@@ -180,7 +182,7 @@ impl CallContext {
                     .count();
                 if run > 0 {
                     self.charge_each(run as u64)?;
-                    out.data.extend_from_slice(&rest[..run]);
+                    out.data.extend_from_slice(rest.span(0, run)?);
                     continue;
                 }
             }
@@ -200,7 +202,10 @@ impl CallContext {
                     }
                 }
                 None => {
-                    let frame = frames.data.pop().unwrap();
+                    let frame = frames
+                        .data
+                        .pop()
+                        .ok_or(crate::checked::violation("import frame expected"))?;
                     produced = Some(frame.finish(self)?);
                 }
             }

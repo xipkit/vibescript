@@ -1,4 +1,5 @@
 use super::Work;
+use crate::checked::Checked;
 use crate::{Result, budget::Charge};
 use std::{
     fmt,
@@ -47,9 +48,10 @@ impl<T> Buffer<T> {
     }
 
     pub fn insert(&mut self, work: &dyn Work, index: usize, value: T) -> Result<()> {
-        work.bytes(std::mem::size_of_val(&self.data[index..]))?;
+        work.bytes(std::mem::size_of_val(self.tail(index)?))?;
         self.push(work, value)?;
-        self.data[index..].rotate_right(1);
+        let len = self.len();
+        self.span_mut(index, len)?.rotate_right(1);
         Ok(())
     }
 
@@ -159,6 +161,7 @@ impl<T: Copy> Buffer<T> {
 }
 
 impl crate::shapes::TypeWriter for (&dyn Work, &mut Buffer<u8>) {
+    type Error = crate::Error;
     fn write(&mut self, bytes: &[u8]) -> Result<()> {
         for chunk in bytes.chunks(4096) {
             self.1.extend_from_slice(self.0, chunk)?;

@@ -130,8 +130,9 @@ fn builtin_namespace_updates_obey_limits_and_release_temporary_state() {
             let options = CallOptions {
                 limits: Limits {
                     steps: (kind == ErrorKind::Steps).then_some(baseline.stats.steps * sample / 16),
-                    memory_bytes: (kind == ErrorKind::Memory)
-                        .then_some(baseline.stats.peak_memory_bytes * sample as usize / 16),
+                    memory_bytes: (kind == ErrorKind::Memory).then_some(
+                        baseline.stats.peak_memory_bytes * usize::try_from(sample).unwrap() / 16,
+                    ),
                     ..Limits::default()
                 },
                 ..CallOptions::default()

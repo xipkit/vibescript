@@ -1,4 +1,5 @@
 use super::*;
+use crate::checked::convert;
 
 impl<M: super::recovery::Mode> Parsing<'_, M> {
     /// Parses a line expression that may take a `do` block from a later line.
@@ -26,7 +27,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         }
         let line = {
             let p = self.p();
-            p.tokens[p.pos].line
+            p.tokens.at(p.pos)?.line
         };
         let lhs = self.prefix().await?;
         let result = self.expr_tail(lhs, min, None, Some(line), false).await;
@@ -41,7 +42,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             // Go locates a folded negative number at its digits.
             let folded = p.token() == &Token::Op("-") && p.negative_literal(p.pos)?;
             (
-                p.tokens[p.pos + usize::from(folded)].offset as u32,
+                convert(p.tokens.at(p.pos + usize::from(folded))?.offset)?,
                 p.token() == &Token::P('('),
             )
         };
@@ -56,7 +57,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let (offset, token) = {
             let mut p = self.p();
             p.work.charge(1)?;
-            let offset = p.tokens[p.pos].offset as u32;
+            let offset = convert(p.tokens.at(p.pos)?.offset)?;
             (offset, p.bump()?)
         };
         match token {
@@ -202,7 +203,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 }
             }?;
             let p = self.p();
-            line = Some(p.tokens[p.previous_index()?].line);
+            line = Some(p.tokens.at(p.previous_index()?)?.line);
         }
     }
 
@@ -210,7 +211,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         {
             let mut p = self.p();
             let close = p.significant(p.pos);
-            if p.tokens[close].token == Token::P(']') {
+            if p.tokens.at(close)?.token == Token::P(']') {
                 p.pos = close;
                 return p.err("index expression requires at least one selector");
             }
@@ -305,7 +306,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             if !p.ident(p.pos) && !matches!(p.token(), Token::Word(w) if w == "enum") {
                 return p.expected(Label::Text("identifier"));
             }
-            let at = p.tokens[p.pos].offset;
+            let at = p.tokens.at(p.pos)?.offset;
             let Token::Word(name) = p.bump()? else {
                 return Err(crate::checked::internal("scope member name expected"));
             };
@@ -315,7 +316,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 p.read_spelling(&name, at)?;
             }
             let continues = matches!(
-                p.tokens[p.significant(p.pos)].token,
+                p.tokens.at(p.significant(p.pos))?.token,
                 Token::Op("::") | Token::P('.')
             );
             let called = p.token() == &Token::P('(');
@@ -354,7 +355,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             let name = p.member_name()?;
             p.note(|record| record.member(&name, &lhs));
             // `M.X?` reads a namespace's member as `M::X?` does.
-            let at = p.tokens[p.pos - 1].offset;
+            let at = p.tokens.at(p.pos - 1)?.offset;
             let called = p.token() == &Token::P('(');
             p.scoped_read(&lhs, &name, at, false, called)?;
             (name, p.take_p('('))
@@ -424,13 +425,13 @@ impl Parser<'_> {
     // Like Go, the separator may start a later line.
     fn ternary_separator(&mut self) -> Result<()> {
         let mut next = self.pos;
-        while self.tokens[next].token == Token::EndLine
-            && self.tokens[next].line != self.tokens[next].end_line
+        while self.tokens.at(next)?.token == Token::EndLine
+            && self.tokens.at(next)?.line != self.tokens.at(next)?.end_line
         {
             self.work.charge(1)?;
             next += 1;
         }
-        if self.tokens[next].token == Token::P(':') {
+        if self.tokens.at(next)?.token == Token::P(':') {
             self.pos = next;
         }
         Ok(())
@@ -449,7 +450,7 @@ impl Parser<'_> {
         match self.token() {
             Token::Word(name) if !name.starts_with('@') => {
                 let name = *name;
-                let offset = self.tokens[self.pos].offset;
+                let offset = self.tokens.at(self.pos)?.offset;
                 self.bump()?;
                 self.read_spelling(&name, offset)?;
                 Name::new(self.work, &name)

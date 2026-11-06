@@ -334,7 +334,7 @@ fn declare(
         if file_bindings::local(program, ctx, frames, storage, frame, slot, resolved)? {
             let name = program
                 .functions
-                .at(owner.function().unwrap())?
+                .at(owner.required_function()?)?
                 .local_names
                 .at(slot)?;
             file_bindings::declare(program, ctx, storage, name)?;
@@ -476,7 +476,7 @@ pub(super) fn normal(
     let h = storage.handlers.at(index)?;
     let program = frames.at(h.frame)?.program.clone();
     let (owner, spec) = (h.frame, program.handlers.at(h.spec)?);
-    let value = stack.data.pop().unwrap();
+    let value = stack.pop()?;
     if body {
         declare(ctx, frames, storage, owner, &spec.body_locals)?;
         for clause in &spec.rescues {
@@ -502,9 +502,13 @@ pub(super) fn end_ensure(
     stack: &mut Buffer<Value>,
     ctx: &mut CallContext,
 ) -> Result<Option<Event>> {
-    let mut h = storage.handlers.data.pop().unwrap();
+    let mut h = storage.handlers.pop()?;
     frames.at_mut(h.frame)?.ip = frames.at(h.frame)?.program.handlers.at(h.spec)?.end;
-    match h.pending.take().unwrap() {
+    match h
+        .pending
+        .take()
+        .ok_or(violation("ensure must have a pending outcome"))?
+    {
         Pending::Value(value) => {
             stack.push(ctx, value)?;
             Ok(None)
@@ -845,7 +849,7 @@ pub(super) fn loop_control(
         .find(|&i| {
             has_loops(frames, storage, i) || frames.data.get(i).is_none_or(|f| f.parent().is_none())
         })
-        .unwrap();
+        .ok_or(violation("loop control must have a target frame"))?;
     if has_loops(frames, storage, target) {
         let loop_index = frames.at(target)?.loop_base() + loop_count(frames, storage, target) - 1;
         return Ok(Control::Break {
@@ -927,7 +931,15 @@ pub(super) fn apply_control(
             let initialized = match frames.at(target)?.function() {
                 Some(function) => {
                     let function = frames.at(target)?.program.functions.at(function)?;
-                    function.initializer.then(|| function.namespace.unwrap())
+                    if function.initializer {
+                        Some(
+                            function
+                                .namespace
+                                .ok_or(violation("initializer must have a namespace"))?,
+                        )
+                    } else {
+                        None
+                    }
                 }
                 None => None,
             };
@@ -956,11 +968,11 @@ pub(super) fn apply_control(
                     stack.push(ctx, value)?;
                 }
                 ReturnTo::Output => {
-                    let program = frames.data.last().unwrap().program.clone();
+                    let program = frames.top()?.program.clone();
                     output::resume(&program, ctx, frames, storage, stack, Some(value))?
                 }
                 ReturnTo::Format => {
-                    let program = frames.data.last().unwrap().program.clone();
+                    let program = frames.top()?.program.clone();
                     format::resume(&program, ctx, frames, storage, stack, Some(value))?
                 }
                 ReturnTo::Stack => stack.push(ctx, value)?,
@@ -973,12 +985,7 @@ pub(super) fn apply_control(
                     stack.push(ctx, value)?;
                 }
                 ReturnTo::RootBinding(name) => {
-                    requires::set(
-                        ctx,
-                        storage,
-                        std::str::from_utf8(name.as_bytes().unwrap()).unwrap(),
-                        &value,
-                    )?;
+                    requires::set(ctx, storage, requires::binding_name(&name)?, &value)?;
                     stack.push(ctx, value)?;
                 }
                 ReturnTo::Text(original) => {
@@ -987,7 +994,7 @@ pub(super) fn apply_control(
                     } else {
                         original
                     };
-                    crate::text::append(ctx, &rendered, storage.texts.data.last_mut().unwrap())?;
+                    crate::text::append(ctx, &rendered, storage.texts.top_mut()?)?;
                 }
             }
         }

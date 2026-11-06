@@ -12,7 +12,9 @@ fn signature(finding: &Finding) -> String {
         .unwrap_or_default();
     // Positions move as lines go.
     let message = match checked.find("): ").or_else(|| checked.find(": ")) {
-        Some(index) if finding.kind == harness::FindingKind::CheckFailed => &checked[index..],
+        Some(index) if finding.kind == harness::FindingKind::CheckFailed => {
+            checked.get(index..).unwrap_or_default()
+        }
         _ => "",
     };
     format!("{} {message}", finding.kind.name())

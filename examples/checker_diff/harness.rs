@@ -378,7 +378,10 @@ pub fn annotate(case: &Case, scratch: &mut Scratch) -> std::io::Result<Option<An
             .chars()
             .take_while(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || *c == '_')
             .collect();
-        let annotation = (!name.is_empty() && line[name.len()..].starts_with(" = "))
+        let rest = line
+            .strip_prefix(&name)
+            .ok_or_else(|| std::io::Error::other("invalid local name prefix"))?;
+        let annotation = (!name.is_empty() && rest.starts_with(" = "))
             .then(|| checked.locals.iter().find(|(local, _)| *local == name))
             .flatten()
             .filter(|(_, ty)| ty != "any" && !ty.contains("never"))
@@ -386,7 +389,7 @@ pub fn annotate(case: &Case, scratch: &mut Scratch) -> std::io::Result<Option<An
             .filter(|_| !case.host.globals.iter().any(|global| global.name == name));
         match annotation {
             Some((_, ty)) if declared.insert(name.clone()) => {
-                main.push_str(&format!("{name}: {ty}{}", &line[name.len()..]));
+                main.push_str(&format!("{name}: {ty}{rest}"));
                 changed = true;
             }
             _ => {

@@ -808,6 +808,21 @@ fn input_cap_rejects_before_retaining_source_and_releases_pending() {
 }
 
 #[test]
+fn input_byte_counter_overflow_discards_pending_and_allows_recovery() {
+    for pending_bytes in [usize::MAX, usize::MAX - 1] {
+        let mut s = session();
+        assert!(matches!(s.feed_line("["), Response::NeedsMoreInput));
+        s.pending_bytes = pending_bytes;
+        let rejected = evaluated(s.feed_line("1"));
+        assert_eq!(rejected.result.unwrap_err().kind, ErrorKind::Memory);
+        assert!(rejected.input.is_empty());
+        assert!(s.pending().is_empty());
+        assert_eq!(s.pending_bytes, 0);
+        assert_eq!(evaluated(s.feed_line("42")).output, "42");
+    }
+}
+
+#[test]
 fn input_limit_allows_exact_multiline_boundary_and_history_recall() {
     let mut s = bounded(SessionLimits {
         pending_input_bytes: Some(5),

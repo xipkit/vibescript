@@ -497,7 +497,7 @@ mod at_max_tests {
                     value = value.push(&mut ctx, &[deep(depth)]).unwrap();
                     slots.push(depth);
                 } else {
-                    let index = (rng.next() as usize) % slots.len();
+                    let index = crate::numeric::hash_word(rng.next()) % slots.len();
                     let depth = (rng.next() % 7) as usize;
                     value = value.set_array_index(&mut ctx, index, deep(depth)).unwrap();
                     slots[index] = depth;
@@ -522,7 +522,7 @@ mod at_max_tests {
             let mut value = Value::from_hash(&mut ctx, Hash::empty()).unwrap();
             for _ in 0..60 {
                 let op = rng.next() % 3;
-                let slot = (rng.next() as usize) % 8;
+                let slot = crate::numeric::hash_word(rng.next()) % 8;
                 let depth = (rng.next() % 7) as usize;
                 if op == 0 || slots.len() < 2 {
                     let key = Value::bytes(format!("k{slot}"));
@@ -542,7 +542,7 @@ mod at_max_tests {
                         slots.push((key, depth));
                     }
                 } else {
-                    let pick = (rng.next() as usize) % slots.len();
+                    let pick = crate::numeric::hash_word(rng.next()) % slots.len();
                     let (key, _) = &slots[pick];
                     value = value
                         .clone()

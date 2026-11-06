@@ -29,14 +29,14 @@ pub(super) fn resume(
     mut returned: Option<Value>,
 ) -> Result<()> {
     loop {
-        let args = storage.arguments.data.last_mut().unwrap();
+        let args = storage.arguments.top_mut()?;
         let Some(Target::Format(index)) = args.target else {
             return Err(crate::checked::internal(
                 "format arguments have no format target",
             ));
         };
         if index == args.positional.data.len() {
-            let args = storage.arguments.data.pop().unwrap();
+            let args = storage.arguments.pop()?;
             let value = crate::format::format(
                 ctx,
                 args.positional.at(0)?.require_bytes()?,
@@ -59,9 +59,9 @@ pub(super) fn resume(
                 Arguments::empty(),
                 stack.data.len(),
             )?;
-            frames.data.last_mut().unwrap().return_to = ReturnTo::Format;
+            frames.top_mut()?.return_to = ReturnTo::Format;
             return Ok(());
         }
-        storage.arguments.data.last_mut().unwrap().target = Some(Target::Format(index + 1));
+        storage.arguments.top_mut()?.target = Some(Target::Format(index + 1));
     }
 }

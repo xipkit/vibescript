@@ -98,7 +98,7 @@ fn random_and_adversarial_documents_match_both_scanners() {
         state ^= state << 13;
         state ^= state >> 7;
         state ^= state << 17;
-        state as usize % bound
+        crate::numeric::hash_word(state) % bound
     };
     let pieces = [
         "null",

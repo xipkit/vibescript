@@ -219,7 +219,7 @@ impl Engine {
             annotate: true,
         };
         observe(typing::Observed::Checking);
-        let checked = typing::check(&input);
+        let checked = typing::check(&input)?;
         observe(typing::Observed::Checked);
         Ok(checked)
     }
@@ -255,7 +255,7 @@ impl Engine {
                 &(),
             )
         })?;
-        Ok(typing::entry_arguments(
+        typing::entry_arguments(
             &typing::Input {
                 source,
                 parsed: &parsed,
@@ -271,7 +271,7 @@ impl Engine {
             },
             function,
             count,
-        ))
+        )
     }
     /// Configures required files for subsequently compiled scripts.
     ///

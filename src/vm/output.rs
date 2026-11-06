@@ -33,14 +33,14 @@ pub(super) fn resume(
     mut returned: Option<Value>,
 ) -> Result<()> {
     loop {
-        let args = storage.arguments.data.last_mut().unwrap();
+        let args = storage.arguments.top_mut()?;
         let Some(Target::Output(kind, index)) = args.target else {
             return Err(crate::checked::internal(
                 "output arguments have no output target",
             ));
         };
         if index == args.positional.data.len() {
-            let args = storage.arguments.data.pop().unwrap();
+            let args = storage.arguments.pop()?;
             let value = if kind != Output::Inspect {
                 Value::nil()
             } else if args.positional.data.len() == 1 {
@@ -71,12 +71,12 @@ pub(super) fn resume(
                         Arguments::empty(),
                         stack.data.len(),
                     )?;
-                    frames.data.last_mut().unwrap().return_to = ReturnTo::Output;
+                    frames.top_mut()?.return_to = ReturnTo::Output;
                     return Ok(());
                 }
             }
             kind.write(ctx, &original)?;
         }
-        storage.arguments.data.last_mut().unwrap().target = Some(Target::Output(kind, index + 1));
+        storage.arguments.top_mut()?.target = Some(Target::Output(kind, index + 1));
     }
 }

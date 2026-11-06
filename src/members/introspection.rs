@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{CallContext, Error, ErrorKind, Result, Value, bytecode::CallSite, value::Kind};
 use std::sync::Arc;
 
@@ -21,13 +22,13 @@ pub(crate) fn type_atom<'a>(
             format!("is_type? does not take {shape}"),
         ));
     }
-    if args.len() != 1 {
+    let [argument] = args else {
         return Err(Error::new(
             ErrorKind::Argument,
             "is_type? expects exactly one argument",
         ));
-    }
-    let bytes = match &args[0].0 {
+    };
+    let bytes = match &argument.0 {
         Kind::Bytes(bytes) | Kind::Symbol(bytes) => &bytes.data(),
         _ => {
             return Err(Error::new(
@@ -59,7 +60,7 @@ pub(crate) fn field_named(ctx: &mut CallContext, name: &str, receiver: &Value) -
     if let Kind::Hash(hash) = &receiver.0 {
         if hash.object {
             if let Some(index) = hash.find(ctx, name.as_bytes())? {
-                return Ok(super::callable(&hash.buffer.data[index].1));
+                return Ok(super::callable(&hash.buffer.at(index)?.1));
             }
         }
     }
@@ -177,13 +178,15 @@ impl<'a> Atom<'a> {
             };
             ctx.work_bytes(name.len())?;
             let last = name
-                .rsplit("::")
-                .next()
-                .unwrap()
-                .rsplit('.')
-                .next()
-                .unwrap();
-            if self.name.rsplit('.').next().unwrap() == last {
+                .rsplit_once("::")
+                .map_or(name.as_str(), |(_, last)| last);
+            let last = last.rsplit_once('.').map_or(last, |(_, last)| last);
+            if self
+                .name
+                .rsplit_once('.')
+                .map_or(self.name, |(_, last)| last)
+                == last
+            {
                 if self.nullable && matches!(receiver.0, Kind::Nil) {
                     return Ok(true);
                 }
@@ -222,7 +225,7 @@ fn identifier(text: &str) -> bool {
 fn atom_error(text: &[u8], unknown: bool) -> Error {
     let mut quoted = Vec::new();
     crate::shapes::quote(text, &mut quoted);
-    let quoted = std::str::from_utf8(&quoted).unwrap();
+    let quoted = String::from_utf8_lossy(&quoted);
     Error::new(
         ErrorKind::Type,
         if unknown {

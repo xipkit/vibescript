@@ -14,7 +14,7 @@ pub fn encode(
         "" | "json" => Ok(stringify_json(value, options)?
             .value
             .as_bytes()
-            .unwrap()
+            .ok_or("JSON encoding must return a string")?
             .to_vec()),
         "typed" => Ok(serde_json::to_vec(&json!(["typed-v1", typed(value, 0)?]))?),
         _ => Err(format!("unknown result encoding {encoding:?}").into()),
@@ -32,18 +32,27 @@ fn typed(value: &Value, depth: usize) -> Result<Json, Box<dyn std::error::Error>
         "int" => json!([kind, value.to_string()]),
         "float" => json!([
             kind,
-            format!("{:016x}", value.as_float().unwrap().to_bits())
+            format!(
+                "{:016x}",
+                value.as_float().ok_or("expected float value")?.to_bits()
+            )
         ]),
-        "string" | "symbol" => json!([kind, hex(value.as_bytes().unwrap())]),
+        "string" | "symbol" => json!([kind, hex(value.as_bytes().ok_or("expected bytes value")?)]),
         "money" => {
-            let (cents, currency) = value.as_money().unwrap();
+            let (cents, currency) = value.as_money().ok_or("expected money value")?;
             json!([kind, currency, cents.to_string()])
         }
-        "duration" => json!([kind, value.as_duration().unwrap().to_string()]),
+        "duration" => json!([
+            kind,
+            value
+                .as_duration()
+                .ok_or("expected duration value")?
+                .to_string()
+        ]),
         "array" => {
             let items = value
                 .as_array()
-                .unwrap()
+                .ok_or("expected array value")?
                 .iter()
                 .map(|value| typed(value, depth + 1))
                 .collect::<Result<Vec<_>, _>>()?;
@@ -52,11 +61,11 @@ fn typed(value: &Value, depth: usize) -> Result<Json, Box<dyn std::error::Error>
         "hash" | "object" => {
             let entries = value
                 .as_hash()
-                .unwrap()
+                .ok_or("expected hash value")?
                 .iter()
                 .map(|(key, value)| {
                     Ok(json!([
-                        hex(key.as_bytes().unwrap()),
+                        hex(key.as_bytes().ok_or("expected bytes key")?),
                         typed(value, depth + 1)?
                     ]))
                 })

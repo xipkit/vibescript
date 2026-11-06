@@ -77,13 +77,13 @@ fn visit(
                     *fuel = fuel.checked_sub(1)?;
                     steps += 1;
                     let middle = lower + (upper - lower) / 2;
-                    let name = &fields[middle].name;
+                    let name = &fields.get(middle)?.name;
                     steps += u64::from(!name.is_empty() && !key.is_empty());
                     match name.as_slice().cmp(key) {
                         std::cmp::Ordering::Less => lower = middle + 1,
                         std::cmp::Ordering::Greater => upper = middle,
                         std::cmp::Ordering::Equal => {
-                            field = Some(&fields[middle]);
+                            field = Some(fields.get(middle)?);
                             break;
                         }
                     }
@@ -158,9 +158,12 @@ impl<'a> RecordProof<'a> {
         let mut order = [0; 15];
         for ((key, _), slot) in hash.buffer.data.iter().zip(&mut order) {
             let name = key.as_bytes()?;
-            *slot = fields
-                .binary_search_by(|field| field.name.as_slice().cmp(name))
-                .ok()? as u8;
+            *slot = u8::try_from(
+                fields
+                    .binary_search_by(|field| field.name.as_slice().cmp(name))
+                    .ok()?,
+            )
+            .ok()?;
         }
         Some(Self {
             ty,
@@ -181,7 +184,7 @@ impl<'a> RecordProof<'a> {
             return None;
         }
         for ((key, value), &index) in hash.buffer.data.iter().zip(&self.order) {
-            let field = &fields[usize::from(index)];
+            let field = fields.get(usize::from(index))?;
             if key.as_bytes()? != field.name {
                 return None;
             }
@@ -223,7 +226,10 @@ impl<'a> Stream<'a> {
             let Ok(index) = fields.binary_search_by(|f| f.name.as_slice().cmp(key)) else {
                 return;
             };
-            ty = &fields[index].ty;
+            let Some(field) = fields.get(index) else {
+                return;
+            };
+            ty = &field.ty;
         } else if depth != 0 {
             return;
         }

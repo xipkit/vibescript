@@ -22,7 +22,7 @@ pub(super) fn discarded(functions: &mut [Function], extended: &mut [Extended]) {
             if unused
                 && let Some(Op::Extended(index)) =
                     end.checked_sub(2).and_then(|at| function.code.get(at))
-                && let Some(Extended::Shovel(_, last)) = extended.get_mut(*index as usize)
+                && let Some(Extended::Shovel(_, last)) = extended.get_mut(*index)
             {
                 *last = true;
             }
@@ -42,7 +42,7 @@ mod tests {
         let code = &program.functions[1].code;
         assert!(
             code.iter().any(|op| matches!(op, Op::Extended(index)
-                if matches!(program.extended[*index as usize], Extended::Shovel(_, true)))),
+                if matches!(program.extended[*index], Extended::Shovel(_, true)))),
             "{code:?}"
         );
         let value = script.call("run", &[], CallOptions::default()).unwrap();

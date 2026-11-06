@@ -77,10 +77,20 @@ fn lex(source: &str) -> Result<Vec<Lexed<'_>>> {
         let column = |rest: &str| line.len() - rest.len() + 1;
         loop {
             rest = rest.trim_start_matches([' ', '\t']);
-            let (token, remaining) = match rest.chars().next() {
+            let mut chars = rest.chars();
+            let first = chars.next();
+            let tail = chars.as_str();
+            let split = |end| {
+                rest.split_at_checked(end).ok_or_else(|| ParseError {
+                    line: index + 1,
+                    column: column(rest),
+                    message: "invalid UTF-8 token boundary".to_owned(),
+                })
+            };
+            let (token, remaining) = match first {
                 None => break,
                 Some('#') => {
-                    let text = rest[1..].strip_prefix(' ').unwrap_or(&rest[1..]);
+                    let text = tail.strip_prefix(' ').unwrap_or(tail);
                     (Token::Comment(text.trim_end()), "")
                 }
                 Some('"') => {
@@ -89,43 +99,55 @@ fn lex(source: &str) -> Result<Vec<Lexed<'_>>> {
                         column: column(rest),
                         message: "unterminated string".to_owned(),
                     })?;
-                    (Token::Literal(&rest[..end]), &rest[end..])
+                    let (literal, remaining) = split(end)?;
+                    (Token::Literal(literal), remaining)
                 }
-                Some(':') if rest[1..].starts_with(name_start) => {
-                    let end = 1 + word_end(&rest[1..]);
-                    (Token::Symbol(&rest[1..end]), &rest[end..])
+                Some(':') if tail.starts_with(name_start) => {
+                    let end = word_end(tail);
+                    let (symbol, remaining) =
+                        tail.split_at_checked(end).ok_or_else(|| ParseError {
+                            line: index + 1,
+                            column: column(rest),
+                            message: "invalid UTF-8 symbol boundary".to_owned(),
+                        })?;
+                    (Token::Symbol(symbol), remaining)
                 }
                 Some(c)
                     if c.is_ascii_digit()
-                        || c == '-' && rest[1..].starts_with(|c: char| c.is_ascii_digit()) =>
+                        || c == '-' && tail.starts_with(|c: char| c.is_ascii_digit()) =>
                 {
-                    let end = 1 + rest[1..]
+                    let end = 1 + tail
                         .find(|c: char| !c.is_ascii_digit() && c != '.' && c != '_')
                         .unwrap_or(rest.len() - 1);
-                    (Token::Literal(&rest[..end]), &rest[end..])
+                    let (literal, remaining) = split(end)?;
+                    (Token::Literal(literal), remaining)
                 }
                 Some(c) if name_start(c) => {
                     let end = word_end(rest);
-                    let word = &rest[..end];
+                    let (word, remaining) = split(end)?;
                     let token = if matches!(word, "nil" | "true" | "false") {
                         Token::Literal(word)
                     } else {
                         Token::Word(word)
                     };
-                    (token, &rest[end..])
+                    (token, remaining)
                 }
-                Some(_) => {
+                Some(c) => {
                     let Some(punct) = PUNCTUATION.iter().find(|p| rest.starts_with(**p)) else {
                         return Err(ParseError {
                             line: index + 1,
                             column: column(rest),
-                            message: format!(
-                                "unexpected character {:?}",
-                                rest.chars().next().unwrap()
-                            ),
+                            message: format!("unexpected character {:?}", c),
                         });
                     };
-                    (Token::Punct(punct), &rest[punct.len()..])
+                    (
+                        Token::Punct(punct),
+                        rest.strip_prefix(*punct).ok_or_else(|| ParseError {
+                            line: index + 1,
+                            column: column(rest),
+                            message: "invalid punctuation prefix".to_owned(),
+                        })?,
+                    )
                 }
             };
             tokens.push(Lexed {
@@ -158,7 +180,10 @@ fn word_end(text: &str) -> usize {
     let end = text
         .find(|c: char| c != '_' && !crate::syntax::unicode::letter_or_digit(c))
         .unwrap_or(text.len());
-    if text[end..].starts_with(['?', '!']) {
+    if text
+        .get(end..)
+        .is_some_and(|tail| tail.starts_with(['?', '!']))
+    {
         end + 1
     } else {
         end
@@ -229,11 +254,13 @@ pub(super) fn table(source: &str) -> Result<Table> {
 
 impl<'a> Parser<'a> {
     fn peek(&self) -> &Token<'a> {
-        &self.tokens[self.pos].token
+        self.tokens
+            .get(self.pos)
+            .map_or(&Token::End, |token| &token.token)
     }
 
     fn next(&mut self) -> Token<'a> {
-        let token = self.tokens[self.pos].token;
+        let token = *self.peek();
         if token != Token::End {
             self.pos += 1;
         }
@@ -241,17 +268,20 @@ impl<'a> Parser<'a> {
     }
 
     fn fail<T>(&self, message: impl Into<String>) -> Result<T> {
-        let token = &self.tokens[self.pos];
-        let (line, column) = if token.token == Token::End {
-            (self.source.lines().count() + 1, 1)
-        } else {
-            let before = &self.source[..token.offset];
+        let (line, column) = if let Some(token) = self
+            .tokens
+            .get(self.pos)
+            .filter(|token| token.token != Token::End)
+        {
+            let before = self.source.get(..token.offset).unwrap_or(self.source);
             (
                 before.bytes().filter(|byte| *byte == b'\n').count() + 1,
                 before
                     .rfind('\n')
                     .map_or(token.offset + 1, |at| token.offset - at),
             )
+        } else {
+            (self.source.lines().count() + 1, 1)
         };
         Err(ParseError {
             line,
@@ -319,7 +349,10 @@ impl<'a> Parser<'a> {
         matches!(
             self.peek(),
             Token::Word(_) | Token::Literal("nil" | "true" | "false")
-        ) && self.tokens[(self.pos + 1).min(self.tokens.len() - 1)].token == Token::Punct(":")
+        ) && self
+            .tokens
+            .get(self.pos + 1)
+            .is_some_and(|token| token.token == Token::Punct(":"))
     }
 
     /// Requires the end of a declaration's line; comments go on their own line.
@@ -603,7 +636,12 @@ impl<'a> Parser<'a> {
                     self.expect(")")?;
                     break;
                 }
-                if self.at("*") && matches!(&self.tokens[self.pos + 1].token, Token::Punct(",")) {
+                if self.at("*")
+                    && self
+                        .tokens
+                        .get(self.pos + 1)
+                        .is_some_and(|token| token.token == Token::Punct(","))
+                {
                     if keywords
                         || function
                             .params
@@ -844,7 +882,13 @@ impl<'a> Parser<'a> {
             let mut name = match self.next() {
                 Token::Word(word) => word.to_owned(),
                 Token::Literal(literal) if literal.starts_with('"') => {
-                    unescape(&literal[1..literal.len() - 1])
+                    match literal
+                        .strip_prefix('"')
+                        .and_then(|text| text.strip_suffix('"'))
+                    {
+                        Some(text) => unescape(text),
+                        None => return self.fail("expected a quoted field name"),
+                    }
                 }
                 _ => {
                     self.pos -= 1;
@@ -876,7 +920,7 @@ impl<'a> Parser<'a> {
 /// Whether a name introduces or refers to a type variable: an uppercase ASCII
 /// letter followed by nothing else.
 fn variable(name: &str) -> bool {
-    name.len() == 1 && name.as_bytes()[0].is_ascii_uppercase()
+    matches!(name.as_bytes(), [letter] if letter.is_ascii_uppercase())
 }
 
 fn optional(ty: Type) -> Type {
@@ -894,10 +938,9 @@ fn union(arms: Vec<Type>) -> Type {
             arm => flat.push(arm),
         }
     }
-    if flat.len() == 1 {
-        flat.pop().unwrap()
-    } else {
-        Type::Union(flat)
+    match <[Type; 1]>::try_from(flat) {
+        Ok([only]) => only,
+        Err(flat) => Type::Union(flat),
     }
 }
 

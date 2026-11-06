@@ -116,7 +116,7 @@ fn materialize(ctx: &mut CallContext, storage: &Storage, values: &[Value]) -> Re
                     scopes::namespace(ctx, &environment, state.namespace.definition.index)?;
                 for (name, value) in &state.fields.buffer.data {
                     ctx.charge(1)?;
-                    let name = std::str::from_utf8(name.as_bytes().unwrap()).map_err(|_| {
+                    let name = std::str::from_utf8(name.require_bytes()?).map_err(|_| {
                         Error::new(ErrorKind::Type, "namespace field name is not UTF-8")
                     })?;
                     crate::objects::set(ctx, &captured.fields, name, value)?;

@@ -24,7 +24,13 @@ impl Rng {
 
     /// A number below `n`, which must be positive.
     pub fn below(&mut self, n: usize) -> usize {
-        (self.next() % n as u64) as usize
+        let value = self.next() % n as u64;
+        // The remainder is below n, so every byte above usize's width is zero.
+        let mut bytes = [0; size_of::<usize>()];
+        for (byte, source) in bytes.iter_mut().zip(value.to_le_bytes()) {
+            *byte = source;
+        }
+        usize::from_le_bytes(bytes)
     }
 
     /// True with probability `percent` in 100.
@@ -49,12 +55,12 @@ impl Rng {
     /// If all weights are zero, returns the last index.
     pub fn weighted(&mut self, weights: &[u32]) -> usize {
         let total: u32 = weights.iter().sum();
-        let mut roll = (self.next() % u64::from(total.max(1))) as u32;
+        let mut roll = self.next() % u64::from(total.max(1));
         for (index, &weight) in weights.iter().enumerate() {
-            if roll < weight {
+            if roll < u64::from(weight) {
                 return index;
             }
-            roll -= weight;
+            roll -= u64::from(weight);
         }
         weights.len() - 1
     }

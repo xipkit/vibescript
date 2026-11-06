@@ -1,0 +1,153 @@
+{
+  "<vibescript::vm::Run>::advance": {
+    "before": {
+      "address": "00000001002cc0f4",
+      "instructions": 24046,
+      "calls": 1534,
+      "stack_prologue": [
+        "stp\td9, d8, [sp, #-0x70]!",
+        "stp\tx28, x27, [sp, #0x10]",
+        "stp\tx26, x25, [sp, #0x20]",
+        "stp\tx24, x23, [sp, #0x30]",
+        "stp\tx22, x21, [sp, #0x40]",
+        "stp\tx20, x19, [sp, #0x50]",
+        "stp\tx29, x30, [sp, #0x60]",
+        "add\tx29, sp, #0x60",
+        "sub\tsp, sp, #0x1, lsl #12   ; =0x1000",
+        "str\txzr, [sp]",
+        "sub\tsp, sp, #0x1, lsl #12   ; =0x1000",
+        "str\txzr, [sp]",
+        "sub\tsp, sp, #0x9c0",
+        "str\txzr, [sp]",
+        "str\tx3, [sp, #0x108]"
+      ]
+    },
+    "latch": {
+      "address": "00000001002cbc54",
+      "instructions": 23674,
+      "calls": 1533,
+      "stack_prologue": [
+        "stp\td9, d8, [sp, #-0x70]!",
+        "stp\tx28, x27, [sp, #0x10]",
+        "stp\tx26, x25, [sp, #0x20]",
+        "stp\tx24, x23, [sp, #0x30]",
+        "stp\tx22, x21, [sp, #0x40]",
+        "stp\tx20, x19, [sp, #0x50]",
+        "stp\tx29, x30, [sp, #0x60]",
+        "add\tx29, sp, #0x60",
+        "sub\tsp, sp, #0x1, lsl #12   ; =0x1000",
+        "str\txzr, [sp]",
+        "sub\tsp, sp, #0x1, lsl #12   ; =0x1000",
+        "str\txzr, [sp]",
+        "sub\tsp, sp, #0x9a0",
+        "str\txzr, [sp]",
+        "str\tx3, [sp, #0x108]"
+      ]
+    }
+  },
+  "vibescript::vm::simple::run": {
+    "before": {
+      "address": "00000001003e9800",
+      "instructions": 3380,
+      "calls": 136,
+      "stack_prologue": [
+        "stp\td9, d8, [sp, #-0x70]!",
+        "stp\tx28, x27, [sp, #0x10]",
+        "stp\tx26, x25, [sp, #0x20]",
+        "stp\tx24, x23, [sp, #0x30]",
+        "stp\tx22, x21, [sp, #0x40]",
+        "stp\tx20, x19, [sp, #0x50]",
+        "stp\tx29, x30, [sp, #0x60]",
+        "add\tx29, sp, #0x60",
+        "sub\tsp, sp, #0x300",
+        "ldrb\tw8, [x2, #0x2d0]",
+        "tbz\tw8, #0x0, <vibescript::vm::simple::run+0x38>",
+        "mov\tw8, #0x2                ; =2",
+        "str\tx8, [x0]",
+        "b\t<vibescript::vm::simple::run+0x2f18>",
+        "mov\tx21, x7"
+      ],
+      "jump_tables": [
+        {
+          "address": "0x1005610ce",
+          "size_bytes": 188,
+          "sha256": "69a2d6713368322c44092057820da24347c5e7329fb75125e2b181c0ae934c7e"
+        },
+        {
+          "address": "0x1005611ac",
+          "size_bytes": 34,
+          "sha256": "1480f5ceed812f85f0e42e6be832155ccf099c2358d81d6f3e4e616d14dd02fa"
+        },
+        {
+          "address": "0x10056118a",
+          "size_bytes": 34,
+          "sha256": "3c688b39b5f74dfa480942416568c71d74830378c58d6bfe5c540d95ac00adad"
+        }
+      ]
+    },
+    "latch": {
+      "address": "00000001003e8d88",
+      "instructions": 3380,
+      "calls": 136,
+      "stack_prologue": [
+        "stp\td9, d8, [sp, #-0x70]!",
+        "stp\tx28, x27, [sp, #0x10]",
+        "stp\tx26, x25, [sp, #0x20]",
+        "stp\tx24, x23, [sp, #0x30]",
+        "stp\tx22, x21, [sp, #0x40]",
+        "stp\tx20, x19, [sp, #0x50]",
+        "stp\tx29, x30, [sp, #0x60]",
+        "add\tx29, sp, #0x60",
+        "sub\tsp, sp, #0x300",
+        "ldrb\tw8, [x2, #0x2d0]",
+        "tbz\tw8, #0x0, <vibescript::vm::simple::run+0x38>",
+        "mov\tw8, #0x2                ; =2",
+        "str\tx8, [x0]",
+        "b\t<vibescript::vm::simple::run+0x2f18>",
+        "mov\tx21, x7"
+      ],
+      "jump_tables": [
+        {
+          "address": "0x1005604ce",
+          "size_bytes": 188,
+          "sha256": "69a2d6713368322c44092057820da24347c5e7329fb75125e2b181c0ae934c7e"
+        },
+        {
+          "address": "0x1005605ac",
+          "size_bytes": 34,
+          "sha256": "1480f5ceed812f85f0e42e6be832155ccf099c2358d81d6f3e4e616d14dd02fa"
+        },
+        {
+          "address": "0x10056058a",
+          "size_bytes": 34,
+          "sha256": "3c688b39b5f74dfa480942416568c71d74830378c58d6bfe5c540d95ac00adad"
+        }
+      ]
+    },
+    "comparison": "Instruction sequence matches after ignoring external target addresses, static adrp/add address formation, and dynamic stub addresses; all three jump tables are byte-identical. Other referenced constants and callees are not asserted equal."
+  },
+  "<vibescript::budget::CallContext>::import": {
+    "before": {
+      "address": "0000000100295094",
+      "instructions": 64,
+      "stack_prologue": [
+        "sub\tsp, sp, #0x70",
+        "stp\tx20, x19, [sp, #0x50]",
+        "stp\tx29, x30, [sp, #0x60]",
+        "add\tx29, sp, #0x60",
+        "mov\tx20, x2"
+      ]
+    },
+    "latch": {
+      "address": "00000001002947e0",
+      "instructions": 79,
+      "stack_prologue": [
+        "sub\tsp, sp, #0x80",
+        "stp\tx22, x21, [sp, #0x50]",
+        "stp\tx20, x19, [sp, #0x60]",
+        "stp\tx29, x30, [sp, #0x70]",
+        "add\tx29, sp, #0x70"
+      ]
+    }
+  }
+}

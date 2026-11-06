@@ -4,6 +4,7 @@ use super::{
     search::{ABSENT, Search},
     text_limit, unicode, window,
 };
+use crate::checked::{Checked, violation};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::Buffer,
@@ -59,31 +60,31 @@ impl Utility {
             ));
         }
         let (pattern, text) = if self == Self::Match {
-            (&args[0], &args[1])
+            (args.at(0)?, args.at(1)?)
         } else {
-            (&args[1], &args[0])
+            (args.at(1)?, args.at(0)?)
         };
         if pattern.require_bytes()?.len() > MAX_PATTERN {
             return pattern_limit(ctx, name);
         }
         text_limit(ctx, text.require_bytes()?, name, "text")?;
         if self != Self::Match {
-            text_limit(ctx, args[2].require_bytes()?, name, "replacement")?;
+            text_limit(ctx, args.at(2)?.require_bytes()?, name, "replacement")?;
         }
         let program = Program::compile(ctx, pattern.clone(), self.name())?;
-        let mut search = Search::new(ctx, program.view(), self != Self::Match)?;
+        let mut search = Search::new(ctx, program.view()?, self != Self::Match)?;
         if self == Self::Match {
-            return match search.find(ctx, program.view(), text.require_bytes()?, 0)? {
-                Some(indices) => window(ctx, text, indices.data[0], indices.data[1]),
+            return match search.find(ctx, program.view()?, text.require_bytes()?, 0)? {
+                Some(indices) => window(ctx, text, *indices.at(0)?, *indices.at(1)?),
                 None => Ok(Value::nil()),
             };
         }
         replace(
             ctx,
-            program.view(),
+            program.view()?,
             &mut search,
             text,
-            args[2].require_bytes()?,
+            args.at(2)?.require_bytes()?,
             self == Self::ReplaceAll,
         )
     }
@@ -96,11 +97,15 @@ fn replacement_name<'a>(
     let braced = template.first() == Some(&b'{');
     let start = usize::from(braced);
     let mut end = start;
-    let letters = unicode::group(b"L").unwrap().0;
-    let digits = unicode::group(b"Nd").unwrap().0;
+    let letters = unicode::group(b"L")
+        .ok_or(violation("Unicode letter group must exist"))?
+        .0;
+    let digits = unicode::group(b"Nd")
+        .ok_or(violation("Unicode decimal digit group must exist"))?
+        .0;
     while end < template.len() {
         ctx.charge(1)?;
-        let (rune, width, _) = scan::rune(&template[end..]);
+        let (rune, width, _) = scan::rune(template.tail(end)?);
         if rune != '_'
             && !unicode::contains(letters, rune as u32)
             && !unicode::contains(digits, rune as u32)
@@ -112,7 +117,10 @@ fn replacement_name<'a>(
     if end == start || (braced && template.get(end) != Some(&b'}')) {
         return Ok(None);
     }
-    Ok(Some((&template[start..end], end + usize::from(braced))))
+    Ok(Some((
+        template.span(start, end)?,
+        end + usize::from(braced),
+    )))
 }
 
 fn expand(
@@ -127,7 +135,7 @@ fn expand(
     while !template.is_empty() {
         let mut offset = 0;
         while offset < template.len() {
-            let chunk = &template[offset..offset + (template.len() - offset).min(4096)];
+            let chunk = template.span(offset, offset + (template.len() - offset).min(4096))?;
             if let Some(found) = chunk.iter().position(|&byte| byte == b'$') {
                 ctx.work_bytes(found + 1)?;
                 offset += found;
@@ -136,14 +144,14 @@ fn expand(
             ctx.work_bytes(chunk.len())?;
             offset += chunk.len();
         }
-        emit(ctx, &template[..offset])?;
-        template = &template[offset..];
+        emit(ctx, template.span(0, offset)?)?;
+        template = template.tail(offset)?;
         if template.is_empty() {
             break;
         }
-        template = &template[1..];
+        template = template.tail(1)?;
         if template.first() == Some(&b'$') {
-            template = &template[1..];
+            template = template.tail(1)?;
             emit(ctx, b"$")?;
             continue;
         }
@@ -151,16 +159,16 @@ fn expand(
             emit(ctx, b"$")?;
             continue;
         };
-        template = &template[consumed..];
+        template = template.tail(consumed)?;
         let numeric = name.len() <= 9
-            && (name.len() == 1 || name[0] != b'0')
+            && (name.len() == 1 || name.first() != Some(&b'0'))
             && name.iter().all(u8::is_ascii_digit);
         let mut slot = None;
         if numeric {
             let index = name
                 .iter()
                 .fold(0usize, |n, &byte| n * 10 + usize::from(byte - b'0'));
-            if index < indices.len() / 2 && indices[2 * index] != ABSENT {
+            if indices.get(2 * index).is_some_and(|&start| start != ABSENT) {
                 slot = Some(index);
             }
         } else {
@@ -168,7 +176,7 @@ fn expand(
                 ctx.charge(1)?;
                 if end - start == name.len() {
                     ctx.work_bytes(name.len())?;
-                    if &source[start..end] == name && indices[2 * index] != ABSENT {
+                    if source.span(start, end)? == name && *indices.at(2 * index)? != ABSENT {
                         slot = Some(index);
                         break;
                     }
@@ -176,7 +184,10 @@ fn expand(
             }
         }
         if let Some(slot) = slot {
-            emit(ctx, &text[indices[2 * slot]..indices[2 * slot + 1]])?;
+            emit(
+                ctx,
+                text.span(*indices.at(2 * slot)?, *indices.at(2 * slot + 1)?)?,
+            )?;
         }
     }
     Ok(())
@@ -200,10 +211,10 @@ fn replacements(
         let Some(indices) = search.find(ctx, program, text, position)? else {
             break;
         };
-        let start = indices.data[0];
-        let end = indices.data[1];
+        let start = *indices.at(0)?;
+        let end = *indices.at(1)?;
         if start != end || previous_end != Some(end) {
-            emit(ctx, &text[copied..start])?;
+            emit(ctx, text.span(copied, start)?)?;
             expand(ctx, program, replacement, text, &indices.data, &mut emit)?;
             copied = end;
             matched = true;
@@ -216,13 +227,13 @@ fn replacements(
             if end == text.len() {
                 break;
             }
-            end + scan::rune(&text[end..]).1
+            end + scan::rune(text.tail(end)?).1
         } else {
             end
         };
     }
     if matched {
-        emit(ctx, &text[copied..])?;
+        emit(ctx, text.tail(copied)?)?;
     }
     Ok(matched)
 }
@@ -288,16 +299,21 @@ mod tests {
         ctx.options.limits.steps = None;
         let text = ctx.bytes(&vec![b'x'; 65536]).unwrap();
         let program = Program::compile(&mut ctx, Value::bytes(b"(x+)"), "Regex.match").unwrap();
-        let mut search = Search::new(&mut ctx, program.view(), true).unwrap();
+        let mut search = Search::new(&mut ctx, program.view().unwrap(), true).unwrap();
         drop(
             search
-                .find(&mut ctx, program.view(), text.as_bytes().unwrap(), 0)
+                .find(
+                    &mut ctx,
+                    program.view().unwrap(),
+                    text.as_bytes().unwrap(),
+                    0,
+                )
                 .unwrap(),
         );
         let baseline = ctx.stats();
         let error = replace(
             &mut ctx,
-            program.view(),
+            program.view().unwrap(),
             &mut search,
             &text,
             b"$1$1$1$1$1$1$1$1$1$1$1$1$1$1$1$1$1",
@@ -316,10 +332,15 @@ mod tests {
         let text = ctx.bytes(&vec![b'x'; 65536]).unwrap();
         let input_memory = ctx.stats().retained_memory_bytes;
         let program = Program::compile(&mut ctx, Value::bytes(b"^z"), "Regex.match").unwrap();
-        let mut search = Search::new(&mut ctx, program.view(), true).unwrap();
+        let mut search = Search::new(&mut ctx, program.view().unwrap(), true).unwrap();
         assert!(
             search
-                .find(&mut ctx, program.view(), text.as_bytes().unwrap(), 0)
+                .find(
+                    &mut ctx,
+                    program.view().unwrap(),
+                    text.as_bytes().unwrap(),
+                    0
+                )
                 .unwrap()
                 .is_none()
         );
@@ -327,7 +348,7 @@ mod tests {
         ctx.options.limits.memory_bytes = Some(baseline.peak_memory_bytes + 1024);
         let output = replace(
             &mut ctx,
-            program.view(),
+            program.view().unwrap(),
             &mut search,
             &text,
             b"replacement",

@@ -64,7 +64,10 @@ pub(super) fn set(
     if storage.bindings.is_none() {
         storage.bindings = Some(crate::objects::environment(ctx)?);
     }
-    let bindings = storage.bindings.as_ref().unwrap();
+    let bindings = storage
+        .bindings
+        .as_ref()
+        .ok_or(violation("root bindings must be present"))?;
     if let Some(field) = crate::objects::field_slot(ctx, bindings, name)? {
         address::refresh(
             ctx,
@@ -112,7 +115,7 @@ fn unbound_local(
     storage: &Storage,
     relative: usize,
 ) -> Result<bool> {
-    let function = frame.program.functions.at(frame.function().unwrap())?;
+    let function = frame.program.functions.at(frame.required_function()?)?;
     for param in &function.params {
         ctx.charge(1)?;
         if param.slot == relative {
@@ -135,7 +138,7 @@ pub(super) fn address(
     }
     let function = program
         .functions
-        .at(frames.at(current)?.function().unwrap())?;
+        .at(frames.at(current)?.required_function()?)?;
     if namespaces::constant(program, ctx, storage, function.namespace, name)?.is_some()
         || namespaces::ambient_slot(ctx, frames, storage, current, name)?.is_some()
     {
@@ -146,7 +149,10 @@ pub(super) fn address(
     if matches!(get(ctx, storage, name)?, Some(Value(Kind::Function(_)))) {
         return Ok(None);
     }
-    let bindings = storage.bindings.as_ref().unwrap();
+    let bindings = storage
+        .bindings
+        .as_ref()
+        .ok_or(violation("root bindings must be present"))?;
     crate::objects::address(ctx, bindings, name)
         .and_then(|address| Ok(address.in_environment()?))
         .map(Some)
@@ -199,7 +205,7 @@ fn check_alias(
     exports: &Value,
 ) -> Result<()> {
     let Some(alias) = alias else { return Ok(()) };
-    let name = std::str::from_utf8(alias.as_bytes().unwrap()).unwrap();
+    let name = binding_name(alias)?;
     let same = |ctx: &mut CallContext, value: &Value| -> Result<bool> {
         let (Kind::Hash(a), Kind::Hash(b)) = (&value.0, &exports.0) else {
             return Ok(false);
@@ -232,7 +238,7 @@ fn check_alias(
         ));
     }
     if let Some(frame) = frames.data.last() {
-        let function = frame.program.functions.at(frame.function().unwrap())?;
+        let function = frame.program.functions.at(frame.required_function()?)?;
         if let Some(slot) = function.local_names.iter().position(|n| n == name) {
             let slot = resolve_slot(ctx, frames, storage, frames.data.len() - 1, slot, false)?;
             if let Some(value) = storage.locals.at(slot)? {
@@ -321,11 +327,25 @@ pub(super) fn start(
                 for module in storage.modules.tail(index)? {
                     ctx.charge(1)?;
                     if module.loading {
-                        message.extend(ctx, module.code.origin.as_ref().unwrap().name())?;
+                        message.extend(
+                            ctx,
+                            module
+                                .code
+                                .origin
+                                .as_ref()
+                                .ok_or(violation("required module must have an origin"))?
+                                .name(),
+                        )?;
                         message.extend(ctx, b" -> ")?;
                     }
                 }
-                message.extend(ctx, code.origin.as_ref().unwrap().name())?;
+                message.extend(
+                    ctx,
+                    code.origin
+                        .as_ref()
+                        .ok_or(violation("required module must have an origin"))?
+                        .name(),
+                )?;
                 return Err(Error::new(
                     ErrorKind::Runtime,
                     String::from_utf8_lossy(&message.data),
@@ -335,12 +355,7 @@ pub(super) fn start(
                 let exports = module.exports.clone();
                 check_alias(ctx, frames, storage, alias.as_ref(), &exports)?;
                 if let Some(alias) = alias {
-                    set(
-                        ctx,
-                        storage,
-                        std::str::from_utf8(alias.as_bytes().unwrap()).unwrap(),
-                        &exports,
-                    )?;
+                    set(ctx, storage, binding_name(&alias)?, &exports)?;
                 }
                 stack.push(ctx, exports)?;
                 return Ok(());
@@ -385,7 +400,7 @@ pub(super) fn start(
         loading: true,
         alias,
     });
-    frames.data.last_mut().unwrap().return_to = ReturnTo::Require(index);
+    frames.top_mut()?.return_to = ReturnTo::Require(index);
     programs::activate(ctx, storage, owner.index)?;
     Ok(())
 }
@@ -405,18 +420,13 @@ pub(super) fn complete(
     };
     for (key, value) in &exports.buffer.data {
         ctx.charge(1)?;
-        let name = std::str::from_utf8(key.as_bytes().unwrap()).unwrap();
+        let name = binding_name(key)?;
         if !root_bound(ctx, storage, name)? {
             set(ctx, storage, name, value)?;
         }
     }
     if let Some(alias) = alias {
-        set(
-            ctx,
-            storage,
-            std::str::from_utf8(alias.as_bytes().unwrap()).unwrap(),
-            &value,
-        )?;
+        set(ctx, storage, binding_name(&alias)?, &value)?;
     }
     Ok(value)
 }
@@ -436,4 +446,12 @@ pub(super) fn invoke(
     } else {
         enter_arguments(&owner, ctx, frames, storage, function.index, args, base)
     }
+}
+
+/// A binding name built from validated aliases or compiler names.
+pub(super) fn binding_name(value: &Value) -> Access<&str> {
+    let bytes = value
+        .as_bytes()
+        .ok_or(violation("binding name must be bytes"))?;
+    std::str::from_utf8(bytes).map_err(|_| violation("binding name must be UTF-8"))
 }

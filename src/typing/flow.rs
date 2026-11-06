@@ -11,6 +11,7 @@ use super::{
     meter::{Meter, table as map_of},
     ty::{Ty, Types},
 };
+use crate::checked::Checked as _;
 use std::{collections::HashMap, sync::Arc};
 
 pub(crate) type LocalId = u32;
@@ -123,12 +124,13 @@ impl Flow {
     }
 
     /// Adds a local, unassigned, in the room [`Self::reserve`] made.
-    pub fn add(&mut self, declared: Ty) -> LocalId {
+    pub fn add(&mut self, declared: Ty) -> Option<LocalId> {
+        let id = self.meter.index(self.vars.len())?;
         self.vars.push_within(VarState {
             ty: declared,
             assigned: false,
         });
-        (self.vars.len() - 1) as LocalId
+        Some(id)
     }
 
     /// The bytes the states and the trail hold.
@@ -138,8 +140,25 @@ impl Flow {
             + self.tracked.as_ref().map_or(0, |(_, marks)| marks.bytes())
     }
 
+    /// Local `id`'s state; an id this flow did not make stops the check, and
+    /// reads as assigned, of the error type.
+    #[track_caller]
     pub fn get(&self, id: LocalId) -> VarState {
-        self.vars[id as usize]
+        self.meter
+            .found(self.vars.at(id as usize))
+            .copied()
+            .unwrap_or(VarState {
+                ty: Ty::ERROR,
+                assigned: true,
+            })
+    }
+
+    /// Writes local `id`'s state, which the caller has read and so knows is
+    /// there.
+    fn store(&mut self, id: LocalId, state: VarState) {
+        if let Some(var) = self.vars.get_mut(id as usize) {
+            *var = state;
+        }
     }
 
     /// Changes local `id`'s state, recording the change to undo. The
@@ -147,7 +166,7 @@ impl Flow {
     /// the budget refuses is not made: the check has stopped, and reads no
     /// more.
     pub fn set(&mut self, id: LocalId, state: VarState) {
-        let old = self.vars[id as usize];
+        let old = self.get(id);
         if old != state {
             let tables = self.meter.tables();
             let copies = self.cost(id, old.assigned, state.assigned);
@@ -155,7 +174,7 @@ impl Flow {
                 return;
             }
             self.trail.push_within((id, old));
-            self.vars[id as usize] = state;
+            self.store(id, state);
             self.note(id, old.assigned, state.assigned);
         }
     }
@@ -185,8 +204,16 @@ impl Flow {
         let mut seen = ScratchSet::new(&self.meter);
         let mut stopped = false;
         while self.trail.len() > mark.trail {
-            let (id, old) = self.trail.pop().unwrap();
-            let current = self.vars[id as usize];
+            let Some((id, old)) =
+                self.meter
+                    .found(self.trail.pop().ok_or(crate::checked::violation(
+                        "flow rollback must have a trail entry",
+                    )))
+            else {
+                stopped = true;
+                break;
+            };
+            let current = self.get(id);
             // What undoing it copies of the set of assigned variables is
             // counted first. A check this stops unwinds the rest without
             // undoing it, as one stopped before it starts does: nothing
@@ -203,7 +230,7 @@ impl Flow {
                 self.trail.truncate(mark.trail);
                 break;
             }
-            self.vars[id as usize] = old;
+            self.store(id, old);
             self.note(id, current.assigned, old.assigned);
         }
         self.live = mark.live;
@@ -230,12 +257,12 @@ impl Flow {
         let mut seen = ScratchSet::new(&self.meter);
         let steps = (self.trail.len() - mark.trail) as u64;
         let mut stopped = self.meter.charge(steps);
-        for &(id, _) in &self.trail[mark.trail..] {
+        for &(id, _) in self.trail.iter().skip(mark.trail) {
             if stopped {
                 break;
             }
             stopped = match seen.insert(id) {
-                Ok(true) => changes.push((id, self.vars[id as usize])).is_err(),
+                Ok(true) => changes.push((id, self.get(id))).is_err(),
                 Ok(false) => false,
                 Err(Refused) => true,
             };
@@ -299,7 +326,7 @@ impl Flow {
             if self.meter.stopped() || self.meter.charge(live.len() as u64) {
                 break;
             }
-            let base = self.vars[id as usize];
+            let base = self.get(id);
             let declared = declared(id);
             let states: Vec<VarState> = finals
                 .iter()

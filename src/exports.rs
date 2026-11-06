@@ -69,7 +69,11 @@ impl Function {
             ErrorKind::Type,
             format!(
                 "{} is a function and cannot be used as a value; call it through its module",
-                self.code.program.functions[self.index].name
+                self.code
+                    .program
+                    .functions
+                    .get(self.index)
+                    .map_or("", |function| function.name.as_str())
             ),
         )
     }
@@ -128,7 +132,10 @@ fn check_depth(ctx: &mut CallContext, value: &Value) -> Result<()> {
             }
         };
         let Some(child) = child else {
-            let finished = frames.data.pop().unwrap();
+            let finished = frames
+                .data
+                .pop()
+                .ok_or(crate::checked::violation("export frame expected"))?;
             if !frames.data.is_empty() {
                 seen.insert(ctx, finished.value)?;
             }

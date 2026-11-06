@@ -110,7 +110,10 @@ impl<T> Cache<T> {
             if !Arc::ptr_eq(existing, entry) {
                 return Ok(None);
             }
-            let modules = state.modules.get_mut(&entry.origin.root).unwrap();
+            let modules = state
+                .modules
+                .get_mut(&entry.origin.root)
+                .ok_or(crate::checked::violation("cached module root expected"))?;
             let removed = modules.remove(entry.origin.relative.as_ref());
             if modules.is_empty() {
                 state.modules.remove(&entry.origin.root);

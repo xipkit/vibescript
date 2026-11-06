@@ -10,12 +10,14 @@
 //! elements' payloads instead of being walked at each poll. Each poll
 //! compares both totals with the budget and records the peak.
 
+use crate::checked::Access;
+use crate::checked::convert;
 use crate::compilation::Budget;
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
     mem::size_of,
     sync::{
-        Arc,
+        Arc, OnceLock,
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering::Relaxed},
     },
 };
@@ -34,6 +36,15 @@ impl MemoSlot {
     pub fn get_mut(&mut self) -> Option<&mut super::Memo> {
         self.0.as_mut()
     }
+
+    /// Reuses the expression types the current memo has already recorded.
+    pub fn replay(&mut self, meter: &Meter) {
+        if let Some(memo) = meter.found(self.0.as_mut().ok_or(crate::checked::violation(
+            "replay must have an active expression memo",
+        ))) {
+            memo.replay = true;
+        }
+    }
 }
 
 /// The running totals, which the checker and its type table share.
@@ -48,6 +59,9 @@ pub(crate) struct Meter {
     last: AtomicUsize,
     peak: AtomicUsize,
     stopped: AtomicBool,
+    /// The first invariant the check found broken, which fails it with an
+    /// internal error.
+    violation: OnceLock<crate::Error>,
     polls: AtomicU64,
     /// The steps charged when a poll or a charge last checked the deadline
     /// and the cancellation token.
@@ -126,6 +140,70 @@ impl Meter {
         }
     }
 
+    /// What a checked access found. The checker's walk returns types rather
+    /// than results, so a violation stops the check as a budget does: its
+    /// polls unwind the walk and what it found is dropped, which leaves the
+    /// caller's value for `None` unread. The check's caller reports the
+    /// violation ([`Self::violation`]) as an internal error.
+    #[inline]
+    pub fn found<T>(&self, access: Access<T>) -> Option<T> {
+        if let Some(violation) = injected() {
+            self.violated(violation);
+            return None;
+        }
+        match access {
+            Ok(found) => Some(found),
+            Err(violation) => {
+                self.violated(violation);
+                None
+            }
+        }
+    }
+
+    /// Narrows a table index, stopping the check if it cannot be represented.
+    #[inline]
+    #[track_caller]
+    pub fn index(&self, index: usize) -> Option<u32> {
+        match convert(index) {
+            Ok(index) => Some(index),
+            Err(violation) => {
+                self.violated(violation);
+                None
+            }
+        }
+    }
+
+    /// Stops the check for a broken invariant, keeping the first.
+    #[cold]
+    #[inline(never)]
+    pub fn violated(&self, violation: impl Into<crate::Error>) {
+        self.violation.get_or_init(|| violation.into());
+        self.stopped.store(true, Relaxed);
+    }
+
+    /// Reads source text, stopping the check on an invalid UTF-8 range.
+    /// The empty result on failure is discarded with the stopped check.
+    #[inline]
+    #[track_caller]
+    pub fn text<'a>(
+        &self,
+        source: &'a str,
+        range: impl std::slice::SliceIndex<str, Output = str>,
+    ) -> &'a str {
+        match crate::checked::text(source, range) {
+            Ok(text) => text,
+            Err(violation) => {
+                self.violated(violation);
+                ""
+            }
+        }
+    }
+
+    /// The first invariant the check found broken, if any.
+    pub fn violation(&self) -> Option<crate::Error> {
+        self.violation.get().cloned()
+    }
+
     /// What the check may spend.
     pub fn budget(&self) -> &Budget {
         &self.budget
@@ -141,7 +219,18 @@ impl Meter {
     /// Notes that the tables `side` counts were measured again, whose
     /// growth the measure then counts.
     pub fn measured(&self, side: Side) {
-        self.grown[side as usize].store(0, Relaxed);
+        self.grown(side).store(0, Relaxed);
+    }
+
+    /// What the tables `side` counts grew by since it last measured them.
+    fn grown(&self, side: Side) -> &AtomicUsize {
+        let [types, tables, declarations, scratch] = &self.grown;
+        match side {
+            Side::Types => types,
+            Side::Tables => tables,
+            Side::Declarations => declarations,
+            Side::Scratch => scratch,
+        }
     }
 
     /// What the tables grew by since they were last measured.
@@ -151,13 +240,13 @@ impl Meter {
 
     /// Records that the tables `side` counts grew by `bytes`.
     pub fn record(&self, side: Side, bytes: usize) {
-        self.grown[side as usize].fetch_add(bytes, Relaxed);
+        self.grown(side).fetch_add(bytes, Relaxed);
     }
 
     /// Takes back `bytes` a list [`Side::Scratch`] counts held, once it is
     /// dropped.
     pub fn dropped(&self, bytes: usize) {
-        self.grown[Side::Scratch as usize].fetch_sub(bytes, Relaxed);
+        self.grown(Side::Scratch).fetch_sub(bytes, Relaxed);
     }
 
     /// Whether the check can hold `moment` bytes more, which a table holds
@@ -301,6 +390,13 @@ impl Meter {
         }
         self.stopped()
     }
+}
+
+/// The violation a test injects into this access; none outside the tests.
+#[cfg(not(test))]
+#[inline(always)]
+const fn injected() -> Option<crate::checked::Violation> {
+    None
 }
 
 /// What a value owns on the heap, beyond its own size.
@@ -814,7 +910,48 @@ impl<'a> super::Checker<'a> {
 }
 
 #[cfg(test)]
+use super::fault_tests::injected;
+
+#[cfg(test)]
 mod tests {
+    #[test]
+    #[cfg(target_pointer_width = "64")]
+    fn an_unrepresentable_index_stops_the_check() {
+        let meter = super::Meter::new(Default::default(), None);
+        assert_eq!(meter.index(u32::MAX as usize), Some(u32::MAX));
+        assert!(meter.index(u32::MAX as usize + 1).is_none());
+        assert!(meter.stopped());
+        assert_eq!(meter.violation().unwrap().kind, crate::ErrorKind::Internal);
+    }
+
+    #[test]
+    fn invalid_text_stops_the_check_and_preserves_the_first_error() {
+        let meter = super::Meter::new(Default::default(), None);
+        assert_eq!(meter.text("aé", 1..3), "é");
+        assert!(!meter.stopped());
+        assert_eq!(meter.text("aé", 2..3), "");
+        assert!(meter.stopped());
+        let first = meter.violation().unwrap();
+        assert_eq!(first.kind, crate::ErrorKind::Internal);
+        meter.text("", 1..);
+        assert_eq!(meter.violation().unwrap().message, first.message);
+    }
+
+    #[test]
+    fn replay_without_a_memo_stops_the_check() {
+        let meter = super::Meter::new(Default::default(), None);
+        super::MemoSlot::default().replay(&meter);
+        assert!(meter.stopped());
+        let error = meter.violation().unwrap();
+        assert_eq!(error.kind, crate::ErrorKind::Internal);
+        assert!(
+            error
+                .message
+                .contains("replay must have an active expression memo")
+        );
+        assert!(meter.charge(1));
+    }
+
     #[test]
     fn a_tables_estimate_is_the_room_it_takes_for_as_many() {
         // A table asked to hold `count` entries takes the buckets of the
@@ -1218,6 +1355,7 @@ mod budget_tests {
             observe: None,
             annotate: false,
         })
+        .unwrap()
     }
 
     /// Nested `begin`s around assignments of distinct locals, each narrowed
@@ -1570,6 +1708,7 @@ mod budget_tests {
                 observe: None,
                 annotate,
             })
+            .unwrap()
             .steps
         };
         let (plain, annotated) = (steps(false), steps(true));

@@ -1,4 +1,5 @@
 use super::*;
+use crate::checked::convert;
 
 pub(super) enum Suffix {
     Rescue,
@@ -27,7 +28,7 @@ impl Parser<'_> {
     /// Go's `continueStatementExpression` does: an operator or other suffix
     /// on the line of its `end`.
     pub(super) fn statement_continues(&self) -> Result<bool> {
-        let next = &self.tokens[self.pos];
+        let next = self.tokens.at(self.pos)?;
         let continues = match &next.token {
             Token::P('.' | '(' | '[' | '?') | Token::Op("&." | "::") => true,
             Token::Op(op) => binding_power(op).is_some(),
@@ -46,7 +47,9 @@ impl Parser<'_> {
         let resumed = self.continuation_position(min)?;
         if let Some(next) = resumed {
             self.pos = next;
-        } else if line.is_some_and(|line| self.tokens[self.pos].line > line)
+        } else if line
+            .zip(self.tokens.get(self.pos))
+            .is_some_and(|(line, token)| token.line > line)
             && self.line_exprs > 0
             && self.token() != &Token::EndLine
             && !self.limit_continues(self.pos)?
@@ -58,7 +61,7 @@ impl Parser<'_> {
         }
         if min == 0
             && (self.command_depth == 0 || self.groups > self.command_group)
-            && (resumed.is_some() || self.tokens[self.pos].line == self.previous()?.end_line)
+            && (resumed.is_some() || self.tokens.at(self.pos)?.line == self.previous()?.end_line)
             && matches!(self.token(), Token::Word(w) if w == "rescue")
         {
             // `rescue:` labels a parenless call's keyword argument, as in Go.
@@ -73,7 +76,7 @@ impl Parser<'_> {
                 return self.err("rescue modifier requires fallback expression");
             }
         }
-        let offset = self.tokens[self.pos].offset as u32;
+        let offset = convert(self.tokens.at(self.pos)?.offset)?;
         if self.command_start(lhs, min)? {
             if matches!(self.token(), Token::Words(_)) {
                 self.percent_argument = self.pos;
@@ -83,7 +86,7 @@ impl Parser<'_> {
         // A brace on the line of a call starts its block; anywhere else it
         // starts a hash literal, which cannot follow an expression.
         if self.token() == &Token::P('{')
-            && self.tokens[self.pos].line == self.previous()?.end_line
+            && self.tokens.at(self.pos)?.line == self.previous()?.end_line
             && self.block_follows(lhs)?
         {
             return Ok(Some(Suffix::Block(true)));
@@ -127,11 +130,11 @@ impl Parser<'_> {
         };
         // Go locates a binary expression at its operator's token; `//`,
         // which Go lacks, is located at its start.
-        let offset = if op == "//" {
-            self.tokens[self.pos].offset
+        let offset = convert(if op == "//" {
+            self.tokens.at(self.pos)?.offset
         } else {
             self.position(self.pos)
-        } as u32;
+        })?;
         Ok((left >= min).then_some(Suffix::Binary(op, right, offset)))
     }
     /// Reports whether parentheses call the value of a begin expression. The
@@ -144,17 +147,19 @@ impl Parser<'_> {
     /// Reports whether the token at `index` continues a line expression past
     /// its line, as Go's `lineLimitedContinuationToken` does.
     fn limit_continues(&self, index: usize) -> Result<bool> {
-        Ok(match &self.tokens[index].token {
+        Ok(match &self.tokens.at(index)?.token {
             Token::P('.' | '?') => true,
             // An index that abuts the end of an expression spanning lines, as
             // in `(case x ... end)[0]`, indexes it; adjacent expressions are
             // an error.
-            Token::P('[') => index > 0 && self.tokens[index - 1].end == self.tokens[index].offset,
+            Token::P('[') => {
+                index > 0 && self.tokens.at(index - 1)?.end == self.tokens.at(index)?.offset
+            }
             Token::Words(words) => words.ambiguous,
             Token::Op("*") => !self.splat_assignment_ahead(index)?,
             Token::Op("+" | "-") => {
-                let sign = &self.tokens[index];
-                let next = &self.tokens[self.significant(index + 1)];
+                let sign = self.tokens.at(index)?;
+                let next = self.tokens.at(self.significant(index + 1))?;
                 next.token != Token::Eof
                     && (next.line > sign.line || (next.line == sign.line && next.offset > sign.end))
             }
@@ -190,14 +195,14 @@ impl Parser<'_> {
             return Ok(None);
         }
         let mut next = self.pos;
-        while self.tokens[next].token == Token::EndLine {
+        while self.tokens.at(next)?.token == Token::EndLine {
             self.work.charge(1)?;
-            if self.tokens[next].line == self.tokens[next].end_line {
+            if self.tokens.at(next)?.line == self.tokens.at(next)?.end_line {
                 return Ok(None);
             }
             next += 1;
         }
-        let lexeme = &self.tokens[next];
+        let lexeme = self.tokens.at(next)?;
         let continues = match lexeme.token {
             // Go continues a line-limited expression onto a `do` only right
             // after a parenthesized call with arguments.
@@ -247,14 +252,14 @@ impl Parser<'_> {
     fn splat_assignment_ahead(&self, start: usize) -> Result<bool> {
         self.work.charge(1)?;
         let mut groups = 0usize;
-        let mut previous = &self.tokens[start];
-        let operand = &self.tokens[start + 1];
+        let mut previous = self.tokens.at(start)?;
+        let operand = self.tokens.at(start + 1)?;
         let shaped = matches!(operand.token, Token::P(',') | Token::Op("="))
             || operand.offset == previous.end;
         let mut comma = false;
         for token in self.tokens.from(start + 1) {
             self.work.charge(1)?;
-            if token.line > self.tokens[start].line + 64 {
+            if token.line > self.tokens.at(start)?.line + 64 {
                 return Ok(false);
             }
             if token.token == Token::EndLine {

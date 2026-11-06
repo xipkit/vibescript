@@ -18,7 +18,11 @@ impl Execution {
     ) -> (Result<Value>, crate::Stats) {
         let mut execution = Self::open(script, options);
         let result = execution.start(script, name, args, &[]).and_then(|()| {
-            let result = execution.run.as_mut().unwrap().run(&mut execution.context);
+            let result = execution
+                .run
+                .as_mut()
+                .ok_or(violation("execution must have a run"))?
+                .run(&mut execution.context);
             execution.complete(result).map(|outcome| outcome.value)
         });
         if result.is_err() {
@@ -54,7 +58,11 @@ impl Execution {
     ) -> Result<Outcome> {
         let mut execution = Self::open(script, options);
         execution.start(script, name, args, keywords)?;
-        let result = execution.run.as_mut().unwrap().run(&mut execution.context);
+        let result = execution
+            .run
+            .as_mut()
+            .ok_or(violation("execution must have a run"))?
+            .run(&mut execution.context);
         execution.complete(result)
     }
 
@@ -112,13 +120,19 @@ impl Execution {
     /// shadowed them, and the entry frame's assigned named locals, which take
     /// precedence.
     pub(crate) fn run_bindings(mut self) -> Result<(Outcome, BTreeMap<String, Value>)> {
-        let run = self.run.as_mut().unwrap();
+        let run = self
+            .run
+            .as_mut()
+            .ok_or(violation("execution must have a run"))?;
         run.storage.root_locals = Some(Buffer::empty());
         let result = run.run(&mut self.context);
         let captured = result.and_then(|value| {
             let globals = self.final_globals()?;
             let declared = self.declared_values()?;
-            let run = self.run.as_mut().unwrap();
+            let run = self
+                .run
+                .as_mut()
+                .ok_or(violation("execution must have a run"))?;
             let locals = run.storage.root_locals.take().unwrap_or_else(Buffer::empty);
             Ok((value, globals, declared, locals))
         });
@@ -160,7 +174,10 @@ impl Execution {
     /// index. Nested modules stay reachable through their parents.
     fn declared_values(&mut self) -> Result<Buffer<(usize, Value)>> {
         let mut values = Buffer::empty();
-        let run = self.run.as_mut().unwrap();
+        let run = self
+            .run
+            .as_mut()
+            .ok_or(violation("execution must have a run"))?;
         let program = run.root.clone();
         for (name, &index) in &program.declaration_names {
             self.context.charge(1)?;
@@ -177,7 +194,14 @@ impl Execution {
     /// keyed by its position in name order. Unread globals keep the host's value.
     fn final_globals(&mut self) -> Result<Buffer<(usize, Value)>> {
         let mut values = Buffer::empty();
-        let Some(bindings) = self.run.as_ref().unwrap().storage.bindings.clone() else {
+        let Some(bindings) = self
+            .run
+            .as_ref()
+            .ok_or(violation("execution must have a run"))?
+            .storage
+            .bindings
+            .clone()
+        else {
             return Ok(values);
         };
         let names = std::mem::take(&mut self.context.options.globals);
@@ -248,7 +272,7 @@ pub(super) fn capture_root_locals(
     frame: &Frame,
     storage: &mut Storage,
 ) -> Result<()> {
-    let function = frame.program.functions.at(frame.function().unwrap())?;
+    let function = frame.program.functions.at(frame.required_function()?)?;
     let mut captured = Buffer::empty();
     for (slot, name) in function.local_names.iter().enumerate() {
         ctx.charge(1)?;

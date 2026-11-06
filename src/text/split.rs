@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK},
@@ -63,13 +64,13 @@ impl<'a> Split<'a> {
                 table.data.push(0);
                 let mut matched = 0;
                 let mut pending = 0;
-                for i in 1..needle.len() {
+                for byte in needle.iter().skip(1) {
                     ctx.scan_bytes(&mut pending, 1)?;
-                    while matched > 0 && needle[i] != needle[matched] {
+                    while matched > 0 && byte != needle.at(matched)? {
                         ctx.scan_bytes(&mut pending, 1)?;
-                        matched = table.data[matched - 1];
+                        matched = *table.at(matched - 1)?;
                     }
-                    if needle[i] == needle[matched] {
+                    if byte == needle.at(matched)? {
                         matched += 1;
                     }
                     table.data.push(matched);
@@ -114,7 +115,7 @@ impl<'a> Split<'a> {
                     }
                     count += 1;
                 }
-                if self.limit != 0 && space(text[text.len() - 1]) {
+                if self.limit != 0 && text.last().is_some_and(|&byte| space(byte)) {
                     emit(ctx, text.len(), text.len())?;
                 }
             }
@@ -126,7 +127,7 @@ impl<'a> Split<'a> {
                         emit(ctx, position, text.len())?;
                         return Ok(());
                     }
-                    let end = position + scan::rune(&text[position..]).1;
+                    let end = position + scan::rune(text.tail(position)?).1;
                     if !emit(ctx, position, end)? {
                         return Ok(());
                     }
@@ -148,11 +149,11 @@ impl<'a> Split<'a> {
                 let mut pending = 0;
                 for (index, &byte) in text.iter().enumerate() {
                     ctx.scan_bytes(&mut pending, 1)?;
-                    while matched > 0 && byte != needle[matched] {
+                    while matched > 0 && byte != *needle.at(matched)? {
                         ctx.scan_bytes(&mut pending, 1)?;
-                        matched = self.table.data[matched - 1];
+                        matched = *self.table.at(matched - 1)?;
                     }
-                    if byte == needle[matched] {
+                    if byte == *needle.at(matched)? {
                         matched += 1;
                     }
                     if matched == needle.len() {
@@ -181,7 +182,11 @@ fn skip(ctx: &mut CallContext, text: &[u8], position: &mut usize, whitespace: bo
     while *position < text.len() {
         let start = *position;
         let end = start.saturating_add(CHUNK).min(text.len());
-        while *position < end && space(text[*position]) == whitespace {
+        while *position < end
+            && text
+                .get(*position)
+                .is_some_and(|&byte| space(byte) == whitespace)
+        {
             *position += 1;
         }
         ctx.work_bytes(*position - start)?;
@@ -235,7 +240,7 @@ pub(crate) fn call(ctx: &mut CallContext, receiver: &Value, args: &[Value]) -> R
             output.data.push(if start == 0 && end == text.len() {
                 receiver.clone()
             } else {
-                ctx.bytes(&text[start..end])?
+                ctx.bytes(text.span(start, end)?)?
             });
             Ok(output.data.len() < count)
         })?;
