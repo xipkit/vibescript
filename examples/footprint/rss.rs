@@ -18,7 +18,7 @@ pub fn current() -> Option<usize> {
         return None;
     }
     // SAFETY: A successful task_info initialized the structure above.
-    Some(unsafe { info.assume_init() }.resident_size as usize)
+    usize::try_from(unsafe { info.assume_init() }.resident_size).ok()
 }
 
 #[cfg(target_os = "linux")]
