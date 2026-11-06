@@ -686,7 +686,7 @@ fn equal_step<'a>(
                 && float.fract() == 0.0
                 && *float >= i64::MIN as f64
                 && *float < -(i64::MIN as f64)
-                && *integer == *float as i64
+                && *integer == crate::numeric::float_to_i64(*float)
         }
         (Kind::Float(a), Kind::Float(b)) => a == b,
         (Kind::Bytes(a), Kind::Bytes(b)) | (Kind::Symbol(a), Kind::Symbol(b)) => {

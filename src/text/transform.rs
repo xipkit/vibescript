@@ -1,4 +1,4 @@
-use crate::checked::{Access, Checked};
+use crate::checked::{Access, Checked, convert};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value, budget::Buffer, bytecode::Method, bytes, ops,
     scan, sequence, value::Kind,
@@ -171,7 +171,7 @@ struct Pad {
 
 fn plan_pad(ctx: &mut CallContext, pad: &[u8], runes: usize, count: u64) -> Result<Pad> {
     let repeats = count / runes as u64;
-    let prefix = sequence::rune_offset(ctx, pad, (count % runes as u64) as usize)?;
+    let prefix = sequence::rune_offset(ctx, pad, convert::<usize, _>(count % runes as u64)?)?;
     let Some(bytes) = repeats
         .checked_mul(pad.len() as u64)
         .and_then(|n| n.checked_add(prefix as u64))

@@ -123,13 +123,14 @@ impl Keys {
         if ctx.owns(bytes.charge()) || bytes.data().len() > Self::LENGTH {
             return ctx.import_scalar(key);
         }
-        let slot = bytes
-            .data()
-            .iter()
-            .fold(0xcbf2_9ce4_8422_2325_u64, |hash, &byte| {
-                (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
-            }) as usize
-            % Self::SLOTS;
+        let slot = crate::numeric::hash_word(
+            bytes
+                .data()
+                .iter()
+                .fold(0xcbf2_9ce4_8422_2325_u64, |hash, &byte| {
+                    (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
+                }),
+        ) % Self::SLOTS;
         if let Some(Some(imported)) = self.slots.data.get(slot) {
             if imported.as_bytes() == Some(bytes.data().as_slice()) {
                 return Ok(imported.clone());

@@ -1,4 +1,5 @@
 use super::*;
+use crate::checked::convert;
 
 impl<M: super::recovery::Mode> Parsing<'_, M> {
     pub(super) async fn raise_statement(&self) -> Result<Statement> {
@@ -42,7 +43,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         while matches!(self.p().token(), Token::Word(w) if w == "rescue") {
             let (offset, classes, binding, existed, declared_it) = {
                 let mut p = self.p();
-                let offset = p.tokens.at(p.pos)?.offset as u32;
+                let offset = convert(p.tokens.at(p.pos)?.offset)?;
                 let line = p.tokens.at(p.pos)?.line;
                 p.bump()?;
                 let (classes, binding) = p.rescue_clause(offset as usize, line)?;
@@ -130,7 +131,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                     "rescue modifier requires fallback expression",
                 ));
             }
-            p.tokens.at(rescue)?.offset as u32
+            convert(p.tokens.at(rescue)?.offset)?
         };
         let fallback = self.line_expr(0).await?;
         let attempt = Try {

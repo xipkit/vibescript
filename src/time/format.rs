@@ -1,3 +1,4 @@
+use crate::checked::convert;
 // Go layout tokens and rendering adapt the Go standard library's time package.
 // Copyright 2009 The Go Authors. All rights reserved.
 // See licenses/Go-BSD-3-Clause.txt.
@@ -483,7 +484,7 @@ pub(crate) fn text(
             fraction /= 10;
         }
     } else if digits < 9 {
-        fraction /= 10u32.pow((9 - digits) as u32);
+        fraction /= 10u32.pow(convert::<u32, _>(9 - digits)?);
     }
     if digits > 0 {
         out.format(format_args!(".{:0width$}", fraction, width = digits.min(9)))?;

@@ -1,3 +1,4 @@
+use crate::checked::convert;
 use crate::{
     CallContext, Diagnostic, Error, Position, Result,
     budget::{Buffer, Charge},
@@ -52,9 +53,9 @@ impl Source {
                 >= STRIDE
             {
                 checkpoints.push(Checkpoint {
-                    offset: offset as u32,
-                    line: position.line as u32,
-                    column: position.column as u32,
+                    offset: convert(offset)?,
+                    line: convert(position.line)?,
+                    column: convert(position.column)?,
                 });
             }
             advance(&mut position, ch);
@@ -425,7 +426,11 @@ mod tests {
             for (offset, ch) in text.char_indices() {
                 if offset % 83 < 4 || offset % STRIDE < 5 {
                     for byte in offset..offset + ch.len_utf8() {
-                        assert_eq!(source.position(byte as u32), position, "offset {byte}");
+                        assert_eq!(
+                            source.position(u32::try_from(byte).unwrap()),
+                            position,
+                            "offset {byte}"
+                        );
                     }
                 }
                 if ch == '\n' {
@@ -435,7 +440,10 @@ mod tests {
                     position.column += 1;
                 }
             }
-            assert_eq!(source.position(text.len() as u32), position);
+            assert_eq!(
+                source.position(u32::try_from(text.len()).unwrap()),
+                position
+            );
             assert_eq!(source.position(u32::MAX), position);
             assert!(source.checkpoints.len() <= text.len() / STRIDE + 1);
         }
@@ -467,7 +475,7 @@ mod tests {
                     column + 1,
                     " ".repeat(column - start + prefix.len()),
                 );
-                assert_eq!(source.frame((7 + byte) as u32), expected);
+                assert_eq!(source.frame(u32::try_from(7 + byte).unwrap()), expected);
             }
         }
     }
@@ -490,7 +498,7 @@ mod tests {
         let text = "x = 1\r\n\t\"\x1b]0;t\x07\u{9b}é\"\t+ y\r\nz\n";
         let source = Source::new(text);
         let expected = "  --> line 2, column 13\n 2 | \t\"\\u{1b}]0;t\\u{7}\\u{9b}é\"\t+ y\n   | \t                        \t^";
-        let offset = text.find('+').unwrap() as u32;
+        let offset = u32::try_from(text.find('+').unwrap()).unwrap();
         assert_eq!(source.frame(offset), expected);
         let mut ctx = CallContext::new(crate::CallOptions::default());
         let (frame, _charge) = source

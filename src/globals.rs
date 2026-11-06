@@ -219,7 +219,7 @@ mod tests {
             let mut ctx = CallContext::new(CallOptions::default());
             let accepted = globals(&[("deep", build(MAX_VALUE_DEPTH, Value::int(1)))]);
             validate(&mut ctx, &accepted).unwrap();
-            assert!(ctx.stats().steps as usize >= MAX_VALUE_DEPTH);
+            assert!(usize::try_from(ctx.stats().steps).unwrap() >= MAX_VALUE_DEPTH);
             assert_eq!(ctx.stats().retained_memory_bytes, 0);
 
             let rejected = globals(&[("deep", build(MAX_VALUE_DEPTH + 1, Value::int(1)))]);

@@ -64,7 +64,7 @@ impl<V> Table<V> {
             return Ok((0, false));
         }
         let mask = self.buckets.len() - 1;
-        let mut slot = hash as usize & mask;
+        let mut slot = crate::numeric::hash_word(hash) & mask;
         let mut deleted = None;
         loop {
             work.charge(1)?;
@@ -145,7 +145,7 @@ impl<V> Table<V> {
 impl<V: Copy> Table<V> {
     fn vacant(buckets: &[Bucket<V>], work: &dyn Work, hash: u64) -> Result<usize> {
         let mask = buckets.len() - 1;
-        let mut slot = hash as usize & mask;
+        let mut slot = crate::numeric::hash_word(hash) & mask;
         loop {
             work.charge(1)?;
             if matches!(buckets.at(slot)?, Bucket::Empty) {

@@ -589,7 +589,7 @@ impl Types {
         self.kinds.reserve(ledger, 1).ok()?;
         self.properties.reserve(ledger, 1).ok()?;
         self.ids.reserve(ledger, 1).ok()?;
-        let ty = Ty(self.kinds.len() as u32);
+        let ty = Ty(self.meter.index(self.kinds.len())?);
         self.payload += payload;
         let properties = self.properties_of(&kind);
         let kind = Arc::new(kind);

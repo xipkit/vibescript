@@ -41,7 +41,7 @@ pub(super) fn divide(
     for (i, (word, &low)) in out.data.iter_mut().zip(&remainder.data).enumerate() {
         work(ctx, i, remainder.data.len())?;
         let wide = (remainder.data.get(i + 1).copied().unwrap_or(0) as u64) << 32 | low as u64;
-        *word = (wide >> shift) as u32;
+        *word = crate::numeric::low_u32(wide >> shift);
     }
     trim(ctx, &mut out.data)?;
     Ok((quotient, out))
@@ -237,7 +237,7 @@ fn error(ctx: &mut CallContext, a: &[u32], x: &mut [u32], limit: usize) -> Resul
     for (i, word) in t.data.iter_mut().enumerate() {
         work(ctx, i, limit)?;
         carry += !*word as u64;
-        *word = carry as u32;
+        *word = crate::numeric::low_u32(carry);
         carry >>= 32;
     }
     Ok(t)
@@ -256,7 +256,7 @@ fn subtract_wrapped(
     for (i, word) in a.iter_mut().enumerate() {
         let sub = b.get(i).copied().unwrap_or(0) as u64 + borrow;
         borrow = u64::from((*word as u64) < sub);
-        *word = (*word as u64).wrapping_sub(sub) as u32;
+        *word = crate::numeric::low_u32((*word as u64).wrapping_sub(sub));
     }
     if borrow != 0 {
         // The wrapped difference is at least one.
@@ -272,7 +272,7 @@ fn add_wrapped(ctx: &mut CallContext, meter: &mut Meter, a: &mut [u32], b: &[u32
     meter.spend(ctx, a.len())?;
     for (i, word) in a.iter_mut().enumerate() {
         carry += *word as u64 + b.get(i).copied().unwrap_or(0) as u64;
-        *word = carry as u32;
+        *word = crate::numeric::low_u32(carry);
         carry >>= 32;
     }
     ntt::wrap(ctx, meter, a, carry as u128)
@@ -294,7 +294,7 @@ fn reciprocal(ctx: &mut CallContext, a: &[u32]) -> Result<Buffer<u32>> {
         };
         let mut out = zeros(ctx, n + 1)?;
         for (i, word) in out.data.iter_mut().enumerate() {
-            *word = (x >> (32 * i)) as u32;
+            *word = crate::numeric::low_u32(x >> (32 * i));
         }
         return Ok(out);
     }
@@ -332,7 +332,7 @@ mod tests {
             seed ^= seed << 13;
             seed ^= seed >> 7;
             seed ^= seed << 17;
-            (seed >> 16) as u32
+            crate::numeric::low_u32(seed >> 16)
         };
         for n in (1..40).chain([
             63, 64, 65, 127, 128, 129, 255, 256, 300, 513, 700, 1000, 1500, 3000,

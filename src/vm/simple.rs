@@ -416,7 +416,7 @@ fn instruction(program: &Program, function: &Function, frame: &Frame) -> Access<
     let Op::Extended(index) = *function.code.at(frame.ip)? else {
         return Err(violation("outlined instruction expected"));
     };
-    Ok(*program.extended.at(index as usize)?)
+    Ok(*program.extended.at(index)?)
 }
 
 // Keep the selector small so another outlined instruction cannot rearrange

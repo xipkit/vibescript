@@ -1,4 +1,5 @@
 use super::*;
+use crate::checked::convert;
 
 impl<M: super::recovery::Mode> Parsing<'_, M> {
     pub(super) async fn block_task(&self, stop: &[&str]) -> Result<Buffer<Stmt>> {
@@ -35,7 +36,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             let mut p = self.p();
             p.work.charge(1)?;
             p.enter()?;
-            p.tokens.at(p.pos)?.offset as u32
+            convert(p.tokens.at(p.pos)?.offset)?
         };
         let stmt = self
             .modified_statement(offset)
@@ -87,7 +88,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         }
         let keyword = {
             let mut p = self.p();
-            let keyword = p.tokens.at(p.pos)?.offset as u32;
+            let keyword = convert(p.tokens.at(p.pos)?.offset)?;
             p.bump()?;
             keyword
         };
@@ -130,7 +131,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
     async fn begin_statement(&self) -> Result<Statement> {
         let offset = {
             let mut p = self.p();
-            let offset = p.tokens.at(p.pos)?.offset as u32;
+            let offset = convert(p.tokens.at(p.pos)?.offset)?;
             p.pos += 1;
             offset
         };
@@ -224,7 +225,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let work = self.p().work;
         let (callee, offset) = {
             let mut p = self.p();
-            let offset = p.tokens.at(p.pos)?.offset as u32;
+            let offset = convert(p.tokens.at(p.pos)?.offset)?;
             let line = p.tokens.at(p.pos)?.line;
             p.bump()?;
             let callee = p.variable_name("assert")?;

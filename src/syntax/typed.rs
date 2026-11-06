@@ -5,6 +5,7 @@ use super::{
     BlockParam, Expr, Label, Node, Parser, Parsing, Statement, Target, Token, TypeAlias,
     source_text,
 };
+use crate::checked::convert;
 use crate::{
     Error, Result,
     compilation::{Boxed, Buffer, Name, Type, TypeKind},
@@ -182,7 +183,7 @@ impl Parser<'_> {
     pub(super) fn type_alias(&mut self) -> Result<TypeAlias> {
         self.work.charge(1)?;
         self.bump()?;
-        let offset = self.tokens.at(self.pos)?.offset as u32;
+        let offset = convert(self.tokens.at(self.pos)?.offset)?;
         let name = self.name()?;
         // An alias's name is bound where it is declared, like a class's, and
         // read in types.
@@ -216,7 +217,7 @@ impl Parser<'_> {
     pub(super) fn block_param(&mut self) -> Result<BlockParam> {
         let work = self.work;
         work.charge(1)?;
-        let offset = self.tokens.at(self.pos)?.offset as u32;
+        let offset = convert(self.tokens.at(self.pos)?.offset)?;
         self.bump()?;
         let at = self.tokens.at(self.pos)?.offset;
         let Token::Word(word) = self.bump()? else {
@@ -376,7 +377,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
         let target = {
             let mut p = self.p();
             work.charge(1)?;
-            let offset = p.tokens.at(p.pos)?.offset as u32;
+            let offset = convert(p.tokens.at(p.pos)?.offset)?;
             let name = p.name()?;
             p.bump()?;
             p.line_breaks()?;
@@ -426,7 +427,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                     "expected instance variable name, got instance variable",
                 ));
             }
-            let variable = p.make_at(Node::Var(Name::new(work, &word)?), 1, offset as u32)?;
+            let variable = p.make_at(Node::Var(Name::new(work, &word)?), 1, convert(offset)?)?;
             let name = Name::new(work, name)?;
             p.bump()?;
             p.line_breaks()?;
@@ -440,7 +441,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             let ivar = Ivar {
                 name,
                 ty,
-                offset: offset as u32,
+                offset: convert(offset)?,
             };
             (ivar, variable, equals)
         };
@@ -476,7 +477,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 ));
             }
             let name = Name::new(work, &word)?;
-            let variable = p.make_at(Node::Var(name.clone()), 1, offset as u32)?;
+            let variable = p.make_at(Node::Var(name.clone()), 1, convert(offset)?)?;
             p.bump()?;
             p.line_breaks()?;
             let ty = p.type_expr(1, false)?;
@@ -497,7 +498,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
             let declared = Ivar {
                 name,
                 ty,
-                offset: offset as u32,
+                offset: convert(offset)?,
             };
             (declared, variable)
         };

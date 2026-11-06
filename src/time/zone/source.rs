@@ -229,7 +229,7 @@ impl<'a> Index<'a> {
         let size = archive.len() as u64;
         let read = |start: u64, length: u64| {
             let end = start.checked_add(length).filter(|&end| end <= size)?;
-            archive.get(start as usize..end as usize)
+            archive.get(usize::try_from(start).ok()?..usize::try_from(end).ok()?)
         };
         let mut entries = Vec::new();
         let tail = size.checked_sub(22);
@@ -304,12 +304,12 @@ mod tests {
         for &(name, content) in entries {
             let mut local = [0; 30];
             local[..4].copy_from_slice(b"PK\x03\x04");
-            local[26..28].copy_from_slice(&(name.len() as u16).to_le_bytes());
+            local[26..28].copy_from_slice(&u16::try_from(name.len()).unwrap().to_le_bytes());
             let mut central = [0; 46];
             central[..4].copy_from_slice(b"PK\x01\x02");
-            central[24..28].copy_from_slice(&(content.len() as u32).to_le_bytes());
-            central[28..30].copy_from_slice(&(name.len() as u16).to_le_bytes());
-            central[42..46].copy_from_slice(&(data.len() as u32).to_le_bytes());
+            central[24..28].copy_from_slice(&u32::try_from(content.len()).unwrap().to_le_bytes());
+            central[28..30].copy_from_slice(&u16::try_from(name.len()).unwrap().to_le_bytes());
+            central[42..46].copy_from_slice(&u32::try_from(data.len()).unwrap().to_le_bytes());
             data.extend_from_slice(&local);
             data.extend_from_slice(name);
             data.extend_from_slice(content);
@@ -318,9 +318,9 @@ mod tests {
         }
         let mut tail = [0; 22];
         tail[..4].copy_from_slice(b"PK\x05\x06");
-        tail[10..12].copy_from_slice(&(entries.len() as u16).to_le_bytes());
-        tail[12..16].copy_from_slice(&(directory.len() as u32).to_le_bytes());
-        tail[16..20].copy_from_slice(&(data.len() as u32).to_le_bytes());
+        tail[10..12].copy_from_slice(&u16::try_from(entries.len()).unwrap().to_le_bytes());
+        tail[12..16].copy_from_slice(&u32::try_from(directory.len()).unwrap().to_le_bytes());
+        tail[16..20].copy_from_slice(&u32::try_from(data.len()).unwrap().to_le_bytes());
         data.extend_from_slice(&directory);
         data.extend_from_slice(&tail);
         data
@@ -376,7 +376,8 @@ mod tests {
                     data[12..16].copy_from_slice(&24u32.to_be_bytes());
                     data[16..20].copy_from_slice(&76u32.to_be_bytes());
                     data[24..28].copy_from_slice(b"zone");
-                    data[68..72].copy_from_slice(&(payload.len() as u32).to_be_bytes());
+                    data[68..72]
+                        .copy_from_slice(&u32::try_from(payload.len()).unwrap().to_be_bytes());
                     data.extend_from_slice(&payload);
                     data
                 }

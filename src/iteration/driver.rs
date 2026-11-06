@@ -1,4 +1,5 @@
 use super::*;
+use crate::checked::convert;
 use crate::numeric::{to_i64, to_u64, to_usize};
 
 pub(crate) struct Loop {
@@ -575,7 +576,7 @@ impl Loop {
             ];
             count = 2;
         } else if self.method == Fill {
-            args[0] = Value::int(index as i64);
+            args[0] = Value::int(convert(index)?);
         } else if matches!(self.method, Fetch | FetchValues | Delete) {
             args[0] = self.inputs.at(to_usize(index))?.clone();
         } else {
@@ -619,7 +620,7 @@ impl Loop {
                         EachValue | TransformValues => args[0] = value.clone(),
                         EachIndex | MapIndex => {
                             args[0] = array_copy(ctx, &[key.clone(), value.clone()])?;
-                            args[1] = Value::int(index as i64);
+                            args[1] = Value::int(convert(index)?);
                             count = 2;
                         }
                         Each | Map if self.collapse_pair => {
@@ -632,9 +633,9 @@ impl Loop {
                     }
                 }
                 Kind::Range(_) | Kind::Int(_) => {
-                    args[0] = Value::int(
-                        (i128::from(self.start) + index * i128::from(self.stride)) as i64,
-                    )
+                    args[0] = Value::int(convert(
+                        i128::from(self.start) + index * i128::from(self.stride),
+                    )?)
                 }
                 _ => {
                     return Err(crate::checked::internal("iteration source is not iterable"));
@@ -705,7 +706,7 @@ impl Loop {
             }
             SliceWhen | ChunkWhile => {
                 if truthy == (self.method == SliceWhen) {
-                    self.flush_adjacent(ctx, self.pending_index as usize)?;
+                    self.flush_adjacent(ctx, convert(self.pending_index)?)?;
                 }
             }
             Chunk => self.accept_chunk_key(ctx, value)?,
@@ -760,7 +761,7 @@ impl Loop {
                     .ok_or(crate::checked::violation(
                         "iteration receiver must be a hash",
                     ))?
-                    .at(self.pending_index as usize)?;
+                    .at(convert(self.pending_index)?)?;
                 let (key, value) = if self.method == TransformKeys {
                     let key = value.key_name_for("hash.transform_keys block returned an")?;
                     (ctx.bytes(key)?, original.clone())

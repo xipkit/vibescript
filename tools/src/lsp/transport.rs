@@ -13,7 +13,7 @@ const MAX_HEADERS: usize = 64 << 10;
 pub(crate) enum Frame {
     Message(Vec<u8>),
     /// A body over [`MAX_PAYLOAD`], discarded without buffering.
-    Oversized(usize),
+    Oversized(u64),
     /// The input ended between messages.
     End,
 }
@@ -75,9 +75,11 @@ pub(crate) fn read(reader: &mut impl BufRead) -> io::Result<Frame> {
         if skipped < length {
             return Err(truncated());
         }
-        return Ok(Frame::Oversized(length as usize));
+        return Ok(Frame::Oversized(length));
     }
-    let mut body = vec![0; length as usize];
+    let length =
+        usize::try_from(length).map_err(|_| invalid("Content-Length exceeds address space"))?;
+    let mut body = vec![0; length];
     reader.read_exact(&mut body).map_err(|error| {
         if error.kind() == io::ErrorKind::UnexpectedEof {
             truncated()
@@ -210,7 +212,7 @@ mod tests {
         let frames = frames(&input);
         assert_eq!(
             frames[0].as_ref().unwrap(),
-            &Frame::Oversized(MAX_PAYLOAD + 1)
+            &Frame::Oversized((MAX_PAYLOAD + 1) as u64)
         );
         assert_eq!(frames[1].as_ref().unwrap(), &Frame::Message(b"{}".to_vec()));
         // A body exactly at the limit is read.

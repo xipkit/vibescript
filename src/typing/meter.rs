@@ -11,6 +11,7 @@
 //! compares both totals with the budget and records the peak.
 
 use crate::checked::Access;
+use crate::checked::convert;
 use crate::compilation::Budget;
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
@@ -152,6 +153,19 @@ impl Meter {
         }
         match access {
             Ok(found) => Some(found),
+            Err(violation) => {
+                self.violated(violation);
+                None
+            }
+        }
+    }
+
+    /// Narrows a table index, stopping the check if it cannot be represented.
+    #[inline]
+    #[track_caller]
+    pub fn index(&self, index: usize) -> Option<u32> {
+        match convert(index) {
+            Ok(index) => Some(index),
             Err(violation) => {
                 self.violated(violation);
                 None
@@ -900,6 +914,16 @@ use super::fault_tests::injected;
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    #[cfg(target_pointer_width = "64")]
+    fn an_unrepresentable_index_stops_the_check() {
+        let meter = super::Meter::new(Default::default(), None);
+        assert_eq!(meter.index(u32::MAX as usize), Some(u32::MAX));
+        assert!(meter.index(u32::MAX as usize + 1).is_none());
+        assert!(meter.stopped());
+        assert_eq!(meter.violation().unwrap().kind, crate::ErrorKind::Internal);
+    }
+
     #[test]
     fn invalid_text_stops_the_check_and_preserves_the_first_error() {
         let meter = super::Meter::new(Default::default(), None);

@@ -2,7 +2,7 @@ use super::{
     Declarations, Definition, Label, Outline, ParamKind, Parameter, Parser, Parsing, Statement,
     Stmt, Token, modules::Module, record, source_text,
 };
-use crate::checked::Checked;
+use crate::checked::{Checked, convert};
 use crate::{
     Error, Result,
     compilation::{Buffer, Name, Table, Type, TypeKind},
@@ -221,7 +221,7 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 if matches!(p.token(), Token::Eof) {
                     break;
                 }
-                (p.tokens.at(p.pos)?.offset as u32, p.pos)
+                (convert(p.tokens.at(p.pos)?.offset)?, p.pos)
             };
             let checkpoint = self.recovery_checkpoint();
             let declared = match self.declaration().await {
@@ -719,7 +719,7 @@ impl Parser<'_> {
             }
             let member_offset = self.tokens.at(self.pos)?.offset;
             if self.record.is_some() {
-                member_offsets.push(member_offset as u32);
+                member_offsets.push(convert(member_offset)?);
             }
             let Token::Word(member) = self.bump()? else {
                 return Err(crate::checked::internal("enum member name expected"));

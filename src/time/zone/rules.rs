@@ -3,7 +3,7 @@
 // See licenses/Go-BSD-3-Clause.txt.
 
 use super::{Offset, calendar};
-use crate::checked::{Access, Checked};
+use crate::checked::{Access, Checked, convert};
 use crate::{CallContext, Result};
 use std::ops::Range;
 
@@ -106,7 +106,11 @@ impl Parser<'_> {
                 value += second;
             }
         }
-        Ok(Some((if negative { -value } else { value }) as i32))
+        Ok(Some(convert::<i32, _>(if negative {
+            -value
+        } else {
+            value
+        })?))
     }
     fn rule(&mut self) -> Result<Option<Rule>> {
         let mut rule = Rule {

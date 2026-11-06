@@ -39,7 +39,7 @@ pub(super) fn mul(a: u64, b: u64) -> u64 {
 
 /// Reduces a 128-bit value, using 2^64 = 2^32 - 1 and 2^96 = -1 (mod P).
 fn reduce(value: u128) -> u64 {
-    let low = value as u64;
+    let low = crate::numeric::low_u64(value);
     let high = (value >> 64) as u64;
     let (mut t, under) = low.overflowing_sub(high >> 32);
     if under {
@@ -328,7 +328,7 @@ fn accumulate(
             ));
         };
         carry += *low as u128 + ((*high as u128) << 16) + *word as u128;
-        *word = carry as u32;
+        *word = crate::numeric::low_u32(carry);
         carry >>= 32;
     }
     let mut index = length;
@@ -337,7 +337,7 @@ fn accumulate(
             meter.spend(ctx, 16)?;
         }
         carry += *out.at(index)? as u128;
-        *out.at_mut(index)? = carry as u32;
+        *out.at_mut(index)? = crate::numeric::low_u32(carry);
         carry >>= 32;
         index += 1;
     }
@@ -423,7 +423,7 @@ pub(super) fn multiply_cyclic(
             ));
         };
         carry += *low as u128 + ((*high as u128) << 16);
-        out.data.push(carry as u32);
+        out.data.push(crate::numeric::low_u32(carry));
         carry >>= 32;
     }
     wrap(ctx, &mut meter, &mut out.data, carry)?;
@@ -445,7 +445,7 @@ pub(super) fn wrap(
                 meter.spend(ctx, 16)?;
             }
             carry += *word as u128;
-            *word = carry as u32;
+            *word = crate::numeric::low_u32(carry);
             carry >>= 32;
             if carry == 0 {
                 break;

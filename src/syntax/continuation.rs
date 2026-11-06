@@ -1,4 +1,5 @@
 use super::*;
+use crate::checked::convert;
 
 pub(super) enum Suffix {
     Rescue,
@@ -75,7 +76,7 @@ impl Parser<'_> {
                 return self.err("rescue modifier requires fallback expression");
             }
         }
-        let offset = self.tokens.at(self.pos)?.offset as u32;
+        let offset = convert(self.tokens.at(self.pos)?.offset)?;
         if self.command_start(lhs, min)? {
             if matches!(self.token(), Token::Words(_)) {
                 self.percent_argument = self.pos;
@@ -129,11 +130,11 @@ impl Parser<'_> {
         };
         // Go locates a binary expression at its operator's token; `//`,
         // which Go lacks, is located at its start.
-        let offset = if op == "//" {
+        let offset = convert(if op == "//" {
             self.tokens.at(self.pos)?.offset
         } else {
             self.position(self.pos)
-        } as u32;
+        })?;
         Ok((left >= min).then_some(Suffix::Binary(op, right, offset)))
     }
     /// Reports whether parentheses call the value of a begin expression. The

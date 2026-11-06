@@ -8,7 +8,7 @@ use super::{
     location, value,
     zone::Zone,
 };
-use crate::checked::Checked;
+use crate::checked::{Checked, convert};
 use crate::{CallContext, Error, ErrorKind, Result, Value, value::Kind};
 use std::sync::Arc;
 
@@ -108,7 +108,7 @@ pub(super) fn rfc3339(ctx: &mut CallContext, mut input: &[u8]) -> Result<Stamp> 
         for &byte in input.iter().take(length.min(9)) {
             nanos = nanos * 10 + u32::from(byte - b'0');
         }
-        nanos *= 10u32.pow(9 - length.min(9) as u32);
+        nanos *= 10u32.pow(9 - convert::<u32, _>(length.min(9))?);
         input = input.get(length..).ok_or_else(invalid)?;
     }
 
@@ -224,7 +224,7 @@ fn fraction(input: &mut &[u8], length: usize, range: &mut Option<&'static str>) 
         return Err(invalid());
     };
     *input = rest;
-    Ok(nanos * 10u32.pow(9 - digits as u32))
+    Ok(nanos * 10u32.pow(9 - convert::<u32, _>(digits)?))
 }
 
 fn has_fraction(input: &[u8]) -> bool {
@@ -309,7 +309,7 @@ fn numeric_zone(
             *range = Some(name);
         }
     }
-    let offset = ((hours * 60 + minutes) * 60 + seconds) as i32;
+    let offset = convert::<i32, _>((hours * 60 + minutes) * 60 + seconds)?;
     let offset = match sign {
         b'+' => offset,
         b'-' => -offset,

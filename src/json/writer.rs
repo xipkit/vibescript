@@ -893,7 +893,7 @@ mod tests {
             seed ^= seed << 13;
             seed ^= seed >> 7;
             seed ^= seed << 17;
-            (seed % bound as u64) as usize
+            usize::try_from(seed % bound as u64).unwrap()
         };
         for case in 0..400 {
             let mut input = Vec::new();
@@ -912,11 +912,15 @@ mod tests {
             let bytes = expected.buffer.data.len();
             for limits in [
                 (None, None, None),
-                (Some(next(steps as usize + 2) as u64), None, None),
+                (
+                    Some(next(usize::try_from(steps).unwrap() + 2) as u64),
+                    None,
+                    None,
+                ),
                 (None, Some(next(bytes * 2 + 64)), None),
                 (None, None, Some(next(bytes + 8))),
                 (
-                    Some(next(steps as usize + 2) as u64),
+                    Some(next(usize::try_from(steps).unwrap() + 2) as u64),
                     Some(next(bytes * 2 + 64)),
                     Some(next(bytes + 8)),
                 ),

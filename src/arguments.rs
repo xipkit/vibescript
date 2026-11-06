@@ -1,4 +1,4 @@
-use crate::checked::Checked;
+use crate::checked::{Checked, convert};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK},
@@ -76,12 +76,12 @@ pub(crate) struct Block {
 }
 
 impl Block {
-    pub fn new(function: usize, parent: usize) -> Self {
-        debug_assert!(u32::try_from(function).is_ok() && u32::try_from(parent).is_ok());
-        Self {
-            function: function as u32,
-            parent: parent as u32,
-        }
+    /// Creates a block reference whose function and frame indices fit in 32 bits.
+    pub fn new(function: usize, parent: usize) -> crate::checked::Access<Self> {
+        Ok(Self {
+            function: convert::<u32, _>(function)?,
+            parent: convert::<u32, _>(parent)?,
+        })
     }
 
     pub fn function(self) -> usize {
@@ -342,6 +342,16 @@ pub(crate) fn ordered_hash(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(target_pointer_width = "64")]
+    fn block_indices_cannot_wrap_to_another_function_or_frame() {
+        let beyond = u32::MAX as usize + 1;
+        assert!(Block::new(beyond, 0).is_err());
+        assert!(Block::new(0, beyond).is_err());
+        let block = Block::new(7, 9).unwrap();
+        assert_eq!((block.function(), block.parent()), (7, 9));
+    }
 
     #[test]
     fn invalid_binding_indices_report_internal_errors() {

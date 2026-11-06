@@ -1,5 +1,5 @@
 use super::*;
-use crate::checked::{Access, Checked, violation};
+use crate::checked::{Access, Checked, convert, violation};
 use crate::numeric::{to_usize, unsigned_bits};
 use std::fmt::{self, Write};
 
@@ -37,7 +37,7 @@ impl Digits {
         };
         let start = self.length;
         loop {
-            self.push(&[*alphabet.at((value % base) as usize)?])?;
+            self.push(&[*alphabet.at(convert::<usize, _>(value % base)?)?])?;
             value /= base;
             if value == 0 {
                 break;
@@ -118,7 +118,7 @@ pub(super) fn integer(
             (small.bytes.span(0, small.length)?, *n < 0)
         }
         Kind::Big(n) => {
-            large = crate::integer::format(ctx, value, base as u32)?;
+            large = crate::integer::format(ctx, value, convert::<u32, _>(base)?)?;
             if verb == 'X' {
                 for bytes in large.data.chunks_mut(CHUNK) {
                     ctx.work_bytes(bytes.len())?;

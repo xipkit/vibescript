@@ -1,4 +1,5 @@
 use super::*;
+use crate::checked::convert;
 
 impl<'a> Parser<'a> {
     pub(super) fn token(&self) -> &Token<'a> {
@@ -299,7 +300,7 @@ impl<'a> Parser<'a> {
         true
     }
     pub(super) fn make(&self, node: Node, depth: u32) -> Result<Expr> {
-        let offset = self.tokens.at(self.pos.saturating_sub(1))?.offset as u32;
+        let offset = convert(self.tokens.at(self.pos.saturating_sub(1))?.offset)?;
         self.make_at(node, depth, offset)
     }
     pub(super) fn make_at(&self, node: Node, depth: u32, offset: u32) -> Result<Expr> {

@@ -47,10 +47,10 @@ pub(super) fn identifier(
         return Ok(Target::Plain(Invocation::NonCallable));
     }
     if let Some(&function) = program.names.get(name) {
-        return Ok(Target::Plain(Invocation::Function(narrow(function))));
+        return Ok(Target::Plain(Invocation::Function(narrow(function)?)));
     }
     if let Some(host) = program.hosts.iter().position(|host| host == name) {
-        return Ok(Target::Plain(Invocation::Host(narrow(host))));
+        return Ok(Target::Plain(Invocation::Host(narrow(host)?)));
     }
     if let Some(binding) = file_bindings::root_binding(program, ctx, storage, name)? {
         return Ok(binding.target());

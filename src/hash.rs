@@ -511,7 +511,7 @@ fn hash_key(ctx: &mut CallContext, key: &[u8]) -> Result<usize> {
         ctx.work_bytes(chunk.len())?;
         hasher.write(chunk);
     }
-    Ok(hasher.finish() as usize)
+    Ok(crate::numeric::hash_word(hasher.finish()))
 }
 
 /// Returns a hash's value nesting depth and how many values sit at that

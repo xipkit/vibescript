@@ -1,4 +1,4 @@
-use crate::checked::Checked;
+use crate::checked::{Checked, convert};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, Charge},
@@ -117,7 +117,7 @@ impl Magnitude<'_> {
     fn word(self, index: usize) -> u32 {
         match self {
             Self::Small(n) => match index {
-                0 => n as u32,
+                0 => crate::numeric::low_u32(n),
                 1 => (n >> 32) as u32,
                 _ => 0,
             },
@@ -140,7 +140,7 @@ impl Magnitude<'_> {
         let value = self.word(index) as u128
             | (self.word(index + 1) as u128) << 32
             | (self.word(index + 2) as u128) << 64;
-        (value >> offset) as u64
+        crate::numeric::low_u64(value >> offset)
     }
 }
 
@@ -152,7 +152,7 @@ impl<'a> Magnitude<'a> {
     {
         match self {
             Self::Small(n) => {
-                *scratch = [n as u32, (n >> 32) as u32];
+                *scratch = [crate::numeric::low_u32(n), (n >> 32) as u32];
                 match self {
                     Self::Small(0) => &[],
                     Self::Small(n) if n <= u32::MAX as u64 => scratch.split_at(1).0,
@@ -298,13 +298,13 @@ pub(crate) fn compare_float(
         let start = to_usize(shift) / 32;
         let wide = (mantissa as u128) << (to_usize(shift) % 32);
         for i in 0..3 {
-            *words.at_mut(start + i)? = (wide >> (i * 32)) as u32;
+            *words.at_mut(start + i)? = crate::numeric::low_u32(wide >> (i * 32));
         }
         (start + 3, false)
     } else {
         let shift = shift.unsigned_abs();
         let whole = mantissa.checked_shr(shift).unwrap_or(0);
-        words[0] = whole as u32;
+        words[0] = crate::numeric::low_u32(whole);
         words[1] = (whole >> 32) as u32;
         (
             2,
@@ -334,11 +334,11 @@ fn add(ctx: &mut CallContext, a: Magnitude<'_>, b: Magnitude<'_>) -> Result<Buff
     for i in 0..length {
         work(ctx, i, length)?;
         carry += a.word(i) as u64 + b.word(i) as u64;
-        out.data.push(carry as u32);
+        out.data.push(crate::numeric::low_u32(carry));
         carry >>= 32;
     }
     if carry != 0 {
-        out.data.push(carry as u32);
+        out.data.push(crate::numeric::low_u32(carry));
     }
     Ok(out)
 }
@@ -350,7 +350,7 @@ fn subtract(ctx: &mut CallContext, a: &mut [u32], b: Magnitude<'_>) -> Result<()
         work(ctx, i, length)?;
         let sub = b.word(i) as u64 + borrow;
         let word = *slot as u64;
-        *slot = word.wrapping_sub(sub) as u32;
+        *slot = crate::numeric::low_u32(word.wrapping_sub(sub));
         borrow = u64::from(word < sub);
     }
     debug_assert_eq!(borrow, 0);
@@ -407,12 +407,16 @@ fn multiply_into(ctx: &mut CallContext, out: &mut [u32], a: &[u32], b: &[u32]) -
                 ctx.work_bytes(size_of_val(xs))?;
                 for (&x, slot) in xs.iter().zip(slots) {
                     carry += x as u64 * y as u64 + *slot as u64;
-                    *slot = carry as u32;
+                    *slot = crate::numeric::low_u32(carry);
                     carry >>= 32;
                 }
             }
             if carry != 0 {
-                add_into(ctx, out.span_mut(i + a.len(), out.len())?, &[carry as u32])?;
+                add_into(
+                    ctx,
+                    out.span_mut(i + a.len(), out.len())?,
+                    &[crate::numeric::low_u32(carry)],
+                )?;
             }
         }
         return Ok(());
@@ -479,7 +483,7 @@ fn add_into(ctx: &mut CallContext, out: &mut [u32], value: &[u32]) -> Result<()>
         ctx.work_bytes(size_of_val(words))?;
         for (&word, slot) in words.iter().zip(slots) {
             carry += *slot as u64 + word as u64;
-            *slot = carry as u32;
+            *slot = crate::numeric::low_u32(carry);
             carry >>= 32;
         }
     }
@@ -491,7 +495,7 @@ fn add_into(ctx: &mut CallContext, out: &mut [u32], value: &[u32]) -> Result<()>
         }
         let slot = out.at_mut(i)?;
         carry += *slot as u64;
-        *slot = carry as u32;
+        *slot = crate::numeric::low_u32(carry);
         carry >>= 32;
         i += 1;
     }
@@ -504,11 +508,11 @@ fn divide_small(ctx: &mut CallContext, words: &mut Vec<u32>, divisor: u32) -> Re
     for (i, word) in words.iter_mut().rev().enumerate() {
         work(ctx, i, length)?;
         let value = remainder << 32 | *word as u64;
-        *word = (value / divisor as u64) as u32;
+        *word = convert(value / divisor as u64)?;
         remainder = value % divisor as u64;
     }
     trim(ctx, words)?;
-    Ok(remainder as u32)
+    Ok(convert(remainder)?)
 }
 
 fn divide(
@@ -544,7 +548,7 @@ fn shifted(ctx: &mut CallContext, words: &[u32], shift: u32, length: usize) -> R
     for (i, &word) in words.iter().enumerate() {
         work(ctx, i, words.len())?;
         let wide = (word as u64) << shift;
-        *out.at_mut(i)? |= wide as u32;
+        *out.at_mut(i)? |= crate::numeric::low_u32(wide);
         if (wide >> 32) != 0 {
             *out.at_mut(i + 1)? = (wide >> 32) as u32;
         }
@@ -609,20 +613,20 @@ fn long_divide(ctx: &mut CallContext, a: &[u32], b: &[u32]) -> Result<(Buffer<u3
                 ctx.work_bytes(size_of_val(divisors))?;
                 for (&divisor, slot) in divisors.iter().zip(slots) {
                     carry += *slot as u64 + divisor as u64;
-                    *slot = carry as u32;
+                    *slot = crate::numeric::low_u32(carry);
                     carry >>= 32;
                 }
             }
             let slot = u.at_mut(j + n)?;
-            *slot = slot.wrapping_add(carry as u32);
+            *slot = slot.wrapping_add(crate::numeric::low_u32(carry));
         }
-        *quotient.at_mut(j)? = estimate as u32;
+        *quotient.at_mut(j)? = convert(estimate)?;
     }
     let mut remainder = zeros(ctx, n)?;
     for i in 0..n {
         work(ctx, i, n)?;
         let wide = (*u.at(i + 1)? as u64) << 32 | *u.at(i)? as u64;
-        *remainder.at_mut(i)? = (wide >> shift) as u32;
+        *remainder.at_mut(i)? = crate::numeric::low_u32(wide >> shift);
     }
     trim(ctx, &mut remainder.data)?;
     Ok((quotient, remainder))
@@ -759,12 +763,12 @@ fn power_of_two(exponent: i64) -> f64 {
 }
 
 fn shift_left(ctx: &mut CallContext, value: Magnitude<'_>, bits: usize) -> Result<Buffer<u32>> {
-    let (words, offset) = (bits / 32, (bits % 32) as u32);
+    let (words, offset) = (bits / 32, convert::<u32, _>(bits % 32)?);
     let mut out = zeros(ctx, words + value.len() + 1)?;
     for i in 0..value.len() {
         work(ctx, i, value.len())?;
         let wide = (value.word(i) as u64) << offset;
-        *out.at_mut(words + i)? |= wide as u32;
+        *out.at_mut(words + i)? |= crate::numeric::low_u32(wide);
         *out.at_mut(words + i + 1)? = (wide >> 32) as u32;
     }
     trim(ctx, &mut out.data)?;
@@ -777,7 +781,7 @@ fn shift_right(
     value: Magnitude<'_>,
     bits: usize,
 ) -> Result<(Buffer<u32>, bool)> {
-    let (words, offset) = (bits / 32, (bits % 32) as u32);
+    let (words, offset) = (bits / 32, convert::<u32, _>(bits % 32)?);
     let mut lost = false;
     for i in 0..words.min(value.len()) {
         work(ctx, i, value.len())?;
@@ -789,7 +793,7 @@ fn shift_right(
     for i in 0..length {
         work(ctx, i, length)?;
         let wide = (value.word(words + i + 1) as u64) << 32 | value.word(words + i) as u64;
-        *out.at_mut(i)? = (wide >> offset) as u32;
+        *out.at_mut(i)? = crate::numeric::low_u32(wide >> offset);
     }
     trim(ctx, &mut out.data)?;
     Ok((out, lost))
@@ -884,7 +888,7 @@ pub(crate) fn from_float(ctx: &mut CallContext, value: f64, method: &str) -> Res
         ));
     }
     if value >= i64::MIN as f64 && value < 9223372036854775808.0 {
-        return Ok(Value::int(value as i64));
+        return Ok(Value::int(crate::numeric::float_to_i64(value)));
     }
     let bits = value.abs().to_bits();
     let shift = ((bits >> 52) & 0x7ff) as usize - 1075;
@@ -893,7 +897,7 @@ pub(crate) fn from_float(ctx: &mut CallContext, value: f64, method: &str) -> Res
     let wide = (mantissa as u128) << (shift % 32);
     let mut words = zeros(ctx, start + 3)?;
     for i in 0..3 {
-        *words.at_mut(start + i)? = (wide >> (i * 32)) as u32;
+        *words.at_mut(start + i)? = crate::numeric::low_u32(wide >> (i * 32));
     }
     finish(ctx, value < 0.0, words)
 }
@@ -1130,7 +1134,7 @@ mod tests {
             self.0 ^= self.0 << 13;
             self.0 ^= self.0 >> 7;
             self.0 ^= self.0 << 17;
-            (self.0 >> 16) as u32
+            crate::numeric::low_u32(self.0 >> 16)
         }
 
         /// Returns `length` words shaped to reach carry, borrow and correction paths.
@@ -1157,10 +1161,10 @@ mod tests {
             let mut carry = 0u64;
             for (j, &y) in b.iter().enumerate() {
                 carry += x as u64 * y as u64 + out[i + j] as u64;
-                out[i + j] = carry as u32;
+                out[i + j] = crate::numeric::low_u32(carry);
                 carry >>= 32;
             }
-            out[i + b.len()] = carry as u32;
+            out[i + b.len()] = crate::numeric::low_u32(carry);
         }
         while out.last() == Some(&0) {
             out.pop();
@@ -1378,11 +1382,11 @@ mod tests {
                     let mut carry = (byte as char).to_digit(radix).unwrap() as u64;
                     for word in &mut expected {
                         carry += *word as u64 * radix as u64;
-                        *word = carry as u32;
+                        *word = crate::numeric::low_u32(carry);
                         carry >>= 32;
                     }
                     if carry != 0 {
-                        expected.push(carry as u32);
+                        expected.push(crate::numeric::low_u32(carry));
                     }
                 }
                 let (_, magnitude) = parts(&value).unwrap();
@@ -1443,12 +1447,15 @@ mod tests {
             let mut remainder = 0u64;
             for word in words.iter_mut().rev() {
                 let value = remainder << 32 | *word as u64;
-                *word = (value / power as u64) as u32;
+                *word = crate::numeric::low_u32(value / power as u64);
                 remainder = value % power as u64;
             }
             words = trimmed(words);
             for _ in 0..width {
-                digits.push(char::from_digit(remainder as u32 % radix, radix).unwrap() as u8);
+                digits.push(
+                    char::from_digit(crate::numeric::low_u32(remainder) % radix, radix).unwrap()
+                        as u8,
+                );
                 remainder /= radix as u64;
                 if words.is_empty() && remainder == 0 {
                     break;

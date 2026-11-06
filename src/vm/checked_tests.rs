@@ -333,7 +333,7 @@ fn a_native_frame_has_no_required_function() {
     let mut execution =
         Execution::new(&script, "__main__", &[], &[], CallOptions::default()).unwrap();
     let run = execution.run.as_mut().unwrap();
-    let mut frame = Frame::new(run.root.clone(), &run.storage, Some(0), 0, 0);
+    let mut frame = Frame::new(run.root.clone(), &run.storage, Some(0), 0, 0).unwrap();
     assert_eq!(frame.required_function().unwrap(), 0);
     frame.function = FrameCode::Iteration;
     let error = Error::from(frame.required_function().unwrap_err());
@@ -356,7 +356,7 @@ fn missing_run_state_latches_before_returning_to_the_host() {
             }
             "result" => Some(0),
             "driver" => {
-                let mut frame = Frame::new(run.root.clone(), &run.storage, None, 0, 0);
+                let mut frame = Frame::new(run.root.clone(), &run.storage, None, 0, 0).unwrap();
                 frame.function = FrameCode::PooledIteration;
                 run.frames.push(ctx, frame).unwrap();
                 None

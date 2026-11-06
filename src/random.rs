@@ -260,7 +260,7 @@ fn clock() -> u64 {
     let since = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default();
-    let millis = since.as_millis() as u64 & ((1 << 48) - 1);
+    let millis = crate::numeric::low_u64(since.as_millis()) & ((1 << 48) - 1);
     let fraction = u64::from(since.subsec_nanos() % 1_000_000) * 4096 / 1_000_000;
     millis << 12 | fraction
 }
@@ -295,7 +295,8 @@ fn uuid(ctx: &mut CallContext) -> Result<Value> {
     let stamp = stamp();
     raw[..6].copy_from_slice(&(stamp >> 12).to_be_bytes()[2..]);
     raw[6] = 0x70 | ((stamp >> 8) & 0x0f) as u8;
-    raw[7] = stamp as u8;
+    let [fraction, ..] = stamp.to_le_bytes();
+    raw[7] = fraction;
     raw[8] = (raw[8] & 0x3f) | 0x80;
     let mut text = [0; 36];
     let mut position = 0;

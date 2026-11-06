@@ -3,7 +3,7 @@
 //! other radixes splits the digits in halves around a power of the radix.
 
 use super::{Magnitude, multiply, trim, work};
-use crate::checked::{Access, Checked, violation};
+use crate::checked::{Access, Checked, convert, violation};
 use crate::{
     CallContext, Result,
     budget::{Buffer, CHUNK},
@@ -108,11 +108,11 @@ fn combine(ctx: &mut CallContext, chunks: &[u32], powers: &mut Powers) -> Result
             let mut carry = value as u64;
             for word in &mut words.data {
                 carry += *word as u64 * powers.base as u64;
-                *word = carry as u32;
+                *word = crate::numeric::low_u32(carry);
                 carry >>= 32;
             }
             if carry != 0 {
-                words.data.push(carry as u32);
+                words.data.push(crate::numeric::low_u32(carry));
             }
         }
         return Ok(words);
@@ -140,7 +140,7 @@ fn parse_bits(ctx: &mut CallContext, digits: &[u8], bits: u32) -> Result<Buffer<
         digit_work(ctx, index, digits.len())?;
         let position = index * bits as usize;
         let value = (digit(byte, 1 << bits)? as u64) << (position % 32);
-        *words.at_mut(position / 32)? |= value as u32;
+        *words.at_mut(position / 32)? |= crate::numeric::low_u32(value);
         if value >> 32 != 0 {
             *words.at_mut(position / 32 + 1)? |= (value >> 32) as u32;
         }
@@ -163,7 +163,7 @@ pub(super) fn format_bits(
     for index in (0..count).rev() {
         digit_work(ctx, count - 1 - index, count)?;
         let position = index * bits as usize;
-        let value = (magnitude.window(position) & ((1 << bits) - 1)) as usize;
+        let value = convert::<usize, _>(magnitude.window(position) & ((1 << bits) - 1))?;
         out.data
             .push(*b"0123456789abcdefghijklmnopqrstuvwxyz".at(value)?);
     }

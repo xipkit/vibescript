@@ -16,7 +16,7 @@ use std::slice::Iter;
 
 /// A walk charges the meter, and checks the budget, once per this many
 /// visits.
-pub(super) const PACE: u64 = 64;
+pub(super) const PACE: u8 = 64;
 
 /// A statement, expression or assignment target a walk visits.
 #[derive(Clone, Copy)]
@@ -211,9 +211,9 @@ impl<'a, 'm, T: Copy> Walk<'a, 'm, T> {
         }
         self.held = held;
         self.visited += 1;
-        if self.visited == PACE {
+        if self.visited == u64::from(PACE) {
             self.visited = 0;
-            self.stopped = self.meter.pace(PACE, held + self.bytes());
+            self.stopped = self.meter.pace(u64::from(PACE), held + self.bytes());
         }
         self.stopped
     }
@@ -421,7 +421,10 @@ mod tests {
         ] {
             let steps = budget.steps.unwrap_or(0);
             let (visited, _, _) = walked(&source, budget);
-            assert!(visited <= steps + PACE, "{visited} items visited");
+            assert!(
+                visited <= steps + u64::from(PACE),
+                "{visited} items visited"
+            );
         }
     }
 

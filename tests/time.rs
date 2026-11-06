@@ -87,7 +87,7 @@ fn fractional_offsets_match_independent_rational_expectations() {
                 result.value.as_time(),
                 Some((
                     expected[0].as_i64().unwrap(),
-                    expected[1].as_u64().unwrap() as u32
+                    u32::try_from(expected[1].as_u64().unwrap()).unwrap()
                 )),
                 "{case}"
             );

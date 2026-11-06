@@ -1,3 +1,4 @@
+use crate::checked::convert;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     address::{self, Address},
@@ -199,7 +200,7 @@ impl LoopState {
                     } else {
                         -1
                     };
-                Value::int((i128::from(start) + self.position * direction) as i64)
+                Value::int(convert(i128::from(start) + self.position * direction)?)
             }
             _ => {
                 return Err(crate::checked::internal(
@@ -722,7 +723,7 @@ impl Run {
             let caller_instance = matches!(frame.receiver, Some(Value(Kind::Instance(_))));
             ctx.charge(1)?;
             let op = match op {
-                Op::Extended(index) => program.extended.at(index as usize)?.op(),
+                Op::Extended(index) => program.extended.at(index)?.op(),
                 op => op,
             };
             let mut slot = |slot: usize, skip: bool| -> Result<usize> {
@@ -738,12 +739,12 @@ impl Run {
             let mut bound = |relative: u32| {
                 let absolute = slot(relative as usize, false)?;
                 local = Some((relative as usize, absolute));
-                Ok::<_, Error>(narrow(absolute))
+                Ok::<_, Error>(narrow(absolute)?)
             };
             // A name an assignment skips resolves to no slot.
             let resolved = |absolute: usize| {
                 if absolute == usize::MAX {
-                    NO_SLOT
+                    Ok(NO_SLOT)
                 } else {
                     narrow(absolute)
                 }
@@ -761,12 +762,12 @@ impl Run {
                 Op::AddressBound(n, next) => Op::AddressBound(bound(n)?, next),
                 // A required file's own bindings live in its scope rather than in slots.
                 Op::Bypass(n) if program.file => Op::Bypass(bound(n)?),
-                Op::Bypass(n) => Op::Bypass(narrow(slot(n as usize, false)?)),
+                Op::Bypass(n) => Op::Bypass(narrow(slot(n as usize, false)?)?),
                 Op::ResolveCall(n, name) if n != NO_SLOT => {
-                    Op::ResolveCall(resolved(slot(n as usize, true)?), name)
+                    Op::ResolveCall(resolved(slot(n as usize, true)?)?, name)
                 }
                 Op::CallName(n, name) if n != NO_SLOT => {
-                    Op::CallName(resolved(slot(n as usize, false)?), name)
+                    Op::CallName(resolved(slot(n as usize, false)?)?, name)
                 }
                 op => op,
             };
@@ -782,7 +783,7 @@ impl Run {
                         let mut args = Arguments::from_values(ctx, stack.tail(base)?)?;
                         args.target = Some(target);
                         if let Op::CallBlock(_, _, function) = op {
-                            args.block = Some(Block::new(function as usize, current));
+                            args.block = Some(Block::new(function as usize, current)?);
                         }
                         stack.data.truncate(base);
                         storage.arguments.push(ctx, args)?;
@@ -997,7 +998,7 @@ impl Run {
                             Arguments::empty(),
                             stack.data.len(),
                         )?;
-                        frames.top_mut()?.parent = Some(narrow(current));
+                        frames.top_mut()?.parent = Some(narrow(current)?);
                     }
                 }
                 Op::AmbientValue(name, next) | Op::AmbientAddress(name, next) => {
@@ -1850,7 +1851,7 @@ impl Run {
                 }
                 Op::Attach(function) => {
                     storage.arguments.top_mut()?.block =
-                        Some(Block::new(function as usize, current));
+                        Some(Block::new(function as usize, current)?);
                 }
                 Op::BlockGiven(arguments, block) => {
                     if arguments || block {
@@ -3002,9 +3003,9 @@ impl Run {
                     } else if scoped && program.declaration_names.contains_key(name) {
                         crate::arguments::Target::Plain(Invocation::NonCallable)
                     } else if let Some(&function) = program.names.get(name) {
-                        crate::arguments::Target::Plain(Invocation::Function(narrow(function)))
+                        crate::arguments::Target::Plain(Invocation::Function(narrow(function)?))
                     } else if let Some(host) = program.hosts.iter().position(|h| h == name) {
-                        crate::arguments::Target::Plain(Invocation::Host(narrow(host)))
+                        crate::arguments::Target::Plain(Invocation::Host(narrow(host)?))
                     } else if let Some(binding) =
                         file_bindings::root_binding(program, ctx, storage, name)?
                     {
@@ -3043,7 +3044,7 @@ impl Run {
                                     ));
                                 }
                                 crate::arguments::Target::Plain(Invocation::ImplicitMember(
-                                    narrow(module),
+                                    narrow(module)?,
                                     name_index,
                                 ))
                             }
@@ -3141,7 +3142,7 @@ impl Run {
                             stack.push(ctx, receiver)?;
                             Invocation::Member(
                                 crate::bytecode::CallSite {
-                                    name: narrow(name),
+                                    name: narrow(name)?,
                                     method: crate::bytecode::Method::parse(
                                         program.members.at(name)?,
                                     ),
@@ -4319,7 +4320,7 @@ fn implicit_read(
                 namespaces::value(program, ctx, storage, module)?
             };
             let site = crate::bytecode::CallSite {
-                name: narrow(name),
+                name: narrow(name)?,
                 method: crate::bytecode::Method::parse(text),
                 auto: true,
                 scope: false,
@@ -4616,9 +4617,9 @@ fn enter(
     frames.push(
         ctx,
         Frame {
-            home: (function != 0 && !fun.initializer).then_some(narrow(frames.data.len())),
+            home: (function != 0 && !fun.initializer).then_some(narrow(frames.data.len())?),
             ip: start,
-            ..Frame::new(pinned, storage, Some(function), base, local_base)
+            ..Frame::new(pinned, storage, Some(function), base, local_base)?
         },
     )
 }
@@ -4753,7 +4754,7 @@ fn call_block(
         stack.tail(base)?,
         base,
     )?;
-    frames.top_mut()?.block = Some(Block::new(block, parent));
+    frames.top_mut()?.block = Some(Block::new(block, parent)?);
     stack.data.truncate(base);
     Ok(())
 }
@@ -4852,7 +4853,7 @@ fn bind(
     let block = arguments.block;
     let binding = Binding::new(ctx, &fun.params, arguments)?;
     let mut frame = new_frame(ctx, program, storage, Some(function), base)?;
-    frame.home = (function != 0 && !fun.initializer).then_some(narrow(frames.data.len()));
+    frame.home = (function != 0 && !fun.initializer).then_some(narrow(frames.data.len())?);
     frame.checked = checked;
     frame.block = block;
     frame.receiver = call.receiver;
@@ -4913,7 +4914,7 @@ fn new_frame(
 ) -> Result<Frame> {
     let local_base = open_locals(ctx, program, storage, function)?;
     let pinned = programs::pin(ctx, storage, program.index)?;
-    Ok(Frame::new(pinned, storage, function, base, local_base))
+    Ok(Frame::new(pinned, storage, function, base, local_base)?)
 }
 
 /// Adds a function's unbound locals to storage, returning where they start.
@@ -5012,8 +5013,8 @@ impl Frame {
         function: Option<usize>,
         base: usize,
         local_base: usize,
-    ) -> Self {
-        Self {
+    ) -> crate::checked::Access<Self> {
+        Ok(Self {
             program,
             host: false,
             checked: false,
@@ -5023,25 +5024,26 @@ impl Frame {
             receiver: None,
             constructor: false,
             return_to: ReturnTo::Stack,
-            function: function.map_or(FrameCode::Iteration, |index| {
-                FrameCode::Function(narrow(index))
-            }),
+            function: match function {
+                Some(index) => FrameCode::Function(narrow(index)?),
+                None => FrameCode::Iteration,
+            },
             mutating: false,
             ip: 0,
-            iteration_base: narrow(storage.iterations.data.len()),
-            base: narrow(base),
-            local_base: narrow(local_base),
-            address_base: narrow(storage.addresses.data.len()),
-            bypass_base: narrow(storage.bypasses.data.len()),
-            text_base: narrow(storage.texts.data.len()),
-            loop_base: narrow(storage.loops.data.len()),
-            argument_base: narrow(storage.arguments.data.len()),
+            iteration_base: narrow(storage.iterations.data.len())?,
+            base: narrow(base)?,
+            local_base: narrow(local_base)?,
+            address_base: narrow(storage.addresses.data.len())?,
+            bypass_base: narrow(storage.bypasses.data.len())?,
+            text_base: narrow(storage.texts.data.len())?,
+            loop_base: narrow(storage.loops.data.len())?,
+            argument_base: narrow(storage.arguments.data.len())?,
             binding: false,
             parent: None,
             home: None,
             block: None,
             block_args: 0,
-        }
+        })
     }
 }
 
@@ -5172,10 +5174,10 @@ fn enter_block(
     let program = parent.program.clone();
     let mut frame = new_frame(ctx, &program, storage, Some(block.function()), base)?;
     frame.receiver = receiver;
-    frame.parent = Some(narrow(block.parent()));
+    frame.parent = Some(narrow(block.parent())?);
     frame.home = home;
     frame.block = outer;
-    frame.block_args = narrow(count);
+    frame.block_args = narrow(count)?;
     // Charges the work of copying the arguments, as a separate list did.
     for chunk in stack
         .tail(base)?

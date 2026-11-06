@@ -33,7 +33,7 @@ impl<'x> Compiling<'_, 'x> {
             c.work.charge(1)?;
             let index = c.program.handlers.len();
             c.program.handlers.push(TrySpec::default());
-            c.emit(Op::TryBegin(narrow(index)));
+            c.emit(Op::TryBegin(narrow(index)?));
             let (body_locals, held) = c.statement_bindings(&attempt.body)?.into_parts();
             crate::budget::Charge::merge(&mut c.handler_locals, held);
             let spec = TrySpec {
@@ -153,7 +153,7 @@ impl<'x> Compiling<'_, 'x> {
                         && crate::ErrorClass::from_name(name).is_some()
                     {
                         Some((
-                            c.call_site(name, false).name as usize,
+                            c.call_site(name, false)?.name as usize,
                             c.locals.get(c.work, name.as_str())?.copied(),
                         ))
                     } else {
@@ -162,10 +162,12 @@ impl<'x> Compiling<'_, 'x> {
                 } else {
                     None
                 };
-                let named = named.map(|named| {
-                    c.program.raises.push(named);
-                    narrow(c.program.raises.len() - 1)
-                });
+                let named = named
+                    .map(|named| {
+                        c.program.raises.push(named);
+                        narrow(c.program.raises.len() - 1)
+                    })
+                    .transpose()?;
                 c.emit(Op::RaiseStart(named, 0))
             };
             self.expr(value).await?;

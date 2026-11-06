@@ -3,6 +3,7 @@ use super::{
     modules::{Module, Visibility},
     source_text,
 };
+use crate::checked::convert;
 use crate::{
     Result,
     compilation::{Buffer, Name, Text},
@@ -133,7 +134,7 @@ impl Parser<'_> {
         self.bump()?;
         self.line_breaks()?;
         loop {
-            let offset = self.tokens.at(self.pos)?.offset as u32;
+            let offset = convert(self.tokens.at(self.pos)?.offset)?;
             if !self.ident(self.pos) {
                 if let Token::Symbol(name) = self.token() {
                     let name = source_text(name);

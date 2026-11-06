@@ -38,6 +38,40 @@ pub(crate) const fn unsigned_bits(value: i64) -> u64 {
     u64::from_ne_bytes(value.to_ne_bytes())
 }
 
+/// Returns the low 32 bits, for arithmetic modulo 2^32.
+#[inline]
+pub(crate) fn low_u32(value: impl Into<u128>) -> u32 {
+    let [a, b, c, d, ..] = value.into().to_le_bytes();
+    u32::from_le_bytes([a, b, c, d])
+}
+
+/// Returns the low 64 bits, for arithmetic modulo 2^64.
+#[inline]
+pub(crate) fn low_u64(value: u128) -> u64 {
+    let [a, b, c, d, e, f, g, h, ..] = value.to_le_bytes();
+    u64::from_le_bytes([a, b, c, d, e, f, g, h])
+}
+
+/// Keeps a hash's low pointer-sized word on both 32-bit and 64-bit targets.
+#[inline]
+pub(crate) fn hash_word(value: u64) -> usize {
+    let mut bytes = [0; size_of::<usize>()];
+    for (byte, source) in bytes.iter_mut().zip(value.to_le_bytes()) {
+        *byte = source;
+    }
+    usize::from_le_bytes(bytes)
+}
+
+/// Rounds toward zero, saturating outside i64's range and returning 0 for NaN.
+#[inline]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "floats have no try_from; as provides the documented rounding and saturation"
+)]
+pub(crate) fn float_to_i64(value: f64) -> i64 {
+    value as i64
+}
+
 /// Rounds toward zero. NaN and anything negative become 0, and a value past the
 /// range saturates.
 #[inline]
@@ -508,6 +542,33 @@ fn rational_round(ctx: &mut CallContext, number: f64, digits: u32) -> Result<f64
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn low_words_preserve_the_requested_bits() {
+        let wide = 0x0123_4567_89ab_cdef_fedc_ba98_7654_3210u128;
+        assert_eq!(low_u32(wide), 0x7654_3210);
+        assert_eq!(low_u32(0x0123_4567_89ab_cdefu64), 0x89ab_cdef);
+        assert_eq!(low_u64(wide), 0xfedc_ba98_7654_3210);
+        assert_eq!(low_u32(u128::MAX), u32::MAX);
+        assert_eq!(low_u64(u128::MAX), u64::MAX);
+        assert_eq!(hash_word(u64::MAX), usize::MAX);
+        #[cfg(target_pointer_width = "32")]
+        assert_eq!(hash_word(0x0123_4567_89ab_cdef), 0x89ab_cdef);
+        #[cfg(target_pointer_width = "64")]
+        assert_eq!(hash_word(0x0123_4567_89ab_cdef), 0x0123_4567_89ab_cdef);
+    }
+
+    #[test]
+    fn float_to_i64_truncates_and_saturates_at_the_signed_bounds() {
+        assert_eq!(float_to_i64(1.9), 1);
+        assert_eq!(float_to_i64(-1.9), -1);
+        assert_eq!(float_to_i64(-0.0), 0);
+        assert_eq!(float_to_i64(f64::NAN), 0);
+        assert_eq!(float_to_i64(-9223372036854775808.0), i64::MIN);
+        assert_eq!(float_to_i64(9223372036854775808.0), i64::MAX);
+        assert_eq!(float_to_i64(f64::INFINITY), i64::MAX);
+        assert_eq!(float_to_i64(f64::NEG_INFINITY), i64::MIN);
+    }
 
     #[test]
     fn to_i64_keeps_what_fits_and_never_turns_negative() {

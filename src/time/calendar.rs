@@ -69,7 +69,7 @@ pub(super) fn civil(seconds: i64, offset: i32) -> Civil {
     let cd = (d % 146097) as u32 | 3;
     let product = 2939745 * u64::from(cd);
     let cyear = product >> 32;
-    let ayday = product as u32 / 2939745 / 4;
+    let ayday = crate::numeric::low_u32(product) / 2939745 / 4;
     let md = 2141 * u64::from(ayday) + 197913;
     let jan_feb = ayday >= 306;
     let leap = cyear % 4 == 0 && (cyear != 0 || century % 4 == 0);

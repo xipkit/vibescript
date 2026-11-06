@@ -823,7 +823,7 @@ mod tests {
             seed ^= seed << 13;
             seed ^= seed >> 7;
             seed ^= seed << 17;
-            (seed % bound as u64) as usize
+            usize::try_from(seed % bound as u64).unwrap()
         };
         for case in 0..20000 {
             let mut input = Vec::new();
@@ -884,7 +884,9 @@ mod tests {
         for upper in [false, true] {
             for offset in 0..16 {
                 for len in 0..80 {
-                    let mut data: Vec<u8> = (0..offset + len).map(|i| (i * 31) as u8).collect();
+                    let mut data: Vec<u8> = (0usize..offset + len)
+                        .map(|i| (i * 31).to_le_bytes()[0])
+                        .collect();
                     let expected: Vec<_> = data[offset..]
                         .iter()
                         .map(|b| {

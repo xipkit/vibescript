@@ -1,6 +1,6 @@
 use super::Mode;
-use crate::checked::Checked;
 use crate::checked::violation;
+use crate::checked::{Checked, convert};
 use crate::{
     Error, Result,
     compilation::{Boxed, Buffer, Bytes, Shared, Text, Work},
@@ -1500,7 +1500,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
             return Err(Error::syntax(self.work, self.pos, INTERPOLATION_TOO_DEEP));
         }
         self.pos += 2;
-        let start = self.pos as u32;
+        let start = convert(self.pos)?;
         self.depth += 1;
         // Go reads an interpolation with a fresh lexer.
         let tail = self.tail.take();
@@ -1511,7 +1511,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
         self.nesting = nesting;
         self.scan = scan;
         self.depth -= 1;
-        Ok(Part::Expr(result?, (start, self.pos as u32)))
+        Ok(Part::Expr(result?, (start, convert(self.pos)?)))
     }
 
     fn percent_kind(&self) -> Option<(u8, char, char)> {
@@ -1695,7 +1695,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
                     self.pos = start;
                     out.push(self.work, c as u8)?;
                 } else if c == 'x' {
-                    out.push(self.work, value as u8)?;
+                    out.push(self.work, convert(value)?)?;
                 } else {
                     out.extend_from_slice(
                         self.work,

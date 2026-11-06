@@ -428,8 +428,10 @@ mod tests {
             state ^= state << 17;
             let args: Vec<OsString> = (0..state % 6)
                 .map(|i| {
-                    let first = pieces[((state >> (i * 5)) % pieces.len() as u64) as usize];
-                    let second = pieces[((state >> (i * 5 + 17)) % pieces.len() as u64) as usize];
+                    let first =
+                        pieces[usize::try_from((state >> (i * 5)) % pieces.len() as u64).unwrap()];
+                    let second = pieces
+                        [usize::try_from((state >> (i * 5 + 17)) % pieces.len() as u64).unwrap()];
                     OsString::from(format!("{first}{second}"))
                 })
                 .collect();

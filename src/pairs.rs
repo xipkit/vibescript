@@ -35,7 +35,7 @@ impl<T: Copy + Default> Pairs<T> {
             (left as u64).wrapping_mul(0x9e3779b97f4a7c15) ^ (right as u64).rotate_left(27);
         hash ^= hash >> 33;
         hash = hash.wrapping_mul(0xff51afd7ed558ccd);
-        (hash ^ (hash >> 33)) as usize
+        crate::numeric::hash_word(hash ^ (hash >> 33))
     }
 
     /// Returns the slot holding the pair, or the vacant slot it would occupy.
