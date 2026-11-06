@@ -1487,10 +1487,10 @@ pub(crate) mod testing {
             let mut text = Vec::new();
             while text.len() < 5 * CHUNK {
                 for _ in 0..next(longest) {
-                    text.push(b' ' + next(90) as u8);
+                    text.push(b' ' + u8::try_from(next(90)).unwrap());
                 }
                 for _ in 0..1 + next(longest.min(40)) / 8 {
-                    text.extend_from_slice(breaks[next(7) as usize]);
+                    text.extend_from_slice(breaks[usize::try_from(next(7)).unwrap()]);
                 }
             }
             texts.push(text);
