@@ -1,4 +1,5 @@
 use super::*;
+use crate::checked::convert;
 use crate::numeric::to_usize;
 
 /// Two common nesting levels share one charged allocation until both finish.
@@ -162,7 +163,9 @@ impl Driver {
             self.position += 1;
             let value = match &self.receiver.0 {
                 Kind::Array(array) => array.buffer.at(to_usize(index))?.clone(),
-                _ => Value::int((i128::from(self.start) + index * i128::from(self.stride)) as i64),
+                _ => Value::int(convert(
+                    i128::from(self.start) + index * i128::from(self.stride),
+                )?),
             };
             if matches!(self.method, Select | Reject) {
                 self.pending = value.clone();
@@ -175,7 +178,7 @@ impl Driver {
                     };
                     ([accumulator, value, Value::nil()], 2)
                 }
-                EachIndex | MapIndex => ([value, Value::int(index as i64), Value::nil()], 2),
+                EachIndex | MapIndex => ([value, Value::int(convert(index)?), Value::nil()], 2),
                 _ => ([value, Value::nil(), Value::nil()], 1),
             };
             self.waiting = true;

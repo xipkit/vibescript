@@ -1,10 +1,8 @@
+use crate::checked::{Access, Checked, violation};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value, bytecode::CallSite, bytes, ops, scan, value::Kind,
 };
-use std::{
-    cmp::Ordering,
-    fmt::{self, Write},
-};
+use std::{cmp::Ordering, fmt};
 
 // Byte alignment leaves room for the enum tag within the existing 16-byte Value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -36,23 +34,27 @@ impl Money {
         Ok(Self(bytes))
     }
     pub fn cents(self) -> i64 {
-        i64::from_le_bytes(self.0[..8].try_into().unwrap())
+        let [a, b, c, d, e, f, g, h, ..] = self.0;
+        i64::from_le_bytes([a, b, c, d, e, f, g, h])
     }
-    pub fn currency(&self) -> &str {
-        std::str::from_utf8(&self.0[8..]).unwrap()
+    /// Returns the currency code, reporting corrupt inline text as an invariant failure.
+    pub fn currency(&self) -> Access<&str> {
+        std::str::from_utf8(&self.0[8..]).map_err(|_| violation("money currency must be UTF-8"))
     }
     fn amount(self, cents: i64) -> Self {
         let mut value = self;
         value.0[..8].copy_from_slice(&cents.to_le_bytes());
         value
     }
-    pub fn order(self, other: Self) -> Option<Ordering> {
-        (self.currency() == other.currency()).then(|| self.cents().cmp(&other.cents()))
+    /// Orders amounts in the same currency; different currencies have no ordering.
+    pub fn order(self, other: Self) -> Access<Option<Ordering>> {
+        Ok((self.currency()? == other.currency()?).then(|| self.cents().cmp(&other.cents())))
     }
     pub fn text(self, ctx: &mut CallContext) -> Result<Value> {
         let mut buffer = bytes::Number::new();
-        write!(buffer, "{self}").unwrap();
-        ctx.bytes(buffer.bytes())
+        self.currency()?;
+        buffer.format(format_args!("{self}"))?;
+        ctx.bytes(buffer.bytes()?)
     }
 }
 
@@ -66,7 +68,7 @@ impl fmt::Display for Money {
             "{sign}{}.{:02} {}",
             magnitude / 100,
             magnitude % 100,
-            self.currency()
+            String::from_utf8_lossy(&self.0[8..])
         )
     }
 }
@@ -84,10 +86,10 @@ pub(crate) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<Money> {
             ctx.work_bytes((input.len() - at).min(1024))?;
             checkpoint = at + 1024;
         }
-        let (ch, width, _) = scan::rune(&input[at..]);
+        let (ch, width, _) = scan::rune(input.tail(at)?);
         if ch.is_whitespace() {
             if let Some(start) = start.take() {
-                fields[count] = (start, at);
+                *fields.at_mut(count)? = (start, at);
                 count += 1;
             }
         } else if start.is_none() {
@@ -99,17 +101,17 @@ pub(crate) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<Money> {
         at += width;
     }
     if let Some(start) = start {
-        fields[count] = (start, at);
+        *fields.at_mut(count)? = (start, at);
         count += 1;
     }
     if count != 2 {
         return Err(literal());
     }
-    let money = Money::new(0, &input[fields[1].0..fields[1].1])?;
-    let amount = &input[fields[0].0..fields[0].1];
+    let money = Money::new(0, input.span(fields[1].0, fields[1].1)?)?;
+    let amount = input.span(fields[0].0, fields[0].1)?;
     let negative = amount.first() == Some(&b'-');
     let sign = usize::from(matches!(amount.first(), Some(b'-' | b'+')));
-    let amount = &amount[sign..];
+    let amount = amount.tail(sign)?;
     let mut dot = None;
     for (index, chunk) in amount.chunks(1024).enumerate() {
         ctx.work_bytes(chunk.len())?;
@@ -118,8 +120,10 @@ pub(crate) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<Money> {
             break;
         }
     }
-    let whole = &amount[..dot.unwrap_or(amount.len())];
-    let fraction = dot.map_or(b"".as_slice(), |dot| &amount[dot + 1..]);
+    let whole = amount.span(0, dot.unwrap_or(amount.len()))?;
+    let fraction = dot
+        .and_then(|dot| amount.get(dot + 1..))
+        .unwrap_or_default();
     if whole.is_empty() && fraction.is_empty() {
         return Err(amount_error());
     }
@@ -168,7 +172,7 @@ pub(crate) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<Money> {
 pub(crate) fn binary(op: &str, left: &Value, right: &Value) -> Result<Value> {
     let value = match (&left.0, &right.0, op) {
         (Kind::Money(a), Kind::Money(b), "+" | "-") => {
-            if a.currency() != b.currency() {
+            if a.currency()? != b.currency()? {
                 return Err(Error::new(ErrorKind::Arithmetic, "money currency mismatch"));
             }
             let cents = if op == "+" {
@@ -224,7 +228,7 @@ pub(crate) fn member(
                 ));
             }
             if name == "currency" {
-                ctx.bytes(money.currency().as_bytes())?
+                ctx.bytes(money.currency()?.as_bytes())?
             } else {
                 Value::int(money.cents())
             }
@@ -235,10 +239,10 @@ pub(crate) fn member(
         }
         "between?" => {
             crate::arguments::between("money.between?", args, keywords, block)?;
-            let low = ops::compare(ctx, receiver, &args[0])?;
+            let low = ops::compare(ctx, receiver, args.at(0)?)?;
             let result = if matches!(low, Some(Ordering::Equal | Ordering::Greater)) {
                 matches!(
-                    ops::compare(ctx, receiver, &args[1])?,
+                    ops::compare(ctx, receiver, args.at(1)?)?,
                     Some(Ordering::Equal | Ordering::Less)
                 )
             } else {
@@ -249,4 +253,30 @@ pub(crate) fn member(
         _ => return Ok(None),
     };
     Ok(Some(result))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn corrupt_currency_fails_operations_but_remains_printable_for_diagnostics() {
+        let mut money = Money::new(123, b"USD").unwrap();
+        money.0[8] = 0xff;
+        let value = Value(Kind::Money(money));
+        assert!(value.as_money().is_none());
+        assert_eq!(value.to_string(), "1.23 �SD");
+        let mut ctx = CallContext::new(crate::CallOptions::default());
+        assert_eq!(money.text(&mut ctx).unwrap_err().kind, ErrorKind::Internal);
+        assert_eq!(
+            crate::Error::from(money.order(money).unwrap_err()).kind,
+            ErrorKind::Internal
+        );
+        assert_eq!(
+            crate::text::inspect::output(&mut ctx, &value, usize::MAX)
+                .unwrap_err()
+                .kind,
+            ErrorKind::Internal
+        );
+    }
 }

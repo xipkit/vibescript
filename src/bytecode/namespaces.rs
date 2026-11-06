@@ -24,13 +24,17 @@ impl Program {
     ) -> Result<usize> {
         let mut stack = vec![self.open_module(module, qualifier, work)?];
         loop {
-            let top = stack.last_mut().unwrap();
+            let top = stack
+                .last_mut()
+                .ok_or(violation("module stack must not be empty"))?;
             if let Some(child) = top.children.next() {
                 let frame = self.open_module(child, top.name.as_str(), work)?;
                 stack.push(frame);
                 continue;
             }
-            let frame = stack.pop().unwrap();
+            let frame = stack
+                .pop()
+                .ok_or(violation("completed module must have a frame"))?;
             let short = frame.short.clone();
             let index = self.close_module(frame, functions, contexts, typing, work)?;
             match stack.last_mut() {
@@ -243,7 +247,7 @@ impl<'x> Compiling<'_, 'x> {
                     // A missing field may need a builtin without another read registering it.
                     c.global(name);
                     let optional = name.starts_with('@');
-                    let name = c.call_site(name, false).name;
+                    let name = c.call_site(name, false)?.name;
                     c.emit(Op::NamespaceAddress(name, optional));
                     true
                 }
@@ -259,18 +263,18 @@ impl<'x> Compiling<'_, 'x> {
                 for index in indices {
                     self.expr(index).await?;
                 }
-                self.c().emit(Op::AddressIndex(narrow(indices.len())));
+                self.c().emit(Op::AddressIndex(narrow(indices.len())?));
             }
             syntax::Node::Member(root, name) => {
                 self.nested_assignment_address(root).await?;
                 let mut c = self.c();
-                let site = c.call_site(name, true);
+                let site = c.call_site(name, true)?;
                 c.emit(Op::AddressMember(site));
             }
             syntax::Node::Scope(root, name, None) => {
                 self.nested_assignment_address(root).await?;
                 let mut c = self.c();
-                let mut site = c.call_site(name, true);
+                let mut site = c.call_site(name, true)?;
                 site.scope = true;
                 c.emit(Op::AddressNamespaceField(site));
             }
@@ -293,7 +297,7 @@ impl<'x> Compiling<'_, 'x> {
                 let mut c = self.c();
                 let namespaced = name.starts_with('@') || (c.namespace.is_some() && !c.instance);
                 if namespaced {
-                    let name = c.call_site(name, false).name;
+                    let name = c.call_site(name, false)?.name;
                     c.emit(Op::NamespaceVariable(name, true));
                 }
                 namespaced
@@ -369,13 +373,13 @@ impl Compiler<'_> {
 
     pub(super) fn store_namespace_name(&mut self, name: &str) -> Result<()> {
         if name.starts_with('@') || (self.namespace.is_some() && !self.instance) {
-            let name = self.call_site(name, false).name;
+            let name = self.call_site(name, false)?.name;
             self.emit(Op::NamespaceStore(name));
         } else {
             let Some(&index) = self.program.declaration_names.get(name) else {
                 return Err(violation("a namespace binding without a declaration").into());
             };
-            self.emit(Op::StoreDeclaration(narrow(index)));
+            self.emit(Op::StoreDeclaration(narrow(index)?));
         }
         Ok(())
     }

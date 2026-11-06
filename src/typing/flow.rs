@@ -124,12 +124,13 @@ impl Flow {
     }
 
     /// Adds a local, unassigned, in the room [`Self::reserve`] made.
-    pub fn add(&mut self, declared: Ty) -> LocalId {
+    pub fn add(&mut self, declared: Ty) -> Option<LocalId> {
+        let id = self.meter.index(self.vars.len())?;
         self.vars.push_within(VarState {
             ty: declared,
             assigned: false,
         });
-        (self.vars.len() - 1) as LocalId
+        Some(id)
     }
 
     /// The bytes the states and the trail hold.
@@ -203,7 +204,15 @@ impl Flow {
         let mut seen = ScratchSet::new(&self.meter);
         let mut stopped = false;
         while self.trail.len() > mark.trail {
-            let (id, old) = self.trail.pop().unwrap();
+            let Some((id, old)) =
+                self.meter
+                    .found(self.trail.pop().ok_or(crate::checked::violation(
+                        "flow rollback must have a trail entry",
+                    )))
+            else {
+                stopped = true;
+                break;
+            };
             let current = self.get(id);
             // What undoing it copies of the set of assigned variables is
             // counted first. A check this stops unwinds the rest without

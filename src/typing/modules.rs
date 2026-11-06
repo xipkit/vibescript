@@ -482,6 +482,12 @@ impl<'a> Checker<'a> {
                 self.meter.stop();
                 return Err(text!(self, "{error}"));
             }
+            // A resolver's broken invariant is one in this check.
+            Err(error) if error.kind == crate::ErrorKind::Internal => {
+                self.meter.violated(error);
+                self.stopped = true;
+                return Err("the check stopped for an internal error".into());
+            }
             Err(error) => return Err(error.message),
         };
         if let Some(&id) = self.modules.by_origin.get(&origin) {
@@ -539,6 +545,13 @@ impl<'a> Checker<'a> {
                     self.stopped = true;
                     self.meter.stop();
                     return Err("the check ran out of its budget".into());
+                }
+                // A first-parse Internal passes through both reporting helpers
+                // unchanged; recovery can also return one. Both stop here.
+                if error.kind == crate::ErrorKind::Internal {
+                    self.meter.violated(error);
+                    self.stopped = true;
+                    return Err("the check stopped for an internal error".into());
                 }
                 return Err(text!(self, "{error}"));
             }
@@ -750,7 +763,10 @@ impl<'a> Checker<'a> {
             self.held();
             self.meter.declarations().kept(bytes);
         }
-        let id = self.modules.loaded.len() as u32;
+        let id = self
+            .meter
+            .index(self.modules.loaded.len())
+            .ok_or("module index out of range")?;
         self.modules.loaded.push_kept(
             &mut kept,
             Exports {
@@ -906,7 +922,7 @@ impl<'a> Checker<'a> {
             super::counted::sort_unstable_by(&self.meter, &mut methods, |a, b| a.0.cmp(&b.0))
                 .ok()?;
             classes.push(ExportedClass {
-                id: ns as NsId,
+                id: self.meter.index(ns)?,
                 name: namespace.name.clone(),
                 methods,
             });
@@ -961,7 +977,9 @@ impl<'a> Checker<'a> {
             {
                 break;
             }
-            let id = program.enums.len() as u32;
+            let Some(id) = self.meter.index(program.enums.len()) else {
+                break;
+            };
             program.enums.push_within(declared.clone());
             self.types
                 .names
@@ -995,7 +1013,9 @@ impl<'a> Checker<'a> {
             {
                 break;
             }
-            let id = self.program.namespaces.len() as NsId;
+            let Some(id) = self.meter.index(self.program.namespaces.len()) else {
+                break;
+            };
             self.types
                 .names
                 .namespaces
@@ -1224,7 +1244,7 @@ impl<'a> Checker<'a> {
             Kind::Host(id) => {
                 let name = self.meter.found(from.names.hosts.at(*id as usize))?;
                 match self.types.names.hosts.iter().position(|host| host == name) {
-                    Some(index) => self.types.intern(Kind::Host(index as u32)),
+                    Some(index) => self.types.intern(Kind::Host(self.meter.index(index)?)),
                     None => Ty::ANY,
                 }
             }

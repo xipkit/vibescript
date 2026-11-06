@@ -1,11 +1,11 @@
 use crate::bytes::Number;
+use crate::checked::{Checked, violation};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK, MAX_VALUE_DEPTH},
     scan::{self, Class},
     value::Kind,
 };
-use std::fmt::Write;
 
 /// The longest escape, `\u00XX`.
 const LONGEST: usize = 6;
@@ -17,11 +17,18 @@ const LONG: u8 = 1;
 /// its length, then its kind: zero for a byte that is written as itself,
 /// `LONG` for a `\u00XX` escape, otherwise the letter of a two-byte escape.
 static ESCAPES: [[u8; 8]; 128] = {
-    let hex = b"0123456789abcdef";
+    const fn digit(nibble: u8) -> u8 {
+        if nibble < 10 {
+            b'0' + nibble
+        } else {
+            b'a' + nibble - 10
+        }
+    }
     let mut escapes = [[0; 8]; 128];
-    let mut byte = 0;
-    while byte < 128 {
-        let letter = match byte as u8 {
+    let mut byte = 0u8;
+    let mut remaining: &mut [[u8; 8]] = &mut escapes;
+    while let Some((escape, tail)) = remaining.split_first_mut() {
+        let letter = match byte {
             b'"' => b'"',
             b'\\' => b'\\',
             b'\n' => b'n',
@@ -32,12 +39,21 @@ static ESCAPES: [[u8; 8]; 128] = {
             _ => 0,
         };
         if letter != 0 {
-            escapes[byte] = [b'\\', letter, 0, 0, 0, 0, 2, letter];
-        } else if byte < 32 || matches!(byte as u8, b'<' | b'>' | b'&') {
-            let digits = [hex[byte >> 4], hex[byte & 15]];
-            escapes[byte] = [b'\\', b'u', b'0', b'0', digits[0], digits[1], 6, LONG];
+            *escape = [b'\\', letter, 0, 0, 0, 0, 2, letter];
+        } else if byte < 32 || matches!(byte, b'<' | b'>' | b'&') {
+            *escape = [
+                b'\\',
+                b'u',
+                b'0',
+                b'0',
+                digit(byte >> 4),
+                digit(byte & 15),
+                6,
+                LONG,
+            ];
         }
         byte += 1;
+        remaining = tail;
     }
     escapes
 };
@@ -166,13 +182,19 @@ impl Output {
             let length = usize::from(escape[6]);
             // At most two steps a byte, so the count cannot overflow.
             if length != 0 {
-                block[written..written + 8].copy_from_slice(escape);
+                let Some(slot) = block.get_mut(written..written + 8) else {
+                    break;
+                };
+                slot.copy_from_slice(escape);
                 written += length;
                 // One step for the escape and one for appending it.
                 steps = steps.wrapping_add(2);
             } else if tail.first().is_some_and(|&next| escape_kind(next) != 0) {
                 // A one-byte span. A longer one is left to the span scanner.
-                block[written] = *byte;
+                let Some(slot) = block.get_mut(written) else {
+                    break;
+                };
+                *slot = *byte;
                 written += 1;
                 steps = steps.wrapping_add(1);
             } else {
@@ -180,7 +202,10 @@ impl Output {
             }
             rest = tail;
         }
-        data.extend_from_slice(&block[..written]);
+        let Some(block) = block.get(..written) else {
+            return (0, 0);
+        };
+        data.extend_from_slice(block);
         (input.len() - rest.len(), steps)
     }
 
@@ -312,7 +337,8 @@ fn write_value_with<const BATCH: bool>(
             Kind::Float(n) => {
                 let mut text = Number::new();
                 crate::ops::format_float(&mut text, n)?;
-                let text = std::str::from_utf8(text.bytes()).unwrap();
+                let text = std::str::from_utf8(text.bytes()?)
+                    .map_err(|_| violation("formatted float must be UTF-8"))?;
                 format!("JSON.stringify failed: json: unsupported value: {text}")
             }
             _ => format!(
@@ -360,7 +386,10 @@ impl std::fmt::Display for Path<'_, '_> {
                 Frame::Hash { entries, .. } => {
                     let mut quoted = Vec::new();
                     crate::shapes::quote(
-                        entries[index].0.as_bytes().unwrap_or_default(),
+                        entries
+                            .get(index)
+                            .and_then(|entry| entry.0.as_bytes())
+                            .unwrap_or_default(),
                         &mut quoted,
                     );
                     write!(
@@ -395,7 +424,7 @@ fn start<'a>(
         Kind::Namespace(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a module")),
         Kind::Shape(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a type literal")),
         Kind::Enum(_) => return Err(Error::new(ErrorKind::Json, "cannot encode an enum type")),
-        Kind::EnumMember(m) => write_string(ctx, m.definition().symbol.as_bytes(), out, open)?,
+        Kind::EnumMember(m) => write_string(ctx, m.definition()?.symbol.as_bytes(), out, open)?,
         Kind::Money(_) => return Err(Error::new(ErrorKind::Json, "cannot encode money")),
         Kind::Duration(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a duration")),
         Kind::Time(_) | Kind::Zoned(_) => {
@@ -406,8 +435,8 @@ fn start<'a>(
         Kind::Bool(v) => out.extend(ctx, if *v { b"true" } else { b"false" })?,
         Kind::Int(n) => {
             let mut text = Number::new();
-            write!(text, "{n}").unwrap();
-            out.extend(ctx, text.bytes())?;
+            text.format(format_args!("{n}"))?;
+            out.extend(ctx, text.bytes()?)?;
         }
         Kind::Big(_) => {
             let text = crate::integer::format(ctx, value, 10)?;
@@ -423,15 +452,20 @@ fn start<'a>(
             let mut text = Number::new();
             if *n != 0.0 && !(1e-6..1e21).contains(&n.abs()) {
                 let mut scientific = Number::new();
-                write!(scientific, "{n:e}").unwrap();
-                let scientific = std::str::from_utf8(scientific.bytes()).unwrap();
-                let (mantissa, exponent) = scientific.split_once('e').unwrap();
-                let exponent: i32 = exponent.parse().unwrap();
-                write!(text, "{mantissa}e{exponent:+}").unwrap();
+                scientific.format(format_args!("{n:e}"))?;
+                let scientific = std::str::from_utf8(scientific.bytes()?)
+                    .map_err(|_| violation("scientific number must be UTF-8"))?;
+                let (mantissa, exponent) = scientific
+                    .split_once('e')
+                    .ok_or(violation("scientific exponent expected"))?;
+                let exponent: i32 = exponent
+                    .parse()
+                    .map_err(|_| violation("scientific exponent must be an integer"))?;
+                text.format(format_args!("{mantissa}e{exponent:+}"))?;
             } else {
-                write!(text, "{n}").unwrap();
+                text.format(format_args!("{n}"))?;
             }
-            out.extend(ctx, text.bytes())?;
+            out.extend(ctx, text.bytes()?)?;
         }
         Kind::Bytes(h) | Kind::Symbol(h) => write_string(ctx, h.data(), out, open)?,
         Kind::Array(h) => {
@@ -499,19 +533,21 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
     // that often, with at most two steps per input byte, keeps `pending` far
     // from overflowing, so the loop adds to it without checks.
     let mut pending: u64 = 0;
-    let mut settle_at = CHUNK;
-    let mut i = 0;
-    'bytes: while i < input.len() {
-        if i >= settle_at {
+    let mut rest = input;
+    let mut settle_at = rest.len().saturating_sub(CHUNK);
+    'bytes: while !rest.is_empty() {
+        if rest.len() <= settle_at {
             ctx.charge_pending(&mut pending)?;
             ctx.checkpoint()?;
-            settle_at = i + CHUNK;
+            settle_at = rest.len().saturating_sub(CHUNK);
         }
-        let mut b = input[i];
+        let Some(mut b) = rest.first().copied() else {
+            break;
+        };
         let mut escape = escape_kind(b);
         while escape != 0 {
             pending = pending.wrapping_add(1);
-            i += 1;
+            rest = rest.tail(1)?;
             // Go reserves room for the longest escape before any ASCII escape.
             let reserved = out.buffer.data.len().saturating_add(LONGEST);
             if out.limit.is_some_and(|limit| reserved > limit) {
@@ -521,24 +557,24 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
             if escape != LONG {
                 out.put_escape(ctx, escape, &mut pending)?;
             } else {
-                let [text @ .., _, _] = ESCAPES[usize::from(b)];
+                let [text @ .., _, _] = *ESCAPES.at(usize::from(b))?;
                 out.put(ctx, &text, &mut pending)?;
             }
-            let Some(&next) = input.get(i) else {
+            let Some(&next) = rest.first() else {
                 break 'bytes;
             };
             b = next;
             escape = escape_kind(b);
             // A lone escape or a pair costs least appended in place, as
             // above. A third in a row starts a run.
-            if escape != 0 && input.get(i + 1).is_some_and(|&next| escape_kind(next) != 0) {
-                let (run, steps) = out.put_run(&input[i..]);
-                i += run;
+            if escape != 0 && rest.get(1).is_some_and(|&next| escape_kind(next) != 0) {
+                let (run, steps) = out.put_run(rest);
+                rest = rest.tail(run)?;
                 pending = pending.wrapping_add(steps);
                 continue 'bytes;
             }
         }
-        let window = &input[i..input.len().min(i + CHUNK)];
+        let window = rest.span(0, rest.len().min(CHUNK))?;
         if b < 128 {
             // A one-byte run between ASCII escapes needs no vector/SWAR mask.
             if window.get(1).is_some_and(|&next| escape_kind(next) != 0) {
@@ -547,54 +583,66 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
                     .get(2..4)
                     .is_some_and(|ahead| ahead.iter().any(|&next| escape_kind(next) != 0))
                 {
-                    let (run, steps) = out.put_run(&input[i..]);
+                    let (run, steps) = out.put_run(rest);
                     if run != 0 {
-                        i += run;
+                        rest = rest.tail(run)?;
                         pending = pending.wrapping_add(steps);
                         continue;
                     }
                 }
-                out.put(ctx, &window[..1], &mut pending)?;
-                i += 1;
+                out.put(ctx, window.span(0, 1)?, &mut pending)?;
+                rest = rest.tail(1)?;
                 continue;
             }
             // An ordinary run ending at an escape or the window is exactly
             // the span `text_span` would find, so it skips the rune scan.
             let n = scan::prefix(window, Class::JsonStringify);
             if window.get(n).is_none_or(|&next| next < 128) {
-                out.put(ctx, &window[..n], &mut pending)?;
-                i += n;
+                out.put(ctx, window.span(0, n)?, &mut pending)?;
+                rest = rest.tail(n)?;
                 continue;
             }
         }
-        let span = scan::text_span(window, Class::JsonStringify);
-        if span.len > 0 {
-            if span.runes != span.len {
-                pending = pending.wrapping_add(span.steps);
-            }
-            out.put(ctx, &window[..span.len], &mut pending)?;
-            i += span.len;
-            continue;
-        }
-        // A rune the span stopped at: invalid, a line or paragraph separator,
-        // or cut by the end of the chunk.
-        pending = pending.wrapping_add(1);
-        let (ch, n, valid) = scan::rune(&input[i..]);
-        let replacement: &[u8] = if ch == '\u{2028}' {
-            b"\\u2028"
-        } else if ch == '\u{2029}' {
-            b"\\u2029"
-        } else if !valid {
-            b"\\ufffd"
-        } else {
-            &input[i..i + n]
-        };
-        i += n;
-        out.put(ctx, replacement, &mut pending)?;
+        let n = write_text(ctx, rest, out, &mut pending)?;
+        rest = rest.tail(n)?;
     }
     ctx.charge_pending(&mut pending)?;
     out.push(ctx, b'"')?;
     Ok(())
+}
+
+/// Writes the next text span or a rune that stops the span scanner, returning
+/// the bytes consumed. Keep its scanners out of `write_string` so they do not
+/// compete with the ASCII and escape loops for registers.
+#[inline(never)]
+fn write_text(
+    ctx: &mut CallContext,
+    input: &[u8],
+    out: &mut Output,
+    pending: &mut u64,
+) -> Result<usize> {
+    let window = input.span(0, input.len().min(CHUNK))?;
+    let span = scan::text_span(window, Class::JsonStringify);
+    if span.len > 0 {
+        if span.runes != span.len {
+            *pending = pending.wrapping_add(span.steps);
+        }
+        out.put(ctx, window.span(0, span.len)?, pending)?;
+        return Ok(span.len);
+    }
+    *pending = pending.wrapping_add(1);
+    let (ch, n, valid) = scan::rune(input);
+    let replacement: &[u8] = if ch == '\u{2028}' {
+        b"\\u2028"
+    } else if ch == '\u{2029}' {
+        b"\\u2029"
+    } else if !valid {
+        b"\\ufffd"
+    } else {
+        input.span(0, n)?
+    };
+    out.put(ctx, replacement, pending)?;
+    Ok(n)
 }
 
 #[cfg(test)]
@@ -752,6 +800,71 @@ mod tests {
     }
 
     #[test]
+    fn text_tail_preserves_chunk_boundaries_and_failure_accounting() {
+        let tails: [&[u8]; 8] = [
+            "é界🙂".as_bytes(),
+            "\u{2028}\u{2029}".as_bytes(),
+            b"\xff",
+            b"\xe7\x95",
+            b"\xf0\x9f\x99",
+            b"\xed\xa0\x80",
+            b"\xf4\x90\x80\x80",
+            "é\n界\"🙂".as_bytes(),
+        ];
+        for offset in CHUNK - 4..=CHUNK + 4 {
+            for tail in tails {
+                let mut input = vec![b'a'; offset];
+                input.extend_from_slice(tail);
+                input.extend_from_slice(b"ab\n");
+                let run = |write: fn(&mut CallContext, &[u8], &mut Output, usize) -> Result<()>,
+                           steps,
+                           limit| {
+                    let mut ctx = CallContext::new(CallOptions {
+                        limits: Limits {
+                            steps,
+                            ..Limits::default()
+                        },
+                        ..CallOptions::default()
+                    });
+                    let mut out = Output::new(limit, true);
+                    let result = write(&mut ctx, &input, &mut out, 0);
+                    let stats = ctx.stats();
+                    // Failed batched charges may leave more private output
+                    // and steps than the per-append oracle. Only successful
+                    // output and accounting are part of the returned value.
+                    let result = result
+                        .map(|()| {
+                            (
+                                out.buffer.data.clone(),
+                                stats.steps,
+                                stats.retained_memory_bytes,
+                            )
+                        })
+                        .map_err(|error| (error.kind, error.message));
+                    drop(out);
+                    assert_eq!(ctx.stats().retained_memory_bytes, 0);
+                    (result, stats.peak_memory_bytes)
+                };
+                let expected = run(reference, None, None).0.unwrap();
+                for steps in (0..=expected.1 + 1).map(Some).chain([None]) {
+                    assert_eq!(
+                        run(write_string, steps, None),
+                        run(reference, steps, None),
+                        "offset {offset}, tail {tail:02x?}, steps {steps:?}"
+                    );
+                }
+                for limit in input.len()..=expected.0.len() + LONGEST {
+                    assert_eq!(
+                        run(write_string, None, Some(limit)),
+                        run(reference, None, Some(limit)),
+                        "offset {offset}, tail {tail:02x?}, limit {limit}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn batched_escaping_matches_per_escape_output_and_accounting() {
         let pieces: [&[u8]; 20] = [
             b"a",
@@ -780,7 +893,7 @@ mod tests {
             seed ^= seed << 13;
             seed ^= seed >> 7;
             seed ^= seed << 17;
-            (seed % bound as u64) as usize
+            usize::try_from(seed % bound as u64).unwrap()
         };
         for case in 0..400 {
             let mut input = Vec::new();
@@ -799,11 +912,15 @@ mod tests {
             let bytes = expected.buffer.data.len();
             for limits in [
                 (None, None, None),
-                (Some(next(steps as usize + 2) as u64), None, None),
+                (
+                    Some(next(usize::try_from(steps).unwrap() + 2) as u64),
+                    None,
+                    None,
+                ),
                 (None, Some(next(bytes * 2 + 64)), None),
                 (None, None, Some(next(bytes + 8))),
                 (
-                    Some(next(steps as usize + 2) as u64),
+                    Some(next(usize::try_from(steps).unwrap() + 2) as u64),
                     Some(next(bytes * 2 + 64)),
                     Some(next(bytes + 8)),
                 ),

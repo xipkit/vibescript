@@ -3,6 +3,7 @@
 //! by their declarations, the prelude prints them, and each call checks at
 //! entry that its globals and capabilities match them.
 
+use crate::checked::Checked;
 use crate::{
     CallContext, Capability, Error, ErrorKind, Result, Value,
     signatures::{self, Item},
@@ -255,7 +256,7 @@ fn retained_source(value: &Value, work: &dyn crate::compilation::Work) -> Result
     }
     let mut declarations = BTreeMap::new();
     for declaration in &owner.program.outline {
-        let text = &owner.program.source.text()[declaration.span.clone()];
+        let text = crate::checked::text(owner.program.source.text(), declaration.span.clone())?;
         let bytes = declaration
             .name
             .len()
@@ -265,7 +266,12 @@ fn retained_source(value: &Value, work: &dyn crate::compilation::Work) -> Result
         work.bytes(bytes)?;
         declarations.insert(declaration.name.clone(), text.to_owned());
     }
-    let mut referenced = vec![declarations[&namespace.definition.name].as_bytes()];
+    let mut referenced = vec![
+        declarations
+            .get(&namespace.definition.name)
+            .ok_or(crate::checked::violation("namespace declaration expected"))?
+            .as_bytes(),
+    ];
     Charge::merge(
         &mut held,
         work.reserve(
@@ -347,7 +353,8 @@ fn contains_name(work: &dyn crate::compilation::Work, source: &[u8], name: &[u8]
     for start in (0..count).step_by(chunk) {
         let windows = (count - start).min(chunk);
         work.bytes(windows.saturating_mul(name.len()))?;
-        if source[start..start + windows + name.len() - 1]
+        if source
+            .span(start, start + windows + name.len() - 1)?
             .windows(name.len())
             .any(|word| word == name)
         {
@@ -442,7 +449,7 @@ fn check(ctx: &mut CallContext, shape: &Shape, subject: &str, value: &Value) -> 
                         format!("{subject} lacks the member {name} the host declares"),
                     ));
                 };
-                let field = hash.buffer.data[index].1.clone();
+                let field = hash.buffer.at(index)?.1.clone();
                 check(ctx, member, &format!("{subject} member {name}"), &field)?;
             }
             Ok(())

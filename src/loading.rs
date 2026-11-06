@@ -132,6 +132,8 @@ impl Loader {
         let mut candidates = self.resolver.candidates(ctx, request.as_bytes(), caller)?;
         while let Some(candidate) = candidates.next(ctx)? {
             if let Some(source) = self.resolver.read(ctx, &candidate)? {
+                #[cfg(test)]
+                source_tests::injected(ctx, request)?;
                 let bytes = source
                     .contents
                     .as_bytes()
@@ -295,6 +297,9 @@ pub(crate) mod test_support;
 #[cfg(test)]
 mod encoding_tests;
 
+#[cfg(test)]
+mod source_tests;
+
 pub(crate) struct Name {
     pub normalized: Value,
     pub relative: bool,
@@ -325,11 +330,11 @@ impl Name {
         if !relative && output.data.split(|&b| b == b'/').any(|part| part == b"..") {
             return Err(argument("module name escapes search paths"));
         }
-        let base = &output.data[output
+        let base = output
             .data
-            .iter()
-            .rposition(|&b| b == b'/')
-            .map_or(0, |i| i + 1)..];
+            .rsplit(|&b| b == b'/')
+            .next()
+            .unwrap_or_default();
         if base == b".." {
             return Err(argument("module name resolves to a directory"));
         }

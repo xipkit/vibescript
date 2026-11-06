@@ -394,7 +394,10 @@ impl<'a> Checker<'a> {
             return;
         };
         let mut unproven: HashSet<NsId> = HashSet::with_capacity(namespaces);
-        unproven.extend((0..namespaces as NsId).filter(|&ns| !self.initializes(ns)));
+        let Some(namespaces) = self.meter.index(namespaces) else {
+            return;
+        };
+        unproven.extend((0..namespaces).filter(|&ns| !self.initializes(ns)));
         let (reads, reads_held) = self.method_reads();
         let sites = std::mem::take(&mut self.construction.sites);
         // Taken from the records, the sites are held while they are read,
@@ -756,9 +759,9 @@ fn search(
     let mut visited = 0;
     let pace = |visited: &mut u64| {
         *visited += 1;
-        if *visited == PACE {
+        if *visited == u64::from(PACE) {
             *visited = 0;
-            meter.pace(PACE, 0)
+            meter.pace(u64::from(PACE), 0)
         } else {
             false
         }

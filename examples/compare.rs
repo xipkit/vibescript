@@ -257,9 +257,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let n = if fixed > 0 {
                 fixed
             } else {
-                case.get("iterations")
-                    .and_then(Json::as_u64)
-                    .ok_or("missing iterations")? as usize
+                usize::try_from(
+                    case.get("iterations")
+                        .and_then(Json::as_u64)
+                        .ok_or("missing iterations")?,
+                )?
             };
             if n == 0 {
                 return Err("zero iterations".into());
@@ -291,7 +293,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     json!((after.1 - before.1) as f64 / n as f64),
                 );
             }
-            let final_output = support::encode(&last.unwrap().value, encoding, codec_options())?;
+            let last = last.ok_or("timed calls must produce a result")?;
+            let final_output = support::encode(&last.value, encoding, codec_options())?;
             if final_output != output {
                 return Err(format!("{name}: timed output differs from validation").into());
             }
@@ -350,9 +353,11 @@ fn measure_parse(
     let n = if fixed > 0 {
         fixed
     } else {
-        case.get("iterations")
-            .and_then(Json::as_u64)
-            .ok_or("missing iterations")? as usize
+        usize::try_from(
+            case.get("iterations")
+                .and_then(Json::as_u64)
+                .ok_or("missing iterations")?,
+        )?
     };
     if n == 0 {
         return Err("zero iterations".into());

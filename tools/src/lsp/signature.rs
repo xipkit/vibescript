@@ -190,7 +190,9 @@ fn labels_from_signature(label: &str) -> Vec<String> {
     if close <= open + 1 {
         return Vec::new();
     }
-    label[open + 1..close]
+    label
+        .get(open + 1..close)
+        .unwrap_or_default()
         .split(',')
         .map(|part| part.trim().to_owned())
         .collect()

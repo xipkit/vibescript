@@ -90,7 +90,10 @@ impl<'a> Checker<'a> {
                 if self.grow(std::mem::size_of::<Fix>() + super::meter::Heap::heap(&fix)) {
                     return;
                 }
-                let fixes = &mut self.diagnostics.last_mut().unwrap().fixes;
+                let Some(diagnostic) = self.diagnostics.last_mut() else {
+                    return;
+                };
+                let fixes = &mut diagnostic.fixes;
                 fixes.reserve_exact(1);
                 fixes.push(fix);
             }
@@ -1674,7 +1677,7 @@ impl<'a> Checker<'a> {
                 }
                 let mut results = vec![result];
                 // The other alternatives reuse the selectors' types.
-                self.memo.get_mut().unwrap().replay = true;
+                self.memo.replay(&self.meter);
                 for &alternative in others {
                     let mark = self.frame.flow.mark();
                     results.push(self.index_type(expr, receiver, alternative, selectors));
@@ -1901,7 +1904,7 @@ impl<'a> Checker<'a> {
                 if evaluate {
                     let outer = self.set_memo(Some(super::Memo::default()));
                     self.method_on(expr, ty, "[]=", None, selectors, Some(value));
-                    self.memo.get_mut().unwrap().replay = true;
+                    self.memo.replay(&self.meter);
                     let assigned = self.expr(value, None);
                     self.restore_memo(outer);
                     return assigned;
@@ -2102,7 +2105,7 @@ impl<'a> Checker<'a> {
                         .program
                         .enumeration(id)?
                         .symbol(&symbol)
-                        .map(|place| place as u32);
+                        .and_then(|place| self.meter.index(place));
                 }
                 if self.types.kind(ty) != &Kind::EnumValue(id) {
                     if ty != Ty::ERROR && !self.types.assignable(ty, subject) {
@@ -2117,7 +2120,7 @@ impl<'a> Checker<'a> {
                     Node::Scope(_, name, None) => decl.member(name)?,
                     _ => return None,
                 };
-                Some(place as u32)
+                self.meter.index(place)
             }
             Kind::Bool => match &value.node {
                 Node::Literal(v) if v.type_name() == "bool" => Some(u32::from(v.truthy())),
@@ -2378,14 +2381,15 @@ impl<'a> Checker<'a> {
                     assigned: false,
                 },
             );
-            if self
-                .frame
-                .ensure_writes
-                .last_mut()
-                .unwrap()
-                .insert(self.meter.tables(), id, flag)
-                .is_err()
-            {
+            let Some(writes) = self.meter.found(
+                self.frame
+                    .ensure_writes
+                    .last_mut()
+                    .ok_or(crate::checked::violation("ensure must have a write table")),
+            ) else {
+                break;
+            };
+            if writes.insert(self.meter.tables(), id, flag).is_err() {
                 break;
             }
         }
@@ -2394,7 +2398,17 @@ impl<'a> Checker<'a> {
         self.stmts(ensure, Want::Discard);
         let ensured = self.frame.flow.live;
         let mut finals = super::counted::ScratchMap::new(&self.meter);
-        for (&id, &flag) in self.frame.ensure_writes.last().unwrap().iter() {
+        let Some(writes) = self.meter.found(
+            self.frame
+                .ensure_writes
+                .last()
+                .ok_or(crate::checked::violation("ensure must have a write table")),
+        ) else {
+            self.frame.flow.rollback(mark);
+            self.join_explored(explored);
+            return;
+        };
+        for (&id, &flag) in writes.iter() {
             if self.meter.charge(1)
                 || finals
                     .insert(id, (self.frame.flow.get(id), self.frame.flow.get(flag)))

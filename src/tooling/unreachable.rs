@@ -2,6 +2,7 @@
 //! linter reports them: its scopes, positions and terminator rules.
 
 use super::Unreachable;
+use crate::checked::Checked;
 use crate::{
     Position, Result,
     source::Source,
@@ -15,7 +16,7 @@ pub(super) fn unreachable(text: &str) -> Result<Vec<Unreachable>> {
     let parsed = syntax::parse(text, &())
         .map_err(|error| crate::source::parse_error(text, None, error, &()))?;
     let source = Source::compile(text, &())?;
-    let main = &parsed.functions[0];
+    let main = parsed.functions.at(0)?;
     let mut lint = Lint {
         source: &source,
         interpolations: &parsed.interpolations,
@@ -24,7 +25,7 @@ pub(super) fn unreachable(text: &str) -> Result<Vec<Unreachable>> {
         results: Vec::new(),
     };
     lint.script(&main.body, &parsed.modules);
-    for definition in &parsed.functions[1..] {
+    for definition in parsed.functions.tail(1)? {
         lint.body(&Arc::from(definition.name.as_str()), &definition.body);
     }
     let mut namespaces = Vec::new();
@@ -73,7 +74,7 @@ fn last_definitions<T>(methods: &[(syntax::Definition, T)]) -> Vec<&syntax::Defi
     methods
         .iter()
         .enumerate()
-        .filter(|(index, (definition, _))| last[definition.name.as_str()] == *index)
+        .filter(|(index, (definition, _))| last.get(definition.name.as_str()) == Some(index))
         .map(|(_, (definition, _))| definition)
         .collect()
 }
@@ -113,7 +114,10 @@ fn statement_offset(text: &str, stmt: &Stmt) -> u32 {
                     | Node::BlockCall(receiver, _)
                     | Node::Binary(_, receiver, _)
                     | Node::Range(Some(receiver), _, _) => receiver,
-                    Node::Conditional(branches, _) if !branches.is_empty() => &branches[0].0,
+                    Node::Conditional(branches, _) => match branches.first() {
+                        Some((condition, _)) => condition,
+                        None => return expression_offset(text, expr),
+                    },
                     _ => return expression_offset(text, expr),
                 };
             }
@@ -142,7 +146,7 @@ fn expression_offset(text: &str, expr: &Expr) -> u32 {
             if !matches!(op, "<=>" | "===")
                 && text.get(at..).is_some_and(|rest| rest.starts_with(op))
             {
-                offset + op.len() as u32 - 1
+                op.bytes().skip(1).fold(offset, |offset, _| offset + 1)
             } else {
                 offset
             }
@@ -317,16 +321,16 @@ impl<'a> Lint<'a> {
                 Task::Body(scope, stmts) => self.tasks.push(Task::Resume(scope, stmts, 0)),
                 Task::Resume(scope, stmts, next) => {
                     if next > 0 && self.results.pop() == Some(true) {
-                        for stmt in &stmts[next..] {
+                        for stmt in stmts.iter().skip(next) {
                             self.report(&scope, statement_offset(self.source.text(), stmt));
                         }
                         self.results.push(true);
-                    } else if next == stmts.len() {
-                        self.results.push(false);
-                    } else {
+                    } else if let Some(stmt) = stmts.get(next) {
                         self.tasks
                             .push(Task::Resume(scope.clone(), stmts, next + 1));
-                        self.tasks.push(Task::Stmt(scope, &stmts[next]));
+                        self.tasks.push(Task::Stmt(scope, stmt));
+                    } else {
+                        self.results.push(false);
                     }
                 }
                 Task::Stmt(scope, stmt) => self.statement(scope, stmt),

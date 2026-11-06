@@ -139,7 +139,10 @@ end
             state ^= state << 17;
             let len = (state % 24) as usize;
             let source: Vec<u8> = (0..len)
-                .map(|i| alphabet[((state >> (i * 2 % 60)) % alphabet.len() as u64) as usize])
+                .map(|i| {
+                    alphabet
+                        [usize::try_from((state >> (i * 2 % 60)) % alphabet.len() as u64).unwrap()]
+                })
                 .collect();
             let once = format_bytes(&source);
             assert!(once.ends_with(b"\n"), "{source:?}");

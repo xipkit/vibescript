@@ -416,7 +416,7 @@ fn instruction(program: &Program, function: &Function, frame: &Frame) -> Access<
     let Op::Extended(index) = *function.code.at(frame.ip)? else {
         return Err(violation("outlined instruction expected"));
     };
-    Ok(*program.extended.at(index as usize)?)
+    Ok(*program.extended.at(index)?)
 }
 
 // Keep the selector small so another outlined instruction cannot rearrange
@@ -720,7 +720,7 @@ fn append_loop_tail(
     site: crate::bytecode::CallSite,
     args: &[Value],
 ) -> Result<Value> {
-    if !take_loop_alias(storage, &address.value) {
+    if !take_loop_alias(storage, &address.value)? {
         return update(ctx, storage, address, site, "push", args);
     }
     address.apply(

@@ -2,6 +2,7 @@
 // Copyright 2009 The Go Authors. All rights reserved.
 // See licenses/Go-BSD-3-Clause.txt.
 
+use crate::checked::{Access, Checked};
 use crate::numeric::{to_i64, to_usize, unsigned_bits, wrapped};
 
 pub(super) const UNIX_TO_INTERNAL: i64 = 62_135_596_800;
@@ -68,7 +69,7 @@ pub(super) fn civil(seconds: i64, offset: i32) -> Civil {
     let cd = (d % 146097) as u32 | 3;
     let product = 2939745 * u64::from(cd);
     let cyear = product >> 32;
-    let ayday = product as u32 / 2939745 / 4;
+    let ayday = crate::numeric::low_u32(product) / 2939745 / 4;
     let md = 2141 * u64::from(ayday) + 197913;
     let jan_feb = ayday >= 306;
     let leap = cyear % 4 == 0 && (cyear != 0 || century % 4 == 0);
@@ -90,8 +91,9 @@ pub(super) fn leap(year: i64) -> bool {
     year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
 }
 
-pub(super) fn days_before(month: i64) -> i64 {
-    [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334][to_usize(month) - 1]
+/// Returns the days before a calendar month in a non-leap year.
+pub(super) fn days_before(month: i64) -> Access<i64> {
+    Ok(*[0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334].at(to_usize(month) - 1)?)
 }
 
 pub(super) fn days_in(year: i64, month: i64) -> i64 {

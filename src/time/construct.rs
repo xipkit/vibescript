@@ -1,4 +1,5 @@
 use super::{NANOS, Stamp, argument, calendar, location, parse, scaled_float, value};
+use crate::checked::convert;
 use crate::{CallContext, Error, ErrorKind, Result, Value, bytes, ops, value::Kind};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -64,7 +65,7 @@ impl Constructor {
                 return Err(at_shape());
             }
             let zone = location(ctx, zone_input, true)?;
-            let (seconds, mut nanos) = match args[0].0 {
+            let (seconds, mut nanos) = match args.first().ok_or_else(at_shape)?.0 {
                 Kind::Int(n) => (n, 0),
                 Kind::Float(n) if n.is_finite() => {
                     let whole = raw_int(n);
@@ -82,7 +83,7 @@ impl Constructor {
                     "Time.at subsecond value out of range",
                 )
             };
-            if args.len() >= 2 {
+            if let Some(subsecond) = args.get(1) {
                 let factor = if let Some(unit) = args.get(2) {
                     let Kind::Symbol(name) = &unit.0 else {
                         return Err(unexpected_unit(ctx, unit)?);
@@ -96,7 +97,7 @@ impl Constructor {
                 } else {
                     1000
                 };
-                let subsecond = scaled(&args[1], factor).map_err(|error| match error {
+                let subsecond = scaled(subsecond, factor).map_err(|error| match error {
                     Subsecond::NotNumeric => argument("Time.at subsecond value must be numeric"),
                     Subsecond::NotFinite => Error::new(
                         ErrorKind::Arithmetic,
@@ -111,13 +112,13 @@ impl Constructor {
                 .ok_or_else(out_of_range)?;
             return value(
                 ctx,
-                Stamp::new(seconds, nanos.rem_euclid(NANOS) as u32),
+                Stamp::new(seconds, convert::<u32, _>(nanos.rem_euclid(NANOS))?),
                 zone,
             );
         }
-        if args.is_empty() {
+        let Some(year) = args.first() else {
             return Err(argument("Time constructor expects at least a year"));
-        }
+        };
         for arg in args {
             ctx.charge(1)?;
             if matches!(arg.0, Kind::Big(_)) {
@@ -131,7 +132,7 @@ impl Constructor {
                 "Time constructor expects at most year, month, day, hour, minute, second, microsecond",
             ));
         }
-        let year = required_year(&args[0])?;
+        let year = required_year(year)?;
         let mut parts = [year, 1, 1, 0, 0, 0];
         for (i, part) in parts.iter_mut().enumerate().skip(1) {
             if let Some(arg) = args.get(i) {
@@ -187,7 +188,7 @@ impl Constructor {
 fn raw_int(value: f64) -> i64 {
     // Go's conversion of an out-of-range float depends on the CPU; every
     // platform uses the reference's arm64 result, which saturates.
-    value as i64
+    crate::numeric::float_to_i64(value)
 }
 
 /// Scales a subsecond number; the error names a non-numeric value, a
@@ -230,7 +231,7 @@ fn required_year(year: &Value) -> Result<i64> {
     match year.0 {
         Kind::Int(n) => Ok(n),
         Kind::Float(n) if n.is_finite() && n > i64::MIN as f64 && n < i64::MAX as f64 => {
-            Ok(n as i64)
+            Ok(crate::numeric::float_to_i64(n))
         }
         Kind::Float(n) if n.is_nan() => {
             Err(argument("Time constructor year must be finite, got NaN"))
@@ -244,7 +245,7 @@ fn required_year(year: &Value) -> Result<i64> {
             ops::format_float(&mut text, n)?;
             Err(argument(format!(
                 "Time constructor year {} is out of range",
-                String::from_utf8_lossy(text.bytes())
+                String::from_utf8_lossy(text.bytes()?)
             )))
         }
         _ => Err(argument(format!(

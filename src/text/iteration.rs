@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK},
@@ -85,12 +86,12 @@ impl Driver {
         }
         let value = match self.method {
             Method::Byte => {
-                let value = Value::int(i64::from(bytes[self.position]));
+                let value = Value::int(i64::from(*bytes.at(self.position)?));
                 self.position += 1;
                 value
             }
             Method::Char | Method::Codepoint => {
-                let (rune, width, _) = scan::rune(&bytes[self.position..]);
+                let (rune, width, _) = scan::rune(bytes.tail(self.position)?);
                 self.position += width;
                 if matches!(self.method, Method::Char) {
                     let mut encoded = [0; 4];
@@ -115,7 +116,11 @@ fn line_end(ctx: &mut CallContext, bytes: &[u8], mut position: usize) -> Result<
     while position < bytes.len() {
         ctx.checkpoint()?;
         let end = position + (bytes.len() - position).min(CHUNK);
-        if let Some(offset) = bytes[position..end].iter().position(|&byte| byte == b'\n') {
+        if let Some(offset) = bytes
+            .span(position, end)?
+            .iter()
+            .position(|&byte| byte == b'\n')
+        {
             ctx.work_bytes(offset + 1)?;
             return Ok(position + offset + 1);
         }
@@ -130,7 +135,7 @@ fn line(ctx: &mut CallContext, receiver: &Value, start: usize, end: usize) -> Re
     if start == 0 && end == bytes.len() {
         Ok(receiver.clone())
     } else {
-        ctx.bytes(&bytes[start..end])
+        ctx.bytes(bytes.span(start, end)?)
     }
 }
 

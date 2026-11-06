@@ -1463,6 +1463,10 @@ impl<T: Heap> Heap for CountedBTreeSet<T> {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::string_slice,
+    reason = "test fixture scanners assert byte spans in repository source"
+)]
 mod tests {
     use super::*;
     use crate::compilation::Budget;
@@ -1610,18 +1614,21 @@ mod tests {
         }
         let refused = refused.expect("the budget refuses the list's growth");
         let (length, capacity) = (list.len(), list.capacity());
-        assert_eq!(length as u32, refused);
+        assert_eq!(u32::try_from(length).unwrap(), refused);
         assert!(meter.stopped());
         // A stopped check grows nothing more, but a list with room takes
         // what fits.
         assert_eq!(list.push(ledger, 0).is_err(), length == capacity);
         list.truncate(length);
         assert_eq!(
-            list.extend_from_slice(ledger, &(0..capacity as u32).collect::<Vec<_>>()),
+            list.extend_from_slice(
+                ledger,
+                &(0..u32::try_from(capacity).unwrap()).collect::<Vec<_>>()
+            ),
             Err(Refused)
         );
         assert_eq!((list.len(), list.capacity()), (length, capacity));
-        assert!(list.iter().copied().eq(0..length as u32));
+        assert!(list.iter().copied().eq(0..u32::try_from(length).unwrap()));
     }
 
     #[test]
@@ -2486,11 +2493,13 @@ mod tests {
         // A stopped walk's results, and a root without assignments.
         ("assigns.rs", [2, 0, 0]),
         // Bindings of signatures without type variables, and the members
-        // of a host or builtin namespace of one name, a few.
-        ("calls.rs", [22, 2, 0]),
+        // of a host or builtin namespace of one name, a few. Also a block
+        // check stopped by a missing context, whose result stays empty.
+        ("calls.rs", [23, 2, 0]),
         // A union's alternatives an `is_a?` keeps, and the defaults by
         // class, counted before they are indexed at the most they take.
-        ("check.rs", [8, 1, 2]),
+        // Missing default state stops the check with an empty result.
+        ("check.rs", [9, 1, 2]),
         // The cycle search's stack, cycles and their members, counted
         // before the search starts.
         ("construction.rs", [19, 0, 3]),

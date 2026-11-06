@@ -20,7 +20,10 @@ fn text(value: &Value) -> Result<&str> {
     if value.type_name() != "string" {
         return Err(Error::new(ErrorKind::Type, "SMS arguments must be strings"));
     }
-    std::str::from_utf8(value.as_bytes().unwrap())
+    let bytes = value
+        .as_bytes()
+        .ok_or_else(|| Error::new(ErrorKind::Internal, "SMS string must contain bytes"))?;
+    std::str::from_utf8(bytes)
         .map_err(|_| Error::new(ErrorKind::Argument, "SMS arguments must be valid UTF-8"))
 }
 
@@ -37,7 +40,10 @@ fn text_param(name: &str) -> SignatureParam {
 fn capability(client: Arc<SmsPreview>) -> Result<Capability> {
     let send = HostMethod::new("sms.send", move |ctx, args, _| {
         for value in args {
-            ctx.charge(value.as_bytes().unwrap().len() as u64)?;
+            let bytes = value.as_bytes().ok_or_else(|| {
+                Error::new(ErrorKind::Internal, "SMS argument must contain bytes")
+            })?;
+            ctx.charge(bytes.len() as u64)?;
         }
         let [phone, body] = args else {
             return Err(Error::new(

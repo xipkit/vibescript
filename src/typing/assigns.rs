@@ -257,8 +257,12 @@ impl<'a> Assigns<'a> {
         if self.roots.reserve(meter.tables(), 1).is_err() {
             return;
         }
-        let start = self.sites.len() as u32;
-        let root = self.roots.len() as u32;
+        let Some(start) = meter.index(self.sites.len()) else {
+            return;
+        };
+        let Some(root) = meter.index(self.roots.len()) else {
+            return;
+        };
         let mut walk = Walk {
             assigns: self,
             root,
@@ -300,7 +304,10 @@ impl<'a> Assigns<'a> {
             &mut kept,
             Root {
                 start,
-                width: width as u32,
+                width: match meter.index(width) {
+                    Some(width) => width,
+                    None => return,
+                },
                 lowest,
                 lowest_scope,
             },
@@ -392,15 +399,20 @@ impl<'a> Walk<'a, '_> {
         self.stopped
     }
 
-    fn here(&self) -> u32 {
-        self.assigns.sites.len() as u32
+    fn here(&mut self) -> Option<u32> {
+        let position = self.meter.index(self.assigns.sites.len());
+        self.stopped |= position.is_none();
+        position
     }
 
-    fn span(&self, start: u32) -> Span {
+    fn span(&mut self, start: u32) -> Span {
+        let Some(end) = self.here() else {
+            return Span::EMPTY;
+        };
         Span {
             root: self.root,
             start,
-            end: self.here(),
+            end,
             scope: self.scope,
             implicit_assignments: self.implicit_assignments,
         }
@@ -441,14 +453,20 @@ impl<'a> Walk<'a, '_> {
             self.stopped = true;
             return;
         }
-        let id = known.unwrap_or_else(|| {
-            let id = assigns.names.len() as u32;
+        let Some(id) = known.or_else(|| {
+            let id = self.meter.index(assigns.names.len())?;
             assigns.names.push_within((name, scope));
             assigns.positions.push_within(fresh);
             assigns.ids.insert_within((name, scope), id);
-            id
-        });
-        let position = assigns.sites.len() as u32;
+            Some(id)
+        }) else {
+            self.stopped = true;
+            return;
+        };
+        let Some(position) = self.meter.index(assigns.sites.len()) else {
+            self.stopped = true;
+            return;
+        };
         let Some(positions) = self.meter.found(assigns.positions.at_mut(id as usize)) else {
             self.stopped = true;
             return;
@@ -485,7 +503,15 @@ impl<'a> Walk<'a, '_> {
                 self.shadows.truncate(mark);
                 return;
             }
-            let (name, previous) = self.shadows.pop().unwrap();
+            let Some((name, previous)) =
+                self.meter
+                    .found(self.shadows.pop().ok_or(crate::checked::violation(
+                        "shadow restore must have a binding",
+                    )))
+            else {
+                self.stopped = true;
+                return;
+            };
             if self.meter.charge(1 + (name.len() / 64) as u64) {
                 self.stopped = true;
                 continue;
@@ -536,7 +562,9 @@ impl<'a> Walk<'a, '_> {
     /// Lists `body`'s assignments and records its span, unless the check
     /// stops first.
     fn stmts(&mut self, body: &'a [Stmt]) -> Span {
-        let start = self.here();
+        let Some(start) = self.here() else {
+            return Span::EMPTY;
+        };
         for stmt in body {
             if self.visit() {
                 return self.span(start);
@@ -607,7 +635,9 @@ impl<'a> Walk<'a, '_> {
         // A `retry` in the body, the `else` or the ensure reruns an
         // enclosing `begin`, since this one is not rescuing then.
         let body = self.stmts(&attempt.body);
-        let start = self.here();
+        let Some(start) = self.here() else {
+            return;
+        };
         let outer = self.target.replace(address);
         for rescue in attempt.rescues.iter() {
             if self.stopped {

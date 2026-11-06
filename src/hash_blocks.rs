@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, MAX_VALUE_DEPTH},
@@ -133,7 +134,7 @@ impl Merge {
             if self.source != 0 && self.block {
                 if let Some(index) = self.output.find(ctx, key.require_bytes()?)? {
                     self.pending = Some(key.clone());
-                    let old = self.output.buffer.data[index].1.clone();
+                    let old = self.output.buffer.at(index)?.1.clone();
                     return Ok(Progress::Yield([key.clone(), old, value.clone()], 3));
                 }
             }

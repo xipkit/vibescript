@@ -1,5 +1,6 @@
 use crate::CallContext;
 use crate::bytes::Number;
+use crate::checked::{Access, Checked, violation};
 use crate::scan::Class;
 use crate::{
     Error, ErrorKind, Result, Value,
@@ -7,7 +8,6 @@ use crate::{
     hash::Hash,
     scan,
 };
-use std::fmt::Write;
 
 /// Small documents use ordinary hashes instead of setting up schema tables.
 pub(super) const RECORD_MIN_BYTES: usize = CHUNK / 2;
@@ -22,7 +22,9 @@ pub(super) fn indexed(input: &[u8]) -> bool {
             .find(|&&b| !matches!(b, b' ' | b'\n' | b'\r' | b'\t'))
         {
             Some(b'[') => true,
-            Some(b'{') => input[..512].contains(&b'['),
+            Some(b'{') => input
+                .get(..512)
+                .is_some_and(|prefix| prefix.contains(&b'[')),
             _ => false,
         }
 }
@@ -71,37 +73,48 @@ impl Failure {
         input: &[u8],
         out: &mut impl std::fmt::Write,
     ) -> std::fmt::Result {
-        let number = |out: &mut dyn std::fmt::Write, start: usize, end: usize| {
-            let mut quoted = Vec::new();
-            crate::shapes::quote(&input[start..end], &mut quoted);
-            out.write_str(std::str::from_utf8(&quoted).unwrap())
-        };
-        if let Self::Range(start, end) = self {
-            write!(out, "{name} invalid number ")?;
-            return number(out, start, end);
+        enum Detail {
+            Text(&'static str),
+            Number(usize, usize),
+            Character(u8, &'static str),
         }
-        write!(out, "{name} invalid JSON: ")?;
-        let (byte, context) = match self {
-            Self::End => return out.write_str("unexpected end of JSON input"),
-            Self::Trailing => return out.write_str("trailing data"),
-            Self::Depth => return out.write_str("exceeded max depth"),
-            Self::Number(start, end) => {
-                out.write_str("invalid number ")?;
-                return number(out, start, end);
-            }
-            Self::Range(..) => return Err(std::fmt::Error),
-            Self::Value(byte) => (byte, "looking for beginning of value"),
-            Self::AfterElement(byte) => (byte, "after array element"),
-            Self::KeyStart(byte) => (byte, "looking for beginning of object key string"),
-            Self::AfterKey(byte) => (byte, "after object key"),
-            Self::AfterValue(byte) => (byte, "after object value"),
-            Self::Literal(byte) => (byte, "in string literal"),
-            Self::Escape(byte) => (byte, "in string escape code"),
-            Self::Unicode(byte) => (byte, "in unicode escape"),
+        const SYNTAX: &str = "invalid JSON: ";
+        let (frame, detail) = match self {
+            Self::Range(start, end) => ("", Detail::Number(start, end)),
+            Self::Number(start, end) => (SYNTAX, Detail::Number(start, end)),
+            Self::End => (SYNTAX, Detail::Text("unexpected end of JSON input")),
+            Self::Trailing => (SYNTAX, Detail::Text("trailing data")),
+            Self::Depth => (SYNTAX, Detail::Text("exceeded max depth")),
+            Self::Value(byte) => (
+                SYNTAX,
+                Detail::Character(byte, "looking for beginning of value"),
+            ),
+            Self::AfterElement(byte) => (SYNTAX, Detail::Character(byte, "after array element")),
+            Self::KeyStart(byte) => (
+                SYNTAX,
+                Detail::Character(byte, "looking for beginning of object key string"),
+            ),
+            Self::AfterKey(byte) => (SYNTAX, Detail::Character(byte, "after object key")),
+            Self::AfterValue(byte) => (SYNTAX, Detail::Character(byte, "after object value")),
+            Self::Literal(byte) => (SYNTAX, Detail::Character(byte, "in string literal")),
+            Self::Escape(byte) => (SYNTAX, Detail::Character(byte, "in string escape code")),
+            Self::Unicode(byte) => (SYNTAX, Detail::Character(byte, "in unicode escape")),
         };
-        out.write_str("invalid character ")?;
-        quote_byte(byte, out)?;
-        write!(out, " {context}")
+        write!(out, "{name} {frame}")?;
+        match detail {
+            Detail::Text(text) => out.write_str(text),
+            Detail::Number(start, end) => {
+                let mut quoted = Vec::new();
+                crate::shapes::quote(input.get(start..end).unwrap_or_default(), &mut quoted);
+                out.write_str("invalid number ")?;
+                out.write_str(&String::from_utf8_lossy(&quoted))
+            }
+            Detail::Character(byte, context) => {
+                out.write_str("invalid character ")?;
+                quote_byte(byte, out)?;
+                write!(out, " {context}")
+            }
+        }
     }
 }
 
@@ -109,15 +122,15 @@ impl Failure {
 // those bits unchanged, so the original polynomial reduces to a byte XOR.
 #[inline(always)]
 fn cache_slot(bytes: &[u8]) -> usize {
-    let mut words = bytes.chunks_exact(4);
-    let mut hash = words.by_ref().fold(0u32, |hash, word| {
-        hash ^ u32::from_ne_bytes(word.try_into().unwrap())
-    });
+    let mut rest = bytes;
+    let mut hash = 0u32;
+    while let Some((word, tail)) = rest.split_first_chunk::<4>() {
+        hash ^= u32::from_ne_bytes(*word);
+        rest = tail;
+    }
     hash ^= hash >> 16;
     hash ^= hash >> 8;
-    words
-        .remainder()
-        .iter()
+    rest.iter()
         .fold(hash as usize, |hash, &byte| hash ^ usize::from(byte))
         & 31
 }
@@ -151,14 +164,14 @@ pub(crate) fn parse_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
     const DIGITS: usize = 1100;
     if input.len() <= DIGITS {
         return std::str::from_utf8(input)
-            .unwrap()
+            .map_err(|_| Error::new(ErrorKind::Json, "invalid JSON number"))?
             .parse()
             .map_err(|_| Error::new(ErrorKind::Json, "invalid JSON number"));
     }
     // Binary64 rounding boundaries need at most 768 significant decimal digits.
     // Keep extra digits and a nonzero tail marker, bounding the library conversion.
     let mut text = [0u8; DIGITS + 80];
-    let negative = input[0] == b'-';
+    let negative = *input.at(0)? == b'-';
     let mut used = usize::from(negative);
     text[0] = b'-';
     let mut at = used;
@@ -167,11 +180,11 @@ pub(crate) fn parse_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
     let mut fractional = false;
     let mut fraction_digits = 0usize;
     let mut tail = false;
-    while at < input.len() && !matches!(input[at], b'e' | b'E') {
+    while at < input.len() && !matches!(input.at(at)?, b'e' | b'E') {
         if (at - usize::from(negative)) % 1024 == 0 {
             ctx.work_bytes((input.len() - at).min(1024))?;
         }
-        let byte = input[at];
+        let byte = *input.at(at)?;
         at += 1;
         if byte == b'.' {
             fractional = true;
@@ -181,7 +194,7 @@ pub(crate) fn parse_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
         if significant != 0 || byte != b'0' {
             significant += 1;
             if kept < DIGITS {
-                text[used] = byte;
+                *text.at_mut(used)? = byte;
                 used += 1;
                 kept += 1;
             } else {
@@ -202,7 +215,7 @@ pub(crate) fn parse_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
             }
             exponent = exponent
                 .saturating_mul(10)
-                .saturating_add((input[at] - b'0') as i128);
+                .saturating_add((input.at(at)? - b'0') as i128);
             at += 1;
         }
         if exponent_negative {
@@ -216,16 +229,18 @@ pub(crate) fn parse_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
         .saturating_sub(fraction_digits as i128)
         .saturating_add((significant - kept) as i128);
     if tail {
-        text[used] = b'1';
+        *text.at_mut(used)? = b'1';
         used += 1;
         exponent = exponent.saturating_sub(1);
     }
     let mut suffix = Number::new();
-    write!(suffix, "e{exponent}").unwrap();
-    text[used..used + suffix.bytes().len()].copy_from_slice(suffix.bytes());
-    used += suffix.bytes().len();
-    std::str::from_utf8(&text[..used])
-        .unwrap()
+    suffix.format(format_args!("e{exponent}"))?;
+    let suffix = suffix.bytes()?;
+    text.span_mut(used, used + suffix.len())?
+        .copy_from_slice(suffix);
+    used += suffix.len();
+    std::str::from_utf8(text.span(0, used)?)
+        .map_err(|_| Error::new(ErrorKind::Json, "invalid JSON number"))?
         .parse()
         .map_err(|_| Error::new(ErrorKind::Json, "invalid JSON number"))
 }
@@ -354,9 +369,10 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
             let start = self.pos;
             let end = self.input.len().min(start + CHUNK);
             self.pos += if INDEX && self.indexed {
-                self.scanner.space(self.input, self.pos, end)
+                self.scanner.space(self.input, self.pos, end)?
             } else {
-                self.input[self.pos..end]
+                self.input
+                    .span(self.pos, end)?
                     .iter()
                     .take_while(|b| matches!(b, b' ' | b'\n' | b'\r' | b'\t'))
                     .count()
@@ -366,19 +382,20 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
         Ok(())
     }
 
-    fn take<const INDEX: bool>(&mut self, b: u8) -> bool {
+    #[inline(always)]
+    fn take<const INDEX: bool>(&mut self, b: u8) -> Access<bool> {
         if self.input.get(self.pos) == Some(&b) {
             if INDEX
                 && self.indexed
                 && matches!(b, b']' | b'}' | b',' | b':')
-                && !self.scanner.punctuation(self.input, self.pos)
+                && !self.scanner.punctuation(self.input, self.pos)?
             {
-                return false;
+                return Ok(false);
             }
             self.pos += 1;
-            true
+            Ok(true)
         } else {
-            false
+            Ok(false)
         }
     }
 
@@ -436,14 +453,14 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                     Frame::Array(out) => {
                         out.push(&mut self.ctx, value)?;
                         self.space_with::<INDEX>()?;
-                        if self.take::<INDEX>(b']') {
+                        if self.take::<INDEX>(b']')? {
                             let Some(Frame::Array(out)) = frames.data.pop() else {
                                 return self.err("expected closing bracket", Failure::End);
                             };
                             value = Value::from_array(&mut self.ctx, out)?;
                             continue;
                         }
-                        if !self.take::<INDEX>(b',') {
+                        if !self.take::<INDEX>(b',')? {
                             let failure = self.found(Failure::AfterElement);
                             return self.err("expected comma or closing bracket", failure);
                         }
@@ -451,7 +468,10 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                     }
                     Frame::Hash { out, key } => {
                         let capacity = if RECORDS && out.buffer.data.is_empty() {
-                            self.records.as_ref().unwrap().capacity(open - 1)
+                            self.records
+                                .as_ref()
+                                .ok_or(violation("record parser must have sharing tables"))?
+                                .capacity(open - 1)
                         } else {
                             None
                         };
@@ -480,20 +500,20 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                                 if RECORDS {
                                     self.records
                                         .as_mut()
-                                        .unwrap()
+                                        .ok_or(violation("record parser must have sharing tables"))?
                                         .discard_unused(self.keys.as_ref());
                                 }
                             }
                         }
                         self.space_with::<INDEX>()?;
-                        if self.take::<INDEX>(b'}') {
+                        if self.take::<INDEX>(b'}')? {
                             let Some(Frame::Hash { out, .. }) = frames.data.pop() else {
                                 return self.err("expected closing brace", Failure::End);
                             };
                             value = Value::from_hash(&mut self.ctx, out)?;
                             continue;
                         }
-                        if !self.take::<INDEX>(b',') {
+                        if !self.take::<INDEX>(b',')? {
                             let failure = self.found(Failure::AfterValue);
                             return self.err("expected comma or closing brace", failure);
                         }
@@ -529,7 +549,7 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                 };
                 self.records
                     .as_mut()
-                    .unwrap()
+                    .ok_or(violation("record parser must have sharing tables"))?
                     .start(self.typed.ty, frames.data.len(), key, index);
             }
             self.typed.start(
@@ -548,7 +568,7 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                 self.enter(frames)?;
                 self.pos += 1;
                 self.space_with::<INDEX>()?;
-                if self.take::<INDEX>(b']') {
+                if self.take::<INDEX>(b']')? {
                     return Value::from_array(&mut self.ctx, Buffer::empty()).map(Some);
                 }
                 frames.push(&mut self.ctx, Frame::Array(Buffer::empty()))?;
@@ -558,7 +578,7 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                 self.enter(frames)?;
                 self.pos += 1;
                 self.space_with::<INDEX>()?;
-                if self.take::<INDEX>(b'}') {
+                if self.take::<INDEX>(b'}')? {
                     return Value::from_hash(&mut self.ctx, Hash::empty()).map(Some);
                 }
                 if RECORDS {
@@ -597,14 +617,13 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
     /// Rejects a container opener once `MAX_VALUE_DEPTH` containers are open.
     fn enter(&mut self, frames: &Buffer<Frame>) -> Result<()> {
         if frames.data.len() >= MAX_VALUE_DEPTH {
-            let error = self
+            let result = self
                 .ctx
-                .guard::<()>(ErrorKind::Recursion, "JSON nesting too deep")
-                .unwrap_err();
-            if error.kind == ErrorKind::Recursion {
+                .guard::<()>(ErrorKind::Recursion, "JSON nesting too deep");
+            if matches!(&result, Err(error) if error.kind == ErrorKind::Recursion) {
                 self.failure = Some(Failure::Depth);
             }
-            return Err(error);
+            return result;
         }
         Ok(())
     }
@@ -624,7 +643,7 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
             key
         };
         self.space_with::<INDEX>()?;
-        if !self.take::<INDEX>(b':') {
+        if !self.take::<INDEX>(b':')? {
             let failure = self.found(Failure::AfterKey);
             return self.err("expected colon", failure);
         }
@@ -632,7 +651,7 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
     }
 
     fn literal(&mut self, literal: &[u8]) -> Result<()> {
-        if self.input[self.pos..].starts_with(literal) {
+        if self.input.tail(self.pos)?.starts_with(literal) {
             self.pos += literal.len();
             Ok(())
         } else {
@@ -652,7 +671,7 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
         let start = self.pos;
         if !INDEX {
             // Most flat-object keys finish before a span scanner pays off.
-            for (len, &byte) in self.input[start..].iter().take(8).enumerate() {
+            for (len, &byte) in self.input.tail(start)?.iter().take(8).enumerate() {
                 if byte == b'"' {
                     if len != 0 {
                         self.ctx.charge(1)?;
@@ -672,19 +691,19 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                 return self.err("unterminated JSON string", Failure::End);
             }
             let end = self.input.len().min(self.pos + CHUNK);
-            let span = if matches!(self.input[self.pos], 0..=31 | b'"' | b'\\') {
+            let span = if matches!(self.input.at(self.pos)?, 0..=31 | b'"' | b'\\') {
                 scan::TextSpan::default()
             } else if INDEX && self.indexed {
-                self.span(end)
+                self.span(end)?
             } else {
-                scan::text_span(&self.input[self.pos..end], Class::JsonParse)
+                scan::text_span(self.input.span(self.pos, end)?, Class::JsonParse)
             };
             if span.len > 0 {
                 self.ctx.charge(span.steps)?;
                 self.pos += span.len;
                 continue;
             }
-            if self.input[self.pos] == b'"' {
+            if *self.input.at(self.pos)? == b'"' {
                 let value = self.copy_string_with::<INDEX, KEY, RECORDS>(start)?;
                 self.pos += 1;
                 if INDEX && self.indexed {
@@ -701,7 +720,7 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
     fn decode_string<const INDEX: bool>(&mut self, start: usize) -> Result<Value> {
         self.decoded_start = start;
         let mut out = Buffer::with_capacity(&mut self.ctx, self.pos - start)?;
-        out.extend(self.ctx.settled(), &self.input[start..self.pos])?;
+        out.extend(self.ctx.settled(), self.input.span(start, self.pos)?)?;
         // Steps are charged as when each span was appended with `extend` and
         // each escape charged on its own, but settled in batches: before the
         // buffer grows or anything fails, and after each chunk of input.
@@ -716,12 +735,12 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                 self.ctx.checkpoint()?;
                 settle_at = self.pos + CHUNK;
             }
-            let rest = &self.input[self.pos..];
+            let rest = self.input.tail(self.pos)?;
             let Some((&b, next)) = rest.split_first() else {
                 self.ctx.charge_pending(&mut pending)?;
                 return self.err("unterminated JSON string", Failure::End);
             };
-            let window = &rest[..rest.len().min(CHUNK)];
+            let window = rest.split_at(rest.len().min(CHUNK)).0;
             let span = if matches!(b, 0..=31 | b'"' | b'\\') {
                 scan::TextSpan::default()
             } else if b < 128
@@ -741,9 +760,9 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                 if span.runes != span.len {
                     pending = pending.wrapping_add(span.steps);
                 }
-                let bytes = &window[..span.len];
+                let bytes = window.span(0, span.len)?;
                 if bytes.len() == 1 && out.data.len() < out.data.capacity() {
-                    out.data.push(bytes[0]);
+                    out.data.push(*bytes.at(0)?);
                     pending = pending.wrapping_add(1);
                 } else {
                     out.extend_deferred(self.ctx.settled(), bytes, &mut pending)?;
@@ -778,7 +797,7 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
             if b >= 128 {
                 // A rune the span stopped at: invalid or cut by the chunk end.
                 self.pos -= 1;
-                let (ch, n, _) = scan::rune(&self.input[self.pos..]);
+                let (ch, n, _) = scan::rune(self.input.tail(self.pos)?);
                 self.pos += n;
                 let mut buf = [0; 4];
                 out.extend_deferred(
@@ -805,7 +824,7 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                         b'u' => {
                             let high = self.hex()?;
                             let cp = if (0xd800..=0xdbff).contains(&high) {
-                                if self.input[self.pos..].starts_with(b"\\u") {
+                                if self.input.tail(self.pos)?.starts_with(b"\\u") {
                                     let saved = self.pos;
                                     self.pos += 2;
                                     let low = self.hex()?;
@@ -825,7 +844,8 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                             } else {
                                 high as u32
                             };
-                            let ch = char::from_u32(cp).unwrap();
+                            let ch = char::from_u32(cp)
+                                .ok_or(violation("decoded JSON escape must be a Unicode scalar"))?;
                             let mut buf = [0; 4];
                             out.extend(self.ctx.settled(), ch.encode_utf8(&mut buf).as_bytes())?;
                         }
@@ -848,7 +868,9 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
         let Some(records) = self.records.as_mut() else {
             return Ok(value);
         };
-        let name = value.as_bytes().unwrap();
+        let name = value
+            .as_bytes()
+            .ok_or(violation("decoded JSON key must be bytes"))?;
         let Some(slot) = records.slot(self.ctx.settled(), self.record_depth, name)? else {
             return Ok(value);
         };
@@ -857,7 +879,9 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                 return None;
             }
             let index = cache_slot(name);
-            keys[index].iter().find(|key| key.as_bytes() == Some(name))
+            keys.get(index)?
+                .iter()
+                .find(|key| key.as_bytes() == Some(name))
         });
         if let Some(shared) = records
             .get(slot)
@@ -865,10 +889,10 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
             .or(cached)
         {
             let shared = shared.clone();
-            records.remember(self.record_depth, slot, &shared);
+            records.remember(self.record_depth, slot, &shared)?;
             return Ok(shared);
         }
-        records.remember(self.record_depth, slot, &value);
+        records.remember(self.record_depth, slot, &value)?;
         Ok(value)
     }
 
@@ -877,7 +901,7 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
         &mut self,
         start: usize,
     ) -> Result<Value> {
-        let bytes = &self.input[start..self.pos];
+        let bytes = self.input.span(start, self.pos)?;
         if (!INDEX || !self.indexed) && !RECORDS {
             return self.ctx.bytes(bytes);
         }
@@ -894,8 +918,9 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
             } else {
                 &mut self.strings
             };
-            let keys =
-                &cache.get_or_insert_with(|| [const { [Value::nil(), Value::nil()] }; 32])[slot];
+            let keys = cache
+                .get_or_insert_with(|| [const { [Value::nil(), Value::nil()] }; 32])
+                .at(slot)?;
             let hit = if keys[0].as_bytes() == Some(bytes) {
                 Some(&keys[0])
             } else if keys[1].as_bytes() == Some(bytes) {
@@ -917,7 +942,7 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                     .filter(|records| RECORDS && !records.ready(self.record_depth))
                 {
                     if let Some(slot) = records.slot(&mut self.ctx, self.record_depth, bytes)? {
-                        records.remember(self.record_depth, slot, hit);
+                        records.remember(self.record_depth, slot, hit)?;
                     }
                 }
                 return Ok(hit.clone());
@@ -952,8 +977,8 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
         if let Some(slot) = slot {
             self.records
                 .as_mut()
-                .unwrap()
-                .remember(self.record_depth, slot, &value);
+                .ok_or(violation("record parser must have sharing tables"))?
+                .remember(self.record_depth, slot, &value)?;
         }
         if let Some(slot) = cache {
             let cache = if KEY {
@@ -961,7 +986,10 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
             } else {
                 &mut self.strings
             };
-            let keys = &mut cache.as_mut().unwrap()[slot];
+            let keys = cache
+                .as_mut()
+                .ok_or(violation("JSON string cache must be initialized"))?
+                .at_mut(slot)?;
             keys[1] = std::mem::replace(&mut keys[0], value.clone());
         }
         Ok(value)
@@ -1008,8 +1036,8 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
 
     fn number<const INDEX: bool>(&mut self) -> Result<Value> {
         let start = self.pos;
-        self.take::<INDEX>(b'-');
-        if self.take::<INDEX>(b'0') {
+        self.take::<INDEX>(b'-')?;
+        if self.take::<INDEX>(b'0')? {
             if self.input.get(self.pos).is_some_and(u8::is_ascii_digit) {
                 self.zero = Some((start, self.pos + 1));
             }
@@ -1021,7 +1049,7 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
             }
         }
         let mut float = false;
-        if self.take::<INDEX>(b'.') {
+        if self.take::<INDEX>(b'.')? {
             float = true;
             let digits = self.pos;
             self.digits::<INDEX>()?;
@@ -1029,10 +1057,10 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                 return self.err("invalid JSON fraction", Failure::Number(start, self.pos));
             }
         }
-        if self.take::<INDEX>(b'e') || self.take::<INDEX>(b'E') {
+        if self.take::<INDEX>(b'e')? || self.take::<INDEX>(b'E')? {
             float = true;
-            if !self.take::<INDEX>(b'+') {
-                self.take::<INDEX>(b'-');
+            if !self.take::<INDEX>(b'+')? {
+                self.take::<INDEX>(b'-')?;
             }
             let digits = self.pos;
             self.digits::<INDEX>()?;
@@ -1040,7 +1068,7 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                 return self.err("invalid JSON exponent", Failure::Number(start, self.pos));
             }
         }
-        let text = &self.input[start..self.pos];
+        let text = self.input.span(start, self.pos)?;
         self.ctx.work_bytes(text.len())?;
         if float {
             let n = parse_float(&mut self.ctx, text)?;
@@ -1063,29 +1091,35 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
             self.ctx.charge(1)?;
             let end = self.input.len().min(self.pos + 64);
             self.pos += if !INDEX || !self.indexed {
-                self.input[self.pos..end]
+                self.input
+                    .span(self.pos, end)?
                     .iter()
                     .take_while(|b| b.is_ascii_digit())
                     .count()
             } else {
-                self.scanner.digits(self.input, self.pos, end)
+                self.scanner.digits(self.input, self.pos, end)?
             };
         }
         Ok(())
     }
 
-    fn span(&mut self, end: usize) -> scan::TextSpan {
+    fn span(&mut self, end: usize) -> Access<scan::TextSpan> {
         if !self.indexed {
-            return scan::text_span(&self.input[self.pos..end], Class::JsonParse);
+            return Ok(scan::text_span(
+                self.input.span(self.pos, end)?,
+                Class::JsonParse,
+            ));
         }
-        if self.input[self.pos] < 128 && !scan::ordinary(self.input[self.pos], Class::JsonParse) {
-            return scan::TextSpan::default();
+        if *self.input.at(self.pos)? < 128
+            && !scan::ordinary(*self.input.at(self.pos)?, Class::JsonParse)
+        {
+            return Ok(scan::TextSpan::default());
         }
         let mut span = scan::TextSpan::default();
         while self.pos + span.len < end {
             let at = self.pos + span.len;
-            if self.input[at] < 128 {
-                let n = self.scanner.string(self.input, at, end);
+            if *self.input.at(at)? < 128 {
+                let n = self.scanner.string(self.input, at, end)?;
                 span.len += n;
                 span.runes += n;
                 span.steps += (n as u64).div_ceil(64);
@@ -1093,7 +1127,7 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                     break;
                 }
             } else {
-                let text = scan::text_span(&self.input[at..end], Class::JsonParse);
+                let text = scan::text_span(self.input.span(at, end)?, Class::JsonParse);
                 if text.len == 0 {
                     break;
                 }
@@ -1103,14 +1137,84 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                 self.scanner.skip_string(self.pos + span.len);
             }
         }
-        span
+        Ok(span)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn invalid_float_text_remains_an_ordinary_json_error() {
+        let mut ctx = CallContext::new(crate::CallOptions::default());
+        for input in [b"\xff".as_slice(), b"1e+", b"no"] {
+            assert_eq!(
+                parse_float(&mut ctx, input).unwrap_err().kind,
+                ErrorKind::Json
+            );
+            ctx.checkpoint().unwrap();
+        }
+    }
     use crate::{CallOptions, Limits};
+
+    #[test]
+    fn every_failure_renders_the_reference_wording() {
+        let input = b"1e999";
+        let cases = [
+            (Failure::Range(0, 5), "JSON.parse invalid number \"1e999\""),
+            (
+                Failure::Number(0, 2),
+                "JSON.parse invalid JSON: invalid number \"1e\"",
+            ),
+            (
+                Failure::End,
+                "JSON.parse invalid JSON: unexpected end of JSON input",
+            ),
+            (Failure::Trailing, "JSON.parse invalid JSON: trailing data"),
+            (
+                Failure::Depth,
+                "JSON.parse invalid JSON: exceeded max depth",
+            ),
+            (
+                Failure::Value(b'x'),
+                "JSON.parse invalid JSON: invalid character 'x' looking for beginning of value",
+            ),
+            (
+                Failure::AfterElement(b'x'),
+                "JSON.parse invalid JSON: invalid character 'x' after array element",
+            ),
+            (
+                Failure::KeyStart(b'x'),
+                "JSON.parse invalid JSON: invalid character 'x' looking for beginning of object key string",
+            ),
+            (
+                Failure::AfterKey(b'x'),
+                "JSON.parse invalid JSON: invalid character 'x' after object key",
+            ),
+            (
+                Failure::AfterValue(b'x'),
+                "JSON.parse invalid JSON: invalid character 'x' after object value",
+            ),
+            (
+                Failure::Literal(b'\t'),
+                "JSON.parse invalid JSON: invalid character '\\t' in string literal",
+            ),
+            (
+                Failure::Escape(b'x'),
+                "JSON.parse invalid JSON: invalid character 'x' in string escape code",
+            ),
+            (
+                Failure::Unicode(b'x'),
+                "JSON.parse invalid JSON: invalid character 'x' in unicode escape",
+            ),
+        ];
+        for (failure, expected) in cases {
+            let mut out = String::new();
+            failure.render("JSON.parse", input, &mut out).unwrap();
+            assert_eq!(out, expected, "{failure:?}");
+        }
+    }
 
     #[test]
     fn word_cache_hash_preserves_the_original_sets() {
@@ -1120,7 +1224,7 @@ mod tests {
                 let bytes: Vec<u8> = (0..len)
                     .map(|_| {
                         state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
-                        (state >> 32) as u8
+                        (state >> 32).to_le_bytes()[0]
                     })
                     .collect();
                 let original = bytes.iter().fold(0usize, |hash, &byte| {
@@ -1486,10 +1590,18 @@ mod tests {
                 .wrapping_mul(6364136223846793005)
                 .wrapping_add(1442695040888963407);
             let digits = (n >> 7).to_string();
-            cases.push(digits[..1 + (n as usize % digits.len())].to_string());
+            cases.push(
+                digits
+                    .chars()
+                    .take(1 + (crate::numeric::hash_word(n) % digits.len()))
+                    .collect::<String>(),
+            );
             cases.push(format!(
                 "-{}",
-                &digits[..1 + (n as usize >> 3) % digits.len()]
+                digits
+                    .chars()
+                    .take(1 + (crate::numeric::hash_word(n) >> 3) % digits.len())
+                    .collect::<String>()
             ));
         }
         for text in cases {
@@ -1528,7 +1640,7 @@ mod tests {
             seed ^= seed << 13;
             seed ^= seed >> 7;
             seed ^= seed << 17;
-            (seed % bound as u64) as usize
+            usize::try_from(seed % bound as u64).unwrap()
         };
         for case in 0..600 {
             let mut input = b"\"".to_vec();
@@ -1544,7 +1656,7 @@ mod tests {
             }
             let mut plain = CallContext::new(CallOptions::default());
             let _ = reference(&mut Parser::new(&mut plain, &input));
-            let steps = plain.stats().steps as usize;
+            let steps = usize::try_from(plain.stats().steps).unwrap();
             let peak = plain.stats().peak_memory_bytes;
             for limits in [
                 (None, None),

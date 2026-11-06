@@ -91,6 +91,28 @@ impl From<Violation> for Error {
 /// What a checked access returns: the value, or the violation.
 pub(crate) type Access<T> = Result<T, Violation>;
 
+/// Converts an integer whose range is guaranteed by the caller's invariant.
+#[inline]
+#[track_caller]
+pub(crate) fn convert<T: TryFrom<U>, U>(value: U) -> Access<T> {
+    match T::try_from(value) {
+        Ok(value) => Ok(value),
+        Err(_) => Err(violation("integer conversion out of range")),
+    }
+}
+
+/// Reads a byte range that must be within a string and on UTF-8 boundaries.
+#[inline]
+#[track_caller]
+pub(crate) fn text(
+    source: &str,
+    range: impl std::slice::SliceIndex<str, Output = str>,
+) -> Access<&str> {
+    source.get(range).ok_or(violation(
+        "text range must be in bounds and on UTF-8 boundaries",
+    ))
+}
+
 /// Indexing that reports an [`ErrorKind::Internal`] error instead of
 /// panicking when the position is out of range.
 pub(crate) trait Checked<T> {
@@ -253,6 +275,36 @@ impl<T> Buffer<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn integer_conversions_reject_lost_bits_and_signs() {
+        assert_eq!(convert::<u32, _>(u64::from(u32::MAX)).unwrap(), u32::MAX);
+        assert_eq!(convert::<i64, _>(i128::from(i64::MIN)).unwrap(), i64::MIN);
+        for failure in [
+            convert::<u32, _>(u64::from(u32::MAX) + 1).unwrap_err(),
+            convert::<u32, _>(-1i64).unwrap_err(),
+            convert::<i64, _>(i128::from(i64::MIN) - 1).unwrap_err(),
+            convert::<i64, _>(i128::from(i64::MAX) + 1).unwrap_err(),
+        ] {
+            let error = Error::from(failure);
+            assert_eq!(error.kind, ErrorKind::Internal);
+            assert!(error.message.contains("integer conversion out of range"));
+        }
+    }
+
+    #[test]
+    fn text_access_checks_utf8_boundaries_and_ranges() {
+        let source = "aé🦀z";
+        assert_eq!(text(source, 1..7).unwrap(), "é🦀");
+        assert_eq!(text(source, ..1).unwrap(), "a");
+        assert_eq!(text(source, 7..).unwrap(), "z");
+        assert_eq!(text(source, 8..8).unwrap(), "");
+        for (start, end) in [(2, 7), (1, 5), (9, 9), (7, 3)] {
+            let error = Error::from(text(source, start..end).unwrap_err());
+            assert_eq!(error.kind, ErrorKind::Internal);
+            assert!(error.message.contains("UTF-8 boundaries"));
+        }
+    }
 
     #[test]
     fn in_range_access_succeeds() {

@@ -1,4 +1,5 @@
 use super::{program::View, search::ABSENT};
+use crate::checked::{Checked, violation};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, Charge},
@@ -82,8 +83,11 @@ impl Offset {
                 format!("{name} expects a capture index"),
             ));
         }
-        let values = self.values.as_array().unwrap();
-        let index = crate::sequence::integer(&args[0]).map_err(|mut error| {
+        let values = self
+            .values
+            .as_array()
+            .ok_or(violation("capture offsets must be an array"))?;
+        let index = crate::sequence::integer(args.at(0)?).map_err(|mut error| {
             error.message = format!("{name} capture index must be integer");
             error
         })?;
@@ -124,10 +128,13 @@ pub(super) fn data(
         .saturating_add(7 * Bytes::header_bytes() + 57);
     let mut named_count = 0usize;
     for (index, pair) in indices.chunks_exact(2).enumerate() {
+        let &[start, end] = pair else {
+            continue;
+        };
         ctx.charge(1)?;
-        projected = projected.saturating_add(window_bytes(text, pair[0], pair[1]));
+        projected = projected.saturating_add(window_bytes(text, start, end));
         if index != 0 {
-            let (start, end) = program.names[index];
+            let (start, end) = *program.names.at(index)?;
             if start != end {
                 named_count += 1;
                 projected = projected.saturating_add(Bytes::header_bytes() + end - start);
@@ -135,8 +142,8 @@ pub(super) fn data(
         }
     }
     projected = projected
-        .saturating_add(window_bytes(text, 0, indices[0]))
-        .saturating_add(window_bytes(text, indices[1], text.len()))
+        .saturating_add(window_bytes(text, 0, *indices.at(0)?))
+        .saturating_add(window_bytes(text, *indices.at(1)?, text.len()))
         .saturating_add(
             named_count.saturating_mul(2 * size_of::<(Value, Value)>() + size_of::<[usize; 8]>()),
         )
@@ -146,20 +153,21 @@ pub(super) fn data(
     let mut starts = Buffer::with_capacity(ctx, count)?;
     let mut ends = Buffer::with_capacity(ctx, count)?;
     for pair in indices.chunks_exact(2) {
+        let &[start, end] = pair else {
+            continue;
+        };
         ctx.charge(1)?;
-        if pair[0] == ABSENT {
+        if start == ABSENT {
             values.data.push(Value::nil());
             starts.data.push(Value::nil());
             ends.data.push(Value::nil());
         } else {
-            values
-                .data
-                .push(super::window(ctx, subject, pair[0], pair[1])?);
+            values.data.push(super::window(ctx, subject, start, end)?);
             starts
                 .data
-                .push(Value::int(to_i64(ops::runes(ctx, &text[..pair[0]])?.0)));
+                .push(Value::int(to_i64(ops::runes(ctx, text.span(0, start)?)?.0)));
             ends.data
-                .push(Value::int(to_i64(ops::runes(ctx, &text[..pair[1]])?.0)));
+                .push(Value::int(to_i64(ops::runes(ctx, text.span(0, end)?)?.0)));
         }
     }
     let mut named = Hash::empty();
@@ -168,24 +176,24 @@ pub(super) fn data(
         if start == end {
             continue;
         }
-        let name = &program.source[start..end];
-        if matches!(values.data[index].0, Kind::Nil) && named.find(ctx, name)?.is_some() {
+        let name = program.source.span(start, end)?;
+        if matches!(values.at(index)?.0, Kind::Nil) && named.find(ctx, name)?.is_some() {
             continue;
         }
         let key = ctx.bytes(name)?;
-        named.insert(ctx, key, values.data[index].clone())?;
+        named.insert(ctx, key, values.at(index)?.clone())?;
     }
     let named = crate::arguments::ordered_hash(ctx, named.into_buffer())?;
     let named = Value::from_hash(ctx, named)?;
     let mut captures = Buffer::with_capacity(ctx, groups)?;
-    captures.extend(ctx, &values.data[1..])?;
+    captures.extend(ctx, values.tail(1)?)?;
     let captures = Value::from_array(ctx, captures)?;
     let starts = Value::from_array(ctx, starts)?;
     let ends = Value::from_array(ctx, ends)?;
     let begin = Offset::value(ctx, starts, false)?;
     let end = Offset::value(ctx, ends, true)?;
-    let pre = super::window(ctx, subject, 0, indices[0])?;
-    let post = super::window(ctx, subject, indices[1], text.len())?;
+    let pre = super::window(ctx, subject, 0, *indices.at(0)?)?;
+    let post = super::window(ctx, subject, *indices.at(1)?, text.len())?;
     let mut entries = Buffer::with_capacity(ctx, 7)?;
     for (name, value) in [
         ("begin", begin),
@@ -194,7 +202,7 @@ pub(super) fn data(
         ("named_captures", named),
         ("post_match", post),
         ("pre_match", pre),
-        ("to_s", values.data[0].clone()),
+        ("to_s", values.at(0)?.clone()),
     ] {
         let name = ctx.bytes(name.as_bytes())?;
         entries.data.push((name, value));
@@ -227,14 +235,16 @@ pub(super) fn fetch(
             "match_data.fetch expects one capture index or name, without keywords or a block",
         ));
     }
-    let group = &args[0];
+    let group = args.at(0)?;
     if let Some(key) = group.as_bytes() {
-        let named = hash.find(ctx, b"named_captures")?.unwrap();
-        let Kind::Hash(named) = &hash.buffer.data[named].1.0 else {
+        let named = hash
+            .find(ctx, b"named_captures")?
+            .ok_or(violation("match data must contain named_captures"))?;
+        let Kind::Hash(named) = &hash.buffer.at(named)?.1.0 else {
             return Err(crate::checked::internal("named captures must be a hash"));
         };
         if let Some(found) = named.find(ctx, key)? {
-            let value = &named.buffer.data[found].1;
+            let value = &named.buffer.at(found)?.1;
             if !matches!(value.0, Kind::Nil) {
                 return Ok(value.clone());
             }
@@ -251,8 +261,17 @@ pub(super) fn fetch(
             return Ok(value);
         }
     }
-    let captures = hash.find(ctx, b"captures")?.unwrap();
-    let length = hash.buffer.data[captures].1.as_array().unwrap().len() as i128 + 1;
+    let captures = hash
+        .find(ctx, b"captures")?
+        .ok_or(violation("match data must contain captures"))?;
+    let length = hash
+        .buffer
+        .at(captures)?
+        .1
+        .as_array()
+        .ok_or(violation("captures must be an array"))?
+        .len() as i128
+        + 1;
     let message = if i128::from(index) < -length || i128::from(index) >= length {
         format!(
             "match_data.fetch index {index} outside of capture bounds: {}...{length}",
@@ -278,12 +297,13 @@ pub(crate) fn index(ctx: &mut CallContext, hash: &Hash, index: &Value) -> Result
         let Some(named) = hash.find(ctx, b"named_captures")? else {
             return Ok(None);
         };
-        let Kind::Hash(named) = &hash.buffer.data[named].1.0 else {
+        let Kind::Hash(named) = &hash.buffer.at(named)?.1.0 else {
             return Ok(None);
         };
-        return Ok(named
-            .find(ctx, key)?
-            .map(|found| named.buffer.data[found].1.clone()));
+        let Some(found) = named.find(ctx, key)? else {
+            return Ok(None);
+        };
+        return Ok(Some(named.buffer.at(found)?.1.clone()));
     }
     if !matches!(index.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_)) {
         return Ok(None);
@@ -291,7 +311,7 @@ pub(crate) fn index(ctx: &mut CallContext, hash: &Hash, index: &Value) -> Result
     let Some(captures) = hash.find(ctx, b"captures")? else {
         return Ok(None);
     };
-    let Some(captures) = hash.buffer.data[captures].1.as_array() else {
+    let Some(captures) = hash.buffer.at(captures)?.1.as_array() else {
         return Ok(None);
     };
     let index = crate::sequence::integer(index)?;
@@ -301,7 +321,7 @@ pub(crate) fn index(ctx: &mut CallContext, hash: &Hash, index: &Value) -> Result
         i128::from(index)
     };
     Ok(Some(if index == 0 {
-        hash.buffer.data[whole].1.clone()
+        hash.buffer.at(whole)?.1.clone()
     } else {
         usize::try_from(index - 1)
             .ok()
@@ -334,15 +354,20 @@ mod tests {
         let source = format!("{}a+{}", "(".repeat(16), ")".repeat(16));
         let program =
             Program::compile(&mut ctx, Value::bytes(source.as_bytes()), "Regex.match").unwrap();
-        let mut search = Search::new(&mut ctx, program.view(), true).unwrap();
+        let mut search = Search::new(&mut ctx, program.view().unwrap(), true).unwrap();
         let indices = search
-            .find(&mut ctx, program.view(), subject.as_bytes().unwrap(), 0)
+            .find(
+                &mut ctx,
+                program.view().unwrap(),
+                subject.as_bytes().unwrap(),
+                0,
+            )
             .unwrap()
             .unwrap();
         let baseline = ctx.stats();
         ctx.options.limits.memory_bytes = Some(baseline.retained_memory_bytes + 65536);
         assert_eq!(
-            data(&mut ctx, program.view(), &subject, &indices.data)
+            data(&mut ctx, program.view().unwrap(), &subject, &indices.data)
                 .unwrap_err()
                 .kind,
             ErrorKind::Memory

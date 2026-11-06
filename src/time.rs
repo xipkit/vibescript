@@ -1,3 +1,4 @@
+use crate::checked::{Checked, convert, violation};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, Charge},
@@ -23,24 +24,27 @@ mod zone;
 pub(crate) use construct::Constructor;
 pub(crate) use format::text;
 
-const NANOS: i64 = 1_000_000_000;
+const NANOS_PER_SECOND: u32 = 1_000_000_000;
+const NANOS: i64 = NANOS_PER_SECOND as i64;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct Stamp([u8; 12]);
 
 impl Stamp {
     pub fn new(seconds: i64, nanos: u32) -> Self {
-        debug_assert!(nanos < NANOS as u32);
+        debug_assert!(nanos < NANOS_PER_SECOND);
         let mut bytes = [0; 12];
         bytes[..8].copy_from_slice(&seconds.to_le_bytes());
         bytes[8..].copy_from_slice(&nanos.to_le_bytes());
         Self(bytes)
     }
     pub fn seconds(self) -> i64 {
-        i64::from_le_bytes(self.0[..8].try_into().unwrap())
+        let [a, b, c, d, e, f, g, h, ..] = self.0;
+        i64::from_le_bytes([a, b, c, d, e, f, g, h])
     }
     pub fn nanos(self) -> u32 {
-        u32::from_le_bytes(self.0[8..].try_into().unwrap())
+        let [.., a, b, c, d] = self.0;
+        u32::from_le_bytes([a, b, c, d])
     }
     fn internal(self) -> i64 {
         self.seconds().wrapping_add(calendar::UNIX_TO_INTERNAL)
@@ -50,7 +54,7 @@ impl Stamp {
             .cmp(&other.internal())
             .then_with(|| self.nanos().cmp(&other.nanos()))
     }
-    fn add(self, delta: i64) -> Self {
+    fn add(self, delta: i64) -> crate::checked::Access<Self> {
         let nanos = i64::from(self.nanos()) + delta % NANOS;
         let seconds = delta / NANOS + nanos.div_euclid(NANOS);
         // Go saturates the internal epoch's seconds, retaining the normalized fraction.
@@ -58,10 +62,10 @@ impl Stamp {
             .internal()
             .checked_add(seconds)
             .unwrap_or(if seconds > 0 { i64::MAX } else { -i64::MAX });
-        Self::new(
+        Ok(Self::new(
             internal.wrapping_sub(calendar::UNIX_TO_INTERNAL),
-            nanos.rem_euclid(NANOS) as u32,
-        )
+            convert(nanos.rem_euclid(NANOS))?,
+        ))
     }
     fn now() -> Self {
         match SystemTime::now().duration_since(UNIX_EPOCH) {
@@ -74,7 +78,7 @@ impl Stamp {
                     if fraction == 0 {
                         0
                     } else {
-                        NANOS as u32 - fraction
+                        NANOS_PER_SECOND - fraction
                     },
                 )
             }
@@ -272,7 +276,7 @@ pub(crate) fn anchor(
         delta.wrapping_neg()
     } else {
         delta
-    }))))
+    })?)))
 }
 
 /// Reports an offset outside the 64-bit nanosecond domain, naming the operation as Go does.
@@ -323,12 +327,18 @@ pub(crate) fn binary(
             n.checked_mul(NANOS).ok_or_else(overflow)?
         }
         Kind::Float(n) => {
-            scaled_float(if negate { -n } else { n }, NANOS as u32).map_err(|_| overflow())?
+            scaled_float(if negate { -n } else { n }, NANOS_PER_SECOND).map_err(|_| overflow())?
         }
         Kind::Big(_) => return Err(overflow()),
         _ => return Err(ops::unsupported(op)),
     };
-    value(ctx, stamp(time).unwrap().add(delta), zone(time))
+    value(
+        ctx,
+        stamp(time)
+            .ok_or(violation("time operand expected"))?
+            .add(delta)?,
+        zone(time),
+    )
 }
 
 pub(crate) fn member(
@@ -355,10 +365,10 @@ pub(crate) fn member(
             crate::arguments::between("time.between?", args, keywords, block)?;
             Value::boolean(
                 matches!(
-                    ops::compare(ctx, receiver, &args[0])?,
+                    ops::compare(ctx, receiver, args.at(0)?)?,
                     Some(Ordering::Equal | Ordering::Greater)
                 ) && matches!(
-                    ops::compare(ctx, receiver, &args[1])?,
+                    ops::compare(ctx, receiver, args.at(1)?)?,
                     Some(Ordering::Equal | Ordering::Less)
                 ),
             )
@@ -453,7 +463,7 @@ pub(crate) fn member(
             if delta == 0 {
                 receiver.clone()
             } else {
-                value(ctx, time.add(delta), zone(receiver))?
+                value(ctx, time.add(delta)?, zone(receiver))?
             }
         }
         _ => {
@@ -498,8 +508,9 @@ pub(crate) fn member(
                                 "thursday?",
                                 "friday?",
                                 "saturday?",
-                            ][to_usize(date.weekday)]
-                                == name,
+                            ]
+                            .at(to_usize(date.weekday))?
+                                == &name,
                         ),
                         "to_a" => {
                             let name = ctx.bytes(offset.name)?;
