@@ -784,6 +784,10 @@
 {"id":"json_stringify_ascii_64k/unlimited","ok":{"bytes":131127,"sha256":"eb1dd1b0358e9fc7908d77a60af4a5751755817fc4a6f55bc4b1d2b3e4552d4a"}}
 {"id":"json_stringify_escaped_4k/metered","ok":{"bytes":14815,"sha256":"3d0b7e6b3a586103ba601c2ad7f22f5f588d8febf273dae2dd541ee12e6a274f"}}
 {"id":"json_stringify_escaped_4k/unlimited","ok":{"bytes":14815,"sha256":"3d0b7e6b3a586103ba601c2ad7f22f5f588d8febf273dae2dd541ee12e6a274f"}}
+{"id":"json_stringify_lines_4k/metered","ok":{"bytes":8473,"sha256":"fd9bec77baac57ae6110b8441657715626de8fef5fd188834494453bf03dfe99"}}
+{"id":"json_stringify_lines_4k/unlimited","ok":{"bytes":8473,"sha256":"fd9bec77baac57ae6110b8441657715626de8fef5fd188834494453bf03dfe99"}}
+{"id":"json_stringify_lone_escapes_4k/metered","ok":{"bytes":10983,"sha256":"a44dd5437f6c496b6c7328f0e6d9e63d4eb8e0d82c161f725a41b7c375845cb0"}}
+{"id":"json_stringify_lone_escapes_4k/unlimited","ok":{"bytes":10983,"sha256":"a44dd5437f6c496b6c7328f0e6d9e63d4eb8e0d82c161f725a41b7c375845cb0"}}
 {"id":"json_stringify_unicode_4k/metered","ok":{"bytes":8263,"sha256":"bcbe5f5218c7664700218bc2701b027bea92559671dde152fb5a3465c18c4913"}}
 {"id":"json_stringify_unicode_4k/unlimited","ok":{"bytes":8263,"sha256":"bcbe5f5218c7664700218bc2701b027bea92559671dde152fb5a3465c18c4913"}}
 {"id":"json_transform/metered","ok":["string","7b22746f74616c223a363034382c22636f756e74223a36347d"]}
