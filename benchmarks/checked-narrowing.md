@@ -26,8 +26,8 @@ The caller reserves 456 stack bytes rather than 344, and `new_frame` reserves
 another 184 bytes. Its successful return copies the large frame result through
 stack temporaries. Forcing only the constructor inline removes one boundary;
 forcing the wrapper inline as well removes the second. The benchmark below
-isolates those two changes. The comparator's text segment grows by only
-1,600 bytes (0.021%) from the checked baseline to the final variant.
+isolates those two changes. The comparator's `.text` section grows by only
+2,288 bytes (0.038%) from the checked baseline to the final variant.
 
 The range conversion did add instructions and increased the iterator's stack
 reservation from 312 to 328 bytes. That code remains unchanged by this fix,
