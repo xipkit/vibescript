@@ -1,4 +1,4 @@
-{"baseline":"4cb18cb4ab042a0968eed3cc5303b7da9cdbc1b8","compared":{"conformance":1376,"language":106482,"rejections":33033,"compatibility":219,"replay":56827},"counter_order":["steps","peak","retained"],"clock_dependent_cases":["call10334","call33640","call41755","call41802"]}
+{"baseline":"4cb18cb4ab042a0968eed3cc5303b7da9cdbc1b8","compared":{"conformance":1376,"language":106482,"rejections":33033,"compatibility":219,"replay":56827},"counter_order":["steps","peak","retained"],"clock_dependent_cases":["call10334","call33640","call41755","call41802"],"preexisting_selected_peak_drift":[{"corpus":"replay","id":"call50508","recorded_peak":8145,"baseline_peak":8129},{"corpus":"replay","id":"call50509","recorded_peak":7475,"baseline_peak":7459}]}
 {"corpus":"conformance","id":"site/upstream/strings/operations.vibe","before":[2355,24279,12282],"after":[2347,23210,12282]}
 {"corpus":"conformance","id":"regex_log_lines/metered","before":[41165,79212,55768],"after":[40349,77967,55768]}
 {"corpus":"conformance","id":"regex_log_lines/unlimited","before":[41165,79212,55768],"after":[40349,77967,55768]}

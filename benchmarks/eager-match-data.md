@@ -83,7 +83,10 @@ retained bytes also fall in 29. The
 [per-case audit](results/eager-match-data/counters.jsonl) records before/after
 steps, peak and retained bytes. Every unselected counter and every golden
 observation is preserved. Selected cases were recorded twice and pass strict
-counter/quota verification.
+counter/quota verification. The selected replay cases `call50508` and
+`call50509` already peaked 16 bytes below their stored goldens before this
+patch. Their new records include that existing drift; the audit separates
+the recorded peaks from the live baseline when attributing this change.
 
 For the exact log loop, steps fall from 41,165 to 40,349, tracked peak from
 79,212 to 77,967 bytes, and retained storage stays at 55,768 bytes. Fewer
