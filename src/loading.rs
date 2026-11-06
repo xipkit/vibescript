@@ -132,6 +132,8 @@ impl Loader {
         let mut candidates = self.resolver.candidates(ctx, request.as_bytes(), caller)?;
         while let Some(candidate) = candidates.next(ctx)? {
             if let Some(source) = self.resolver.read(ctx, &candidate)? {
+                #[cfg(test)]
+                source_tests::injected(ctx, request)?;
                 let bytes = source
                     .contents
                     .as_bytes()
@@ -294,6 +296,9 @@ pub(crate) mod test_support;
 
 #[cfg(test)]
 mod encoding_tests;
+
+#[cfg(test)]
+mod source_tests;
 
 pub(crate) struct Name {
     pub normalized: Value,

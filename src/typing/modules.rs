@@ -482,6 +482,12 @@ impl<'a> Checker<'a> {
                 self.meter.stop();
                 return Err(text!(self, "{error}"));
             }
+            // A resolver's broken invariant is one in this check.
+            Err(error) if error.kind == crate::ErrorKind::Internal => {
+                self.meter.violated(error);
+                self.stopped = true;
+                return Err("the check stopped for an internal error".into());
+            }
             Err(error) => return Err(error.message),
         };
         if let Some(&id) = self.modules.by_origin.get(&origin) {
