@@ -21,7 +21,7 @@ not a language array just because it uses `Buffer<Value>`.
 
 The exact issue loop stays lazy:
 
-```vibe
+```vibe global=input:array<string>
 input.map { |line|
   m = line.match(/user=([a-z]+) id=([0-9]+) status=([a-z]+)/)
   m == nil ? [] : m.captures
