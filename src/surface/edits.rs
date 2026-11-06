@@ -17,6 +17,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering::Relaxed};
 pub(crate) struct Room<'b> {
     /// What the pass may hold, or `None` for as much as it needs.
     left: Option<usize>,
+    violation: std::sync::OnceLock<crate::Error>,
     held: AtomicUsize,
     peak: AtomicUsize,
     full: AtomicBool,
@@ -59,6 +60,36 @@ impl<'b> Room<'b> {
         }
     }
 
+    /// Refuses the pass after a broken source-range invariant.
+    #[track_caller]
+    pub fn violated(&self) {
+        self.record(crate::checked::violation(
+            "surface text range must be in bounds and on UTF-8 boundaries",
+        ));
+    }
+
+    /// Records an invariant violation that refuses the pass, keeping the first.
+    pub fn record(&self, violation: crate::checked::Violation) {
+        self.violation.get_or_init(|| violation.into());
+    }
+
+    /// The first internal error that refused the pass.
+    pub fn violation(&self) -> Option<crate::Error> {
+        self.violation.get().cloned()
+    }
+
+    /// Reads a source span, refusing the pass if it is invalid.
+    pub fn text<'a>(
+        &self,
+        source: &'a str,
+        range: impl std::slice::SliceIndex<str, Output = str>,
+    ) -> Option<&'a str> {
+        source.get(range).or_else(|| {
+            self.violated();
+            None
+        })
+    }
+
     /// Takes `bytes` a copy is about to hold; whether they fit.
     #[must_use = "a copy the room refuses must not be made"]
     pub fn take(&self, bytes: usize) -> bool {
@@ -98,7 +129,10 @@ impl<'b> Room<'b> {
             if !self.charge((end - start).div_ceil(64) as u64) {
                 return false;
             }
-            out.push_str(&piece[start..end]);
+            let Some(chunk) = self.text(piece, start..end) else {
+                return false;
+            };
+            out.push_str(chunk);
             start = end;
         }
         true
@@ -157,7 +191,7 @@ impl<'b> Room<'b> {
     /// Whether the steps the check has been charged are within its
     /// budget, which also asks its deadline and cancellation.
     pub fn within(&self) -> bool {
-        if self.full() || self.stopped.load(Relaxed) {
+        if self.violation.get().is_some() || self.full() || self.stopped.load(Relaxed) {
             return false;
         }
         let Some(within) = self.within else {
@@ -427,7 +461,7 @@ impl Edits {
             }
             let mut text = String::with_capacity(padded);
             text.push(' ');
-            if !room.append(&mut text, &source[extent.start..extent.end]) {
+            if !room.append(&mut text, room.text(source, extent.start..extent.end)?) {
                 return None;
             }
             text.push(' ');
@@ -451,7 +485,7 @@ impl Edits {
                         }
                         Piece::Source(span) => {
                             copied += span.end - span.start;
-                            Piece::Text(room.copy(&source[span.range()])?)
+                            Piece::Text(room.copy(room.text(source, span.range())?)?)
                         }
                         Piece::Text(text) => {
                             copied += text.len();
@@ -625,7 +659,7 @@ impl Edits {
                 // An insertion at the end belongs to the enclosing text.
                 break;
             }
-            out.push_str(&source[position..edit.span.start]);
+            out.push_str(out.room.text(source, position..edit.span.start)?);
             if !out.room.within() {
                 return None;
             }
@@ -649,7 +683,7 @@ impl Edits {
             position = edit.span.end;
             index += 1;
         }
-        out.push_str(&source[position..span.end]);
+        out.push_str(out.room.text(source, position..span.end)?);
         out.room.within().then_some(())
     }
 }
@@ -657,6 +691,16 @@ impl Edits {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn invalid_source_piece_refuses_all_rendered_output() {
+        let room = Room::default();
+        let mut edits = Edits::default();
+        edits.replace(span(0, 2), vec![Piece::Source(span(1, 2))]);
+        assert!(edits.apply_in("é", &room).is_none());
+        assert!(!room.within());
+        assert_eq!(room.violation().unwrap().kind, crate::ErrorKind::Internal);
+    }
 
     fn span(start: usize, end: usize) -> Span {
         Span { start, end }

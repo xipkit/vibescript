@@ -99,6 +99,7 @@ pub struct Scope<'a> {
 pub struct Surface<'a> {
     /// The source the tree was parsed from.
     pub source: &'a str,
+    pub(super) invalid_text: std::sync::atomic::AtomicBool,
     /// Every token of the tree, interpolations' after the source's own.
     pub tokens: &'a [Token],
     /// Where the tokens start.
@@ -128,10 +129,16 @@ pub struct Surface<'a> {
 impl<'a> Surface<'a> {
     /// Prepares to walk `tree`, parsed from `source`; `None` once `stop`,
     /// which it asks every [`parse::POLL`] tokens and declarations it
-    /// reads, says the compilation has stopped.
-    pub fn new(source: &'a str, tree: &'a Tree, stop: parse::Stop<'_>) -> Option<Self> {
+    /// reads, says the compilation has stopped. An invalid source range
+    /// reports an invariant violation instead of a stopped pass.
+    pub fn new(
+        source: &'a str,
+        tree: &'a Tree,
+        stop: parse::Stop<'_>,
+    ) -> crate::checked::Access<Option<Self>> {
         let mut surface = Self {
             source,
+            invalid_text: std::sync::atomic::AtomicBool::new(false),
             tokens: &tree.tokens,
             starts: &tree.starts,
             edits: Edits::default(),
@@ -145,14 +152,27 @@ impl<'a> Surface<'a> {
             words: HashMap::new(),
             negation: None,
         };
+        let prepared = surface.prepare(tree, stop);
+        if surface
+            .invalid_text
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            return Err(crate::checked::violation(
+                "surface text range must be in bounds and on UTF-8 boundaries",
+            ));
+        }
+        Ok(prepared.map(|()| surface))
+    }
+
+    fn prepare(&mut self, tree: &'a Tree, stop: parse::Stop<'_>) -> Option<()> {
         let poll = parse::POLL as usize;
         for (index, token) in tree.tokens.iter().enumerate() {
             if index % poll == 0 && stop() {
                 return None;
             }
             if matches!(token.kind, TokenKind::Operator("&&" | "||")) {
-                let offset = surface.operator_offset(index)?;
-                surface.short_circuits.insert(offset);
+                let offset = self.operator_offset(index)?;
+                self.short_circuits.insert(offset);
             }
         }
         let mut read = 0;
@@ -160,13 +180,24 @@ impl<'a> Surface<'a> {
             read += 1;
             read % poll == 0 && stop()
         };
-        surface.declare(&tree.body, "", &mut stopped)?;
-        Some(surface)
+        self.declare(&tree.body, "", &mut stopped)
     }
 
     /// The source text of `span`.
     pub fn text(&self, span: Span) -> &'a str {
-        &self.source[span.start..span.end]
+        self.source_text(span.start..span.end)
+    }
+
+    /// Reads source text, refusing the pass if a range splits UTF-8 or is out of bounds.
+    pub fn source_text(&self, range: impl std::slice::SliceIndex<str, Output = str>) -> &'a str {
+        match self.source.get(range) {
+            Some(text) => text,
+            None => {
+                self.invalid_text
+                    .store(true, std::sync::atomic::Ordering::Relaxed);
+                ""
+            }
+        }
     }
 
     /// The span of token `tok`.
@@ -180,10 +211,10 @@ impl<'a> Surface<'a> {
 
     /// The source text of token `tok`.
     pub fn token_text(&self, tok: Tok) -> &'a str {
-        self.tokens
-            .get(tok)
-            .and_then(|token| self.source.get(token.start..token.end))
-            .unwrap_or_default()
+        let Some(token) = self.tokens.get(tok) else {
+            return "";
+        };
+        self.source_text(token.start..token.end)
     }
 
     /// The token that starts at `offset`.

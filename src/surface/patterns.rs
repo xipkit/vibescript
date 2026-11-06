@@ -137,8 +137,9 @@ pub fn patterns() -> &'static [Pattern] {
                     (Callee::Namespace(namespace.to_owned()), rest)
                 };
                 let args = rest
-                    .find('(')
-                    .map(|open| arg_patterns(&rest[open + 1..rest.len() - 1]));
+                    .split_once('(')
+                    .and_then(|(_, args)| args.strip_suffix(')'))
+                    .map(arg_patterns);
                 let canonical = rename.canonical().map(|(namespace, name)| match namespace {
                     Some(namespace) => format!("{namespace}.{name}"),
                     None => name.to_owned(),
@@ -183,26 +184,29 @@ fn template_pieces(template: &str) -> Vec<TemplatePiece> {
     let mut pieces = Vec::new();
     let mut text = String::new();
     let mut rest = template;
-    while let Some(c) = rest.chars().next() {
+    let mut chars = rest.chars();
+    while let Some(c) = chars.next() {
         if let Some(tail) = rest.strip_prefix("...") {
             flush(&mut pieces, &mut text);
             pieces.push(TemplatePiece::Rest);
             rest = tail;
         } else if let Some(tail) = rest.strip_prefix('$') {
-            let end = tail
-                .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
-                .unwrap_or(tail.len());
+            let name = tail
+                .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+                .next()
+                .unwrap_or(tail);
             flush(&mut pieces, &mut text);
-            pieces.push(if &tail[..end] == "x" {
+            pieces.push(if name == "x" {
                 TemplatePiece::Receiver
             } else {
-                TemplatePiece::Capture(tail[..end].to_owned())
+                TemplatePiece::Capture(name.to_owned())
             });
-            rest = &tail[end..];
+            rest = tail.strip_prefix(name).unwrap_or(tail);
         } else {
             text.push(c);
-            rest = &rest[c.len_utf8()..];
+            rest = chars.as_str();
         }
+        chars = rest.chars();
     }
     flush(&mut pieces, &mut text);
     pieces

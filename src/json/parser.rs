@@ -1590,10 +1590,18 @@ mod tests {
                 .wrapping_mul(6364136223846793005)
                 .wrapping_add(1442695040888963407);
             let digits = (n >> 7).to_string();
-            cases.push(digits[..1 + (n as usize % digits.len())].to_string());
+            cases.push(
+                digits
+                    .chars()
+                    .take(1 + (n as usize % digits.len()))
+                    .collect::<String>(),
+            );
             cases.push(format!(
                 "-{}",
-                &digits[..1 + (n as usize >> 3) % digits.len()]
+                digits
+                    .chars()
+                    .take(1 + (n as usize >> 3) % digits.len())
+                    .collect::<String>()
             ));
         }
         for text in cases {

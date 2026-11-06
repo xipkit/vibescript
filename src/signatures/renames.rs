@@ -38,7 +38,9 @@ impl Rename {
         let Replacement::Rewrite(template) = &self.replacement else {
             return None;
         };
-        let arguments = &self.pattern[self.pattern.find('(').unwrap_or(self.pattern.len())..];
+        let arguments = self
+            .pattern
+            .get(self.pattern.find('(').unwrap_or(self.pattern.len())..)?;
         let (namespace, rest) = match template.strip_prefix("$x.") {
             Some(rest) => (None, rest),
             None if self.receiver == "global" && !template.contains('.') => {
@@ -53,13 +55,13 @@ impl Rename {
             }
         };
         let end = rest.find('(').unwrap_or(rest.len());
-        let name = &rest[..end];
+        let name = rest.get(..end)?;
         let plain = !name.is_empty()
             && name
                 .trim_end_matches(['?', '!'])
                 .chars()
                 .all(|c| c.is_ascii_alphanumeric() || c == '_');
-        (plain && rest[end..] == *arguments).then_some((namespace, name))
+        (plain && rest.get(end..) == Some(arguments)).then_some((namespace, name))
     }
 }
 
@@ -131,6 +133,6 @@ fn removed_name(receiver: &str, pattern: &str) -> Option<String> {
         None => pattern.strip_prefix(receiver)?.strip_prefix('.')?,
     };
     let end = rest.find('(').unwrap_or(rest.len());
-    let name = &rest[..end];
+    let name = rest.get(..end)?;
     (!name.is_empty() && !name.contains(' ')).then(|| name.to_owned())
 }

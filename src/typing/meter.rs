@@ -167,6 +167,24 @@ impl Meter {
         self.stopped.store(true, Relaxed);
     }
 
+    /// Reads source text, stopping the check on an invalid UTF-8 range.
+    /// The empty result on failure is discarded with the stopped check.
+    #[inline]
+    #[track_caller]
+    pub fn text<'a>(
+        &self,
+        source: &'a str,
+        range: impl std::slice::SliceIndex<str, Output = str>,
+    ) -> &'a str {
+        match crate::checked::text(source, range) {
+            Ok(text) => text,
+            Err(violation) => {
+                self.violated(violation);
+                ""
+            }
+        }
+    }
+
     /// The first invariant the check found broken, if any.
     pub fn violation(&self) -> Option<crate::Error> {
         self.violation.get().cloned()
@@ -882,6 +900,19 @@ use super::fault_tests::injected;
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn invalid_text_stops_the_check_and_preserves_the_first_error() {
+        let meter = super::Meter::new(Default::default(), None);
+        assert_eq!(meter.text("aé", 1..3), "é");
+        assert!(!meter.stopped());
+        assert_eq!(meter.text("aé", 2..3), "");
+        assert!(meter.stopped());
+        let first = meter.violation().unwrap();
+        assert_eq!(first.kind, crate::ErrorKind::Internal);
+        meter.text("", 1..);
+        assert_eq!(meter.violation().unwrap().message, first.message);
+    }
+
     #[test]
     fn replay_without_a_memo_stops_the_check() {
         let meter = super::Meter::new(Default::default(), None);

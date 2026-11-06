@@ -386,7 +386,15 @@ impl std::fmt::Display for SourceText<'_> {
         while !self.0.is_char_boundary(end) {
             end -= 1;
         }
-        write!(f, "{}...", &self.0[..end])
+        use std::fmt::Write as _;
+        for ch in self.0.chars() {
+            if ch.len_utf8() > end {
+                break;
+            }
+            f.write_char(ch)?;
+            end -= ch.len_utf8();
+        }
+        f.write_str("...")
     }
 }
 

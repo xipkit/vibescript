@@ -95,7 +95,7 @@ impl<'a> Spans<'a> {
                 ..crate::CallOptions::default()
             });
             let inner = crate::syntax::record::tokens_within(
-                &source[start..end],
+                meter.text(source, start..end),
                 &crate::compilation::Meter::new(&mut context),
             );
             let used = context.stats();
@@ -237,7 +237,8 @@ impl<'a> Spans<'a> {
         let Some(token) = self.tokens.get(index) else {
             return "";
         };
-        &self.source[token.span.start..token.span.end]
+        self.meter
+            .text(self.source, token.span.start..token.span.end)
     }
 
     /// The span of the word or token starting at `offset`.

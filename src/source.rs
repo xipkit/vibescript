@@ -159,8 +159,15 @@ struct Snippet<'a> {
 
 impl<'a> Snippet<'a> {
     fn new(text: &'a str, offset: usize, position: Position, filename: Option<&'a [u8]>) -> Self {
+        let offset = boundary(text, offset);
         let mut start = offset;
-        for ch in text[..offset].chars().rev().take(WINDOW / 2) {
+        for ch in text
+            .get(..offset)
+            .unwrap_or(text)
+            .chars()
+            .rev()
+            .take(WINDOW / 2)
+        {
             if ch == '\n' {
                 break;
             }
@@ -168,7 +175,7 @@ impl<'a> Snippet<'a> {
         }
         let mut end = start;
         let mut count = 0;
-        for ch in text[start..].chars().take(WINDOW) {
+        for ch in text.get(start..).unwrap_or_default().chars().take(WINDOW) {
             if ch == '\n' {
                 break;
             }
@@ -176,7 +183,13 @@ impl<'a> Snippet<'a> {
             count += 1;
         }
         if count < WINDOW {
-            for ch in text[..start].chars().rev().take(WINDOW - count) {
+            for ch in text
+                .get(..start)
+                .unwrap_or(text)
+                .chars()
+                .rev()
+                .take(WINDOW - count)
+            {
                 if ch == '\n' {
                     break;
                 }
@@ -184,8 +197,8 @@ impl<'a> Snippet<'a> {
             }
         }
         Self {
-            text: &text[start..end],
-            caret: &text[start..offset],
+            text: text.get(start..end).unwrap_or(text),
+            caret: text.get(start..offset).unwrap_or_default(),
             prefix: start
                 .checked_sub(1)
                 .and_then(|at| text.as_bytes().get(at))
@@ -295,7 +308,13 @@ pub(crate) fn parse_error(
     }
     if error.kind == crate::ErrorKind::Syntax && error.diagnostics().is_empty() {
         let start = boundary(source, error.offset.unwrap_or(0));
-        let end = start + source[start..].chars().next().map_or(0, char::len_utf8);
+        let end = start
+            + source
+                .get(start..)
+                .unwrap_or_default()
+                .chars()
+                .next()
+                .map_or(0, char::len_utf8);
         let diagnostic = crate::diagnostic::Diagnostic::error(
             crate::diagnostic::Code::SYNTAX,
             crate::diagnostic::Span::new(start, end),
@@ -310,7 +329,7 @@ pub(crate) fn parse_error(
     {
         let mut offset = boundary(source, offset);
         let mut position = Position { line: 1, column: 1 };
-        for ch in source[..offset].chars() {
+        for ch in source.get(..offset).unwrap_or(source).chars() {
             if let Err(error) = work.charge(1) {
                 return error;
             }

@@ -1529,7 +1529,7 @@ impl<'a> Checker<'a> {
             .rev()
             .find(|token| !matches!(token.kind, TokenKind::Newline | TokenKind::Semicolon))
             .map_or(callee_end, |token| token.end);
-        if self.source[previous..open.start].contains('\n') {
+        if self.source_text(previous..open.start).contains('\n') {
             // A brace must follow its call on the same line, with its
             // parameters, while comments stay where they are.
             let moved_end = match block.pipes {
@@ -1541,10 +1541,11 @@ impl<'a> Checker<'a> {
                 }
                 None => open.end,
             };
-            let line_end = self.source[moved_end..]
+            let line_end = self
+                .source_text(moved_end..)
                 .find('\n')
                 .map_or(self.source.len(), |index| moved_end + index);
-            let rest_blank = self.source[moved_end..line_end].trim().is_empty();
+            let rest_blank = self.source_text(moved_end..line_end).trim().is_empty();
             let mut pieces = vec![Piece::Text(" {".into())];
             if let Some((open_pipe, close_pipe)) = block.pipes {
                 let Some((open_pipe, close_pipe)) =
@@ -1574,8 +1575,11 @@ impl<'a> Checker<'a> {
                 .collect();
             self.edits.insert(previous, text);
             // Drop `do |params|` and, when nothing else is on its line, the line.
-            let line_start = self.source[..open.start].rfind('\n').map_or(0, |i| i + 1);
-            let alone = self.source[line_start..open.start].trim().is_empty();
+            let line_start = self
+                .source_text(..open.start)
+                .rfind('\n')
+                .map_or(0, |i| i + 1);
+            let alone = self.source_text(line_start..open.start).trim().is_empty();
             let removed = if alone && rest_blank {
                 Span {
                     start: line_start.saturating_sub(1),
@@ -1643,7 +1647,8 @@ impl<'a> Checker<'a> {
                     return;
                 };
                 let start = token.start;
-                let glued = self.source[..start]
+                let glued = self
+                    .source_text(..start)
                     .chars()
                     .next_back()
                     .is_some_and(|c| c.is_alphanumeric() || matches!(c, '_' | '?' | '!'));
@@ -1727,7 +1732,7 @@ fn excerpt(text: &str) -> String {
     const LIMIT: usize = 40;
     let line = text.lines().next().unwrap_or_default();
     match line.char_indices().nth(LIMIT) {
-        Some((end, _)) => format!("{} ...", &line[..end]),
+        Some(_) => format!("{} ...", line.chars().take(LIMIT).collect::<String>()),
         None if line.len() < text.len() => format!("{line} ..."),
         None => line.to_owned(),
     }

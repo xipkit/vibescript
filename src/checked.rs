@@ -91,6 +91,18 @@ impl From<Violation> for Error {
 /// What a checked access returns: the value, or the violation.
 pub(crate) type Access<T> = Result<T, Violation>;
 
+/// Reads a byte range that must be within a string and on UTF-8 boundaries.
+#[inline]
+#[track_caller]
+pub(crate) fn text(
+    source: &str,
+    range: impl std::slice::SliceIndex<str, Output = str>,
+) -> Access<&str> {
+    source.get(range).ok_or(violation(
+        "text range must be in bounds and on UTF-8 boundaries",
+    ))
+}
+
 /// Indexing that reports an [`ErrorKind::Internal`] error instead of
 /// panicking when the position is out of range.
 pub(crate) trait Checked<T> {
@@ -253,6 +265,20 @@ impl<T> Buffer<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn text_access_checks_utf8_boundaries_and_ranges() {
+        let source = "aé🦀z";
+        assert_eq!(text(source, 1..7).unwrap(), "é🦀");
+        assert_eq!(text(source, ..1).unwrap(), "a");
+        assert_eq!(text(source, 7..).unwrap(), "z");
+        assert_eq!(text(source, 8..8).unwrap(), "");
+        for (start, end) in [(2, 7), (1, 5), (9, 9), (7, 3)] {
+            let error = Error::from(text(source, start..end).unwrap_err());
+            assert_eq!(error.kind, ErrorKind::Internal);
+            assert!(error.message.contains("UTF-8 boundaries"));
+        }
+    }
 
     #[test]
     fn in_range_access_succeeds() {

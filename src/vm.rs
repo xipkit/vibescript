@@ -1177,8 +1177,13 @@ impl Run {
                                 "no instance context for ivar",
                             ));
                         };
-                        let value =
-                            crate::objects::field(ctx, instance, &raw[1..])?.unwrap_or_default();
+                        let value = crate::objects::field(
+                            ctx,
+                            instance,
+                            raw.strip_prefix('@')
+                                .ok_or(violation("instance variable must start with @"))?,
+                        )?
+                        .unwrap_or_default();
                         stack.push(ctx, value)?;
                         continue;
                     }
@@ -1209,7 +1214,12 @@ impl Run {
                                 "no instance context for ivar",
                             ));
                         };
-                        let mut address = crate::objects::address(ctx, instance, &raw[1..])?;
+                        let mut address = crate::objects::address(
+                            ctx,
+                            instance,
+                            raw.strip_prefix('@')
+                                .ok_or(violation("instance variable must start with @"))?,
+                        )?;
                         address.proven = function.proven_ivars.contains(frame.ip - 1);
                         storage.addresses.push(ctx, address)?;
                         continue;
@@ -1268,9 +1278,24 @@ impl Run {
                         let value = if function.proven_ivars.contains(frame.ip - 1) {
                             value
                         } else {
-                            normalize_ivar(ctx, frames, storage, instance, &raw[1..], value)?
+                            normalize_ivar(
+                                ctx,
+                                frames,
+                                storage,
+                                instance,
+                                raw.strip_prefix('@')
+                                    .ok_or(violation("instance variable must start with @"))?,
+                                value,
+                            )?
                         };
-                        set_ivar(ctx, storage, instance, &raw[1..], &value)?;
+                        set_ivar(
+                            ctx,
+                            storage,
+                            instance,
+                            raw.strip_prefix('@')
+                                .ok_or(violation("instance variable must start with @"))?,
+                            &value,
+                        )?;
                         *stack.top_mut()? = value;
                         continue;
                     }

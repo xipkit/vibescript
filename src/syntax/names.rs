@@ -55,15 +55,23 @@ fn suffix_repair(source: &str, offset: usize, method: bool) -> Repair {
     while suffix(end) {
         end += 1;
     }
-    if source[end..].starts_with(|c: char| c == '_' || unicode::letter_or_digit(c)) {
+    let Some(after) = source.get(end..) else {
+        return Repair::None;
+    };
+    let Some(prefix) = source.get(..run) else {
+        return Repair::None;
+    };
+    if after.starts_with(|c: char| c == '_' || unicode::letter_or_digit(c)) {
         return Repair::Internal;
     }
-    let start = source[..run]
+    let start = prefix
         .char_indices()
         .rev()
         .find(|&(_, c)| c != '_' && !unicode::letter_or_digit(c))
         .map_or(0, |(i, c)| i + c.len_utf8());
-    let stem = &source[start..run];
+    let Some(stem) = source.get(start..run) else {
+        return Repair::None;
+    };
     if !identifier(stem) {
         return Repair::None;
     }
@@ -73,7 +81,7 @@ fn suffix_repair(source: &str, offset: usize, method: bool) -> Repair {
         return Repair::Edit(suffixes::REPEATED, span, "");
     }
     let span = crate::diagnostic::Span::new(run, end);
-    if keyword(stem) && !keyword_allowed(&source[..start]) {
+    if keyword(stem) && !source.get(..start).is_some_and(keyword_allowed) {
         Repair::Edit("replace the name suffix with an underscore", span, "_")
     } else {
         Repair::Edit("remove the name suffix", span, "")
@@ -316,7 +324,7 @@ fn method_spelling(name: &str, lexed: bool) -> std::result::Result<(), MethodNam
         if suffix + 1 != name.len() || name.starts_with('@') {
             return Err(MethodNameError::Suffix(suffix));
         }
-        &name[..suffix]
+        name.get(..suffix).ok_or(MethodNameError::Invalid)?
     } else {
         name.strip_suffix('=').unwrap_or(name)
     };
@@ -402,11 +410,18 @@ impl Parser<'_> {
                     diagnostic = Diagnostic::error(Code::NAME_SUFFIX, span, &message);
                     // As in source, a `?` or `!` inside the name has no
                     // repair, and a repeated one keeps its last character.
-                    if name[suffix..].bytes().all(|b| matches!(b, b'?' | b'!'))
-                        && identifier(&name[..suffix])
+                    if crate::checked::text(&name, suffix..)?
+                        .bytes()
+                        .all(|b| matches!(b, b'?' | b'!'))
+                        && identifier(crate::checked::text(&name, ..suffix)?)
                     {
-                        let fixed =
-                            Name::join(self.work, &[&name[..suffix], &name[name.len() - 1..]])?;
+                        let fixed = Name::join(
+                            self.work,
+                            &[
+                                crate::checked::text(&name, ..suffix)?,
+                                crate::checked::text(&name, name.len() - 1..)?,
+                            ],
+                        )?;
                         diagnostic = diagnostic.with_fix(Fix::replace(
                             "remove the name suffix",
                             span,
