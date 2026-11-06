@@ -304,7 +304,18 @@ pub(crate) fn text_span(s: &[u8], class: Class) -> TextSpan {
     let mut rest = s;
     while let Some(&lead) = rest.first() {
         if lead < 128 {
-            let n = prefix(rest, class);
+            // One or two bytes, the space and punctuation between words in
+            // most scripts, need no mask: these branches are predicted, so
+            // the next rune's scan does not wait on a count.
+            let n = match rest {
+                [_, next, ..] if *next >= 128 && ordinary(lead, class) => 1,
+                [_, next, third, ..]
+                    if *third >= 128 && ordinary(lead, class) && ordinary(*next, class) =>
+                {
+                    2
+                }
+                _ => prefix(rest, class),
+            };
             if n == 0 {
                 break;
             }
@@ -991,6 +1002,72 @@ mod tests {
                                 }
                             }
                             data[offset + run] = b'a';
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// The span `text_span` must find, with every ASCII run counted by `prefix`.
+    fn reference_text_span(s: &[u8], class: Class) -> (usize, usize, u64) {
+        let (mut len, mut runes, mut steps) = (0, 0, 0);
+        while len < s.len() {
+            if s[len] < 128 {
+                let n = prefix(&s[len..], class);
+                if n == 0 {
+                    break;
+                }
+                len += n;
+                runes += n;
+                steps += (n as u64).div_ceil(64);
+                if s.get(len).is_some_and(|&next| next < 128) {
+                    break;
+                }
+            } else {
+                let (n, valid) = rune_width(&s[len..]);
+                if !valid
+                    || (matches!(class, Class::JsonStringify)
+                        && matches!(s[len..], [0xe2, 0x80, 0xa8 | 0xa9, ..]))
+                {
+                    break;
+                }
+                len += n;
+                runes += 1;
+                steps += 1;
+            }
+        }
+        (len, runes, steps)
+    }
+
+    #[test]
+    fn text_spans_read_short_runs_as_prefix_does() {
+        // Every ASCII lead, with what follows it stopping the run at each
+        // short length, for a class that takes it and one that does not, at
+        // the start of the slice and after a rune, cut off at each byte.
+        let bytes = [
+            b'a', b' ', b'"', b'\\', b'<', b'&', 0x00, 0x1f, 0x7f, 0x80, 0xc3, 0xe2, 0xff,
+        ];
+        let tails: [&[u8]; 3] = [b"", "é".as_bytes(), "a\u{2028}".as_bytes()];
+        for class in [Class::JsonParse, Class::JsonStringify] {
+            for start in ["", "é"] {
+                for lead in 0..128 {
+                    for next in bytes {
+                        for third in bytes {
+                            for tail in tails {
+                                let mut s = start.as_bytes().to_vec();
+                                s.extend([lead, next, third]);
+                                let whole = s.len();
+                                s.extend_from_slice(tail);
+                                for s in [&s[..whole - 2], &s[..whole - 1], &s[..]] {
+                                    let span = text_span(s, class);
+                                    assert_eq!(
+                                        (span.len, span.runes, span.steps),
+                                        reference_text_span(s, class),
+                                        "{s:02x?}"
+                                    );
+                                }
+                            }
                         }
                     }
                 }
