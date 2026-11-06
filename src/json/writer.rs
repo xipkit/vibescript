@@ -533,21 +533,21 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
     // that often, with at most two steps per input byte, keeps `pending` far
     // from overflowing, so the loop adds to it without checks.
     let mut pending: u64 = 0;
-    let mut settle_at = CHUNK;
-    let mut i = 0;
-    'bytes: while i < input.len() {
-        if i >= settle_at {
+    let mut rest = input;
+    let mut settle_at = rest.len().saturating_sub(CHUNK);
+    'bytes: while !rest.is_empty() {
+        if rest.len() <= settle_at {
             ctx.charge_pending(&mut pending)?;
             ctx.checkpoint()?;
-            settle_at = i + CHUNK;
+            settle_at = rest.len().saturating_sub(CHUNK);
         }
-        let Some(mut b) = input.get(i).copied() else {
+        let Some(mut b) = rest.first().copied() else {
             break;
         };
         let mut escape = escape_kind(b);
         while escape != 0 {
             pending = pending.wrapping_add(1);
-            i += 1;
+            rest = rest.tail(1)?;
             // Go reserves room for the longest escape before any ASCII escape.
             let reserved = out.buffer.data.len().saturating_add(LONGEST);
             if out.limit.is_some_and(|limit| reserved > limit) {
@@ -560,21 +560,21 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
                 let [text @ .., _, _] = *ESCAPES.at(usize::from(b))?;
                 out.put(ctx, &text, &mut pending)?;
             }
-            let Some(&next) = input.get(i) else {
+            let Some(&next) = rest.first() else {
                 break 'bytes;
             };
             b = next;
             escape = escape_kind(b);
             // A lone escape or a pair costs least appended in place, as
             // above. A third in a row starts a run.
-            if escape != 0 && input.get(i + 1).is_some_and(|&next| escape_kind(next) != 0) {
-                let (run, steps) = out.put_run(input.tail(i)?);
-                i += run;
+            if escape != 0 && rest.get(1).is_some_and(|&next| escape_kind(next) != 0) {
+                let (run, steps) = out.put_run(rest);
+                rest = rest.tail(run)?;
                 pending = pending.wrapping_add(steps);
                 continue 'bytes;
             }
         }
-        let window = input.span(i, input.len().min(i + CHUNK))?;
+        let window = rest.span(0, rest.len().min(CHUNK))?;
         if b < 128 {
             // A one-byte run between ASCII escapes needs no vector/SWAR mask.
             if window.get(1).is_some_and(|&next| escape_kind(next) != 0) {
@@ -583,15 +583,15 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
                     .get(2..4)
                     .is_some_and(|ahead| ahead.iter().any(|&next| escape_kind(next) != 0))
                 {
-                    let (run, steps) = out.put_run(input.tail(i)?);
+                    let (run, steps) = out.put_run(rest);
                     if run != 0 {
-                        i += run;
+                        rest = rest.tail(run)?;
                         pending = pending.wrapping_add(steps);
                         continue;
                     }
                 }
                 out.put(ctx, window.span(0, 1)?, &mut pending)?;
-                i += 1;
+                rest = rest.tail(1)?;
                 continue;
             }
             // An ordinary run ending at an escape or the window is exactly
@@ -599,38 +599,50 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
             let n = scan::prefix(window, Class::JsonStringify);
             if window.get(n).is_none_or(|&next| next < 128) {
                 out.put(ctx, window.span(0, n)?, &mut pending)?;
-                i += n;
+                rest = rest.tail(n)?;
                 continue;
             }
         }
-        let span = scan::text_span(window, Class::JsonStringify);
-        if span.len > 0 {
-            if span.runes != span.len {
-                pending = pending.wrapping_add(span.steps);
-            }
-            out.put(ctx, window.span(0, span.len)?, &mut pending)?;
-            i += span.len;
-            continue;
-        }
-        // A rune the span stopped at: invalid, a line or paragraph separator,
-        // or cut by the end of the chunk.
-        pending = pending.wrapping_add(1);
-        let (ch, n, valid) = scan::rune(input.tail(i)?);
-        let replacement: &[u8] = if ch == '\u{2028}' {
-            b"\\u2028"
-        } else if ch == '\u{2029}' {
-            b"\\u2029"
-        } else if !valid {
-            b"\\ufffd"
-        } else {
-            input.span(i, i + n)?
-        };
-        i += n;
-        out.put(ctx, replacement, &mut pending)?;
+        let n = write_text(ctx, rest, out, &mut pending)?;
+        rest = rest.tail(n)?;
     }
     ctx.charge_pending(&mut pending)?;
     out.push(ctx, b'"')?;
     Ok(())
+}
+
+/// Writes the next text span or a rune that stops the span scanner, returning
+/// the bytes consumed. Keep its scanners out of `write_string` so they do not
+/// compete with the ASCII and escape loops for registers.
+#[inline(never)]
+fn write_text(
+    ctx: &mut CallContext,
+    input: &[u8],
+    out: &mut Output,
+    pending: &mut u64,
+) -> Result<usize> {
+    let window = input.span(0, input.len().min(CHUNK))?;
+    let span = scan::text_span(window, Class::JsonStringify);
+    if span.len > 0 {
+        if span.runes != span.len {
+            *pending = pending.wrapping_add(span.steps);
+        }
+        out.put(ctx, window.span(0, span.len)?, pending)?;
+        return Ok(span.len);
+    }
+    *pending = pending.wrapping_add(1);
+    let (ch, n, valid) = scan::rune(input);
+    let replacement: &[u8] = if ch == '\u{2028}' {
+        b"\\u2028"
+    } else if ch == '\u{2029}' {
+        b"\\u2029"
+    } else if !valid {
+        b"\\ufffd"
+    } else {
+        input.span(0, n)?
+    };
+    out.put(ctx, replacement, pending)?;
+    Ok(n)
 }
 
 #[cfg(test)]
@@ -785,6 +797,71 @@ mod tests {
         }
         out.push(ctx, b'"')?;
         Ok(())
+    }
+
+    #[test]
+    fn text_tail_preserves_chunk_boundaries_and_failure_accounting() {
+        let tails: [&[u8]; 8] = [
+            "é界🙂".as_bytes(),
+            "\u{2028}\u{2029}".as_bytes(),
+            b"\xff",
+            b"\xe7\x95",
+            b"\xf0\x9f\x99",
+            b"\xed\xa0\x80",
+            b"\xf4\x90\x80\x80",
+            "é\n界\"🙂".as_bytes(),
+        ];
+        for offset in CHUNK - 4..=CHUNK + 4 {
+            for tail in tails {
+                let mut input = vec![b'a'; offset];
+                input.extend_from_slice(tail);
+                input.extend_from_slice(b"ab\n");
+                let run = |write: fn(&mut CallContext, &[u8], &mut Output, usize) -> Result<()>,
+                           steps,
+                           limit| {
+                    let mut ctx = CallContext::new(CallOptions {
+                        limits: Limits {
+                            steps,
+                            ..Limits::default()
+                        },
+                        ..CallOptions::default()
+                    });
+                    let mut out = Output::new(limit, true);
+                    let result = write(&mut ctx, &input, &mut out, 0);
+                    let stats = ctx.stats();
+                    // Failed batched charges may leave more private output
+                    // and steps than the per-append oracle. Only successful
+                    // output and accounting are part of the returned value.
+                    let result = result
+                        .map(|()| {
+                            (
+                                out.buffer.data.clone(),
+                                stats.steps,
+                                stats.retained_memory_bytes,
+                            )
+                        })
+                        .map_err(|error| (error.kind, error.message));
+                    drop(out);
+                    assert_eq!(ctx.stats().retained_memory_bytes, 0);
+                    (result, stats.peak_memory_bytes)
+                };
+                let expected = run(reference, None, None).0.unwrap();
+                for steps in (0..=expected.1 + 1).map(Some).chain([None]) {
+                    assert_eq!(
+                        run(write_string, steps, None),
+                        run(reference, steps, None),
+                        "offset {offset}, tail {tail:02x?}, steps {steps:?}"
+                    );
+                }
+                for limit in input.len()..=expected.0.len() + LONGEST {
+                    assert_eq!(
+                        run(write_string, None, Some(limit)),
+                        run(reference, None, Some(limit)),
+                        "offset {offset}, tail {tail:02x?}, limit {limit}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]

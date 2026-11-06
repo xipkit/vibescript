@@ -1,4 +1,4 @@
-use crate::checked::convert;
+use crate::checked::{Access, Checked, convert};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value, budget::Buffer, bytecode::Method, bytes, ops,
     scan, sequence, value::Kind,
@@ -27,7 +27,7 @@ fn window(
     if start == 0 && end == bytes.len() {
         return Ok(if bang { Value::nil() } else { receiver.clone() });
     }
-    ctx.bytes(&bytes[start..end])
+    ctx.bytes(bytes.span(start, end)?)
 }
 
 fn strip_space(byte: u8) -> bool {
@@ -41,7 +41,8 @@ fn strip(ctx: &mut CallContext, bytes: &[u8], left: bool, right: bool) -> Result
         while start < end {
             let length = (end - start).min(4096);
             ctx.work_bytes(length)?;
-            let skipped = bytes[start..start + length]
+            let skipped = bytes
+                .span(start, start + length)?
                 .iter()
                 .take_while(|&&b| strip_space(b))
                 .count();
@@ -55,7 +56,8 @@ fn strip(ctx: &mut CallContext, bytes: &[u8], left: bool, right: bool) -> Result
         while end > start {
             let length = (end - start).min(4096);
             ctx.work_bytes(length)?;
-            let skipped = bytes[end - length..end]
+            let skipped = bytes
+                .span(end - length, end)?
                 .iter()
                 .rev()
                 .take_while(|&&b| strip_space(b))
@@ -69,20 +71,20 @@ fn strip(ctx: &mut CallContext, bytes: &[u8], left: bool, right: bool) -> Result
     Ok((start, end))
 }
 
-fn last_rune(bytes: &[u8]) -> usize {
+fn last_rune(bytes: &[u8]) -> Access<usize> {
     let end = bytes.len();
     let mut start = end - 1;
     for _ in 0..3 {
-        if start == 0 || bytes[start] & 0xc0 != 0x80 {
+        if start == 0 || bytes.at(start)? & 0xc0 != 0x80 {
             break;
         }
         start -= 1;
     }
-    let (_, width, valid) = scan::rune(&bytes[start..]);
+    let (_, width, valid) = scan::rune(bytes.tail(start)?);
     if valid && start + width == end {
-        start
+        Ok(start)
     } else {
-        end - 1
+        Ok(end - 1)
     }
 }
 
@@ -103,13 +105,13 @@ fn fields(
         let end = position + (bytes.len() - position).min(4096);
         ctx.work_bytes(end - position)?;
         while position < end {
-            let (rune, width, _) = scan::rune(&bytes[position..]);
+            let (rune, width, _) = scan::rune(bytes.tail(position)?);
             if white_space(rune) {
                 if let Some(begin) = start.take() {
                     if emitted {
                         emit(ctx, b" ")?;
                     }
-                    emit(ctx, &bytes[begin..position])?;
+                    emit(ctx, bytes.span(begin, position)?)?;
                     emitted = true;
                 }
             } else if start.is_none() {
@@ -122,7 +124,7 @@ fn fields(
         if emitted {
             emit(ctx, b" ")?;
         }
-        emit(ctx, &bytes[begin..])?;
+        emit(ctx, bytes.tail(begin)?)?;
     }
     Ok(())
 }
@@ -133,7 +135,7 @@ fn squish(ctx: &mut CallContext, receiver: &Value, bang: bool) -> Result<Value> 
     let mut changed = false;
     fields(ctx, bytes, |ctx, field| {
         let end = length + field.len();
-        changed |= !bytes::bytes_equal(ctx, &bytes[length..end], field)?;
+        changed |= !bytes::bytes_equal(ctx, bytes.span(length, end)?, field)?;
         length = end;
         Ok(())
     })?;
@@ -151,9 +153,9 @@ fn affix(ctx: &mut CallContext, bytes: &[u8], part: &[u8], suffix: bool) -> Resu
         return Ok(false);
     }
     let window = if suffix {
-        &bytes[bytes.len() - part.len()..]
+        bytes.tail(bytes.len() - part.len())?
     } else {
-        &bytes[..part.len()]
+        bytes.span(0, part.len())?
     };
     bytes::bytes_equal(ctx, window, part)
 }
@@ -187,7 +189,7 @@ fn write_pad(ctx: &mut CallContext, output: &mut Buffer<u8>, pad: &[u8], plan: P
     for _ in 0..plan.repeats {
         output.extend(ctx, pad)?;
     }
-    output.extend(ctx, &pad[..plan.prefix])
+    output.extend(ctx, pad.span(0, plan.prefix)?)
 }
 
 fn padding(ctx: &mut CallContext, name: &str, receiver: &Value, args: &[Value]) -> Result<Value> {
@@ -196,15 +198,16 @@ fn padding(ctx: &mut CallContext, name: &str, receiver: &Value, args: &[Value]) 
             "string.{name} expects width and optional pad string"
         )));
     }
-    let width = sequence::integer(&args[0]).map_err(|_| {
-        if matches!(args[0].0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_)) {
+    let width_arg = args.at(0)?;
+    let width = sequence::integer(width_arg).map_err(|_| {
+        if matches!(width_arg.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_)) {
             argument(format!("string.{name} width is out of range"))
         } else {
             argument(format!("string.{name} width must be integer"))
         }
     })?;
     let pad = if args.len() == 2 {
-        string(&args[1])
+        string(args.at(1)?)
             .map_err(|error| Error::new(error.kind, format!("string.{name} pad must be string")))?
     } else {
         b" "
@@ -287,7 +290,7 @@ pub(crate) fn call(
                     "string.{name} expects exactly one separator"
                 )));
             }
-            let separator = string(&args[0]).map_err(|error| {
+            let separator = string(args.at(0)?).map_err(|error| {
                 Error::new(
                     error.kind,
                     format!("string.{name} separator must be string"),
@@ -352,7 +355,8 @@ pub(crate) fn call(
                         while end > 0 {
                             let length = end.min(4096);
                             ctx.work_bytes(length)?;
-                            let skipped = bytes[end - length..end]
+                            let skipped = bytes
+                                .span(end - length, end)?
                                 .iter()
                                 .rev()
                                 .take_while(|&&b| matches!(b, b'\r' | b'\n'))
@@ -385,7 +389,7 @@ pub(crate) fn call(
             } else if bytes.is_empty() {
                 0
             } else {
-                last_rune(bytes)
+                last_rune(bytes)?
             };
             (0, end)
         }
@@ -398,7 +402,7 @@ pub(crate) fn call(
                     "string.{name}{bang} expects exactly one {part}"
                 )));
             }
-            let part = string(&args[0]).map_err(|mut error| {
+            let part = string(args.at(0)?).map_err(|mut error| {
                 error.message = format!("string.{name}{bang} {part} must be string");
                 error
             })?;

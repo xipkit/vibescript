@@ -3,7 +3,7 @@ use super::{
     parse::Part,
     program::{Instruction, View},
 };
-use crate::checked::{Access, violation};
+use crate::checked::{Access, Checked, violation};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, Charge},
@@ -192,8 +192,8 @@ impl Regex {
                         b'\\',
                         b'x',
                         b'{',
-                        hex[usize::from(byte / 16)],
-                        hex[usize::from(byte % 16)],
+                        *hex.at(usize::from(byte / 16))?,
+                        *hex.at(usize::from(byte % 16))?,
                         b'}',
                     ];
                     if byte < 16 {
@@ -276,7 +276,7 @@ impl Constructor {
             }
         }
         if self == Self::New {
-            return Regex::compile(ctx, args[0].clone(), 0, self.name());
+            return Regex::compile(ctx, args.at(0)?.clone(), 0, self.name());
         }
         if self == Self::Union && args.is_empty() {
             return Regex::compile(ctx, Value::bytes(b"[^\\s\\S]"), 0, self.name());
@@ -310,8 +310,8 @@ impl Constructor {
                 size += width;
             }
         }
-        let text = if args.len() == 1 && size == args[0].require_bytes()?.len() {
-            args[0].clone()
+        let text = if args.len() == 1 && size == args.at(0)?.require_bytes()?.len() {
+            args.at(0)?.clone()
         } else {
             let mut output = Buffer::with_capacity(ctx, size)?;
             for (index, arg) in args.iter().enumerate() {
@@ -386,16 +386,16 @@ pub(crate) fn member(
                     format!("regex.{name} expects text"),
                 ));
             }
-            if !matches!(args[0].0, Kind::Bytes(_)) {
+            if !matches!(args.at(0)?.0, Kind::Bytes(_)) {
                 return Err(Error::new(
                     ErrorKind::Type,
                     format!("regex.{name} text must be string"),
                 ));
             }
             if name == "match" {
-                super::operations::first(ctx, regex, &args[0], 0, "regex.match")?
+                super::operations::first(ctx, regex, args.at(0)?, 0, "regex.match")?
             } else {
-                Value::boolean(regex.matches(ctx, &args[0], "regex.match?")?)
+                Value::boolean(regex.matches(ctx, args.at(0)?, "regex.match?")?)
             }
         }
         "inspect" => {
@@ -427,7 +427,7 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: &Value, b: &Value) -> R
     }
     match found {
         Some(found) => Ok(Value::int(crate::numeric::to_i64(
-            ops::runes(ctx, &bytes[..found.data[0]])?.0,
+            ops::runes(ctx, bytes.span(0, *found.at(0)?)?)?.0,
         ))),
         None => Ok(Value::nil()),
     }

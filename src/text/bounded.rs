@@ -1,5 +1,5 @@
 use super::traversal::{Entries, Frame, Stack};
-use crate::checked::violation;
+use crate::checked::{Checked, violation};
 use crate::{
     CallContext, ErrorKind, Result, Value,
     budget::{Buffer, MAX_VALUE_DEPTH},
@@ -22,7 +22,7 @@ impl Output {
             return Ok(());
         }
         let bytes = if self.prefix {
-            &bytes[..bytes.len().min(self.limit - self.length)]
+            bytes.span(0, bytes.len().min(self.limit - self.length))?
         } else {
             bytes
         };
@@ -191,7 +191,7 @@ fn walk(ctx: &mut CallContext, value: &Value, output: &mut Output, limit: usize)
                     let index = hash
                         .find(ctx, b"to_s")?
                         .ok_or(violation("protected hash must contain to_s"))?;
-                    output.append(ctx, hash.buffer.data[index].1.require_bytes()?)?;
+                    output.append(ctx, hash.buffer.at(index)?.1.require_bytes()?)?;
                 }
                 Kind::Hash(hash) if hash.object => output.append(ctx, b"<object>")?,
                 Kind::Hash(hash) => {
@@ -210,7 +210,7 @@ fn walk(ctx: &mut CallContext, value: &Value, output: &mut Output, limit: usize)
                 if position != 0 {
                     output.append(ctx, b", ")?;
                 }
-                let (key, value) = frame.entries.get(position);
+                let (key, value) = frame.entries.get(position)?;
                 if let Some(key) = key {
                     output.append(ctx, key.require_bytes()?)?;
                     output.append(ctx, b": ")?;

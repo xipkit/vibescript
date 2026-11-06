@@ -3,7 +3,7 @@ use super::{
     search::{ABSENT, Search},
     value::Regex,
 };
-use crate::checked::violation;
+use crate::checked::{Checked, violation};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value, budget::Buffer, bytes, iteration::Progress, ops,
     scan, value::Kind,
@@ -75,7 +75,7 @@ fn arguments(
             "{method} expects pattern and replacement"
         )));
     }
-    if !block && !matches!(args[1].0, Kind::Bytes(_)) {
+    if !block && !matches!(args.at(1)?.0, Kind::Bytes(_)) {
         return Err(Error::new(
             ErrorKind::Type,
             format!("{method} replacement must be string"),
@@ -84,7 +84,7 @@ fn arguments(
     if regex {
         super::text_limit(ctx, receiver.require_bytes()?, &method, "text")?;
         if !block {
-            super::text_limit(ctx, args[1].require_bytes()?, &method, "replacement")?;
+            super::text_limit(ctx, args.at(1)?.require_bytes()?, &method, "replacement")?;
         }
     }
     Ok(Spec {
@@ -158,26 +158,27 @@ impl Matcher {
     fn next(&mut self, ctx: &mut CallContext, text: &[u8]) -> Result<Option<Location>> {
         ctx.checkpoint()?;
         if let Some(regex) = &self.regex {
-            return Ok(self
-                .cursor
-                .next(
-                    ctx,
-                    self.search
-                        .as_mut()
-                        .ok_or(violation("regex matcher must have a search"))?,
-                    regex.view()?,
-                    text,
-                )?
-                .map(|indices| Location {
-                    whole: [indices.data[0], indices.data[1]],
-                    captures: Some(indices),
-                }));
+            let Some(indices) = self.cursor.next(
+                ctx,
+                self.search
+                    .as_mut()
+                    .ok_or(violation("regex matcher must have a search"))?,
+                regex.view()?,
+                text,
+            )?
+            else {
+                return Ok(None);
+            };
+            return Ok(Some(Location {
+                whole: [*indices.at(0)?, *indices.at(1)?],
+                captures: Some(indices),
+            }));
         }
         if self.done {
             return Ok(None);
         }
         let pattern = self.pattern.require_bytes()?;
-        let Some(found) = ops::find(ctx, &text[self.position..], pattern, false)? else {
+        let Some(found) = ops::find(ctx, text.tail(self.position)?, pattern, false)? else {
             self.done = true;
             return Ok(None);
         };
@@ -189,7 +190,7 @@ impl Matcher {
                 self.done = true;
             } else {
                 ctx.charge(1)?;
-                self.position += scan::rune(&text[end..]).1;
+                self.position += scan::rune(text.tail(end)?).1;
             }
         }
         Ok(Some(Location {
@@ -213,14 +214,14 @@ impl Matcher {
         let mut position = 0;
         while position < template.len() {
             let start = position;
-            while position < template.len() && template[position] != b'\\' {
+            while template.get(position).is_some_and(|&byte| byte != b'\\') {
                 if (position - start) % 4096 == 0 {
                     ctx.checkpoint()?;
                 }
                 position += 1;
             }
             ctx.work_bytes(position - start)?;
-            emit(ctx, &template[start..position])?;
+            emit(ctx, template.span(start, position)?)?;
             if position == template.len() {
                 break;
             }
@@ -236,14 +237,14 @@ impl Matcher {
                     emit_group(ctx, emit, text, loc, usize::from(next - b'0'))?
                 }
                 b'1'..=b'9' => (),
-                b'\x60' => emit(ctx, &text[..loc[0]])?,
-                b'\'' => emit(ctx, &text[loc[1]..])?,
+                b'\x60' => emit(ctx, text.span(0, *loc.at(0)?)?)?,
+                b'\'' => emit(ctx, text.tail(*loc.at(1)?)?)?,
                 b'\\' => emit(ctx, b"\\")?,
                 b'+' => {
                     for group in (1..loc.len() / 2).rev() {
                         ctx.charge(1)?;
-                        if loc[2 * group] != ABSENT
-                            && (!self.named || view.names[group].0 != view.names[group].1)
+                        if *loc.at(2 * group)? != ABSENT
+                            && (!self.named || view.names.at(group)?.0 != view.names.at(group)?.1)
                         {
                             emit_group(ctx, emit, text, loc, group)?;
                             break;
@@ -253,7 +254,7 @@ impl Matcher {
                 b'k' if template.get(position) == Some(&b'<') => {
                     position += 1;
                     let start = position;
-                    while position < template.len() && template[position] != b'>' {
+                    while template.get(position).is_some_and(|&byte| byte != b'>') {
                         ctx.charge(1)?;
                         position += 1;
                     }
@@ -263,18 +264,19 @@ impl Matcher {
                             self.method
                         )));
                     }
-                    let name = &template[start..position];
+                    let name = template.span(start, position)?;
                     position += 1;
                     let mut defined = false;
                     let mut group = None;
                     for (index, &(start, end)) in view.names.iter().enumerate().skip(1) {
                         ctx.charge(1)?;
-                        if start == end || !bytes::bytes_equal(ctx, &view.source[start..end], name)?
+                        if start == end
+                            || !bytes::bytes_equal(ctx, view.source.span(start, end)?, name)?
                         {
                             continue;
                         }
                         defined = true;
-                        if loc[2 * index] != ABSENT {
+                        if *loc.at(2 * index)? != ABSENT {
                             group = Some(index);
                         }
                     }
@@ -289,7 +291,7 @@ impl Matcher {
                         emit_group(ctx, emit, text, loc, group)?;
                     }
                 }
-                _ => emit(ctx, &template[position - 2..position])?,
+                _ => emit(ctx, template.span(position - 2, position)?)?,
             }
         }
         Ok(())
@@ -303,8 +305,10 @@ fn emit_group(
     loc: &[usize],
     group: usize,
 ) -> Result<()> {
-    if 2 * group + 1 < loc.len() && loc[2 * group] != ABSENT {
-        emit(ctx, &text[loc[2 * group]..loc[2 * group + 1]])?;
+    if let Some(&[start, end]) = loc.get(2 * group..2 * group + 2) {
+        if start != ABSENT {
+            emit(ctx, text.span(start, end)?)?;
+        }
     }
     Ok(())
 }
@@ -322,7 +326,7 @@ fn pass(
     let mut appended = 0;
     loop {
         ctx.charge(1)?;
-        emit(ctx, &text[appended..location.whole[0]])?;
+        emit(ctx, text.span(appended, location.whole[0])?)?;
         matcher.expand(ctx, template, text, location.indices(), &mut emit)?;
         appended = location.whole[1];
         drop(location);
@@ -334,7 +338,7 @@ fn pass(
         };
         location = next;
     }
-    emit(ctx, &text[appended..])
+    emit(ctx, text.tail(appended)?)
 }
 
 pub(crate) fn member(
@@ -349,7 +353,7 @@ pub(crate) fn member(
     }
     let spec = arguments(ctx, name, receiver, args, keywords, false)?;
     let text = receiver.require_bytes()?;
-    let template = args[1].require_bytes()?;
+    let template = args.at(1)?.require_bytes()?;
     let mut matcher = Matcher::new(ctx, &spec, true)?;
     let Some(first) = matcher.next(ctx, text)? else {
         return Ok(Some(if spec.bang {
@@ -388,7 +392,7 @@ pub(crate) fn member(
             unchanged &= end <= text.len()
                 && bytes::bytes_equal(
                     ctx,
-                    &text[length.min(text.len())..end.min(text.len())],
+                    text.span(length.min(text.len()), end.min(text.len()))?,
                     bytes,
                 )?;
             length = end;
@@ -475,7 +479,7 @@ impl Driver {
 
     fn finish(&mut self, ctx: &mut CallContext) -> Result<Progress> {
         let receiver = self.receiver.clone();
-        self.append(ctx, &receiver.require_bytes()?[self.appended..])?;
+        self.append(ctx, receiver.require_bytes()?.tail(self.appended)?)?;
         let output = std::mem::replace(&mut self.output, Buffer::empty());
         if !self.matched && self.spec.bang {
             return Ok(Progress::Done(Value::nil()));
@@ -495,7 +499,7 @@ impl Driver {
             let replacement = crate::text::bounded::render(ctx, &returned, super::MAX_TEXT)?;
             drop(returned);
             if !self.spec.all && self.spec.regex {
-                self.append(ctx, &text[..self.pending[0]])?;
+                self.append(ctx, text.span(0, self.pending[0])?)?;
             }
             self.append(ctx, replacement.require_bytes()?)?;
             drop(replacement);
@@ -511,7 +515,7 @@ impl Driver {
         self.pending = location.whole;
         self.matched = true;
         if self.spec.all || !self.spec.regex {
-            self.append(ctx, &text[self.appended..self.pending[0]])?;
+            self.append(ctx, text.span(self.appended, self.pending[0])?)?;
         }
         let value = super::window(ctx, &receiver, self.pending[0], self.pending[1])?;
         self.waiting = true;

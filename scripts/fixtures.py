@@ -149,6 +149,10 @@ def benchmark_cases():
         raw=json.dumps(obj,ensure_ascii=False,separators=(",",":"),sort_keys=True)
         add("json_parse_"+name,"JSON.parse(input)",raw,obj,returns="any",param="string")
         add("json_stringify_"+name,"JSON.stringify(input)",obj,raw,returns="string",param="{ id: int, payload: string }")
+    for name,text in [("lone_escapes_4k", "ab\n"*1366), ("lines_4k", ("a"*59+"\n")*69)]:
+        obj={"id":7,"payload":text}
+        raw=json.dumps(obj,ensure_ascii=False,separators=(",",":"),sort_keys=True)
+        add("json_stringify_"+name,"JSON.stringify(input)",obj,raw,returns="string",param="{ id: int, payload: string }")
     rows=[{"id":i,"name":f"record-{i}","score":i*3,"active":i%2==0} for i in range(64)]
     raw=json.dumps(rows,ensure_ascii=False,separators=(",",":"),sort_keys=True)
     expected=json.dumps({"total":sum(row["score"] for row in rows),"count":len(rows)},separators=(",",":"))
