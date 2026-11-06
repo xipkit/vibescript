@@ -1463,6 +1463,10 @@ impl<T: Heap> Heap for CountedBTreeSet<T> {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::string_slice,
+    reason = "test fixture scanners assert byte spans in repository source"
+)]
 mod tests {
     use super::*;
     use crate::compilation::Budget;

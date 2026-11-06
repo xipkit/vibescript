@@ -502,9 +502,10 @@ impl ReplSession {
         matches.dedup();
         match matches.as_slice() {
             [] => Completion::None,
-            [matched] => {
-                Completion::Completed(format!("{}{}", &input[..input.len() - word.len()], matched))
-            }
+            [matched] => match input.strip_suffix(word) {
+                Some(prefix) => Completion::Completed(format!("{prefix}{matched}")),
+                None => Completion::None,
+            },
             _ => {
                 self.push_transcript(Entry {
                     input: String::new(),

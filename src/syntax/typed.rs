@@ -417,7 +417,9 @@ impl<M: super::recovery::Mode> Parsing<'_, M> {
                 return Err(crate::checked::internal("instance variable name expected"));
             };
             p.binding_name(&word, offset)?;
-            let name = &word[1..];
+            let name = word.strip_prefix('@').ok_or(crate::checked::violation(
+                "instance variable must start with @",
+            ))?;
             if name.is_empty() {
                 return Err(Error::syntax(
                     work,

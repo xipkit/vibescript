@@ -1679,7 +1679,10 @@ impl Gen {
                                             "block parameters must have a closing pipe",
                                         )
                                     })?;
-                            format!("{} {assign};{}", &call[..=end], &call[end + 1..])
+                            let (head, tail) = call.split_at_checked(end + 1).ok_or_else(|| {
+                                std::io::Error::other("invalid block parameter boundary")
+                            })?;
+                            format!("{head} {assign};{tail}")
                         }
                         None => assign.clone(),
                     }

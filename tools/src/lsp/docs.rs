@@ -128,11 +128,11 @@ fn joined_bullet(lines: &[&str], mut index: usize) -> (String, usize) {
 fn split_bullet(bullet: &str) -> Option<(String, String)> {
     let body = bullet.strip_prefix("- ").unwrap_or(bullet);
     for separator in [" – ", " — "] {
-        if let Some(index) = body.find(separator).filter(|index| *index > 0) {
-            return Some((
-                body[..index].trim().to_owned(),
-                body[index + separator.len()..].trim().to_owned(),
-            ));
+        if let Some((head, tail)) = body
+            .split_once(separator)
+            .filter(|(head, _)| !head.is_empty())
+        {
+            return Some((head.trim().to_owned(), tail.trim().to_owned()));
         }
     }
     None
@@ -141,15 +141,28 @@ fn split_bullet(bullet: &str) -> Option<(String, String)> {
 fn code_spans(text: &str) -> Vec<(&str, &str)> {
     let mut spans = Vec::new();
     let mut index = 0;
-    while let Some(open) = text[index..].find('`').map(|found| index + found) {
-        let Some(close) = text[open + 1..].find('`').map(|found| open + 1 + found) else {
+    while let Some(open) = text
+        .get(index..)
+        .unwrap_or_default()
+        .find('`')
+        .map(|found| index + found)
+    {
+        let Some(close) = text
+            .get(open + 1..)
+            .unwrap_or_default()
+            .find('`')
+            .map(|found| open + 1 + found)
+        else {
             break;
         };
         if close == open + 1 {
             index = open + 1;
             continue;
         }
-        spans.push((&text[open..=close], &text[open + 1..close]));
+        let (Some(span), Some(inner)) = (text.get(open..=close), text.get(open + 1..close)) else {
+            break;
+        };
+        spans.push((span, inner));
         index = close + 1;
     }
     spans
@@ -172,8 +185,9 @@ fn entry_refs(text: &str, qualified: bool) -> Vec<(String, String)> {
     let mut refs: Vec<(String, String)> = Vec::new();
     for (span, inner) in code_spans(text) {
         let name = inner
-            .find([' ', '(', '{', '<'])
-            .map_or(inner, |cut| &inner[..cut])
+            .split([' ', '(', '{', '<'])
+            .next()
+            .unwrap_or(inner)
             .replace("::", ".");
         if !name.split('.').all(member_name) {
             continue;
@@ -501,11 +515,10 @@ fn leading_member_names(text: &str, receiver: &str) -> (Vec<(String, String)>, S
         let Some(after) = rest.strip_prefix('`') else {
             return (refs, rest);
         };
-        let Some(end) = after.find('`') else {
+        let Some((span, next)) = after.split_once('`') else {
             return (refs, rest);
         };
-        let span = &after[..end];
-        let next = after[end + 1..].to_owned();
+        let next = next.to_owned();
         let Some(reference) = member_ref(span, receiver) else {
             return (refs, rest);
         };
@@ -547,7 +560,7 @@ fn cut_balanced_parens(text: &str) -> Option<&str> {
             ')' => {
                 depth -= 1;
                 if depth == 0 {
-                    return Some(&text[index + 1..]);
+                    return text.get(index + 1..);
                 }
             }
             _ => (),
@@ -562,7 +575,7 @@ fn cut_balanced_parens(text: &str) -> Option<&str> {
 /// which must be a runtime receiver kind.
 fn member_ref(span: &str, receiver: &str) -> Option<(String, String)> {
     let (name, rest) = match span.find([' ', '(', '{', '<']) {
-        Some(cut) => (&span[..cut], &span[cut..]),
+        Some(cut) => span.split_at_checked(cut)?,
         None => (span, ""),
     };
     let rest = skip_type_parameters(rest).trim_start_matches(' ');
@@ -596,7 +609,7 @@ fn skip_type_parameters(text: &str) -> &str {
             '>' => {
                 depth -= 1;
                 if depth == 0 {
-                    return &text[index + 1..];
+                    return text.get(index + 1..).unwrap_or(text);
                 }
             }
             _ => (),

@@ -126,8 +126,8 @@ impl IntError {
 pub fn parse_int(text: &str) -> Result<i64, IntError> {
     let (negative, unsigned) = match text.as_bytes().first() {
         None => return Err(IntError::Syntax),
-        Some(b'+') => (false, &text[1..]),
-        Some(b'-') => (true, &text[1..]),
+        Some(b'+') => (false, text.strip_prefix('+').ok_or(IntError::Syntax)?),
+        Some(b'-') => (true, text.strip_prefix('-').ok_or(IntError::Syntax)?),
         _ => (false, text),
     };
     let magnitude = parse_uint(unsigned)?;
@@ -267,7 +267,7 @@ pub fn clean(path: &Path) -> PathBuf {
 pub fn reason(error: &io::Error) -> String {
     let text = error.to_string();
     let text = match (error.raw_os_error(), text.rfind(" (os error ")) {
-        (Some(_), Some(index)) => &text[..index],
+        (Some(_), Some(index)) => text.get(..index).unwrap_or(&text),
         _ => &text,
     };
     let mut chars = text.chars();

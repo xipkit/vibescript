@@ -129,7 +129,11 @@ fn diagnostic(source: &str, error: &Error) -> Diagnostic {
         return diagnostic.clone();
     }
     let start = error.offset.unwrap_or(0).min(source.len());
-    let end = start + source[start..].chars().next().map_or(0, char::len_utf8);
+    let end = start
+        + source
+            .get(start..)
+            .and_then(|tail| tail.chars().next())
+            .map_or(0, char::len_utf8);
     Diagnostic::error(Code::SYNTAX, Span::new(start, end), error.message.clone())
 }
 

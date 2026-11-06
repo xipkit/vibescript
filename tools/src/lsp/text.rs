@@ -4,27 +4,22 @@
 /// bare `\r` each end a line.
 pub(crate) fn split_lines(text: &str) -> Vec<String> {
     let mut lines = Vec::with_capacity(line_storage(text).0);
-    let bytes = text.as_bytes();
-    let mut start = 0;
-    let mut index = 0;
-    while let Some(byte) = bytes.get(index) {
-        match byte {
-            b'\n' => {
-                lines.push(text[start..index].to_owned());
-                start = index + 1;
-            }
-            b'\r' => {
-                lines.push(text[start..index].to_owned());
-                if bytes.get(index + 1) == Some(&b'\n') {
-                    index += 1;
-                }
-                start = index + 1;
-            }
-            _ => (),
+    let mut previous_cr = false;
+    for part in text.split_inclusive(['\r', '\n']) {
+        if previous_cr && part == "\n" {
+            previous_cr = false;
+            continue;
         }
-        index += 1;
+        previous_cr = part.ends_with('\r');
+        let line = part
+            .strip_suffix('\r')
+            .or_else(|| part.strip_suffix('\n'))
+            .unwrap_or(part);
+        lines.push(line.to_owned());
     }
-    lines.push(text[start..].to_owned());
+    if text.is_empty() || text.ends_with(['\r', '\n']) {
+        lines.push(String::new());
+    }
     lines
 }
 
@@ -74,7 +69,9 @@ pub(crate) fn position_at(text: &str, offset: usize) -> super::Position {
         }
         index += 1;
     }
-    let character = text[start..offset].encode_utf16().count();
+    let character = text
+        .get(start..offset)
+        .map_or(0, |line| line.encode_utf16().count());
     super::Position {
         line,
         character: u32::try_from(character).unwrap_or(u32::MAX),
@@ -222,6 +219,8 @@ mod tests {
     #[test]
     fn splits_lines_like_clients() {
         for (text, want) in [
+            ("é\r\n🦀\ré\n", &["é", "🦀", "é", ""][..]),
+            ("\r\r\n\n", &["", "", "", ""]),
             ("a\nb", &["a", "b"][..]),
             ("a\r\nb", &["a", "b"]),
             ("a\rb\r", &["a", "b", ""]),
@@ -238,6 +237,7 @@ mod tests {
         assert_eq!(position_at(text, 0), super::super::Position::new(0, 0));
         assert_eq!(position_at(text, 3), super::super::Position::new(1, 0));
         assert_eq!(position_at(text, 7), super::super::Position::new(1, 2));
+        assert_eq!(position_at(text, 5), super::super::Position::new(1, 0));
         assert_eq!(position_at(text, 9), super::super::Position::new(2, 0));
         assert_eq!(position_at(text, 99), super::super::Position::new(2, 1));
     }

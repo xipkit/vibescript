@@ -267,10 +267,15 @@ impl Uses {
 /// after a sigil, or none when the name has no suffix or one inside it.
 fn suffix_at(source: &str, name: &str, at: usize) -> Option<u32> {
     let suffix = name_suffix_position(name)?;
-    if !name[suffix..].bytes().all(|b| matches!(b, b'?' | b'!')) {
+    if !name
+        .get(suffix..)?
+        .bytes()
+        .all(|b| matches!(b, b'?' | b'!'))
+    {
         return None;
     }
-    let sigil = source[at..].len() - source[at..].trim_start_matches('@').len();
+    let rest = source.get(at..)?;
+    let sigil = rest.len() - rest.trim_start_matches('@').len();
     u32::try_from(at + sigil + suffix).ok()
 }
 
@@ -712,7 +717,9 @@ fn spell<'t, 's: 't>(
                     .is_some_and(|next| next.token == Token::P(':') && next.offset == lexeme.end);
                 if let Some(suffix) = name_suffix_position(written)
                     && !label
-                    && written[suffix..].bytes().all(|b| matches!(b, b'?' | b'!'))
+                    && written
+                        .get(suffix..)
+                        .is_some_and(|rest| rest.bytes().all(|b| matches!(b, b'?' | b'!')))
                 {
                     let at = u32::try_from(lexeme.offset + suffix).unwrap_or(u32::MAX);
                     uses.places.push(work, (at, index))?;
@@ -1078,8 +1085,10 @@ fn withhold_collisions(
             work.charge(1)?;
             let at = u32::try_from(edit.span.start).unwrap_or(u32::MAX);
             reached.insert(work, at_key(work, "", at)?, ())?;
-            let (from, to) = word(source, edit);
-            if let Some(&index) = spelled.map_or(Ok(None), |s| s.get(work, &source[from..to]))? {
+            let (from, to) = word(source, edit)?;
+            if let Some(&index) = spelled.map_or(Ok(None), |s| {
+                s.get(work, crate::checked::text(source, from..to)?)
+            })? {
                 *renamed_names.at_mut(index as usize)? = true;
             }
         }
@@ -1159,12 +1168,12 @@ fn declarable(
     edit: &Edit,
     name: &str,
 ) -> Result<bool> {
-    let start = source[..edit.span.start]
-        .rfind(|c: char| c != '_' && c != '@' && !super::unicode::letter_or_digit(c))
-        .map_or(0, |i| {
-            i + source[i..].chars().next().map_or(0, char::len_utf8)
-        });
-    let keyword = source[..start]
+    let start = crate::checked::text(source, ..edit.span.start)?
+        .char_indices()
+        .rev()
+        .find(|&(_, c)| c != '_' && c != '@' && !super::unicode::letter_or_digit(c))
+        .map_or(0, |(i, c)| i + c.len_utf8());
+    let keyword = crate::checked::text(source, ..start)?
         .trim_end()
         .rsplit(|c: char| !super::unicode::letter_or_digit(c) && c != '_')
         .next()
@@ -1220,56 +1229,70 @@ fn destination<'s>(
     edit: &Edit,
 ) -> Result<(String, &'s str, Option<crate::budget::Charge>)> {
     let (start, end) = (edit.span.start, edit.span.end);
-    let (from, to) = word(source, edit);
+    let (from, to) = word(source, edit)?;
     if let Some(name) = edit
         .replacement
         .strip_prefix(":\"")
         .and_then(|name| name.strip_suffix('"'))
     {
         let reserved = work.reserve(name.len())?;
-        return Ok((name.to_string(), &source[from..to], reserved));
+        return Ok((
+            name.to_string(),
+            crate::checked::text(source, from..to)?,
+            reserved,
+        ));
     }
-    let (before, after) = (&source[from..start], &source[end..to]);
+    let (before, after) = (
+        crate::checked::text(source, from..start)?,
+        crate::checked::text(source, end..to)?,
+    );
     let length = before.len() + edit.replacement.len() + after.len();
     let reserved = work.reserve(length)?;
     let mut name = String::with_capacity(length);
     name.push_str(before);
     name.push_str(&edit.replacement);
     name.push_str(after);
-    Ok((name, &source[from..to], reserved))
+    Ok((name, crate::checked::text(source, from..to)?, reserved))
 }
 
 /// Where the word an edit of a V0003 fix changes is spelled: the name
 /// around it, or a quoted symbol's name between its quotes.
-fn word(source: &str, edit: &Edit) -> (usize, usize) {
+fn word(source: &str, edit: &Edit) -> Result<(usize, usize)> {
     let (start, end) = (edit.span.start, edit.span.end);
     if edit.replacement.starts_with(":\"") {
-        let quoted = &source[start..end];
+        let quoted = crate::checked::text(source, start..end)?;
         if quoted.starts_with(":\"") && quoted.ends_with('"') && quoted.len() >= 3 {
-            return (start + 2, end - 1);
+            return Ok((start + 2, end - 1));
         }
-        return (start, end);
+        return Ok((start, end));
     }
     let word = |c: char| c == '_' || c == '@' || super::unicode::letter_or_digit(c);
-    let from = source[..start].rfind(|c: char| !word(c)).map_or(0, |i| {
-        i + source[i..].chars().next().map_or(0, char::len_utf8)
-    });
-    let to = source[end..]
+    let from = crate::checked::text(source, ..start)?
+        .char_indices()
+        .rev()
+        .find(|&(_, c)| !word(c))
+        .map_or(0, |(i, c)| i + c.len_utf8());
+    let to = crate::checked::text(source, end..)?
         .find(|c: char| !word(c) && c != '?' && c != '!')
         .map_or(source.len(), |i| end + i);
-    (from, to)
+    Ok((from, to))
 }
 
 /// Whether the name whose suffix starts at `at` stands bare, where it may
 /// name a binding read elsewhere, rather than after a receiver, a sigil, a
 /// `:` or `&`, or a keyword that declares a method or accessor.
 fn bare(source: &str, at: usize) -> bool {
-    let start = source[..at]
-        .rfind(|c: char| c != '_' && !super::unicode::letter_or_digit(c))
-        .map_or(0, |i| {
-            i + source[i..].chars().next().map_or(0, char::len_utf8)
-        });
-    let before = source[..start].trim_end();
+    let Some(prefix) = source.get(..at) else {
+        return false;
+    };
+    let start = prefix
+        .char_indices()
+        .rev()
+        .find(|&(_, c)| c != '_' && !super::unicode::letter_or_digit(c))
+        .map_or(0, |(i, c)| i + c.len_utf8());
+    let Some(before) = source.get(..start).map(str::trim_end) else {
+        return false;
+    };
     if before.ends_with(['.', '@', ':', '&']) {
         return false;
     }
@@ -1539,7 +1562,7 @@ mod tests {
         let work = Meter::new(&mut context);
         let error = destination(&work, &source, &edit).unwrap_err();
         assert_eq!(error.kind, ErrorKind::Memory, "{error}");
-        let error = symbol_key(&work, &source[..long + 1]).unwrap_err();
+        let error = symbol_key(&work, source.get(..long + 1).unwrap()).unwrap_err();
         assert_eq!(error.kind, ErrorKind::Memory, "{error}");
         let (name, written, _) = destination(&(), &source, &edit).unwrap();
         assert_eq!((name.len(), written.len()), (long, long + 1));

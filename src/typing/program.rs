@@ -410,7 +410,8 @@ impl<'a> Checker<'a> {
                 || carried
                     .insert(
                         declaration.name.as_str(),
-                        &self.source[declaration.start..declaration.end],
+                        self.meter
+                            .text(self.source, declaration.start..declaration.end),
                     )
                     .is_err()
                 || (declaration.kind != crate::DeclarationKind::Function
@@ -1248,7 +1249,11 @@ impl<'a> Checker<'a> {
                         );
                         // A removed keyword form has a colon after the name,
                         // which its own diagnostic rewrites.
-                        let colon = self.source[span.end..].trim_start().starts_with(':');
+                        let colon = self
+                            .meter
+                            .text(self.source, span.end..)
+                            .trim_start()
+                            .starts_with(':');
                         if literal != Ty::ERROR && !colon {
                             let ty = self.types.display(literal);
                             diagnostic = diagnostic.with_fix(Fix::insert(

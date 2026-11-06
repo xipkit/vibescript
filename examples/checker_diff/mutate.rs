@@ -138,8 +138,14 @@ fn edit(source: &str, rng: &mut Rng) -> Option<String> {
         let whole = |at: usize| {
             let starts = pattern.starts_with(word);
             let ends = pattern.ends_with(word);
-            (!starts || !source[..at].ends_with(word))
-                && (!ends || !source[at + pattern.len()..].starts_with(word))
+            (!starts
+                || source
+                    .get(..at)
+                    .is_some_and(|before| !before.ends_with(word)))
+                && (!ends
+                    || source
+                        .get(at + pattern.len()..)
+                        .is_some_and(|after| !after.starts_with(word)))
         };
         let places: Vec<usize> = source
             .match_indices(pattern)
@@ -152,9 +158,9 @@ fn edit(source: &str, rng: &mut Rng) -> Option<String> {
         let at = *rng.pick(&places).ok()?;
         let replacement = *rng.pick(replacements).ok()?;
         let mut edited = String::with_capacity(source.len() + replacement.len());
-        edited.push_str(&source[..at]);
+        edited.push_str(source.get(..at)?);
         edited.push_str(replacement);
-        edited.push_str(&source[at + pattern.len()..]);
+        edited.push_str(source.get(at + pattern.len()..)?);
         return Some(edited);
     }
     None

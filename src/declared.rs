@@ -256,7 +256,7 @@ fn retained_source(value: &Value, work: &dyn crate::compilation::Work) -> Result
     }
     let mut declarations = BTreeMap::new();
     for declaration in &owner.program.outline {
-        let text = &owner.program.source.text()[declaration.span.clone()];
+        let text = crate::checked::text(owner.program.source.text(), declaration.span.clone())?;
         let bytes = declaration
             .name
             .len()

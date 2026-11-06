@@ -222,7 +222,7 @@ impl<'a> Parser<'a> {
                 let ellipsis = if end < name.len() { "..." } else { "" };
                 return self.err(format_args!(
                     "missing value for hash key {}{ellipsis}",
-                    &name[..end]
+                    crate::checked::text(&name, ..end)?
                 ));
             };
             Some(self.make_at(Node::Var(Name::new(self.work, &name)?), 1, offset)?)
@@ -264,7 +264,10 @@ impl<'a> Parser<'a> {
                     Part::Text(bytes) => self.make(Node::Literal(bytes.into_value(false)), 1)?,
                     Part::Expr(tokens, span) => {
                         self.interpolations.push(self.work, span)?;
-                        let text = &self.source[span.0 as usize..span.1 as usize - 1];
+                        let text = crate::checked::text(
+                            self.source,
+                            span.0 as usize..span.1 as usize - 1,
+                        )?;
                         if text.trim().is_empty() {
                             return Err(Error::syntax(
                                 self.work,

@@ -9,7 +9,6 @@ exclude = ["tests/platforms/wasi"]
 skip = ["tests/", "cli/tests/", "tools/tests/"]
 allow = [
   "indexing_slicing", "unwrap_used",
-  "string_slice",
 ]
 
 # The parser and compiler use `async fn` for stack-safe recursion, not

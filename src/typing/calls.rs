@@ -2667,7 +2667,11 @@ impl<'a> Checker<'a> {
         );
         self.release(held);
         let end = call.name_span.end;
-        let parenthesized = self.source[end..].trim_start().starts_with('(');
+        let parenthesized = self
+            .meter
+            .text(self.source, end..)
+            .trim_start()
+            .starts_with('(');
         if let (Some(zero), false) = (zero, parenthesized) {
             diagnostic = diagnostic.with_fix(Fix::insert(
                 text!(self, "start the sum at `{zero}`"),
