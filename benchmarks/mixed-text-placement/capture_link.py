@@ -9,6 +9,8 @@ for i, arg in enumerate(args):
     path = pathlib.Path(arg)
     if path.is_file() and path.suffix in ('.o', '.a', '.rlib'):
         dest = root / f'{i}-{path.name}'
+        # Toolchain archives can be read-only after an earlier capture.
+        dest.unlink(missing_ok=True)
         shutil.copy2(path, dest)
         saved.append(str(dest))
     else:

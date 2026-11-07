@@ -495,8 +495,8 @@ fn block_others(s: &[u8; BLOCK], class: Class) -> u64 {
     // SAFETY: the load reads exactly the sixteen bytes of `s`; NEON is baseline.
     unsafe {
         let v = vld1q_u8(s.as_ptr());
-        let mut bad = vcgeq_u8(v, vdupq_n_u8(128));
-        bad = vorrq_u8(bad, vcltq_u8(v, vdupq_n_u8(32)));
+        // Signed bytes put both control bytes and non-ASCII below 32.
+        let mut bad = vcltq_s8(vreinterpretq_s8_u8(v), vdupq_n_s8(32));
         bad = vorrq_u8(bad, vceqq_u8(v, vdupq_n_u8(b'"')));
         bad = vorrq_u8(bad, vceqq_u8(v, vdupq_n_u8(b'\\')));
         if matches!(class, Class::JsonStringify) {
