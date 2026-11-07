@@ -7,6 +7,7 @@ use std::{
     collections::VecDeque,
     ffi::OsString,
     io,
+    os::wasi::ffi::OsStrExt,
     path::{Component, Path, PathBuf},
 };
 
@@ -14,18 +15,38 @@ enum Part {
     Root,
     Parent,
     Name(OsString),
+    /// A trailing `/` or `/.`, which only a directory may have.
+    Directory,
 }
 
 /// Resolves a configured root to its physical guest path and opens it, as
 /// native targets do with `canonicalize` followed by opening the result.
+pub(super) fn open(path: &Path) -> io::Result<(Dir, PathBuf)> {
+    let (resolved, _) = resolve(path)?;
+    let directory = rustix::fs::open(&resolved, OFlags::RDONLY | OFlags::DIRECTORY, Mode::empty())?;
+    Ok((Dir(directory), resolved))
+}
+
+/// Resolves an existing path to its physical guest path, as
+/// `std::fs::canonicalize` does where the guest can see every ancestor.
+pub(super) fn canonicalize(path: &Path) -> io::Result<PathBuf> {
+    let (resolved, confirmed) = resolve(path)?;
+    if !confirmed {
+        std::fs::metadata(&resolved)?;
+    }
+    Ok(resolved)
+}
+
+/// Expands `path` to a physical guest path, and says whether the walk saw
+/// its final component exist.
 ///
 /// wasi-libc's `realpath` fails when an ancestor of a preopen is not itself
 /// accessible, as with `/scripts/app` under a `/scripts/app` preopen. Until
 /// the walk reaches a directory the host exposes, unreachable components are
-/// treated as such virtual ancestors, and the final open decides whether the
-/// path exists. After that every component must exist, and links are expanded
-/// before `..` is applied.
-pub(super) fn open(path: &Path) -> io::Result<(Dir, PathBuf)> {
+/// treated as such virtual ancestors, and the caller decides whether the
+/// result exists. After that every component must exist, and links are
+/// expanded before `..` is applied. Only the last component may be a file.
+fn resolve(path: &Path) -> io::Result<(PathBuf, bool)> {
     if path.as_os_str().is_empty() {
         return Err(Errno::NOENT.into());
     }
@@ -52,7 +73,7 @@ pub(super) fn open(path: &Path) -> io::Result<(Dir, PathBuf)> {
                 continue;
             }
             Part::Parent if unreached > 0 => return Err(Errno::NOENT.into()),
-            Part::Parent => continue,
+            Part::Parent | Part::Directory => continue,
             Part::Name(name) => name,
         };
         let candidate = resolved.join(&name);
@@ -74,15 +95,22 @@ pub(super) fn open(path: &Path) -> io::Result<(Dir, PathBuf)> {
         } else if metadata.is_dir() {
             resolved = candidate;
             reached += 1;
+        } else if pending.is_empty() {
+            return Ok((candidate, true));
         } else {
             return Err(Errno::NOTDIR.into());
         }
     }
-    let directory = rustix::fs::open(&resolved, OFlags::RDONLY | OFlags::DIRECTORY, Mode::empty())?;
-    Ok((Dir(directory), resolved))
+    Ok((resolved, reached > 0))
 }
 
 fn prepend(pending: &mut VecDeque<Part>, path: &Path) {
+    // Components drop a trailing `/` or `/.`, which `realpath` refuses after
+    // a file.
+    let bytes = path.as_os_str().as_bytes();
+    if bytes.ends_with(b"/") || bytes.ends_with(b"/.") {
+        pending.push_front(Part::Directory);
+    }
     for part in path.components().rev() {
         pending.push_front(match part {
             Component::Prefix(_) | Component::RootDir => Part::Root,

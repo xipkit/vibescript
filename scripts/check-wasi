@@ -29,6 +29,8 @@ NODE_SKIPS = [
     "files::tests::candidates_reject_replacement",
     "files::tests::keeps_the_opened_root",
     "files::tests::an_evicted_root_rejects_replacement",
+    "files::tests::operands_resolve_links_before_parents",
+    "files::tests::canonicalize_expands_links_before_parents_and_ends_only_at_files",
 ]
 
 
@@ -185,6 +187,15 @@ def main():
     ]:
         result = guest("wasmtime", [(app, "/app")], vibes, arguments, capture_output=True, text=True)
         print(result.stdout, end="")
+    # fmt and fix resolve operands beneath a preopen whose ancestors are hidden.
+    deep = "/deep/nested/app"
+    for arguments in [
+        ["fmt", "--check", deep + "/lib"],
+        ["fmt", "--check", deep + "/lib/helper.vibe"],
+        ["fix", "--dry-run", deep + "/lib"],
+        ["fix", "--dry-run", deep + "/lib/../lib/helper.vibe"],
+    ]:
+        guest("wasmtime", [(app, deep)], vibes, arguments)
 
     accounting = {}
     witness = binaries / "vibescript-wasi-witness.wasm"

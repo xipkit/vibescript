@@ -11,6 +11,17 @@ mod root;
 mod wasi;
 pub(super) use root::{Opened, Root, escape};
 
+/// Resolves an existing path to its absolute physical form, as
+/// [`std::fs::canonicalize`] does, the way module roots are resolved.
+///
+/// Under WASI this also works beneath a preopen whose ancestors the host
+/// hides, where wasi-libc's `realpath` fails. As with `realpath`, links are
+/// expanded before `..` is applied, and only the last component may be a
+/// file.
+pub fn canonicalize(path: &std::path::Path) -> io::Result<std::path::PathBuf> {
+    platform::canonicalize(path)
+}
+
 #[cfg(test)]
 mod tests;
 
