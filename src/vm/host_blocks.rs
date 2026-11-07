@@ -317,6 +317,14 @@ impl<'a> Started<'a> {
         self.armed = false;
         result
     }
+
+    /// Hands the unfinished block to an owner that latches the same way when
+    /// it is dropped early, returning the boundary it must finish at.
+    #[cfg(feature = "tokio")]
+    pub fn lend(mut self) -> BlockBoundary {
+        self.armed = false;
+        self.boundary
+    }
 }
 
 impl Drop for Started<'_> {

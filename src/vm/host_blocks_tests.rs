@@ -216,3 +216,32 @@ fn a_panic_while_entering_a_block_makes_the_invocation_terminal() {
     let result = fixture.call();
     assert_terminal(&fixture, result, ErrorKind::Internal, "entry");
 }
+
+/// Under the Tokio runner a synchronous host's block is prepared before the
+/// bridge lends the execution to its inline driver.
+#[cfg(feature = "tokio")]
+#[cfg_attr(not(panic = "unwind"), ignore = "catching a panic requires unwinding")]
+#[test]
+fn a_bridged_block_is_terminal_when_it_unwinds_before_or_after_it_is_lent() {
+    for (body, mode, entry) in [
+        ("leaf()", Leaf::Value, Entry::Panic),
+        ("leaf()", Leaf::Panic, Entry::Normal),
+        ("relay { leaf() }", Leaf::Panic, Entry::Normal),
+    ] {
+        let fixture = Fixture::new(body, mode, entry);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .unwrap();
+        let runner = crate::asynchronous::Runner::new(1).unwrap();
+        let result = runtime.block_on(runner.call(
+            fixture.script.clone(),
+            "run".into(),
+            vec![],
+            fixture.options.clone(),
+        ));
+        let label = format!("{body}/{mode:?}/{entry:?}");
+        assert_terminal(&fixture, result, ErrorKind::Internal, &label);
+        assert_eq!(runner.available_slots(), 1, "{label}");
+    }
+}
