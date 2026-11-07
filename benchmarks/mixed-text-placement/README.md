@@ -1,5 +1,10 @@
 # Repeated mixed-text stringify investigation
 
+The follow-up [VIBE-200 optimization](optimization.md) folds NEON byte
+classification while retaining the short-run shortcut. Its report and raw
+evidence keep the new two-way, four-way and cross-target results separate
+from the VIBE-199 investigation below.
+
 VIBE-199 compares the scanner before VIBE-180 with its corrected short-run
 candidate. See [the findings and measurements](results.md). This directory contains diagnostic tools and the four exact focused
 fixtures; it does not change the runtime or its build flags.

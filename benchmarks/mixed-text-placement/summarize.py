@@ -6,7 +6,27 @@ import json
 import statistics
 
 
+def summarize_counts(data):
+    labels = [*data['variants'], 'control']
+    for name in data['signatures']:
+        print(name)
+        for mode in ['local', 'front']:
+            for count in data['counts']:
+                records = [row for row in data['samples'] if row['round'] >= 0
+                           and row['placement'].startswith(mode + '/') and row['iterations'] == count]
+                values = {label: [next(case['ns_per_call'] for case in row['results'][label]
+                                      if case['name'] == name) for row in records] for label in labels}
+                print(f'  {mode} {count}: {len(records)} groups', end='')
+                for label in labels[1:]:
+                    ratios = [b / a for a, b in zip(values[labels[0]], values[label])]
+                    print(f' {label} {100 * (statistics.median(ratios) - 1):+.2f}%', end='')
+                print()
+    print(f"{len(data['rejected'])} rejected groups")
+
+
 def summarize(data):
+    if 'counts' in data:
+        return summarize_counts(data)
     labels = [*data['variants'], 'control']
     baseline = labels[0]
     names = list(data['signatures'])

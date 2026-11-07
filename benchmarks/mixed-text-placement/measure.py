@@ -35,8 +35,9 @@ def measure(fixtures, variants, output, rounds, limit, seed, warmup_rounds):
                 rng.shuffle(labels)
                 samples, loads = {}, [os.getloadavg()[0]]
                 for label in labels:
-                    binary = variants[baseline if label == 'control' else label][placement]['path']
-                    run = subprocess.run([binary, str(fixtures), '0', 'timing'],
+                    entry = variants[baseline if label == 'control' else label][placement]
+                    command = entry['command'] if 'command' in entry else [entry['path']]
+                    run = subprocess.run([*command, str(fixtures), '0', 'timing'],
                                          capture_output=True, text=True, check=True)
                     rows = [json.loads(line) for line in run.stdout.splitlines()]
                     expected_names = {case['name'] for case in json.loads(fixtures.read_text())}
