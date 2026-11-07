@@ -1,5 +1,5 @@
 use super::{
-    host_blocks::{BlockBoundary, HostControl, HostRequest},
+    host_blocks::{BlockBoundary, HostControl, HostRequest, abandoned},
     *,
 };
 use crate::{CallOptions, CancellationToken, Outcome, Script, budget::Charge};
@@ -355,10 +355,7 @@ impl Drop for Lent<'_> {
                 .execution
                 .execution
                 .context
-                .latch_internal::<()>(Err(violation(
-                    "borrowed block work was abandoned before completion",
-                )
-                .into()));
+                .latch_internal::<()>(Err(abandoned().into()));
         }
     }
 }
