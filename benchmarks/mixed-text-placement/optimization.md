@@ -9,7 +9,7 @@ The shared scanner and its one/two-byte shortcut remain intact.
 Flynn recommended measuring this equivalent fold before changing dispatch.
 The preliminary eight-placement test improved the 900 KB random case by
 5.4–6.4%, with same-binary controls within 0.3%. No lookahead or rune-dispatch
-rewrite was needed. The final `write_text` has 400 instructions rather than
+rewrite was needed. The final `write_text` has 400 static instructions rather than
 402. The mask-to-pointer dependency still exists: this is not a claim that
 the stall or branch-miss mechanism inferred in VIBE-199 has been measured.
 
@@ -184,7 +184,7 @@ gains remain. Times below are fastest µs/call; percentages are median paired
 | French 40 KB | 32.35 → 35.82 (+4.58%) | 41.96 → 27.08 (-35.63%) |
 | Russian 900 KB | 1394.99 → 1254.43 (-10.09%) | 1600.52 → 1423.06 (-10.04%) |
 
-## Escape-heavy placement tradeoff
+## Escape-heavy placement sensitivity
 
 The single-layout guard exposed a 4–5% slowdown on the two 500 KB escape-heavy
 inputs. A separate two-way sweep therefore repeats all 64 placements, with
@@ -201,14 +201,80 @@ signatures match.
 | front | HTML prose 500 KB | 733.882 (694.262–776.698) | 710.980 (664.431–785.676) | -1.01% | +0.46% |
 | front | Escaped 4 KB | 4.232 (4.160–4.319) | 4.236 (4.176–4.340) | -0.21% | +0.01% |
 
-**This is a measured tradeoff, not a universal speedup.** Escaped prose is
-3.50% slower across the isolated writer placements and 3.90% faster across
-the front pads, with controls close to zero. The local HTML minima worsen
-even though matched ratios improve. The front-pad result is not selected to
-dismiss the local regression, and the two modes are not pooled. These data
-establish placement/context sensitivity, not its predictor or stall mechanism.
-The patch improves the targeted mixed-text cases in both modes while keeping
-this escape-heavy limitation visible.
+The local escaped-prose result is +3.50% and the front result is −3.90%,
+with controls close to zero. Local HTML minima worsen despite improved paired
+ratios. Both summaries and both modes are retained. A fresh phase check below
+examines why the local escape sweep does not vary the relevant hot layout.
+
+## Fresh four-byte phase confirmation
+
+Source and fixture inspection establishes that all three escape fixtures
+are ASCII-only. `write_string` handles their ordinary runs through `prefix`
+and continues before `write_text` (`src/json/writer.rs:599–606`). Therefore,
+moving only `write_text` does **not** vary their hot-code layout: the local
+escape rows repeat one relevant layout, rather than testing 32 of them.
+
+After inspecting the coarse sweep, Flynn suggested a 128-byte pattern. That
+was a post-hoc observation, so this fresh run uses seed 207 and whole-code
+front pads of 4, 8, …, 128 bytes. It covers every phase in one complete cycle,
+with one full warmup and three measured rounds per phase. The original
+16-byte front sweep covers four such cycles. No phase is selected or omitted.
+
+The finer sweep reproduces the broad split: head is faster in the first
+half of the cycle and signed is faster in the second. Full-cycle arithmetic
+mean of matched signed/head ratios is **−2.68%**, with **+0.10%** for the
+same-binary control. Mean call times are 687.52 → 667.98 µs. These are
+different summaries and are not substituted for the earlier sweep medians.
+All 96 measured groups pass output/accounting checks; none were rejected.
+
+Every phase is reported below. Times and paired ratios are arithmetic means
+of its three measured rounds; the 128-byte pad returns to phase zero.
+
+| Pad bytes | Head µs | Signed µs | Mean paired change | Mean control |
+|---:|---:|---:|---:|---:|
+| 4 | 658.16 | 699.56 | +6.29% | +0.43% |
+| 8 | 673.58 | 700.27 | +3.97% | +0.26% |
+| 12 | 666.57 | 673.77 | +1.08% | -1.01% |
+| 16 | 666.24 | 684.82 | +2.80% | +0.91% |
+| 20 | 660.86 | 680.70 | +3.02% | +0.07% |
+| 24 | 673.82 | 685.33 | +1.71% | -0.01% |
+| 28 | 674.90 | 695.31 | +3.03% | -0.17% |
+| 32 | 681.30 | 682.87 | +0.23% | -0.84% |
+| 36 | 665.72 | 681.80 | +2.42% | -0.45% |
+| 40 | 672.26 | 664.63 | -1.13% | -0.02% |
+| 44 | 656.95 | 662.70 | +0.88% | +0.80% |
+| 48 | 663.44 | 675.89 | +1.88% | +0.41% |
+| 52 | 660.93 | 665.96 | +0.76% | +0.42% |
+| 56 | 667.02 | 684.98 | +2.69% | +0.14% |
+| 60 | 657.86 | 678.23 | +3.09% | +0.49% |
+| 64 | 712.16 | 658.72 | -7.50% | +2.08% |
+| 68 | 702.79 | 645.28 | -8.19% | +0.66% |
+| 72 | 716.92 | 652.37 | -9.00% | +1.05% |
+| 76 | 708.47 | 649.69 | -8.29% | +1.02% |
+| 80 | 727.75 | 655.43 | -9.93% | -0.83% |
+| 84 | 698.50 | 646.35 | -7.45% | -0.81% |
+| 88 | 716.69 | 655.00 | -8.58% | -0.88% |
+| 92 | 700.23 | 669.11 | -4.44% | -0.24% |
+| 96 | 707.13 | 649.32 | -8.15% | +0.48% |
+| 100 | 694.66 | 651.34 | -6.23% | +0.36% |
+| 104 | 704.62 | 658.70 | -6.52% | +0.01% |
+| 108 | 709.78 | 648.71 | -8.60% | -1.36% |
+| 112 | 708.55 | 656.77 | -7.29% | +1.36% |
+| 116 | 701.58 | 656.71 | -6.38% | +1.03% |
+| 120 | 711.58 | 651.09 | -8.47% | -0.07% |
+| 124 | 698.41 | 653.08 | -6.48% | -0.27% |
+| 128 | 681.30 | 700.80 | +2.89% | -1.65% |
+
+The as-built +4.14% and fixed-hot-layout +3.50% observations remain real
+measurements, but they do not establish a generally slower escape algorithm.
+The fresh cycle mean is also not a promise about every linked executable.
+The native mixed-text gains hold in both placement modes and both cohorts.
+This investigation does not identify the responsible hot function, branch,
+cache event or stall. HTML prose has substantial within-binary variation
+(including 15.95% at one measured front placement), so its conflicting
+minima/paired estimates are retained without a causal interpretation.
+
+Further hot-function/layout isolation is tracked separately as VIBE-201.
 
 ## Correctness and cross-target checks
 
@@ -266,6 +332,7 @@ sh "$TOOLS/run200.sh" "$BUILD"
 python3 "$TOOLS/summarize.py" "$BUILD/two-way.json"
 python3 "$TOOLS/summarize.py" "$BUILD/four-way.json"
 python3 "$TOOLS/summarize.py" "$BUILD/iterations.json"
+python3 "$TOOLS/phase200.py" "$BUILD" "$HEAD_LINK" "$SIGNED_LINK"
 ```
 
 `prepare200.py` expands the exact compressed guard fixtures and writes the
@@ -277,6 +344,10 @@ tests and relinks finish. Each cross-target run has seven measured rounds
 after a warmup. The native guard cohort is two-way; portable and WASI add
 the legacy build to measure preservation of the earlier target-specific
 tradeoff, and their estimates are kept separate from the placement cohorts.
+
+`phase200.py` recreates the fresh four-byte front sweep. `HEAD_LINK` and
+`SIGNED_LINK` are the captured linker JSON files for those native builds.
+It uses only the original escaped-prose fixture and asserts that it is ASCII.
 
 `code_hash.py BINARY...` reproduces the instruction/non-custom-section hashes.
 The native preliminary probe used fixed words and random 900 KB at local and
@@ -294,7 +365,10 @@ python3 "$TOOLS/archive200.py" "$BUILD" "$TOOLS/optimization-evidence.json.gz"
 ```
 
 The archiver rejects incomplete/duplicate placement groups or accepted
-samples that violate the load cutoff. To summarize an archived experiment,
-extract its `two-way`, `four-way`, `iterations`, or `escape-sweep` JSON member
+samples that violate the load cutoff. This archive includes the original pilot,
+handoff, environment, test summary and disassembly. Fresh reproductions may
+omit that session-specific context; absent optional metadata is explicitly
+listed instead of copied from this run. To summarize an archived experiment,
+extract its `two-way`, `four-way`, `iterations`, `escape-sweep`, or `phase4` JSON member
 and pass it to `summarize.py`. The retained build directory for this run is
 `/Volumes/AI/Build/tron-vibe-200`; binaries are not committed to the repository.
