@@ -6,7 +6,7 @@ use crate::{
     bytes,
     hash::Hash,
     numeric::to_i64,
-    scan::{self, Class},
+    scan,
     value::Kind,
 };
 use std::{cmp::Ordering, sync::Arc};
@@ -1155,7 +1155,7 @@ pub(crate) fn runes(ctx: &mut CallContext, bytes: &[u8]) -> Result<(usize, bool)
     while i < bytes.len() {
         let end = bytes.len().min(i + CHUNK);
         let chunk = bytes.span(i, end)?;
-        let ascii = scan::prefix(chunk, Class::Ascii);
+        let ascii = scan::ascii_prefix(chunk);
         if ascii > 0 {
             ctx.work_bytes(ascii)?;
             i += ascii;

@@ -78,7 +78,7 @@ fn walk(
         let length = if ascii {
             chunk.len()
         } else {
-            scan::prefix(chunk, scan::Class::Ascii)
+            scan::ascii_prefix(chunk)
         };
         if length > 0 {
             ctx.work_bytes(length)?;
