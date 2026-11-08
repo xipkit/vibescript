@@ -1036,7 +1036,7 @@ mod tests {
     fn reads_stop_at_the_source_limit() {
         let limit = usize::try_from(MAX_SOURCE_BYTES).unwrap();
         for explicit in [false, true] {
-            for selection in selections(explicit) {
+            for selection in SELECTIONS {
                 let scratch = Scratch::new("limit");
                 let root = scratch.0.join("root");
                 fs::create_dir_all(&root).unwrap();
