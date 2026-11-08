@@ -21,6 +21,34 @@ pub(super) fn member(
     stack: &mut Buffer<Value>,
     call: Call<'_>,
 ) -> Result<()> {
+    if !call.mutating
+        && !call.site.scope
+        && call.args.block.is_some()
+        && let Some(iteration) = members::direct::start_block(
+            ctx,
+            call.site.iteration,
+            call.name,
+            stack.top()?,
+            &call.args.positional.data,
+            !call.args.keywords.buffer.data.is_empty(),
+            Some(&mut storage.iteration_pool),
+        )?
+    {
+        stack.data.pop();
+        enter_iteration(
+            program,
+            ctx,
+            frames,
+            storage,
+            stack.data.len(),
+            call.args,
+            iteration,
+        )?;
+        let frame = frames.top_mut()?;
+        frame.plain_yields = call.plain_yields;
+        frame.plain_result = call.plain_result;
+        return Ok(());
+    }
     let receiver = if call.mutating {
         &storage.addresses.top()?.value
     } else {
