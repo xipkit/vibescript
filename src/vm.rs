@@ -3368,7 +3368,7 @@ impl Run {
                     // A member that can iterate took its arguments through a
                     // list, whose checks the direct call makes too unless
                     // the checker proved them plain.
-                    let listed = iteration::method(name);
+                    let listed = site.iteration.is_some();
                     if listed && !function.plain_inputs.contains(ip) {
                         for arg in stack.tail(base + 1)? {
                             crate::exports::check(ctx, arg)?;

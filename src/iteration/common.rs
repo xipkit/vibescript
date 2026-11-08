@@ -84,21 +84,6 @@ pub(crate) struct Driver {
 const _: () = assert!(size_of::<State<Slots>>() <= size_of::<State<Loop>>());
 const _: () = assert!(size_of::<Pool>() == size_of::<usize>());
 
-/// Starts a block-driven pooled or common iterator on `receiver` when
-/// [`Driver`] serves `method` on `receiver`'s runtime kind, or returns `None`,
-/// having charged nothing, to leave the call to the general iteration setup.
-pub(crate) fn start_direct(
-    ctx: &mut CallContext,
-    name: &str,
-    method: MethodKind,
-    receiver: &Value,
-    args: &[Value],
-    keywords: bool,
-    pool: Option<&mut Pool>,
-) -> Result<Option<Iteration>> {
-    Driver::start(ctx, name, method, receiver, args, keywords, pool)
-}
-
 impl Driver {
     pub(super) fn start(
         ctx: &mut CallContext,

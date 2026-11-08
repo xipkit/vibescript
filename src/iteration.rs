@@ -16,8 +16,8 @@ mod driver;
 mod hash;
 mod range;
 
-pub(crate) use common::{Pool, start_direct as start_common};
-pub(crate) use driver::{Loop, start_pooled};
+pub(crate) use common::Pool;
+pub(crate) use driver::{Loop, start_method, start_pooled};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum MethodKind {
@@ -75,6 +75,11 @@ pub(crate) enum MethodKind {
     KeepIf,
     Fill,
     Delete,
+    Substitute,
+    Regex,
+    Text,
+    Order,
+    HashBlock,
 }
 
 impl MethodKind {
@@ -130,18 +135,19 @@ impl MethodKind {
             "keep_if" => Self::KeepIf,
             "fill" => Self::Fill,
             "delete" => Self::Delete,
+            "sub" | "sub!" | "gsub" | "gsub!" => Self::Substitute,
+            "match" | "scan" => Self::Regex,
+            "each_char" | "each_byte" | "each_codepoint" | "each_line" => Self::Text,
+            "sort" | "sort_by" | "minmax" | "min_by" | "max_by" => Self::Order,
+            "merge" | "deep_transform_keys" => Self::HashBlock,
             _ => return None,
         })
     }
 }
 
+#[cfg(test)]
 pub(crate) fn method(name: &str) -> bool {
     MethodKind::parse(name).is_some()
-        || ordering::method(name)
-        || hash_blocks::method(name)
-        || crate::text::iteration::method(name)
-        || matches!(name, "match" | "scan")
-        || crate::regex::substitute::method(name)
 }
 
 pub(crate) enum Progress {

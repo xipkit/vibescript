@@ -102,23 +102,47 @@ pub(crate) fn update(
     }
 }
 
-/// Starts a block-driven pooled or common iterator on `receiver` as dynamic
-/// dispatch would when [`crate::iteration::start_common`] serves `method` on
-/// `receiver`'s runtime kind, or returns `None`, having charged nothing, to
-/// leave the call to dynamic dispatch.
+/// Starts a block-driven iterator on `receiver` as dynamic dispatch would when
+/// `receiver`'s runtime kind has no dynamic namespace, capability or export
+/// overrides, or returns `None`, having charged nothing, to leave the call to
+/// dynamic dispatch.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn start_block(
     ctx: &mut CallContext,
     method: Option<MethodKind>,
     name: &str,
     receiver: &Value,
     args: &[Value],
-    keywords: bool,
+    keywords: &[(Value, Value)],
+    block_arity: usize,
     pool: Option<&mut Pool>,
 ) -> Result<Option<Iteration>> {
     let Some(method) = method else {
         return Ok(None);
     };
-    crate::iteration::start_common(ctx, name, method, receiver, args, keywords, pool)
+    let direct_receiver = match &receiver.0 {
+        Kind::Array(_)
+        | Kind::Range(_)
+        | Kind::Int(_)
+        | Kind::Big(_)
+        | Kind::Bytes(_)
+        | Kind::Regex(_) => true,
+        Kind::Hash(hash) => !hash.object && !hash.tag.protected() && !ctx.has_exports,
+        _ => false,
+    };
+    if !direct_receiver {
+        return Ok(None);
+    }
+    crate::iteration::start_method(
+        ctx,
+        Some(method),
+        name,
+        receiver,
+        args,
+        keywords,
+        Some(block_arity),
+        pool,
+    )
 }
 
 #[cfg(test)]
@@ -381,6 +405,12 @@ mod tests {
             Value::int(0),
             Value::int(3),
             Value::int(-2),
+            Value::bytes("a\nb"),
+            Value::regex(b"a", "").unwrap(),
+            Value::hash(vec![
+                (b"a".to_vec(), Value::int(1)),
+                (b"b".to_vec(), Value::int(2)),
+            ]),
         ];
         let arg_sets = [
             vec![],
@@ -389,7 +419,8 @@ mod tests {
             vec![Value::int(-1)],
             vec![Value::int(5), Value::int(2)],
             vec![Value::int(5), Value::int(0)],
-            vec![Value::bytes("bad")],
+            vec![Value::bytes("a")],
+            vec![Value::hash(vec![(b"a".to_vec(), Value::int(9))])],
         ];
         let methods = [
             "each",
@@ -403,14 +434,34 @@ mod tests {
             "upto",
             "downto",
             "step",
+            "flat_map",
+            "filter_map",
+            "partition",
+            "each_slice",
+            "chunk",
+            "sort_by",
+            "min_by",
+            "each_char",
+            "each_line",
+            "scan",
+            "sub",
+            "gsub",
+            "merge",
+            "deep_transform_keys",
         ];
         let mut served = 0;
         for pooled in [true, false] {
             for receiver in &receivers {
                 for name in methods {
-                    let kind = MethodKind::parse(name);
+                    let kind = MethodKind::parse(name)
+                        .or_else(|| (name == "chunk").then_some(MethodKind::Chunk));
                     for args in &arg_sets {
                         for keywords in [false, true] {
+                            let kw = if keywords {
+                                vec![(Value::symbol("k"), Value::int(1))]
+                            } else {
+                                vec![]
+                            };
                             let mut direct_ctx = context();
                             let mut direct_pool = Pool::empty();
                             let direct_started = start_block(
@@ -419,7 +470,8 @@ mod tests {
                                 name,
                                 receiver,
                                 args,
-                                keywords,
+                                &kw,
+                                1,
                                 pooled.then_some(&mut direct_pool),
                             );
                             let direct_result = match direct_started {
@@ -441,11 +493,6 @@ mod tests {
 
                             let mut dynamic_ctx = context();
                             let mut dynamic_pool = Pool::empty();
-                            let kw = if keywords {
-                                vec![(Value::symbol("k"), Value::int(1))]
-                            } else {
-                                vec![]
-                            };
                             let dynamic_result = crate::iteration::start_pooled(
                                 &mut dynamic_ctx,
                                 name,
@@ -474,6 +521,6 @@ mod tests {
                 }
             }
         }
-        assert!(served > 200, "served {served}");
+        assert!(served > 500, "served {served}");
     }
 }
