@@ -188,6 +188,13 @@ impl Driver {
         }
     }
 
+    /// Whether another element will be yielded after the running block turn
+    /// returns its value.
+    #[inline]
+    pub(crate) fn has_next(&self) -> bool {
+        self.waiting && self.position < self.length
+    }
+
     pub(crate) fn advance(
         &mut self,
         ctx: &mut CallContext,

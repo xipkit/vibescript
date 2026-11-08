@@ -631,7 +631,12 @@ impl Run {
             let (outer, rest) = frames.data.split_at_mut(current);
             let frame = rest.at_mut(0)?;
             let function = program.functions.at(frame.required_function()?)?;
-            simple::run(ctx, program, function, outer, frame, storage, stack)?;
+            if let Err(error) = simple::run(ctx, program, function, outer, frame, storage, stack) {
+                if frames.at(current)?.function().is_none() {
+                    unwind(frames, storage, stack, current)?;
+                }
+                return Err(error);
+            }
             let op = *function.code.at(frame.ip)?;
             let frame = frames.at_mut(current)?;
             frame.ip += 1;

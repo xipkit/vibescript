@@ -389,9 +389,122 @@ pub(super) fn run(
                     return Ok(());
                 }
             }
+            Op::Finish => {
+                if !finish_pooled(ctx, function, outer, frame, storage, stack)? {
+                    return Ok(());
+                }
+            }
             _ => return Ok(()),
         }
     }
+}
+
+/// Finishes a block turn and starts the next element of an enclosing pooled
+/// iterator in place, reusing the active block [`Frame`] and its local slots
+/// while charging each boundary step identically to [`Run::advance`].
+#[inline(never)]
+fn finish_pooled(
+    ctx: &mut CallContext,
+    function: &Function,
+    outer: &[Frame],
+    frame: &mut Frame,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+) -> Result<bool> {
+    let Some(parent) = outer.last() else {
+        return Ok(false);
+    };
+    if !parent.pooled_iteration()
+        || !storage
+            .iteration_pool
+            .last()
+            .is_some_and(|driver| driver.has_next())
+        || frame.binding
+        || !matches!(frame.return_to, ReturnTo::Stack)
+        || frame.constructor
+        || function.return_check.is_some()
+        || function.initializer
+        || storage.releasing
+        || handlers::guards(storage, outer.len())
+    {
+        return Ok(false);
+    }
+    step(ctx, frame)?;
+    let mut value = stack.pop()?;
+    if function.returns_nil {
+        discard(value);
+        value = Value::nil();
+    }
+    if ctx.has_exports && !function.plain_values.contains(frame.ip - 1) {
+        crate::exports::check(ctx, &value)?;
+    }
+    while stack.data.len() > frame.base() {
+        if let Some(arg) = stack.data.pop() {
+            discard(arg);
+        }
+    }
+    let local_len = storage.locals.data.len();
+    for slot in storage.locals.span_mut(frame.local_base(), local_len)? {
+        if let Some(previous) = slot.take() {
+            discard(previous);
+        }
+    }
+    if storage.loops.data.len() > frame.loop_base()
+        || storage.arguments.data.len() > frame.argument_base()
+        || storage.iterations.data.len() > frame.iteration_base()
+        || storage.addresses.data.len() > frame.address_base()
+        || storage.bypasses.data.len() > frame.bypass_base()
+        || storage.texts.data.len() > frame.text_base()
+    {
+        clean_pooled_frame(frame, storage);
+    }
+    // While the parent driver advances and re-enters the block, the old block
+    // frame has logically unwound; marking it `Iteration` hides it from any
+    // error diagnostic and tells `Run::advance` to unwind it if a quota fails.
+    let saved_function = frame.function;
+    frame.function = FrameCode::Iteration;
+    ctx.charge(1)?;
+    let progress = storage
+        .iteration_pool
+        .last_mut()
+        .ok_or(violation("pooled iteration must have a driver"))?
+        .advance(ctx, Some(value))?;
+    let Progress::Yield(args, count) = progress else {
+        return Err(crate::checked::internal(
+            "pooled iteration with remaining elements must yield",
+        ));
+    };
+    if !parent.plain_yields {
+        for value in args.span(0, count)? {
+            crate::exports::check(ctx, value)?;
+        }
+    }
+    for value in args.into_iter().take(count) {
+        push(ctx, stack, value)?;
+    }
+    ctx.charge_each(1 + function.locals as u64)?;
+    let base = frame.base();
+    for chunk in stack
+        .tail(base)?
+        .chunks(crate::budget::CHUNK / std::mem::size_of::<Value>())
+    {
+        ctx.work_bytes(std::mem::size_of_val(chunk))?;
+    }
+    frame.function = saved_function;
+    frame.ip = 0;
+    frame.block_args = narrow(count)?;
+    Ok(true)
+}
+
+#[cold]
+#[inline(never)]
+fn clean_pooled_frame(frame: &Frame, storage: &mut Storage) {
+    storage.loops.data.truncate(frame.loop_base());
+    storage.arguments.data.truncate(frame.argument_base());
+    storage.iterations.data.truncate(frame.iteration_base());
+    storage.addresses.data.truncate(frame.address_base());
+    storage.bypasses.data.truncate(frame.bypass_base());
+    storage.texts.data.truncate(frame.text_base());
 }
 
 #[inline(never)]
