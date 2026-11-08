@@ -122,6 +122,12 @@ pub(crate) fn start_pooled(
     let Some(method) = MethodKind::parse(name).or(chunk_by_block.then_some(Chunk)) else {
         return Ok(None);
     };
+    if block_arity.is_some()
+        && let Some(iteration) =
+            common::Driver::start(ctx, name, method, receiver, args, keywords, pool)?
+    {
+        return Ok(Some(iteration));
+    }
     let supported = match &receiver.0 {
         Kind::Array(_) => !matches!(
             method,
@@ -428,17 +434,7 @@ pub(crate) fn start_pooled(
             state.length = 1;
         }
     }
-    if common::Driver::supports(&state) {
-        let driver = common::Driver::from(state);
-        if let Some(pool) = pool.filter(|pool| pool.len() < 2) {
-            pool.push(ctx, driver)?;
-            Ok(Some(Iteration::Pooled))
-        } else {
-            Ok(Some(Iteration::Common(boxed(ctx, driver)?)))
-        }
-    } else {
-        Ok(Some(Iteration::Loop(boxed(ctx, state)?)))
-    }
+    Ok(Some(Iteration::Loop(boxed(ctx, state)?)))
 }
 
 impl Loop {

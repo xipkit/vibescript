@@ -84,41 +84,107 @@ pub(crate) struct Driver {
 const _: () = assert!(size_of::<State<Slots>>() <= size_of::<State<Loop>>());
 const _: () = assert!(size_of::<Pool>() == size_of::<usize>());
 
-impl Driver {
-    pub(super) fn supports(state: &Loop) -> bool {
-        use MethodKind::*;
-        state.block
-            && matches!(
-                state.receiver.0,
-                Kind::Array(_) | Kind::Range(_) | Kind::Int(_)
-            )
-            && matches!(
-                state.method,
-                Each | EachIndex
-                    | Map
-                    | MapIndex
-                    | Select
-                    | Reject
-                    | Reduce
-                    | Times
-                    | Upto
-                    | Downto
-                    | Step
-            )
-    }
+/// Starts a block-driven pooled or common iterator on `receiver` when
+/// [`Driver`] serves `method` on `receiver`'s runtime kind, or returns `None`,
+/// having charged nothing, to leave the call to the general iteration setup.
+pub(crate) fn start_direct(
+    ctx: &mut CallContext,
+    name: &str,
+    method: MethodKind,
+    receiver: &Value,
+    args: &[Value],
+    keywords: bool,
+    pool: Option<&mut Pool>,
+) -> Result<Option<Iteration>> {
+    Driver::start(ctx, name, method, receiver, args, keywords, pool)
+}
 
-    pub(super) fn from(state: Loop) -> Self {
-        Self {
-            method: state.method,
-            receiver: state.receiver,
-            position: state.position,
-            length: state.length,
-            start: state.start,
-            stride: state.stride,
-            output: state.output,
-            accumulator: state.accumulator,
+impl Driver {
+    pub(super) fn start(
+        ctx: &mut CallContext,
+        name: &str,
+        method: MethodKind,
+        receiver: &Value,
+        args: &[Value],
+        keywords: bool,
+        pool: Option<&mut Pool>,
+    ) -> Result<Option<Iteration>> {
+        use MethodKind::*;
+        let mut start = 0;
+        let mut stride = 1;
+        let mut accumulator = None;
+        let length = match &receiver.0 {
+            Kind::Array(array)
+                if matches!(
+                    method,
+                    Each | EachIndex | Map | MapIndex | Select | Reject | Reduce
+                ) =>
+            {
+                array::check(name, method, args, keywords, true)?;
+                if method == Reduce {
+                    accumulator = args.first().cloned();
+                }
+                array.buffer.data.len() as i128
+            }
+            Kind::Range(range)
+                if matches!(method, Each | Map | Select | Reject | Reduce | Step) =>
+            {
+                range::check(name, method, args, keywords, true)?;
+                bounds::stepping(ctx, name, method, receiver, args, keywords, true)?;
+                if method == Reduce {
+                    accumulator = args.first().cloned();
+                }
+                start = range
+                    .start
+                    .ok_or_else(|| argument("cannot iterate a beginless range"))?;
+                stride = if range.start > range.end { -1 } else { 1 };
+                let length = range.length()?;
+                if method == Step {
+                    let step = args.at(0)?.require_int()?;
+                    stride *= step;
+                    (length + i128::from(step) - 1) / i128::from(step)
+                } else {
+                    length
+                }
+            }
+            Kind::Int(n) if matches!(method, Times | Upto | Downto | Step) => {
+                bounds::stepping(ctx, name, method, receiver, args, keywords, true)?;
+                if method == Times {
+                    i128::from((*n).max(0))
+                } else {
+                    let limit = i128::from(args.at(0)?.require_int()?);
+                    start = *n;
+                    stride = if method == Downto { -1 } else { 1 };
+                    if let (Step, Some(step)) = (method, args.get(1)) {
+                        stride = step.require_int()?;
+                    }
+                    let distance = (limit - i128::from(start)) * i128::from(stride).signum();
+                    if distance < 0 {
+                        0
+                    } else {
+                        distance / i128::from(stride).abs() + 1
+                    }
+                }
+            }
+            _ => return Ok(None),
+        };
+        let driver = Self {
+            method,
+            receiver: receiver.clone(),
+            position: 0,
+            length,
+            start,
+            stride,
+            output: Buffer::empty(),
+            accumulator,
             pending: Value::nil(),
             waiting: false,
+        };
+        if let Some(pool) = pool.filter(|pool| pool.len() < 2) {
+            pool.push(ctx, driver)?;
+            Ok(Some(Iteration::Pooled))
+        } else {
+            Ok(Some(Iteration::Common(boxed(ctx, driver)?)))
         }
     }
 

@@ -3140,12 +3140,12 @@ impl Run {
                         }
                         crate::arguments::Target::Member(receiver, name) => {
                             stack.push(ctx, receiver)?;
+                            let text = program.members.at(name)?;
                             Invocation::Member(
                                 crate::bytecode::CallSite {
                                     name: narrow(name)?,
-                                    method: crate::bytecode::Method::parse(
-                                        program.members.at(name)?,
-                                    ),
+                                    method: crate::bytecode::Method::parse(text),
+                                    iteration: crate::iteration::MethodKind::parse(text),
                                     auto: false,
                                     scope: false,
                                 },
@@ -3202,12 +3202,12 @@ impl Run {
                             namespaces::value(program, ctx, storage, module as usize)?
                         };
                         stack.push(ctx, receiver)?;
+                        let text = program.members.at(name as usize)?;
                         Invocation::Member(
                             crate::bytecode::CallSite {
                                 name,
-                                method: crate::bytecode::Method::parse(
-                                    program.members.at(name as usize)?,
-                                ),
+                                method: crate::bytecode::Method::parse(text),
+                                iteration: crate::iteration::MethodKind::parse(text),
                                 auto: false,
                                 scope: false,
                             },
@@ -4322,6 +4322,7 @@ fn implicit_read(
             let site = crate::bytecode::CallSite {
                 name: narrow(name)?,
                 method: crate::bytecode::Method::parse(text),
+                iteration: crate::iteration::MethodKind::parse(text),
                 auto: true,
                 scope: false,
             };

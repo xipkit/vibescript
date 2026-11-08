@@ -95,6 +95,7 @@ pub(super) fn implicit(
     let site = crate::bytecode::CallSite {
         name: 0,
         method: None,
+        iteration: None,
         auto: true,
         scope: false,
     };

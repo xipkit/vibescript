@@ -382,6 +382,7 @@ pub(crate) struct Parameter {
 pub(crate) struct CallSite {
     pub name: u32,
     pub method: Option<Method>,
+    pub iteration: Option<crate::iteration::MethodKind>,
     pub auto: bool,
     pub scope: bool,
 }
@@ -1719,6 +1720,7 @@ impl Compiler<'_> {
         Ok(CallSite {
             name: narrow(index)?,
             method: Method::parse(name),
+            iteration: crate::iteration::MethodKind::parse(name),
             auto,
             scope: false,
         })

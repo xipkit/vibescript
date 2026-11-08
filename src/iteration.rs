@@ -16,11 +16,11 @@ mod driver;
 mod hash;
 mod range;
 
-pub(crate) use common::Pool;
+pub(crate) use common::{Pool, start_direct as start_common};
 pub(crate) use driver::{Loop, start_pooled};
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum MethodKind {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MethodKind {
     Each,
     EachIndex,
     EachKey,
@@ -78,7 +78,7 @@ enum MethodKind {
 }
 
 impl MethodKind {
-    fn parse(name: &str) -> Option<Self> {
+    pub(crate) fn parse(name: &str) -> Option<Self> {
         Some(match name {
             "each" => Self::Each,
             "each_with_index" => Self::EachIndex,

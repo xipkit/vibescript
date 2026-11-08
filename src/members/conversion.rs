@@ -48,6 +48,7 @@ mod tests {
             let site = CallSite {
                 name: 0,
                 method: Method::parse(name),
+                iteration: None,
                 auto: true,
                 scope: false,
             };
@@ -97,6 +98,7 @@ mod tests {
             let site = CallSite {
                 name: 0,
                 method: None,
+                iteration: None,
                 auto: true,
                 scope: false,
             };

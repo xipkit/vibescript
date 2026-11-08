@@ -7,7 +7,14 @@
 //! dynamically. A test compares it with dynamic dispatch for every member it
 //! serves.
 
-use crate::{CallContext, Result, Value, bytecode::Method, hash::Tag, ops, value::Kind};
+use crate::{
+    CallContext, Result, Value,
+    bytecode::Method,
+    hash::Tag,
+    iteration::{Iteration, MethodKind, Pool},
+    ops,
+    value::Kind,
+};
 
 /// A receiver's static base type, as the checker proves it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -95,10 +102,29 @@ pub(crate) fn update(
     }
 }
 
+/// Starts a block-driven pooled or common iterator on `receiver` as dynamic
+/// dispatch would when [`crate::iteration::start_common`] serves `method` on
+/// `receiver`'s runtime kind, or returns `None`, having charged nothing, to
+/// leave the call to dynamic dispatch.
+pub(crate) fn start_block(
+    ctx: &mut CallContext,
+    method: Option<MethodKind>,
+    name: &str,
+    receiver: &Value,
+    args: &[Value],
+    keywords: bool,
+    pool: Option<&mut Pool>,
+) -> Result<Option<Iteration>> {
+    let Some(method) = method else {
+        return Ok(None);
+    };
+    crate::iteration::start_common(ctx, name, method, receiver, args, keywords, pool)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CallOptions, bytecode::CallSite};
+    use crate::{CallOptions, bytecode::CallSite, iteration::Progress};
 
     fn context() -> CallContext {
         CallContext::new(CallOptions::default())
@@ -128,6 +154,7 @@ mod tests {
         let site = CallSite {
             name: 0,
             method: Some(method),
+            iteration: MethodKind::parse(name),
             auto: false,
             scope: false,
         };
@@ -290,6 +317,7 @@ mod tests {
                     let site = CallSite {
                         name: 0,
                         method: Some(method),
+                        iteration: None,
                         auto: false,
                         scope: false,
                     };
@@ -316,5 +344,136 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    fn drain_iteration(
+        ctx: &mut CallContext,
+        pool: &mut Pool,
+        mut iteration: Iteration,
+    ) -> Result<Value> {
+        let mut returned = None;
+        loop {
+            let progress = match &mut iteration {
+                Iteration::Pooled => pool.last_mut().unwrap().advance(ctx, returned)?,
+                other => other.advance(ctx, returned)?,
+            };
+            match progress {
+                Progress::Yield(args, count) => {
+                    returned = Some(if count == 2 {
+                        Value::array(vec![args[0].clone(), args[1].clone()])
+                    } else {
+                        args[0].clone()
+                    });
+                }
+                Progress::Done(value) => return Ok(value),
+            }
+        }
+    }
+
+    #[test]
+    fn direct_block_iterators_match_dynamic_dispatch() {
+        let receivers = [
+            Value::array(vec![]),
+            Value::array(vec![Value::int(3), Value::int(0), Value::boolean(false)]),
+            Value::range(Some(1), Some(4), false),
+            Value::range(Some(4), Some(1), true),
+            Value::range(None, Some(3), false),
+            Value::int(0),
+            Value::int(3),
+            Value::int(-2),
+        ];
+        let arg_sets = [
+            vec![],
+            vec![Value::int(2)],
+            vec![Value::int(0)],
+            vec![Value::int(-1)],
+            vec![Value::int(5), Value::int(2)],
+            vec![Value::int(5), Value::int(0)],
+            vec![Value::bytes("bad")],
+        ];
+        let methods = [
+            "each",
+            "each_with_index",
+            "map",
+            "map_with_index",
+            "select",
+            "reject",
+            "reduce",
+            "times",
+            "upto",
+            "downto",
+            "step",
+        ];
+        let mut served = 0;
+        for pooled in [true, false] {
+            for receiver in &receivers {
+                for name in methods {
+                    let kind = MethodKind::parse(name);
+                    for args in &arg_sets {
+                        for keywords in [false, true] {
+                            let mut direct_ctx = context();
+                            let mut direct_pool = Pool::empty();
+                            let direct_started = start_block(
+                                &mut direct_ctx,
+                                kind,
+                                name,
+                                receiver,
+                                args,
+                                keywords,
+                                pooled.then_some(&mut direct_pool),
+                            );
+                            let direct_result = match direct_started {
+                                Ok(Some(iteration)) => {
+                                    served += 1;
+                                    drain_iteration(&mut direct_ctx, &mut direct_pool, iteration)
+                                }
+                                Ok(None) => {
+                                    assert_eq!(direct_ctx.stats().steps, 0);
+                                    assert_eq!(direct_ctx.stats().peak_memory_bytes, 0);
+                                    continue;
+                                }
+                                Err(error) => {
+                                    served += 1;
+                                    Err(error)
+                                }
+                            };
+                            direct_pool.truncate(0);
+
+                            let mut dynamic_ctx = context();
+                            let mut dynamic_pool = Pool::empty();
+                            let kw = if keywords {
+                                vec![(Value::symbol("k"), Value::int(1))]
+                            } else {
+                                vec![]
+                            };
+                            let dynamic_result = crate::iteration::start_pooled(
+                                &mut dynamic_ctx,
+                                name,
+                                receiver,
+                                args,
+                                &kw,
+                                Some(1),
+                                pooled.then_some(&mut dynamic_pool),
+                            )
+                            .and_then(|opt| {
+                                drain_iteration(
+                                    &mut dynamic_ctx,
+                                    &mut dynamic_pool,
+                                    opt.expect("dynamic dispatch must start served iterator"),
+                                )
+                            });
+                            dynamic_pool.truncate(0);
+
+                            assert_eq!(
+                                outcome(&direct_ctx, direct_result),
+                                outcome(&dynamic_ctx, dynamic_result),
+                                "{name} pooled={pooled} keywords={keywords} on {receiver:?} with {args:?}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        assert!(served > 200, "served {served}");
     }
 }
