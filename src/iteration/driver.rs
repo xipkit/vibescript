@@ -38,8 +38,39 @@ pub(crate) fn start_pooled(
     block_arity: Option<usize>,
     pool: Option<&mut Pool>,
 ) -> Result<Option<Iteration>> {
+    start_method(
+        ctx,
+        MethodKind::parse(name),
+        name,
+        receiver,
+        args,
+        keywords,
+        block_arity,
+        pool,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn start_method(
+    ctx: &mut CallContext,
+    method: Option<MethodKind>,
+    name: &str,
+    receiver: &Value,
+    args: &[Value],
+    keywords: &[(Value, Value)],
+    block_arity: Option<usize>,
+    pool: Option<&mut Pool>,
+) -> Result<Option<Iteration>> {
     use MethodKind::*;
-    if crate::regex::substitute::method(name) {
+    let chunk_by_block =
+        name == "chunk" && block_arity.is_some() && matches!(receiver.0, Kind::Array(_));
+    let Some(method) = method
+        .filter(|&kind| kind != Chunk || chunk_by_block)
+        .or(chunk_by_block.then_some(Chunk))
+    else {
+        return Ok(None);
+    };
+    if method == Substitute {
         return crate::regex::substitute::Driver::new(
             ctx,
             name,
@@ -55,73 +86,71 @@ pub(crate) fn start_pooled(
         });
     }
     let keywords = !keywords.is_empty();
-    if matches!(name, "match" | "scan") {
-        return crate::regex::operations::Driver::new(
-            ctx,
-            name,
-            receiver,
-            args,
-            keywords,
-            block_arity.is_some(),
-        )
-        .and_then(|state| {
-            state
-                .map(|state| boxed(ctx, state).map(Iteration::Regex))
-                .transpose()
-        });
-    }
-    if crate::text::iteration::method(name) {
-        return crate::text::iteration::Driver::new(
-            ctx,
-            name,
-            receiver,
-            args,
-            keywords,
-            block_arity.is_some(),
-        )
-        .and_then(|state| {
-            state
-                .map(|state| boxed(ctx, state).map(Iteration::Text))
-                .transpose()
-        });
-    }
-    if ordering::method(name) && !matches!(receiver.0, Kind::Range(_)) {
-        return ordering::Driver::new(ctx, name, receiver, args, block_arity.is_some()).and_then(
-            |state| {
+    match method {
+        Regex => {
+            return crate::regex::operations::Driver::new(
+                ctx,
+                name,
+                receiver,
+                args,
+                keywords,
+                block_arity.is_some(),
+            )
+            .and_then(|state| {
                 state
-                    .map(|state| boxed(ctx, state).map(Iteration::Order))
+                    .map(|state| boxed(ctx, state).map(Iteration::Regex))
                     .transpose()
-            },
-        );
-    }
-    if hash_blocks::method(name) {
-        return hash_blocks::Driver::new(
-            ctx,
-            name,
-            receiver,
-            args,
-            keywords,
-            block_arity.is_some(),
-        )
-        .and_then(|state| {
-            state
-                .map(|state| boxed(ctx, state).map(Iteration::Hash))
-                .transpose()
-        });
+            });
+        }
+        Text => {
+            return crate::text::iteration::Driver::new(
+                ctx,
+                name,
+                receiver,
+                args,
+                keywords,
+                block_arity.is_some(),
+            )
+            .and_then(|state| {
+                state
+                    .map(|state| boxed(ctx, state).map(Iteration::Text))
+                    .transpose()
+            });
+        }
+        Order | Min | Max if !matches!(receiver.0, Kind::Range(_)) => {
+            return ordering::Driver::new(ctx, name, receiver, args, block_arity.is_some())
+                .and_then(|state| {
+                    state
+                        .map(|state| boxed(ctx, state).map(Iteration::Order))
+                        .transpose()
+                });
+        }
+        Order => return Ok(None),
+        HashBlock => {
+            return hash_blocks::Driver::new(
+                ctx,
+                name,
+                receiver,
+                args,
+                keywords,
+                block_arity.is_some(),
+            )
+            .and_then(|state| {
+                state
+                    .map(|state| boxed(ctx, state).map(Iteration::Hash))
+                    .transpose()
+            });
+        }
+        _ => {}
     }
     if matches!(&receiver.0, Kind::Hash(hash) if hash.tag.protected())
-        && matches!(name, "delete_if" | "keep_if" | "delete")
+        && matches!(method, DeleteIf | KeepIf | Delete)
     {
         let Kind::Hash(hash) = &receiver.0 else {
             return Err(crate::checked::internal("protected receiver is not a hash"));
         };
         return Err(hash.tag.mutation_error(name));
     }
-    let chunk_by_block =
-        name == "chunk" && block_arity.is_some() && matches!(receiver.0, Kind::Array(_));
-    let Some(method) = MethodKind::parse(name).or(chunk_by_block.then_some(Chunk)) else {
-        return Ok(None);
-    };
     if block_arity.is_some()
         && let Some(iteration) =
             common::Driver::start(ctx, name, method, receiver, args, keywords, pool)?
@@ -847,6 +876,11 @@ impl Loop {
                 if replace {
                     self.accumulator = Some(value);
                 }
+            }
+            Substitute | Regex | Text | Order | HashBlock => {
+                return Err(crate::checked::internal(
+                    "specialized iteration driver routed to Loop",
+                ));
             }
         }
         Ok(false)

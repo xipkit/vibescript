@@ -6,10 +6,6 @@ use crate::{
     iteration::Progress,
 };
 
-pub(crate) fn method(name: &str) -> bool {
-    matches!(name, "merge" | "deep_transform_keys")
-}
-
 pub(crate) enum Driver {
     Merge(Merge),
     Deep(Deep),

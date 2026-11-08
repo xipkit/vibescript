@@ -27,10 +27,6 @@ impl Method {
     }
 }
 
-pub(crate) fn method(name: &str) -> bool {
-    Method::parse(name).is_some()
-}
-
 pub(crate) struct Driver {
     method: Method,
     receiver: Value,
