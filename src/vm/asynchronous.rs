@@ -1,5 +1,5 @@
 use super::{
-    host_blocks::{BlockBoundary, HostControl, HostRequest, Started, abandoned},
+    host_blocks::{BlockScope, HostControl, HostRequest, Started, abandoned},
     *,
 };
 use crate::{CallOptions, CancellationToken, Outcome, Script, budget::Charge};
@@ -363,10 +363,7 @@ impl Drop for Lent<'_> {
 enum Scope {
     Call,
     PendingBlock,
-    Block {
-        boundary: BlockBoundary,
-        args: Buffer<Value>,
-    },
+    Block(BlockScope),
 }
 
 // Work already stores this state in accounted heap storage. Another box would
@@ -397,11 +394,10 @@ impl<E: Holder> Work<E> {
         drop(charge);
         let result = match scope {
             Scope::Call | Scope::PendingBlock => result,
-            Scope::Block { boundary, args } => {
-                drop(args);
+            Scope::Block(scope) => {
                 let invocation = &mut *execution.owned().execution;
                 match invocation.run.as_mut() {
-                    Some(run) => run.finish_block(&mut invocation.context, boundary, result),
+                    Some(run) => run.finish_block(&mut invocation.context, scope, result),
                     None => invocation
                         .context
                         .checkpoint()
@@ -864,42 +860,30 @@ impl Synchronous<'_> {
             .run
             .as_mut()
             .ok_or(violation("execution must have a run"))?;
-        let mut started = Started::new(&mut execution.context, run.block_boundary());
-        let arguments = match run.start_block(started.context(), block, args) {
-            Ok(arguments) => arguments,
+        let mut started = Started::new(&mut execution.context, run.open_block());
+        let setup = (|| {
+            started.start(run, block, args)?;
+            let charge = started
+                .context()
+                .reserve(size_of::<Parker>() + 2 * size_of::<usize>())?;
+            let parker = Arc::new(Parker {
+                thread: std::thread::current(),
+                ready: AtomicBool::new(false),
+                _charge: charge,
+            });
+            let work_charge = started.context().reserve(size_of::<Work<Lent<'_>>>())?;
+            Ok((parker, work_charge))
+        })();
+        let (parker, charge) = match setup {
+            Ok(ready) => ready,
             Err(error) => return self.control.completed(started.finish(run, Err(error))),
         };
-        let charge = match started
-            .context()
-            .reserve(size_of::<Parker>() + 2 * size_of::<usize>())
-        {
-            Ok(charge) => charge,
-            Err(error) => {
-                drop(arguments);
-                return self.control.completed(started.finish(run, Err(error)));
-            }
-        };
-        let parker = Arc::new(Parker {
-            thread: std::thread::current(),
-            ready: AtomicBool::new(false),
-            _charge: charge,
-        });
-        let charge = match started.context().reserve(size_of::<Work<Lent<'_>>>()) {
-            Ok(charge) => charge,
-            Err(error) => {
-                drop(arguments);
-                return self.control.completed(started.finish(run, Err(error)));
-            }
-        };
-        let boundary = started.lend();
+        let scope = started.lend();
         let mut lent = Lent::new(self.execution);
         lent.started();
         let work = Box::new(Work {
             execution: lent,
-            scope: Scope::Block {
-                boundary,
-                args: arguments,
-            },
+            scope: Scope::Block(scope),
             next: Next::Resume,
             charge,
         });
@@ -924,14 +908,11 @@ fn segment<E: Holder>(mut work: Box<Work<E>>) -> Progress<Completed<E>, E> {
                     work.interrupted(violation("execution must have a run").into()),
                 );
             };
-            let boundary = run.block_boundary();
-            work.scope = Scope::Block {
-                boundary,
-                args: Buffer::empty(),
-            };
-            match run.start_block(&mut execution.context, block, &args) {
-                Ok(args) => work.scope = Scope::Block { boundary, args },
-                Err(error) => return Progress::Complete(work.complete(Err(error))),
+            let mut scope = run.open_block();
+            let started = run.start_block(&mut execution.context, &mut scope, block, &args);
+            work.scope = Scope::Block(scope);
+            if let Err(error) = started {
+                return Progress::Complete(work.complete(Err(error)));
             }
         }
         Next::Host(request, control, result) => {
@@ -952,7 +933,7 @@ fn segment<E: Holder>(mut work: Box<Work<E>>) -> Progress<Completed<E>, E> {
                     "pending block was not prepared",
                 ))));
             }
-            Scope::Block { boundary, .. } => Some(boundary.floor),
+            Scope::Block(ref scope) => Some(scope.floor()),
         };
         let execution = &mut *work.execution.owned().execution;
         let Some(run) = execution.run.as_mut() else {

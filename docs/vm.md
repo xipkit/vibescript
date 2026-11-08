@@ -51,6 +51,8 @@ Calls pass their arguments without temporary lists wherever the callee binds the
 
 A block's arguments stay on the operand stack, below its own values, instead of in a list the block's frame owned; `BlockArg` reads them there. The simple loop runs block prologues (`Shadow`, `BlockArg`) and follows captured locals out to the frame that binds them, charging each frame it passes as the general path does. Frames are 32 bytes smaller as a result.
 
+Built-in iteration methods that accept a block resolve their driver kind once at compile time (`CallSite.iteration`) and run as VM-managed frames (`FrameCode::PooledIteration` and `FrameCode::Iteration`) rather than native callback loops. Pooled collection, range and integer iterators construct their compact `common::Driver` directly without an intermediate `iteration::Loop` wrapper, and `simple::run` advances the driver at `Op::Finish` to re-enter the next turn in place, reusing the active block `Frame` and its `storage.locals` slice. External host callbacks (`HostCall` and `AsyncHostCall`) instead cross an explicit `BlockScope` boundary (`Run::open_block`, `Run::start_block`, `Run::finish_block`) that isolates argument snapshots, bounds handler truncation and frame unwinding to the callback floor, and latches errors identically across synchronous, inline-bridged and stepped worker executions.
+
 Class variable and internal environment writes copy the variable's name into a field key only when the variable is new.
 
 ## Instance field slots
