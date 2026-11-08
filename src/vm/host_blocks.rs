@@ -219,6 +219,8 @@ impl Run {
             block,
             args.data.len(),
         )?;
+        #[cfg(test)]
+        super::host_blocks_tests::entered(&args.data);
         for value in &args.data {
             programs::imported(ctx, &mut self.storage, value)?;
         }
@@ -227,11 +229,13 @@ impl Run {
 
     fn block(&mut self, ctx: &mut CallContext, block: Block, values: &[Value]) -> Result<Exit> {
         let boundary = self.block_boundary();
+        let mut started = Started::new(ctx, boundary);
         let result = (|| {
+            let ctx = started.context();
             let _args = self.start_block(ctx, block, values)?;
             self.until(ctx, Some(boundary.floor))
         })();
-        self.finish_block(ctx, boundary, result)
+        started.finish(self, result)
     }
 
     pub(super) fn finish_block(
@@ -279,6 +283,61 @@ impl Run {
         };
         ctx.latch_internal(result)
     }
+}
+
+/// A block entered on a run that has not reached [`Run::finish_block`].
+///
+/// A host can catch a panic from inside the block and keep using its context,
+/// but the run still holds the block's frames and handlers. Dropping the guard
+/// before the block finishes therefore latches the invocation: later
+/// checkpoints, block calls and handlers all fail, and an error latched
+/// earlier, such as an exhausted quota, keeps priority.
+pub(super) struct Started<'a> {
+    context: &'a mut CallContext,
+    boundary: BlockBoundary,
+    armed: bool,
+}
+
+impl<'a> Started<'a> {
+    pub fn new(context: &'a mut CallContext, boundary: BlockBoundary) -> Self {
+        Self {
+            context,
+            boundary,
+            armed: true,
+        }
+    }
+
+    pub fn context(&mut self) -> &mut CallContext {
+        self.context
+    }
+
+    /// Restores the run to the boundary and settles the block's result.
+    pub fn finish(mut self, run: &mut Run, result: Result<Exit>) -> Result<Exit> {
+        let result = run.finish_block(self.context, self.boundary, result);
+        self.armed = false;
+        result
+    }
+
+    /// Hands the unfinished block to an owner that latches the same way when
+    /// it is dropped early, returning the boundary it must finish at.
+    #[cfg(feature = "tokio")]
+    pub fn lend(mut self) -> BlockBoundary {
+        self.armed = false;
+        self.boundary
+    }
+}
+
+impl Drop for Started<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            let _latched = self.context.latch_internal::<()>(Err(abandoned().into()));
+        }
+    }
+}
+
+/// The terminal failure of a block that unwound before it finished.
+pub(super) fn abandoned() -> crate::checked::Violation {
+    crate::checked::violation("block was abandoned before completion")
 }
 
 fn transferred() -> Error {

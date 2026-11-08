@@ -1,5 +1,5 @@
 use super::{
-    host_blocks::{BlockBoundary, HostControl, HostRequest},
+    host_blocks::{BlockBoundary, HostControl, HostRequest, Started, abandoned},
     *,
 };
 use crate::{CallOptions, CancellationToken, Outcome, Script, budget::Charge};
@@ -355,10 +355,7 @@ impl Drop for Lent<'_> {
                 .execution
                 .execution
                 .context
-                .latch_internal::<()>(Err(violation(
-                    "borrowed block work was abandoned before completion",
-                )
-                .into()));
+                .latch_internal::<()>(Err(abandoned().into()));
         }
     }
 }
@@ -867,23 +864,19 @@ impl Synchronous<'_> {
             .run
             .as_mut()
             .ok_or(violation("execution must have a run"))?;
-        let boundary = run.block_boundary();
-        let arguments = match run.start_block(&mut execution.context, block, args) {
+        let mut started = Started::new(&mut execution.context, run.block_boundary());
+        let arguments = match run.start_block(started.context(), block, args) {
             Ok(arguments) => arguments,
-            Err(error) => {
-                let result = run.finish_block(&mut execution.context, boundary, Err(error));
-                return self.control.completed(result);
-            }
+            Err(error) => return self.control.completed(started.finish(run, Err(error))),
         };
-        let charge = match execution
-            .context
+        let charge = match started
+            .context()
             .reserve(size_of::<Parker>() + 2 * size_of::<usize>())
         {
             Ok(charge) => charge,
             Err(error) => {
                 drop(arguments);
-                let result = run.finish_block(&mut execution.context, boundary, Err(error));
-                return self.control.completed(result);
+                return self.control.completed(started.finish(run, Err(error)));
             }
         };
         let parker = Arc::new(Parker {
@@ -891,14 +884,14 @@ impl Synchronous<'_> {
             ready: AtomicBool::new(false),
             _charge: charge,
         });
-        let charge = match execution.context.reserve(size_of::<Work<Lent<'_>>>()) {
+        let charge = match started.context().reserve(size_of::<Work<Lent<'_>>>()) {
             Ok(charge) => charge,
             Err(error) => {
                 drop(arguments);
-                let result = run.finish_block(&mut execution.context, boundary, Err(error));
-                return self.control.completed(result);
+                return self.control.completed(started.finish(run, Err(error)));
             }
         };
+        let boundary = started.lend();
         let mut lent = Lent::new(self.execution);
         lent.started();
         let work = Box::new(Work {

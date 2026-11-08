@@ -34,6 +34,8 @@ mod format;
 mod globals;
 mod handlers;
 mod host_blocks;
+#[cfg(test)]
+mod host_blocks_tests;
 mod host_signatures;
 mod namespaces;
 mod operators;
