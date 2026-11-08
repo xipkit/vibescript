@@ -96,3 +96,66 @@ fn array_loop_results_and_saved_snapshots_remain_values() {
         );
     }
 }
+
+#[test]
+fn pooled_iterator_block_turns_preserve_step_and_memory_boundaries_and_control_flow() {
+    for (source, expected) in [
+        (
+            "def run -> array<int>\n(1..4).map { |x| x * 10 }\nend",
+            "[10,20,30,40]",
+        ),
+        (
+            "def run -> array<int>\n[1,2,3,4,5].select { |x| x % 2 == 1 }\nend",
+            "[1,3,5]",
+        ),
+        (
+            "def run -> int\n[1,2,3,4].reduce(10) { |acc, x| acc + x }\nend",
+            "20",
+        ),
+        (
+            "def run -> int\nsum = 0\n4.times { |i| next if i == 1; sum += i }\nsum\nend",
+            "5",
+        ),
+        (
+            "def run -> array<int>\nout: array<int> = []\n1.upto(3) { |a| 2.downto(1) { |b| out << a * 10 + b } }\nout\nend",
+            "[12,11,22,21,32,31]",
+        ),
+        (
+            "def run -> int\nbegin\n[1,2,3].map { |x| raise \"boom\" if x == 3; x * 2 }\n0\nrescue\n42\nend\nend",
+            "42",
+        ),
+    ] {
+        let script = Engine::new().compile(source).unwrap();
+        let baseline = script.call("run", &[], CallOptions::default()).unwrap();
+        let json = vibescript::stringify_json(&baseline.value, CallOptions::default()).unwrap();
+        assert_eq!(
+            json.value.as_bytes().unwrap(),
+            expected.as_bytes(),
+            "{source}"
+        );
+        for limit in 0..=baseline.stats.steps {
+            let result = script.call(
+                "run",
+                &[],
+                CallOptions {
+                    limits: Limits {
+                        steps: Some(limit),
+                        ..Limits::default()
+                    },
+                    ..CallOptions::default()
+                },
+            );
+            if limit < baseline.stats.steps {
+                let error = result.unwrap_err();
+                assert_eq!(error.kind, ErrorKind::Steps, "{source}: {limit}");
+            } else {
+                let result = result.unwrap();
+                assert_eq!(result.stats.steps, baseline.stats.steps, "{source}");
+                assert_eq!(
+                    result.stats.peak_memory_bytes, baseline.stats.peak_memory_bytes,
+                    "{source}"
+                );
+            }
+        }
+    }
+}

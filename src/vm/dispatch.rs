@@ -23,31 +23,40 @@ pub(super) fn member(
 ) -> Result<()> {
     if !call.mutating
         && !call.site.scope
-        && call.args.block.is_some()
-        && let Some(iteration) = members::direct::start_block(
+        && let Some(block) = call.args.block
+        && call.site.iteration.is_some()
+    {
+        let arity = frames
+            .at(block.parent())?
+            .program
+            .functions
+            .at(block.function())?
+            .block_arity;
+        if let Some(iteration) = members::direct::start_block(
             ctx,
             call.site.iteration,
             call.name,
             stack.top()?,
             &call.args.positional.data,
-            !call.args.keywords.buffer.data.is_empty(),
+            &call.args.keywords.buffer.data,
+            arity,
             Some(&mut storage.iteration_pool),
-        )?
-    {
-        stack.data.pop();
-        enter_iteration(
-            program,
-            ctx,
-            frames,
-            storage,
-            stack.data.len(),
-            call.args,
-            iteration,
-        )?;
-        let frame = frames.top_mut()?;
-        frame.plain_yields = call.plain_yields;
-        frame.plain_result = call.plain_result;
-        return Ok(());
+        )? {
+            stack.data.pop();
+            enter_iteration(
+                program,
+                ctx,
+                frames,
+                storage,
+                stack.data.len(),
+                call.args,
+                iteration,
+            )?;
+            let frame = frames.top_mut()?;
+            frame.plain_yields = call.plain_yields;
+            frame.plain_result = call.plain_result;
+            return Ok(());
+        }
     }
     let receiver = if call.mutating {
         &storage.addresses.top()?.value
@@ -254,8 +263,9 @@ fn invoke(
     let driver = if members::exported(ctx, site, name, receiver)? {
         None
     } else {
-        iteration::start_pooled(
+        iteration::start_method(
             ctx,
+            site.iteration,
             name,
             receiver,
             &args.positional.data,

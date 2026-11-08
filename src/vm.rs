@@ -633,7 +633,12 @@ impl Run {
             let (outer, rest) = frames.data.split_at_mut(current);
             let frame = rest.at_mut(0)?;
             let function = program.functions.at(frame.required_function()?)?;
-            simple::run(ctx, program, function, outer, frame, storage, stack)?;
+            if let Err(error) = simple::run(ctx, program, function, outer, frame, storage, stack) {
+                if frames.at(current)?.function().is_none() {
+                    unwind(frames, storage, stack, current)?;
+                }
+                return Err(error);
+            }
             let op = *function.code.at(frame.ip)?;
             let frame = frames.at_mut(current)?;
             frame.ip += 1;
@@ -3365,7 +3370,7 @@ impl Run {
                     // A member that can iterate took its arguments through a
                     // list, whose checks the direct call makes too unless
                     // the checker proved them plain.
-                    let listed = iteration::method(name);
+                    let listed = site.iteration.is_some();
                     if listed && !function.plain_inputs.contains(ip) {
                         for arg in stack.tail(base + 1)? {
                             crate::exports::check(ctx, arg)?;

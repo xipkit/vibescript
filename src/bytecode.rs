@@ -3119,7 +3119,10 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     Op::JumpNil(0)
                 })
             });
-            let site = c.call_site(name, form == CallForm::Auto)?;
+            let mut site = c.call_site(name, form == CallForm::Auto)?;
+            if block.is_some() && name == "chunk" {
+                site.iteration = Some(crate::iteration::MethodKind::Chunk);
+            }
             let listed = expanded(args, c.work)?;
             let direct = direct.filter(|&base| {
                 !mutating
@@ -3183,7 +3186,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
         }
         if expanded(args, self.c().work)?
             || block.is_some()
-            || crate::iteration::method(name)
+            || site.iteration.is_some()
             || name == "is_type?"
             || name == "as"
         {
