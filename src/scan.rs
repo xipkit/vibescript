@@ -438,27 +438,6 @@ fn unicode_blocks(s: &[u8]) -> (usize, usize) {
     }
 }
 
-pub(crate) fn ascii_case(s: &mut [u8], upper: bool) {
-    #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
-    let tail = {
-        let (mut rest, tail) = s.split_at_mut(s.len() / 16 * 16);
-        while let Some((chunk, tail)) = rest.split_first_chunk_mut::<16>() {
-            vector_case(chunk, upper);
-            rest = tail;
-        }
-        tail
-    };
-    #[cfg(not(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64"))))]
-    let tail = s;
-    for b in tail {
-        *b = if upper {
-            b.to_ascii_uppercase()
-        } else {
-            b.to_ascii_lowercase()
-        };
-    }
-}
-
 #[cfg(all(feature = "simd", target_arch = "aarch64"))]
 fn vector_ascii64(s: &[u8; 64]) -> bool {
     use std::arch::aarch64::*;
@@ -656,40 +635,6 @@ fn vector_unicode(s: &[u8]) -> (usize, usize) {
             lead,
         ))));
         (start + (63 - bits.leading_zeros() as usize) / 4, leads - 1)
-    }
-}
-
-#[cfg(all(feature = "simd", target_arch = "aarch64"))]
-fn vector_case(s: &mut [u8; 16], upper: bool) {
-    use std::arch::aarch64::*;
-    // SAFETY: the load and store touch exactly the sixteen bytes of `s`, which
-    // the exclusive borrow owns; NEON is baseline.
-    unsafe {
-        let v = vld1q_u8(s.as_ptr());
-        let lo = if upper { b'a' } else { b'A' };
-        let hi = lo + 25;
-        let mask = vandq_u8(vcgeq_u8(v, vdupq_n_u8(lo)), vcleq_u8(v, vdupq_n_u8(hi)));
-        let flipped = veorq_u8(v, vandq_u8(mask, vdupq_n_u8(32)));
-        vst1q_u8(s.as_mut_ptr(), flipped);
-    }
-}
-
-#[cfg(all(feature = "simd", target_arch = "x86_64"))]
-fn vector_case(s: &mut [u8; 16], upper: bool) {
-    use std::arch::x86_64::*;
-    // SAFETY: the load and store touch exactly the sixteen bytes of `s`, which
-    // the exclusive borrow owns; SSE2 is baseline.
-    unsafe {
-        let v = _mm_loadu_si128(s.as_ptr().cast());
-        let lo = if upper { b'a' } else { b'A' };
-        let mask = _mm_and_si128(
-            _mm_cmpgt_epi8(v, _mm_set1_epi8(i8::from_ne_bytes([lo - 1]))),
-            _mm_cmplt_epi8(v, _mm_set1_epi8(i8::from_ne_bytes([lo + 26]))),
-        );
-        _mm_storeu_si128(
-            s.as_mut_ptr().cast(),
-            _mm_xor_si128(v, _mm_and_si128(mask, _mm_set1_epi8(32))),
-        );
     }
 }
 
@@ -1169,31 +1114,6 @@ mod tests {
                             }
                         }
                     }
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn case_matches_scalar_including_unaligned_slices() {
-        for upper in [false, true] {
-            for offset in 0..16 {
-                for len in 0..80 {
-                    let mut data: Vec<u8> = (0usize..offset + len)
-                        .map(|i| (i * 31).to_le_bytes()[0])
-                        .collect();
-                    let expected: Vec<_> = data[offset..]
-                        .iter()
-                        .map(|b| {
-                            if upper {
-                                b.to_ascii_uppercase()
-                            } else {
-                                b.to_ascii_lowercase()
-                            }
-                        })
-                        .collect();
-                    ascii_case(&mut data[offset..], upper);
-                    assert_eq!(&data[offset..], expected);
                 }
             }
         }

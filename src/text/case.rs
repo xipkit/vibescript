@@ -30,25 +30,47 @@ impl Transform {
         }
     }
 
-    fn ascii(self, bytes: &mut [u8], first: bool) {
+    fn changes_ascii(self, mut bytes: &[u8], first: bool) -> bool {
+        if matches!(self, Self::Capitalize) && first {
+            if let Some((&head, tail)) = bytes.split_first() {
+                if head.is_ascii_lowercase() {
+                    return true;
+                }
+                bytes = tail;
+            }
+        }
+        // A reduction, rather than a byte-at-a-time early exit, lets LLVM
+        // vectorize long unchanged runs as well as the copying pass.
         match self {
-            Self::Upper => scan::ascii_case(bytes, true),
-            Self::Lower | Self::Fold => scan::ascii_case(bytes, false),
-            Self::Capitalize => {
-                scan::ascii_case(bytes, false);
-                if first {
-                    if let Some(byte) = bytes.first_mut() {
-                        *byte = byte.to_ascii_uppercase();
-                    }
-                }
+            Self::Upper => bytes
+                .iter()
+                .fold(false, |changed, b| changed | b.is_ascii_lowercase()),
+            Self::Lower | Self::Fold | Self::Capitalize => bytes
+                .iter()
+                .fold(false, |changed, b| changed | b.is_ascii_uppercase()),
+            Self::Swap => bytes
+                .iter()
+                .fold(false, |changed, b| changed | b.is_ascii_alphabetic()),
+        }
+    }
+
+    fn append_ascii(self, mut bytes: &[u8], first: bool, output: &mut Vec<u8>) {
+        if matches!(self, Self::Capitalize) && first {
+            if let Some((&head, tail)) = bytes.split_first() {
+                output.push(head.to_ascii_uppercase());
+                bytes = tail;
             }
-            Self::Swap => {
-                for byte in bytes {
-                    if byte.is_ascii_alphabetic() {
-                        *byte ^= 32;
-                    }
-                }
+        }
+        match self {
+            Self::Upper => output.extend(bytes.iter().map(u8::to_ascii_uppercase)),
+            Self::Lower | Self::Fold | Self::Capitalize => {
+                output.extend(bytes.iter().map(u8::to_ascii_lowercase));
             }
+            Self::Swap => output.extend(
+                bytes
+                    .iter()
+                    .map(|&b| if b.is_ascii_alphabetic() { b ^ 32 } else { b }),
+            ),
         }
     }
 }
@@ -58,16 +80,62 @@ pub(crate) fn fold(rune: char) -> u32 {
     entry(rune).map_or(rune as u32, |(_, fold)| fold)
 }
 
+// One-based mapping indices for ASCII, Latin-1 and Latin Extended-A. Build
+// this from the canonical table so Unicode updates cannot leave it stale.
+static LATIN: [u16; 0x180] = {
+    let mut table = [0; 0x180];
+    let mut slots: &mut [u16] = &mut table;
+    let mut mappings = data::MAPPINGS;
+    let mut point = 0;
+    let mut index = 1;
+    while let Some((slot, tail)) = slots.split_first_mut() {
+        if let Some((entry, rest)) = mappings.split_first() {
+            if entry.0 == point {
+                *slot = index;
+                index += 1;
+                mappings = rest;
+            }
+        }
+        point += 1;
+        slots = tail;
+    }
+    table
+};
+
 fn entry(rune: char) -> Option<(&'static [u32; 5], u32)> {
     let point = rune as u32;
-    let index = data::MAPPINGS.partition_point(|&(r, _, _)| r < point);
+    let index = if let Some(&index) = LATIN.get(point as usize) {
+        usize::from(index).checked_sub(1)?
+    } else {
+        data::MAPPINGS.partition_point(|&(r, _, _)| r < point)
+    };
     data::MAPPINGS
         .get(index)
         .filter(|&&(r, _, _)| r == point)
         .map(|(_, maps, fold)| (maps, *fold))
 }
 
-/// Maps `bytes` a run at a time, hands each mapped piece to `emit` and
+#[derive(Clone, Copy)]
+struct Piece<'a> {
+    bytes: &'a [u8],
+    ascii: Option<(Transform, bool)>,
+}
+
+impl Piece<'_> {
+    fn len(self) -> usize {
+        self.bytes.len()
+    }
+
+    fn append(self, output: &mut Vec<u8>) {
+        if let Some((transform, first)) = self.ascii {
+            transform.append_ascii(self.bytes, first, output);
+        } else {
+            output.extend_from_slice(self.bytes);
+        }
+    }
+}
+
+/// Maps `bytes` a run at a time, hands each piece to `emit` and
 /// reports whether any piece changed.
 ///
 /// `emit` returns the steps its own work costs. They are summed with the
@@ -82,17 +150,16 @@ fn walk(
     bytes: &[u8],
     transform: Transform,
     ascii: bool,
-    mut emit: impl FnMut(&mut CallContext, &[u8]) -> Result<u64>,
+    mut emit: impl FnMut(&mut CallContext, Piece<'_>) -> Result<u64>,
 ) -> Result<bool> {
     let mut changed = false;
     let mut position = 0;
-    let mut scratch = [0; 4096];
     // Settled after every chunk or two of input, so the sum cannot wrap.
     let mut pending = 0u64;
     while position < bytes.len() {
         let settle = bytes.len().min(position + CHUNK);
         while position < settle {
-            let end = position + (bytes.len() - position).min(scratch.len());
+            let end = position + (bytes.len() - position).min(4096);
             let chunk = bytes.span(position, end)?;
             let length = if ascii {
                 chunk.len()
@@ -102,11 +169,14 @@ fn walk(
             if length > 0 {
                 pending = pending.wrapping_add((length as u64).div_ceil(64));
                 let original = chunk.span(0, length)?;
-                let mapped = scratch.span_mut(0, length)?;
-                mapped.copy_from_slice(original);
-                transform.ascii(mapped, position == 0);
-                changed |= mapped != original;
-                pending = pending.wrapping_add(emit(ctx, mapped)?);
+                changed = changed || transform.changes_ascii(original, position == 0);
+                pending = pending.wrapping_add(emit(
+                    ctx,
+                    Piece {
+                        bytes: original,
+                        ascii: Some((transform, position == 0)),
+                    },
+                )?);
                 position += length;
                 continue;
             }
@@ -123,8 +193,15 @@ fn walk(
                 let start = (encoded >> 4) as usize;
                 data::BYTES.span(start, start + (encoded & 15) as usize)?
             };
-            changed |= mapped != original;
-            pending = pending.wrapping_add(emit(ctx, mapped)?);
+            // The generator encodes unchanged mappings as zero.
+            changed |= encoded != 0;
+            pending = pending.wrapping_add(emit(
+                ctx,
+                Piece {
+                    bytes: mapped,
+                    ascii: None,
+                },
+            )?);
             position += length;
         }
         ctx.charge_each(std::mem::take(&mut pending))?;
@@ -155,7 +232,7 @@ fn transform(
     }
     let mut output = Buffer::with_capacity(ctx, size)?;
     walk(ctx, bytes, transform, ascii, |_, mapped| {
-        output.data.extend_from_slice(mapped);
+        mapped.append(&mut output.data);
         Ok((mapped.len() as u64).div_ceil(64))
     })?;
     Value::from_bytes(ctx, output)
@@ -278,6 +355,160 @@ pub(crate) fn call(
 mod tests {
     use super::*;
     use crate::{CallOptions, Limits};
+
+    fn reference(bytes: &[u8], operation: Transform, ascii: bool) -> Vec<u8> {
+        let mut output = Vec::new();
+        let mut position = 0;
+        let text = std::str::from_utf8(bytes).ok();
+        let ascii = ascii || text.is_none();
+        while position < bytes.len() {
+            let (point, width) = if ascii {
+                (u32::from(bytes[position]), 1)
+            } else {
+                let rune = text
+                    .unwrap()
+                    .get(position..)
+                    .unwrap()
+                    .chars()
+                    .next()
+                    .unwrap();
+                (u32::from(rune), rune.len_utf8())
+            };
+            let encoded = if ascii && point >= 128 {
+                0
+            } else {
+                data::MAPPINGS
+                    .binary_search_by_key(&point, |entry| entry.0)
+                    .map(|index| data::MAPPINGS[index].1[operation.index(position == 0)])
+                    .unwrap_or(0)
+            };
+            if encoded == 0 {
+                output.extend_from_slice(&bytes[position..position + width]);
+            } else {
+                let start = (encoded >> 4) as usize;
+                output.extend_from_slice(&data::BYTES[start..start + (encoded & 15) as usize]);
+            }
+            position += width;
+        }
+        output
+    }
+
+    #[test]
+    fn direct_lookup_matches_the_canonical_table_for_every_scalar() {
+        for rune in (0..=0x10ffff).filter_map(char::from_u32) {
+            let expected = data::MAPPINGS
+                .binary_search_by_key(&u32::from(rune), |entry| entry.0)
+                .ok()
+                .map(|index| (&data::MAPPINGS[index].1, data::MAPPINGS[index].2));
+            assert_eq!(entry(rune), expected, "{rune:?}");
+        }
+    }
+
+    #[test]
+    fn nonzero_mappings_always_change_the_character() {
+        for &(point, maps, _) in data::MAPPINGS {
+            let original = char::from_u32(point).unwrap().to_string();
+            for encoded in maps.into_iter().filter(|&encoded| encoded != 0) {
+                let start = (encoded >> 4) as usize;
+                let mapped = &data::BYTES[start..start + (encoded & 15) as usize];
+                assert_ne!(mapped, original.as_bytes());
+            }
+        }
+    }
+
+    #[test]
+    fn direct_ascii_mapping_matches_scalar_at_every_lane_and_alignment() {
+        let bytes: Vec<_> = (0usize..8192).map(|i| (i * 31).to_le_bytes()[0]).collect();
+        for operation in [
+            Transform::Upper,
+            Transform::Lower,
+            Transform::Capitalize,
+            Transform::Swap,
+            Transform::Fold,
+        ] {
+            for offset in 0..32 {
+                for len in [0, 1, 7, 15, 16, 17, 31, 32, 33, 64, 127, 256, 4095, 4096] {
+                    let input = &bytes[offset..offset + len];
+                    for first in [false, true] {
+                        let mut expected = reference(input, operation, true);
+                        if !first && matches!(operation, Transform::Capitalize) {
+                            expected = reference(input, Transform::Lower, true);
+                        }
+                        let mut output = vec![42; offset];
+                        operation.append_ascii(input, first, &mut output);
+                        assert_eq!(&output[..offset], &vec![42; offset]);
+                        assert_eq!(&output[offset..], expected);
+                        assert_eq!(operation.changes_ascii(input, first), input != expected);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn every_mapping_and_mode_matches_scalar_across_run_boundaries() {
+        let alphabet: String = (0..0x180)
+            .chain(data::MAPPINGS.iter().map(|entry| entry.0))
+            .filter_map(char::from_u32)
+            .collect();
+        let mut sources = vec![alphabet.into_bytes(), Vec::new()];
+        for length in [1, 15, 16, 63, 64, 65, 4095, 4096, 4097] {
+            sources
+                .push(format!("{}ßİΐǅ界🦀{}", "a".repeat(length), "Z".repeat(length)).into_bytes());
+            sources.push(format!("ß{}İΐ", "Az".repeat(length)).into_bytes());
+        }
+        sources.push((0..=255).collect());
+        sources.push(["é".repeat(4096).as_bytes(), b"A\xffz"].concat());
+        for bytes in sources {
+            for operation in [
+                Transform::Upper,
+                Transform::Lower,
+                Transform::Capitalize,
+                Transform::Swap,
+                Transform::Fold,
+            ] {
+                for ascii in [false, true] {
+                    let expected = reference(&bytes, operation, ascii);
+                    for bang in [false, true] {
+                        let mut ctx = CallContext::new(CallOptions::default());
+                        let input = ctx.bytes(&bytes).unwrap();
+                        let result =
+                            transform(&mut ctx, &input, &bytes, operation, ascii, bang).unwrap();
+                        if bang && expected == bytes {
+                            assert!(matches!(result.0, Kind::Nil));
+                        } else {
+                            assert_eq!(result.as_bytes().unwrap(), expected);
+                        }
+                        assert_eq!(input.as_bytes().unwrap(), bytes);
+                        drop(result);
+                        drop(input);
+                        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn failure_during_direct_copy_releases_the_reserved_output() {
+        let bytes = "abcßΐXYZé".repeat(8192).into_bytes();
+        let mut sizing = CallContext::new(CallOptions::default());
+        sizing.charge(1).unwrap();
+        ops::runes(&mut sizing, &bytes).unwrap();
+        walk(&mut sizing, &bytes, Transform::Upper, false, |_, _| Ok(0)).unwrap();
+        let first_walk_steps = sizing.stats().steps;
+        for extra in [0, 1, 17, 100, 4096] {
+            let mut ctx = ops::testing::context(Some(first_walk_steps + extra), None);
+            let input = Value::bytes(bytes.as_slice());
+            let error = call(&mut ctx, "upcase", &input, &[]).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Steps);
+            assert!(
+                ctx.stats().peak_memory_bytes >= reference(&bytes, Transform::Upper, false).len()
+            );
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+            assert_eq!(ctx.charge(0).unwrap_err(), error);
+        }
+    }
 
     #[test]
     fn unchanged_results_reuse_storage_and_bang_results_keep_no_output() {
@@ -404,7 +635,7 @@ mod tests {
                 ctx.charge(1).unwrap();
                 let mut mapped = Vec::new();
                 let walked = walk(&mut ctx, &text, Transform::Swap, ascii, |_, piece| {
-                    mapped.extend_from_slice(piece);
+                    piece.append(&mut mapped);
                     Ok(3)
                 });
                 if short == 0 {
