@@ -98,3 +98,7 @@ Until September 2026 these benchmarks also built Go Vibescript v0.70.0, then the
 The [JSON SIMD report](json-simd.md) records the initial results. Its [follow-up](json-simd-followup.md) covers regression fixes, complete paired arm64/x86_64 measurements, accounting changes and CPU profiles.
 
 The [typed-VM rebase report](json-simd-rebase.md) compares the integrated JSON implementation with upstream `6bad12f`.
+
+The [mixed-text case-mapping report](case-mapping/README.md) measures Unicode
+casing and ASCII controls on SIMD and portable builds while preserving step and
+memory accounting.
