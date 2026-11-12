@@ -386,3 +386,57 @@ fn failed_or_panicked_preparation_releases_imported_cycles() {
         );
     }
 }
+
+#[test]
+fn host_block_boundaries_preserve_nested_pooled_and_complex_iterator_accounting_and_control() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    for (source, expected, pauses) in [
+        (
+            "def run -> array<int>;pause(){[3, 1, 2].sort_by { |n| [1, 2].map { |m| n * m }.sum }}.as(array<int>);end",
+            "[1, 2, 3]",
+            1,
+        ),
+        (
+            "def run -> string;pause(){\"a1b2\".gsub(/\\d/) { |d| (1..2).map { |k| \"#{d}#{k}\" }.join }}.as(string);end",
+            "a1112b2122",
+            1,
+        ),
+        (
+            "def run -> int;[1, 2, 3].map { |n| pause(n) { |x| i = x.as(int); [i, i + 1].select { |y| y.even? }.sum }.as(int) }.sum;end",
+            "8",
+            3,
+        ),
+        (
+            "def run -> int;pause(){[1, 2, 3].map { |n| if n == 2; break [99]; end; n }.sum}.as(int);end",
+            "99",
+            1,
+        ),
+        (
+            "def run -> int;begin;pause(){[1, 2].map { |n| if n == 2; raise 'boom'; end; n }};0;rescue;42;end;end",
+            "42",
+            1,
+        ),
+    ] {
+        calls.store(0, Ordering::Relaxed);
+        let compiled = script(source, &calls);
+        let direct = compiled.call("run", &[], CallOptions::default()).unwrap();
+        assert_eq!(direct.value.to_string(), expected, "{source}");
+        assert_eq!(calls.load(Ordering::Relaxed), pauses, "{source}");
+
+        calls.store(0, Ordering::Relaxed);
+        let (migrated_result, observed) = migrated(&compiled, CallOptions::default());
+        let migrated_result = migrated_result.unwrap();
+        assert_eq!(migrated_result.value.to_string(), expected, "{source}");
+        assert_eq!(observed, pauses, "{source}");
+        assert_eq!(calls.load(Ordering::Relaxed), pauses, "{source}");
+        assert_eq!(migrated_result.stats.steps, direct.stats.steps, "{source}");
+        assert_eq!(
+            migrated_result.stats.peak_memory_bytes, direct.stats.peak_memory_bytes,
+            "{source}"
+        );
+        assert_eq!(
+            migrated_result.stats.retained_memory_bytes, direct.stats.retained_memory_bytes,
+            "{source}"
+        );
+    }
+}

@@ -79,9 +79,20 @@ impl HostControl {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct BlockBoundary {
-    pub floor: usize,
+struct BlockBoundary {
+    floor: usize,
     handlers: usize,
+}
+
+pub(super) struct BlockScope {
+    boundary: BlockBoundary,
+    args: Buffer<Value>,
+}
+
+impl BlockScope {
+    pub fn floor(&self) -> usize {
+        self.boundary.floor
+    }
 }
 
 struct Borrowed<'a> {
@@ -188,19 +199,23 @@ impl Run {
         }))
     }
 
-    pub(super) fn block_boundary(&self) -> BlockBoundary {
-        BlockBoundary {
-            floor: self.frames.data.len(),
-            handlers: self.storage.handlers.data.len(),
+    pub(super) fn open_block(&self) -> BlockScope {
+        BlockScope {
+            boundary: BlockBoundary {
+                floor: self.frames.data.len(),
+                handlers: self.storage.handlers.data.len(),
+            },
+            args: Buffer::empty(),
         }
     }
 
     pub(super) fn start_block(
         &mut self,
         ctx: &mut CallContext,
+        scope: &mut BlockScope,
         block: Block,
         values: &[Value],
-    ) -> Result<Buffer<Value>> {
+    ) -> Result<()> {
         let mut args = Buffer::with_capacity(ctx, values.len())?;
         for value in values {
             let value = ctx.import(value)?;
@@ -224,26 +239,27 @@ impl Run {
         for value in &args.data {
             programs::imported(ctx, &mut self.storage, value)?;
         }
-        Ok(args)
+        scope.args = args;
+        Ok(())
     }
 
     fn block(&mut self, ctx: &mut CallContext, block: Block, values: &[Value]) -> Result<Exit> {
-        let boundary = self.block_boundary();
-        let mut started = Started::new(ctx, boundary);
-        let result = (|| {
-            let ctx = started.context();
-            let _args = self.start_block(ctx, block, values)?;
-            self.until(ctx, Some(boundary.floor))
-        })();
+        let mut started = Started::new(ctx, self.open_block());
+        let floor = started.floor();
+        let result = started
+            .start(self, block, values)
+            .and_then(|()| self.until(started.context(), Some(floor)));
         started.finish(self, result)
     }
 
     pub(super) fn finish_block(
         &mut self,
         ctx: &mut CallContext,
-        boundary: BlockBoundary,
+        scope: BlockScope,
         result: Result<Exit>,
     ) -> Result<Exit> {
+        let BlockScope { boundary, args } = scope;
+        drop(args);
         // Preparing the block can fail before the run loop sees the error, and
         // so can the steps below; either way the callback gets it latched.
         let result = ctx.latch_internal(result);
@@ -294,15 +310,15 @@ impl Run {
 /// earlier, such as an exhausted quota, keeps priority.
 pub(super) struct Started<'a> {
     context: &'a mut CallContext,
-    boundary: BlockBoundary,
+    scope: BlockScope,
     armed: bool,
 }
 
 impl<'a> Started<'a> {
-    pub fn new(context: &'a mut CallContext, boundary: BlockBoundary) -> Self {
+    pub fn new(context: &'a mut CallContext, scope: BlockScope) -> Self {
         Self {
             context,
-            boundary,
+            scope,
             armed: true,
         }
     }
@@ -311,19 +327,46 @@ impl<'a> Started<'a> {
         self.context
     }
 
+    pub fn floor(&self) -> usize {
+        self.scope.floor()
+    }
+
+    pub fn start(&mut self, run: &mut Run, block: Block, values: &[Value]) -> Result<()> {
+        run.start_block(self.context, &mut self.scope, block, values)
+    }
+
     /// Restores the run to the boundary and settles the block's result.
     pub fn finish(mut self, run: &mut Run, result: Result<Exit>) -> Result<Exit> {
-        let result = run.finish_block(self.context, self.boundary, result);
+        let scope = std::mem::replace(
+            &mut self.scope,
+            BlockScope {
+                boundary: BlockBoundary {
+                    floor: 0,
+                    handlers: 0,
+                },
+                args: Buffer::empty(),
+            },
+        );
+        let result = run.finish_block(self.context, scope, result);
         self.armed = false;
         result
     }
 
     /// Hands the unfinished block to an owner that latches the same way when
-    /// it is dropped early, returning the boundary it must finish at.
+    /// it is dropped early, returning the scope it must finish at.
     #[cfg(feature = "tokio")]
-    pub fn lend(mut self) -> BlockBoundary {
+    pub fn lend(mut self) -> BlockScope {
         self.armed = false;
-        self.boundary
+        std::mem::replace(
+            &mut self.scope,
+            BlockScope {
+                boundary: BlockBoundary {
+                    floor: 0,
+                    handlers: 0,
+                },
+                args: Buffer::empty(),
+            },
+        )
     }
 }
 
