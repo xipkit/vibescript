@@ -21,9 +21,13 @@ CPU, OS, compiler and source commits. A passing hosted validation job supplies
 no performance evidence and does not satisfy the full experiment's acceptance
 criteria.
 
-Both default SIMD and portable builds use the release profile. Each binary
-gets 32 placements, moving only `write_string` in four-byte increments through
+Both default SIMD and portable builds use the release profile. Each of the
+four builds gets two independent 32-placement sweeps: move `write_string`
+alone, then move `Output::put_run` alone, in four-byte increments through
 128 bytes. Every other original symbol must stay fixed within its cohort.
+There are 256 relinked executables. Matched comparisons use the moved
+function's actual address modulo 128, rather than assuming equal order-file
+pad indices imply equal phases. Every entry records both functions' addresses.
 All builds, relinks, output comparisons and instruction captures finish before
 timing begins. The payloads are the existing ASCII-line, Unicode and lone-escape
 4 KiB cases, each with 6,000 timed calls. Each of two independent seeds runs
@@ -34,6 +38,13 @@ when its sampled one-minute load reaches 6 and retains rejected samples.
 The artifacts include full-output/accounting validation for every binary,
 three differential retired-instruction samples for every case and placement,
 complete timing samples, median/range summaries and per-build disassembly.
+The `*-phases.json` summaries retain every phase's mean and its paired change
+against the baseline, plus the descriptive first-harmonic amplitude. Both axes
+and both seeds must be reported separately alongside the same-binary control;
+a smaller writer band with a comparable new helper band is transferred
+sensitivity. Independent sweeps do not establish robustness across arbitrary
+joint writer/helper layouts. A repeatable helper effect requires an additional
+crossed control before making a broader claim.
 The instruction sampler uses 3,000 and 9,000 calls, both beyond the harness's
 32-call warmup. Audit neighbouring loops in the saved assembly before accepting
 a candidate; successful correctness tests alone do not establish an improvement.
@@ -48,6 +59,8 @@ deferred step count stay local until the block is appended. Long ordinary runs
 keep the outer writer's scan/copy path, and the existing one-byte fast path
 remains in the buffer. A span that does not fit, or continues into Unicode,
 stays whole for its scanner so its append charge is preserved.
+The probe looks at only the available buffer room plus one byte; it does not
+rescan an entire long span merely to discover that it cannot fit.
 
 This is a source-level intervention in the span/escape loop. It does not
 identify a branch-predictor mechanism. The earlier scalar-buffer prototype was

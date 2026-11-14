@@ -51,6 +51,8 @@ jobs:
           cache-key: json-placement
       - name: Test the instruction sampler
         run: python3 -m unittest discover -s benchmarks/mixed-text-placement -p test_count.py
+      - name: Test phase matching
+        run: python3 -m unittest discover -s benchmarks/json-lone-escapes -p test_phases.py
       - name: Validate the complete placement cohorts
         run: bash benchmarks/json-lone-escapes/run.sh --prepare-only .cache/placement-base . "$RUNNER_TEMP/json-placement"
       - name: Preserve measurements and assembly
@@ -66,8 +68,8 @@ jobs:
             ${{ runner.temp }}/json-placement/*summary.txt
             ${{ runner.temp }}/json-placement/*/assembly.txt
             ${{ runner.temp }}/json-placement/*/build.log
-            ${{ runner.temp }}/json-placement/*/placements/variants.json
-            ${{ runner.temp }}/json-placement/*/placements/symbols.json
-            ${{ runner.temp }}/json-placement/*/placements/*/link.log
+            ${{ runner.temp }}/json-placement/*/*-placements/variants.json
+            ${{ runner.temp }}/json-placement/*/*-placements/symbols.json
+            ${{ runner.temp }}/json-placement/*/*-placements/*/link.log
           if-no-files-found: error
           retention-days: 30

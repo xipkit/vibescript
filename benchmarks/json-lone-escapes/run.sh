@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build both sources before measuring isolated write_string placements on ARM64 macOS.
+# Build both sources before measuring independent writer/helper placements on ARM64 macOS.
 set -euo pipefail
 prepare_only=false
 if [[ ${1:-} == --prepare-only ]]; then
@@ -26,6 +26,7 @@ fi
   sw_vers
   sysctl machdep.cpu.brand_string hw.ncpu hw.memsize
   rustc --version --verbose
+  python3 --version
   cc --version
   git -C "$base_tree" rev-parse HEAD
   git -C "$head_tree" rev-parse HEAD
@@ -88,27 +89,15 @@ for mode in simd portable; do
           -C "linker=$tools/capture_link.py"
     ) > "$directory/build.log" 2>&1
     cp "$directory/target/release/examples/compare" "$directory/compare"
-    python3 "$isolation" "$directory/link/link.json" "$directory/compare" \
-      "$directory/placements" string
+    for target in string run; do
+      python3 "$isolation" "$directory/link/link.json" "$directory/compare" \
+        "$directory/$target-placements" "$target"
+    done
     otool -tvV "$directory/compare" > "$directory/assembly.txt"
   done
 done
 
-python3 - "$build" <<'PY'
-import json
-import pathlib
-import sys
-
-build = pathlib.Path(sys.argv[1])
-groups = {f'{mode}-{label}': json.loads((build / f'{mode}-{label}/placements/variants.json').read_text())
-          for mode in ['simd', 'portable'] for label in ['base', 'head']}
-(build / 'groups.json').write_text(json.dumps(groups, indent=2) + '\n')
-for mode in ['simd', 'portable']:
-    # The shared summary expects local/ keys. Only the writer moves here.
-    for label in ['base', 'head']:
-        variants = {'local/' + phase: entry for phase, entry in groups[f'{mode}-{label}'].items()}
-        (build / f'{mode}-{label}.json').write_text(json.dumps(variants, indent=2) + '\n')
-PY
+python3 "$head_tree/benchmarks/json-lone-escapes/phases.py" "$build"
 
 python3 "$head_tree/benchmarks/escape-layout/validate.py" \
   "$build/validation-cases.json" "$build/groups.json" "$build/validation.json"
@@ -116,23 +105,39 @@ if $prepare_only; then
   cat "$build/scope.txt"
   exit 0
 fi
-for mode in simd portable; do
-  binaries=()
-  for label in base head; do
-    for ((index = 0; index < 32; index++)); do
-      printf -v phase '%02d' "$index"
-      binaries+=("$label-$phase=$build/$mode-$label/placements/$phase/compare")
-    done
+for target in string run; do
+  for mode in simd portable; do
+    python3 - "$build" "$tools" "$mode" "$target" <<'PY'
+import json
+import pathlib
+import sys
+
+build, tools = map(pathlib.Path, sys.argv[1:3])
+mode, target = sys.argv[3:]
+sys.path.insert(0, str(tools))
+from count import count
+
+binaries = {}
+for label in ['base', 'head']:
+    variants = json.loads((build / f'{mode}-{label}-{target}.json').read_text())
+    binaries.update({label + '-' + key.removeprefix('local/'): entry['path']
+                     for key, entry in variants.items()})
+count(build / 'cases.json', binaries, build / f'{mode}-{target}-counts.json', runs=3, calls=3000)
+PY
   done
-  python3 "$tools/count.py" "$build/cases.json" "$build/$mode-counts.json" "${binaries[@]}" --calls 3000
 done
 
 # No compilation, linking or instruction sampling overlaps timed rounds.
 for seed in 187 188; do
-  for mode in simd portable; do
-    python3 "$tools/measure.py" "$build/cases.json" "$build/$mode-$seed.json" \
-      "base=$build/$mode-base.json" "head=$build/$mode-head.json" --rounds 15 --seed "$seed"
-    python3 "$tools/summarize.py" "$build/$mode-$seed.json" > "$build/$mode-$seed-summary.txt"
-    cat "$build/$mode-$seed-summary.txt"
+  for target in string run; do
+    for mode in simd portable; do
+      name="$mode-$target-$seed"
+      python3 "$tools/measure.py" "$build/cases.json" "$build/$name.json" \
+        "base=$build/$mode-base-$target.json" "head=$build/$mode-head-$target.json" --rounds 15 --seed "$seed"
+      python3 "$tools/summarize.py" "$build/$name.json" > "$build/$name-summary.txt"
+      python3 "$head_tree/benchmarks/escape-layout/summarize.py" "$build/$name.json" \
+        > "$build/$name-phases.json"
+      cat "$build/$name-summary.txt"
+    done
   done
 done
