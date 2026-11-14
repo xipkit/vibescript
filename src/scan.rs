@@ -374,7 +374,21 @@ pub(crate) fn unicode_span(s: &[u8]) -> TextSpan {
     const HIGH: u128 = 0x8080_8080_8080_8080_8080_8080_8080_8080;
     let (start, mut runes) = match s.first_chunk::<16>() {
         Some(head) if u128::from_le_bytes(*head) & HIGH == HIGH => unicode_blocks(s),
-        _ => (0, 0),
+        _ => match s.first_chunk::<2>() {
+            Some(&[lead, second]) if lead.wrapping_sub(0xc2) < 30 && second & 0xc0 == 0x80 => {
+                // A lone two-byte character needs no span recognizer. Keep
+                // wider characters and whole blocks on their existing paths.
+                if s.get(2).is_none_or(|&byte| byte < 128) {
+                    return TextSpan {
+                        len: 2,
+                        runes: 1,
+                        steps: 1,
+                    };
+                }
+                (2, 1)
+            }
+            _ => (0, 0),
+        },
     };
     let Some(mut rest) = s.get(start..) else {
         return TextSpan::default();
@@ -734,9 +748,11 @@ fn utf8_step(state: u64, byte: u8) -> u64 {
     UTF8_STEP.get(usize::from(byte)).copied().unwrap_or(0) >> (state & 63)
 }
 
+/// Returns a character's width and UTF-8 validity without constructing its code
+/// point. Invalid nonempty input consumes one byte; empty input consumes zero.
 // Keep validation out of rune-at-a-time callers that carry their own scan state.
 #[inline(never)]
-fn rune_width(s: &[u8]) -> (usize, bool) {
+pub(crate) fn rune_width(s: &[u8]) -> (usize, bool) {
     sequence(s)
 }
 
@@ -854,7 +870,14 @@ mod tests {
         }
         for a in 0..=255 {
             for b in 0..=255 {
-                for tail in [[0, 0], [0x80, 0x80], [0xbf, 0xbf], [0xff, 0xff]] {
+                for tail in [
+                    [0, 0],
+                    [0x80, 0x80],
+                    [0xbf, 0xbf],
+                    [0xff, 0xff],
+                    [0x80, 0xff],
+                    [0xff, 0x80],
+                ] {
                     let bytes = [a, b, tail[0], tail[1]];
                     for len in 1..=bytes.len() {
                         assert_eq!(
