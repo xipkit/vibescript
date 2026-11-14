@@ -7,6 +7,16 @@ import re
 import subprocess
 import tempfile
 
+# `compare` warms up with min(iterations, 32) untimed calls. Both samples must
+# run at least this many calls, or the 3N process gets more warmup calls than
+# the N process and the difference overstates the per-call count.
+WARMUP = 32
+
+
+def sample_size(iterations):
+    """Return N for a case; the counts come from N and 3N calls."""
+    return min(500, max(WARMUP, iterations // 4))
+
 
 def count(fixtures, binaries, output, runs):
     cases = json.loads(fixtures.read_text())
@@ -14,7 +24,7 @@ def count(fixtures, binaries, output, runs):
     with tempfile.TemporaryDirectory(dir=output.parent, prefix='counts-') as temporary:
         fixture = pathlib.Path(temporary) / 'case.json'
         for case in cases:
-            n = min(500, max(20, case['iterations'] // 4))
+            n = sample_size(case['iterations'])
             for label, binary in binaries.items():
                 for repeat in range(runs):
                     counts = {}

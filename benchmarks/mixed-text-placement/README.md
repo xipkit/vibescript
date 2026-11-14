@@ -113,8 +113,11 @@ ratios. Do not choose one best address or mix local and front samples.
 
 `count.py FIXTURES OUTPUT LABEL=EXECUTABLE...` estimates retired instructions
 per call using `/usr/bin/time -l` at N and 3N calls, alternating order across
-three repetitions. The difference cancels fixed process/setup work; it is an
-estimate, not a hardware branch-miss or stall counter.
+three repetitions. N is a quarter of the case's iterations, kept between 32
+and 500. The 32-call floor matches `compare`'s warmup, so both processes run
+the same warmup calls and the difference cancels them with the fixed
+process/setup work. It is an estimate, not a hardware branch-miss or stall
+counter. `test_count.py` checks this with a stand-in for `/usr/bin/time`.
 
 For portable comparisons build `compare` with `--no-default-features`. For
 WASI build `tests/platforms/wasi/Cargo.toml`'s `vibescript-wasi-compare` for
