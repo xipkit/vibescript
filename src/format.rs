@@ -1,3 +1,4 @@
+use crate::checked::Checked;
 use crate::{CallContext, Error, ErrorKind, Result, Value, budget::Buffer, value::Kind};
 
 mod prepare;
@@ -20,12 +21,12 @@ pub(crate) fn validate(
         Some("does not take keyword arguments")
     } else if block {
         Some("does not accept blocks")
-    } else if args.is_empty() {
-        Some("expects a format string")
-    } else if !matches!(args[0].0, Kind::Bytes(_)) {
-        Some("expects a string format")
     } else {
-        None
+        match args.first().map(|first| &first.0) {
+            None => Some("expects a format string"),
+            Some(Kind::Bytes(_)) => None,
+            Some(_) => Some("expects a string format"),
+        }
     };
     if let Some(message) = message {
         return Err(error(ctx, format_args!("format {message}"))?);
@@ -119,13 +120,13 @@ fn string_like(value: &Value) -> bool {
 }
 
 fn precision_bytes(ctx: &mut CallContext, bytes: &[u8], count: usize) -> Result<usize> {
-    let mut offset = 0;
+    let mut rest = bytes;
     for _ in 0..count {
-        if offset == bytes.len() {
+        if rest.is_empty() {
             break;
         }
         ctx.charge(1)?;
-        offset += crate::scan::rune(&bytes[offset..]).1;
+        rest = rest.tail(crate::scan::rune(rest).1)?;
     }
-    Ok(offset)
+    Ok(bytes.len() - rest.len())
 }
