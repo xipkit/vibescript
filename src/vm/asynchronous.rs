@@ -5,6 +5,7 @@ use super::{
 use crate::{CallOptions, CancellationToken, Outcome, Script, budget::Charge};
 use std::{
     future::Future,
+    panic::{AssertUnwindSafe, catch_unwind, resume_unwind},
     pin::Pin,
     sync::atomic::{AtomicBool, Ordering},
     task::{Context, Poll, Wake, Waker},
@@ -100,7 +101,9 @@ impl AsyncHostCall<'_> {
     /// Arguments are isolated and accounted before script execution. `break`
     /// and nonlocal `return` remain pending even if the host ignores the returned
     /// control-flow error. Cancellation, exhausted limits and internal errors
-    /// cannot be swallowed.
+    /// cannot be swallowed. A nested panic is rethrown after retiring the block
+    /// and restoring the context. Catching it leaves the invocation terminal;
+    /// an earlier quota or cancellation failure keeps priority.
     pub async fn call_block(&mut self, args: Vec<Value>) -> Result<Value> {
         let cancellation = self.backend.start_block(args)?;
         let mut guard = RetireOnDrop(Some(cancellation));
@@ -171,7 +174,9 @@ impl<'a, E: Holder + 'a, L: Lane<E>> Backend for Invocation<'a, E, L> {
         match L::boxed(self.driver.clone(), work) {
             Ok(future) => self.pending = Some(future),
             Err((work, error)) => {
-                let Completed { execution, result } = work.complete(Err(error));
+                let Completed {
+                    execution, result, ..
+                } = work.complete(Err(error));
                 self.execution = Some(execution);
                 return self
                     .control
@@ -183,38 +188,58 @@ impl<'a, E: Holder + 'a, L: Lane<E>> Backend for Invocation<'a, E, L> {
     }
 
     fn poll_block(&mut self, cx: &mut Context<'_>) -> Poll<Result<Value>> {
+        match std::task::ready!(self.poll_completion(cx)) {
+            HostResult::Returned(result) => Poll::Ready(result),
+            HostResult::Panicked(panic) => resume_unwind(panic),
+        }
+    }
+}
+
+impl<'a, E: Holder + 'a, L: Lane<E>> Invocation<'a, E, L> {
+    fn poll_completion(&mut self, cx: &mut Context<'_>) -> Poll<HostResult> {
         let Some(pending) = &mut self.pending else {
             let result = self.context().and_then(|context| {
                 context.latch_internal(Err(violation("block must have pending work").into()))
             });
-            return Poll::Ready(result);
+            return Poll::Ready(HostResult::Returned(result));
         };
         let Poll::Ready(result) = Pin::new(pending).poll(cx) else {
             return Poll::Pending;
         };
         self.pending = None;
         Poll::Ready(match result {
-            Ok(Completed { execution, result }) => {
+            Ok(Completed {
+                execution,
+                result,
+                panic,
+            }) => {
                 self.execution = Some(execution);
-                self.control.completed(result)
+                if let Some(panic) = panic {
+                    HostResult::Panicked(panic)
+                } else {
+                    HostResult::Returned(self.control.completed(result))
+                }
             }
             Err(error) => {
                 self.cancellation.cancel();
                 self.failure = Some(error.clone());
-                Err(L::error(error))
+                HostResult::Returned(Err(L::error(error)))
             }
         })
     }
-}
 
-impl<'a, E: Holder + 'a, L: Lane<E>> Invocation<'a, E, L> {
-    async fn recover(&mut self) -> std::result::Result<(), L::Lost> {
-        if self.pending.is_some() {
-            let _result = std::future::poll_fn(|cx| self.poll_block(cx)).await;
-        }
+    async fn recover(&mut self) -> std::result::Result<Option<Panic>, L::Lost> {
+        let panic = if self.pending.is_some() {
+            match std::future::poll_fn(|cx| self.poll_completion(cx)).await {
+                HostResult::Panicked(panic) => Some(panic),
+                HostResult::Returned(_) => None,
+            }
+        } else {
+            None
+        };
         match &self.failure {
             Some(error) => Err(error.clone()),
-            None => Ok(()),
+            None => Ok(panic),
         }
     }
 }
@@ -376,6 +401,23 @@ enum Next {
     Resume,
     StartBlock(Block, Vec<Value>),
     Host(HostRequest, HostControl, Result<Value>),
+    Unwind(Panic),
+}
+
+type Panic = Box<dyn std::any::Any + Send>;
+
+enum HostResult {
+    Returned(Result<Value>),
+    Panicked(Panic),
+}
+
+impl Next {
+    fn host(request: HostRequest, control: HostControl, result: HostResult) -> Self {
+        match result {
+            HostResult::Returned(result) => Self::Host(request, control, result),
+            HostResult::Panicked(panic) => Self::Unwind(panic),
+        }
+    }
 }
 
 struct Work<E: Holder = Owned> {
@@ -393,7 +435,13 @@ impl<E: Holder> Work<E> {
             next,
             charge,
         } = self;
-        drop(next);
+        let panic = match next {
+            Next::Unwind(panic) => Some(panic),
+            next => {
+                drop(next);
+                None
+            }
+        };
         drop(charge);
         let result = match scope {
             Scope::Call | Scope::PendingBlock => result,
@@ -411,7 +459,11 @@ impl<E: Holder> Work<E> {
         };
         let result = execution.owned().execution.context.latch_internal(result);
         execution.completed();
-        Completed { execution, result }
+        Completed {
+            execution,
+            result,
+            panic,
+        }
     }
 
     fn interrupted(mut self, error: Error) -> Completed<E> {
@@ -430,6 +482,8 @@ impl<E: Holder> Work<E> {
 struct Completed<E: Holder = Owned> {
     execution: E,
     result: Result<Exit>,
+    // Deliver the original panic only after the caller regains its execution.
+    panic: Option<Panic>,
 }
 
 // A completion can be much smaller than a host request; keep the request inline
@@ -470,8 +524,18 @@ impl Completion for Completed {
 }
 
 impl Completion for Result<Outcome> {
-    fn complete(Completed { execution, result }: Completed) -> Self {
-        execution.finish(result)
+    fn complete(
+        Completed {
+            execution,
+            result,
+            panic,
+        }: Completed,
+    ) -> Self {
+        let result = execution.finish(result);
+        if let Some(panic) = panic {
+            resume_unwind(panic);
+        }
+        result
     }
 
     async fn interrupted(driver: &Driver<Worker>, mut completed: Completed) -> Self {
@@ -597,32 +661,48 @@ where
 async fn invoke<'a, E: Holder + 'a, L: Lane<E>>(
     call: &mut Invocation<'a, E, L>,
     request: &HostRequest,
-) -> std::result::Result<Result<Value>, L::Lost> {
+) -> std::result::Result<HostResult, L::Lost> {
     let watch = match call.context() {
         Ok(context) => {
             if let Err(error) = context.checkpoint() {
-                return Ok(Err(error));
+                return Ok(HostResult::Returned(Err(error)));
             }
             Watch::new(context)
         }
-        Err(error) => return Ok(Err(error)),
+        Err(error) => return Ok(HostResult::Returned(Err(error))),
     };
     let result = {
         let mut handle = AsyncHostCall { backend: call };
-        let future = request.method.invoke_async(
-            &mut handle,
-            &request.args.positional.data,
-            &request.args.keywords.buffer.data,
-        );
+        // Catch construction and polling before unwinding can poison the driver.
+        // The block caller receives the panic only after its execution is restored.
+        let future = async {
+            request
+                .method
+                .invoke_async(
+                    &mut handle,
+                    &request.args.positional.data,
+                    &request.args.keywords.buffer.data,
+                )
+                .await
+        };
         tokio::pin!(future);
         tokio::select! {
             biased;
-            _ = watch.wait() => Err(retiring()),
-            result = &mut future => result,
+            _ = watch.wait() => HostResult::Returned(Err(retiring())),
+            result = std::future::poll_fn(|cx| {
+                match catch_unwind(AssertUnwindSafe(|| future.as_mut().poll(cx))) {
+                    Ok(Poll::Ready(result)) => Poll::Ready(HostResult::Returned(result)),
+                    Ok(Poll::Pending) => Poll::Pending,
+                    Err(panic) => Poll::Ready(HostResult::Panicked(panic)),
+                }
+            }) => result,
         }
     };
-    call.recover().await?;
-    Ok(result)
+    let recovered = call.recover().await?;
+    Ok(match (result, recovered) {
+        (HostResult::Returned(_), Some(panic)) => HostResult::Panicked(panic),
+        (result, _) => result,
+    })
 }
 
 impl Driver<Inline> {
@@ -658,7 +738,7 @@ impl Driver<Inline> {
         let result = invoke(&mut call, &request).await?;
         call.retirement.0 = None;
         drop(call);
-        next.next = Next::Host(request, control, result);
+        next.next = Next::host(request, control, result);
         Ok(next)
     }
 
@@ -712,7 +792,7 @@ impl Driver<Worker> {
             .ok_or(violation("recovered worker must have an execution"))?;
         call.retirement.0 = None;
         drop(call);
-        next.next = Next::Host(request, control, result);
+        next.next = Next::host(request, control, result);
         Ok(next)
     }
 
@@ -905,41 +985,63 @@ impl Synchronous<'_> {
         });
         // Inline bridges retain ownership, including on cancellation and quota failure.
         let Completed {
-            execution: _,
+            execution,
             result,
+            panic,
         } = self.driver.inline(work, parker);
+        drop(execution);
+        if let Some(panic) = panic {
+            resume_unwind(panic);
+        }
         self.control.completed(result)
     }
 }
 
 #[inline(never)]
 fn segment<E: Holder>(mut work: Box<Work<E>>) -> Progress<Completed<E>, E> {
+    // Keep ownership outside the unwind, including registered callbacks that run
+    // directly in the VM and block preparation before the first host boundary.
+    match catch_unwind(AssertUnwindSafe(|| segment_step(&mut work))) {
+        Ok(Ok(Segment::Host(request))) => Progress::Host(work, request),
+        Ok(Ok(Segment::Complete(exit))) => Progress::Complete(work.complete(Ok(exit))),
+        Ok(Err(error)) => Progress::Complete(work.interrupted(error)),
+        Err(panic) => {
+            work.next = Next::Unwind(panic);
+            Progress::Complete(work.interrupted(abandoned().into()))
+        }
+    }
+}
+
+enum Segment {
+    Host(HostRequest),
+    Complete(Exit),
+}
+
+fn segment_step<E: Holder>(work: &mut Work<E>) -> Result<Segment> {
     let mut pending = None;
     match std::mem::replace(&mut work.next, Next::Resume) {
         Next::Resume => (),
+        Next::Unwind(panic) => {
+            work.next = Next::Unwind(panic);
+            return Err(abandoned().into());
+        }
         Next::StartBlock(block, args) => {
             let execution = &mut *work.execution.owned().execution;
             let Some(run) = execution.run.as_mut() else {
-                return Progress::Complete(
-                    work.interrupted(violation("execution must have a run").into()),
-                );
+                return Err(violation("execution must have a run").into());
             };
             let boundary = run.block_boundary();
             work.scope = Scope::Block {
                 boundary,
                 args: Buffer::empty(),
             };
-            match run.start_block(&mut execution.context, block, &args) {
-                Ok(args) => work.scope = Scope::Block { boundary, args },
-                Err(error) => return Progress::Complete(work.complete(Err(error))),
-            }
+            let args = run.start_block(&mut execution.context, block, &args)?;
+            work.scope = Scope::Block { boundary, args };
         }
         Next::Host(request, control, result) => {
             let execution = &mut *work.execution.owned().execution;
             let Some(run) = execution.run.as_mut() else {
-                return Progress::Complete(
-                    work.interrupted(violation("execution must have a run").into()),
-                );
+                return Err(violation("execution must have a run").into());
             };
             pending = Some(run.finish_host(&mut execution.context, request, control, result));
         }
@@ -948,21 +1050,17 @@ fn segment<E: Holder>(mut work: Box<Work<E>>) -> Progress<Completed<E>, E> {
         let boundary = match work.scope {
             Scope::Call => None,
             Scope::PendingBlock => {
-                return Progress::Complete(work.complete(Err(crate::checked::internal(
-                    "pending block was not prepared",
-                ))));
+                return Err(crate::checked::internal("pending block was not prepared"));
             }
             Scope::Block { boundary, .. } => Some(boundary.floor),
         };
         let execution = &mut *work.execution.owned().execution;
         let Some(run) = execution.run.as_mut() else {
-            return Progress::Complete(
-                work.interrupted(violation("execution must have a run").into()),
-            );
+            return Err(violation("execution must have a run").into());
         };
         match run.resume(&mut execution.context, boundary, pending.take()) {
-            Ok(Step::Complete(exit)) => return Progress::Complete(work.complete(Ok(exit))),
-            Err(error) => return Progress::Complete(work.complete(Err(error))),
+            Ok(Step::Complete(exit)) => return Ok(Segment::Complete(exit)),
+            Err(error) => return Err(error),
             Ok(Step::Host) => (),
         }
         let request = match run.prepare_host(&mut execution.context) {
@@ -972,7 +1070,7 @@ fn segment<E: Holder>(mut work: Box<Work<E>>) -> Progress<Completed<E>, E> {
                 continue;
             }
         };
-        return Progress::Host(work, request);
+        return Ok(Segment::Host(request));
     }
 }
 
@@ -999,12 +1097,17 @@ fn synchronous<E: Holder>(
         control: HostControl::new(&request),
         driver,
     };
-    let result = request.method.invoke(
-        &mut crate::HostCall::new(&mut backend),
-        &request.args.positional.data,
-        &request.args.keywords.buffer.data,
-    );
-    work.next = Next::Host(request, backend.control, result);
+    let result = match catch_unwind(AssertUnwindSafe(|| {
+        request.method.invoke(
+            &mut crate::HostCall::new(&mut backend),
+            &request.args.positional.data,
+            &request.args.keywords.buffer.data,
+        )
+    })) {
+        Ok(result) => HostResult::Returned(result),
+        Err(panic) => HostResult::Panicked(panic),
+    };
+    work.next = Next::host(request, backend.control, result);
     work
 }
 
@@ -1357,6 +1460,318 @@ mod tests {
             assert!(inspected.load(Ordering::SeqCst), "{body}/{mode}");
             assert_eq!(finished.load(Ordering::SeqCst), 1, "{body}/{mode}");
             assert_eq!(slots.available_permits(), 1, "{body}/{mode}");
+        }
+    }
+
+    #[tokio::test]
+    #[cfg_attr(not(panic = "unwind"), ignore = "catching a panic requires unwinding")]
+    async fn worker_async_hosts_cannot_resume_blocks_after_catching_their_panics() {
+        caught_async_block_panics(false).await;
+    }
+
+    #[tokio::test]
+    #[cfg_attr(not(panic = "unwind"), ignore = "catching a panic requires unwinding")]
+    async fn inline_async_hosts_cannot_resume_blocks_after_catching_their_panics() {
+        caught_async_block_panics(true).await;
+    }
+
+    #[tokio::test]
+    #[cfg_attr(not(panic = "unwind"), ignore = "catching a panic requires unwinding")]
+    async fn recovery_collects_a_retiring_workers_panic_without_unwinding() {
+        let entered = Arc::new(Notify::new());
+        let ready = entered.clone();
+        let (release, released) = std::sync::mpsc::channel();
+        let released = crate::actor::Actor::new(released);
+        let mut engine = crate::Engine::new();
+        engine.register("leaf", move |_, _| {
+            ready.notify_one();
+            released
+                .with(|released| released.recv_timeout(Duration::from_secs(3)))
+                .unwrap();
+            panic!("retiring worker panic");
+        });
+        engine.register_method(
+            "inspect",
+            crate::HostMethod::new_async("inspect", |call, _, _| {
+                Box::pin(async move { call.call_block(vec![]).await })
+            }),
+        );
+        let script = engine
+            .compile("def run -> any; inspect { leaf() }; end")
+            .unwrap();
+        let Progress::Host(work, request) = segment(work(&script, Arc::new(|| {}))) else {
+            panic!("expected the async callback");
+        };
+        let slots = Arc::new(Semaphore::new(1));
+        let mut control = HostControl::new(&request);
+        let cancellation = work.execution.execution.context.cancellation().clone();
+        let mut call = Invocation {
+            retirement: RetireOnDrop(None),
+            execution: Some(work.execution),
+            control: &mut control,
+            driver: Driver {
+                slots: slots.clone(),
+                handle: Handle::current(),
+                _lane: Worker,
+            },
+            pending: None,
+            failure: None,
+            cancellation,
+        };
+        {
+            let mut handle = AsyncHostCall { backend: &mut call };
+            let future = handle.call_block(vec![]);
+            tokio::pin!(future);
+            std::future::poll_fn(|cx| {
+                assert!(future.as_mut().poll(cx).is_pending());
+                Poll::Ready(())
+            })
+            .await;
+            tokio::time::timeout(Duration::from_secs(3), entered.notified())
+                .await
+                .unwrap();
+        }
+        release.send(()).unwrap();
+        let panic = tokio::time::timeout(Duration::from_secs(3), call.recover())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(panic.downcast_ref::<&str>(), Some(&"retiring worker panic"));
+        assert_eq!(
+            call.context().unwrap().checkpoint().unwrap_err().kind,
+            ErrorKind::Cancelled
+        );
+        assert!(call.pending.is_none());
+        assert!(call.recover().await.unwrap().is_none());
+        assert_eq!(slots.available_permits(), 1);
+    }
+
+    async fn caught_async_block_panics(bridge: bool) {
+        use std::{
+            future::poll_fn,
+            panic::{AssertUnwindSafe, catch_unwind},
+            sync::atomic::AtomicUsize,
+        };
+
+        struct Dropped(Arc<AtomicUsize>);
+        impl Drop for Dropped {
+            fn drop(&mut self) {
+                self.0.fetch_add(1, Ordering::SeqCst);
+            }
+        }
+
+        for nested in [false, true] {
+            for leaf in ["async", "construct", "sync", "sync_method"] {
+                for prior in [None, Some(ErrorKind::Memory), Some(ErrorKind::Cancelled)] {
+                    let label =
+                        format!("bridge={bridge}/nested={nested}/leaf={leaf}/prior={prior:?}");
+                    let expected = prior.unwrap_or(ErrorKind::Internal);
+                    let finished = Arc::new(AtomicUsize::new(0));
+                    let caught = Arc::new(AtomicUsize::new(0));
+                    let handlers = Arc::new(AtomicUsize::new(0));
+                    let dropped = Arc::new(AtomicUsize::new(0));
+                    let memory = Arc::new(crate::actor::Actor::new(None));
+                    let heap = Arc::new(crate::actor::Actor::new(
+                        crate::objects::HeapWatch::default(),
+                    ));
+                    let mut engine = crate::Engine::new();
+                    let (observed, retired) = (caught.clone(), dropped.clone());
+                    engine.register_method(
+                        "inspect",
+                        crate::HostMethod::new_async("inspect", move |call, _, _| {
+                            let (observed, retired) = (observed.clone(), retired.clone());
+                            Box::pin(async move {
+                                let before = std::ptr::from_mut(call.context()?).addr();
+                                let caught = {
+                                    let future = call.call_block(vec![]);
+                                    tokio::pin!(future);
+                                    poll_fn(|cx| {
+                                        match catch_unwind(AssertUnwindSafe(|| {
+                                            future.as_mut().poll(cx)
+                                        })) {
+                                            Ok(Poll::Pending) => Poll::Pending,
+                                            result => Poll::Ready(result),
+                                        }
+                                    })
+                                    .await
+                                };
+                                let panic = caught
+                                    .expect_err("the block must propagate the original panic");
+                                assert_eq!(
+                                    panic.downcast_ref::<&str>(),
+                                    Some(&"nested host panic")
+                                );
+                                let seen = observed.fetch_add(1, Ordering::SeqCst) + 1;
+                                assert_eq!(retired.load(Ordering::SeqCst), seen);
+                                assert_eq!(std::ptr::from_mut(call.context()?).addr(), before);
+                                let error = call.context()?.checkpoint().unwrap_err();
+                                assert_eq!(error.kind, expected);
+                                assert_eq!(call.receiver().unwrap_err().kind, expected);
+                                assert_eq!(
+                                    call.set_receiver_field(b"x", &Value::int(1))
+                                        .unwrap_err()
+                                        .kind,
+                                    expected
+                                );
+                                for _ in 0..2 {
+                                    let again = call.call_block(vec![]).await.unwrap_err();
+                                    assert_eq!(again.kind, expected);
+                                    assert_eq!(again.message, error.message);
+                                }
+                                Ok(Value::int(999))
+                            })
+                        }),
+                    );
+                    engine.register_method(
+                        "bridge",
+                        crate::HostMethod::new_with_block("bridge", |call, _, _| {
+                            call.call_block(&[])
+                        }),
+                    );
+                    engine.register_method(
+                        "relay",
+                        crate::HostMethod::new_async("relay", |call, _, _| {
+                            Box::pin(async move { call.call_block(vec![]).await })
+                        }),
+                    );
+                    let (saved_memory, saved_heap) = (memory.clone(), heap.clone());
+                    let fail = move |ctx: &mut CallContext| -> Result<Value> {
+                        saved_memory.with(|memory| *memory = Some(ctx.identity()));
+                        saved_heap.with(|heap| *heap = crate::objects::watch_heap(ctx));
+                        match prior {
+                            Some(ErrorKind::Memory) => {
+                                let _ignored = ctx.bytes(&[0; 65_536]);
+                            }
+                            Some(ErrorKind::Cancelled) => {
+                                ctx.cancellation().cancel();
+                                let _ignored = ctx.checkpoint();
+                            }
+                            _ => (),
+                        }
+                        panic!("nested host panic");
+                    };
+                    let fail = Arc::new(fail);
+                    let retired = dropped.clone();
+                    if leaf == "sync" {
+                        engine.register("leaf", move |ctx, _| {
+                            let _guard = Dropped(retired.clone());
+                            fail(ctx)
+                        });
+                    } else if leaf == "sync_method" {
+                        engine.register_method(
+                            "leaf",
+                            crate::HostMethod::new_with_block("leaf", move |call, _, _| {
+                                let _guard = Dropped(retired.clone());
+                                fail(call.context())
+                            }),
+                        );
+                    } else {
+                        engine.register_method(
+                            "leaf",
+                            crate::HostMethod::new_async("leaf", move |call, _, _| {
+                                let fail = fail.clone();
+                                let guard = Dropped(retired.clone());
+                                if leaf == "construct" {
+                                    return Box::pin(std::future::ready(fail(
+                                        call.context().unwrap(),
+                                    )));
+                                }
+                                Box::pin(async move {
+                                    let _guard = guard;
+                                    tokio::task::yield_now().await;
+                                    fail(call.context()?)
+                                })
+                            }),
+                        );
+                    }
+                    let marked = handlers.clone();
+                    engine.register("mark", move |_, _| {
+                        marked.fetch_add(1, Ordering::SeqCst);
+                        Ok(Value::nil())
+                    });
+                    let leaf = if nested {
+                        "relay { leaf(b) }"
+                    } else {
+                        "leaf(b)"
+                    };
+                    let body = format!(
+                        "inspect {{ begin; b=Item.new; b.child=b; {leaf}; rescue; mark(); ensure; mark(); end }}"
+                    );
+                    let body = if bridge {
+                        format!("bridge {{ {body} }}")
+                    } else {
+                        body
+                    };
+                    let script = engine.compile(&format!("class Item; property child: Item?; end; def run -> any; begin; {body}; mark(); rescue; mark(); ensure; mark(); end; end")).unwrap();
+                    let done = finished.clone();
+                    let slots = Arc::new(Semaphore::new(1));
+                    let pool = slots.clone();
+                    let executor = std::thread::current().id();
+                    let mut work = work(
+                        &script,
+                        Arc::new(move || {
+                            assert_ne!(std::thread::current().id(), executor);
+                            assert_eq!(pool.available_permits(), 0);
+                            done.fetch_add(1, Ordering::SeqCst);
+                        }),
+                    );
+                    work.execution.execution.context.options.limits.memory_bytes = Some(32_768);
+                    let driver = Driver {
+                        slots: slots.clone(),
+                        handle: Handle::current(),
+                        _lane: Worker,
+                    };
+                    let outcome = tokio::time::timeout(
+                        Duration::from_secs(3),
+                        driver.drive::<Result<Outcome>>(work),
+                    )
+                    .await
+                    .expect(&label)
+                    .unwrap()
+                    .unwrap_err();
+                    assert_eq!(outcome.kind, expected, "{label}: {}", outcome.message);
+                    if prior.is_none() {
+                        assert!(
+                            outcome
+                                .message
+                                .ends_with("block was abandoned before completion"),
+                            "{label}: {}",
+                            outcome.message
+                        );
+                    }
+                    assert_eq!(caught.load(Ordering::SeqCst), 1, "{label}");
+                    assert_eq!(handlers.load(Ordering::SeqCst), 0, "{label}");
+                    assert_eq!(finished.load(Ordering::SeqCst), 1, "{label}");
+                    assert_eq!(slots.available_permits(), 1, "{label}");
+                    let runner = crate::asynchronous::Runner::new(1).unwrap();
+                    let options = CallOptions {
+                        limits: crate::Limits {
+                            memory_bytes: Some(32_768),
+                            ..crate::Limits::default()
+                        },
+                        ..CallOptions::default()
+                    };
+                    let error = tokio::time::timeout(
+                        Duration::from_secs(3),
+                        runner.call(script, "run".into(), vec![], options),
+                    )
+                    .await
+                    .expect(&label)
+                    .unwrap_err();
+                    assert_eq!(error.kind, expected, "{label}: {}", error.message);
+                    assert_eq!(caught.load(Ordering::SeqCst), 2, "{label}");
+                    assert_eq!(dropped.load(Ordering::SeqCst), 2, "{label}");
+                    assert_eq!(handlers.load(Ordering::SeqCst), 0, "{label}");
+                    assert_eq!(runner.available_slots(), 1, "{label}");
+                    assert!(heap.read(crate::objects::HeapWatch::gone), "{label}");
+                    assert_eq!(
+                        memory.read(|memory| memory.as_ref().map(Arc::strong_count)),
+                        Some(1),
+                        "{label}"
+                    );
+                }
+            }
         }
     }
 
