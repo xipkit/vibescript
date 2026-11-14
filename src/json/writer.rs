@@ -145,7 +145,7 @@ impl Output {
         Ok(())
     }
 
-    /// Appends the escapes `input` starts with, along with complete ordinary
+    /// Appends the escapes `input` starts with, along with complete short
     /// ASCII spans between them, and returns the input consumed and the
     /// steps that appending them one at a time defers.
     /// `input` begins at an escape or at the start of a span. The run stops
@@ -198,31 +198,33 @@ impl Output {
                 written += 1;
                 steps = steps.wrapping_add(1);
             } else {
-                // One byte beyond the room distinguishes a complete span
-                // from a longer one without rescanning a whole input chunk.
-                let available = room - written;
-                let Some(window) = rest.get(..rest.len().min(available + 1)) else {
+                // Keep the probe and copy together, within one word. Longer
+                // spans stay on the outer writer's vector/SWAR path.
+                let Some((first, slots)) = block
+                    .get_mut(written..written + 8)
+                    .and_then(|slots| slots.split_first_mut())
+                else {
                     break;
                 };
-                let length = scan::prefix(window, Class::JsonStringify);
-                // Splitting a span changes its append charge. Leave it
-                // whole if it does not fit, or if Unicode continues it.
-                if length > available || window.get(length).is_some_and(|b| !b.is_ascii()) {
+                *first = *byte;
+                let mut length = 1;
+                for (slot, &byte) in slots.iter_mut().zip(tail) {
+                    if !byte.is_ascii() || escape_kind(byte) != 0 {
+                        break;
+                    }
+                    *slot = byte;
+                    length += 1;
+                }
+                // A Unicode continuation or an unfinished ordinary span
+                // belongs to its scanner; its partial copy stays private.
+                if rest.get(length).is_some_and(|&next| escape_kind(next) == 0) {
                     break;
                 }
-                let Some(slot) = block.get_mut(written..written + length) else {
+                let Some(tail) = rest.get(length..) else {
                     break;
                 };
-                let Some((span, tail)) = rest.split_at_checked(length) else {
-                    break;
-                };
-                // Keep short copies in this frame instead of calling the
-                // system copy routine for each tiny span between escapes.
-                for (to, from) in slot.iter_mut().zip(span) {
-                    *to = *from;
-                }
                 written += length;
-                steps = steps.wrapping_add((length as u64).div_ceil(64));
+                steps = steps.wrapping_add(1);
                 rest = tail;
                 continue;
             }
@@ -576,20 +578,6 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
         };
         let mut escape = escape_kind(b);
         while escape != 0 {
-            // Nearby escapes amortize the block; leave longer ordinary
-            // runs on the outer writer's existing scan/copy path.
-            if rest.get(1).is_some_and(u8::is_ascii)
-                && rest
-                    .get(1..4)
-                    .is_some_and(|ahead| ahead.iter().any(|&byte| escape_kind(byte) != 0))
-            {
-                let (run, steps) = out.put_run(rest);
-                if run != 0 {
-                    rest = rest.tail(run)?;
-                    pending = pending.wrapping_add(steps);
-                    continue 'bytes;
-                }
-            }
             pending = pending.wrapping_add(1);
             rest = rest.tail(1)?;
             // Go reserves room for the longest escape before any ASCII escape.
@@ -609,6 +597,12 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
             };
             b = next;
             escape = escape_kind(b);
+            if escape != 0 && rest.get(1).is_some_and(|&next| escape_kind(next) != 0) {
+                let (run, steps) = out.put_run(rest);
+                rest = rest.tail(run)?;
+                pending = pending.wrapping_add(steps);
+                continue 'bytes;
+            }
         }
         let window = rest.span(0, rest.len().min(CHUNK))?;
         if b < 128 {
@@ -634,6 +628,16 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
             // the span `text_span` would find, so it skips the rune scan.
             let n = scan::prefix(window, Class::JsonStringify);
             if window.get(n).is_none_or(|&next| next < 128) {
+                // Reuse the span length instead of probing for a nearby
+                // escape again on every visit to the escape path.
+                if n <= 8 && n < window.len() {
+                    let (run, steps) = out.put_run(rest);
+                    if run != 0 {
+                        rest = rest.tail(run)?;
+                        pending = pending.wrapping_add(steps);
+                        continue;
+                    }
+                }
                 out.put(ctx, window.span(0, n)?, &mut pending)?;
                 rest = rest.tail(n)?;
                 continue;

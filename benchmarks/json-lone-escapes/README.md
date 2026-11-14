@@ -52,19 +52,23 @@ No placement pad or diagnostic linker flag is used in production.
 
 ## Runtime candidate
 
-Nearby escapes now enter the existing buffered escape loop before the first
-in-place append. The buffer accepts complete ordinary ASCII spans between
-escapes, instead of only single ordinary bytes. Its cursor, output length and
-deferred step count stay local until the block is appended. Long ordinary runs
-keep the outer writer's scan/copy path, and the existing one-byte fast path
-remains in the buffer. A span that does not fit, or continues into Unicode,
-stays whole for its scanner so its append charge is preserved.
-The probe looks at only the available buffer room plus one byte; it does not
-rescan an entire long span merely to discover that it cannot fit.
+The outer scanner's existing span length selects complete short ASCII spans
+ending at an escape for the buffered loop. The buffer accepts whole spans of
+up to eight ordinary ASCII bytes between escapes, instead of only single
+ordinary bytes. Its cursor, output length and deferred step count stay local
+until the block is appended. The helper probes and copies within one word;
+it does not bring the shared vector/SWAR scanner and its live mask state into
+this frame. Long ordinary runs keep the outer writer's scan/copy path, and
+the existing one-byte fast path remains in the buffer. A span that does not
+fit, exceeds eight bytes, or continues into Unicode stays whole for its
+scanner so its append charge is preserved.
 
 This is a source-level intervention in the span/escape loop. It does not
-identify a branch-predictor mechanism. The earlier scalar-buffer prototype was
-rejected because it replaced the ordinary-run scanner and regressed ASCII
-lines. Acceptance of the current candidate still requires complete quiet-host
-M4 placement measurements and a neighbouring-loop assembly audit; the
-uncontrolled x86 diagnostics do not establish either.
+identify a branch-predictor mechanism. The earlier scalar-buffer prototype
+replaced the ordinary-run scanner and regressed ASCII lines. The first
+complete M4 comparison also [rejects b9380440](b9380440.md): lone escapes
+improved in SIMD, but ASCII lines regressed and the portable helper retained
+placement sensitivity and gained mask spills. The revised entry and short
+probe require fresh complete quiet-host M4 placement measurements and a
+neighbouring-loop assembly audit; uncontrolled x86 diagnostics do not
+establish either.
