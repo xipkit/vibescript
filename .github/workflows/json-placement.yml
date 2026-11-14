@@ -30,7 +30,7 @@ defaults:
 
 jobs:
   placement:
-    name: JSON writer placement (macOS ARM64)
+    name: JSON writer placement validation (macOS ARM64)
     runs-on: macos-latest
     timeout-minutes: 60
     steps:
@@ -49,8 +49,10 @@ jobs:
         uses: ./.github/actions/setup
         with:
           cache-key: json-placement
-      - name: Measure the complete placement cohorts
-        run: bash benchmarks/json-lone-escapes/run.sh .cache/placement-base . "$RUNNER_TEMP/json-placement"
+      - name: Test the instruction sampler
+        run: python3 -m unittest discover -s benchmarks/mixed-text-placement -p test_count.py
+      - name: Validate the complete placement cohorts
+        run: bash benchmarks/json-lone-escapes/run.sh --prepare-only .cache/placement-base . "$RUNNER_TEMP/json-placement"
       - name: Preserve measurements and assembly
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -58,6 +60,7 @@ jobs:
           name: json-placement-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/json-placement/environment.txt
+            ${{ runner.temp }}/json-placement/scope.txt
             ${{ runner.temp }}/json-placement/counter-probe.txt
             ${{ runner.temp }}/json-placement/*.json
             ${{ runner.temp }}/json-placement/*summary.txt

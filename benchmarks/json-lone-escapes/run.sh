@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 # Build both sources before measuring isolated write_string placements on ARM64 macOS.
 set -euo pipefail
+prepare_only=false
+if [[ ${1:-} == --prepare-only ]]; then
+  prepare_only=true
+  shift
+fi
 if [[ $# != 3 ]]; then
-  echo 'usage: run.sh BASE_TREE HEAD_TREE BUILD' >&2
+  echo 'usage: run.sh [--prepare-only] BASE_TREE HEAD_TREE BUILD' >&2
   exit 2
 fi
 base_tree=$(cd "$1" && pwd -P)
@@ -25,10 +30,16 @@ fi
   git -C "$base_tree" rev-parse HEAD
   git -C "$head_tree" rev-parse HEAD
 } > "$build/environment.txt"
+if $prepare_only; then
+  echo 'Placement and output/accounting validation only; no instruction counts or timings.' > "$build/scope.txt"
+else
+  echo 'Full placement validation, instruction counts and timing experiment.' > "$build/scope.txt"
+fi
 
 # Virtualized runners may not expose these counters. Fail before making builds
 # or treating a zero as an instruction-count result.
 /usr/bin/time -l /usr/bin/true 2> "$build/counter-probe.txt"
+if ! $prepare_only; then
 python3 - "$build/counter-probe.txt" <<'PY'
 import pathlib
 import re
@@ -39,6 +50,7 @@ match = re.search(r'(\d+)\s+instructions retired', probe)
 if match is None or int(match[1]) <= 0:
     raise SystemExit('macOS runner does not expose positive retired-instruction counts; see counter-probe.txt')
 PY
+fi
 
 python3 - "$build/cases.json" <<'PY'
 import json
@@ -55,6 +67,9 @@ for label, text in [('lines_4k', ('a' * 59 + '\n') * 69),
                   'args': [argument], 'accounting': False, 'iterations': 6000,
                   'expected': json.dumps(argument, ensure_ascii=False, separators=(',', ':'), sort_keys=True)})
 pathlib.Path(sys.argv[1]).write_text(json.dumps(cases, ensure_ascii=False) + '\n')
+validation = [*cases, *[dict(case, name=case['name'] + '/metered', accounting=True) for case in cases]]
+pathlib.Path(sys.argv[1]).with_name('validation-cases.json').write_text(
+    json.dumps(validation, ensure_ascii=False) + '\n')
 PY
 
 for mode in simd portable; do
@@ -96,7 +111,11 @@ for mode in ['simd', 'portable']:
 PY
 
 python3 "$head_tree/benchmarks/escape-layout/validate.py" \
-  "$build/cases.json" "$build/groups.json" "$build/validation.json"
+  "$build/validation-cases.json" "$build/groups.json" "$build/validation.json"
+if $prepare_only; then
+  cat "$build/scope.txt"
+  exit 0
+fi
 for mode in simd portable; do
   binaries=()
   for label in base head; do
@@ -104,7 +123,7 @@ for mode in simd portable; do
       binaries+=("$label-$phase=$build/$mode-$label/placements/$phase/compare")
     done
   done
-  python3 "$tools/count.py" "$build/cases.json" "$build/$mode-counts.json" "${binaries[@]}"
+  python3 "$tools/count.py" "$build/cases.json" "$build/$mode-counts.json" "${binaries[@]}" --calls 3000
 done
 
 # No compilation, linking or instruction sampling overlaps timed rounds.

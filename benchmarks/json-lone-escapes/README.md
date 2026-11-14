@@ -10,11 +10,16 @@ From the candidate checkout:
 bash benchmarks/json-lone-escapes/run.sh /absolute/base /absolute/head /absolute/build
 ```
 
-The `JSON placement` PR workflow runs the same experiment on `macos-latest`.
-It records the actual CPU, OS, compiler and source commits; hosted-runner
-results must be identified separately from OTIS's Apple M4 measurements.
-The first probe requires positive retired-instruction counts. A runner that
-does not expose the counter fails explicitly, preserving the probe output.
+The `JSON placement` PR workflow uses `--prepare-only` on `macos-latest` to
+build, relink and validate every placement, including metered accounting.
+GitHub's Apple M1 virtual machines do not expose retired-instruction counters.
+The full experiment therefore runs separately on a physical host such as OTIS.
+Its first probe requires positive retired-instruction counts; a host that does
+not expose the counter fails explicitly, preserving the probe output.
+`scope.txt` records the selected mode, and `environment.txt` records the actual
+CPU, OS, compiler and source commits. A passing hosted validation job supplies
+no performance evidence and does not satisfy the full experiment's acceptance
+criteria.
 
 Both default SIMD and portable builds use the release profile. Each binary
 gets 32 placements, moving only `write_string` in four-byte increments through
@@ -29,7 +34,24 @@ when its sampled one-minute load reaches 6 and retains rejected samples.
 The artifacts include full-output/accounting validation for every binary,
 three differential retired-instruction samples for every case and placement,
 complete timing samples, median/range summaries and per-build disassembly.
-The instruction sampler uses 500 and 1,500 calls, both beyond the harness's
+The instruction sampler uses 3,000 and 9,000 calls, both beyond the harness's
 32-call warmup. Audit neighbouring loops in the saved assembly before accepting
 a candidate; successful correctness tests alone do not establish an improvement.
 No placement pad or diagnostic linker flag is used in production.
+
+## Runtime candidate
+
+Nearby escapes now enter the existing buffered escape loop before the first
+in-place append. The buffer accepts complete ordinary ASCII spans between
+escapes, instead of only single ordinary bytes. Its cursor, output length and
+deferred step count stay local until the block is appended. Long ordinary runs
+keep the outer writer's scan/copy path, and the existing one-byte fast path
+remains in the buffer. A span that does not fit, or continues into Unicode,
+stays whole for its scanner so its append charge is preserved.
+
+This is a source-level intervention in the span/escape loop. It does not
+identify a branch-predictor mechanism. The earlier scalar-buffer prototype was
+rejected because it replaced the ordinary-run scanner and regressed ASCII
+lines. Acceptance of the current candidate still requires complete quiet-host
+M4 placement measurements and a neighbouring-loop assembly audit; the
+uncontrolled x86 diagnostics do not establish either.
