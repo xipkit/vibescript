@@ -78,13 +78,13 @@ for mode in simd portable; do
     if [[ $label == head ]]; then tree=$head_tree; fi
     directory="$build/$mode-$label"
     mkdir -p "$directory/tmp" "$directory/link"
-    args=()
-    if [[ $mode == portable ]]; then args+=(--no-default-features); fi
     (
       cd "$tree"
+      set -- rustc --locked --release --example compare
+      if [[ $mode == portable ]]; then set -- "$@" --no-default-features; fi
       TMPDIR="$directory/tmp" VIBE_LINK_CAPTURE="$directory/link" \
         CARGO_TARGET_DIR="$directory/target" \
-        cargo rustc --locked --release --example compare "${args[@]}" -- \
+        cargo "$@" -- \
           -C "linker=$tools/capture_link.py"
     ) > "$directory/build.log" 2>&1
     cp "$directory/target/release/examples/compare" "$directory/compare"
@@ -119,7 +119,8 @@ fi
 for mode in simd portable; do
   binaries=()
   for label in base head; do
-    for phase in {00..31}; do
+    for ((index = 0; index < 32; index++)); do
+      printf -v phase '%02d' "$index"
       binaries+=("$label-$phase=$build/$mode-$label/placements/$phase/compare")
     done
   done
