@@ -198,13 +198,16 @@ impl Output {
                 written += 1;
                 steps = steps.wrapping_add(1);
             } else {
-                let Some(window) = rest.get(..rest.len().min(CHUNK)) else {
+                // One byte beyond the room distinguishes a complete span
+                // from a longer one without rescanning a whole input chunk.
+                let available = room - written;
+                let Some(window) = rest.get(..rest.len().min(available + 1)) else {
                     break;
                 };
                 let length = scan::prefix(window, Class::JsonStringify);
                 // Splitting a span changes its append charge. Leave it
                 // whole if it does not fit, or if Unicode continues it.
-                if length > room - written || window.get(length).is_some_and(|b| !b.is_ascii()) {
+                if length > available || window.get(length).is_some_and(|b| !b.is_ascii()) {
                     break;
                 }
                 let Some(slot) = block.get_mut(written..written + length) else {
@@ -755,7 +758,7 @@ mod tests {
 
     #[test]
     fn escape_runs_leave_incomplete_ascii_spans_to_the_scanner() {
-        for length in 0..=BLOCK + 1 {
+        for length in (0..=BLOCK + 1).chain([CHUNK - 1, CHUNK, CHUNK + 1, CHUNK * 2]) {
             for tail in [b"\n".as_slice(), b"", "é".as_bytes(), b"\xff"] {
                 let mut input = vec![b'\n', b'\t'];
                 input.extend(std::iter::repeat_n(b'a', length));
