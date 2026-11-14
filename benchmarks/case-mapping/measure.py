@@ -11,6 +11,10 @@ import re
 import statistics
 import subprocess
 
+# `compare` warms up with min(iterations, 32) untimed calls. The n and 3n runs
+# only get the same warmup when n is at least this.
+WARMUP = 32
+
 
 def workloads():
     prose = ("l'été dernier, nous avons traversé la forêt à pied. près de la rivière, "
@@ -54,6 +58,9 @@ def main():
     args = parser.parse_args()
     if args.rounds < 1:
         parser.error('rounds must be positive')
+    short = [case['name'] for case in workloads() if case['iterations'] < WARMUP]
+    if short:
+        parser.error(f"fewer than {WARMUP} iterations would mix unequal warmups: {', '.join(short)}")
     binaries = dict(item.split('=', 1) for item in args.binaries)
     args.output.mkdir(parents=True, exist_ok=True)
     root = Path(__file__).resolve().parents[2]
