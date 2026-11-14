@@ -3086,7 +3086,6 @@ impl<'a, 'x> Compiling<'a, 'x> {
         Ok(())
     }
 
-    #[allow(clippy::too_many_arguments)]
     /// Calls member `name` of `receiver`, as the expression `whole`. A call
     /// whose receiver the checker proved to have the one base type `direct`
     /// becomes a direct builtin call when that base serves the member.
