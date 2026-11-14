@@ -145,9 +145,9 @@ impl Output {
         Ok(())
     }
 
-    /// Appends the escapes `input` starts with, along with each ordinary byte
-    /// that stands alone before another of them, and returns the input
-    /// consumed and the steps that appending them one at a time defers.
+    /// Appends the escapes `input` starts with, along with complete ordinary
+    /// ASCII spans between them, and returns the input consumed and the
+    /// steps that appending them one at a time defers.
     /// `input` begins at an escape or at the start of a span. The run stops
     /// while the longest escape still fits under the capacity and the limit,
     /// so none of those appends could have failed or grown the buffer;
@@ -167,7 +167,8 @@ impl Output {
             .saturating_sub(data.len());
         // An escape is stored as its whole table entry, so each byte needs
         // room for one.
-        let Some(last) = room.min(BLOCK).checked_sub(8) else {
+        let room = room.min(BLOCK);
+        let Some(last) = room.checked_sub(8) else {
             return (0, 0);
         };
         let mut block = [0; BLOCK];
@@ -190,7 +191,6 @@ impl Output {
                 // One step for the escape and one for appending it.
                 steps = steps.wrapping_add(2);
             } else if tail.first().is_some_and(|&next| escape_kind(next) != 0) {
-                // A one-byte span. A longer one is left to the span scanner.
                 let Some(slot) = block.get_mut(written) else {
                     break;
                 };
@@ -198,15 +198,42 @@ impl Output {
                 written += 1;
                 steps = steps.wrapping_add(1);
             } else {
-                break;
+                let Some(window) = rest.get(..rest.len().min(CHUNK)) else {
+                    break;
+                };
+                let length = scan::prefix(window, Class::JsonStringify);
+                // Splitting a span changes its append charge. Leave it
+                // whole if it does not fit, or if Unicode continues it.
+                if length > room - written || window.get(length).is_some_and(|b| !b.is_ascii()) {
+                    break;
+                }
+                let Some(slot) = block.get_mut(written..written + length) else {
+                    break;
+                };
+                let Some((span, tail)) = rest.split_at_checked(length) else {
+                    break;
+                };
+                // Keep short copies in this frame instead of calling the
+                // system copy routine for each tiny span between escapes.
+                for (to, from) in slot.iter_mut().zip(span) {
+                    *to = *from;
+                }
+                written += length;
+                steps = steps.wrapping_add((length as u64).div_ceil(64));
+                rest = tail;
+                continue;
             }
             rest = tail;
+        }
+        let consumed = input.len() - rest.len();
+        if consumed < 2 {
+            return (0, 0);
         }
         let Some(block) = block.get(..written) else {
             return (0, 0);
         };
         data.extend_from_slice(block);
-        (input.len() - rest.len(), steps)
+        (consumed, steps)
     }
 
     fn extend(&mut self, ctx: &mut CallContext, bytes: &[u8]) -> Result<()> {
@@ -546,6 +573,20 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
         };
         let mut escape = escape_kind(b);
         while escape != 0 {
+            // Nearby escapes amortize the block; leave longer ordinary
+            // runs on the outer writer's existing scan/copy path.
+            if rest.get(1).is_some_and(u8::is_ascii)
+                && rest
+                    .get(1..4)
+                    .is_some_and(|ahead| ahead.iter().any(|&byte| escape_kind(byte) != 0))
+            {
+                let (run, steps) = out.put_run(rest);
+                if run != 0 {
+                    rest = rest.tail(run)?;
+                    pending = pending.wrapping_add(steps);
+                    continue 'bytes;
+                }
+            }
             pending = pending.wrapping_add(1);
             rest = rest.tail(1)?;
             // Go reserves room for the longest escape before any ASCII escape.
@@ -565,14 +606,6 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
             };
             b = next;
             escape = escape_kind(b);
-            // A lone escape or a pair costs least appended in place, as
-            // above. A third in a row starts a run.
-            if escape != 0 && rest.get(1).is_some_and(|&next| escape_kind(next) != 0) {
-                let (run, steps) = out.put_run(rest);
-                rest = rest.tail(run)?;
-                pending = pending.wrapping_add(steps);
-                continue 'bytes;
-            }
         }
         let window = rest.span(0, rest.len().min(CHUNK))?;
         if b < 128 {
@@ -717,6 +750,38 @@ mod tests {
                 )
             };
             assert_eq!(run(write_string), run(reference), "limit {limit}");
+        }
+    }
+
+    #[test]
+    fn escape_runs_leave_incomplete_ascii_spans_to_the_scanner() {
+        for length in 0..=BLOCK + 1 {
+            for tail in [b"\n".as_slice(), b"", "é".as_bytes(), b"\xff"] {
+                let mut input = vec![b'\n', b'\t'];
+                input.extend(std::iter::repeat_n(b'a', length));
+                input.extend_from_slice(tail);
+                for room in 0..=BLOCK + 8 {
+                    let mut ctx = CallContext::new(CallOptions::default());
+                    let mut out = Output {
+                        buffer: Buffer::untracked(Vec::with_capacity(BLOCK * 2)),
+                        limit: Some(room),
+                        script: true,
+                    };
+                    let (consumed, steps) = out.put_run(&input);
+                    assert!(out.buffer.data.len() <= room);
+                    // An ordinary span is either left completely alone or
+                    // included whole; a Unicode tail owns its ASCII prefix.
+                    if length > 0 && consumed > 2 {
+                        assert!(tail.is_empty() || tail == b"\n");
+                        assert!(consumed >= 2 + length);
+                    }
+                    let mut expected = Output::new(None, true);
+                    reference(&mut ctx, &input[..consumed], &mut expected, 0).unwrap();
+                    let inner = &expected.buffer.data[1..expected.buffer.data.len() - 1];
+                    assert_eq!(out.buffer.data, inner, "span {length}, room {room}");
+                    assert_eq!(steps, ctx.stats().steps, "span {length}, room {room}");
+                }
+            }
         }
     }
 
@@ -866,8 +931,12 @@ mod tests {
 
     #[test]
     fn batched_escaping_matches_per_escape_output_and_accounting() {
-        let pieces: [&[u8]; 20] = [
+        let pieces: [&[u8]; 24] = [
             b"a",
+            b"ab",
+            &[b'a'; 63],
+            &[b'a'; 64],
+            &[b'a'; 65],
             b"plain text ",
             b"\"",
             b"\\",
