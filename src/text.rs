@@ -1,5 +1,5 @@
 use self::traversal::{Entries, Frame, Stack};
-use crate::checked::violation;
+use crate::checked::{Checked, violation};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, MAX_VALUE_DEPTH},
@@ -56,7 +56,7 @@ fn walk(ctx: &mut CallContext, value: &Value, out: &mut Buffer<u8>, limit: usize
                     let index = h
                         .find(ctx, b"to_s")?
                         .ok_or(violation("protected hash must contain to_s"))?;
-                    out.extend(ctx, h.buffer.data[index].1.require_bytes()?)?;
+                    out.extend(ctx, h.buffer.data.at(index)?.1.require_bytes()?)?;
                 }
                 Kind::Hash(h) if h.object => out.extend(ctx, b"<object>")?,
                 Kind::Hash(h) => {
@@ -170,13 +170,16 @@ pub(crate) fn method(
                     error.message = format!("{member} {part} must be string");
                     error
                 })?;
-                if candidate.len() > bytes.len() {
-                    continue;
-                }
                 let part = if matches!(method, StartWith) {
-                    &bytes[..candidate.len()]
+                    bytes.get(..candidate.len())
                 } else {
-                    &bytes[bytes.len() - candidate.len()..]
+                    bytes
+                        .len()
+                        .checked_sub(candidate.len())
+                        .and_then(|start| bytes.get(start..))
+                };
+                let Some(part) = part else {
+                    continue;
                 };
                 if bytes::bytes_equal(ctx, part, candidate)? {
                     return Ok(Value::boolean(true));
@@ -216,10 +219,10 @@ pub(crate) fn method(
         Chars | Codepoints => {
             nullary(name, args)?;
             let mut out = Buffer::empty();
-            let mut pos = 0;
-            while pos < bytes.len() {
+            let mut rest = bytes;
+            while !rest.is_empty() {
                 ctx.charge(1)?;
-                let (ch, n, _) = scan::rune(&bytes[pos..]);
+                let (ch, n, _) = scan::rune(rest);
                 let v = if matches!(method, Codepoints) {
                     Value::int(i64::from(u32::from(ch)))
                 } else {
@@ -227,19 +230,19 @@ pub(crate) fn method(
                     ctx.bytes(ch.encode_utf8(&mut encoded).as_bytes())?
                 };
                 out.push(ctx, v)?;
-                pos += n;
+                rest = rest.tail(n)?;
             }
             Value::from_array(ctx, out)
         }
         Reverse => {
             nullary(name, args)?;
             let mut chars = Buffer::empty();
-            let mut pos = 0;
-            while pos < bytes.len() {
+            let mut rest = bytes;
+            while !rest.is_empty() {
                 ctx.charge(1)?;
-                let (ch, n, _) = scan::rune(&bytes[pos..]);
+                let (ch, n, _) = scan::rune(rest);
                 chars.push(ctx, ch)?;
-                pos += n;
+                rest = rest.tail(n)?;
             }
             let mut out = Buffer::empty();
             for ch in chars.data.iter().rev() {
