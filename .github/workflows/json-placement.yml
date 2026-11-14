@@ -1,0 +1,70 @@
+name: JSON placement
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/json-placement.yml'
+      - 'benchmarks/json-lone-escapes/**'
+      - 'benchmarks/escape-layout/isolate.py'
+      - 'benchmarks/escape-layout/validate.py'
+      - 'benchmarks/mixed-text-placement/**'
+      - 'src/json/writer.rs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  RUSTUP_TOOLCHAIN: 1.98.1
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_JOBS: 3
+  PYTHONUNBUFFERED: '1'
+  TZ: America/Detroit
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  placement:
+    name: JSON writer placement (macOS ARM64)
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out the candidate
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Check out the baseline
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .cache/placement-base
+          persist-credentials: false
+      - name: Set up Rust and Cargo
+        uses: ./.github/actions/setup
+        with:
+          cache-key: json-placement
+      - name: Measure the complete placement cohorts
+        run: bash benchmarks/json-lone-escapes/run.sh .cache/placement-base . "$RUNNER_TEMP/json-placement"
+      - name: Preserve measurements and assembly
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: json-placement-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/json-placement/environment.txt
+            ${{ runner.temp }}/json-placement/counter-probe.txt
+            ${{ runner.temp }}/json-placement/*.json
+            ${{ runner.temp }}/json-placement/*summary.txt
+            ${{ runner.temp }}/json-placement/*/assembly.txt
+            ${{ runner.temp }}/json-placement/*/build.log
+            ${{ runner.temp }}/json-placement/*/placements/variants.json
+            ${{ runner.temp }}/json-placement/*/placements/symbols.json
+            ${{ runner.temp }}/json-placement/*/placements/*/link.log
+          if-no-files-found: error
+          retention-days: 30
