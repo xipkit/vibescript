@@ -69,6 +69,8 @@ replaced the ordinary-run scanner and regressed ASCII lines. The first
 complete M4 comparison also [rejects b9380440](b9380440.md): lone escapes
 improved in SIMD, but ASCII lines regressed and the portable helper retained
 placement sensitivity and gained mask spills. The revised entry and short
-probe require fresh complete quiet-host M4 placement measurements and a
-neighbouring-loop assembly audit; uncontrolled x86 diagnostics do not
-establish either.
+probe now have a [complete quiet-host M4 comparison](a7daf27b.md): both
+independent placement axes and seeds show faster lone escapes and narrower
+minima bands, with ASCII lines and Unicode near baseline. The report retains
+the helper timing outlier, the neighbouring-loop audit and all raw evidence.
+Its conclusions are limited to the measured isolated placements.
