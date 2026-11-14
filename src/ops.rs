@@ -1182,7 +1182,7 @@ pub(crate) fn runes(ctx: &mut CallContext, bytes: &[u8]) -> Result<(usize, bool)
                 rest = rest.tail(span.len)?;
             } else {
                 // Invalid, or cut by the end of the chunk.
-                let (_, n, ok) = scan::rune(rest);
+                let (n, ok) = scan::rune_width(rest);
                 pending = pending.wrapping_add(1);
                 count = count.wrapping_add(1);
                 valid &= ok;
@@ -1948,6 +1948,64 @@ mod tests {
                 assert_eq!(error.kind, ErrorKind::Steps);
                 assert_eq!(ctx.stats().steps, limit + 1);
                 assert_eq!(ctx.charge(0).unwrap_err(), error);
+            }
+        }
+    }
+
+    #[test]
+    fn runes_match_scalar_accounting_for_invalid_and_truncated_sequences() {
+        let check = |bytes: &[u8]| {
+            let (count, valid, steps) = counted(bytes);
+            let mut ctx = context(None, None);
+            assert_eq!(
+                runes(&mut ctx, bytes).unwrap(),
+                (count, valid),
+                "{bytes:02x?}"
+            );
+            assert_eq!(ctx.stats().steps, steps, "{bytes:02x?}");
+        };
+        // Every lead and second byte, including the restricted second-byte
+        // ranges, both isolated between ASCII and beside another character.
+        for lead in 128..=255 {
+            for second in 0..=255 {
+                for tail in [
+                    [0, 0],
+                    [0x80, 0x80],
+                    [0xbf, 0xbf],
+                    [0xff, 0xff],
+                    [0x80, 0xff],
+                    [0xff, 0x80],
+                ] {
+                    let sequence = [lead, second, tail[0], tail[1]];
+                    for len in 1..=sequence.len() {
+                        let mut text = b"word".to_vec();
+                        text.extend_from_slice(&sequence[..len]);
+                        check(&text);
+                        text.extend_from_slice(b"word");
+                        check(&text);
+                        text.extend_from_slice("é界🙂".as_bytes());
+                        check(&text);
+                    }
+                }
+            }
+        }
+        // Truncation at the scan window must still decode against the full
+        // input, whether the character is valid or an invalid prefix.
+        for prefix in CHUNK - 4..=CHUNK + 1 {
+            for sequence in [
+                b"\xc2\x80".as_slice(),
+                b"\xe0\xa0\x80",
+                b"\xed\xa0\x80",
+                b"\xf0\x90\x80\x80",
+                b"\xf4\x90\x80\x80",
+            ] {
+                for len in 1..=sequence.len() {
+                    let mut text = vec![b'a'; prefix];
+                    text.extend_from_slice(&sequence[..len]);
+                    check(&text);
+                    text.extend_from_slice(b"word");
+                    check(&text);
+                }
             }
         }
     }
