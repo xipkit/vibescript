@@ -30,18 +30,25 @@ class CountTests(unittest.TestCase):
         self.assertEqual(warmups, {str(count.WARMUP)})
 
     def test_estimate_excludes_warmup_calls(self):
-        for iterations in (1, 40, 80, 127, 128, 160, 4_800, 32_000):
-            with self.subTest(iterations=iterations), tempfile.TemporaryDirectory() as directory:
+        for iterations, calls in [(n, calls) for n in (1, 40, 80, 127, 128, 160, 4_800, 32_000)
+                                  for calls in (None, 32, 3000)]:
+            with self.subTest(iterations=iterations, calls=calls), tempfile.TemporaryDirectory() as directory:
                 directory = pathlib.Path(directory)
                 fixtures = directory / 'cases.json'
                 fixtures.write_text(json.dumps([{'name': 'case', 'iterations': iterations}]))
                 output = directory / 'counts.json'
                 with patch.object(count.subprocess, 'run', side_effect=fake_time), \
                         patch('builtins.print'):
-                    count.count(fixtures, {'binary': 'compare'}, output, runs=2)
+                    count.count(fixtures, {'binary': 'compare'}, output, runs=2, calls=calls)
                 for result in json.loads(output.read_text()):
                     self.assertGreaterEqual(result['n'], count.WARMUP)
+                    if calls is not None:
+                        self.assertEqual(result['n'], calls)
                     self.assertEqual(result['instructions_per_call'], PER_CALL)
+
+    def test_explicit_calls_cannot_change_the_warmup_count(self):
+        with self.assertRaisesRegex(ValueError, 'calls must be at least 32'):
+            count.count(pathlib.Path('unused'), {}, pathlib.Path('unused'), runs=1, calls=31)
 
 
 if __name__ == '__main__':

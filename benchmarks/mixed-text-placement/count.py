@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Estimate retired instructions per call from differential macOS process counts."""
+from __future__ import annotations
+
 import argparse
 import json
 import pathlib
@@ -13,18 +15,22 @@ import tempfile
 WARMUP = 32
 
 
-def sample_size(iterations):
+def sample_size(iterations: int) -> int:
     """Return N for a case; the counts come from N and 3N calls."""
     return min(500, max(WARMUP, iterations // 4))
 
 
-def count(fixtures, binaries, output, runs):
+def count(fixtures: pathlib.Path, binaries: dict[str, str], output: pathlib.Path,
+          runs: int, calls: int | None = None) -> None:
+    """Capture N/3N process counts with identical warmups and retain every estimate."""
+    if calls is not None and calls < WARMUP:
+        raise ValueError(f'calls must be at least {WARMUP}')
     cases = json.loads(fixtures.read_text())
     results = []
     with tempfile.TemporaryDirectory(dir=output.parent, prefix='counts-') as temporary:
         fixture = pathlib.Path(temporary) / 'case.json'
         for case in cases:
-            n = sample_size(case['iterations'])
+            n = sample_size(case['iterations']) if calls is None else calls
             for label, binary in binaries.items():
                 for repeat in range(runs):
                     counts = {}
@@ -49,8 +55,11 @@ if __name__ == '__main__':
     parser.add_argument('output', type=pathlib.Path)
     parser.add_argument('binaries', nargs='+', help='LABEL=executable')
     parser.add_argument('--runs', type=int, default=3)
+    parser.add_argument('--calls', type=int, help='N calls in the smaller process; larger process uses 3N')
     options = parser.parse_args()
     if options.runs < 1:
         parser.error('runs must be positive')
+    if options.calls is not None and options.calls < WARMUP:
+        parser.error(f'calls must be at least {WARMUP}')
     count(options.fixtures, dict(v.split('=', 1) for v in options.binaries),
-          options.output.resolve(), options.runs)
+          options.output.resolve(), options.runs, options.calls)
