@@ -11,7 +11,9 @@ Lone-escape placement minima, median (range), in microseconds; seeds 187 / 188 r
 | SIMD helper | 8.170 (8.093–8.269) / 8.186 (8.053–8.358) | 5.152 (5.087–5.191) / 5.162 (5.104–5.190) |
 | Portable helper | 10.107 (9.967–10.242) / 10.079 (9.914–10.275) | 5.178 (5.130–5.219) / 5.184 (5.148–5.215) |
 
-Across all eight sweeps ASCII-line median minima change by -0.009 to +0.011 µs and Unicode by -0.015 to +0.007 µs; the full per-payload minima, ranges and paired same-binary controls are in the eight `*-summary.txt` files. Paired control means range from -0.28% to +0.23%. All 32 phase means and paired changes are retained separately for each axis and seed in `*-phases.json`, alongside raw rounds, warmups and rejected-group arrays. The candidate helper minima do not exhibit the large new helper variation seen in b9380440. These isolated sweeps do not prove robustness across arbitrary joint layouts or identify a predictor mechanism; no crossed control was run.
+Across all eight sweeps ASCII-line median minima change by -0.009 to +0.011 µs and Unicode by -0.015 to +0.007 µs; the full per-payload minima, ranges and paired same-binary controls are in the eight `*-summary.txt` files. Paired control medians range from -0.28% to +0.23%. All 32 phase means and paired changes are retained separately for each axis and seed in `*-phases.json`, alongside raw rounds, warmups and rejected-group arrays. The candidate helper minima do not exhibit the large new helper variation seen in b9380440. These isolated sweeps do not prove robustness across arbitrary joint layouts or identify a predictor mechanism; no crossed control was run.
+
+The untrimmed SIMD helper head phase means range from 5.150964 to 5.291120 µs in seed 187 and from 5.157204 to 5.594416 µs in seed 188. The latter maximum is at `local/09`, influenced by an accepted round 11 head observation of 10.677917 µs (base 8.305035 µs, control 8.540972 µs, load 3.117676). The observation remains in the raw data; its cause is unknown.
 
 Writer-axis median differential instructions/call (all 96 estimates per side), base → head: SIMD lines 50,095 → 50,178, Unicode 112,310 → 112,296, lone escapes 254,102 → 135,305; portable lines 65,385 → 65,572, Unicode 112,285 → 112,334, lone escapes 282,599 → 136,335. All raw process counts and the separate helper-axis instruction estimates are archived.
 
@@ -21,7 +23,7 @@ Evidence on Shannon: `/home/mgomes/Fleet/Build/dumont-vibe-187/otis-a7daf27b-evi
 
 ## Complete sweep summaries
 
-Each file below reports the median and range of the 32 placement minima in microseconds; paired percentages use all measured groups. The archived phase JSON retains all phase curves and raw samples.
+Each file below reports the median and range of the 32 placement minima in microseconds; paired percentages are medians of per-group ratios across all measured groups. The archived phase JSON retains all phase curves and raw samples.
 
 ### simd-string-187
 
