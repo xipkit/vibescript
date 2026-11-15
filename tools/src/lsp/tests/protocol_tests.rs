@@ -46,22 +46,24 @@ fn serve_exits_cleanly_at_the_end_of_input() {
 #[cfg(not(target_os = "wasi"))]
 mod blocking {
     use super::*;
+    use std::convert::Infallible;
     use std::io::Read;
     use std::sync::mpsc;
     use std::time::Duration;
 
     /// A reader that blocks until the test ends, signalling when it is first read.
     struct Blocking {
-        started: Option<mpsc::Sender<()>>,
-        release: mpsc::Receiver<()>,
+        started: Option<mpsc::SyncSender<()>>,
+        /// Carries nothing; the test closes it when it ends.
+        release: mpsc::Receiver<Infallible>,
     }
 
     impl Read for Blocking {
         fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
             if let Some(started) = self.started.take() {
-                let _ = started.send(());
+                started.send(()).expect("the test waits for the first read");
             }
-            let _ = self.release.recv();
+            let Err(mpsc::RecvError) = self.release.recv();
             Ok(0)
         }
     }
@@ -72,17 +74,18 @@ mod blocking {
         reason = "the server blocks in read until the test releases it; the thread is joined once the server has stopped"
     )]
     fn cancellation_stops_a_server_blocked_on_input() {
-        let (started, wait_started) = mpsc::channel();
-        let (release, released) = mpsc::channel::<()>();
+        let (started, wait_started) = mpsc::sync_channel(1);
+        let (release, released) = mpsc::sync_channel(0);
         let token = CancellationToken::new();
         let cancel = token.clone();
-        let (done, finished) = mpsc::channel();
+        let (done, finished) = mpsc::sync_channel(1);
         let server = std::thread::spawn(move || {
             let input = Blocking {
                 started: Some(started),
                 release: released,
             };
-            let _ = done.send(serve(&mut Server::new(), input, io::sink(), &token));
+            done.send(serve(&mut Server::new(), input, io::sink(), &token))
+                .expect("the test waits for the server to stop");
         });
         wait_started
             .recv_timeout(Duration::from_secs(5))

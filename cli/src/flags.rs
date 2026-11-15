@@ -90,13 +90,9 @@ pub fn parse(spec: &Spec, args: &[OsString]) -> Result<Outcome, String> {
                 String::from_utf8_lossy(&argument)
             ));
         }
-        let (name, value) = match body.iter().position(|&b| b == b'=') {
-            Some(split) => {
-                let (name, rest) = body.split_at(split);
-                (name, rest.strip_prefix(b"="))
-            }
-            None => (body, None),
-        };
+        let mut parts = body.splitn(2, |&b| b == b'=');
+        let name = parts.next().unwrap_or_default();
+        let value = parts.next();
         let name_text = String::from_utf8_lossy(name);
         let Some(flag) = spec
             .flags

@@ -275,7 +275,7 @@ mod depth_tests {
     }
 
     /// Host values containing exactly `depth` containers around `innermost`.
-    fn hosts(depth: usize, innermost: Value) -> Vec<Value> {
+    fn hosts(depth: usize, innermost: Value) -> [Value; 3] {
         let mut arrays = innermost.clone();
         let mut hashes = innermost.clone();
         let mut alternating = innermost;
@@ -288,7 +288,7 @@ mod depth_tests {
                 Value::hash(vec![(b"k".to_vec(), alternating)])
             };
         }
-        vec![arrays, hashes, alternating]
+        [arrays, hashes, alternating]
     }
 
     fn context() -> CallContext {
@@ -377,7 +377,7 @@ mod depth_tests {
         }
         // One step per container opener, and nothing after the rejected one.
         let mut ctx = context();
-        let host = hosts(MAX_VALUE_DEPTH + 1, Value::bytes(vec![b'a'; CHUNK])).remove(0);
+        let [host, ..] = hosts(MAX_VALUE_DEPTH + 1, Value::bytes(vec![b'a'; CHUNK]));
         let error = stringify(&mut ctx, &host).unwrap_err();
         assert_deep_rejection(&mut ctx, &error);
         assert_eq!(ctx.stats().steps, MAX_VALUE_DEPTH as u64 + 1);
@@ -481,7 +481,7 @@ mod depth_tests {
             assert_exact_quota_boundaries("stringify", &|ctx| stringify(ctx, &host));
         }
         let mut ctx = context();
-        let deep = hosts(MAX_VALUE_DEPTH - 2, Value::int(1)).remove(0);
+        let [deep, ..] = hosts(MAX_VALUE_DEPTH - 2, Value::int(1));
         let host = Value::array(vec![deep.clone(), Value::array(vec![deep])]);
         let expected = stringify(&mut ctx, &host).unwrap();
         assert_exact_quota_boundaries("siblings", &|ctx| stringify(ctx, &host));
@@ -497,7 +497,7 @@ mod depth_tests {
     #[test]
     fn cancellation_and_deadlines_are_observed_before_deep_codec_work() {
         let text = nested("[", "]", MAX_VALUE_DEPTH, "0");
-        let host = hosts(MAX_VALUE_DEPTH, Value::int(0)).remove(0);
+        let [host, ..] = hosts(MAX_VALUE_DEPTH, Value::int(0));
         for deadline in [false, true] {
             for encode in [false, true] {
                 let mut ctx = context();
@@ -535,7 +535,7 @@ mod depth_tests {
         let root_retained = ctx.stats().retained_memory_bytes;
         drop(root);
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
-        let host = hosts(MAX_VALUE_DEPTH, Value::bytes(payload.clone())).remove(0);
+        let [host, ..] = hosts(MAX_VALUE_DEPTH, Value::bytes(payload.clone()));
         let mut ctx = context();
         let nested = stringify(&mut ctx, &host).unwrap();
         assert_eq!(

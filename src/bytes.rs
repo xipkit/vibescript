@@ -52,10 +52,10 @@ impl Number {
 impl Write for Number {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         let end = self.len.checked_add(s.len()).ok_or(fmt::Error)?;
-        self.buf
-            .get_mut(self.len..end)
-            .ok_or(fmt::Error)?
-            .copy_from_slice(s.as_bytes());
+        let slots = self.buf.get_mut(self.len..end).ok_or(fmt::Error)?;
+        for (slot, &byte) in slots.iter_mut().zip(s.as_bytes()) {
+            *slot = byte;
+        }
         self.len = end;
         Ok(())
     }

@@ -78,23 +78,12 @@ impl Session {
         cancellation: CancellationToken,
         compile_limits: SessionLimits,
     ) -> Self {
-        let (out, stdout) = mpsc::channel();
-        let (err, stderr) = mpsc::channel();
+        let (out, stdout) = capture();
+        let (err, stderr) = capture();
         let mut engine = Engine::new();
         let initialization_error = engine.declare_global(SESSION, "hash<string, any>").err();
-        engine.set_output_writer(move |_, bytes| {
-            // The session outlives its engine, so the receiver is there.
-            if !bytes.is_empty() {
-                let _ = out.send(bytes.to_vec());
-            }
-            Ok(())
-        });
-        engine.set_error_writer(move |_, bytes| {
-            if !bytes.is_empty() {
-                let _ = err.send(bytes.to_vec());
-            }
-            Ok(())
-        });
+        engine.set_output_writer(move |_, bytes| write(&out, bytes));
+        engine.set_error_writer(move |_, bytes| write(&err, bytes));
         Self {
             engine,
             initialization_error,
@@ -424,6 +413,25 @@ impl Session {
         statements.push("nil".to_owned());
         Some(statements.join("; "))
     }
+}
+
+/// A channel that carries one output stream's writes to the session.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the session reads a capture only once the evaluation writing it has returned, so a bound could not slow a writer, only fail or drop its output; what an evaluation writes is metered by the step limit the host runs it under"
+)]
+fn capture() -> (mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>) {
+    mpsc::channel()
+}
+
+/// Sends one write whole to the session.
+fn write(capture: &mpsc::Sender<Vec<u8>>, bytes: &[u8]) -> Result<(), Error> {
+    if bytes.is_empty() {
+        return Ok(());
+    }
+    capture
+        .send(bytes.to_vec())
+        .map_err(|_| Error::new(ErrorKind::Internal, "REPL output capture closed"))
 }
 
 fn budget_error(error: &Error) -> bool {

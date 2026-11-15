@@ -71,7 +71,7 @@ pub(crate) fn call(
             let source = &array.buffer.data;
             let length = size(ctx, at.max(source.len()) as i128 + values.len() as i128)?;
             let mut out = Buffer::with_capacity(ctx, length)?;
-            let (before, after) = source.split_at(at.min(source.len()));
+            let (before, after) = source.split_at_checked(at).unwrap_or((source, &[]));
             out.extend(ctx, before)?;
             while out.data.len() < at {
                 ctx.charge(1)?;

@@ -9,7 +9,11 @@ use std::{
     task::Poll,
     time::{Duration, Instant},
 };
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tokio::{
+    runtime::Handle,
+    sync::{OwnedSemaphorePermit, Semaphore},
+    time::Sleep,
+};
 
 pub use crate::vm::asynchronous::AsyncHostCall;
 
@@ -118,8 +122,33 @@ pub(crate) async fn acquire(
         }
         tokio::select! {
             permit = &mut acquire => return permit.map_err(|_| Error::new(ErrorKind::Host, "worker pool closed")),
-            _ = tokio::time::sleep(Duration::from_millis(5)) => (),
+            _ = pause(Duration::from_millis(5)) => (),
         }
+    }
+}
+
+/// Waits for `duration` on the runtime's clock.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the crate's one timer, Tokio's as adamantium::time::sleep is outside its test harness; vibescript cannot depend on adamantium while it declares an older Rust than adamantium needs"
+)]
+pub(crate) fn pause(duration: Duration) -> Sleep {
+    tokio::time::sleep(duration)
+}
+
+/// A test's watchdog: awaits `future`, and fails the test, naming `what`,
+/// when it is still pending after `limit`. Nothing resumes after the limit,
+/// so the future is dropped only by the failure that reports it.
+#[cfg(test)]
+pub(crate) async fn within<T: Send>(
+    limit: Duration,
+    what: &str,
+    future: impl Future<Output = T> + Send,
+) -> T {
+    tokio::select! {
+        biased;
+        value = future => value,
+        () = pause(limit) => panic!("{what} was still pending after {limit:?}"),
     }
 }
 
@@ -127,7 +156,7 @@ pub(crate) async fn acquire(
 /// work resumes here; a worker that is cancelled or shut down is a host error.
 #[allow(
     clippy::disallowed_methods,
-    reason = "the crate's one blocking spawn, with the panic propagation of adamantium::blocking, which vibescript cannot depend on while Tokio stays optional"
+    reason = "the crate's one blocking spawn, with the panic propagation of adamantium::blocking, which vibescript cannot depend on while it declares an older Rust than adamantium needs"
 )]
 pub(crate) async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> T + Send + 'static,
@@ -138,6 +167,29 @@ pub(crate) async fn blocking<T: Send + 'static>(
         }
         Error::new(ErrorKind::Host, format!("script worker failed: {error}"))
     })
+}
+
+/// Runs `cleanup` on a blocking worker once `slots` has a permit for it,
+/// with nothing waiting for it: a caller that has already been answered
+/// must not wait for a busy worker. The permit is held until `cleanup`
+/// returns, so the work stays within the runner's worker limit.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the crate's one detached task: it outlives the cancelled call that leaves it behind, so no scope could join it, and it ends after one job under a worker permit"
+)]
+pub(crate) fn retire<T: Send + 'static>(
+    runtime: &Handle,
+    slots: Arc<Semaphore>,
+    cleanup: impl FnOnce() -> T + Send + 'static,
+) {
+    runtime.spawn(async move {
+        let permit = slots.acquire_owned().await.ok();
+        let _result = blocking(move || {
+            let _permit = permit;
+            cleanup()
+        })
+        .await;
+    });
 }
 
 struct CancelOnDrop(CancellationToken);

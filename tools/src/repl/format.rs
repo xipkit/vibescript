@@ -75,7 +75,12 @@ fn leaf(out: &mut String, value: &Value) {
         }
         "float" => float(out, value.as_float().unwrap_or_default()),
         _ => {
-            let _ = write!(out, "{value}");
+            let start = out.len();
+            if write!(out, "{value}").is_err() {
+                // A value whose text the library cannot produce shows as
+                // nothing, as nil does.
+                out.truncate(start);
+            }
         }
     }
 }
@@ -97,9 +102,9 @@ fn float(out: &mut String, f: f64) {
     let exponent: i32 = exponent.parse().unwrap_or(0);
     if f != 0.0 && !(-4..6).contains(&exponent) {
         let sign = if exponent < 0 { '-' } else { '+' };
-        let _ = write!(out, "{mantissa}e{sign}{:02}", exponent.unsigned_abs());
+        out.push_str(&format!("{mantissa}e{sign}{:02}", exponent.unsigned_abs()));
     } else {
-        let _ = write!(out, "{f}");
+        out.push_str(&f.to_string());
     }
 }
 

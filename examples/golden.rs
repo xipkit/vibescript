@@ -19,10 +19,7 @@ use std::{
     fs,
     io::Write,
     panic::{AssertUnwindSafe, catch_unwind},
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        mpsc,
-    },
+    sync::atomic::{AtomicU64, Ordering},
     time::{Duration, Instant},
 };
 use vibescript::{CallOptions, Engine, Error, ErrorKind, Limits, ModuleConfig, Value, parse_json};
@@ -35,10 +32,9 @@ mod declare;
 mod probe;
 #[path = "support/signatures.rs"]
 mod signatures;
+#[path = "support/streams.rs"]
+mod streams;
 mod support;
-
-/// One output stream of a case: the writer sends each write whole.
-type Capture = mpsc::Sender<Vec<u8>>;
 
 #[allow(
     clippy::disallowed_methods,
@@ -120,11 +116,11 @@ fn run() -> Result<(), String> {
 }
 
 fn observe(case: &Json) -> Json {
-    let (stdout, stdout_written) = mpsc::channel();
-    let (stderr, stderr_written) = mpsc::channel();
+    let (stdout, stdout_written) = streams::open();
+    let (stderr, stderr_written) = streams::open();
     let mut record = execute(case, &stdout, &stderr);
     for (name, written) in [("stdout", stdout_written), ("stderr", stderr_written)] {
-        let bytes: Vec<u8> = written.try_iter().flatten().collect();
+        let bytes = streams::collect(&written);
         if !bytes.is_empty() {
             if let Some(fields) = record.as_object_mut() {
                 fields.insert(name.into(), Json::String(hex(&bytes)));
@@ -134,7 +130,7 @@ fn observe(case: &Json) -> Json {
     record
 }
 
-fn execute(case: &Json, stdout: &Capture, stderr: &Capture) -> Json {
+fn execute(case: &Json, stdout: &streams::Sink, stderr: &streams::Sink) -> Json {
     let source = case["source"].as_str().unwrap_or_default();
     if flag(case, "parse") {
         // Type checking fails only on a syntax error.
@@ -187,21 +183,11 @@ fn execute(case: &Json, stdout: &Capture, stderr: &Capture) -> Json {
     // Without a writer, output helpers raise; some cases observe exactly that.
     if flag(case, "stdout") {
         let buffer = stdout.clone();
-        engine.set_output_writer(move |_, bytes| {
-            if !bytes.is_empty() {
-                let _ = buffer.send(bytes.to_vec());
-            }
-            Ok(())
-        });
+        engine.set_output_writer(move |_, bytes| streams::write(&buffer, bytes));
     }
     if flag(case, "stderr") {
         let buffer = stderr.clone();
-        engine.set_error_writer(move |_, bytes| {
-            if !bytes.is_empty() {
-                let _ = buffer.send(bytes.to_vec());
-            }
-            Ok(())
-        });
+        engine.set_error_writer(move |_, bytes| streams::write(&buffer, bytes));
     }
     let signature = match case
         .get("signature_probe")

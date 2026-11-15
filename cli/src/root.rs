@@ -13,7 +13,9 @@
 use crate::{
     analyze, check, compat, fix,
     flags::{self, Outcome, Spec},
-    flat, format, guide, prelude, repl, run, signal, testing,
+    flat, format, guide,
+    output::Sink,
+    prelude, repl, run, signal, testing,
 };
 use std::{
     ffi::{OsStr, OsString},
@@ -127,9 +129,7 @@ fn run_command(name: &str, args: &[OsString]) -> Result<(), String> {
 
 /// Reports an error on stderr after the root help, and exits with status 1.
 fn root_error(message: &str) -> ExitCode {
-    let mut stderr = io::stderr().lock();
-    let _ = stderr.write_all(root_help().as_bytes());
-    let _ = writeln!(stderr, "{message}");
+    Sink::Stderr.line(&format!("{}{message}", root_help()));
     ExitCode::FAILURE
 }
 
@@ -138,7 +138,7 @@ fn finish(result: Result<(), String>) -> ExitCode {
     match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(message) => {
-            let _ = writeln!(io::stderr().lock(), "{message}");
+            Sink::Stderr.line(&message);
             ExitCode::FAILURE
         }
     }
@@ -195,7 +195,7 @@ fn flat_main(args: Vec<OsString>) -> ExitCode {
     match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(failure) => {
-            let _ = writeln!(io::stderr().lock(), "{failure}");
+            Sink::Stderr.line(&failure.to_string());
             failure.exit_code()
         }
     }

@@ -46,7 +46,8 @@ fn graph(count: usize) -> (CallContext, Arc<Instance>) {
         )
         .unwrap();
     }
-    let root = nodes.swap_remove(0);
+    let mut nodes = nodes.into_iter();
+    let root = nodes.next().unwrap();
     drop(nodes);
     finish(&mut source).unwrap();
     (source, root)

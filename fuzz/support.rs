@@ -26,9 +26,9 @@ mod tests {
     #[test]
     #[should_panic(expected = "internal engine error: forced invariant failure")]
     fn internal_errors_crash() {
-        let _ = check::<()>(Err(Error::new(
+        drop(check::<()>(Err(Error::new(
             ErrorKind::Internal,
             "forced invariant failure",
-        )));
+        ))));
     }
 }

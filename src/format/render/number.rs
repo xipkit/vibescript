@@ -22,9 +22,9 @@ impl Digits {
 
     fn push(&mut self, bytes: &[u8]) -> Access<()> {
         let end = self.length + bytes.len();
-        self.bytes
-            .span_mut(self.length, end)?
-            .copy_from_slice(bytes);
+        for (slot, &byte) in self.bytes.span_mut(self.length, end)?.iter_mut().zip(bytes) {
+            *slot = byte;
+        }
         self.length = end;
         Ok(())
     }

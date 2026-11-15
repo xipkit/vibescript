@@ -1,5 +1,5 @@
 use serde_json::{Value as Json, json};
-use std::{collections::BTreeMap, fs, hint::black_box, sync::mpsc, time::Instant};
+use std::{collections::BTreeMap, fs, hint::black_box, time::Instant};
 use vibescript::{CallOptions, Engine, Limits, ModuleConfig, parse_json};
 
 #[path = "support/blocks.rs"]
@@ -10,6 +10,8 @@ mod declare;
 mod probe;
 #[path = "support/signatures.rs"]
 mod signatures;
+#[path = "support/streams.rs"]
+mod streams;
 mod support;
 
 #[cfg(feature = "allocation-stats")]
@@ -121,18 +123,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .get("stdout")
             .and_then(Json::as_bool)
             .unwrap_or(false)
-            .then(mpsc::channel::<Vec<u8>>);
+            .then(streams::open);
         let stderr = case
             .get("stderr")
             .and_then(Json::as_bool)
             .unwrap_or(false)
-            .then(mpsc::channel::<Vec<u8>>);
-        let capture = mode == "validate";
+            .then(streams::open);
+        let capturing = mode == "validate";
         if let Some((buffer, _)) = &stdout {
             let buffer = buffer.clone();
             engine.set_output_writer(move |_, bytes| {
-                if capture && !bytes.is_empty() {
-                    let _ = buffer.send(bytes.to_vec());
+                if capturing {
+                    streams::write(&buffer, bytes)?;
                 }
                 Ok(())
             });
@@ -140,8 +142,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Some((buffer, _)) = &stderr {
             let buffer = buffer.clone();
             engine.set_error_writer(move |_, bytes| {
-                if capture && !bytes.is_empty() {
-                    let _ = buffer.send(bytes.to_vec());
+                if capturing {
+                    streams::write(&buffer, bytes)?;
                 }
                 Ok(())
             });
@@ -249,7 +251,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
             for (name, buffer) in [("stdout_hex", &stdout), ("stderr_hex", &stderr)] {
                 if let Some((_, written)) = buffer {
-                    let bytes: Vec<u8> = written.try_iter().flatten().collect();
+                    let bytes = streams::collect(written);
                     record.insert(name.into(), Json::String(hex(&bytes)));
                 }
             }

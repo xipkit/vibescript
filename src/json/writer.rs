@@ -183,10 +183,13 @@ impl Output {
             let length = usize::from(escape[6]);
             // At most two steps a byte, so the count cannot overflow.
             if length != 0 {
-                let Some(slot) = block.get_mut(written..written + 8) else {
+                let Some(slot) = block
+                    .get_mut(written..)
+                    .and_then(|slots| slots.first_chunk_mut())
+                else {
                     break;
                 };
-                slot.copy_from_slice(escape);
+                *slot = *escape;
                 written += length;
                 // One step for the escape and one for appending it.
                 steps = steps.wrapping_add(2);

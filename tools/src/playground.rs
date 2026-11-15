@@ -8,8 +8,7 @@ use std::{
     io::{self, Read, Write},
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
-        mpsc,
+        atomic::{AtomicU8, AtomicUsize, Ordering},
     },
 };
 use vibescript::{
@@ -314,25 +313,39 @@ fn capabilities(previews: Vec<Preview>) -> vibescript::Result<Vec<Capability>> {
     Ok(capabilities)
 }
 
-/// One output stream of a request: the writers send each write whole, and
-/// the response collects them once the run is over.
+/// One output stream of a request: each write claims the next part of a
+/// buffer of [`OUTPUT_LIMIT`] bytes and is copied there whole, and the
+/// response reads what was claimed once the run is over.
 #[derive(Clone)]
-struct Capture {
-    written: mpsc::Sender<Vec<u8>>,
-    /// How much the writers have sent, which [`OUTPUT_LIMIT`] bounds.
-    length: Arc<AtomicUsize>,
+struct Capture(Arc<Stream>);
+
+struct Stream {
+    bytes: Box<[AtomicU8]>,
+    /// How much of `bytes` the writers have claimed. A write that would
+    /// pass the end gives its claim back, and any write that claims after
+    /// it, before it does, fails too, so claimed bytes are always filled.
+    length: AtomicUsize,
 }
 
 impl Capture {
-    fn new() -> (Self, mpsc::Receiver<Vec<u8>>) {
-        let (written, received) = mpsc::channel();
-        (
-            Self {
-                written,
-                length: Arc::default(),
-            },
-            received,
-        )
+    fn new() -> Self {
+        Self(Arc::new(Stream {
+            bytes: std::iter::repeat_with(AtomicU8::default)
+                .take(OUTPUT_LIMIT)
+                .collect(),
+            length: AtomicUsize::new(0),
+        }))
+    }
+
+    /// What the writers wrote, once they have finished.
+    fn written(&self) -> Vec<u8> {
+        let length = self.0.length.load(Ordering::Relaxed);
+        self.0
+            .bytes
+            .iter()
+            .take(length)
+            .map(|byte| byte.load(Ordering::Relaxed))
+            .collect()
     }
 }
 
@@ -345,25 +358,25 @@ fn capture(
     if bytes.is_empty() {
         return Ok(());
     }
-    let written = buffer.length.fetch_add(bytes.len(), Ordering::Relaxed);
-    if bytes.len() > OUTPUT_LIMIT - written.min(OUTPUT_LIMIT) {
-        buffer.length.fetch_sub(bytes.len(), Ordering::Relaxed);
+    let start = buffer.0.length.fetch_add(bytes.len(), Ordering::Relaxed);
+    if bytes.len() > OUTPUT_LIMIT - start.min(OUTPUT_LIMIT) {
+        buffer.0.length.fetch_sub(bytes.len(), Ordering::Relaxed);
         return Err(Error::new(
             ErrorKind::OutputLimit,
             "playground output exceeds 65536 bytes",
         ));
     }
-    // The response's receiver outlives the engine that writes.
-    let _ = buffer.written.send(bytes.to_vec());
+    for (slot, &byte) in buffer.0.bytes.iter().skip(start).zip(bytes) {
+        slot.store(byte, Ordering::Relaxed);
+    }
     Ok(())
 }
 
-fn lines(received: &mpsc::Receiver<Vec<u8>>) -> Vec<String> {
-    let bytes: Vec<u8> = received.try_iter().flatten().collect();
+fn lines(bytes: &[u8]) -> Vec<String> {
     if bytes.is_empty() {
         return Vec::new();
     }
-    let text = String::from_utf8_lossy(&bytes);
+    let text = String::from_utf8_lossy(bytes);
     text.strip_suffix('\n')
         .unwrap_or(&text)
         .split('\n')
@@ -570,8 +583,8 @@ pub fn serve(reader: impl Read, mut writer: impl Write) -> io::Result<()> {
         .take(INPUT_LIMIT as u64 + 1)
         .read_to_end(&mut input)?;
     let mut response = Response::default();
-    let (output, output_written) = Capture::new();
-    let (stderr, stderr_written) = Capture::new();
+    let output = Capture::new();
+    let stderr = Capture::new();
     let result = if input.len() > INPUT_LIMIT {
         Err(invalid("request exceeds 1048576 bytes"))
     } else {
@@ -583,8 +596,8 @@ pub fn serve(reader: impl Read, mut writer: impl Write) -> io::Result<()> {
         response.fail(&error, "");
     }
     response.ok = response.error.is_none();
-    response.output = lines(&output_written);
-    response.stderr = lines(&stderr_written);
+    response.output = lines(&output.written());
+    response.stderr = lines(&stderr.written());
     serde_json::to_writer(&mut writer, &response)?;
     writer.write_all(b"\n")?;
     writer.flush()

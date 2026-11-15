@@ -111,7 +111,10 @@ impl<'a> Output<'a> {
                     *equal &= input.get(self.length..end) == Some(chunk);
                 }
                 Destination::Fixed(buffer) => {
-                    buffer.span_mut(self.length, end)?.copy_from_slice(chunk)
+                    let slots = buffer.span_mut(self.length, end)?;
+                    for (slot, &byte) in slots.iter_mut().zip(chunk) {
+                        *slot = byte;
+                    }
                 }
             }
             self.length = end;

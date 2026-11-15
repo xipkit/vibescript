@@ -10,6 +10,8 @@ pub const MAX_RESULT_BYTES: usize = 1 << 20;
 /// Why a result could not be rendered.
 pub enum Failure {
     TooLarge,
+    /// The engine could not format a value of this type.
+    Unformattable(&'static str),
 }
 
 impl fmt::Display for Failure {
@@ -18,6 +20,10 @@ impl fmt::Display for Failure {
             Self::TooLarge => write!(
                 f,
                 "result rendering exceeds {MAX_RESULT_BYTES} bytes; reduce the returned value or stream it from the script"
+            ),
+            Self::Unformattable(kind) => write!(
+                f,
+                "result rendering failed: the {kind} value cannot be formatted"
             ),
         }
     }
@@ -31,14 +37,14 @@ enum Item<'a> {
 /// Renders a value as the reference's `Value.String` does: strings and
 /// symbols raw, nil empty, floats in Go's shortest `%g` form, arrays as
 /// `[a, b]` and hashes as `{key: value}`. Output over [`MAX_RESULT_BYTES`]
-/// is refused rather than truncated.
+/// is refused rather than truncated, as is a value the engine cannot format.
 pub fn value(root: &Value) -> Result<Vec<u8>, Failure> {
     let mut out = Vec::new();
     let mut pending = vec![Item::Value(root)];
     while let Some(item) = pending.pop() {
         match item {
             Item::Text(text) => out.extend_from_slice(text.as_bytes()),
-            Item::Value(value) => leaf_or_open(value, &mut out, &mut pending),
+            Item::Value(value) => leaf_or_open(value, &mut out, &mut pending)?,
         }
         if out.len() > MAX_RESULT_BYTES {
             return Err(Failure::TooLarge);
@@ -47,7 +53,11 @@ pub fn value(root: &Value) -> Result<Vec<u8>, Failure> {
     Ok(out)
 }
 
-fn leaf_or_open<'a>(value: &'a Value, out: &mut Vec<u8>, pending: &mut Vec<Item<'a>>) {
+fn leaf_or_open<'a>(
+    value: &'a Value,
+    out: &mut Vec<u8>,
+    pending: &mut Vec<Item<'a>>,
+) -> Result<(), Failure> {
     match value.type_name() {
         "nil" => {}
         "string" | "symbol" => out.extend_from_slice(value.as_bytes().unwrap_or_default()),
@@ -77,16 +87,24 @@ fn leaf_or_open<'a>(value: &'a Value, out: &mut Vec<u8>, pending: &mut Vec<Item<
             }
         }
         _ => {
-            let _ = write!(Bounded(out), "{value}");
+            if write!(Bounded(out), "{value}").is_err() && out.len() <= MAX_RESULT_BYTES {
+                return Err(Failure::Unformattable(value.type_name()));
+            }
         }
     }
+    Ok(())
 }
 
 /// Error and match hashes print their own `to_s` entry.
 fn protected(value: &Value) -> bool {
     let mut prefix = String::new();
-    let _ = write!(Prefix(&mut prefix, 20), "{value:?}");
-    prefix.starts_with("Value(Hash(Error") || prefix.starts_with("Value(Hash(Match")
+    match write!(Prefix(&mut prefix, 20), "{value:?}") {
+        // The writer stops the formatter with an error once it holds the
+        // prefix, so either way the prefix is all there is to read.
+        Ok(()) | Err(fmt::Error) => {
+            prefix.starts_with("Value(Hash(Error") || prefix.starts_with("Value(Hash(Match")
+        }
+    }
 }
 
 /// Collects at most the given number of bytes, then stops the formatter.
@@ -222,29 +240,28 @@ pub fn error(error: &Error, snippet: Option<&str>) -> String {
         if snippet.is_some() {
             position.column = position.column.max(1);
         }
-        let _ = write!(
-            text,
+        text.push_str(&format!(
             "parse error at {}: {message}",
             location(diagnostic.filename.as_deref(), position)
-        );
+        ));
     } else {
         text.push_str(&error.message);
     }
-    let _ = write!(text, "\n{}", diagnostic.code_frame);
+    text.push('\n');
+    text.push_str(&diagnostic.code_frame);
     let count = diagnostic.frames.len();
     for (index, frame) in diagnostic.frames.iter().enumerate() {
         if count > 16 && (8..count - 8).contains(&index) {
             if index == 8 {
-                let _ = write!(text, "\n  ... {} frames omitted ...", count - 16);
+                text.push_str(&format!("\n  ... {} frames omitted ...", count - 16));
             }
             continue;
         }
-        let _ = write!(
-            text,
+        text.push_str(&format!(
             "\n  at {} ({})",
             function(frame, snippet.is_some()),
             location(frame.filename.as_deref(), frame.position)
-        );
+        ));
     }
     text
 }

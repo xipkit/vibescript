@@ -298,18 +298,31 @@ mod tests {
     use crate::{CallOptions, ErrorKind, Limits};
     use std::io::Cursor;
 
+    /// Writes `field` over the bytes at `start`.
+    fn put<const N: usize>(bytes: &mut [u8], start: usize, field: [u8; N]) {
+        *bytes[start..].first_chunk_mut().unwrap() = field;
+    }
+
+    fn le16(value: usize) -> [u8; 2] {
+        u16::try_from(value).unwrap().to_le_bytes()
+    }
+
+    fn le32(value: usize) -> [u8; 4] {
+        u32::try_from(value).unwrap().to_le_bytes()
+    }
+
     fn archive(entries: &[(&[u8], &[u8])]) -> Vec<u8> {
         let mut data = Vec::new();
         let mut directory = Vec::new();
         for &(name, content) in entries {
             let mut local = [0; 30];
-            local[..4].copy_from_slice(b"PK\x03\x04");
-            local[26..28].copy_from_slice(&u16::try_from(name.len()).unwrap().to_le_bytes());
+            put(&mut local, 0, *b"PK\x03\x04");
+            put(&mut local, 26, le16(name.len()));
             let mut central = [0; 46];
-            central[..4].copy_from_slice(b"PK\x01\x02");
-            central[24..28].copy_from_slice(&u32::try_from(content.len()).unwrap().to_le_bytes());
-            central[28..30].copy_from_slice(&u16::try_from(name.len()).unwrap().to_le_bytes());
-            central[42..46].copy_from_slice(&u32::try_from(data.len()).unwrap().to_le_bytes());
+            put(&mut central, 0, *b"PK\x01\x02");
+            put(&mut central, 24, le32(content.len()));
+            put(&mut central, 28, le16(name.len()));
+            put(&mut central, 42, le32(data.len()));
             data.extend_from_slice(&local);
             data.extend_from_slice(name);
             data.extend_from_slice(content);
@@ -317,10 +330,10 @@ mod tests {
             directory.extend_from_slice(name);
         }
         let mut tail = [0; 22];
-        tail[..4].copy_from_slice(b"PK\x05\x06");
-        tail[10..12].copy_from_slice(&u16::try_from(entries.len()).unwrap().to_le_bytes());
-        tail[12..16].copy_from_slice(&u32::try_from(directory.len()).unwrap().to_le_bytes());
-        tail[16..20].copy_from_slice(&u32::try_from(data.len()).unwrap().to_le_bytes());
+        put(&mut tail, 0, *b"PK\x05\x06");
+        put(&mut tail, 10, le16(entries.len()));
+        put(&mut tail, 12, le32(directory.len()));
+        put(&mut tail, 16, le32(data.len()));
         data.extend_from_slice(&directory);
         data.extend_from_slice(&tail);
         data
@@ -372,12 +385,12 @@ mod tests {
                 Format::Zip => archive(&[(b"zone", &payload)]),
                 Format::Android => {
                     let mut data = vec![0; 24 + 52];
-                    data[..6].copy_from_slice(b"tzdata");
-                    data[12..16].copy_from_slice(&24u32.to_be_bytes());
-                    data[16..20].copy_from_slice(&76u32.to_be_bytes());
-                    data[24..28].copy_from_slice(b"zone");
-                    data[68..72]
-                        .copy_from_slice(&u32::try_from(payload.len()).unwrap().to_be_bytes());
+                    put(&mut data, 0, *b"tzdata");
+                    put(&mut data, 12, 24u32.to_be_bytes());
+                    put(&mut data, 16, 76u32.to_be_bytes());
+                    put(&mut data, 24, *b"zone");
+                    let size = u32::try_from(payload.len()).unwrap();
+                    put(&mut data, 68, size.to_be_bytes());
                     data.extend_from_slice(&payload);
                     data
                 }
@@ -553,11 +566,11 @@ mod tests {
     #[test]
     fn android_index_selects_bounded_payloads_and_checks_offsets() {
         let mut data = vec![0; 24 + 52];
-        data[..6].copy_from_slice(b"tzdata");
-        data[12..16].copy_from_slice(&24u32.to_be_bytes());
-        data[16..20].copy_from_slice(&76u32.to_be_bytes());
-        data[24..33].copy_from_slice(b"Area/Zone");
-        data[68..72].copy_from_slice(&7u32.to_be_bytes());
+        put(&mut data, 0, *b"tzdata");
+        put(&mut data, 12, 24u32.to_be_bytes());
+        put(&mut data, 16, 76u32.to_be_bytes());
+        put(&mut data, 24, *b"Area/Zone");
+        put(&mut data, 68, 7u32.to_be_bytes());
         data.extend_from_slice(b"payload");
         for name in [b"Area/Zone".as_slice(), b"Area/"] {
             let mut ctx = CallContext::new(CallOptions::default());

@@ -1,5 +1,7 @@
 use crate::{
-    CallOptions, ErrorKind, HostMethod, Value, actor::Actor, asynchronous::Runner,
+    CallOptions, ErrorKind, HostMethod, Value,
+    actor::Actor,
+    asynchronous::{Runner, pause, within},
     objects::HeapWatch,
 };
 use std::{future::pending, sync::Arc, time::Duration};
@@ -52,9 +54,7 @@ async fn abandoned_async_invocations_release_unreachable_cycles() {
         let mut call = Box::pin(runner.call(script, "run".into(), vec![], CallOptions::default()));
         tokio::select! {
             _ = &mut call => panic!("the paused call finished"),
-            entered = tokio::time::timeout(Duration::from_secs(2), entered.notified()) => {
-                entered.unwrap();
-            }
+            () = within(Duration::from_secs(2), "the pause", entered.notified()) => (),
         }
         drop(call);
         assert!(heap.read(HeapWatch::gone), "nested={nested}");
@@ -140,9 +140,7 @@ async fn objects_retained_by_async_hosts_outlive_cancelled_invocations() {
     let mut call = Box::pin(runner.call(script, "run".into(), vec![], CallOptions::default()));
     tokio::select! {
         _ = &mut call => panic!("the held call finished"),
-        entered = tokio::time::timeout(Duration::from_secs(2), entered.notified()) => {
-            entered.unwrap();
-        }
+        () = within(Duration::from_secs(2), "the hold", entered.notified()) => (),
     }
     drop(call);
     assert!(holders(&memory).is_some_and(|holders| holders > 1));
@@ -167,7 +165,8 @@ fn a_wake_during_a_blocking_poll_still_resumes_the_synchronous_bridge() {
         .build()
         .unwrap();
     let finished = runtime.block_on(async {
-        let (release, released) = std::sync::mpsc::channel::<()>();
+        // One message, so the send never waits for its receive.
+        let (release, released) = std::sync::mpsc::sync_channel::<()>(1);
         let released = Actor::new(Some(released));
         let mut engine = crate::Engine::new();
         engine.register_method(
@@ -176,7 +175,7 @@ fn a_wake_during_a_blocking_poll_still_resumes_the_synchronous_bridge() {
                 let released = released.with(Option::take);
                 Box::pin(async move {
                     // The timer's wake arrives while the receive blocks.
-                    tokio::join!(tokio::time::sleep(Duration::from_millis(1)), async move {
+                    tokio::join!(pause(Duration::from_millis(1)), async move {
                         if let Some(released) = released {
                             released.recv().unwrap();
                         }
@@ -192,14 +191,21 @@ fn a_wake_during_a_blocking_poll_still_resumes_the_synchronous_bridge() {
         let script = engine.compile("def run -> any;sync(){slow()};end").unwrap();
         let runner = Runner::new(1).unwrap();
         let call = runner.call(script, "run".into(), vec![], CallOptions::default());
-        tokio::time::timeout(Duration::from_secs(5), async {
+        let call = async {
             let (outcome, ()) = tokio::join!(call, async {
-                tokio::time::sleep(Duration::from_millis(50)).await;
+                // The receive outlasts every wake its poll was waiting for,
+                // the invocation's own watch among them.
+                pause(Duration::from_millis(50)).await;
                 release.send(()).unwrap();
             });
             outcome.map(|outcome| outcome.value.as_int())
-        })
-        .await
+        };
+        // A lost wake is reported outside the runtime, which first has to
+        // give up on the worker it left parked.
+        tokio::select! {
+            outcome = call => Some(outcome),
+            () = pause(Duration::from_secs(5)) => None,
+        }
     });
     // A bridge that lost the wake leaves its worker parked for good.
     runtime.shutdown_timeout(Duration::from_secs(1));

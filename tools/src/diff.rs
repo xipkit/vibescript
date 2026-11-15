@@ -42,9 +42,8 @@ pub fn unified_diff(path: &str, old: &str, new: &str) -> String {
             end += 1;
         }
         let end = (end - quiet.saturating_sub(CONTEXT)).min(script.len());
-        let (before, rest) = script.split_at(start);
-        let (hunk, _) = rest.split_at(end - start);
-        let (old_start, new_start) = position(before);
+        let hunk = script.get(start..end).unwrap_or_default();
+        let (old_start, new_start) = position(script.get(..start).unwrap_or_default());
         let (old_len, new_len) = position(hunk);
         out.push_str(&format!(
             "@@ -{},{old_len} +{},{new_len} @@\n",
@@ -89,16 +88,16 @@ fn position(ops: &[Op]) -> (usize, usize) {
 /// A shortest edit script by Myers' algorithm, with common ends trimmed first.
 fn edit_script(a: &[&str], b: &[&str]) -> Vec<Op> {
     let prefix = a.iter().zip(b).take_while(|(x, y)| x == y).count();
-    let (_, a_tail) = a.split_at(prefix);
-    let (_, b_tail) = b.split_at(prefix);
+    let a_tail = a.get(prefix..).unwrap_or_default();
+    let b_tail = b.get(prefix..).unwrap_or_default();
     let suffix = a_tail
         .iter()
         .rev()
         .zip(b_tail.iter().rev())
         .take_while(|(x, y)| x == y)
         .count();
-    let (a_mid, _) = a_tail.split_at(a_tail.len() - suffix);
-    let (b_mid, _) = b_tail.split_at(b_tail.len() - suffix);
+    let a_mid = a_tail.get(..a_tail.len() - suffix).unwrap_or_default();
+    let b_mid = b_tail.get(..b_tail.len() - suffix).unwrap_or_default();
     let mut ops: Vec<Op> = (0..prefix).map(|i| Op::Keep(i, i)).collect();
     for op in myers(a_mid, b_mid) {
         ops.push(match op {

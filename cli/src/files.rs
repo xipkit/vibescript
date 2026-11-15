@@ -770,7 +770,9 @@ mod tests {
                 .unwrap()
                 .as_nanos();
             let path = base.join(format!("files-{name}-{run}"));
-            let _ = fs::remove_dir_all(&path);
+            if let Err(error) = fs::remove_dir_all(&path) {
+                assert_eq!(error.kind(), io::ErrorKind::NotFound, "{error}");
+            }
             fs::create_dir_all(&path).unwrap();
             Self(vibescript::canonicalize(&path).unwrap())
         }
@@ -778,7 +780,10 @@ mod tests {
 
     impl Drop for Scratch {
         fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.0);
+            let result = fs::remove_dir_all(&self.0);
+            if !std::thread::panicking() {
+                result.unwrap();
+            }
         }
     }
 

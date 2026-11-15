@@ -404,14 +404,16 @@ mod tests {
         let read = name.len() + MAX_RUNE_BYTES * (name.len() + MAX_DISTANCE + 1);
         let fillers = (MAX_INPUT_BYTES - name.len() - near.len()) / read;
         assert!(fillers + 1 < MAX_CANDIDATES);
-        let mut candidates = vec![filler.as_str(); fillers];
-        candidates.push(&near);
+        let candidates = |fillers| {
+            let mut candidates = vec![filler.as_str(); fillers];
+            candidates.push(near.as_str());
+            candidates
+        };
         assert_eq!(
-            suggest(&name, &candidates),
+            suggest(&name, &candidates(fillers)),
             format!(" (did you mean \"{near}\"?)")
         );
-        candidates.insert(0, &filler);
-        assert_eq!(suggest(&name, &candidates), "");
+        assert_eq!(suggest(&name, &candidates(fillers + 1)), "");
     }
 
     #[test]
