@@ -236,9 +236,11 @@ pub(crate) fn parse_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
     let mut suffix = Number::new();
     suffix.format(format_args!("e{exponent}"))?;
     let suffix = suffix.bytes()?;
-    text.span_mut(used, used + suffix.len())?
-        .copy_from_slice(suffix);
-    used += suffix.len();
+    let end = used + suffix.len();
+    for (slot, &byte) in text.span_mut(used, end)?.iter_mut().zip(suffix) {
+        *slot = byte;
+    }
+    used = end;
     std::str::from_utf8(text.span(0, used)?)
         .map_err(|_| Error::new(ErrorKind::Json, "invalid JSON number"))?
         .parse()
@@ -740,7 +742,7 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                 self.ctx.charge_pending(&mut pending)?;
                 return self.err("unterminated JSON string", Failure::End);
             };
-            let window = rest.split_at(rest.len().min(CHUNK)).0;
+            let window = rest.span(0, rest.len().min(CHUNK))?;
             let span = if matches!(b, 0..=31 | b'"' | b'\\') {
                 scan::TextSpan::default()
             } else if b < 128
@@ -1655,7 +1657,11 @@ mod tests {
                 input.push(b'"');
             }
             let mut plain = CallContext::new(CallOptions::default());
-            let _ = reference(&mut Parser::new(&mut plain, &input));
+            // The plain run sizes the limits below, so only the input may
+            // end it early.
+            if let Err(error) = reference(&mut Parser::new(&mut plain, &input)) {
+                assert_eq!(error.kind, ErrorKind::Json, "case {case}");
+            }
             let steps = usize::try_from(plain.stats().steps).unwrap();
             let peak = plain.stats().peak_memory_bytes;
             for limits in [
