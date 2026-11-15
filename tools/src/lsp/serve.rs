@@ -52,9 +52,6 @@ pub fn serve(
         let Some(message) = event else {
             continue;
         };
-        if messages.superseded(&message) {
-            continue;
-        }
         let replies = match messages.cancelled(&message) {
             Some(id) => vec![Outbound::Error {
                 id,
@@ -90,7 +87,8 @@ type Event = io::Result<Option<Inbound>>;
 enum Source<R> {
     /// Read on this thread, where threads are unavailable.
     Inline(BufReader<R>),
-    /// Read ahead on a reader thread.
+    /// Read ahead on a reader thread, with the events taken from it so far
+    /// queued for the server to look ahead at.
     Threaded {
         receiver: mpsc::Receiver<Event>,
         queue: VecDeque<Event>,
@@ -102,7 +100,10 @@ struct Messages<R> {
 }
 
 /// How many decoded messages the reader thread may hold ahead of the server,
-/// which bounds the memory a client flooding large changes can pin.
+/// and how many the server queues behind the one it handles. With the one
+/// the reader is waiting to hand over, that bounds what a client flooding
+/// large changes can pin to `2 * READ_AHEAD + 2` messages: past it, the
+/// reader stops reading and the client's writes block.
 const READ_AHEAD: usize = 16;
 
 impl<R: Read + Send + 'static> Messages<R> {
@@ -249,7 +250,55 @@ fn read_message(reader: &mut impl BufRead) -> io::Result<Option<Option<Inbound>>
     }
 }
 
+/// Moves events that have arrived from `receiver` into `queue` until it
+/// holds the next event and `READ_AHEAD` behind it. Events left in the
+/// channel keep it full, so the reader thread waits instead of reading on.
+///
+/// At most `READ_AHEAD` events are taken, all the channel held when filling
+/// began, since a change replacing the one before it leaves the queue no
+/// longer and a client sending such changes as fast as they are taken could
+/// otherwise keep the server here.
+fn fill(queue: &mut VecDeque<Event>, receiver: &mpsc::Receiver<Event>) {
+    for _ in 0..READ_AHEAD {
+        if queue.len() > READ_AHEAD {
+            return;
+        }
+        let Ok(event) = receiver.try_recv() else {
+            return;
+        };
+        enqueue(queue, event);
+    }
+}
+
+/// Queues `event`, first dropping the changes queued right before it that
+/// it replaces: when `event` is a full-text change, the changes to the same
+/// document behind it, since analyzing them would be wasted. So a flood of
+/// changes to one document holds one body.
+fn enqueue(queue: &mut VecDeque<Event>, event: Event) {
+    if let Ok(Some(change)) = &event
+        && change.method == "textDocument/didChange"
+        && let Ok((uri, Some(_))) = change_params(change)
+    {
+        while let Some(Ok(Some(queued))) = queue.back()
+            && queued.method == "textDocument/didChange"
+            && queued.document().as_deref() == Some(uri.as_str())
+        {
+            queue.pop_back();
+        }
+    }
+    queue.push_back(event);
+}
+
 impl<R: Read> Messages<R> {
+    /// How many events are queued behind the one last taken.
+    #[cfg(test)]
+    fn queued(&self) -> usize {
+        match &self.source {
+            Source::Inline(_) => 0,
+            Source::Threaded { queue, .. } => queue.len(),
+        }
+    }
+
     /// The next event in input order, waiting for input; `None` at the end
     /// of input or on cancellation.
     fn next(&mut self, cancellation: &CancellationToken) -> io::Result<Option<Option<Inbound>>> {
@@ -262,39 +311,23 @@ impl<R: Read> Messages<R> {
                 receiver, queue, ..
             } => (receiver, queue),
         };
-        let event = match queue.pop_front() {
-            Some(event) => event,
-            None => loop {
-                match receiver.recv_timeout(Duration::from_millis(50)) {
-                    Ok(event) => break event,
-                    Err(mpsc::RecvTimeoutError::Timeout) if cancellation.is_cancelled() => {
-                        return Ok(None);
-                    }
-                    Err(mpsc::RecvTimeoutError::Timeout) => (),
-                    Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(None),
+        loop {
+            // Queue what has already arrived before taking the next event,
+            // so a change replaced by a later one is dropped unhandled and
+            // the server can see what follows.
+            fill(queue, receiver);
+            if let Some(event) = queue.pop_front() {
+                return event.map(Some);
+            }
+            match receiver.recv_timeout(Duration::from_millis(50)) {
+                Ok(event) => queue.push_back(event),
+                Err(mpsc::RecvTimeoutError::Timeout) if cancellation.is_cancelled() => {
+                    return Ok(None);
                 }
-            },
-        };
-        // Queue what has already arrived, so the server can see what follows.
-        queue.extend(receiver.try_iter());
-        event.map(Some)
-    }
-
-    /// Whether a full-text change is already replaced by the change queued
-    /// right after it, so analyzing it would be wasted.
-    fn superseded(&self, message: &Inbound) -> bool {
-        let Source::Threaded { queue, .. } = &self.source else {
-            return false;
-        };
-        let Some(Ok(Some(next))) = queue.front() else {
-            return false;
-        };
-        message.method == "textDocument/didChange"
-            && next.method == "textDocument/didChange"
-            && change_params(next).is_ok_and(|(_, text)| text.is_some())
-            && message
-                .document()
-                .is_some_and(|uri| next.document() == Some(uri))
+                Err(mpsc::RecvTimeoutError::Timeout) => (),
+                Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(None),
+            }
+        }
     }
 
     /// The id of a request that a queued `$/cancelRequest` names, which is
@@ -420,5 +453,211 @@ mod tracking_tests {
         let mut tracked: Vec<_> = tracking.analyzing.keys().collect();
         tracked.sort();
         assert_eq!(tracked, ["a", "c"]);
+    }
+}
+
+#[cfg(test)]
+mod lookahead_tests {
+    use super::*;
+
+    fn change(uri: &str, text: &str) -> String {
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {"textDocument": {"uri": uri}, "contentChanges": [{"text": text}]},
+        })
+        .to_string()
+    }
+
+    fn inbound(body: &str) -> Inbound {
+        Inbound::parse(body.as_bytes()).expect("a JSON-RPC message")
+    }
+
+    /// The server taking events from a channel the test fills in place of
+    /// the reader thread.
+    fn threaded(receiver: mpsc::Receiver<Event>) -> Messages<io::Empty> {
+        Messages {
+            source: Source::Threaded {
+                receiver,
+                queue: VecDeque::new(),
+            },
+        }
+    }
+
+    /// Each message a slow server takes, which waits for the client to fill
+    /// the channel before taking one, with the id it answers as cancelled.
+    /// Checks that the server never queues more than `READ_AHEAD` messages.
+    fn handled_slowly(bodies: &[String]) -> Vec<(Inbound, Option<Box<str>>)> {
+        let (sender, receiver) = mpsc::sync_channel(READ_AHEAD);
+        let mut messages = threaded(receiver);
+        let mut sent = 0;
+        let mut handled = Vec::new();
+        let never = CancellationToken::new();
+        loop {
+            // The client floods until the server stops taking its messages.
+            while let Some(body) = bodies.get(sent)
+                && sender.try_send(Ok(Some(inbound(body)))).is_ok()
+            {
+                sent += 1;
+            }
+            if sent == bodies.len() {
+                break;
+            }
+            let message = messages.next(&never).unwrap().unwrap().unwrap();
+            assert!(messages.queued() <= READ_AHEAD);
+            let cancelled = messages.cancelled(&message);
+            handled.push((message, cancelled));
+        }
+        drop(sender);
+        while let Some(message) = messages.next(&never).unwrap() {
+            let message = message.unwrap();
+            let cancelled = messages.cancelled(&message);
+            handled.push((message, cancelled));
+        }
+        handled
+    }
+
+    #[test]
+    fn a_slow_server_queues_at_most_read_ahead_messages() {
+        let bodies: Vec<_> = (0..10 * READ_AHEAD)
+            .map(|index| change(&format!("file:///tmp/{index}.vibe"), "x = 1\n"))
+            .collect();
+        let handled = handled_slowly(&bodies);
+        let uris: Vec<_> = handled
+            .iter()
+            .map(|(message, _)| message.document().unwrap())
+            .collect();
+        let sent: Vec<_> = (0..10 * READ_AHEAD)
+            .map(|index| format!("file:///tmp/{index}.vibe"))
+            .collect();
+        assert_eq!(uris, sent);
+    }
+
+    #[test]
+    fn a_capped_queue_still_drops_replaced_changes_and_finds_cancels() {
+        let mut bodies: Vec<_> = (0..5)
+            .map(|index| change(&format!("file:///tmp/busy{index}.vibe"), ""))
+            .collect();
+        bodies.push(r#"{"jsonrpc":"2.0","id":1,"method":"textDocument/hover"}"#.to_owned());
+        for index in 0..3 * READ_AHEAD {
+            bodies.push(change("file:///tmp/typing.vibe", &format!("x = {index}\n")));
+        }
+        bodies.push(r#"{"jsonrpc":"2.0","method":"$/cancelRequest","params":{"id":1}}"#.to_owned());
+        bodies.push(r#"{"jsonrpc":"2.0","id":2,"method":"shutdown"}"#.to_owned());
+        let handled = handled_slowly(&bodies);
+        let summary: Vec<_> = handled
+            .iter()
+            .map(|(message, cancelled)| {
+                let text = change_params(message).ok().and_then(|(_, text)| text);
+                (
+                    message.method.as_str(),
+                    text.unwrap_or_default(),
+                    cancelled.as_deref().map(str::to_owned),
+                )
+            })
+            .collect();
+        let change = |text: &str| ("textDocument/didChange", text.to_owned(), None);
+        let last = format!("x = {}\n", 3 * READ_AHEAD - 1);
+        assert_eq!(
+            summary,
+            [
+                change(""),
+                change(""),
+                change(""),
+                change(""),
+                change(""),
+                ("textDocument/hover", String::new(), Some("1".to_owned())),
+                change(&last),
+                ("shutdown", String::new(), None),
+            ]
+        );
+    }
+}
+
+// WASI preview 1 has no threads to read ahead on.
+#[cfg(all(test, not(target_os = "wasi")))]
+mod backpressure_tests {
+    use super::*;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Instant;
+
+    /// A client's pipe holding framed messages, counting how many of them
+    /// the reader has begun to read. A read never crosses into the next
+    /// message, so the reader begins one only once it wants it.
+    struct Flood {
+        frames: Vec<Vec<u8>>,
+        frame: usize,
+        offset: usize,
+        begun: Arc<AtomicUsize>,
+    }
+
+    impl Read for Flood {
+        fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+            let Some(frame) = self.frames.get(self.frame) else {
+                return Ok(0);
+            };
+            if self.offset == 0 {
+                self.begun.fetch_add(1, Ordering::SeqCst);
+            }
+            let count = frame.get(self.offset..).unwrap_or_default().read(buffer)?;
+            self.offset += count;
+            if self.offset == frame.len() {
+                self.frame += 1;
+                self.offset = 0;
+            }
+            Ok(count)
+        }
+    }
+
+    #[test]
+    fn a_slow_server_stops_the_reader_from_reading_on() {
+        let total = 10 * READ_AHEAD;
+        // Large enough that BufReader reads each body in several pieces.
+        let text = "x".repeat(64 * 1024);
+        let frames = (0..total)
+            .map(|index| {
+                let body = serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "method": "textDocument/didChange",
+                    "params": {
+                        "textDocument": {"uri": format!("file:///tmp/{index}.vibe")},
+                        "contentChanges": [{"text": text}],
+                    },
+                })
+                .to_string();
+                format!("Content-Length: {}\r\n\r\n{body}", body.len()).into_bytes()
+            })
+            .collect();
+        let begun = Arc::new(AtomicUsize::new(0));
+        let flood = Flood {
+            frames,
+            frame: 0,
+            offset: 0,
+            begun: Arc::clone(&begun),
+        };
+        let mut messages = Messages::new(flood, CancellationToken::new()).unwrap();
+        let never = CancellationToken::new();
+        for handled in 0..total {
+            // The reader stops once the channel is full and it holds one
+            // more message to send.
+            let stalled = total.min(handled + messages.queued() + READ_AHEAD + 1);
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while begun.load(Ordering::SeqCst) < stalled {
+                assert!(Instant::now() < deadline, "the reader stopped early");
+                std::thread::yield_now();
+            }
+            let read = begun.load(Ordering::SeqCst);
+            assert!(
+                read - handled <= 2 * READ_AHEAD + 1,
+                "{read} messages read with {handled} handled"
+            );
+            let message = messages.next(&never).unwrap().unwrap().unwrap();
+            assert_eq!(
+                message.document().unwrap(),
+                format!("file:///tmp/{handled}.vibe")
+            );
+        }
+        assert!(messages.next(&never).unwrap().is_none());
     }
 }
