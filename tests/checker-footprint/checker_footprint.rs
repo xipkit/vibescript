@@ -22,8 +22,12 @@
 //! and when cancelled partway, at most 65,536 times and 16 MiB from the
 //! cancellation, so work that goes on after it should stop fails there,
 //! and so does work that never asks whether it should. The tests have a
-//! target of their own, since the allocator is global, and run one at a
+//! package of their own, since the allocator is global, and run one at a
 //! time.
+//!
+//! Their accounts come out the same in debug and optimized builds, and
+//! with the SIMD or portable scanner, so CI runs them once on each
+//! platform, in the optimized build with every feature.
 
 use std::{
     alloc::{GlobalAlloc, Layout, System},
@@ -755,7 +759,11 @@ fn named_chain() -> BTreeMap<String, String> {
 
 /// Every site and upstream program, and a sample of the language corpus.
 fn corpora() -> Vec<(String, String)> {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    // The repository, two directories above this package.
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(2)
+        .unwrap();
     let mut programs = Vec::new();
     let mut pending = vec![root.join("tests/site"), root.join("tests/upstream")];
     while let Some(directory) = pending.pop() {

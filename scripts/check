@@ -12,8 +12,8 @@ fi
 ./scripts/cargo clippy --workspace --all-targets --no-default-features -- -D warnings
 ./scripts/adamantium -- --all-features
 ./scripts/adamantium -- --no-default-features
-./scripts/cargo test --workspace --all-targets --all-features
+./scripts/cargo test --workspace --exclude vibescript-checker-footprint --all-targets --all-features
 ./scripts/cargo test --workspace --profile gate --all-targets --all-features
-./scripts/cargo test --workspace --profile gate --all-targets --no-default-features
+./scripts/cargo test --workspace --exclude vibescript-checker-footprint --profile gate --all-targets --no-default-features
 ./scripts/cargo test --workspace --doc --all-features
 python3 scripts/golden.py

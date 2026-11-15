@@ -474,6 +474,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "vibescript-checker-footprint"
+version = "0.0.0"
+dependencies = [
+ "libc",
+ "serde_json",
+ "vibescript",
+]
+
+[[package]]
 name = "vibescript-tools"
 version = "0.100.0"
 dependencies = [

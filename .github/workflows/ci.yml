@@ -73,14 +73,16 @@ jobs:
         uses: ./.github/actions/setup
         with:
           cache-key: tests
+      # The checker's memory accounting tests take minutes in every run and
+      # give the same accounts in each build, so only the SIMD gate runs them.
       - name: Debug tests with all features
-        run: ./scripts/cargo test --locked --workspace --all-targets --all-features --no-fail-fast
+        run: ./scripts/cargo test --locked --workspace --exclude vibescript-checker-footprint --all-targets --all-features --no-fail-fast
       - name: Gate tests with all features (SIMD)
         if: ${{ !cancelled() }}
         run: ./scripts/cargo test --locked --workspace --profile gate --all-targets --all-features --no-fail-fast
       - name: Gate tests without default features (portable)
         if: ${{ !cancelled() }}
-        run: ./scripts/cargo test --locked --workspace --profile gate --all-targets --no-default-features --no-fail-fast
+        run: ./scripts/cargo test --locked --workspace --exclude vibescript-checker-footprint --profile gate --all-targets --no-default-features --no-fail-fast
       - name: Documentation tests with all features
         if: ${{ !cancelled() }}
         run: ./scripts/cargo test --locked --workspace --doc --all-features

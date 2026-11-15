@@ -1,0 +1,31 @@
+[package]
+name = "vibescript-checker-footprint"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+description = "The type checker's memory account, measured by a counting allocator"
+license = "MIT AND BSD-3-Clause"
+publish = false
+autotests = false
+
+[features]
+default = ["simd"]
+simd = ["vibescript/simd"]
+allocation-stats = ["vibescript/allocation-stats"]
+tokio = ["vibescript/tokio"]
+
+[dependencies]
+vibescript = { path = "../..", default-features = false }
+
+[dev-dependencies]
+serde_json = { version = "1", features = ["arbitrary_precision"] }
+
+[target.'cfg(unix)'.dev-dependencies]
+libc = "0.2"
+
+[[test]]
+name = "checker_footprint"
+path = "checker_footprint.rs"
+
+[lints]
+workspace = true

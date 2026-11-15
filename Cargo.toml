@@ -1,5 +1,7 @@
 [workspace]
-members = ["cli", "tools"]
+# The checker's memory accounting tests have a package of their own, so a
+# test run can leave them out with `--exclude`; see ci.yml.
+members = ["cli", "tools", "tests/checker-footprint"]
 # The WASI witness is its own package with its own lock file.
 exclude = ["tests/platforms/wasi"]
 
@@ -49,11 +51,6 @@ path = "tests/all.rs"
 [[test]]
 name = "footprint"
 path = "tests/footprint.rs"
-
-# The checker's own memory account, measured by a counting allocator.
-[[test]]
-name = "checker_footprint"
-path = "tests/checker_footprint.rs"
 
 [features]
 default = ["simd"]
