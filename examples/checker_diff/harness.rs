@@ -6,11 +6,12 @@ use super::host::{self, Host};
 use std::{
     panic::{AssertUnwindSafe, catch_unwind},
     path::Path,
-    sync::mpsc,
     time::{Duration, Instant},
 };
 use vibescript::{CallOptions, Engine, Error, ErrorKind, Limits, ModuleConfig, Value};
 
+#[path = "../support/streams.rs"]
+mod streams;
 #[path = "../../fuzz/support.rs"]
 mod support;
 
@@ -424,13 +425,10 @@ pub enum Annotation {
     Finding(Finding),
 }
 
-/// One output stream of a compiled case, as the writers sent it.
-type Captured = mpsc::Receiver<Vec<u8>>;
-
 struct Compiled {
     script: vibescript::Script,
-    stdout: Captured,
-    stderr: Captured,
+    stdout: streams::Written,
+    stderr: streams::Written,
 }
 
 fn compile(
@@ -438,8 +436,8 @@ fn compile(
     directory: Option<&Path>,
     keep: bool,
 ) -> Result<Result<Compiled, Error>, String> {
-    let (out, stdout) = mpsc::channel();
-    let (err, stderr) = mpsc::channel();
+    let (out, stdout) = streams::open();
+    let (err, stderr) = streams::open();
     let mut engine = Engine::new();
     engine.set_keep_type_checks(keep);
     if let Some(directory) = directory {
@@ -462,18 +460,8 @@ fn compile(
         }
         Ok(output.len())
     });
-    engine.set_output_writer(move |_, bytes| {
-        if !bytes.is_empty() {
-            let _ = out.send(bytes.to_vec());
-        }
-        Ok(())
-    });
-    engine.set_error_writer(move |_, bytes| {
-        if !bytes.is_empty() {
-            let _ = err.send(bytes.to_vec());
-        }
-        Ok(())
-    });
+    engine.set_output_writer(move |_, bytes| streams::write(&out, bytes));
+    engine.set_error_writer(move |_, bytes| streams::write(&err, bytes));
     if let Err(error) = case.host.declare(&mut engine) {
         return capture(|| Err(error));
     }
@@ -536,8 +524,8 @@ fn observe(compiled: &Compiled, host: &Host) -> Result<Observation, String> {
             .push_str(&format!("; {}: ", call.function));
         observation.record(outcome, true);
     }
-    observation.stdout = compiled.stdout.try_iter().flatten().collect();
-    observation.stderr = compiled.stderr.try_iter().flatten().collect();
+    observation.stdout = streams::collect(&compiled.stdout);
+    observation.stderr = streams::collect(&compiled.stderr);
     Ok(observation)
 }
 
@@ -732,8 +720,8 @@ mod tests {
             });
             let compiled = Compiled {
                 script: engine.compile(main).unwrap(),
-                stdout: mpsc::channel().1,
-                stderr: mpsc::channel().1,
+                stdout: streams::open().1,
+                stderr: streams::open().1,
             };
             let mut host = Host::default();
             if main.starts_with("def") {
