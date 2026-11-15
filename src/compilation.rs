@@ -26,6 +26,9 @@ pub(crate) struct Budget {
     pub memory: Option<usize>,
     pub deadline: Option<std::time::Instant>,
     pub cancellation: Option<crate::CancellationToken>,
+    /// The failures a test injects into the work this bounds.
+    #[cfg(test)]
+    pub faults: Option<std::sync::Arc<crate::checked::Faults>>,
 }
 
 impl Budget {

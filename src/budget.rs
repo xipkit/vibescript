@@ -478,6 +478,8 @@ impl CallContext {
                 .map(|limit| limit.saturating_sub(self.memory.used())),
             deadline: self.options.deadline,
             cancellation: Some(self.options.cancellation.clone()),
+            #[cfg(test)]
+            faults: None,
         }
     }
 

@@ -18,6 +18,13 @@ use crate::{
 };
 use std::{collections::HashMap, fmt, sync::Arc};
 
+/// The table an export leaves behind in a check that `meter` counts, with
+/// an account of its own.
+#[cfg(not(test))]
+fn left(_: &super::meter::Meter) -> Types {
+    Types::new()
+}
+
 /// Files `require` may nest before the checker stops following them.
 const DEPTH: usize = 16;
 
@@ -927,8 +934,7 @@ impl<'a> Checker<'a> {
                 methods,
             });
         }
-        // The table left behind has an account of its own.
-        let left = Types::new();
+        let left = left(&self.meter);
         if let Some(violation) = left.violation() {
             self.meter.violated(violation);
         }
@@ -1495,6 +1501,19 @@ fn visit<'x>(expr: &'x Expr, walk: &mut Walk<'x, '_>, out: &mut ScratchVec<Reque
         _ => (),
     }
     false
+}
+
+/// The table an export leaves behind in a check that `meter` counts, with
+/// an account of its own, which meets the check's faults as it is made.
+#[cfg(test)]
+fn left(meter: &super::meter::Meter) -> Types {
+    Types::metered(super::meter::Meter::new(
+        crate::compilation::Budget {
+            faults: meter.budget().faults.clone(),
+            ..Default::default()
+        },
+        None,
+    ))
 }
 
 #[cfg(test)]

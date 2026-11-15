@@ -208,6 +208,12 @@ impl Engine {
         let resolve = |path: &str, origin: Option<&loading::Origin>, ctx: &mut _| {
             self.loader.source(path, origin, ctx)
         };
+        let budget = compilation::Budget::default();
+        #[cfg(test)]
+        let budget = compilation::Budget {
+            faults: Some(self.loader.faults.clone()),
+            ..budget
+        };
         let input = typing::Input {
             source,
             parsed: &parsed,
@@ -217,7 +223,7 @@ impl Engine {
             file: false,
             origin: None,
             modules: Some(&resolve),
-            budget: Default::default(),
+            budget,
             observe: Some(observe),
             annotate: true,
         };
@@ -258,6 +264,12 @@ impl Engine {
                 &(),
             )
         })?;
+        let budget = compilation::Budget::default();
+        #[cfg(test)]
+        let budget = compilation::Budget {
+            faults: Some(self.loader.faults.clone()),
+            ..budget
+        };
         typing::entry_arguments(
             &typing::Input {
                 source,
@@ -268,7 +280,7 @@ impl Engine {
                 file: false,
                 origin: None,
                 modules: None,
-                budget: Default::default(),
+                budget,
                 observe: None,
                 annotate: false,
             },

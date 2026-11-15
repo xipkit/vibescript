@@ -154,6 +154,12 @@ impl Code {
         for host in registered.clone() {
             registered_hosts.push(work, host)?;
         }
+        let budget = work.budget();
+        #[cfg(test)]
+        let budget = crate::compilation::Budget {
+            faults: loader.map(|loader| loader.faults.clone()),
+            ..budget
+        };
         let mut checked = crate::typing::check(&crate::typing::Input {
             source,
             parsed: &parsed,
@@ -163,7 +169,7 @@ impl Code {
             file,
             origin: origin.as_ref(),
             modules: loader.is_some().then_some(&resolve),
-            budget: work.budget(),
+            budget,
             observe: None,
             annotate: false,
         })?;
