@@ -193,9 +193,12 @@ struct Restore;
 
 impl Drop for Restore {
     fn drop(&mut self) {
+        // Restoring is best effort while the REPL returns or unwinds: each
+        // step runs even if one before it failed, and a terminal that cannot
+        // be restored cannot show the failure either.
         let mut out = io::stdout();
-        let _ = out.write_all(b"\x1b[?2004l\x1b[?1049l\x1b[?25h");
-        let _ = out.flush();
-        let _ = terminal::disable_raw_mode();
+        drop(out.write_all(b"\x1b[?2004l\x1b[?1049l\x1b[?25h"));
+        drop(out.flush());
+        drop(terminal::disable_raw_mode());
     }
 }
