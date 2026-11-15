@@ -87,7 +87,10 @@ mod tests {
 
     impl Drop for Scratch {
         fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.0);
+            let result = fs::remove_dir_all(&self.0);
+            if !std::thread::panicking() {
+                result.unwrap();
+            }
         }
     }
 

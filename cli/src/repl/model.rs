@@ -245,9 +245,13 @@ pub fn entry_lines(entry: &Entry) -> Vec<Line> {
     } else {
         ("→ ", Style::Result)
     };
-    let mut output = render::styled_lines(&format!("{marker}{}", entry.output), style);
-    if let Some(line) = output.first_mut() {
-        line.insert(0, span("  ", Style::Plain));
+    let mut output = render::styled_lines(&format!("{marker}{}", entry.output), style).into_iter();
+    if let Some(first) = output.next() {
+        lines.push(
+            std::iter::once(span("  ", Style::Plain))
+                .chain(first)
+                .collect(),
+        );
     }
     lines.extend(output);
     lines
