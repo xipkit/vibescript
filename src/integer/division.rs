@@ -181,9 +181,11 @@ fn remainder(ctx: &mut CallContext, a: &[u32], b: &[u32], q: &[u32]) -> Result<B
     let mut meter = Meter::default();
     // a is shorter than 2L words: fold its high part onto its low part.
     let mut remainder = zeros(ctx, words)?;
-    let (low, high) = a.split_at(words.min(a.len()));
+    let (low, high) = a.split_at_checked(words).unwrap_or((a, &[]));
     meter.spend(ctx, low.len())?;
-    remainder.span_mut(0, low.len())?.copy_from_slice(low);
+    for (word, &value) in remainder.span_mut(0, low.len())?.iter_mut().zip(low) {
+        *word = value;
+    }
     add_wrapped(ctx, &mut meter, &mut remainder.data, high)?;
     subtract_wrapped(ctx, &mut meter, &mut remainder.data, &product.data)?;
     // β^L - 1 itself stands for zero.
