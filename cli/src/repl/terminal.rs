@@ -12,7 +12,6 @@ use crossterm::{
 };
 use std::{
     collections::VecDeque,
-    fmt::Write as _,
     io::{self, Write},
     time::{Duration, Instant},
 };
@@ -180,12 +179,11 @@ fn draw(
             frame.push_str("\x1b[K");
         }
     }
-    let _ = write!(
-        frame,
+    frame.push_str(&format!(
         "\x1b[J\x1b[{};{}H\x1b[?25h\x1b[?2026l",
         cursor.0 + 1,
         cursor.1 + 1
-    );
+    ));
     out.write_all(frame.as_bytes())?;
     out.flush()
 }
@@ -195,9 +193,12 @@ struct Restore;
 
 impl Drop for Restore {
     fn drop(&mut self) {
+        // Restoring is best effort while the REPL returns or unwinds: each
+        // step runs even if one before it failed, and a terminal that cannot
+        // be restored cannot show the failure either.
         let mut out = io::stdout();
-        let _ = out.write_all(b"\x1b[?2004l\x1b[?1049l\x1b[?25h");
-        let _ = out.flush();
-        let _ = terminal::disable_raw_mode();
+        drop(out.write_all(b"\x1b[?2004l\x1b[?1049l\x1b[?25h"));
+        drop(out.flush());
+        drop(terminal::disable_raw_mode());
     }
 }

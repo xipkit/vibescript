@@ -1,4 +1,4 @@
-use crate::checked::{Checked, convert};
+use crate::checked::{Checked, convert, violation};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, Charge},
@@ -155,7 +155,10 @@ impl<'a> Magnitude<'a> {
                 *scratch = [crate::numeric::low_u32(n), (n >> 32) as u32];
                 match self {
                     Self::Small(0) => &[],
-                    Self::Small(n) if n <= u32::MAX as u64 => scratch.split_at(1).0,
+                    Self::Small(n) if n <= u32::MAX as u64 => {
+                        let [low, _] = scratch;
+                        std::slice::from_ref(low)
+                    }
                     _ => scratch,
                 }
             }
@@ -428,8 +431,12 @@ fn multiply_into(ctx: &mut CallContext, out: &mut [u32], a: &[u32], b: &[u32]) -
         return Ok(());
     }
     let half = b.len() / 2;
-    let (a0, a1) = a.split_at(half);
-    let (b0, b1) = b.split_at(half);
+    let (a0, a1) = a
+        .split_at_checked(half)
+        .ok_or(violation("Karatsuba halves must fit both operands"))?;
+    let (b0, b1) = b
+        .split_at_checked(half)
+        .ok_or(violation("Karatsuba halves must fit both operands"))?;
     let low = product(ctx, a0, b0)?;
     let high = product(ctx, a1, b1)?;
     let mut middle = {
@@ -467,12 +474,11 @@ fn sum(ctx: &mut CallContext, a: &[u32], b: &[u32]) -> Result<Buffer<u32>> {
 }
 
 /// Drops high zero words without charging; callers charge the words they then read.
-fn significant(words: &[u32]) -> &[u32] {
-    let length = words
-        .iter()
-        .rposition(|&word| word != 0)
-        .map_or(0, |i| i + 1);
-    words.split_at(length).0
+fn significant(mut words: &[u32]) -> &[u32] {
+    while let Some((0, rest)) = words.split_last() {
+        words = rest;
+    }
+    words
 }
 
 /// Adds `value` into `out`, propagating the carry; `out` must hold the sum.
@@ -1057,7 +1063,7 @@ mod tests {
         let error = multiply_into(&mut ctx, &mut out, &a, &b).unwrap_err();
         assert_eq!(error.kind, ErrorKind::Steps);
         assert_eq!(ctx.stats().steps, 1 + 2 * CHUNK as u64 / 16);
-        let (paid, unpaid) = out.split_at(CHUNK);
+        let (paid, unpaid) = out.split_at_checked(CHUNK).unwrap();
         assert!(paid.iter().all(|&word| word == 1));
         assert!(unpaid.iter().all(|&word| word == 0));
         assert_eq!(ctx.checkpoint().unwrap_err(), error);
@@ -1083,7 +1089,7 @@ mod tests {
         let error = add_into(&mut ctx, &mut out, &value).unwrap_err();
         assert_eq!(error.kind, ErrorKind::Steps);
         assert_eq!(ctx.stats().steps, 32);
-        let (paid, unpaid) = out.split_at(CHUNK);
+        let (paid, unpaid) = out.split_at_checked(CHUNK).unwrap();
         assert!(paid.iter().all(|&word| word == 2));
         assert!(unpaid.iter().all(|&word| word == 1));
         assert_eq!(ctx.checkpoint().unwrap_err(), error);

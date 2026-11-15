@@ -7,7 +7,7 @@
 //! are preflighted before any row is allocated. Intrinsic size guards raise
 //! recoverable limit errors; exhausted quotas latch like every other charge.
 
-use crate::checked::{Access, Checked, convert};
+use crate::checked::{Access, Checked, convert, violation};
 use crate::numeric::{float_to_u64, to_usize};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
@@ -323,7 +323,9 @@ fn rotate(ctx: &mut CallContext, label: &str, array: &[Value], args: &[Value]) -
     let length = array.len();
     let shift = convert::<usize, _>(offset.rem_euclid(crate::numeric::to_i64(length)))?;
     let mut out = Buffer::with_capacity(ctx, length)?;
-    let (head, tail) = array.split_at(shift);
+    let (head, tail) = array
+        .split_at_checked(shift)
+        .ok_or(violation("a rotation must fall within the array"))?;
     for value in tail.iter().chain(head) {
         ctx.charge(1)?;
         out.data.push(value.clone());

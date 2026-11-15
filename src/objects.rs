@@ -944,7 +944,7 @@ pub(crate) fn cleanup(ctx: &mut CallContext) {
                 if depth == Some(0) {
                     data.scratch = Buffer::empty();
                 }
-                prune_classes(data);
+                prune_classes(data)?;
                 data.classes.shrink_after_failure(limit);
                 data.entries.shrink_after_failure(limit);
                 data.pending.shrink_after_failure(limit);
@@ -952,7 +952,7 @@ pub(crate) fn cleanup(ctx: &mut CallContext) {
             });
             // A poisoned heap may be inconsistent, so it is not reclaimed.
             if let Err(error) = reclaimed {
-                let _ = ctx.latch_internal::<()>(Err(error));
+                let _latched = ctx.latch_internal::<()>(Err(error));
             }
         }
     }
@@ -978,7 +978,7 @@ fn collect(ctx: &mut CallContext, heap: &Arc<Heap>, shrink: bool) -> Result<()> 
             if used {
                 slot += 1;
             } else {
-                data.classes.data.swap_remove(slot);
+                swap_out(&mut data.classes.data, slot)?;
             }
         }
         if shrink {
@@ -996,7 +996,7 @@ fn collect(ctx: &mut CallContext, heap: &Arc<Heap>, shrink: bool) -> Result<()> 
     })
 }
 
-fn prune_classes(data: &mut Data) {
+fn prune_classes(data: &mut Data) -> Access<()> {
     let mut slot = 0;
     while let Some(class) = data.classes.data.get(slot) {
         if data
@@ -1007,9 +1007,21 @@ fn prune_classes(data: &mut Data) {
         {
             slot += 1;
         } else {
-            data.classes.data.swap_remove(slot);
+            swap_out(&mut data.classes.data, slot)?;
         }
     }
+    Ok(())
+}
+
+/// Removes the item at `slot` in constant time by moving the last item into
+/// its place, as `Vec::swap_remove` does.
+fn swap_out<T>(items: &mut Vec<T>, slot: usize) -> Access<T> {
+    items.at(slot)?;
+    let last = items.pop().ok_or(violation("removed item must be held"))?;
+    Ok(match items.get_mut(slot) {
+        Some(item) => std::mem::replace(item, last),
+        None => last,
+    })
 }
 
 fn reclaim(data: &mut Data, tick: &mut impl FnMut() -> Result<()>) -> Result<usize> {
@@ -1045,7 +1057,7 @@ fn reclaim(data: &mut Data, tick: &mut impl FnMut() -> Result<()>) -> Result<usi
         if entry.internal.identity.marked.load(Ordering::Relaxed) {
             slot += 1;
         } else {
-            let removed = data.entries.data.swap_remove(slot);
+            let removed = swap_out(&mut data.entries.data, slot)?;
             removed
                 .internal
                 .identity

@@ -645,8 +645,10 @@ pub(crate) fn member_doc_markdown(word: &str) -> String {
             None => groups.push((entry.markdown, vec![entry.receiver])),
         }
     }
-    if groups.len() == 1 {
-        return groups.remove(0).0;
+    if groups.len() == 1
+        && let Some((markdown, _)) = groups.pop()
+    {
+        return markdown;
     }
     let sections: Vec<String> = groups
         .into_iter()

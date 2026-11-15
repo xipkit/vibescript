@@ -7,7 +7,7 @@
 //! conversion costs O(n log^2 n) word operations.
 
 use super::ntt::{self, Meter, Roots};
-use crate::checked::{Checked, convert};
+use crate::checked::{Checked, convert, violation};
 use crate::{CallContext, Error, ErrorKind, Result, budget::Buffer};
 
 /// Magnitudes longer than this many words convert by halves.
@@ -190,7 +190,9 @@ impl<B: Base> Converter<B> {
                 .map_or(2 * scale.limbs.data.len(), |next| next.limbs.data.len());
             let mut combined = Buffer::with_capacity(ctx, pairs * width)?;
             for pair in level.data.chunks(2 * stride) {
-                let (low, high) = pair.split_at(stride.min(pair.len()));
+                let (low, high) = pair
+                    .split_at_checked(stride.min(pair.len()))
+                    .ok_or(violation("a pair must split within its words"))?;
                 let high = self.significant(ctx, high)?;
                 self.combine(ctx, &mut combined.data, low, high, &scale, width)?;
             }

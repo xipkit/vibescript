@@ -82,8 +82,7 @@ impl Starts {
     /// The token of `tokens` that starts at `offset`, or the nearest one
     /// after it among the source's own.
     pub fn find(&self, tokens: &[Token], offset: usize) -> Tok {
-        let end = self.end.min(tokens.len());
-        let head = tokens.split_at(end).0;
+        let head = tokens.get(..self.end).unwrap_or(tokens);
         let index = head.partition_point(|token| token.start < offset);
         if head.get(index).is_some_and(|token| token.start == offset) {
             return index;

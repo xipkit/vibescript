@@ -566,7 +566,7 @@ impl Types {
     fn add(&mut self, kind: Kind) -> Ty {
         let heap = kind.heap();
         let ty = self.insert(kind, heap, true).unwrap_or(Ty::ERROR);
-        let _ = self.poll();
+        let _stopped = self.poll();
         ty
     }
 

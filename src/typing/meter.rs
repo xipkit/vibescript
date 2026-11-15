@@ -1033,9 +1033,9 @@ mod tests {
     /// caller's next check reads.
     const GOING_ON: &[(&str, &str)] = &[
         // A finished walk's last charge, when it is dropped.
-        ("walk.rs", "let _ = self.meter.charge(self.visited);"),
+        ("walk.rs", "let _stopped = self.meter.charge(self.visited);"),
         // The type table's own types, each of which has its fixed place.
-        ("ty.rs", "let _ = self.poll();"),
+        ("ty.rs", "let _stopped = self.poll();"),
     ];
 
     #[test]
@@ -1051,7 +1051,7 @@ mod tests {
             let text = std::fs::read_to_string(&path).unwrap();
             for (number, line) in text.lines().enumerate() {
                 let line = line.trim();
-                if !line.starts_with("let _ = ") {
+                if !line.starts_with("let _") {
                     continue;
                 }
                 let allowed = GOING_ON

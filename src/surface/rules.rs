@@ -1480,7 +1480,8 @@ impl<'a> Checker<'a> {
             }));
         }
         if operator && place == Place::Tight {
-            pieces.insert(0, Piece::Text("(".into()));
+            pieces.push(Piece::Text("(".into()));
+            pieces.rotate_right(1);
             pieces.push(Piece::Text(")".into()));
         } else if operator {
             self.operator_rewrites.insert(expr.span);

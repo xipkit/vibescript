@@ -330,7 +330,7 @@ impl<T: Copy> Drop for Walk<'_, '_, T> {
     fn drop(&mut self) {
         // The walk is over, so there is nothing left for a stop to end;
         // the meter keeps it for the check.
-        let _ = self.meter.charge(self.visited);
+        let _stopped = self.meter.charge(self.visited);
     }
 }
 

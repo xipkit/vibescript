@@ -119,7 +119,9 @@ fn combine(ctx: &mut CallContext, chunks: &[u32], powers: &mut Powers) -> Result
     }
     // The low half holds a power-of-two count of chunks, at least half of them.
     let level = (chunks.len() - 1).ilog2() as usize;
-    let (low, high) = chunks.split_at(1 << level);
+    let (low, high) = chunks
+        .split_at_checked(1 << level)
+        .ok_or(violation("the low half must fit the chunks"))?;
     let low = combine(ctx, low, powers)?;
     let high = combine(ctx, high, powers)?;
     if high.data.is_empty() {

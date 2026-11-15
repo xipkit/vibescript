@@ -530,10 +530,8 @@ fn comment_above<S: AsRef<str>>(lines: &[S], line: usize) -> String {
     let mut parts: Vec<&str> = block
         .into_iter()
         .filter(|text| !text.starts_with("vibe:") && !text.starts_with("uses:"))
+        .skip_while(|text| text.trim().is_empty())
         .collect();
-    while parts.first().is_some_and(|text| text.trim().is_empty()) {
-        parts.remove(0);
-    }
     while parts.last().is_some_and(|text| text.trim().is_empty()) {
         parts.pop();
     }

@@ -82,12 +82,12 @@ impl Editor {
             Edit::Backspace => {
                 if self.cursor > 0 {
                     self.cursor -= 1;
-                    self.value.remove(self.cursor);
+                    self.value.drain(self.cursor..=self.cursor);
                 }
             }
             Edit::Delete => {
                 if self.cursor < self.value.len() {
-                    self.value.remove(self.cursor);
+                    self.value.drain(self.cursor..=self.cursor);
                 }
             }
             Edit::DeleteWordLeft => {
