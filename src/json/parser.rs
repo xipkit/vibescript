@@ -1657,7 +1657,11 @@ mod tests {
                 input.push(b'"');
             }
             let mut plain = CallContext::new(CallOptions::default());
-            let _ = reference(&mut Parser::new(&mut plain, &input));
+            // The plain run sizes the limits below, so only the input may
+            // end it early.
+            if let Err(error) = reference(&mut Parser::new(&mut plain, &input)) {
+                assert_eq!(error.kind, ErrorKind::Json, "case {case}");
+            }
             let steps = usize::try_from(plain.stats().steps).unwrap();
             let peak = plain.stats().peak_memory_bytes;
             for limits in [
