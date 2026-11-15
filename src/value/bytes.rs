@@ -3,7 +3,6 @@ use crate::{
     budget::{Buffer, Charge},
 };
 use std::{
-    mem::ManuallyDrop,
     ops::Deref,
     ptr::NonNull,
     sync::{Arc, OnceLock},
@@ -258,14 +257,16 @@ impl std::fmt::Debug for Bytes {
 /// Immutable bytes that acquire a separate shared owner only when they cross budgets.
 #[derive(Debug)]
 struct Data {
-    original: ManuallyDrop<Vec<u8>>,
+    /// Owns the buffer until `shared` is set. From then on it only aliases the
+    /// shared vector for reads, and `Drop` discards it without freeing.
+    original: Vec<u8>,
     shared: OnceLock<SharedBuffer>,
 }
 
 impl Data {
     fn new(bytes: Vec<u8>) -> Self {
         Self {
-            original: ManuallyDrop::new(bytes),
+            original: bytes,
             shared: OnceLock::new(),
         }
     }
@@ -276,9 +277,9 @@ impl Data {
                 let mut shared = Arc::new(Vec::new());
                 let data = Arc::make_mut(&mut shared);
                 // SAFETY: the vector is immutable. OnceLock transfers ownership
-                // exactly once, and Drop only frees original if this never ran.
+                // exactly once, and Drop frees original only if this never ran.
                 // Allocate first, so nothing can unwind after taking ownership.
-                *data = unsafe { std::ptr::read(&*self.original) };
+                *data = unsafe { std::ptr::read(&self.original) };
                 shared
             })
             .clone()
@@ -296,10 +297,13 @@ impl Deref for Data {
 impl Drop for Data {
     #[inline]
     fn drop(&mut self) {
-        if self.shared.get().is_none() {
-            // SAFETY: no shared owner was created, so original still owns its
-            // buffer. Exclusive access rules out concurrent promotion or reads.
-            unsafe { ManuallyDrop::drop(&mut self.original) };
+        if self.shared.get().is_some() {
+            // SAFETY: shared moved the buffer into the shared vector, so
+            // original is a moved-from alias that must not free it. Exclusive
+            // access rules out concurrent promotion or reads. Overwriting the
+            // alias without dropping it leaves an empty vector for the field's
+            // own drop and the shared vector as the buffer's only owner.
+            unsafe { std::ptr::write(&mut self.original, Vec::new()) };
         }
     }
 }
