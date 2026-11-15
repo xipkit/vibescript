@@ -8,7 +8,6 @@
 //! value of the wrong type fails the whole decode.
 
 use serde_json::{Map, Value};
-use std::fmt::Write;
 
 /// An encodable JSON value.
 #[derive(Clone, Debug, PartialEq)]
@@ -40,9 +39,7 @@ impl Json {
                 Step::Value(value) => match value {
                     Self::Null => out.push_str("null"),
                     Self::Bool(value) => out.push_str(if *value { "true" } else { "false" }),
-                    Self::Int(value) => {
-                        let _ = write!(out, "{value}");
-                    }
+                    Self::Int(value) => out.push_str(&value.to_string()),
                     Self::Str(text) => string(&mut out, text),
                     Self::Raw(raw) => out.push_str(raw),
                     Self::Array(items) => {
