@@ -1,6 +1,7 @@
 //! Shared state whose methods run one at a time: adamantium's `Actor`, kept
-//! here with the same shape because adamantium needs Tokio unconditionally
-//! and this crate keeps Tokio optional for WASI.
+//! here with the same shape because adamantium requires a newer Rust than
+//! this crate declares, and its `Actor` has no `try_with`, `try_read` or
+//! const `new`, which this crate uses.
 
 use std::{fmt, sync::PoisonError};
 
