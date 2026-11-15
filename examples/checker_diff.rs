@@ -348,7 +348,7 @@ fn verdicts(
     drop(progress);
     let mut watcher = Watcher::new(jobs, None);
     if let Some(seed) = watcher.watch(&events)? {
-        let _ = watcher.output.flush();
+        watcher.output.flush()?;
         eprintln!("seed {seed} did not finish in two minutes");
         return Ok(3);
     }
