@@ -168,10 +168,19 @@ struct Observation {
     unexpected: bool,
 }
 
-/// Where required files are written, one directory per worker.
+/// Where required files are written, one directory per worker, removed
+/// when the scratch is dropped.
 pub struct Scratch {
     root: std::path::PathBuf,
     next: usize,
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        // The directory holds only copies of programs already judged, so one
+        // left behind, or never made, changes nothing a command reports.
+        drop(std::fs::remove_dir_all(&self.root));
+    }
 }
 
 impl Scratch {

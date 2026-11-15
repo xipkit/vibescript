@@ -87,17 +87,14 @@ fn watcher_gone() -> std::io::Error {
     std::io::Error::other("the watcher stopped before the workers")
 }
 
-/// Removes a worker's scratch directory and tells the watcher it is done,
-/// however the worker ended.
+/// Tells the watcher a worker is done, however the worker ended.
 struct WorkerCleanup {
     worker: usize,
-    root: PathBuf,
     progress: mpsc::Sender<Progress>,
 }
 
 impl Drop for WorkerCleanup {
     fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.root);
         let _ = self.progress.send(Progress::Done {
             worker: self.worker,
         });
@@ -210,7 +207,6 @@ fn run() -> std::io::Result<u8> {
                 let verdict = harness::judge(&case, &mut scratch)?;
                 println!("{path}: {}", describe(&verdict));
             }
-            let _ = std::fs::remove_dir_all(scratch_root(0));
             Ok(0)
         }
         Some("generate") => {
@@ -244,7 +240,6 @@ fn run() -> std::io::Result<u8> {
                 std::fs::write(&target, &output)?;
                 println!("== {target}\n{output}");
             }
-            let _ = std::fs::remove_dir_all(scratch_root(0));
             Ok(0)
         }
         _ => {
@@ -318,13 +313,11 @@ fn verdicts(
     for worker in 0..jobs {
         let (next, progress, source) = (next.clone(), progress.clone(), source.clone());
         let handle = harness::spawn(move || {
-            let root = scratch_root(worker + 1);
             let _cleanup = WorkerCleanup {
                 worker,
-                root: root.clone(),
                 progress: progress.clone(),
             };
-            let mut scratch = Scratch::new(&root);
+            let mut scratch = Scratch::new(&scratch_root(worker + 1));
             while let Some(seed) = next_seed(&next, end) {
                 progress
                     .send(Progress::Started { worker, seed })
@@ -435,7 +428,6 @@ fn rejections(args: &[String]) -> std::io::Result<u8> {
             std::fs::write(path, format!("{header}{}", case.render()))?;
         }
     }
-    let _ = std::fs::remove_dir_all(scratch_root(0));
     println!("compared {compared} seeds");
     for ((first, second), count) in &changes {
         println!("  {first} -> {second}: {count}");
@@ -660,7 +652,6 @@ mod tests {
         ];
         let result = super::rejections(&args);
         std::fs::remove_dir_all(root).unwrap();
-        let _ = std::fs::remove_dir_all(super::scratch_root(0));
         assert!(
             result.is_err(),
             "a missing regression file must fail the command"
@@ -791,13 +782,11 @@ fn batch(args: &[String]) -> std::io::Result<u8> {
     for worker in 0..jobs {
         let (next, progress, source) = (next.clone(), progress.clone(), source.clone());
         let handle = harness::spawn(move || {
-            let root = scratch_root(worker + 1);
             let _cleanup = WorkerCleanup {
                 worker,
-                root: root.clone(),
                 progress: progress.clone(),
             };
-            let mut scratch = Scratch::new(&root);
+            let mut scratch = Scratch::new(&scratch_root(worker + 1));
             while let Some(seed) = next_seed(&next, end) {
                 progress
                     .send(Progress::Started { worker, seed })
