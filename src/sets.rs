@@ -1,4 +1,4 @@
-use crate::checked::{Checked, convert};
+use crate::checked::{Access, Checked, convert};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK},
@@ -92,7 +92,7 @@ fn hash_value(
                 hasher.write_u8(u8::from(value.negative));
                 let words = value.words();
                 hasher.write_usize(words.len());
-                let (head, tail) = sample(words, SAMPLE_WORDS);
+                let (head, tail) = sample(words, SAMPLE_WORDS)?;
                 ctx.work_bytes((head.len() + tail.len()) * size_of::<u32>())?;
                 head.hash(hasher);
                 tail.hash(hasher);
@@ -140,7 +140,7 @@ fn hash_value(
             hasher.write_u8(14);
             hasher.write_usize(values.len());
             if expand {
-                let (head, tail) = sample(values, SAMPLE_ELEMENTS);
+                let (head, tail) = sample(values, SAMPLE_ELEMENTS)?;
                 for value in head.iter().chain(tail) {
                     hash_value(ctx, hasher, value, false)?;
                 }
@@ -190,7 +190,7 @@ fn hash_float(hasher: &mut DefaultHasher, value: f64) {
 
 fn hash_bytes(ctx: &mut CallContext, hasher: &mut DefaultHasher, bytes: &[u8]) -> Result<()> {
     hasher.write_usize(bytes.len());
-    let (head, tail) = sample(bytes, SAMPLE_BYTES);
+    let (head, tail) = sample(bytes, SAMPLE_BYTES)?;
     ctx.work_bytes(head.len() + tail.len())?;
     hasher.write(head);
     hasher.write(tail);
@@ -198,14 +198,11 @@ fn hash_bytes(ctx: &mut CallContext, hasher: &mut DefaultHasher, bytes: &[u8]) -
 }
 
 /// Splits a slice into at most `count` leading and `count` trailing items.
-fn sample<T>(items: &[T], count: usize) -> (&[T], &[T]) {
+fn sample<T>(items: &[T], count: usize) -> Access<(&[T], &[T])> {
     if items.len() <= 2 * count {
-        (items, &[])
+        Ok((items, &[]))
     } else {
-        (
-            items.split_at(count).0,
-            items.split_at(items.len() - count).1,
-        )
+        Ok((items.span(0, count)?, items.tail(items.len() - count)?))
     }
 }
 
