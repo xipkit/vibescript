@@ -524,7 +524,9 @@ fn sources_the_compiler_accepts_still_walk() {
         // assertion fires when the rules cannot read what the compiler
         // accepted. A static-check failure is fine: the walk has already
         // run.
-        let _ = Engine::new().compile(source);
+        if let Err(error) = Engine::new().compile(source) {
+            assert_eq!(error.kind, crate::ErrorKind::Type, "{source:?}: {error}");
+        }
     }
 }
 
@@ -775,7 +777,7 @@ fn removed_spellings_in_required_files_are_reported_at_compile_time() {
         found,
         [("V0401".to_owned(), Some("helpers.vibe".to_owned()))]
     );
-    let _ = std::fs::remove_dir_all(&directory);
+    std::fs::remove_dir_all(&directory).unwrap();
 }
 
 // WASI preview 1 cannot start the larger-stack thread, so it skips such

@@ -1,5 +1,5 @@
 use super::Work;
-use crate::checked::Checked;
+use crate::checked::{Access, Checked, violation};
 use crate::{Result, budget::Charge};
 use std::{
     fmt,
@@ -103,8 +103,13 @@ impl<T> Buffer<T> {
         self.data.truncate(length);
     }
 
-    pub fn remove(&mut self, index: usize) -> T {
-        self.data.remove(index)
+    pub fn remove(&mut self, index: usize) -> Access<T> {
+        self.at(index)?;
+        let len = self.len();
+        self.span_mut(index, len)?.rotate_left(1);
+        self.data
+            .pop()
+            .ok_or(violation("buffer must hold the removed value"))
     }
 
     pub fn extend(&mut self, work: &dyn Work, values: Self) -> Result<()> {

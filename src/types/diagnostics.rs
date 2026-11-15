@@ -2,6 +2,7 @@ use super::{Type, Value};
 use crate::{
     CallContext, Error, ErrorKind, Result,
     budget::Buffer,
+    checked::Checked,
     enums::compare_names,
     hash::Hash,
     shapes::{self, TypeWriter},
@@ -281,7 +282,9 @@ fn insert(ctx: &mut CallContext, types: &mut Buffer<Buffer<u8>>, text: Buffer<u8
         }
     }
     ctx.charge((types.data.len() - position) as u64)?;
-    types.data.insert(position, text);
+    types.data.push(text);
+    let len = types.data.len();
+    types.data.span_mut(position, len)?.rotate_right(1);
     Ok(())
 }
 

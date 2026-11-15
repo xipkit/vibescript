@@ -570,8 +570,8 @@ fn admit(
             .iter()
             .position(|a| a.program == program)
             .ok_or(violation("needed program must have an activation"))?;
-        let activation = storage.activations.data.remove(index);
-        storage.activations.data.push(activation);
+        let len = storage.activations.data.len();
+        storage.activations.span_mut(index, len)?.rotate_left(1);
     }
     Ok(())
 }

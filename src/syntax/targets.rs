@@ -24,7 +24,7 @@ impl TargetText<'_> {
         let bytes = self.bytes.span(0, self.len)?;
         match std::str::from_utf8(bytes) {
             Ok(text) => Ok(text),
-            Err(error) => std::str::from_utf8(bytes.split_at(error.valid_up_to()).0)
+            Err(error) => std::str::from_utf8(bytes.span(0, error.valid_up_to())?)
                 .map_err(|_| crate::checked::violation("target excerpt prefix must be UTF-8")),
         }
     }
@@ -48,9 +48,9 @@ impl crate::shapes::TypeWriter for TargetText<'_> {
         let tail = self.bytes.span_mut(self.len, capacity)?;
         let count = bytes.len().min(tail.len());
         self.work.bytes(count)?;
-        tail.split_at_mut(count)
-            .0
-            .copy_from_slice(bytes.split_at(count).0);
+        for (slot, byte) in tail.iter_mut().zip(bytes) {
+            *slot = *byte;
+        }
         self.len += count;
         if count < bytes.len() {
             self.clipped = true;

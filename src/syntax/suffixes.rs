@@ -142,7 +142,7 @@ fn at_key(work: &dyn Work, kind: &str, at: u32) -> Result<Name> {
             break;
         }
     }
-    let digits = digits.split_at(digits.len() - written).1;
+    let digits = digits.tail(digits.len() - written)?;
     let digits = std::str::from_utf8(digits).unwrap_or_default();
     Name::join(work, &[kind, digits])
 }
@@ -1334,7 +1334,9 @@ fn radix_sort(work: &dyn Work, values: &mut [u32]) -> Result<()> {
             *scratch.at_mut(*starts.at(digit)?)? = value;
             *starts.at_mut(digit)? += 1;
         }
-        values.copy_from_slice(&scratch);
+        for (value, &sorted) in values.iter_mut().zip(scratch.iter()) {
+            *value = sorted;
+        }
     }
     Ok(())
 }

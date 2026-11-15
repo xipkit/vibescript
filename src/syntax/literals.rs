@@ -296,7 +296,7 @@ impl<'a> Parser<'a> {
             if tail.token != Token::EndLine || tail.line == tail.end_line {
                 break;
             }
-            tokens.remove(tokens.len() - 2);
+            tokens.remove(tokens.len() - 2)?;
         }
         let mut parser = Parser {
             work: self.work,

@@ -414,7 +414,14 @@ mod tests {
     fn original(context: &mut CallContext) -> Definition {
         let source = "class Box;def original(n:int=1);begin;a=[1,2,3].map{|v|[v+n,v*2]};if n>0;a[0];else;0;end;rescue ArgumentError|TypeError=>e;raise e;ensure;nil;end;end;end";
         let mut parsed = crate::syntax::parse(source, &Meter::new(context)).unwrap();
-        parsed.modules.remove(0).instance_methods.remove(0).0
+        parsed
+            .modules
+            .remove(0)
+            .unwrap()
+            .instance_methods
+            .remove(0)
+            .unwrap()
+            .0
     }
 
     /// The least memory beyond the original's that copying it needs: what
