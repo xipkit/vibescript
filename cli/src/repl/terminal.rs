@@ -12,7 +12,6 @@ use crossterm::{
 };
 use std::{
     collections::VecDeque,
-    fmt::Write as _,
     io::{self, Write},
     time::{Duration, Instant},
 };
@@ -180,12 +179,11 @@ fn draw(
             frame.push_str("\x1b[K");
         }
     }
-    let _ = write!(
-        frame,
+    frame.push_str(&format!(
         "\x1b[J\x1b[{};{}H\x1b[?25h\x1b[?2026l",
         cursor.0 + 1,
         cursor.1 + 1
-    );
+    ));
     out.write_all(frame.as_bytes())?;
     out.flush()
 }

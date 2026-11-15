@@ -222,29 +222,28 @@ pub fn error(error: &Error, snippet: Option<&str>) -> String {
         if snippet.is_some() {
             position.column = position.column.max(1);
         }
-        let _ = write!(
-            text,
+        text.push_str(&format!(
             "parse error at {}: {message}",
             location(diagnostic.filename.as_deref(), position)
-        );
+        ));
     } else {
         text.push_str(&error.message);
     }
-    let _ = write!(text, "\n{}", diagnostic.code_frame);
+    text.push('\n');
+    text.push_str(&diagnostic.code_frame);
     let count = diagnostic.frames.len();
     for (index, frame) in diagnostic.frames.iter().enumerate() {
         if count > 16 && (8..count - 8).contains(&index) {
             if index == 8 {
-                let _ = write!(text, "\n  ... {} frames omitted ...", count - 16);
+                text.push_str(&format!("\n  ... {} frames omitted ...", count - 16));
             }
             continue;
         }
-        let _ = write!(
-            text,
+        text.push_str(&format!(
             "\n  at {} ({})",
             function(frame, snippet.is_some()),
             location(frame.filename.as_deref(), frame.position)
-        );
+        ));
     }
     text
 }

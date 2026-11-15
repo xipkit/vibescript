@@ -3,7 +3,6 @@
 //! color support.
 
 use super::editor::char_width;
-use std::fmt::Write;
 
 /// A named style from the Go REPL's palette.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -221,7 +220,9 @@ pub fn ansi(out: &mut String, line: &[Span], colors: Colors, max: Option<usize>)
         if open.is_empty() {
             out.push_str(&text);
         } else {
-            let _ = write!(out, "{open}{text}\x1b[m");
+            out.push_str(&open);
+            out.push_str(&text);
+            out.push_str("\x1b[m");
         }
         if max.is_some_and(|max| used >= max) {
             break;
