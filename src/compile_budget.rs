@@ -125,12 +125,6 @@ impl CompileBudget {
         let resolve = |path: &str, origin: Option<&crate::loading::Origin>, ctx: &mut _| {
             engine.loader.source(path, origin, ctx)
         };
-        let budget = work.budget();
-        #[cfg(test)]
-        let budget = crate::compilation::Budget {
-            faults: Some(engine.loader.faults.clone()),
-            ..budget
-        };
         let checked = crate::typing::check(&crate::typing::Input {
             source,
             parsed: &parsed,
@@ -140,7 +134,13 @@ impl CompileBudget {
             file: false,
             origin: None,
             modules: Some(&resolve),
-            budget,
+            #[cfg(not(test))]
+            budget: work.budget(),
+            #[cfg(test)]
+            budget: crate::compilation::Budget {
+                faults: Some(engine.loader.faults.clone()),
+                ..work.budget()
+            },
             observe: None,
             annotate: true,
         })?;
