@@ -136,6 +136,22 @@ pub(crate) fn pause(duration: Duration) -> Sleep {
     tokio::time::sleep(duration)
 }
 
+/// A test's watchdog: awaits `future`, and fails the test, naming `what`,
+/// when it is still pending after `limit`. Nothing resumes after the limit,
+/// so the future is dropped only by the failure that reports it.
+#[cfg(test)]
+pub(crate) async fn within<T: Send>(
+    limit: Duration,
+    what: &str,
+    future: impl Future<Output = T> + Send,
+) -> T {
+    tokio::select! {
+        biased;
+        value = future => value,
+        () = pause(limit) => panic!("{what} was still pending after {limit:?}"),
+    }
+}
+
 /// Runs `work` on Tokio's blocking pool and waits for it. A panic in the
 /// work resumes here; a worker that is cancelled or shut down is a host error.
 #[allow(

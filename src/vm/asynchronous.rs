@@ -1147,7 +1147,7 @@ pub(crate) async fn call(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::asynchronous::pause;
+    use crate::asynchronous::{pause, within};
     use tokio::sync::Notify;
 
     fn work(script: &Script, on_finish: Arc<dyn Fn() + Send + Sync>) -> Box<Work> {
@@ -1219,9 +1219,7 @@ mod tests {
                 let mut call = Box::pin(driver.drive::<Result<Outcome>>(work));
                 tokio::select! {
                     _ = &mut call => panic!("the call finished before its finalization began"),
-                    entered = tokio::time::timeout(Duration::from_secs(3), entered.notified()) => {
-                        entered.unwrap();
-                    }
+                    () = within(Duration::from_secs(3), "finalization", entered.notified()) => (),
                 }
                 // The executor's clock still runs while finalization holds the worker.
                 pause(Duration::from_millis(5)).await;
@@ -1275,12 +1273,12 @@ mod tests {
                 handle: Handle::current(),
                 _lane: Worker,
             };
-            let result = tokio::time::timeout(
+            let result = within(
                 Duration::from_secs(1),
+                "the cancelled call",
                 driver.drive::<Result<Outcome>>(work),
             )
             .await
-            .unwrap()
             .unwrap();
             let error = result.unwrap_err();
             assert_eq!(error.kind, ErrorKind::Cancelled);
@@ -1288,9 +1286,7 @@ mod tests {
             assert!(!finished.load(Ordering::SeqCst));
             assert_eq!(slots.available_permits(), 0);
             drop(busy);
-            tokio::time::timeout(Duration::from_secs(3), entered.notified())
-                .await
-                .unwrap();
+            within(Duration::from_secs(3), "the cleanup", entered.notified()).await;
             // One blocking thread means this job runs after the cleanup job.
             crate::asynchronous::blocking(|| {}).await.unwrap();
             assert!(finished.load(Ordering::SeqCst));
@@ -1429,12 +1425,12 @@ mod tests {
                 handle: Handle::current(),
                 _lane: Worker,
             };
-            let result = tokio::time::timeout(
+            let result = within(
                 Duration::from_secs(3),
+                &format!("{body}/{mode}"),
                 driver.drive::<Result<Outcome>>(work),
             )
             .await
-            .unwrap()
             .unwrap();
             match mode {
                 "success" => {
@@ -1523,14 +1519,11 @@ mod tests {
                 Poll::Ready(())
             })
             .await;
-            tokio::time::timeout(Duration::from_secs(3), entered.notified())
-                .await
-                .unwrap();
+            within(Duration::from_secs(3), "the leaf", entered.notified()).await;
         }
         release.send(()).unwrap();
-        let panic = tokio::time::timeout(Duration::from_secs(3), call.recover())
+        let panic = within(Duration::from_secs(3), "the recovery", call.recover())
             .await
-            .unwrap()
             .unwrap()
             .unwrap();
         assert_eq!(panic.downcast_ref::<&str>(), Some(&"retiring worker panic"));
@@ -1718,12 +1711,12 @@ mod tests {
                         handle: Handle::current(),
                         _lane: Worker,
                     };
-                    let outcome = tokio::time::timeout(
+                    let outcome = within(
                         Duration::from_secs(3),
+                        &label,
                         driver.drive::<Result<Outcome>>(work),
                     )
                     .await
-                    .expect(&label)
                     .unwrap()
                     .unwrap_err();
                     assert_eq!(outcome.kind, expected, "{label}: {}", outcome.message);
@@ -1748,12 +1741,12 @@ mod tests {
                         },
                         ..CallOptions::default()
                     };
-                    let error = tokio::time::timeout(
+                    let error = within(
                         Duration::from_secs(3),
+                        &label,
                         runner.call(script, "run".into(), vec![], options),
                     )
                     .await
-                    .expect(&label)
                     .unwrap_err();
                     assert_eq!(error.kind, expected, "{label}: {}", error.message);
                     assert_eq!(caught.load(Ordering::SeqCst), 2, "{label}");
