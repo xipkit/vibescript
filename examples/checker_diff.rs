@@ -274,10 +274,14 @@ fn option(args: &[String], name: &str) -> Option<String> {
 
 /// Claims a seed below `end`, leaving an exhausted counter unchanged.
 fn next_seed(next: &AtomicU64, end: u64) -> Option<u64> {
-    next.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |seed| {
-        (seed < end).then(|| seed + 1)
-    })
-    .ok()
+    let mut seed = next.load(Ordering::Relaxed);
+    while seed < end {
+        match next.compare_exchange_weak(seed, seed + 1, Ordering::Relaxed, Ordering::Relaxed) {
+            Ok(_) => return Some(seed),
+            Err(current) => seed = current,
+        }
+    }
+    None
 }
 
 /// The positive number of workers shared by both differential commands.
