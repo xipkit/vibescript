@@ -86,7 +86,10 @@ impl Read for Chunks<'_> {
             return Err(io::ErrorKind::Interrupted.into());
         }
         let length = output.len().min(3).min(self.bytes.len() - self.position);
-        output[..length].copy_from_slice(&self.bytes[self.position..self.position + length]);
+        let chunk = &self.bytes[self.position..self.position + length];
+        for (slot, byte) in output.iter_mut().zip(chunk) {
+            *slot = *byte;
+        }
         self.position += length;
         if let Some((at, cancellation)) = &self.cancel_after {
             if self.calls == *at {
