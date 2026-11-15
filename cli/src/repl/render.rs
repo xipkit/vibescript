@@ -70,12 +70,14 @@ pub fn panel(content: Vec<Line>) -> Vec<Line> {
         .unwrap_or(0);
     let rule = "─".repeat(inner + 2);
     let mut lines = vec![vec![span(format!("╭{rule}╮"), Style::Border)]];
-    for mut line in content {
+    for line in content {
         let pad = inner - width(&plain(&line));
-        line.insert(0, span("│ ", Style::Border));
-        line.push(span(" ".repeat(pad), Style::Plain));
-        line.push(span(" │", Style::Border));
-        lines.push(line);
+        let mut bordered = Vec::with_capacity(line.len() + 3);
+        bordered.push(span("│ ", Style::Border));
+        bordered.extend(line);
+        bordered.push(span(" ".repeat(pad), Style::Plain));
+        bordered.push(span(" │", Style::Border));
+        lines.push(bordered);
     }
     lines.push(vec![span(format!("╰{rule}╯"), Style::Border)]);
     lines
