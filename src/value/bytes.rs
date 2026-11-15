@@ -94,17 +94,13 @@ impl Bytes {
 
     #[inline]
     pub(crate) fn strong_count(&self) -> usize {
-        // SAFETY: the pointer was produced by Arc::into_raw for this layout.
-        // ManuallyDrop borrows its strong reference without consuming it.
+        // SAFETY: the pointer was produced by Arc::into_raw for this layout,
+        // and this handle's strong reference outlives the call.
         unsafe {
             if self.is_shared() {
-                Arc::strong_count(&ManuallyDrop::new(Arc::from_raw(
-                    self.pointer().cast::<Shared>(),
-                )))
+                strong_count(self.pointer().cast::<Shared>())
             } else {
-                Arc::strong_count(&ManuallyDrop::new(Arc::from_raw(
-                    self.pointer().cast::<Owned>(),
-                )))
+                strong_count(self.pointer().cast::<Owned>())
             }
         }
     }
@@ -201,6 +197,25 @@ impl Bytes {
             charge: storage,
         }))
     }
+}
+
+/// Reads the strong count of the Arc that `pointer` stands for, leaving the
+/// reference it holds with `pointer`.
+///
+/// # Safety
+///
+/// `pointer` must come from `Arc::<T>::into_raw` and still hold the strong
+/// reference that call gave it.
+#[inline]
+unsafe fn strong_count<T>(pointer: *const T) -> usize {
+    // SAFETY: the caller guarantees that pointer holds a strong reference from
+    // Arc::into_raw. Reading the count cannot unwind, so the Arc never drops:
+    // into_raw puts that same reference straight back behind pointer.
+    let arc = unsafe { Arc::from_raw(pointer) };
+    let count = Arc::strong_count(&arc);
+    let returned = Arc::into_raw(arc);
+    debug_assert!(std::ptr::eq(returned, pointer));
+    count
 }
 
 impl Clone for Bytes {
