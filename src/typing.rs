@@ -775,16 +775,7 @@ fn check_metered(input: &Input<'_>, depth: usize, meter: std::sync::Arc<meter::M
                 // and memory the budget leaves, and stops the check if it
                 // runs out of them.
                 &|source, steps| {
-                    let mut context = crate::CallContext::new(crate::CallOptions {
-                        limits: crate::Limits {
-                            steps: budget.steps.map(|left| left.saturating_sub(steps)),
-                            memory_bytes: budget.memory.map(|left| left.saturating_sub(held)),
-                            ..crate::Limits::default()
-                        },
-                        cancellation: budget.cancellation.clone().unwrap_or_default(),
-                        deadline: budget.deadline,
-                        ..crate::CallOptions::default()
-                    });
+                    let mut context = budget.context(steps, held);
                     let error = crate::syntax::canonical_error(
                         source,
                         &crate::compilation::Meter::new(&mut context),

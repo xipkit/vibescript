@@ -40,6 +40,22 @@ impl Budget {
         }
     }
 
+    /// A context for compiler work a check does within what this budget
+    /// leaves after `steps` more steps, beside `held` more bytes: the steps,
+    /// the memory, the deadline and the cancellation.
+    pub fn context(&self, steps: u64, held: usize) -> CallContext {
+        CallContext::new(crate::CallOptions {
+            limits: crate::Limits {
+                steps: self.steps.map(|left| left.saturating_sub(steps)),
+                memory_bytes: self.memory.map(|left| left.saturating_sub(held)),
+                ..crate::Limits::default()
+            },
+            cancellation: self.cancellation.clone().unwrap_or_default(),
+            deadline: self.deadline,
+            ..crate::CallOptions::default()
+        })
+    }
+
     /// Whether the deadline has passed or the host cancelled.
     pub fn interrupted(&self) -> bool {
         self.cancellation

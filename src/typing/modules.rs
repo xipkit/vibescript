@@ -358,18 +358,7 @@ impl<'a> Checker<'a> {
     /// its budget bounds, beside the `held` bytes: the steps, the memory, the
     /// deadline and the cancellation.
     fn context(&self, held: usize) -> crate::CallContext {
-        let budget = self.meter.budget();
-        let steps = self.total_steps();
-        crate::CallContext::new(crate::CallOptions {
-            limits: crate::Limits {
-                steps: budget.steps.map(|left| left.saturating_sub(steps)),
-                memory_bytes: budget.memory.map(|left| left.saturating_sub(held)),
-                ..crate::Limits::default()
-            },
-            cancellation: budget.cancellation.clone().unwrap_or_default(),
-            deadline: budget.deadline,
-            ..crate::CallOptions::default()
-        })
+        self.meter.budget().context(self.total_steps(), held)
     }
 
     /// Counts the source and the file name `diagnostic` keeps, each once
