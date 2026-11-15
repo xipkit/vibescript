@@ -78,8 +78,17 @@ fn drop_modules(case: Case, wanted: &str, scratch: &mut Scratch) -> std::io::Res
     let mut best = case;
     let mut index = 0;
     while index < best.modules.len() {
-        let mut next = best.clone();
-        next.modules.remove(index);
+        let next = Case {
+            main: best.main.clone(),
+            modules: best
+                .modules
+                .iter()
+                .take(index)
+                .chain(best.modules.iter().skip(index + 1))
+                .cloned()
+                .collect(),
+            host: best.host.clone(),
+        };
         if same(&harness::judge(&next, scratch)?, wanted) {
             best = next;
         } else {
