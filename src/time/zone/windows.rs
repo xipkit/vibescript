@@ -3,7 +3,7 @@
 // See licenses/Go-BSD-3-Clause.txt.
 
 use super::{Zone, calendar};
-use crate::checked::{Checked, convert};
+use crate::checked::{Access, Checked, convert};
 use crate::{CallContext, Result, budget::Buffer};
 use std::{cmp::Ordering, sync::Arc};
 
@@ -88,6 +88,15 @@ fn terminated(input: &[u16]) -> &[u16] {
     input.split(|&c| c == 0).next().unwrap_or_default()
 }
 
+/// A table abbreviation in a name field, with its length.
+fn field(name: &str) -> Access<([u8; 32], usize)> {
+    let mut bytes = [0; 32];
+    for (slot, byte) in bytes.span_mut(0, name.len())?.iter_mut().zip(name.bytes()) {
+        *slot = byte;
+    }
+    Ok((bytes, name.len()))
+}
+
 fn abbreviate(ctx: &mut CallContext, name: &[u16]) -> Result<Option<Names>> {
     let name = terminated(name);
     let table = abbreviations::ABBREVIATIONS;
@@ -100,21 +109,14 @@ fn abbreviate(ctx: &mut CallContext, name: &[u16]) -> Result<Option<Names>> {
             Ordering::Less => lo = mid + 1,
             Ordering::Greater => hi = mid,
             Ordering::Equal => {
-                let mut names = Names {
-                    standard: [0; 32],
-                    standard_len: standard.len(),
-                    daylight: [0; 32],
-                    daylight_len: daylight.len(),
-                };
-                names
-                    .standard
-                    .span_mut(0, standard.len())?
-                    .copy_from_slice(standard.as_bytes());
-                names
-                    .daylight
-                    .span_mut(0, daylight.len())?
-                    .copy_from_slice(daylight.as_bytes());
-                return Ok(Some(names));
+                let (standard, standard_len) = field(standard)?;
+                let (daylight, daylight_len) = field(daylight)?;
+                return Ok(Some(Names {
+                    standard,
+                    standard_len,
+                    daylight,
+                    daylight_len,
+                }));
             }
         }
     }
@@ -181,12 +183,13 @@ fn build(ctx: &mut CallContext, info: &Information, names: Names, year: i64) -> 
     let capacity = 44 + 6 + name_len + 44 + 400 * 9 + 12 + name_len;
     let mut buffer = Buffer::with_capacity(ctx, capacity)?;
     fn header(buffer: &mut Vec<u8>, transitions: u32, zones: u32, names: u32) {
-        let mut header = [0; 44];
-        header[..5].copy_from_slice(b"TZif2");
-        header[32..36].copy_from_slice(&transitions.to_be_bytes());
-        header[36..40].copy_from_slice(&zones.to_be_bytes());
-        header[40..44].copy_from_slice(&names.to_be_bytes());
-        buffer.extend_from_slice(&header);
+        buffer.extend_from_slice(b"TZif2");
+        // Fifteen reserved bytes, then zero UT-indicator, standard-indicator
+        // and leap-second counts.
+        buffer.extend_from_slice(&[0; 15 + 12]);
+        buffer.extend_from_slice(&transitions.to_be_bytes());
+        buffer.extend_from_slice(&zones.to_be_bytes());
+        buffer.extend_from_slice(&names.to_be_bytes());
     }
     fn names_into(buffer: &mut Vec<u8>, standard: &[u8], daylight: &[u8]) {
         buffer.extend_from_slice(standard);
