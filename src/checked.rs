@@ -334,6 +334,11 @@ pub(crate) struct Faults {
     /// Fails the parser's account of a name as long as the module tests'
     /// marker.
     pub parse: Fault,
+    /// Fails the resolution of the source tests' marker.
+    pub resolution: Fault,
+    /// Fails the resolution of the source tests' marker once it has spent
+    /// the budget.
+    pub exhaustion: Fault,
 }
 
 #[cfg(test)]

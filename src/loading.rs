@@ -146,7 +146,7 @@ impl Loader {
         while let Some(candidate) = candidates.next(ctx)? {
             if let Some(source) = self.resolver.read(ctx, &candidate)? {
                 #[cfg(test)]
-                source_tests::injected(ctx, request)?;
+                source_tests::injected(&self.faults, ctx, request)?;
                 let bytes = source
                     .contents
                     .as_bytes()
