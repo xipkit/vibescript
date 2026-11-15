@@ -48,9 +48,9 @@ impl crate::shapes::TypeWriter for TargetText<'_> {
         let tail = self.bytes.span_mut(self.len, capacity)?;
         let count = bytes.len().min(tail.len());
         self.work.bytes(count)?;
-        tail.split_at_mut(count)
-            .0
-            .copy_from_slice(bytes.split_at(count).0);
+        for (slot, byte) in tail.iter_mut().zip(bytes) {
+            *slot = *byte;
+        }
         self.len += count;
         if count < bytes.len() {
             self.clipped = true;

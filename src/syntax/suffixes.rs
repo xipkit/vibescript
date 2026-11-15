@@ -1334,7 +1334,9 @@ fn radix_sort(work: &dyn Work, values: &mut [u32]) -> Result<()> {
             *scratch.at_mut(*starts.at(digit)?)? = value;
             *starts.at_mut(digit)? += 1;
         }
-        values.copy_from_slice(&scratch);
+        for (value, &sorted) in values.iter_mut().zip(scratch.iter()) {
+            *value = sorted;
+        }
     }
     Ok(())
 }
