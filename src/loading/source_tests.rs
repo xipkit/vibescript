@@ -1,57 +1,25 @@
+use crate::checked::Faults;
 use crate::{CallContext, Engine, ErrorKind, Result};
-use std::sync::atomic::{AtomicU8, Ordering::Relaxed};
 
 const MARKER: &str = "lib/resolver_fault_marker";
 const INJECTED: &str = "injected module resolver invariant";
 
-const OFF: u8 = 0;
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-enum Fault {
-    /// The resolver breaks an invariant once it has found the file.
-    Internal = 1,
-    /// The resolver runs out of its budget, then breaks an invariant.
-    Exhausted = 2,
-}
-
-thread_local! {
-    static ARMED: AtomicU8 = const { AtomicU8::new(OFF) };
-}
-
-/// Fails the next resolution of [`MARKER`] as the armed fault says, once.
-pub(super) fn injected(ctx: &mut CallContext, request: &str) -> Result<()> {
+/// Fails the next resolution of [`MARKER`] as a test armed `faults` to,
+/// once: the resolver breaks an invariant once it has found the file, or
+/// runs out of its budget first.
+pub(super) fn injected(faults: &Faults, ctx: &mut CallContext, request: &str) -> Result<()> {
     if request != MARKER {
         return Ok(());
     }
-    match ARMED.with(|armed| armed.swap(OFF, Relaxed)) {
-        OFF => Ok(()),
-        fault if fault == Fault::Internal as u8 => Err(crate::checked::internal(INJECTED)),
-        _ => {
-            let exhausted = ctx.fail::<()>(ErrorKind::Memory, "injected resolver exhaustion");
-            assert!(exhausted.is_err() && ctx.exhausted());
-            Err(crate::checked::internal(INJECTED))
-        }
+    if faults.exhaustion.strikes() {
+        let exhausted = ctx.fail::<()>(ErrorKind::Memory, "injected resolver exhaustion");
+        assert!(exhausted.is_err() && ctx.exhausted());
+        return Err(crate::checked::internal(INJECTED));
     }
-}
-
-struct Armed;
-
-impl Armed {
-    fn new(fault: Fault) -> Self {
-        ARMED.with(|armed| armed.store(fault as u8, Relaxed));
-        Self
+    if faults.resolution.strikes() {
+        return Err(crate::checked::internal(INJECTED));
     }
-
-    fn fired(&self) -> bool {
-        ARMED.with(|armed| armed.load(Relaxed) == OFF)
-    }
-}
-
-impl Drop for Armed {
-    fn drop(&mut self) {
-        ARMED.with(|armed| armed.store(OFF, Relaxed));
-    }
+    Ok(())
 }
 
 /// An engine whose script requires the marker, directly or through another
@@ -76,13 +44,13 @@ fn engine(nested: bool) -> (Engine, &'static str) {
 fn module_resolver_internal_reaches_compile() {
     for nested in [false, true] {
         let (engine, source) = engine(nested);
-        let armed = Armed::new(Fault::Internal);
+        let fault = &engine.loader.faults.resolution;
+        fault.arm(0);
         let error = engine
             .compile(source)
             .err()
             .expect("the fault must fail compilation");
-        assert!(armed.fired(), "nested={nested}: fault did not fire");
-        drop(armed);
+        assert!(fault.fired(), "nested={nested}: fault did not fire");
         assert_eq!(error.kind, ErrorKind::Internal, "nested={nested}: {error}");
         // `file!()` spells the path as the fault's caller location does,
         // with the platform's separators.
@@ -99,13 +67,13 @@ fn module_resolver_internal_reaches_compile() {
 fn module_resolver_exhaustion_outranks_its_internal() {
     for nested in [false, true] {
         let (engine, source) = engine(nested);
-        let armed = Armed::new(Fault::Exhausted);
+        let fault = &engine.loader.faults.exhaustion;
+        fault.arm(0);
         let error = engine
             .compile(source)
             .err()
             .expect("the fault must fail compilation");
-        assert!(armed.fired(), "nested={nested}: fault did not fire");
-        drop(armed);
+        assert!(fault.fired(), "nested={nested}: fault did not fire");
         assert_eq!(error.kind, ErrorKind::Memory, "nested={nested}: {error}");
         assert!(!error.message.contains(INJECTED), "{error}");
         assert!(engine.compile(source).is_ok(), "nested={nested}");

@@ -52,6 +52,10 @@ pub(crate) struct Loader {
     cache: cache::Cache<Arc<crate::code::Code>>,
     cache_limit: usize,
     development: bool,
+    /// The failures a test injects into the work done with this loader,
+    /// and with those made from it.
+    #[cfg(test)]
+    pub faults: Arc<crate::checked::Faults>,
 }
 
 pub(crate) struct Pin {
@@ -69,6 +73,8 @@ impl Default for Loader {
             cache: cache::Cache::new(DEFAULT_CACHE_LIMIT),
             cache_limit: DEFAULT_CACHE_LIMIT,
             development: false,
+            #[cfg(test)]
+            faults: Arc::default(),
         }
     }
 }
@@ -81,6 +87,8 @@ impl Loader {
             cache: cache::Cache::new(DEFAULT_CACHE_LIMIT),
             cache_limit: DEFAULT_CACHE_LIMIT,
             development: false,
+            #[cfg(test)]
+            faults: Arc::default(),
         })
     }
 
@@ -105,6 +113,8 @@ impl Loader {
             cache: cache::Cache::new(cache_limit),
             cache_limit,
             development: config.development,
+            #[cfg(test)]
+            faults: Arc::default(),
         })
     }
 
@@ -115,6 +125,8 @@ impl Loader {
             cache: cache::Cache::new(self.cache_limit),
             cache_limit: self.cache_limit,
             development: self.development,
+            #[cfg(test)]
+            faults: self.faults.clone(),
         }
     }
 
@@ -134,7 +146,7 @@ impl Loader {
         while let Some(candidate) = candidates.next(ctx)? {
             if let Some(source) = self.resolver.read(ctx, &candidate)? {
                 #[cfg(test)]
-                source_tests::injected(ctx, request)?;
+                source_tests::injected(&self.faults, ctx, request)?;
                 let bytes = source
                     .contents
                     .as_bytes()

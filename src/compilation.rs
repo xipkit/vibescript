@@ -26,6 +26,9 @@ pub(crate) struct Budget {
     pub memory: Option<usize>,
     pub deadline: Option<std::time::Instant>,
     pub cancellation: Option<crate::CancellationToken>,
+    /// The failures a test injects into the work this bounds.
+    #[cfg(test)]
+    pub faults: Option<std::sync::Arc<crate::checked::Faults>>,
 }
 
 impl Budget {
@@ -35,6 +38,24 @@ impl Budget {
             steps: self.steps.map(|left| left.saturating_sub(steps)),
             ..self.clone()
         }
+    }
+
+    /// A context for compiler work a check does within what this budget
+    /// leaves after `steps` more steps, beside `held` more bytes: the steps,
+    /// the memory, the deadline and the cancellation.
+    pub fn context(&self, steps: u64, held: usize) -> CallContext {
+        CallContext::new(crate::CallOptions {
+            limits: crate::Limits {
+                steps: self.steps.map(|left| left.saturating_sub(steps)),
+                memory_bytes: self.memory.map(|left| left.saturating_sub(held)),
+                ..crate::Limits::default()
+            },
+            cancellation: self.cancellation.clone().unwrap_or_default(),
+            deadline: self.deadline,
+            #[cfg(test)]
+            faults: self.faults.clone(),
+            ..crate::CallOptions::default()
+        })
     }
 
     /// Whether the deadline has passed or the host cancelled.
@@ -140,7 +161,7 @@ impl Work for Meter<'_> {
     }
     fn bytes(&self, bytes: usize) -> Result<()> {
         #[cfg(test)]
-        module_tests::injected(bytes)?;
+        module_tests::injected(self.0.borrow().options.faults.as_deref(), bytes)?;
         self.0.borrow_mut().work_bytes(bytes)
     }
     fn checkpoint(&self) -> Result<()> {

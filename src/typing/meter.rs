@@ -147,7 +147,7 @@ impl Meter {
     /// violation ([`Self::violation`]) as an internal error.
     #[inline]
     pub fn found<T>(&self, access: Access<T>) -> Option<T> {
-        if let Some(violation) = injected() {
+        if let Some(violation) = injected(&self.budget) {
             self.violated(violation);
             return None;
         }
@@ -395,7 +395,7 @@ impl Meter {
 /// The violation a test injects into this access; none outside the tests.
 #[cfg(not(test))]
 #[inline(always)]
-const fn injected() -> Option<crate::checked::Violation> {
+const fn injected(_: &Budget) -> Option<crate::checked::Violation> {
     None
 }
 

@@ -272,6 +272,75 @@ impl<T> Buffer<T> {
     }
 }
 
+/// A failure a test injects: the site it is for passes a number of times,
+/// then fails once.
+#[cfg(test)]
+#[derive(Debug)]
+pub(crate) struct Fault(std::sync::atomic::AtomicUsize);
+
+#[cfg(test)]
+impl Fault {
+    /// The passes left of a fault that is not armed.
+    const OFF: usize = usize::MAX;
+
+    /// Arms the fault to fail its site after `passes` more passes of it.
+    pub fn arm(&self, passes: usize) {
+        self.0.store(passes, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Whether this pass of the site is the one to fail, which disarms the
+    /// fault.
+    pub fn strikes(&self) -> bool {
+        let order = std::sync::atomic::Ordering::Relaxed;
+        let mut left = self.0.load(order);
+        while left != Self::OFF {
+            let next = left.checked_sub(1).unwrap_or(Self::OFF);
+            match self.0.compare_exchange_weak(left, next, order, order) {
+                Ok(_) => return left == 0,
+                Err(now) => left = now,
+            }
+        }
+        false
+    }
+
+    /// The passes left before the site fails, when the fault is armed.
+    pub fn left(&self) -> Option<usize> {
+        let left = self.0.load(std::sync::atomic::Ordering::Relaxed);
+        (left != Self::OFF).then_some(left)
+    }
+
+    /// Whether the fault has failed its site since it was armed. Disarms it
+    /// if not.
+    pub fn fired(&self) -> bool {
+        self.0.swap(Self::OFF, std::sync::atomic::Ordering::Relaxed) == Self::OFF
+    }
+}
+
+#[cfg(test)]
+impl Default for Fault {
+    fn default() -> Self {
+        Self(std::sync::atomic::AtomicUsize::new(Self::OFF))
+    }
+}
+
+/// The failures a test arms on the loader of the engine it tests. Only work
+/// done with that loader meets them, on whichever thread it runs, so tests
+/// that run side by side inject nothing into each other.
+#[cfg(test)]
+#[derive(Debug, Default)]
+pub(crate) struct Faults {
+    /// Fails a checked access of the type checker.
+    pub access: Fault,
+    /// Fails the parser's account of a name as long as the module tests'
+    /// marker.
+    pub parse: Fault,
+    /// Fails the resolution of the source tests' marker.
+    pub resolution: Fault,
+    /// Fails the resolution of the source tests' marker once it has spent
+    /// the budget.
+    pub exhaustion: Fault,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
