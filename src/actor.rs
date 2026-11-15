@@ -1,6 +1,7 @@
 //! Shared state whose methods run one at a time: adamantium's `Actor`, kept
-//! here with the same shape because adamantium needs Tokio unconditionally
-//! and this crate keeps Tokio optional for WASI.
+//! here with the same shape because adamantium requires a newer Rust than
+//! this crate declares, and its `Actor` has no `try_with`, `try_read` or
+//! const `new`, which this crate uses.
 
 use std::{fmt, sync::PoisonError};
 
@@ -32,6 +33,18 @@ thread_local! {
         const { crate::compilation::Shared::new(false) };
 }
 
+/// Records whether the current thread is inside an actor method, and
+/// returns whether it was. The mark has nothing to drop, so a thread keeps
+/// it for as long as it runs; one that had lost it would have no mark to
+/// find or to clear.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "an actor method is a synchronous closure, so the task can't change threads between entering one and leaving it"
+)]
+fn mark(inside: bool) -> bool {
+    INSIDE.try_with(|was| was.replace(inside)).unwrap_or(false)
+}
+
 /// Marks the current thread as inside an actor method until dropped.
 struct Inside;
 
@@ -41,22 +54,20 @@ impl Inside {
         reason = "a nested actor call is a bug in the caller, and a panic names it where a deadlock would hang"
     )]
     fn enter() -> Self {
-        INSIDE.with(|inside| {
-            if inside.replace(true) {
-                panic!(
-                    "an actor method was called inside another actor's method; \
-                     an actor method can't call an actor, so call the second \
-                     actor after the first returns"
-                );
-            }
-        });
+        if mark(true) {
+            panic!(
+                "an actor method was called inside another actor's method; \
+                 an actor method can't call an actor, so call the second \
+                 actor after the first returns"
+            );
+        }
         Self
     }
 }
 
 impl Drop for Inside {
     fn drop(&mut self) {
-        let _ = INSIDE.try_with(|inside| inside.replace(false));
+        mark(false);
     }
 }
 

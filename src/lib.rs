@@ -217,7 +217,13 @@ impl Engine {
             file: false,
             origin: None,
             modules: Some(&resolve),
+            #[cfg(not(test))]
             budget: Default::default(),
+            #[cfg(test)]
+            budget: compilation::Budget {
+                faults: Some(self.loader.faults.clone()),
+                ..Default::default()
+            },
             observe: Some(observe),
             annotate: true,
         };
@@ -268,7 +274,13 @@ impl Engine {
                 file: false,
                 origin: None,
                 modules: None,
+                #[cfg(not(test))]
                 budget: Default::default(),
+                #[cfg(test)]
+                budget: compilation::Budget {
+                    faults: Some(self.loader.faults.clone()),
+                    ..Default::default()
+                },
                 observe: None,
                 annotate: false,
             },

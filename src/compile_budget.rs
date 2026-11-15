@@ -27,6 +27,8 @@ impl CompileBudget {
                 cancellation: options.cancellation.clone(),
                 deadline: options.deadline,
                 allow_require: options.allow_require,
+                #[cfg(test)]
+                faults: options.faults.clone(),
             }),
         }
     }
@@ -132,7 +134,13 @@ impl CompileBudget {
             file: false,
             origin: None,
             modules: Some(&resolve),
+            #[cfg(not(test))]
             budget: work.budget(),
+            #[cfg(test)]
+            budget: crate::compilation::Budget {
+                faults: Some(engine.loader.faults.clone()),
+                ..work.budget()
+            },
             observe: None,
             annotate: true,
         })?;

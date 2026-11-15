@@ -84,16 +84,7 @@ impl<'a> Spans<'a> {
                 std::borrow::Cow::Borrowed(_) => 0,
                 std::borrow::Cow::Owned(list) => list.capacity() * size + payloads,
             };
-            let mut context = crate::CallContext::new(crate::CallOptions {
-                limits: crate::Limits {
-                    steps: budget.steps.map(|left| left.saturating_sub(meter.steps())),
-                    memory_bytes: budget.memory.map(|left| left.saturating_sub(merged)),
-                    ..crate::Limits::default()
-                },
-                cancellation: budget.cancellation.clone().unwrap_or_default(),
-                deadline: budget.deadline,
-                ..crate::CallOptions::default()
-            });
+            let mut context = budget.context(meter.steps(), merged);
             let inner = crate::syntax::record::tokens_within(
                 meter.text(source, start..end),
                 &crate::compilation::Meter::new(&mut context),

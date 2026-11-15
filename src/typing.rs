@@ -775,16 +775,7 @@ fn check_metered(input: &Input<'_>, depth: usize, meter: std::sync::Arc<meter::M
                 // and memory the budget leaves, and stops the check if it
                 // runs out of them.
                 &|source, steps| {
-                    let mut context = crate::CallContext::new(crate::CallOptions {
-                        limits: crate::Limits {
-                            steps: budget.steps.map(|left| left.saturating_sub(steps)),
-                            memory_bytes: budget.memory.map(|left| left.saturating_sub(held)),
-                            ..crate::Limits::default()
-                        },
-                        cancellation: budget.cancellation.clone().unwrap_or_default(),
-                        deadline: budget.deadline,
-                        ..crate::CallOptions::default()
-                    });
+                    let mut context = budget.context(steps, held);
                     let error = crate::syntax::canonical_error(
                         source,
                         &crate::compilation::Meter::new(&mut context),
@@ -1095,44 +1086,23 @@ fn symbol_text(value: &crate::Value) -> Option<String> {
 /// whatever asked for the check gets an internal error and no panic.
 #[cfg(test)]
 mod fault_tests {
+    use crate::checked::Faults;
     use crate::{CallOptions, Engine, Error, ErrorKind, Value};
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     /// The message of a failure these tests inject.
     const INJECTED: &str = "injected by a checker fault test";
 
-    /// How many more accesses succeed before one fails, when armed.
-    const OFF: usize = usize::MAX;
-
-    thread_local! {
-        static LEFT: AtomicUsize = const { AtomicUsize::new(OFF) };
-    }
-
-    /// The violation to report if this access is the one to fail. A check of a
-    /// source longer than [`super::SHALLOW`] runs on another thread, where none
-    /// is.
-    pub(super) fn injected() -> Option<crate::checked::Violation> {
-        LEFT.with(|left| match left.load(Ordering::Relaxed) {
-            OFF => None,
-            0 => {
-                left.store(OFF, Ordering::Relaxed);
-                Some(crate::checked::violation(INJECTED))
-            }
-            more => {
-                left.store(more - 1, Ordering::Relaxed);
-                None
-            }
-        })
-    }
-
-    /// Sets the access to fail, after `successes` others.
-    fn arm(successes: usize) {
-        LEFT.with(|left| left.store(successes, Ordering::Relaxed));
-    }
-
-    /// Whether the armed access has come, which disarms it. Disarms it if not.
-    fn fired() -> bool {
-        LEFT.with(|left| left.swap(OFF, Ordering::Relaxed)) == OFF
+    /// The violation to report if this access is the one a test armed
+    /// `budget`'s engine to fail.
+    pub(super) fn injected(
+        budget: &crate::compilation::Budget,
+    ) -> Option<crate::checked::Violation> {
+        if budget.faults.as_ref()?.access.strikes() {
+            Some(crate::checked::violation(INJECTED))
+        } else {
+            None
+        }
     }
 
     /// A file with what a requiring check imports: a function, an enum and a
@@ -1241,15 +1211,15 @@ mod fault_tests {
         }
     }
 
-    /// Fails each access `entry` makes in turn; each must fail `entry` with the
-    /// internal error. Returns how many there were.
-    fn sweep<T>(entry: impl Fn() -> crate::Result<T>) -> usize {
-        assert!(MAIN.len() <= super::SHALLOW && HELPER.len() <= super::SHALLOW);
+    /// Fails each access `entry` makes in turn, through the `faults` of its
+    /// engine; each must fail `entry` with the internal error. Returns how
+    /// many there were.
+    fn sweep<T>(faults: &Faults, entry: impl Fn() -> crate::Result<T>) -> usize {
         let mut successes = 0;
         loop {
-            arm(successes);
+            faults.access.arm(successes);
             let result = entry();
-            if !fired() {
+            if !faults.access.fired() {
                 assert!(result.is_ok(), "the clean run must pass");
                 return successes;
             }
@@ -1280,7 +1250,7 @@ mod fault_tests {
     fn a_broken_invariant_fails_a_compile() {
         let files = Files::new("compile");
         let engine = files.engine();
-        let accesses = sweep(|| engine.compile(MAIN));
+        let accesses = sweep(&engine.loader.faults, || engine.compile(MAIN));
         assert!(accesses > 100, "reached only {accesses} accesses");
     }
 
@@ -1288,7 +1258,7 @@ mod fault_tests {
     fn a_broken_invariant_fails_a_type_check() {
         let files = Files::new("type-check");
         let engine = files.engine();
-        let accesses = sweep(|| engine.type_check(MAIN));
+        let accesses = sweep(&engine.loader.faults, || engine.type_check(MAIN));
         assert!(accesses > 100, "reached only {accesses} accesses");
     }
 
@@ -1296,14 +1266,18 @@ mod fault_tests {
     fn a_broken_invariant_fails_a_metered_type_check() {
         let files = Files::new("metered");
         let engine = files.engine();
-        let accesses =
-            sweep(|| crate::CompileBudget::new(&CallOptions::default()).type_check(&engine, MAIN));
+        let accesses = sweep(&engine.loader.faults, || {
+            crate::CompileBudget::new(&CallOptions::default()).type_check(&engine, MAIN)
+        });
         assert!(accesses > 100, "reached only {accesses} accesses");
     }
 
     #[test]
     fn a_broken_invariant_fails_an_entry_argument_check() {
-        let accesses = sweep(|| Engine::new().check_entry_arguments(MAIN, "run", 1));
+        let engine = Engine::new();
+        let accesses = sweep(&engine.loader.faults, || {
+            engine.check_entry_arguments(MAIN, "run", 1)
+        });
         assert!(accesses > 0, "reached only {accesses} accesses");
     }
 
@@ -1334,9 +1308,9 @@ mod fault_tests {
         let mut faulted = 0;
         for successes in 0.. {
             marks.store(0, Ordering::Relaxed);
-            arm(successes);
+            engine.loader.faults.access.arm(successes);
             let result = script.call("run", &[], requiring());
-            if !fired() {
+            if !engine.loader.faults.access.fired() {
                 result.expect("the clean run must pass");
                 assert_eq!(marks.load(Ordering::Relaxed), 1, "only `ensure` runs");
                 break;

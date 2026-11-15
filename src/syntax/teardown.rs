@@ -68,13 +68,28 @@ thread_local! {
     static PENDING: Shared<Vec<Part>> = const { Shared::new(Vec::new()) };
 }
 
+/// Runs `f` on the stack this thread keeps between drops, unless the thread
+/// is ending and has freed it.
+///
+/// A drop is synchronous: it takes the stack, empties it and puts it back
+/// before it returns. Between drops a thread therefore holds an empty list
+/// and its capacity, and nothing of a tree or of the task that dropped one,
+/// so a task that the parser's or the compiler's `async fn` recursion
+/// resumes on another thread finds that thread's stack, or none, and drops
+/// its trees the same way.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "a drop takes the stack and returns it without awaiting, so a thread keeps only spare capacity between drops and no task's state"
+)]
+fn kept<R>(f: impl FnOnce(&mut Vec<Part>) -> R) -> Option<R> {
+    PENDING.try_with(|kept| f(&mut kept.borrow_mut())).ok()
+}
+
 /// Drops what `start` puts on the stack, and what those put there in turn.
 fn teardown(start: impl FnOnce(&mut Vec<Part>)) {
     // A drop inside this one finds the shared stack taken and an empty one
     // in its place, which only an emptied node reaches, so it pushes nothing.
-    let mut pending = PENDING
-        .try_with(|shared| std::mem::take(&mut *shared.borrow_mut()))
-        .unwrap_or_default();
+    let mut pending = kept(std::mem::take).unwrap_or_default();
     start(&mut pending);
     drain(&mut pending);
     // A stack a very deep tree grew is kept only as large as a thread keeps
@@ -82,10 +97,10 @@ fn teardown(start: impl FnOnce(&mut Vec<Part>)) {
     if pending.capacity() > KEPT {
         pending.shrink_to(KEPT);
     }
-    let _ = PENDING.try_with(|shared| {
-        let mut shared = shared.borrow_mut();
-        if shared.capacity() < pending.capacity() {
-            *shared = pending;
+    // A thread that is ending keeps no stack, so this one is freed here.
+    kept(|kept| {
+        if kept.capacity() < pending.capacity() {
+            *kept = pending;
         }
     });
 }

@@ -18,6 +18,13 @@ use crate::{
 };
 use std::{collections::HashMap, fmt, sync::Arc};
 
+/// The table an export leaves behind in a check that `meter` counts, with
+/// an account of its own.
+#[cfg(not(test))]
+fn left(_: &super::meter::Meter) -> Types {
+    Types::new()
+}
+
 /// Files `require` may nest before the checker stops following them.
 const DEPTH: usize = 16;
 
@@ -351,18 +358,7 @@ impl<'a> Checker<'a> {
     /// its budget bounds, beside the `held` bytes: the steps, the memory, the
     /// deadline and the cancellation.
     fn context(&self, held: usize) -> crate::CallContext {
-        let budget = self.meter.budget();
-        let steps = self.total_steps();
-        crate::CallContext::new(crate::CallOptions {
-            limits: crate::Limits {
-                steps: budget.steps.map(|left| left.saturating_sub(steps)),
-                memory_bytes: budget.memory.map(|left| left.saturating_sub(held)),
-                ..crate::Limits::default()
-            },
-            cancellation: budget.cancellation.clone().unwrap_or_default(),
-            deadline: budget.deadline,
-            ..crate::CallOptions::default()
-        })
+        self.meter.budget().context(self.total_steps(), held)
     }
 
     /// Counts the source and the file name `diagnostic` keeps, each once
@@ -927,8 +923,7 @@ impl<'a> Checker<'a> {
                 methods,
             });
         }
-        // The table left behind has an account of its own.
-        let left = Types::new();
+        let left = left(&self.meter);
         if let Some(violation) = left.violation() {
             self.meter.violated(violation);
         }
@@ -1495,6 +1490,19 @@ fn visit<'x>(expr: &'x Expr, walk: &mut Walk<'x, '_>, out: &mut ScratchVec<Reque
         _ => (),
     }
     false
+}
+
+/// The table an export leaves behind in a check that `meter` counts, with
+/// an account of its own, which meets the check's faults as it is made.
+#[cfg(test)]
+fn left(meter: &super::meter::Meter) -> Types {
+    Types::metered(super::meter::Meter::new(
+        crate::compilation::Budget {
+            faults: meter.budget().faults.clone(),
+            ..Default::default()
+        },
+        None,
+    ))
 }
 
 #[cfg(test)]

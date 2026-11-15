@@ -163,7 +163,13 @@ impl Code {
             file,
             origin: origin.as_ref(),
             modules: loader.is_some().then_some(&resolve),
+            #[cfg(not(test))]
             budget: work.budget(),
+            #[cfg(test)]
+            budget: crate::compilation::Budget {
+                faults: loader.map(|loader| loader.faults.clone()),
+                ..work.budget()
+            },
             observe: None,
             annotate: false,
         })?;
