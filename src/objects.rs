@@ -396,10 +396,15 @@ fn new_scoped(
     let internal_header = ctx.reserve(size_of::<Instance>() + 2 * size_of::<usize>())?;
     let external_header = ctx.reserve(size_of::<Instance>() + 2 * size_of::<usize>())?;
     heap.with(|data| {
-        let Ok(id) =
-            NEXT_ID.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
-        else {
-            return ctx.fail(ErrorKind::Memory, "instance identity space exhausted");
+        let mut id = NEXT_ID.load(Ordering::Relaxed);
+        let id = loop {
+            let Some(next) = id.checked_add(1) else {
+                return ctx.fail(ErrorKind::Memory, "instance identity space exhausted");
+            };
+            match NEXT_ID.compare_exchange_weak(id, next, Ordering::Relaxed, Ordering::Relaxed) {
+                Ok(_) => break id,
+                Err(current) => id = current,
+            }
         };
         let needed = data.entries.data.len() + 1;
         if needed > data.pending.data.capacity() {
