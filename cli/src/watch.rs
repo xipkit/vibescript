@@ -253,6 +253,8 @@ mod tests {
 
         fn finish(mut self) -> String {
             self.stop.store(true, Ordering::SeqCst);
+            // The loop's last write, read before joining so it cannot block.
+            wait_for(&mut self.status, "watch stopped", 1);
             let result = self.thread.take().unwrap().join().unwrap();
             assert_eq!(result, Ok(()));
             self.status.text()

@@ -14,7 +14,7 @@ pub enum Sink {
     /// Only the watch tests, which WASI cannot run, capture output: each
     /// write is sent whole to the test's [`Captured`].
     #[cfg_attr(not(all(test, not(target_os = "wasi"))), allow(dead_code))]
-    Buffer(mpsc::Sender<Vec<u8>>),
+    Buffer(mpsc::SyncSender<Vec<u8>>),
 }
 
 /// Output captured by a test, which can wait for what it expects to appear.
@@ -71,7 +71,7 @@ impl Sink {
             Self::Buffer(captured) => {
                 // A test that stopped reading has finished with the output.
                 if !bytes.is_empty() {
-                    let _ = captured.send(bytes.to_vec());
+                    drop(captured.send(bytes.to_vec()));
                 }
                 Ok(())
             }
@@ -85,10 +85,13 @@ impl Sink {
         drop(self.write(format!("{text}\n").as_bytes()));
     }
 
-    /// A new buffer sink and the capture that reads it.
+    /// A new buffer sink and the capture that reads it. The capture holds
+    /// far more writes than a watch test makes, and the tests read until the
+    /// watch loop reports that it stopped before joining it, so a writer
+    /// cannot block on a capture that is never read again.
     #[cfg(all(test, not(target_os = "wasi")))]
     pub fn buffer() -> (Self, Captured) {
-        let (sender, written) = mpsc::channel();
+        let (sender, written) = mpsc::sync_channel(256);
         (
             Self::Buffer(sender),
             Captured {
