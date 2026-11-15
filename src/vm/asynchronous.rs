@@ -1204,7 +1204,8 @@ mod tests {
                 let script = crate::Engine::new().compile(&source).unwrap();
                 let slots = Arc::new(Semaphore::new(1));
                 let entered = Arc::new(Notify::new());
-                let (release, released) = std::sync::mpsc::channel::<()>();
+                // One message, so the send never waits for its receive.
+                let (release, released) = std::sync::mpsc::sync_channel::<()>(1);
                 let released = crate::actor::Actor::new(released);
                 let (pool, ready) = (slots.clone(), entered.clone());
                 let executor = std::thread::current().id();
@@ -1472,7 +1473,8 @@ mod tests {
     async fn recovery_collects_a_retiring_workers_panic_without_unwinding() {
         let entered = Arc::new(Notify::new());
         let ready = entered.clone();
-        let (release, released) = std::sync::mpsc::channel();
+        // One message, so the send never waits for its receive.
+        let (release, released) = std::sync::mpsc::sync_channel(1);
         let released = crate::actor::Actor::new(released);
         let mut engine = crate::Engine::new();
         engine.register("leaf", move |_, _| {

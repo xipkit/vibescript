@@ -165,7 +165,8 @@ fn a_wake_during_a_blocking_poll_still_resumes_the_synchronous_bridge() {
         .build()
         .unwrap();
     let finished = runtime.block_on(async {
-        let (release, released) = std::sync::mpsc::channel::<()>();
+        // One message, so the send never waits for its receive.
+        let (release, released) = std::sync::mpsc::sync_channel::<()>(1);
         let released = Actor::new(Some(released));
         let mut engine = crate::Engine::new();
         engine.register_method(
