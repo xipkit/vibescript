@@ -956,7 +956,7 @@ fn cancellation_during_compilation_stops_before_execution() {
     let s = session();
     let token = s.interrupter();
     let input = "x = 1\n".repeat(500_000);
-    let (ready, started) = std::sync::mpsc::channel();
+    let (ready, started) = std::sync::mpsc::sync_channel(1);
     let worker = std::thread::spawn(move || {
         let mut s = s;
         ready.send(()).unwrap();
