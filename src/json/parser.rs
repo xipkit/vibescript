@@ -740,7 +740,7 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                 self.ctx.charge_pending(&mut pending)?;
                 return self.err("unterminated JSON string", Failure::End);
             };
-            let window = rest.split_at(rest.len().min(CHUNK)).0;
+            let window = rest.span(0, rest.len().min(CHUNK))?;
             let span = if matches!(b, 0..=31 | b'"' | b'\\') {
                 scan::TextSpan::default()
             } else if b < 128
