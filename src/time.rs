@@ -33,10 +33,9 @@ pub(crate) struct Stamp([u8; 12]);
 impl Stamp {
     pub fn new(seconds: i64, nanos: u32) -> Self {
         debug_assert!(nanos < NANOS_PER_SECOND);
-        let mut bytes = [0; 12];
-        bytes[..8].copy_from_slice(&seconds.to_le_bytes());
-        bytes[8..].copy_from_slice(&nanos.to_le_bytes());
-        Self(bytes)
+        let [a, b, c, d, e, f, g, h] = seconds.to_le_bytes();
+        let [i, j, k, l] = nanos.to_le_bytes();
+        Self([a, b, c, d, e, f, g, h, i, j, k, l])
     }
     pub fn seconds(self) -> i64 {
         let [a, b, c, d, e, f, g, h, ..] = self.0;

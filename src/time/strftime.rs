@@ -200,9 +200,10 @@ fn mapped(
             out.append(ctx, buffer.span(0, used)?)?;
             used = 0;
         }
-        buffer
-            .span_mut(used, used + bytes.len())?
-            .copy_from_slice(bytes);
+        let slots = buffer.span_mut(used, used + bytes.len())?;
+        for (slot, &byte) in slots.iter_mut().zip(bytes) {
+            *slot = byte;
+        }
         used += bytes.len();
         input = input.tail(length)?;
         scanned += length;

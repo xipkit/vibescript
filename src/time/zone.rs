@@ -857,11 +857,16 @@ mod tests {
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
 
+    /// Writes `field` over the bytes at `start`.
+    fn put<const N: usize>(bytes: &mut [u8], start: usize, field: [u8; N]) {
+        *bytes[start..].first_chunk_mut().unwrap() = field;
+    }
+
     fn data(offset: i32, extension: &str) -> Vec<u8> {
         let mut bytes = vec![0; 44];
-        bytes[..4].copy_from_slice(b"TZif");
-        bytes[36..40].copy_from_slice(&1u32.to_be_bytes());
-        bytes[40..44].copy_from_slice(&4u32.to_be_bytes());
+        put(&mut bytes, 0, *b"TZif");
+        put(&mut bytes, 36, 1u32.to_be_bytes());
+        put(&mut bytes, 40, 4u32.to_be_bytes());
         bytes.extend_from_slice(&offset.to_be_bytes());
         bytes.extend_from_slice(&[0, 0]);
         bytes.extend_from_slice(b"STD\0");
@@ -918,7 +923,7 @@ mod tests {
         }
         for field in [20, 24, 28, 32, 36, 40] {
             let mut bytes = original.clone();
-            bytes[field..field + 4].copy_from_slice(&u32::MAX.to_be_bytes());
+            put(&mut bytes, field, u32::MAX.to_be_bytes());
             let mut ctx = CallContext::new(CallOptions::default());
             assert!(Tzif::parse(&mut ctx, &bytes).is_err(), "count at {field}");
         }
@@ -931,7 +936,7 @@ mod tests {
     #[test]
     fn zone_parsing_and_name_lookup_bound_work() {
         let mut bytes = data(0, "");
-        bytes[36..40].copy_from_slice(&10000u32.to_be_bytes());
+        put(&mut bytes, 36, 10000u32.to_be_bytes());
         bytes.truncate(44);
         bytes.extend_from_slice(&[0; 60000]);
         bytes.extend_from_slice(b"STD\0");
@@ -956,7 +961,7 @@ mod tests {
         );
 
         let mut bytes = data(0, "");
-        bytes[40..44].copy_from_slice(&131072u32.to_be_bytes());
+        put(&mut bytes, 40, 131072u32.to_be_bytes());
         bytes.truncate(50);
         bytes.resize(50 + 131072, b'a');
         let mut setup = CallContext::new(CallOptions::default());
@@ -1153,10 +1158,10 @@ mod tests {
     #[test]
     fn duplicate_abbreviations_resolve_the_active_offset_before_falling_back() {
         let mut bytes = vec![0; 44];
-        bytes[..4].copy_from_slice(b"TZif");
-        bytes[32..36].copy_from_slice(&2u32.to_be_bytes());
-        bytes[36..40].copy_from_slice(&3u32.to_be_bytes());
-        bytes[40..44].copy_from_slice(&8u32.to_be_bytes());
+        put(&mut bytes, 0, *b"TZif");
+        put(&mut bytes, 32, 2u32.to_be_bytes());
+        put(&mut bytes, 36, 3u32.to_be_bytes());
+        put(&mut bytes, 40, 8u32.to_be_bytes());
         bytes.extend_from_slice(&0i32.to_be_bytes());
         bytes.extend_from_slice(&1710000000i32.to_be_bytes());
         bytes.extend_from_slice(&[0, 1]);
@@ -1198,7 +1203,7 @@ mod tests {
         );
 
         let mut bytes = data(0, "");
-        bytes[36..40].copy_from_slice(&10000u32.to_be_bytes());
+        put(&mut bytes, 36, 10000u32.to_be_bytes());
         bytes.truncate(44);
         bytes.extend_from_slice(&[0; 60000]);
         bytes.extend_from_slice(b"STD\0");
