@@ -365,8 +365,15 @@ fn walks_deep_syntax_without_native_recursion() {
         modules.push_str("end\n");
     }
     let (function, nested) = crate::threads::on_stack(256 << 10, || {
-        let function = outline(&source).unwrap().items.remove(0).function.unwrap();
-        let mut item = outline(&modules).unwrap().items.remove(0);
+        let function = outline(&source)
+            .unwrap()
+            .items
+            .into_iter()
+            .next()
+            .unwrap()
+            .function
+            .unwrap();
+        let mut item = outline(&modules).unwrap().items.into_iter().next().unwrap();
         let mut nested = 1;
         while let Some(child) = item.children.pop() {
             if child.kind == ItemKind::Module {
