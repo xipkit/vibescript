@@ -79,9 +79,10 @@ impl Sink {
         result.map_err(|error| compat::reason(&error))
     }
 
-    /// Writes a line, ignoring failures, for status and error reports.
+    /// Writes a line, ignoring failures, for status and error reports: a
+    /// report that cannot be written has nowhere else to go.
     pub fn line(&self, text: &str) {
-        let _ = self.write(format!("{text}\n").as_bytes());
+        drop(self.write(format!("{text}\n").as_bytes()));
     }
 
     /// A new buffer sink and the capture that reads it.
