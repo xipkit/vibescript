@@ -180,14 +180,17 @@ impl<'a> HostName<'a> {
     }
 
     fn error(self, name: &[u8], reason: impl std::fmt::Display) -> Error {
-        use std::fmt::Write;
         // Enough bytes for `source_text` to mark a cut.
         let shown = String::from_utf8_lossy(name.get(..72).unwrap_or(name));
-        let mut message = format!("invalid {} name \"{}\"", self.kind, source_text(&shown));
-        if let Some((kind, owner)) = self.owner {
-            let _ = write!(message, " in {kind} \"{}\"", source_text(owner));
-        }
-        let _ = write!(message, ": {reason}");
+        let name = source_text(&shown);
+        let message = match self.owner {
+            Some((kind, owner)) => format!(
+                "invalid {} name \"{name}\" in {kind} \"{}\": {reason}",
+                self.kind,
+                source_text(owner)
+            ),
+            None => format!("invalid {} name \"{name}\": {reason}", self.kind),
+        };
         Error::new(crate::ErrorKind::Argument, message)
     }
 }
