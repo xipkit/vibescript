@@ -63,7 +63,7 @@ pub fn serve(
             }],
             None => {
                 let replies = server.dispatch(&message);
-                messages.settled(&message, server);
+                settled(&message, server);
                 replies
             }
         };
@@ -94,10 +94,6 @@ enum Source<R> {
     Threaded {
         receiver: mpsc::Receiver<Event>,
         queue: VecDeque<Event>,
-        /// The document versions the server did not keep, by URI and the
-        /// index of the message that brought them, which the reader stops
-        /// tracking.
-        rejected: mpsc::Sender<(String, u64)>,
     },
 }
 
@@ -116,7 +112,6 @@ impl<R: Read + Send + 'static> Messages<R> {
     )]
     fn new(input: R, cancellation: CancellationToken) -> io::Result<Self> {
         let (sender, receiver) = mpsc::sync_channel(READ_AHEAD);
-        let (rejected, forgotten) = mpsc::channel();
         // The input is handed over once the thread runs, so a thread that
         // cannot start leaves it to be read here.
         let (hand, taken) = mpsc::sync_channel(1);
@@ -124,7 +119,7 @@ impl<R: Read + Send + 'static> Messages<R> {
             .name("vibes-lsp-reader".to_owned())
             .spawn(move || {
                 if let Ok(input) = taken.recv() {
-                    let mut tracking = Tracking::new(cancellation, forgotten);
+                    let mut tracking = Tracking::new(cancellation);
                     read_ahead(BufReader::new(input), &sender, &mut tracking);
                 }
             });
@@ -135,32 +130,29 @@ impl<R: Read + Send + 'static> Messages<R> {
                 Source::Threaded {
                     receiver,
                     queue: VecDeque::new(),
-                    rejected,
                 }
             }
             Err(_) => Source::Inline(BufReader::new(input)),
         };
         Ok(Self { source })
     }
+}
 
-    /// Tells the reader when the document `message` opened or changed is
-    /// not one the server kept, so the reader stops tracking that version.
-    fn settled(&self, message: &Inbound, server: &Server) {
-        let Source::Threaded { rejected, .. } = &self.source else {
-            return;
-        };
-        if !matches!(
-            message.method.as_str(),
-            "textDocument/didOpen" | "textDocument/didChange"
-        ) {
-            return;
-        }
-        if let Some(uri) = message.document()
-            && server.document(&uri).is_none()
-        {
-            // A reader that has ended has nothing left to track.
-            let _ = rejected.send((uri, message.index));
-        }
+/// Tells the reader when the document `message` opened or changed is not
+/// one the server kept, by cancelling the token the reader gave that
+/// version, so the reader stops tracking it.
+fn settled(message: &Inbound, server: &Server) {
+    if !matches!(
+        message.method.as_str(),
+        "textDocument/didOpen" | "textDocument/didChange"
+    ) {
+        return;
+    }
+    if let Some(token) = &message.token
+        && let Some(uri) = message.document()
+        && server.document(&uri).is_none()
+    {
+        token.cancel();
     }
 }
 
@@ -173,13 +165,10 @@ fn read_ahead<R: Read>(
     sender: &mpsc::SyncSender<Event>,
     tracking: &mut Tracking,
 ) {
-    let mut index = 0;
     loop {
         let event = match read_message(&mut reader) {
             Ok(Some(mut message)) => {
                 if let Some(message) = &mut message {
-                    index += 1;
-                    message.index = index;
                     tracking.supersede(message);
                 }
                 Ok(message)
@@ -201,23 +190,21 @@ fn read_ahead<R: Read>(
 /// Every open and change gets a token, so a document the server admits can
 /// always be cancelled. The table holds the documents the server keeps and
 /// the versions it has not settled yet: a close forgets its document, and
-/// the server reports each version it did not keep, which the reader forgets
-/// when it next reads. So the table is bounded by the server's documents and
-/// the messages read ahead of it, which the queue to the server holds too.
+/// the server cancels the token of each version it did not keep, which the
+/// reader forgets when it next reads an open, change or close. So the table
+/// is bounded by the server's documents and the messages read ahead of it,
+/// which the queue to the server holds too.
 struct Tracking {
     cancellation: CancellationToken,
-    /// Each tracked document's latest version: the index of the message
-    /// that brought it and the token its analysis runs under.
-    analyzing: HashMap<String, (u64, CancellationToken)>,
-    rejected: mpsc::Receiver<(String, u64)>,
+    /// The token each tracked document's latest version is analyzed under.
+    analyzing: HashMap<String, CancellationToken>,
 }
 
 impl Tracking {
-    fn new(cancellation: CancellationToken, rejected: mpsc::Receiver<(String, u64)>) -> Self {
+    fn new(cancellation: CancellationToken) -> Self {
         Self {
             cancellation,
             analyzing: HashMap::new(),
-            rejected,
         }
     }
 
@@ -225,16 +212,6 @@ impl Tracking {
     /// changes or closes, and gives an open or a change the token its own
     /// analysis runs under, for the next change or close to cancel.
     fn supersede(&mut self, message: &mut Inbound) {
-        // What the server has settled since the last message read.
-        for (uri, index) in self.rejected.try_iter() {
-            if self
-                .analyzing
-                .get(&uri)
-                .is_some_and(|(version, _)| *version == index)
-            {
-                self.analyzing.remove(&uri);
-            }
-        }
         let changes = matches!(
             message.method.as_str(),
             "textDocument/didChange" | "textDocument/didClose"
@@ -249,13 +226,15 @@ impl Tracking {
         let Some(uri) = message.document() else {
             return;
         };
-        if changes && let Some((_, token)) = self.analyzing.remove(&uri) {
+        // Forget the versions the server did not keep.
+        self.analyzing.retain(|_, token| !token.is_cancelled());
+        if changes && let Some(token) = self.analyzing.remove(&uri) {
             token.cancel();
         }
         if opens {
             let token = self.cancellation.child_token();
             message.token = Some(token.clone());
-            self.analyzing.insert(uri, (message.index, token));
+            self.analyzing.insert(uri, token);
         }
     }
 }
@@ -347,34 +326,27 @@ impl<R: Read> Messages<R> {
 
 #[cfg(test)]
 mod tracking_tests {
+    use super::super::Options;
     use super::*;
 
-    fn message(method: &str, uri: &str, index: u64) -> Inbound {
+    fn message(method: &str, uri: &str) -> Inbound {
         let params = format!(r#"{{"textDocument":{{"uri":"{uri}","text":""}}}}"#);
         Inbound {
             id: None,
             method: method.to_owned(),
             params: Some(params.into_boxed_str()),
             token: None,
-            index,
         }
     }
 
     #[test]
     fn the_table_follows_the_servers_documents() {
-        let (rejected, forgotten) = mpsc::channel();
-        let mut tracking = Tracking::new(CancellationToken::new(), forgotten);
-        let mut open_a = message("textDocument/didOpen", "a", 1);
-        let mut open_b = message("textDocument/didOpen", "b", 2);
+        let mut tracking = Tracking::new(CancellationToken::new());
+        let mut open_a = message("textDocument/didOpen", "a");
+        let mut open_b = message("textDocument/didOpen", "b");
+        let mut change_b = message("textDocument/didChange", "b");
         tracking.supersede(&mut open_a);
         tracking.supersede(&mut open_b);
-        assert!(open_a.token.is_some() && open_b.token.is_some());
-        assert_eq!(tracking.analyzing.len(), 2);
-        // The server did not keep A's version; a stale report for B names a
-        // version B has moved past, so B stays. Both apply at the next read.
-        rejected.send(("a".to_owned(), 1)).unwrap();
-        rejected.send(("b".to_owned(), 1)).unwrap();
-        let mut change_b = message("textDocument/didChange", "b", 3);
         tracking.supersede(&mut change_b);
         assert!(
             open_b
@@ -382,11 +354,24 @@ mod tracking_tests {
                 .as_ref()
                 .is_some_and(CancellationToken::is_cancelled)
         );
-        assert_eq!(tracking.analyzing.len(), 1);
-        assert_eq!(tracking.analyzing["b"].0, 3);
+        assert_eq!(tracking.analyzing.len(), 2);
+        // The server kept neither A's version nor B's first, which B has
+        // moved past, so B stays. Both apply at the next document read.
+        for rejected in [&open_a, &open_b] {
+            rejected.token.as_ref().unwrap().cancel();
+        }
+        tracking.supersede(&mut message("textDocument/didOpen", "c"));
+        assert_eq!(tracking.analyzing.len(), 2);
+        assert!(!tracking.analyzing.contains_key("a"));
+        assert!(
+            change_b
+                .token
+                .as_ref()
+                .is_some_and(|token| !token.is_cancelled())
+        );
         // A change to a document the reader no longer tracks still gets a
         // token for its own analysis.
-        let mut change_a = message("textDocument/didChange", "a", 4);
+        let mut change_a = message("textDocument/didChange", "a");
         tracking.supersede(&mut change_a);
         assert!(
             change_a
@@ -394,8 +379,9 @@ mod tracking_tests {
                 .as_ref()
                 .is_some_and(|token| !token.is_cancelled())
         );
-        tracking.supersede(&mut message("textDocument/didClose", "a", 5));
-        tracking.supersede(&mut message("textDocument/didClose", "b", 6));
+        for uri in ["a", "b", "c"] {
+            tracking.supersede(&mut message("textDocument/didClose", uri));
+        }
         assert!(
             change_a
                 .token
@@ -403,5 +389,36 @@ mod tracking_tests {
                 .is_some_and(CancellationToken::is_cancelled)
         );
         assert!(tracking.analyzing.is_empty());
+    }
+
+    #[test]
+    fn the_server_cancels_the_versions_it_does_not_keep() {
+        let mut server = Server::with_options(Options {
+            max_documents: Some(1),
+            ..Options::default()
+        });
+        let mut tracking = Tracking::new(CancellationToken::new());
+        let mut kept = message("textDocument/didOpen", "a");
+        let mut rejected = message("textDocument/didOpen", "b");
+        for message in [&mut kept, &mut rejected] {
+            tracking.supersede(message);
+            server.dispatch(message);
+            settled(message, &server);
+        }
+        assert!(
+            kept.token
+                .as_ref()
+                .is_some_and(|token| !token.is_cancelled())
+        );
+        assert!(
+            rejected
+                .token
+                .as_ref()
+                .is_some_and(CancellationToken::is_cancelled)
+        );
+        tracking.supersede(&mut message("textDocument/didOpen", "c"));
+        let mut tracked: Vec<_> = tracking.analyzing.keys().collect();
+        tracked.sort();
+        assert_eq!(tracked, ["a", "c"]);
     }
 }

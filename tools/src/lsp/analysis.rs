@@ -305,10 +305,10 @@ fn engine(uri: &str, options: &Options) -> Engine {
     });
     if !paths.is_empty() {
         // Unreadable directories leave required files unresolved.
-        let _ = engine.set_module_config(ModuleConfig {
+        drop(engine.set_module_config(ModuleConfig {
             paths,
             ..ModuleConfig::default()
-        });
+        }));
     }
     // Checking never runs output helpers, but scripts may still name them.
     engine.set_output_writer(|_, _| Ok(()));
