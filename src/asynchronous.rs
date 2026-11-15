@@ -9,7 +9,10 @@ use std::{
     task::Poll,
     time::{Duration, Instant},
 };
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tokio::{
+    sync::{OwnedSemaphorePermit, Semaphore},
+    time::Sleep,
+};
 
 pub use crate::vm::asynchronous::AsyncHostCall;
 
@@ -118,9 +121,18 @@ pub(crate) async fn acquire(
         }
         tokio::select! {
             permit = &mut acquire => return permit.map_err(|_| Error::new(ErrorKind::Host, "worker pool closed")),
-            _ = tokio::time::sleep(Duration::from_millis(5)) => (),
+            _ = pause(Duration::from_millis(5)) => (),
         }
     }
+}
+
+/// Waits for `duration` on the runtime's clock.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the crate's one timer, Tokio's as adamantium::time::sleep is outside its test harness; vibescript cannot depend on adamantium while it declares an older Rust than adamantium needs"
+)]
+pub(crate) fn pause(duration: Duration) -> Sleep {
+    tokio::time::sleep(duration)
 }
 
 /// Runs `work` on Tokio's blocking pool and waits for it. A panic in the

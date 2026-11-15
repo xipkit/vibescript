@@ -1,5 +1,7 @@
 use crate::{
-    CallOptions, ErrorKind, HostMethod, Value, actor::Actor, asynchronous::Runner,
+    CallOptions, ErrorKind, HostMethod, Value,
+    actor::Actor,
+    asynchronous::{Runner, pause},
     objects::HeapWatch,
 };
 use std::{future::pending, sync::Arc, time::Duration};
@@ -176,7 +178,7 @@ fn a_wake_during_a_blocking_poll_still_resumes_the_synchronous_bridge() {
                 let released = released.with(Option::take);
                 Box::pin(async move {
                     // The timer's wake arrives while the receive blocks.
-                    tokio::join!(tokio::time::sleep(Duration::from_millis(1)), async move {
+                    tokio::join!(pause(Duration::from_millis(1)), async move {
                         if let Some(released) = released {
                             released.recv().unwrap();
                         }
@@ -194,7 +196,9 @@ fn a_wake_during_a_blocking_poll_still_resumes_the_synchronous_bridge() {
         let call = runner.call(script, "run".into(), vec![], CallOptions::default());
         tokio::time::timeout(Duration::from_secs(5), async {
             let (outcome, ()) = tokio::join!(call, async {
-                tokio::time::sleep(Duration::from_millis(50)).await;
+                // The receive outlasts every wake its poll was waiting for,
+                // the invocation's own watch among them.
+                pause(Duration::from_millis(50)).await;
                 release.send(()).unwrap();
             });
             outcome.map(|outcome| outcome.value.as_int())

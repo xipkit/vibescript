@@ -855,7 +855,7 @@ impl Watch {
             {
                 return;
             }
-            tokio::time::sleep(Duration::from_millis(5)).await;
+            crate::asynchronous::pause(Duration::from_millis(5)).await;
         }
     }
 }
@@ -1153,6 +1153,7 @@ pub(crate) async fn call(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::asynchronous::pause;
     use tokio::sync::Notify;
 
     fn work(script: &Script, on_finish: Arc<dyn Fn() + Send + Sync>) -> Box<Work> {
@@ -1228,7 +1229,8 @@ mod tests {
                         entered.unwrap();
                     }
                 }
-                tokio::time::sleep(Duration::from_millis(5)).await;
+                // The executor's clock still runs while finalization holds the worker.
+                pause(Duration::from_millis(5)).await;
                 assert_eq!(slots.available_permits(), 0);
                 release.send(()).unwrap();
                 let result = call.await.unwrap();
