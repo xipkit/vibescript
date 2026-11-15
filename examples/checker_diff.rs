@@ -87,20 +87,30 @@ fn watcher_gone() -> std::io::Error {
     std::io::Error::other("the watcher stopped before the workers")
 }
 
-/// Removes a worker's scratch directory and tells the watcher it is done,
-/// however the worker ended.
+/// How many reports can wait for the watcher before a worker with another
+/// waits for it.
+const QUEUED: usize = 64;
+
+/// The channel workers report their [`Progress`] on. A worker that finds it
+/// full waits: the watcher reads until every worker is done, and when it
+/// stops early to end the run, the channel closes and the wait ends in
+/// [`watcher_gone`].
+fn reports() -> (mpsc::SyncSender<Progress>, mpsc::Receiver<Progress>) {
+    mpsc::sync_channel(QUEUED)
+}
+
+/// Tells the watcher a worker is done, however the worker ended.
 struct WorkerCleanup {
     worker: usize,
-    root: PathBuf,
-    progress: mpsc::Sender<Progress>,
+    progress: mpsc::SyncSender<Progress>,
 }
 
 impl Drop for WorkerCleanup {
     fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.root);
-        let _ = self.progress.send(Progress::Done {
+        // A watcher that stopped listening has ended the run, and needs no word.
+        drop(self.progress.send(Progress::Done {
             worker: self.worker,
-        });
+        }));
     }
 }
 
@@ -210,7 +220,6 @@ fn run() -> std::io::Result<u8> {
                 let verdict = harness::judge(&case, &mut scratch)?;
                 println!("{path}: {}", describe(&verdict));
             }
-            let _ = std::fs::remove_dir_all(scratch_root(0));
             Ok(0)
         }
         Some("generate") => {
@@ -244,7 +253,6 @@ fn run() -> std::io::Result<u8> {
                 std::fs::write(&target, &output)?;
                 println!("== {target}\n{output}");
             }
-            let _ = std::fs::remove_dir_all(scratch_root(0));
             Ok(0)
         }
         _ => {
@@ -313,18 +321,16 @@ fn verdicts(
             "verdict seed range overflows u64",
         )
     })?;
-    let (progress, events) = mpsc::channel();
+    let (progress, events) = reports();
     let mut handles = Vec::new();
     for worker in 0..jobs {
         let (next, progress, source) = (next.clone(), progress.clone(), source.clone());
         let handle = harness::spawn(move || {
-            let root = scratch_root(worker + 1);
             let _cleanup = WorkerCleanup {
                 worker,
-                root: root.clone(),
                 progress: progress.clone(),
             };
-            let mut scratch = Scratch::new(&root);
+            let mut scratch = Scratch::new(&scratch_root(worker + 1));
             while let Some(seed) = next_seed(&next, end) {
                 progress
                     .send(Progress::Started { worker, seed })
@@ -342,7 +348,7 @@ fn verdicts(
     drop(progress);
     let mut watcher = Watcher::new(jobs, None);
     if let Some(seed) = watcher.watch(&events)? {
-        let _ = watcher.output.flush();
+        watcher.output.flush()?;
         eprintln!("seed {seed} did not finish in two minutes");
         return Ok(3);
     }
@@ -435,7 +441,6 @@ fn rejections(args: &[String]) -> std::io::Result<u8> {
             std::fs::write(path, format!("{header}{}", case.render()))?;
         }
     }
-    let _ = std::fs::remove_dir_all(scratch_root(0));
     println!("compared {compared} seeds");
     for ((first, second), count) in &changes {
         println!("  {first} -> {second}: {count}");
@@ -537,7 +542,7 @@ mod tests {
         let root = super::scratch_root(usize::MAX - 10);
         std::fs::create_dir_all(&root).unwrap();
         let case = Case::new("x = 42\nx\n");
-        let (progress, events) = super::mpsc::channel();
+        let (progress, events) = super::reports();
         progress
             .send(Progress::Judged(Box::new(Judged {
                 seed: 87,
@@ -660,7 +665,6 @@ mod tests {
         ];
         let result = super::rejections(&args);
         std::fs::remove_dir_all(root).unwrap();
-        let _ = std::fs::remove_dir_all(super::scratch_root(0));
         assert!(
             result.is_err(),
             "a missing regression file must fail the command"
@@ -786,18 +790,16 @@ fn batch(args: &[String]) -> std::io::Result<u8> {
     std::fs::create_dir_all(&out)?;
     let next = Arc::new(AtomicU64::new(from));
     let started = Instant::now();
-    let (progress, events) = mpsc::channel();
+    let (progress, events) = reports();
     let mut handles = Vec::new();
     for worker in 0..jobs {
         let (next, progress, source) = (next.clone(), progress.clone(), source.clone());
         let handle = harness::spawn(move || {
-            let root = scratch_root(worker + 1);
             let _cleanup = WorkerCleanup {
                 worker,
-                root: root.clone(),
                 progress: progress.clone(),
             };
-            let mut scratch = Scratch::new(&root);
+            let mut scratch = Scratch::new(&scratch_root(worker + 1));
             while let Some(seed) = next_seed(&next, end) {
                 progress
                     .send(Progress::Started { worker, seed })
