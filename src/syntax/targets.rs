@@ -24,7 +24,7 @@ impl TargetText<'_> {
         let bytes = self.bytes.span(0, self.len)?;
         match std::str::from_utf8(bytes) {
             Ok(text) => Ok(text),
-            Err(error) => std::str::from_utf8(bytes.split_at(error.valid_up_to()).0)
+            Err(error) => std::str::from_utf8(bytes.span(0, error.valid_up_to())?)
                 .map_err(|_| crate::checked::violation("target excerpt prefix must be UTF-8")),
         }
     }
