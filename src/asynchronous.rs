@@ -127,7 +127,7 @@ pub(crate) async fn acquire(
 /// work resumes here; a worker that is cancelled or shut down is a host error.
 #[allow(
     clippy::disallowed_methods,
-    reason = "the crate's one blocking spawn, with the panic propagation of adamantium::blocking, which vibescript cannot depend on while Tokio stays optional"
+    reason = "the crate's one blocking spawn, with the panic propagation of adamantium::blocking, which vibescript cannot depend on while it declares an older Rust than adamantium needs"
 )]
 pub(crate) async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> T + Send + 'static,
