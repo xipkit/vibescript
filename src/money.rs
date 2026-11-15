@@ -27,11 +27,10 @@ impl Money {
             return Err(rejected("currency must be 3 letters, got ", currency));
         }
         let mut bytes = [0; 11];
-        bytes[..8].copy_from_slice(&cents.to_le_bytes());
         for (to, from) in bytes[8..].iter_mut().zip(currency) {
             *to = from.to_ascii_uppercase();
         }
-        Ok(Self(bytes))
+        Ok(Self(bytes).amount(cents))
     }
     pub fn cents(self) -> i64 {
         let [a, b, c, d, e, f, g, h, ..] = self.0;
@@ -42,9 +41,9 @@ impl Money {
         std::str::from_utf8(&self.0[8..]).map_err(|_| violation("money currency must be UTF-8"))
     }
     fn amount(self, cents: i64) -> Self {
-        let mut value = self;
-        value.0[..8].copy_from_slice(&cents.to_le_bytes());
-        value
+        let [.., x, y, z] = self.0;
+        let [a, b, c, d, e, f, g, h] = cents.to_le_bytes();
+        Self([a, b, c, d, e, f, g, h, x, y, z])
     }
     /// Orders amounts in the same currency; different currencies have no ordering.
     pub fn order(self, other: Self) -> Access<Option<Ordering>> {

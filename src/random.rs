@@ -293,7 +293,10 @@ fn uuid(ctx: &mut CallContext) -> Result<Value> {
     let mut raw = [0; 16];
     read(ctx, &mut raw)?;
     let stamp = stamp();
-    raw[..6].copy_from_slice(&(stamp >> 12).to_be_bytes()[2..]);
+    let [_, _, millis @ ..] = (stamp >> 12).to_be_bytes();
+    for (slot, byte) in raw.iter_mut().zip(millis) {
+        *slot = byte;
+    }
     raw[6] = 0x70 | ((stamp >> 8) & 0x0f) as u8;
     let [fraction, ..] = stamp.to_le_bytes();
     raw[7] = fraction;
