@@ -952,7 +952,7 @@ pub(crate) fn cleanup(ctx: &mut CallContext) {
             });
             // A poisoned heap may be inconsistent, so it is not reclaimed.
             if let Err(error) = reclaimed {
-                let _ = ctx.latch_internal::<()>(Err(error));
+                let _latched = ctx.latch_internal::<()>(Err(error));
             }
         }
     }
