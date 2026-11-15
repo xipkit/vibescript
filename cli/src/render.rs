@@ -98,8 +98,13 @@ fn leaf_or_open<'a>(
 /// Error and match hashes print their own `to_s` entry.
 fn protected(value: &Value) -> bool {
     let mut prefix = String::new();
-    let _ = write!(Prefix(&mut prefix, 20), "{value:?}");
-    prefix.starts_with("Value(Hash(Error") || prefix.starts_with("Value(Hash(Match")
+    match write!(Prefix(&mut prefix, 20), "{value:?}") {
+        // The writer stops the formatter with an error once it holds the
+        // prefix, so either way the prefix is all there is to read.
+        Ok(()) | Err(fmt::Error) => {
+            prefix.starts_with("Value(Hash(Error") || prefix.starts_with("Value(Hash(Match")
+        }
+    }
 }
 
 /// Collects at most the given number of bytes, then stops the formatter.
