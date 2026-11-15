@@ -6,6 +6,6 @@ repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 cd "$repo"
 ./scripts/cargo install --quiet --locked \
   --git https://github.com/xipkit/adamantium \
-  --rev 250e96ea0b9d577814f9624af48ae6bf66872a71 \
+  --rev 585b3c86ccbcf1b867fc7419d09e7b73038477e8 \
   cargo-adamantium
 exec ./scripts/cargo adamantium check "$@"
