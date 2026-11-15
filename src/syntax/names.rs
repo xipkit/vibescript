@@ -150,7 +150,8 @@ impl<'a> HostName<'a> {
     /// script can call as a root.
     pub(crate) fn exported_root(self, name: &str) -> Error {
         // Enough bytes for `source_text` to mark a cut.
-        let shown = String::from_utf8_lossy(name.as_bytes().split_at(name.len().min(72)).0);
+        let name = name.as_bytes();
+        let shown = String::from_utf8_lossy(name.get(..72).unwrap_or(name));
         Error::new(
             crate::ErrorKind::Argument,
             format!(
@@ -165,7 +166,7 @@ impl<'a> HostName<'a> {
     /// The error for a template, named by this method's owner, that holds a
     /// function a script exports at `key`.
     pub(crate) fn exported_member(self, key: &[u8]) -> Error {
-        let shown = String::from_utf8_lossy(key.split_at(key.len().min(72)).0);
+        let shown = String::from_utf8_lossy(key.get(..72).unwrap_or(key));
         let (kind, owner) = self.owner.unwrap_or((self.kind, ""));
         Error::new(
             crate::ErrorKind::Argument,
@@ -181,7 +182,7 @@ impl<'a> HostName<'a> {
     fn error(self, name: &[u8], reason: impl std::fmt::Display) -> Error {
         use std::fmt::Write;
         // Enough bytes for `source_text` to mark a cut.
-        let shown = String::from_utf8_lossy(name.split_at(name.len().min(72)).0);
+        let shown = String::from_utf8_lossy(name.get(..72).unwrap_or(name));
         let mut message = format!("invalid {} name \"{}\"", self.kind, source_text(&shown));
         if let Some((kind, owner)) = self.owner {
             let _ = write!(message, " in {kind} \"{}\"", source_text(owner));
