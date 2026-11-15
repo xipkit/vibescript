@@ -52,6 +52,8 @@ impl Budget {
             },
             cancellation: self.cancellation.clone().unwrap_or_default(),
             deadline: self.deadline,
+            #[cfg(test)]
+            faults: self.faults.clone(),
             ..crate::CallOptions::default()
         })
     }
@@ -159,7 +161,7 @@ impl Work for Meter<'_> {
     }
     fn bytes(&self, bytes: usize) -> Result<()> {
         #[cfg(test)]
-        module_tests::injected(bytes)?;
+        module_tests::injected(self.0.borrow().options.faults.as_deref(), bytes)?;
         self.0.borrow_mut().work_bytes(bytes)
     }
     fn checkpoint(&self) -> Result<()> {

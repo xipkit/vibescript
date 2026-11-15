@@ -1,9 +1,8 @@
+use crate::checked::Faults;
 use crate::{Engine, ErrorKind, Result};
-use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
 const MARKER: &str = "module_parse_fault_marker";
 const INJECTED: &str = "injected module parse invariant";
-const OFF: usize = usize::MAX;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Phase {
@@ -11,36 +10,13 @@ enum Phase {
     Report,
 }
 
-thread_local! {
-    static LEFT: AtomicUsize = const { AtomicUsize::new(OFF) };
-}
-
-pub(super) fn injected(bytes: usize) -> Result<()> {
-    if bytes == MARKER.len() {
-        let fired = LEFT.with(|left| match left.load(Relaxed) {
-            OFF => false,
-            0 => {
-                left.store(OFF, Relaxed);
-                true
-            }
-            more => {
-                left.store(more - 1, Relaxed);
-                false
-            }
-        });
-        if fired {
-            return Err(crate::checked::internal(INJECTED));
-        }
+/// Fails the account of a name as long as [`MARKER`], when it is the one
+/// a test armed `faults` to fail.
+pub(super) fn injected(faults: Option<&Faults>, bytes: usize) -> Result<()> {
+    if bytes == MARKER.len() && faults.is_some_and(|faults| faults.parse.strikes()) {
+        return Err(crate::checked::internal(INJECTED));
     }
     Ok(())
-}
-
-struct Armed;
-
-impl Drop for Armed {
-    fn drop(&mut self) {
-        LEFT.with(|left| left.store(OFF, Relaxed));
-    }
 }
 
 fn compile_fault(phase: Phase) {
@@ -60,25 +36,16 @@ fn compile_fault(phase: Phase) {
             "require(\"lib/helper\")"
         };
         engine.set_module_sources(sources).unwrap();
-        LEFT.with(|left| {
-            left.store(
-                match phase {
-                    Phase::Parse => 0,
-                    Phase::Report => 2,
-                },
-                Relaxed,
-            )
+        let fault = &engine.loader.faults.parse;
+        fault.arm(match phase {
+            Phase::Parse => 0,
+            Phase::Report => 2,
         });
-        let guard = Armed;
         let error = engine
             .compile(source)
             .err()
             .expect("the fault must fail compilation");
-        assert!(
-            LEFT.with(|left| left.load(Relaxed) == OFF),
-            "fault did not fire"
-        );
-        drop(guard);
+        assert!(fault.fired(), "fault did not fire");
         assert_eq!(error.kind, ErrorKind::Internal, "nested={nested}: {error}");
         assert!(
             error
@@ -115,26 +82,28 @@ fn replay_fault_fires_only_after_the_fail_fast_parses() {
     use crate::compilation::{Meter, Work};
 
     let source = format!("x = )\n{MARKER} = 1\n");
-    let mut context = crate::CallContext::new(Default::default());
+    let faults = std::sync::Arc::new(Faults::default());
+    let mut context = crate::CallContext::new(crate::CallOptions {
+        faults: Some(faults.clone()),
+        ..Default::default()
+    });
     let work = Meter::new(&mut context);
-    let guard = Armed;
     // Each fail-fast parse lexes the name once, without parsing it.
-    LEFT.with(|left| left.store(1, Relaxed));
+    faults.parse.arm(1);
     let first = crate::syntax::parse_with_tokens(&source, &work)
         .err()
         .unwrap();
     assert_eq!(first.kind, ErrorKind::Syntax);
-    assert_eq!(LEFT.with(|left| left.load(Relaxed)), 0);
-    LEFT.with(|left| left.store(1, Relaxed));
+    assert_eq!(faults.parse.left(), Some(0));
+    faults.parse.arm(1);
     let canonical = crate::syntax::canonical_error(&source, &work).unwrap();
     assert_eq!(canonical.kind, ErrorKind::Syntax);
-    assert_eq!(LEFT.with(|left| left.load(Relaxed)), 0);
+    assert_eq!(faults.parse.left(), Some(0));
     // Skip host_syntax's canonical lex; fail when recovery parses the name.
-    LEFT.with(|left| left.store(1, Relaxed));
+    faults.parse.arm(1);
     let error = crate::syntax::host_syntax(&source, &work, first);
     assert_eq!(error.kind, ErrorKind::Internal);
     assert!(error.message.ends_with(INJECTED), "{error}");
-    assert_eq!(LEFT.with(|left| left.load(Relaxed)), OFF);
+    assert_eq!(faults.parse.left(), None);
     work.checkpoint().unwrap();
-    drop(guard);
 }

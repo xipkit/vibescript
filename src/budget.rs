@@ -105,6 +105,9 @@ pub struct CallOptions {
     ///
     /// Defaults to false. This does not bypass module roots, allow/deny rules or limits.
     pub allow_require: bool,
+    /// The failures a test injects into the work of this call.
+    #[cfg(test)]
+    pub(crate) faults: Option<Arc<crate::checked::Faults>>,
 }
 
 /// Execution counters; memory measures tracked allocation capacity, not process RSS.
@@ -479,7 +482,7 @@ impl CallContext {
             deadline: self.options.deadline,
             cancellation: Some(self.options.cancellation.clone()),
             #[cfg(test)]
-            faults: None,
+            faults: self.options.faults.clone(),
         }
     }
 

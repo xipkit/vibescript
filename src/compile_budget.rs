@@ -27,6 +27,8 @@ impl CompileBudget {
                 cancellation: options.cancellation.clone(),
                 deadline: options.deadline,
                 allow_require: options.allow_require,
+                #[cfg(test)]
+                faults: options.faults.clone(),
             }),
         }
     }

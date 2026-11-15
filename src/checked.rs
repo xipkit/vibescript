@@ -303,6 +303,12 @@ impl Fault {
         false
     }
 
+    /// The passes left before the site fails, when the fault is armed.
+    pub fn left(&self) -> Option<usize> {
+        let left = self.0.load(std::sync::atomic::Ordering::Relaxed);
+        (left != Self::OFF).then_some(left)
+    }
+
     /// Whether the fault has failed its site since it was armed. Disarms it
     /// if not.
     pub fn fired(&self) -> bool {
@@ -325,6 +331,9 @@ impl Default for Fault {
 pub(crate) struct Faults {
     /// Fails a checked access of the type checker.
     pub access: Fault,
+    /// Fails the parser's account of a name as long as the module tests'
+    /// marker.
+    pub parse: Fault,
 }
 
 #[cfg(test)]
