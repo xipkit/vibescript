@@ -239,7 +239,15 @@ mod tests {
             &Meter::new(context),
         )
         .unwrap_or_else(|error| panic!("{annotation}: {error}"));
-        parsed.functions.remove(1).params.remove(0).ty.unwrap()
+        parsed
+            .functions
+            .remove(1)
+            .unwrap()
+            .params
+            .remove(0)
+            .unwrap()
+            .ty
+            .unwrap()
     }
 
     #[test]
