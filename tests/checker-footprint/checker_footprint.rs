@@ -24,6 +24,10 @@
 //! and so does work that never asks whether it should. The tests have a
 //! package of their own, since the allocator is global, and run one at a
 //! time.
+//!
+//! Their accounts come out the same in debug and optimized builds, and
+//! with the SIMD or portable scanner, so CI runs them once on each
+//! platform, in the optimized build with every feature.
 
 use std::{
     alloc::{GlobalAlloc, Layout, System},
