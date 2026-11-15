@@ -183,7 +183,9 @@ mod tests {
             let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.cache/tmp");
             fs::create_dir_all(&base).unwrap();
             let path = base.join(format!("watch-{name}-{}", std::process::id()));
-            let _ = fs::remove_dir_all(&path);
+            if let Err(error) = fs::remove_dir_all(&path) {
+                assert_eq!(error.kind(), std::io::ErrorKind::NotFound, "{error}");
+            }
             fs::create_dir_all(&path).unwrap();
             Self(fs::canonicalize(path).unwrap())
         }
@@ -191,7 +193,10 @@ mod tests {
 
     impl Drop for Scratch {
         fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.0);
+            let result = fs::remove_dir_all(&self.0);
+            if !std::thread::panicking() {
+                result.unwrap();
+            }
         }
     }
 
