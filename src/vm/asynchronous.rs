@@ -560,14 +560,8 @@ impl Completion for Result<Outcome> {
                     .unwrap_or_else(retiring);
                 let error = completed.execution.execution.diagnose(error);
                 completed.result = Err(error.clone());
-                let slots = driver.slots.clone();
-                driver.handle.spawn(async move {
-                    let permit = slots.acquire_owned().await.ok();
-                    let _result = crate::asynchronous::blocking(move || {
-                        let _permit = permit;
-                        Self::complete(completed)
-                    })
-                    .await;
+                crate::asynchronous::retire(&driver.handle, driver.slots.clone(), move || {
+                    Self::complete(completed)
                 });
                 Err(error)
             }

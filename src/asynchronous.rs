@@ -10,6 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::{
+    runtime::Handle,
     sync::{OwnedSemaphorePermit, Semaphore},
     time::Sleep,
 };
@@ -150,6 +151,29 @@ pub(crate) async fn blocking<T: Send + 'static>(
         }
         Error::new(ErrorKind::Host, format!("script worker failed: {error}"))
     })
+}
+
+/// Runs `cleanup` on a blocking worker once `slots` has a permit for it,
+/// with nothing waiting for it: a caller that has already been answered
+/// must not wait for a busy worker. The permit is held until `cleanup`
+/// returns, so the work stays within the runner's worker limit.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the crate's one detached task: it outlives the cancelled call that leaves it behind, so no scope could join it, and it ends after one job under a worker permit"
+)]
+pub(crate) fn retire<T: Send + 'static>(
+    runtime: &Handle,
+    slots: Arc<Semaphore>,
+    cleanup: impl FnOnce() -> T + Send + 'static,
+) {
+    runtime.spawn(async move {
+        let permit = slots.acquire_owned().await.ok();
+        let _result = blocking(move || {
+            let _permit = permit;
+            cleanup()
+        })
+        .await;
+    });
 }
 
 struct CancelOnDrop(CancellationToken);
