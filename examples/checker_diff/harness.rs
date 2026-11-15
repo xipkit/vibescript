@@ -6,11 +6,12 @@ use super::host::{self, Host};
 use std::{
     panic::{AssertUnwindSafe, catch_unwind},
     path::Path,
-    sync::mpsc,
     time::{Duration, Instant},
 };
 use vibescript::{CallOptions, Engine, Error, ErrorKind, Limits, ModuleConfig, Value};
 
+#[path = "../support/streams.rs"]
+mod streams;
 #[path = "../../fuzz/support.rs"]
 mod support;
 
@@ -168,10 +169,19 @@ struct Observation {
     unexpected: bool,
 }
 
-/// Where required files are written, one directory per worker.
+/// Where required files are written, one directory per worker, removed
+/// when the scratch is dropped.
 pub struct Scratch {
     root: std::path::PathBuf,
     next: usize,
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        // The directory holds only copies of programs already judged, so one
+        // left behind, or never made, changes nothing a command reports.
+        drop(std::fs::remove_dir_all(&self.root));
+    }
 }
 
 impl Scratch {
@@ -415,13 +425,10 @@ pub enum Annotation {
     Finding(Finding),
 }
 
-/// One output stream of a compiled case, as the writers sent it.
-type Captured = mpsc::Receiver<Vec<u8>>;
-
 struct Compiled {
     script: vibescript::Script,
-    stdout: Captured,
-    stderr: Captured,
+    stdout: streams::Written,
+    stderr: streams::Written,
 }
 
 fn compile(
@@ -429,8 +436,8 @@ fn compile(
     directory: Option<&Path>,
     keep: bool,
 ) -> Result<Result<Compiled, Error>, String> {
-    let (out, stdout) = mpsc::channel();
-    let (err, stderr) = mpsc::channel();
+    let (out, stdout) = streams::open();
+    let (err, stderr) = streams::open();
     let mut engine = Engine::new();
     engine.set_keep_type_checks(keep);
     if let Some(directory) = directory {
@@ -453,18 +460,8 @@ fn compile(
         }
         Ok(output.len())
     });
-    engine.set_output_writer(move |_, bytes| {
-        if !bytes.is_empty() {
-            let _ = out.send(bytes.to_vec());
-        }
-        Ok(())
-    });
-    engine.set_error_writer(move |_, bytes| {
-        if !bytes.is_empty() {
-            let _ = err.send(bytes.to_vec());
-        }
-        Ok(())
-    });
+    engine.set_output_writer(move |_, bytes| streams::write(&out, bytes));
+    engine.set_error_writer(move |_, bytes| streams::write(&err, bytes));
     if let Err(error) = case.host.declare(&mut engine) {
         return capture(|| Err(error));
     }
@@ -513,7 +510,7 @@ fn observe(compiled: &Compiled, host: &Host) -> Result<Observation, String> {
     };
     let main_options = options()?;
     let main = capture(|| compiled.script.run(main_options))?;
-    observation.record(main, false);
+    observation.record(main, false)?;
     for call in &host.calls {
         let (args, keywords) = host::arguments(&call.args);
         let call_options = options()?;
@@ -525,21 +522,26 @@ fn observe(compiled: &Compiled, host: &Host) -> Result<Observation, String> {
         observation
             .result
             .push_str(&format!("; {}: ", call.function));
-        observation.record(outcome, true);
+        observation.record(outcome, true)?;
     }
-    observation.stdout = compiled.stdout.try_iter().flatten().collect();
-    observation.stderr = compiled.stderr.try_iter().flatten().collect();
+    observation.stdout = streams::collect(&compiled.stdout);
+    observation.stderr = streams::collect(&compiled.stderr);
     Ok(observation)
 }
 
 impl Observation {
     /// Adds one call's outcome; a call from the host, `entry`, checks the
-    /// arguments it passes, which may not have the parameters' types.
-    fn record(&mut self, outcome: vibescript::Result<vibescript::Outcome>, entry: bool) {
+    /// arguments it passes, which may not have the parameters' types. A
+    /// result that cannot be rendered is a crash.
+    fn record(
+        &mut self,
+        outcome: vibescript::Result<vibescript::Outcome>,
+        entry: bool,
+    ) -> Result<(), String> {
         match outcome {
             Ok(outcome) => self
                 .result
-                .push_str(&format!("ok {}", render(&outcome.value))),
+                .push_str(&format!("ok {}", render(&outcome.value)?)),
             Err(error) => {
                 self.failed = true;
                 self.limited |= matches!(
@@ -564,6 +566,7 @@ impl Observation {
                 self.result.push_str(&describe(&error));
             }
         }
+        Ok(())
     }
 }
 
@@ -600,18 +603,24 @@ fn unexpected(error: &Error) -> bool {
 }
 
 /// A value's kind and contents, exact for floats and bytes, without the
-/// memory charges its debug form shows.
-fn render(value: &Value) -> String {
+/// memory charges its debug form shows. Values display without limits, so
+/// one that fails to is an engine invariant failure.
+fn render(value: &Value) -> Result<String, String> {
     let mut text = String::new();
-    render_into(value, &mut text, 0);
-    text
+    render_into(value, &mut text, 0).map_err(|_| {
+        format!(
+            "internal engine error: a {} result failed to display after {text:?}",
+            value.type_name()
+        )
+    })?;
+    Ok(text)
 }
 
-fn render_into(value: &Value, text: &mut String, depth: usize) {
+fn render_into(value: &Value, text: &mut String, depth: usize) -> std::fmt::Result {
     use std::fmt::Write;
     if depth > 64 {
         text.push_str("...");
-        return;
+        return Ok(());
     }
     let kind = value.type_name();
     if let Some(items) = value.as_array() {
@@ -621,9 +630,10 @@ fn render_into(value: &Value, text: &mut String, depth: usize) {
             if index > 0 {
                 text.push_str(", ");
             }
-            render_into(item, text, depth + 1);
+            render_into(item, text, depth + 1)?;
         }
         text.push(']');
+        Ok(())
     } else if let Some(entries) = value.as_hash() {
         text.push_str(kind);
         text.push('{');
@@ -631,19 +641,20 @@ fn render_into(value: &Value, text: &mut String, depth: usize) {
             if index > 0 {
                 text.push_str(", ");
             }
-            render_into(key, text, depth + 1);
+            render_into(key, text, depth + 1)?;
             text.push_str(" => ");
-            render_into(item, text, depth + 1);
+            render_into(item, text, depth + 1)?;
         }
         text.push('}');
+        Ok(())
     } else if kind == "int" {
-        let _ = write!(text, "int({value})");
+        write!(text, "int({value})")
     } else if let Some(float) = value.as_float().filter(|_| kind == "float") {
-        let _ = write!(text, "float({float:?}/{:x})", float.to_bits());
+        write!(text, "float({float:?}/{:x})", float.to_bits())
     } else if let Some(bytes) = value.as_bytes() {
-        let _ = write!(text, "{kind}({:?})", String::from_utf8_lossy(bytes));
+        write!(text, "{kind}({:?})", String::from_utf8_lossy(bytes))
     } else {
-        let _ = write!(text, "{kind}({value})");
+        write!(text, "{kind}({value})")
     }
 }
 
@@ -723,8 +734,8 @@ mod tests {
             });
             let compiled = Compiled {
                 script: engine.compile(main).unwrap(),
-                stdout: mpsc::channel().1,
-                stderr: mpsc::channel().1,
+                stdout: streams::open().1,
+                stderr: streams::open().1,
             };
             let mut host = Host::default();
             if main.starts_with("def") {

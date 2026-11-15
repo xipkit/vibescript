@@ -32,7 +32,8 @@ pub fn template() -> Value {
     });
     let ignore = HostMethod::new_with_block("blocks.ignore", |call, args, _| {
         if call.call_block(args).is_err() {
-            let _ = call.call_block(args);
+            // The probe stands for a host that ignores its block's failures.
+            drop(call.call_block(args));
         }
         Ok(Value::int(99))
     });
