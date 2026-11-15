@@ -696,7 +696,7 @@ mod asynchronous {
                 Box::pin(async move {
                     let _dropped = MarkDropped(on_drop);
                     let _result = call.call_block(vec![]).await;
-                    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+                    crate::asynchronous::pause(std::time::Duration::from_millis(20)).await;
                     on_complete.store(true, Ordering::Relaxed);
                     Ok(Value::int(99))
                 })

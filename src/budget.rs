@@ -893,8 +893,9 @@ mod accounting_tests {
             ..CallOptions::default()
         });
         let mut first = ctx.reserve(60).unwrap().unwrap();
-        let (sent, received) = mpsc::channel();
-        let (resume, resumed) = mpsc::channel();
+        // Each carries one message, so neither send waits for its receive.
+        let (sent, received) = mpsc::sync_channel(1);
+        let (resume, resumed) = mpsc::sync_channel(1);
         let worker = move || {
             first.release(20);
             sent.send(()).unwrap();
