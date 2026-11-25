@@ -1055,6 +1055,35 @@ fn an_abutting_index_continues_an_expression_spanning_lines() {
     }
 }
 
+/// A field's default follows its type with no line break between, as in
+/// the compiler, however many lines the declaration spans before it: a
+/// type broken after a comma or after the colon, or a name that takes the
+/// line break after a bare `@`, as the compiler's lexer reads one. The
+/// rules' parser looked for the default on the line the declaration
+/// starts, so it rejected these sources and they skipped every rule.
+#[test]
+fn a_fields_default_follows_its_type_across_lines() {
+    for source in [
+        "class C\n  @x: hash<string,\n    int> = {}\nend\nn = [1].size\n",
+        "class C\n  @x: [int,\n    int] = [1, 2]\nend\nn = [1].size\n",
+        "class C\n  @x: \n    int = 1\nend\nn = [1].size\n",
+        "class C\n  @\n: int = 1\nend\nn = [1].size\n",
+    ] {
+        assert_eq!(
+            with_code(source, Code::REMOVED_NAME).len(),
+            1,
+            "{source:?}: {:?}",
+            diagnostics(source)
+        );
+        crate::Engine::new().type_check(source).unwrap();
+    }
+    // The nightly fuzz run's input, minimized, whose unknown type the
+    // static checker reports after the rules have read it.
+    let source = "class s@\n: t=t\nend";
+    super::parse::parse(source).unwrap_or_else(|error| panic!("{source:?}: {error:?}"));
+    crate::Engine::new().type_check(source).unwrap();
+}
+
 /// A sort the pass makes is charged and the budget asked before it is
 /// made: one the budget has run out for leaves the list as it was.
 #[test]
