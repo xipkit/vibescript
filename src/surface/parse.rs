@@ -2777,12 +2777,11 @@ impl<'s> Parser<'s> {
                 let name = word.trim_start_matches('@').to_owned();
                 self.pos += 2;
                 let ty = self.type_expr(1, false)?;
-                let equals = self.significant(self.pos);
-                let default = if self.is_op(equals, "=")
-                    && self.tokens.at(equals)?.line
-                        == self.tokens.at(start_token(self, start))?.line
-                {
-                    self.pos = equals + 1;
+                // As in the compiler, a default follows the type with no
+                // line break between, though the type or even the name
+                // before it may span lines.
+                let default = if self.is_op(self.pos, "=") {
+                    self.pos += 1;
                     self.line_breaks();
                     Some(self.line_expr(0)?)
                 } else {
@@ -4578,11 +4577,6 @@ pub fn respelled_type(name: &str) -> bool {
             | "hash"
             | "object"
     )
-}
-
-/// The token that starts at `offset`.
-fn start_token(parser: &Parser<'_>, offset: usize) -> Tok {
-    parser.token_at(offset)
 }
 
 #[cfg(test)]
