@@ -9,12 +9,13 @@ run each coverage target for one minute and compare 1,000 checker seeds
 starting at zero.
 
 Nightly coverage corpora are cached across runs. Every checkout also seeds
-them with the repository's `.vibe` tests and a few small programs, so a cold
-cache still exercises valid syntax. Coverage targets accept UTF-8 source up
-to 16 KiB. The parser checks token and interpolation spans and exercises
-outlining and unreachable-code analysis; the compiler exercises both modes
-of retaining proven type checks, under step and memory quotas. Neither
-coverage target executes the source.
+them with the repository's `.vibe` tests, a few small programs and the
+minimized inputs of fixed findings in `fuzz/seeds`, so a cold cache still
+exercises valid syntax and the inputs that once failed. Coverage targets
+accept UTF-8 source up to 16 KiB. The parser checks token and interpolation
+spans and exercises outlining and unreachable-code analysis; the compiler
+exercises both modes of retaining proven type checks, under step and memory
+quotas. Neither coverage target executes the source.
 
 Every harness treats `ErrorKind::Internal` as a crash, preserving the panic
 signal for engine invariant failures. The checker reports these as `panic`
@@ -50,7 +51,8 @@ minimize an input with the same toolchain and feature flags:
 ./scripts/cargo fuzz tmin parser --debug-assertions path/to/crash-input
 ```
 
-A fixed finding should become a small regression test in the normal suite.
+A fixed finding should become a small regression test in the normal suite,
+and its minimized input a file in `fuzz/seeds`, named for what it exercises.
 
 ## Checker runs
 

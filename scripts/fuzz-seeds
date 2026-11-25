@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Seed the coverage-guided fuzzers with the repository's Vibescript programs."""
+"""Seed the coverage-guided fuzzers with the repository's Vibescript programs
+and the minimized inputs of fixed fuzz findings."""
 
 import hashlib
 from pathlib import Path
@@ -9,6 +10,7 @@ def main():
     root = Path(__file__).resolve().parent.parent
     programs = [b"", b"1\n", b"def identity(x: int) -> int\n  x\nend\n"]
     programs.extend(path.read_bytes() for path in sorted((root / "tests").rglob("*.vibe")))
+    programs.extend(path.read_bytes() for path in sorted((root / "fuzz/seeds").iterdir()))
     programs = {program for program in programs if len(program) <= 16_384}
     for target in ("parser", "compiler"):
         corpus = root / "fuzz/corpus" / target
